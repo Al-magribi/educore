@@ -143,7 +143,7 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
   return (
     <Form
       form={form}
-      layout="vertical"
+      layout='vertical'
       onFinish={onFinish}
       initialValues={{ is_active: true, is_shuffle: false }}
     >
@@ -155,7 +155,7 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
               ? "Pilih guru terlebih dahulu. Bank soal dan jadwal akan mengikuti guru tersebut."
               : "Guru otomatis terpilih sesuai akun Anda."
           }
-          type="info"
+          type='info'
           showIcon
           style={{ marginBottom: 16 }}
         />
@@ -163,16 +163,17 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
 
       {isAdmin && (
         <Form.Item
-          label="Guru"
-          name="teacher_id"
+          label='Guru'
+          name='teacher_id'
           rules={[{ required: true, message: "Admin wajib memilih guru" }]}
         >
           <Select
-            placeholder="Cari nama guru"
+            placeholder='Cari nama guru'
             loading={loadingTeachers}
             showSearch={{ optionFilterProp: ["label"] }}
             allowClear
             suffixIcon={<User size={14} />}
+            virtual={false}
           >
             {teachers?.map((t) => (
               <Select.Option key={t.id} value={t.id} label={t.full_name}>
@@ -184,8 +185,8 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
       )}
 
       <Form.Item
-        label="Bank Soal"
-        name="bank_id"
+        label='Bank Soal'
+        name='bank_id'
         rules={[{ required: true, message: "Pilih bank soal" }]}
       >
         <Select
@@ -193,14 +194,14 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
             resolvedTeacherId ? "Pilih bank soal" : "Pilih guru terlebih dahulu"
           }
           loading={loadingBanks}
-          showSearch
-          optionFilterProp="label"
+          showSearch={{ optionFilterProp: ["label"] }}
           disabled={!resolvedTeacherId}
           suffixIcon={<BookOpen size={14} />}
           options={(banks || []).map((bank) => ({
             label: `${bank.title} (${bank.subject_name || "Mapel Umum"})`,
             value: bank.id,
           }))}
+          virtual={false}
         />
       </Form.Item>
 
@@ -208,21 +209,21 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
         style={{ display: "grid", gridTemplateColumns: "1.4fr 0.6fr", gap: 12 }}
       >
         <Form.Item
-          label="Nama Jadwal Ujian"
-          name="name"
+          label='Nama Jadwal Ujian'
+          name='name'
           rules={[{ required: true, message: "Nama jadwal wajib diisi" }]}
         >
-          <Input placeholder="Contoh: PTS Matematika Kelas X" />
+          <Input placeholder='Contoh: PTS Matematika Kelas X' />
         </Form.Item>
         <Form.Item
-          label="Durasi (Menit)"
-          name="duration_minutes"
+          label='Durasi (Menit)'
+          name='duration_minutes'
           rules={[{ required: true, message: "Durasi wajib diisi" }]}
         >
           <InputNumber
             min={10}
             style={{ width: "100%" }}
-            placeholder="90"
+            placeholder='90'
             prefix={<Timer size={14} />}
           />
         </Form.Item>
@@ -230,15 +231,16 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Form.Item
-          label="Grade"
-          name="grade_id"
+          label='Grade'
+          name='grade_id'
           rules={[{ required: true, message: "Pilih grade" }]}
         >
           <Select
-            placeholder="Pilih grade"
+            placeholder='Pilih grade'
             loading={loadingGrades}
             showSearch
             onChange={() => form.setFieldValue("class_ids", [])}
+            virtual={false}
           >
             {grades?.map((grade) => (
               <Select.Option key={grade.id} value={grade.id}>
@@ -250,37 +252,37 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
 
         <Form.Item
           label={
-            <Space size={6} align="center">
+            <Space size={6} align='center'>
               <Users size={14} />
               <span>Kelas</span>
             </Space>
           }
-          name="class_ids"
+          name='class_ids'
           rules={[{ required: true, message: "Pilih minimal 1 kelas" }]}
         >
           <Select
-            mode="multiple"
+            mode='multiple'
             placeholder={gradeId ? "Pilih kelas" : "Pilih grade dahulu"}
             loading={loadingClasses}
             options={classOptions}
             disabled={!gradeId}
-            maxTagCount="responsive"
+            maxTagCount='responsive'
             allowClear
-            showSearch
-            optionFilterProp="label"
+            showSearch={{ optionFilterProp: ["label"] }}
+            virtual={false}
           />
         </Form.Item>
       </div>
 
       <Flex
-        justify="space-between"
-        align="center"
+        justify='space-between'
+        align='center'
         style={{ marginTop: -8, marginBottom: 12 }}
       >
-        <Button size="small" onClick={handleSelectAllClasses}>
+        <Button size='small' onClick={handleSelectAllClasses}>
           Pilih Semua Kelas
         </Button>
-        <Text type="secondary" style={{ fontSize: 12 }}>
+        <Text type='secondary' style={{ fontSize: 12 }}>
           Jika hanya pilih grade, semua kelas di grade tersebut otomatis
           dipilih.
         </Text>
@@ -288,17 +290,17 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
 
       <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
         <Form.Item
-          label="Status Aktif"
-          name="is_active"
-          valuePropName="checked"
+          label='Status Aktif'
+          name='is_active'
+          valuePropName='checked'
           style={{ marginBottom: 0 }}
         >
           <Switch />
         </Form.Item>
         <Form.Item
-          label="Acak Soal"
-          name="is_shuffle"
-          valuePropName="checked"
+          label='Acak Soal'
+          name='is_shuffle'
+          valuePropName='checked'
           style={{ marginBottom: 0 }}
         >
           <Switch />
@@ -318,7 +320,7 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
         <Button onClick={onClose} disabled={isLoading}>
           Batal
         </Button>
-        <Button type="primary" htmlType="submit" loading={isLoading}>
+        <Button type='primary' htmlType='submit' loading={isLoading}>
           {isEdit ? "Simpan Perubahan" : "Buat Jadwal"}
         </Button>
       </div>

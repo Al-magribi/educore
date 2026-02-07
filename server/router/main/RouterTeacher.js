@@ -17,6 +17,9 @@ router.get(
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     const search = req.query.search || "";
+    const homebase_id = req.user.homebase_id;
+
+    console.log(homebase_id);
 
     // Join u_users (akun), u_teachers (profil), a_homebase (satuan)
     const queryText = `
@@ -27,10 +30,10 @@ router.get(
       FROM u_users u
       JOIN u_teachers t ON u.id = t.user_id
       LEFT JOIN a_homebase h ON t.homebase_id = h.id
-      WHERE u.role = 'teacher'
-      AND (u.full_name ILIKE $1 OR t.nip ILIKE $1)
+      WHERE u.role = 'teacher' AND t.homebase_id = $1
+      AND (u.full_name ILIKE $1 OR t.nip ILIKE $2)
       ORDER BY u.created_at DESC
-      LIMIT $2 OFFSET $3
+      LIMIT $3 OFFSET $4
     `;
 
     const countQuery = `
@@ -45,7 +48,10 @@ router.get(
       limit,
       offset,
     ]);
-    const countResult = await db.query(countQuery, [`%${search}%`]);
+    const countResult = await db.query(countQuery, [
+      homebase_id,
+      `%${search}%`,
+    ]);
 
     const totalItems = parseInt(countResult.rows[0].count);
     const hasMore = offset + dataResult.rows.length < totalItems;

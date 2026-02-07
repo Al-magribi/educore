@@ -202,7 +202,7 @@ const UploadStudent = ({ open, onClose }) => {
       title: "Kelas (Excel)",
       dataIndex: "excelClassName",
       width: 150,
-      render: (text) => <Text type="secondary">{text || "-"}</Text>,
+      render: (text) => <Text type='secondary'>{text || "-"}</Text>,
     },
     {
       title: "Mapping Sistem",
@@ -212,13 +212,14 @@ const UploadStudent = ({ open, onClose }) => {
         <Select
           showSearch
           style={{ width: "100%" }}
-          placeholder="Pilih Kelas..."
+          placeholder='Pilih Kelas...'
           value={value}
           onChange={(val) => handleClassChange(val, record.key)}
           status={!value ? "error" : ""}
           filteredOption={(input, option) =>
             (option?.children ?? "").toLowerCase().includes(input.toLowerCase())
           }
+          virtual={false}
         >
           {classOptions.map((cls) => (
             <Option key={cls.id} value={cls.id}>
@@ -237,7 +238,7 @@ const UploadStudent = ({ open, onClose }) => {
         return record.selectedClassId ? (
           <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 18 }} />
         ) : (
-          <Tooltip title="Kelas tidak dikenali">
+          <Tooltip title='Kelas tidak dikenali'>
             <WarningOutlined style={{ color: "#f5222d", fontSize: 18 }} />
           </Tooltip>
         );
@@ -250,7 +251,7 @@ const UploadStudent = ({ open, onClose }) => {
       align: "center",
       render: (_, record) => (
         <Button
-          type="text"
+          type='text'
           danger
           icon={<DeleteOutlined />}
           onClick={() => handleDeleteRow(record.key)}
@@ -285,7 +286,7 @@ const UploadStudent = ({ open, onClose }) => {
           <Button onClick={onClose}>Batal</Button>
           <Button
             onClick={handleUploadSubmit}
-            type="primary"
+            type='primary'
             loading={isUploading}
             disabled={validCount === 0 || !selectedPeriodeId}
           >
@@ -297,7 +298,7 @@ const UploadStudent = ({ open, onClose }) => {
       {/* SECTION 1: INSTRUKSI & PERIODE (Fixed at Top) */}
       <div style={{ flexShrink: 0, marginBottom: 16 }}>
         <Collapse
-          size="small"
+          size='small'
           items={[
             {
               key: "1",
@@ -310,7 +311,7 @@ const UploadStudent = ({ open, onClose }) => {
               children: (
                 <div>
                   <Alert
-                    title="Aturan Pengisian Data"
+                    title='Aturan Pengisian Data'
                     description={
                       <ul style={{ paddingLeft: 20, margin: 0 }}>
                         <li>
@@ -330,14 +331,14 @@ const UploadStudent = ({ open, onClose }) => {
                         </li>
                       </ul>
                     }
-                    type="info"
+                    type='info'
                     showIcon
                     style={{ marginBottom: 12 }}
                   />
                   <Button
                     icon={<DownloadOutlined />}
                     onClick={downloadTemplate}
-                    size="small"
+                    size='small'
                   >
                     Download Template Kosong
                   </Button>
@@ -349,15 +350,17 @@ const UploadStudent = ({ open, onClose }) => {
 
         <Divider style={{ margin: "12px 0" }} />
 
-        <Row gutter={16} align="middle">
+        <Row gutter={16} align='middle'>
           <Col span={12}>
             <Text strong>Pilih Periode Masuk / Tahun Ajaran:</Text>
             <Select
               style={{ width: "100%", marginTop: 4 }}
-              placeholder="Pilih Periode (Wajib)"
+              placeholder='Pilih Periode (Wajib)'
               onChange={setSelectedPeriodeId}
               value={selectedPeriodeId}
               options={refPeriode?.map((p) => ({ label: p.name, value: p.id }))}
+              allowClear
+              virtual={false}
             />
           </Col>
           <Col span={12}>
@@ -365,17 +368,17 @@ const UploadStudent = ({ open, onClose }) => {
             {tableData.length > 0 && (
               <Space separator={<Divider vertical />}>
                 <Statistic
-                  title="Data"
+                  title='Data'
                   value={totalData}
                   styles={{ content: { fontSize: 16 } }}
                 />
                 <Statistic
-                  title="Valid"
+                  title='Valid'
                   value={validCount}
                   styles={{ content: { fontSize: 16, color: "#3f8600" } }}
                 />
                 <Statistic
-                  title="Error"
+                  title='Error'
                   value={errorCount}
                   styles={{ content: { fontSize: 16, color: "#cf1322" } }}
                 />
@@ -396,7 +399,7 @@ const UploadStudent = ({ open, onClose }) => {
           }}
         >
           <Dragger
-            accept=".xlsx, .xls"
+            accept='.xlsx, .xls'
             beforeUpload={handleFile}
             fileList={fileList}
             showUploadList={false}
@@ -406,11 +409,11 @@ const UploadStudent = ({ open, onClose }) => {
               background: "#fafafa",
             }}
           >
-            <p className="ant-upload-drag-icon">
+            <p className='ant-upload-drag-icon'>
               <InboxOutlined style={{ color: "#1677ff", fontSize: 48 }} />
             </p>
             <Title level={4}>Klik atau tarik file Excel ke sini</Title>
-            <Text type="secondary">Format .xlsx atau .xls</Text>
+            <Text type='secondary'>Format .xlsx atau .xls</Text>
           </Dragger>
         </div>
       )}
@@ -428,7 +431,7 @@ const UploadStudent = ({ open, onClose }) => {
           {errorCount > 0 && (
             <Alert
               title={`Terdapat ${errorCount} data dengan kelas yang tidak dikenali.`}
-              type="warning"
+              type='warning'
               banner
               style={{ marginBottom: 8 }}
             />
@@ -437,9 +440,9 @@ const UploadStudent = ({ open, onClose }) => {
           <Table
             dataSource={tableData}
             columns={columns}
-            rowKey="key"
+            rowKey='key'
             pagination={false}
-            size="small"
+            size='small'
             bordered
             // TWEAK UI 2: Kalkulasi tinggi agar header tetap sticky dan body bisa discroll
             scroll={{ y: "calc(100vh - 290px)" }}

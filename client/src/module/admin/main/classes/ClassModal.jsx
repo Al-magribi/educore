@@ -59,40 +59,42 @@ const ClassModal = ({ open, mode, initialData, onCancel, onSuccess }) => {
       onCancel={onCancel}
       onOk={handleSubmit}
       confirmLoading={isLoading}
-      okText="Simpan"
-      cancelText="Batal"
+      okText='Simpan'
+      cancelText='Batal'
     >
-      <Form form={form} layout="vertical">
+      <Form form={form} layout='vertical'>
         {/* Field ID tersembunyi untuk mode edit */}
-        <Form.Item name="id" hidden>
+        <Form.Item name='id' hidden>
           <Input />
         </Form.Item>
 
         <Form.Item
-          name="name"
-          label="Nama Kelas"
+          name='name'
+          label='Nama Kelas'
           rules={[{ required: true, message: "Nama kelas wajib diisi" }]}
         >
-          <Input placeholder="Contoh: X MIPA 1" />
+          <Input placeholder='Contoh: X MIPA 1' />
         </Form.Item>
 
         <Form.Item
-          name="gradeId"
-          label="Tingkat (Grade)"
+          name='gradeId'
+          label='Tingkat (Grade)'
           rules={[{ required: true, message: "Pilih tingkat kelas" }]}
         >
           <Select
-            placeholder="Pilih Tingkat"
+            placeholder='Pilih Tingkat'
             options={gradeOptions}
             allowClear
+            virtual={false}
           />
         </Form.Item>
 
-        <Form.Item name="majorId" label="Jurusan (Opsional)">
+        <Form.Item name='majorId' label='Jurusan (Opsional)'>
           <Select
-            placeholder="Pilih Jurusan"
+            placeholder='Pilih Jurusan'
             options={majorOptions}
             allowClear
+            virtual={false}
           />
         </Form.Item>
       </Form>

@@ -12,10 +12,11 @@ router.get(
   withQuery(async (req, res, pool) => {
     const { page = 1, limit = 10, search = "" } = req.query;
     const offset = (page - 1) * limit;
+    const homebaseId = req.user.homebase_id;
 
-    let whereClause = `u.role = 'teacher' AND u.is_active = true`;
-    const params = [];
-    let paramIndex = 1;
+    let whereClause = `u.role = 'teacher' AND u.is_active = true AND t.homebase_id = $1`;
+    const params = [homebaseId];
+    let paramIndex = 2;
 
     if (search) {
       whereClause += ` AND (u.full_name ILIKE $${paramIndex} OR t.nip ILIKE $${paramIndex})`;
@@ -48,7 +49,7 @@ router.get(
 
       FROM u_users u
       JOIN u_teachers t ON u.id = t.user_id
-      WHERE ${whereClause}
+      WHERE ${whereClause} 
       ORDER BY u.full_name ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
