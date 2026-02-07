@@ -1,0 +1,73 @@
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+}
+
+/* React Quill */
+.react-quill {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.react-quill .ql-container {
+  flex: 1 !important;
+  min-height: 200px;
+  font-size: 14px;
+  position: relative !important;
+}
+
+.ql-container {
+  border: none !important;
+}
+
+.ql-toolbar {
+  border: none !important;
+}
+
+.ql-editor {
+  border: none !important;
+  z-index: 200 !important;
+}
+
+.ql-toolbar .ql-audio::before {
+  content: "🎵";
+  font-size: 12px;
+}
+
+.border {
+  border: #e6e9ec 1px solid;
+  border-radius: 5px;
+}
+
+.border-editor {
+  border: #e6e9ec 1px solid;
+  border-radius: 5px;
+  /* overflow: hidden; <-- HAPUS INI agar tooltip bisa keluar dari batas box */
+  position: relative;
+  background-color: white;
+}
+
+/* PERBAIKAN TOOLTIP FORMULA */
+.ql-snow .ql-tooltip {
+  z-index: 9999 !important; /* Sangat tinggi agar di depan */
+  position: absolute !important;
+  transform: translateY(10px); /* Geser sedikit ke bawah toolbar */
+  background-color: white !important;
+  border: 1px solid #ccc !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  left: 50% !important; /* Tengahkan terhadap editor */
+  margin-left: -150px !important; /* Sesuaikan dengan lebar tooltip */
+}
+
+/* Pastikan input di dalam tooltip terlihat jelas */
+.ql-snow .ql-tooltip input[type="text"] {
+  width: 200px !important;
+  padding: 5px !important;
+  border: 1px solid #d9d9d9 !important;
+  color: #333 !important;
+}
