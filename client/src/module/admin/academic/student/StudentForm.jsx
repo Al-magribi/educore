@@ -78,7 +78,7 @@ const StudentFormDrawer = ({
         <Space>
           <Button onClick={onClose}>Batal</Button>
           <Button
-            type="primary"
+            type='primary'
             onClick={() => form.submit()}
             loading={isLoading}
           >
@@ -87,11 +87,11 @@ const StudentFormDrawer = ({
         </Space>
       }
     >
-      <Form form={form} layout="vertical" onFinish={onSubmit}>
+      <Form form={form} layout='vertical' onFinish={onSubmit}>
         {/* SECTION 1: AKUN */}
         <div style={{ marginBottom: 24 }}>
           <Text
-            type="secondary"
+            type='secondary'
             style={{
               fontSize: 12,
               textTransform: "uppercase",
@@ -102,40 +102,40 @@ const StudentFormDrawer = ({
             Akun & Login
           </Text>
           <Form.Item
-            name="full_name"
-            label="Nama Lengkap"
+            name='full_name'
+            label='Nama Lengkap'
             rules={[{ required: true, message: "Nama wajib diisi" }]}
           >
             <Input
               prefix={<User size={16} color={token.colorTextPlaceholder} />}
-              placeholder="Nama Siswa"
+              placeholder='Nama Siswa'
             />
           </Form.Item>
 
           {!initialValues && (
             <>
               <Form.Item
-                name="username"
-                label="Username"
+                name='username'
+                label='Username'
                 rules={[{ required: true, message: "Username wajib diisi" }]}
               >
-                <Input placeholder="Username Login" />
+                <Input placeholder='Username Login' />
               </Form.Item>
               <Form.Item
-                name="password"
-                label="Password"
+                name='password'
+                label='Password'
                 rules={[{ required: true, message: "Password wajib diisi" }]}
               >
-                <Input.Password placeholder="Password Akun" />
+                <Input.Password placeholder='Password Akun' />
               </Form.Item>
             </>
           )}
 
           {initialValues && (
             <Form.Item
-              name="is_active"
-              label="Status Akun"
-              valuePropName="checked"
+              name='is_active'
+              label='Status Akun'
+              valuePropName='checked'
             >
               <Select>
                 <Option value={true}>Aktif</Option>
@@ -150,7 +150,7 @@ const StudentFormDrawer = ({
           style={{ borderTop: `1px solid ${token.colorSplit}`, paddingTop: 24 }}
         >
           <Text
-            type="secondary"
+            type='secondary'
             style={{
               fontSize: 12,
               textTransform: "uppercase",
@@ -163,30 +163,30 @@ const StudentFormDrawer = ({
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="nis" label="NIS" rules={[{ required: true }]}>
+              <Form.Item name='nis' label='NIS' rules={[{ required: true }]}>
                 <Input
                   prefix={
                     <School size={16} color={token.colorTextPlaceholder} />
                   }
-                  placeholder="Nomor Induk"
+                  placeholder='Nomor Induk'
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="nisn" label="NISN">
-                <Input placeholder="NIS Nasional" />
+              <Form.Item name='nisn' label='NISN'>
+                <Input placeholder='NIS Nasional' />
               </Form.Item>
             </Col>
           </Row>
 
           <Form.Item
-            name="gender"
-            label="Jenis Kelamin"
+            name='gender'
+            label='Jenis Kelamin'
             rules={[{ required: true, message: "Pilih jenis kelamin" }]}
           >
-            <Select placeholder="Pilih Gender">
-              <Option value="L">Laki-laki</Option>
-              <Option value="P">Perempuan</Option>
+            <Select placeholder='Pilih Gender'>
+              <Option value='L'>Laki-laki</Option>
+              <Option value='P'>Perempuan</Option>
             </Select>
           </Form.Item>
 
@@ -194,14 +194,16 @@ const StudentFormDrawer = ({
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="grade_id"
-                label="Tingkat"
+                name='grade_id'
+                label='Tingkat'
                 rules={[{ required: true, message: "Pilih tingkat" }]}
               >
                 <Select
-                  placeholder="Pilih Tingkat"
+                  placeholder='Pilih Tingkat'
                   onChange={handleGradeChange}
                   loading={loadingGrades}
+                  allowClear
+                  virtual={false}
                 >
                   {grades?.map((g) => (
                     <Option key={g.id} value={g.id}>
@@ -213,14 +215,16 @@ const StudentFormDrawer = ({
             </Col>
             <Col span={12}>
               <Form.Item
-                name="class_id"
-                label="Kelas"
+                name='class_id'
+                label='Kelas'
                 rules={[{ required: true, message: "Pilih kelas" }]}
               >
                 <Select
-                  placeholder="Pilih Kelas"
+                  placeholder='Pilih Kelas'
                   disabled={!selectedGradeId}
                   loading={loadingClasses}
+                  allowClear
+                  virtual={false}
                 >
                   {classes?.map((c) => (
                     <Option key={c.id} value={c.id}>

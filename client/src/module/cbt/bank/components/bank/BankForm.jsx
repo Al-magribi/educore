@@ -75,7 +75,7 @@ const BankForm = ({ initialValues, onClose, onSuccess }) => {
   return (
     <Form
       form={form}
-      layout="vertical"
+      layout='vertical'
       onFinish={onFinish}
       initialValues={{ type: "UH" }}
     >
@@ -88,30 +88,32 @@ const BankForm = ({ initialValues, onClose, onSuccess }) => {
               ? "Anda membuat soal untuk guru lain. Silakan pilih guru pemilik soal."
               : "Bank soal ini akan otomatis terdaftar atas nama Anda."
           }
-          type="info"
+          type='info'
           showIcon
           style={{ marginBottom: 24 }}
         />
       )}
 
       <Form.Item
-        label="Judul Bank Soal"
-        name="title"
+        label='Judul Bank Soal'
+        name='title'
         rules={[{ required: true, message: "Judul wajib diisi" }]}
       >
-        <Input placeholder="Contoh: Ulangan Harian Biologi Bab 1" />
+        <Input placeholder='Contoh: Ulangan Harian Biologi Bab 1' />
       </Form.Item>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Form.Item
-          label="Mata Pelajaran"
-          name="subject_id"
+          label='Mata Pelajaran'
+          name='subject_id'
           rules={[{ required: true, message: "Pilih mata pelajaran" }]}
         >
           <Select
-            placeholder="Pilih Mapel"
+            placeholder='Pilih Mapel'
             loading={loadingSubjects}
             showSearch
+            virtual={false}
+            allowClear
           >
             {visibleSubjects?.map((subj) => {
               const subjectId = subj?.id ?? subj?.subject_id;
@@ -125,15 +127,15 @@ const BankForm = ({ initialValues, onClose, onSuccess }) => {
         </Form.Item>
 
         <Form.Item
-          label="Tipe Ujian"
-          name="type"
+          label='Tipe Ujian'
+          name='type'
           rules={[{ required: true, message: "Pilih tipe ujian" }]}
         >
-          <Select placeholder="Pilih tipe ujian">
-            <Select.Option value="UH">Ulangan Harian</Select.Option>
-            <Select.Option value="TS">Tegah Semester</Select.Option>
-            <Select.Option value="AS">Akhir Semester</Select.Option>
-            <Select.Option value="UAS">Ujian Akhir Sekolah</Select.Option>
+          <Select placeholder='Pilih tipe ujian'>
+            <Select.Option value='UH'>Ulangan Harian</Select.Option>
+            <Select.Option value='TS'>Tegah Semester</Select.Option>
+            <Select.Option value='AS'>Akhir Semester</Select.Option>
+            <Select.Option value='UAS'>Ujian Akhir Sekolah</Select.Option>
           </Select>
         </Form.Item>
       </div>
@@ -141,16 +143,17 @@ const BankForm = ({ initialValues, onClose, onSuccess }) => {
       {/* 3. Field Pilih Guru (Khusus Admin) */}
       {isAdmin && (
         <Form.Item
-          label="Guru Pemilik Soal"
-          name="teacher_id"
+          label='Guru Pemilik Soal'
+          name='teacher_id'
           rules={[{ required: true, message: "Admin wajib memilih guru" }]}
           style={{ background: "#f5f5f5", padding: 12, borderRadius: 8 }}
         >
           <Select
-            placeholder="Cari nama guru..."
+            placeholder='Cari nama guru...'
             loading={loadingTeachers}
             showSearch
             suffixIcon={<User size={14} />}
+            virtual={false}
             allowClear
           >
             {teachers?.map((t) => (
@@ -175,7 +178,7 @@ const BankForm = ({ initialValues, onClose, onSuccess }) => {
         <Button onClick={onClose} disabled={isLoading}>
           Batal
         </Button>
-        <Button type="primary" htmlType="submit" loading={isLoading}>
+        <Button type='primary' htmlType='submit' loading={isLoading}>
           {isEdit ? "Simpan Perubahan" : "Buat Bank Soal"}
         </Button>
       </div>

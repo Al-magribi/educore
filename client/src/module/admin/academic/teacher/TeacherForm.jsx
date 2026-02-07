@@ -69,12 +69,12 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
     >
       <Form
         form={form}
-        layout="vertical"
+        layout='vertical'
         onFinish={onSubmit}
         initialValues={{ allocations: [] }}
       >
         {/* --- SECTION 1: DATA PRIBADI --- */}
-        <Divider titlePlacement="left">
+        <Divider titlePlacement='left'>
           <Space>
             <User size={16} /> Data Pribadi
           </Space>
@@ -82,53 +82,53 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item
-              name="full_name"
-              label="Nama Lengkap"
+              name='full_name'
+              label='Nama Lengkap'
               rules={[{ required: true }]}
             >
-              <Input placeholder="Nama lengkap dengan gelar" />
+              <Input placeholder='Nama lengkap dengan gelar' />
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item
-              name="username"
-              label="Username (Login)"
+              name='username'
+              label='Username (Login)'
               rules={[{ required: true }]}
             >
-              <Input placeholder="Username unik" />
+              <Input placeholder='Username unik' />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="nip" label="NIP / NIY">
-              <Input placeholder="Nomor Induk Pegawai" />
+            <Form.Item name='nip' label='NIP / NIY'>
+              <Input placeholder='Nomor Induk Pegawai' />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="phone" label="No. Telepon">
-              <Input placeholder="08..." />
+            <Form.Item name='phone' label='No. Telepon'>
+              <Input placeholder='08...' />
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Form.Item name="email" label="Email">
-              <Input placeholder="email@sekolah.sch.id" />
+            <Form.Item name='email' label='Email'>
+              <Input placeholder='email@sekolah.sch.id' />
             </Form.Item>
           </Col>
         </Row>
 
         {/* --- SECTION 2: TUGAS TAMBAHAN --- */}
-        <Divider titlePlacement="left">
+        <Divider titlePlacement='left'>
           <Space>
             <Briefcase size={16} /> Tugas Tambahan
           </Space>
         </Divider>
         <Form.Item
-          name="homeroom_class_id"
-          label="Wali Kelas (Opsional)"
-          help="Pilih kelas jika guru ini adalah wali kelas"
+          name='homeroom_class_id'
+          label='Wali Kelas (Opsional)'
+          help='Pilih kelas jika guru ini adalah wali kelas'
         >
           <Select
             allowClear
-            placeholder="Pilih Kelas"
+            placeholder='Pilih Kelas'
             options={classesData?.map((c) => ({
               label: c.name,
               value: c.id,
@@ -137,13 +137,13 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
         </Form.Item>
 
         {/* --- SECTION 3: ALOKASI MENGAJAR (MULTI-SELECT) --- */}
-        <Divider titlePlacement="left">
+        <Divider titlePlacement='left'>
           <Space>
             <BookOpen size={16} /> Mata Pelajaran yang Diampu
           </Space>
         </Divider>
 
-        <Form.List name="allocations">
+        <Form.List name='allocations'>
           {(fields, { add, remove }) => (
             <div
               style={{ display: "flex", flexDirection: "column", rowGap: 16 }}
@@ -151,32 +151,29 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
               {fields.map(({ key, name, ...restField }) => (
                 <Card
                   key={key}
-                  size="small"
-                  type="inner"
+                  size='small'
+                  type='inner'
                   styles={{ body: { padding: "12px", background: "#f9f9f9" } }}
                 >
-                  <Row gutter={12} align="top">
+                  <Row gutter={12} align='top'>
                     {" "}
                     {/* Align top agar rapi jika select membesar */}
                     <Col span={8}>
                       <Form.Item
                         {...restField}
                         name={[name, "subject_id"]}
-                        label="Mata Pelajaran"
+                        label='Mata Pelajaran'
                         rules={[{ required: true, message: "Wajib pilih" }]}
                       >
                         <Select
-                          placeholder="Pilih Mapel"
-                          showSearch
-                          filterOption={(input, option) =>
-                            (option?.label ?? "")
-                              .toLowerCase()
-                              .includes(input.toLowerCase())
-                          }
+                          placeholder='Pilih Mapel'
+                          showSearch={{ optionFilterProp: ["label"] }}
                           options={subjectsData?.map((s) => ({
                             label: s.name,
                             value: s.id,
                           }))}
+                          allowClear
+                          virtual={false}
                         />
                       </Form.Item>
                     </Col>
@@ -185,16 +182,17 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
                       <Form.Item
                         {...restField}
                         name={[name, "class_ids"]} // Perhatikan nama field jamak
-                        label="Daftar Kelas Ajar"
+                        label='Daftar Kelas Ajar'
                         rules={[
                           { required: true, message: "Pilih minimal 1 kelas" },
                         ]}
                       >
                         <Select
-                          mode="multiple" // Fitur Kunci: Multi Select
-                          placeholder="Pilih Kelas (Bisa banyak)"
+                          mode='multiple' // Fitur Kunci: Multi Select
+                          placeholder='Pilih Kelas (Bisa banyak)'
                           allowClear
-                          maxTagCount="responsive" // Agar tidak merusak layout jika banyak
+                          virtual={false}
+                          maxTagCount='responsive' // Agar tidak merusak layout jika banyak
                           options={classesData?.map((c) => ({
                             label: c.name,
                             value: c.id,
@@ -207,7 +205,7 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
                       style={{ textAlign: "right", paddingTop: "30px" }}
                     >
                       <Button
-                        type="text"
+                        type='text'
                         danger
                         icon={<Trash2 size={18} />}
                         onClick={() => remove(name)}
@@ -218,7 +216,7 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
               ))}
 
               <Button
-                type="dashed"
+                type='dashed'
                 onClick={() => add()}
                 block
                 icon={<Plus size={16} />}
@@ -230,7 +228,7 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
         </Form.List>
 
         {!initialValues && (
-          <Form.Item name="password" hidden initialValue="123456">
+          <Form.Item name='password' hidden initialValue='123456'>
             <Input />
           </Form.Item>
         )}

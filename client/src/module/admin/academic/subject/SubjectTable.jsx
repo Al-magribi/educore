@@ -214,18 +214,18 @@ const SubjectTable = () => {
     <div style={styles.container}>
       {/* --- HEADER --- */}
       <div style={styles.header}>
-        <Flex justify="space-between" align="center" gap={16} wrap="wrap">
+        <Flex justify='space-between' align='center' gap={16} wrap='wrap'>
           <Space wrap size={12} style={{ flex: 1 }}>
             <Input
               prefix={<Search size={16} style={{ color: "#bfbfbf" }} />}
-              placeholder="Cari mata pelajaran..."
+              placeholder='Cari mata pelajaran...'
               style={{ width: 250, borderRadius: 8 }}
               allowClear
               onChange={(e) => setSearchText(e.target.value)}
             />
 
             <Select
-              placeholder="Filter Kategori"
+              placeholder='Filter Kategori'
               allowClear
               style={{ width: 180 }}
               value={filterCategory}
@@ -238,10 +238,11 @@ const SubjectTable = () => {
                 value: c.id,
               }))}
               suffixIcon={<Layers size={14} style={{ color: "#bfbfbf" }} />}
+              virtual={false}
             />
 
             <Select
-              placeholder="Filter Cabang"
+              placeholder='Filter Cabang'
               allowClear
               style={{ width: 180 }}
               value={filterBranch}
@@ -252,11 +253,12 @@ const SubjectTable = () => {
               }))}
               disabled={!filterCategory && !filterBranch}
               suffixIcon={<GitBranch size={14} style={{ color: "#bfbfbf" }} />}
+              virtual={false}
             />
           </Space>
 
           <Button
-            type="primary"
+            type='primary'
             icon={<Plus size={18} />}
             onClick={() => setIsModalOpen(true)}
             style={{ borderRadius: 8 }}
@@ -272,7 +274,7 @@ const SubjectTable = () => {
         loading={isFetching} // Gunakan isFetching untuk loading indikator saat load more
         hasMore={allSubjects.length < (subjectsData?.total || 0)}
         onLoadMore={handleLoadMore}
-        height="70vh"
+        height='70vh'
         grid={{ gutter: [24, 24], xs: 24, sm: 12, md: 12, lg: 8, xl: 6 }}
         renderItem={(item) => (
           <Badge.Ribbon
@@ -284,7 +286,7 @@ const SubjectTable = () => {
               hoverable
               styles={{ body: { padding: "20px 24px" } }}
               actions={[
-                <Tooltip title="Edit">
+                <Tooltip title='Edit'>
                   <Edit2
                     size={18}
                     style={{ color: "#faad14", cursor: "pointer" }}
@@ -292,13 +294,13 @@ const SubjectTable = () => {
                   />
                 </Tooltip>,
                 <Popconfirm
-                  title="Hapus Mapel?"
+                  title='Hapus Mapel?'
                   onConfirm={() => handleDelete(item.id)}
-                  okText="Hapus"
-                  cancelText="Batal"
+                  okText='Hapus'
+                  cancelText='Batal'
                   okButtonProps={{ danger: true }}
                 >
-                  <Tooltip title="Hapus">
+                  <Tooltip title='Hapus'>
                     <Trash2
                       size={18}
                       style={{ color: "#ff4d4f", cursor: "pointer" }}
@@ -307,10 +309,10 @@ const SubjectTable = () => {
                 </Popconfirm>,
               ]}
             >
-              <Flex vertical align="flex-start">
+              <Flex vertical align='flex-start'>
                 {/* Header */}
                 <Flex
-                  align="center"
+                  align='center'
                   style={{ width: "100%", marginBottom: 12 }}
                 >
                   <div style={styles.iconBox}>
@@ -336,7 +338,7 @@ const SubjectTable = () => {
 
                 {/* Subtitle */}
                 <Text
-                  type="secondary"
+                  type='secondary'
                   style={{ fontSize: 13, marginBottom: 8 }}
                 >
                   Cabang: {item.branch_name || "-"}
@@ -355,7 +357,7 @@ const SubjectTable = () => {
       {/* --- MODAL FORM --- */}
       <Modal
         title={
-          <Flex align="center" gap={8}>
+          <Flex align='center' gap={8}>
             {editingItem ? <Edit2 size={20} /> : <Plus size={20} />}
             <span>
               {editingItem ? "Edit Mata Pelajaran" : "Buat Mata Pelajaran Baru"}
@@ -372,18 +374,18 @@ const SubjectTable = () => {
         <Form
           form={form}
           onFinish={handleSubmit}
-          layout="vertical"
+          layout='vertical'
           initialValues={{ kkm: 75 }}
           style={{ marginTop: 24 }}
         >
           <Form.Item
-            name="name"
-            label="Nama Mata Pelajaran"
+            name='name'
+            label='Nama Mata Pelajaran'
             rules={[{ required: true, message: "Nama wajib diisi" }]}
           >
             <Input
-              placeholder="Contoh: Kitab Safinah"
-              size="large"
+              placeholder='Contoh: Kitab Safinah'
+              size='large'
               prefix={
                 <BookOpen
                   size={16}
@@ -405,13 +407,13 @@ const SubjectTable = () => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
-                  name="category_id"
-                  label="Kategori"
+                  name='category_id'
+                  label='Kategori'
                   rules={[{ required: true, message: "Pilih kategori" }]}
                   style={{ marginBottom: 0 }}
                 >
                   <Select
-                    placeholder="Pilih Kategori"
+                    placeholder='Pilih Kategori'
                     options={categoriesData?.data?.map((c) => ({
                       label: c.name,
                       value: c.id,
@@ -425,8 +427,8 @@ const SubjectTable = () => {
               </Col>
               <Col span={12}>
                 <Form.Item
-                  name="branch_id"
-                  label="Cabang (Opsional)"
+                  name='branch_id'
+                  label='Cabang (Opsional)'
                   style={{ marginBottom: 0 }}
                 >
                   <Select
@@ -449,9 +451,9 @@ const SubjectTable = () => {
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="code" label="Kode Mapel">
+              <Form.Item name='code' label='Kode Mapel'>
                 <Input
-                  placeholder="Contoh: MP-01"
+                  placeholder='Contoh: MP-01'
                   prefix={
                     <Hash
                       size={16}
@@ -463,8 +465,8 @@ const SubjectTable = () => {
             </Col>
             <Col span={12}>
               <Form.Item
-                name="kkm"
-                label="Nilai KKM"
+                name='kkm'
+                label='Nilai KKM'
                 rules={[{ required: true }]}
               >
                 <InputNumber min={0} max={100} style={{ width: "100%" }} />
