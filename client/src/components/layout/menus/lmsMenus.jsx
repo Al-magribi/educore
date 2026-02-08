@@ -1,8 +1,16 @@
+import { BranchesOutlined } from "@ant-design/icons";
+
+const lmsMenuNode = {
+  label: "LMS",
+  key: "/manajemen-lms",
+  icon: <BranchesOutlined />,
+};
+
 const buildLmsMenus = () => ({
   center: [],
-  admin: [],
-  teacher: [],
-  student: [],
+  admin: [lmsMenuNode],
+  teacher: [lmsMenuNode],
+  student: [lmsMenuNode],
   parent: [],
   tahfiz: [],
 });

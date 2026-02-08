@@ -32,30 +32,30 @@ const NotFoundRedirect = () => {
   }
 
   if (!user) {
-    return <Navigate to='/' replace />;
+    return <Navigate to="/" replace />;
   }
 
   switch (user.role) {
     case "student":
-      return <Navigate to='/siswa-dashboard' replace />;
+      return <Navigate to="/siswa-dashboard" replace />;
     case "teacher":
-      return <Navigate to='/guru-dashboard' replace />;
+      return <Navigate to="/guru-dashboard" replace />;
     case "parent":
-      return <Navigate to='/orangtua-dashboard' replace />;
+      return <Navigate to="/orangtua-dashboard" replace />;
     case "admin":
     case "center":
       if (user.level === "pusat") {
-        return <Navigate to='/center-dashboard' replace />;
+        return <Navigate to="/center-dashboard" replace />;
       }
       if (user.level === "tahfiz") {
         if (!isTahfizEnabled) {
-          return <Navigate to='/admin-dashboard' replace />;
+          return <Navigate to="/admin-dashboard" replace />;
         }
-        return <Navigate to='/tahfiz-dashboard' replace />;
+        return <Navigate to="/tahfiz-dashboard" replace />;
       }
-      return <Navigate to='/admin-dashboard' replace />;
+      return <Navigate to="/admin-dashboard" replace />;
     default:
-      return <Navigate to='/' replace />;
+      return <Navigate to="/" replace />;
   }
 };
 
@@ -106,8 +106,7 @@ const App = () => {
 
             {isLmsEnabled &&
               renderLmsRoutes({
-                LazyPage,
-                NotFoundRedirect,
+                LazyRoute,
               })}
 
             {isDbEnabled &&
@@ -131,7 +130,7 @@ const App = () => {
             LazyRoute,
           })}
 
-        <Route path='*' element={<NotFoundRedirect />} />
+        <Route path="*" element={<NotFoundRedirect />} />
       </Routes>
     </BrowserRouter>
   );
