@@ -31,6 +31,9 @@ import { ApiBank } from "./cbt/ApiBank";
 import { ApiQuestion } from "./cbt/ApiQuestion";
 import { ApiExam } from "./cbt/ApiExam";
 
+// LMS
+import { ApiLms } from "./lms/ApiLms";
+
 export const store = configureStore({
   reducer: {
     // PUBLIC
@@ -66,6 +69,9 @@ export const store = configureStore({
     [ApiBank.reducerPath]: ApiBank.reducer,
     [ApiQuestion.reducerPath]: ApiQuestion.reducer,
     [ApiExam.reducerPath]: ApiExam.reducer,
+
+    // LMS
+    [ApiLms.reducerPath]: ApiLms.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -99,6 +105,9 @@ export const store = configureStore({
       ApiBank.middleware,
       ApiQuestion.middleware,
       ApiExam.middleware,
+
+      // LMS
+      ApiLms.middleware,
     ]),
   devTools: import.meta.env.DEV,
 });

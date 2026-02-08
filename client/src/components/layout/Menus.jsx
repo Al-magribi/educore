@@ -76,11 +76,11 @@ export const TeacherMenus = [
     key: "/guru-dashboard",
     icon: <WindowsOutlined />,
   },
-  // {
-  //   label: "LMS",
-  //   key: "/learning-management-system",
-  //   icon: <BranchesOutlined />,
-  // },
+  {
+    label: "LMS",
+    key: "/manajemen-lms",
+    icon: <BranchesOutlined />,
+  },
   {
     label: "CBT",
     key: "/computer-based-test",

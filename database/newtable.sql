@@ -401,8 +401,17 @@ CREATE TABLE l_chapter (
     subject_id integer REFERENCES a_subject(id),
     title text NOT NULL,
     description text,
-    order_number integer
+    order_number integer,
+    grade_id integer REFERENCES a_grade(id),
+    class_id integer REFERENCES a_class(id)
 );
+
+ALTER TABLE l_chapter
+ADD COLUMN grade_id integer REFERENCES a_grade(id);
+
+ALTER TABLE l_chapter
+ADD COLUMN class_id integer REFERENCES a_class(id);
+
 
 CREATE TABLE l_content (
     id SERIAL PRIMARY KEY,
@@ -411,8 +420,14 @@ CREATE TABLE l_content (
     body text,
     video_url text,
     attachment_url text, -- Menggantikan l_file, simpan path disini
+    order_number integer,
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
+
+
+ALTER TABLE l_content
+ADD COLUMN order_number integer;
+
 
 CREATE TABLE l_attendance (
     id SERIAL PRIMARY KEY,

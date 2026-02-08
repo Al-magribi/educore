@@ -21,6 +21,9 @@ import RouterAcademic from "./router/academic/index.js";
 // CBT
 import RouterCbt from "./router/cbt/index.js";
 
+// LMS
+import RouterLms from "./router/lms/index.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -53,6 +56,11 @@ app.use("/api/academic", RouterAcademic);
 
 // CBT
 app.use("/api/cbt", RouterCbt);
+
+// LMS
+app.use("/api/lms", RouterLms);
+
+// Migration
 
 app.use("/api", RouterMigrasi);
 
