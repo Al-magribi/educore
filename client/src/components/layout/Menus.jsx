@@ -1,4 +1,4 @@
-import {
+﻿import {
   ApartmentOutlined,
   AreaChartOutlined,
   AuditOutlined,
@@ -177,3 +177,5 @@ export const TahfizMenus = [
     icon: <AuditOutlined />,
   },
 ];
+
+

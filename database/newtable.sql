@@ -1,3 +1,4 @@
+-- Active: 1768875297035@@212.85.24.143@5432@lms
 /* REVISI FIXEDTABLE.SQL
    Digabungkan dengan fitur dari newtable.sql
 */
@@ -403,7 +404,8 @@ CREATE TABLE l_chapter (
     description text,
     order_number integer,
     grade_id integer REFERENCES a_grade(id),
-    class_id integer REFERENCES a_class(id)
+    class_id integer REFERENCES a_class(id),
+    class_ids integer[]
 );
 
 ALTER TABLE l_chapter
@@ -411,6 +413,9 @@ ADD COLUMN grade_id integer REFERENCES a_grade(id);
 
 ALTER TABLE l_chapter
 ADD COLUMN class_id integer REFERENCES a_class(id);
+
+ALTER TABLE l_chapter
+ADD COLUMN class_ids integer[];
 
 
 CREATE TABLE l_content (
@@ -420,6 +425,7 @@ CREATE TABLE l_content (
     body text,
     video_url text,
     attachment_url text, -- Menggantikan l_file, simpan path disini
+    attachment_name text, -- Nama asli file
     order_number integer,
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
@@ -428,6 +434,9 @@ CREATE TABLE l_content (
 ALTER TABLE l_content
 ADD COLUMN order_number integer;
 
+ALTER TABLE l_content
+ADD COLUMN attachment_name text;
+
 
 CREATE TABLE l_attendance (
     id SERIAL PRIMARY KEY,
@@ -435,10 +444,18 @@ CREATE TABLE l_attendance (
     subject_id integer REFERENCES a_subject(id),
     student_id integer REFERENCES u_students(user_id),
     date date DEFAULT CURRENT_DATE,
-    status varchar(20) CHECK (status IN ('Hadir', 'Izin', 'Sakit', 'Alpha')), 
+    status varchar(20) CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha')), 
     note text,
     teacher_id integer REFERENCES u_teachers(user_id)
 );
+
+ALTER TABLE l_attendance
+  DROP CONSTRAINT IF EXISTS l_attendance_status_check;
+
+ALTER TABLE l_attendance
+  ADD CONSTRAINT l_attendance_status_check
+  CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha'));
+
 
 -- PENGATURAN BOBOT NILAI (Dari l_weighting newtable)
 CREATE TABLE l_score_weighting (

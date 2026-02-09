@@ -260,7 +260,7 @@ const TeacherDash = () => {
           </Col>
           <Col xs={24} lg={8}>
             <Card style={cardStyle}>
-              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Space vertical size={8} style={{ width: "100%" }}>
                 <Text strong>Ringkasan Mengajar</Text>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   Statistik singkat aktivitas akademik Anda

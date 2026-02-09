@@ -33,6 +33,8 @@ import { ApiExam } from "./cbt/ApiExam";
 
 // LMS
 import { ApiLms } from "./lms/ApiLms";
+import { ApiAttendance } from "./lms/ApiAttendance";
+import { ApiGrading } from "./lms/ApiGrading";
 
 export const store = configureStore({
   reducer: {
@@ -72,6 +74,8 @@ export const store = configureStore({
 
     // LMS
     [ApiLms.reducerPath]: ApiLms.reducer,
+    [ApiAttendance.reducerPath]: ApiAttendance.reducer,
+    [ApiGrading.reducerPath]: ApiGrading.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -108,6 +112,8 @@ export const store = configureStore({
 
       // LMS
       ApiLms.middleware,
+      ApiAttendance.middleware,
+      ApiGrading.middleware,
     ]),
   devTools: import.meta.env.DEV,
 });

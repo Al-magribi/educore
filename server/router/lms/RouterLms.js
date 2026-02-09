@@ -1,8 +1,34 @@
 import { Router } from "express";
+import path from "path";
+import multer from "multer";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import {
+  ensureDir,
+  getLmsTeacherDir,
+  resolveLmsAssetPath,
+  safeUnlink,
+} from "../../utils/helper.js";
 
 const router = Router();
+
+// ==========================================
+// Upload LMS File (Role-based)
+// ==========================================
+const lmsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const teacherId = req.user?.id ?? "unknown";
+    const dir = getLmsTeacherDir(teacherId);
+    ensureDir(dir);
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const uploadLmsFile = multer({ storage: lmsStorage });
 
 // ==========================================
 // GET Subjects for LMS (Role-based)
@@ -57,6 +83,29 @@ router.get(
     const result = await pool.query(sql, [homebase_id]);
     return res.json({ status: "success", data: result.rows });
   }),
+);
+
+// ==========================================
+// UPLOAD Content File (Role-based)
+// ==========================================
+router.post(
+  "/contents/upload",
+  authorize("satuan", "teacher"),
+  uploadLmsFile.single("file"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ status: "error", message: "File kosong." });
+    }
+    const teacherId = req.user?.id ?? "unknown";
+    const fileUrl = `/assets/lms/${teacherId}/${req.file.filename}`;
+    return res.json({
+      status: "success",
+      data: {
+        url: fileUrl,
+        name: req.file.originalname,
+      },
+    });
+  },
 );
 
 // ==========================================
@@ -159,10 +208,17 @@ router.get(
           ch.grade_id,
           g.name AS grade_name,
           ch.class_id,
-          cl.name AS class_name
+          cl.name AS class_name,
+          ch.class_ids,
+          cls.class_names
         FROM l_chapter ch
         LEFT JOIN a_grade g ON ch.grade_id = g.id
         LEFT JOIN a_class cl ON ch.class_id = cl.id
+        LEFT JOIN LATERAL (
+          SELECT ARRAY_AGG(c.name ORDER BY c.name) AS class_names
+          FROM a_class c
+          WHERE ch.class_ids IS NOT NULL AND c.id = ANY(ch.class_ids)
+        ) cls ON true
         WHERE ch.subject_id = $1
           AND EXISTS (
             SELECT 1
@@ -178,6 +234,7 @@ router.get(
           AND (
             $4::int IS NULL
             OR ch.class_id = $4
+            OR ($4::int = ANY(ch.class_ids))
             OR ch.class_id IS NULL
           )
         ORDER BY COALESCE(ch.order_number, 9999), ch.title ASC
@@ -201,10 +258,17 @@ router.get(
         ch.grade_id,
         g.name AS grade_name,
         ch.class_id,
-        cl.name AS class_name
+        cl.name AS class_name,
+        ch.class_ids,
+        cls.class_names
       FROM l_chapter ch
       LEFT JOIN a_grade g ON ch.grade_id = g.id
       LEFT JOIN a_class cl ON ch.class_id = cl.id
+      LEFT JOIN LATERAL (
+        SELECT ARRAY_AGG(c.name ORDER BY c.name) AS class_names
+        FROM a_class c
+        WHERE ch.class_ids IS NOT NULL AND c.id = ANY(ch.class_ids)
+      ) cls ON true
       JOIN a_subject s ON s.id = ch.subject_id
       WHERE ch.subject_id = $1
         AND s.homebase_id = $2
@@ -216,6 +280,7 @@ router.get(
         AND (
           $4::int IS NULL
           OR ch.class_id = $4
+          OR ($4::int = ANY(ch.class_ids))
           OR ch.class_id IS NULL
         )
       ORDER BY COALESCE(ch.order_number, 9999), ch.title ASC
@@ -239,7 +304,14 @@ router.post(
   withTransaction(async (req, res, client) => {
     const { id: userId, role, homebase_id } = req.user;
     const { subjectId } = req.params;
-    const { title, description, order_number, grade_id, class_id } = req.body;
+    const {
+      title,
+      description,
+      order_number,
+      grade_id,
+      class_id,
+      class_ids,
+    } = req.body;
 
     if (role === "teacher") {
       const checkSql = `
@@ -264,9 +336,21 @@ router.post(
       }
     }
 
+    const resolvedClassIds = Array.isArray(class_ids) ? class_ids : [];
+    const resolvedClassId =
+      resolvedClassIds.length === 1 ? resolvedClassIds[0] : class_id || null;
+
     const sql = `
-      INSERT INTO l_chapter (subject_id, title, description, order_number, grade_id, class_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO l_chapter (
+        subject_id,
+        title,
+        description,
+        order_number,
+        grade_id,
+        class_id,
+        class_ids
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `;
     const result = await client.query(sql, [
@@ -275,7 +359,8 @@ router.post(
       description || null,
       order_number || null,
       grade_id || null,
-      class_id || null,
+      resolvedClassId || null,
+      resolvedClassIds.length > 0 ? resolvedClassIds : null,
     ]);
     return res.json({ status: "success", data: result.rows[0] });
   }),
@@ -290,7 +375,14 @@ router.put(
   withTransaction(async (req, res, client) => {
     const { id: userId, role, homebase_id } = req.user;
     const { id } = req.params;
-    const { title, description, order_number, grade_id, class_id } = req.body;
+    const {
+      title,
+      description,
+      order_number,
+      grade_id,
+      class_id,
+      class_ids,
+    } = req.body;
 
     if (role === "teacher") {
       const checkSql = `
@@ -316,21 +408,27 @@ router.put(
       }
     }
 
+    const resolvedClassIds = Array.isArray(class_ids) ? class_ids : [];
+    const resolvedClassId =
+      resolvedClassIds.length === 1 ? resolvedClassIds[0] : class_id || null;
+
     const sql = `
       UPDATE l_chapter
       SET title = $1,
           description = $2,
           order_number = $3,
           grade_id = $4,
-          class_id = $5
-      WHERE id = $6
+          class_id = $5,
+          class_ids = $6
+      WHERE id = $7
     `;
     await client.query(sql, [
       title,
       description || null,
       order_number || null,
       grade_id || null,
-      class_id || null,
+      resolvedClassId || null,
+      resolvedClassIds.length > 0 ? resolvedClassIds : null,
       id,
     ]);
     return res.json({ status: "success" });
@@ -346,6 +444,7 @@ router.delete(
   withTransaction(async (req, res, client) => {
     const { id: userId, role, homebase_id } = req.user;
     const { id } = req.params;
+    let attachmentUrls = [];
 
     if (role === "teacher") {
       const checkSql = `
@@ -358,6 +457,15 @@ router.delete(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
+      const fileSql = `
+        SELECT c.attachment_url
+        FROM l_content c
+        JOIN l_chapter ch ON ch.id = c.chapter_id
+        JOIN at_subject ats ON ats.subject_id = ch.subject_id
+        WHERE ch.id = $1 AND ats.teacher_id = $2
+      `;
+      const files = await client.query(fileSql, [id, userId]);
+      attachmentUrls = files.rows.map((row) => row.attachment_url).filter(Boolean);
     } else {
       const checkSql = `
         SELECT 1
@@ -369,9 +477,24 @@ router.delete(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
+      const fileSql = `
+        SELECT c.attachment_url
+        FROM l_content c
+        JOIN l_chapter ch ON ch.id = c.chapter_id
+        JOIN a_subject s ON s.id = ch.subject_id
+        WHERE ch.id = $1 AND s.homebase_id = $2
+      `;
+      const files = await client.query(fileSql, [id, homebase_id]);
+      attachmentUrls = files.rows.map((row) => row.attachment_url).filter(Boolean);
     }
 
+    await client.query("DELETE FROM l_content WHERE chapter_id = $1", [id]);
     await client.query("DELETE FROM l_chapter WHERE id = $1", [id]);
+    const uniqueUrls = Array.from(new Set(attachmentUrls));
+    uniqueUrls.forEach((url) => {
+      const filePath = resolveLmsAssetPath(url);
+      safeUnlink(filePath);
+    });
     return res.json({ status: "success" });
   }),
 );
@@ -395,6 +518,7 @@ router.get(
           c.body,
           c.video_url,
           c.attachment_url,
+          c.attachment_name,
           c.order_number,
           c.created_at
         FROM l_content c
@@ -420,6 +544,7 @@ router.get(
         c.body,
         c.video_url,
         c.attachment_url,
+        c.attachment_name,
         c.order_number,
         c.created_at
       FROM l_content c
@@ -443,7 +568,14 @@ router.post(
   withTransaction(async (req, res, client) => {
     const { id: userId, role, homebase_id } = req.user;
     const { chapterId } = req.params;
-    const { title, body, video_url, attachment_url, order_number } = req.body;
+    const {
+      title,
+      body,
+      video_url,
+      attachment_url,
+      attachment_name,
+      order_number,
+    } = req.body;
 
     if (role === "teacher") {
       const checkSql = `
@@ -470,8 +602,16 @@ router.post(
     }
 
     const sql = `
-      INSERT INTO l_content (chapter_id, title, body, video_url, attachment_url, order_number)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO l_content (
+        chapter_id,
+        title,
+        body,
+        video_url,
+        attachment_url,
+        attachment_name,
+        order_number
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `;
     const result = await client.query(sql, [
@@ -480,6 +620,7 @@ router.post(
       body || null,
       video_url || null,
       attachment_url || null,
+      attachment_name || null,
       order_number || null,
     ]);
     return res.json({ status: "success", data: result.rows[0] });
@@ -495,11 +636,19 @@ router.put(
   withTransaction(async (req, res, client) => {
     const { id: userId, role, homebase_id } = req.user;
     const { id } = req.params;
-    const { title, body, video_url, attachment_url, order_number } = req.body;
+    const {
+      title,
+      body,
+      video_url,
+      attachment_url,
+      attachment_name,
+      order_number,
+    } = req.body;
 
+    let existingAttachmentUrl = null;
     if (role === "teacher") {
       const checkSql = `
-        SELECT 1
+        SELECT c.attachment_url
         FROM l_content c
         JOIN l_chapter ch ON ch.id = c.chapter_id
         JOIN at_subject ats ON ats.subject_id = ch.subject_id
@@ -509,9 +658,10 @@ router.put(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
+      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
     } else {
       const checkSql = `
-        SELECT 1
+        SELECT c.attachment_url
         FROM l_content c
         JOIN l_chapter ch ON ch.id = c.chapter_id
         JOIN a_subject s ON s.id = ch.subject_id
@@ -521,6 +671,7 @@ router.put(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
+      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
     }
 
     const sql = `
@@ -529,17 +680,27 @@ router.put(
           body = $2,
           video_url = $3,
           attachment_url = $4,
-          order_number = $5
-      WHERE id = $6
+          attachment_name = $5,
+          order_number = $6
+      WHERE id = $7
     `;
     await client.query(sql, [
       title,
       body || null,
       video_url || null,
       attachment_url || null,
+      attachment_name || null,
       order_number || null,
       id,
     ]);
+
+    if (
+      existingAttachmentUrl &&
+      existingAttachmentUrl !== attachment_url
+    ) {
+      const filePath = resolveLmsAssetPath(existingAttachmentUrl);
+      safeUnlink(filePath);
+    }
     return res.json({ status: "success" });
   }),
 );
@@ -554,9 +715,10 @@ router.delete(
     const { id: userId, role, homebase_id } = req.user;
     const { id } = req.params;
 
+    let existingAttachmentUrl = null;
     if (role === "teacher") {
       const checkSql = `
-        SELECT 1
+        SELECT c.attachment_url
         FROM l_content c
         JOIN l_chapter ch ON ch.id = c.chapter_id
         JOIN at_subject ats ON ats.subject_id = ch.subject_id
@@ -566,9 +728,10 @@ router.delete(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
+      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
     } else {
       const checkSql = `
-        SELECT 1
+        SELECT c.attachment_url
         FROM l_content c
         JOIN l_chapter ch ON ch.id = c.chapter_id
         JOIN a_subject s ON s.id = ch.subject_id
@@ -578,9 +741,12 @@ router.delete(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
+      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
     }
 
     await client.query("DELETE FROM l_content WHERE id = $1", [id]);
+    const filePath = resolveLmsAssetPath(existingAttachmentUrl);
+    safeUnlink(filePath);
     return res.json({ status: "success" });
   }),
 );
