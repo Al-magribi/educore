@@ -86,6 +86,13 @@ export const ApiLms = createApi({
         { type: "LmsContent", id: "LIST" },
       ],
     }),
+    uploadContentFile: builder.mutation({
+      query: (formData) => ({
+        url: "/contents/upload",
+        method: "POST",
+        body: formData,
+      }),
+    }),
     deleteContent: builder.mutation({
       query: (id) => ({
         url: `/contents/${id}`,
@@ -107,5 +114,6 @@ export const {
   useGetContentsQuery,
   useAddContentMutation,
   useUpdateContentMutation,
+  useUploadContentFileMutation,
   useDeleteContentMutation,
 } = ApiLms;
