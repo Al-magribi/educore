@@ -32,7 +32,7 @@ const StudentGradingTableScore = ({
       key: "student",
       responsive: ["xs"],
       render: (_, record) => (
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Text strong>{record.name}</Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {record.nis || "-"}
@@ -66,7 +66,7 @@ const StudentGradingTableScore = ({
       style={{ borderRadius: 12, border: "1px solid #f0f0f0" }}
       styles={{ body: { padding: 12 } }}
     >
-      <Space direction="vertical" size={8} style={{ width: "100%" }}>
+      <Space orientation="vertical" size={8} style={{ width: "100%" }}>
         <div>
           <Text strong>{student.name}</Text>
           <div>
@@ -92,7 +92,7 @@ const StudentGradingTableScore = ({
   );
 
   return isMobile ? (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+    <Space orientation="vertical" size={12} style={{ width: "100%" }}>
       {(students || []).map((student, index) =>
         renderMobileCard(student, index),
       )}

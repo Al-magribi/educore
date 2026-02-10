@@ -1,5 +1,6 @@
 ﻿import React from "react";
-import { Card, Grid, Select, Space, Typography } from "antd";
+import { Card, DatePicker, Grid, Select, Space, Typography } from "antd";
+import dayjs from "dayjs";
 import { Filter } from "lucide-react";
 import StudentGradingTableSikap from "./StudentGradingTableSikap";
 import StudentGradingTableFormatif from "./StudentGradingTableFormatif";
@@ -9,21 +10,6 @@ import StudentGradingTableUjianAkhir from "./StudentGradingTableUjianAkhir";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
-const MONTHS_ID = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-];
-
 const StudentGradingTable = ({
   students,
   chapters,
@@ -31,8 +17,9 @@ const StudentGradingTable = ({
   filters,
   onFilterChange,
   onStudentChange,
+  onFormativeChange,
+  formativeSubchapters,
   onAttitudeChange,
-  monthYear,
   showFilters = true,
 }) => {
   const screens = useBreakpoint();
@@ -43,18 +30,9 @@ const StudentGradingTable = ({
     label: chapter.title,
   }));
 
-  const getSubchapterOptions = (chapterId) => {
-    const chapter = (chapters || []).find((item) => item.id === chapterId);
-    return (chapter?.contents || []).map((content) => ({
-      value: content.id,
-      label: content.title,
-    }));
-  };
-
-  const monthOptions = MONTHS_ID.map((month) => ({
-    value: month,
-    label: monthYear ? `${month} ${monthYear}` : month,
-  }));
+  const monthValue = filters?.monthId
+    ? dayjs(filters.monthId, "YYYY-MM", true)
+    : null;
 
   const isFilterReady =
     !!filters?.monthId && (typeKey === "sikap" || !!filters?.chapterId);
@@ -77,6 +55,8 @@ const StudentGradingTable = ({
           isMobile={isMobile}
           isFilterReady={isFilterReady}
           onStudentChange={onStudentChange}
+          onFormativeChange={onFormativeChange}
+          subchapters={formativeSubchapters}
         />
       );
     }
@@ -101,14 +81,14 @@ const StudentGradingTable = ({
   };
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <Space vertical size={16} style={{ width: "100%" }}>
       {showFilters && (
         <Card
           size="small"
           style={{ borderRadius: 12, border: "1px solid #f0f0f0" }}
           styles={{ body: { padding: 12 } }}
         >
-          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+          <Space vertical size={8} style={{ width: "100%" }}>
             <div
               style={{
                 display: "grid",
@@ -117,19 +97,25 @@ const StudentGradingTable = ({
                   ? "1fr"
                   : typeKey === "sikap"
                     ? "minmax(160px, 240px) minmax(160px, 1fr)"
-                    : "minmax(160px, 240px) repeat(3, minmax(160px, 1fr))",
+                  : "minmax(160px, 240px) repeat(2, minmax(160px, 1fr))",
               }}
             >
               <Space align="center" size={8}>
                 <Filter size={16} />
                 <Text strong>Filter Penilaian</Text>
               </Space>
-              <Select
-                value={filters?.monthId}
+              <DatePicker
+                value={monthValue}
+                picker="month"
                 allowClear
                 placeholder="Pilih bulan"
-                options={monthOptions}
-                onChange={(value) => onFilterChange(typeKey, "monthId", value)}
+                onChange={(value) =>
+                  onFilterChange(
+                    typeKey,
+                    "monthId",
+                    value ? value.format("YYYY-MM") : undefined,
+                  )
+                }
                 style={{ width: "100%" }}
               />
               {typeKey !== "sikap" && (
@@ -144,17 +130,6 @@ const StudentGradingTable = ({
                     }
                     style={{ width: "100%" }}
                   />
-                  <Select
-                    value={filters?.subchapterId}
-                    allowClear
-                    placeholder="Subbab (opsional)"
-                    options={getSubchapterOptions(filters?.chapterId)}
-                    onChange={(value) =>
-                      onFilterChange(typeKey, "subchapterId", value)
-                    }
-                    disabled={!filters?.chapterId}
-                    style={{ width: "100%" }}
-                  />
                 </>
               )}
             </div>
@@ -162,7 +137,7 @@ const StudentGradingTable = ({
               <Text type="secondary">
                 {typeKey === "sikap"
                   ? "Bulan wajib dipilih."
-                  : "Bulan wajib dipilih, bab wajib dipilih (subbab opsional)."}
+                  : "Bulan wajib dipilih, bab wajib dipilih."}
               </Text>
             )}
           </Space>

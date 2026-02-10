@@ -148,9 +148,7 @@ const Attendance = ({ subjectId, subject }) => {
   const handleNoteChange = (value, record) => {
     setRows((prev) =>
       prev.map((item) =>
-        item.student_id === record.student_id
-          ? { ...item, note: value }
-          : item,
+        item.student_id === record.student_id ? { ...item, note: value } : item,
       ),
     );
     setDirty(true);
@@ -367,7 +365,7 @@ const Attendance = ({ subjectId, subject }) => {
         <Alert
           type="info"
           showIcon
-          message="Pilih kelas untuk mulai mengisi absensi."
+          title="Pilih kelas untuk mulai mengisi absensi."
         />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
