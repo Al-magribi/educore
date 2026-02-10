@@ -45,9 +45,9 @@ const StudentGradingTableSikap = ({
       dataIndex: "nis",
       key: "nis",
       width: "12%",
-      render: (value, record) => ({
-        children: <Text>{value || "-"}</Text>,
-        props: record.rowType === "score" ? { rowSpan: 2 } : { rowSpan: 0 },
+      render: (value) => <Text>{value || "-"}</Text>,
+      onCell: (record) => ({
+        rowSpan: record.rowType === "score" ? 2 : 0,
       }),
       responsive: ["md"],
     },
@@ -56,9 +56,9 @@ const StudentGradingTableSikap = ({
       dataIndex: "name",
       key: "name",
       width: "22%",
-      render: (value, record) => ({
-        children: <Text strong>{value}</Text>,
-        props: record.rowType === "score" ? { rowSpan: 2 } : { rowSpan: 0 },
+      render: (value) => <Text strong>{value}</Text>,
+      onCell: (record) => ({
+        rowSpan: record.rowType === "score" ? 2 : 0,
       }),
       responsive: ["md"],
     },
@@ -67,21 +67,18 @@ const StudentGradingTableSikap = ({
       key: "student",
       responsive: ["xs"],
       render: (_, record) => {
-        if (record.rowType === "note") {
-          return { children: null, props: { colSpan: 0 } };
-        }
-        return {
-          children: (
-            <Space direction="vertical" size={2}>
-              <Text strong>{record.name}</Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {record.nis || "-"}
-              </Text>
-            </Space>
-          ),
-          props: { rowSpan: 2 },
-        };
+        if (record.rowType === "note") return null;
+        return (
+          <Space orientation="vertical" size={2}>
+            <Text strong>{record.name}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {record.nis || "-"}
+            </Text>
+          </Space>
+        );
       },
+      onCell: (record) =>
+        record.rowType === "note" ? { colSpan: 0 } : { rowSpan: 2 },
     },
     {
       title: "Kinerja",
@@ -90,26 +87,22 @@ const StudentGradingTableSikap = ({
       render: (_, record, index) => {
         const targetIndex = record.originalIndex ?? index;
         if (record.rowType === "note") {
-          return {
-            children: (
-              <Input.TextArea
-                rows={2}
-                placeholder="Catatan"
-                value={record.attitude?.teacher_note || ""}
-                disabled={!isFilterReady}
-                onChange={(e) =>
-                  onAttitudeChange(targetIndex, "teacher_note", e.target.value)
-                }
-              />
-            ),
-            props: { colSpan: 4 },
-          };
+          return (
+            <Input.TextArea
+              rows={2}
+              placeholder="Catatan"
+              value={record.attitude?.teacher_note || ""}
+              disabled={!isFilterReady}
+              onChange={(e) =>
+                onAttitudeChange(targetIndex, "teacher_note", e.target.value)
+              }
+            />
+          );
         }
-        return {
-          children: renderAttitudeInput(record, targetIndex, "kinerja"),
-          props: {},
-        };
+        return renderAttitudeInput(record, targetIndex, "kinerja");
       },
+      onCell: (record) =>
+        record.rowType === "note" ? { colSpan: 4 } : {},
     },
     {
       title: "Kedisiplinan",
@@ -117,14 +110,10 @@ const StudentGradingTableSikap = ({
       width: "10%",
       render: (_, record, index) => {
         const targetIndex = record.originalIndex ?? index;
-        if (record.rowType === "note") {
-          return { children: null, props: { colSpan: 0 } };
-        }
-        return {
-          children: renderAttitudeInput(record, targetIndex, "kedisiplinan"),
-          props: {},
-        };
+        if (record.rowType === "note") return null;
+        return renderAttitudeInput(record, targetIndex, "kedisiplinan");
       },
+      onCell: (record) => (record.rowType === "note" ? { colSpan: 0 } : {}),
       responsive: ["sm"],
     },
     {
@@ -133,14 +122,10 @@ const StudentGradingTableSikap = ({
       width: "10%",
       render: (_, record, index) => {
         const targetIndex = record.originalIndex ?? index;
-        if (record.rowType === "note") {
-          return { children: null, props: { colSpan: 0 } };
-        }
-        return {
-          children: renderAttitudeInput(record, targetIndex, "keaktifan"),
-          props: {},
-        };
+        if (record.rowType === "note") return null;
+        return renderAttitudeInput(record, targetIndex, "keaktifan");
       },
+      onCell: (record) => (record.rowType === "note" ? { colSpan: 0 } : {}),
       responsive: ["sm"],
     },
     {
@@ -149,14 +134,10 @@ const StudentGradingTableSikap = ({
       width: "10%",
       render: (_, record, index) => {
         const targetIndex = record.originalIndex ?? index;
-        if (record.rowType === "note") {
-          return { children: null, props: { colSpan: 0 } };
-        }
-        return {
-          children: renderAttitudeInput(record, targetIndex, "percaya_diri"),
-          props: {},
-        };
+        if (record.rowType === "note") return null;
+        return renderAttitudeInput(record, targetIndex, "percaya_diri");
       },
+      onCell: (record) => (record.rowType === "note" ? { colSpan: 0 } : {}),
       responsive: ["sm"],
     },
     {
@@ -165,14 +146,10 @@ const StudentGradingTableSikap = ({
       key: "average",
       width: "8%",
       render: (value, record) => {
-        if (record.rowType === "note") {
-          return { children: null, props: { colSpan: 0 } };
-        }
-        return {
-          children: <Text>{formatScore(value)}</Text>,
-          props: {},
-        };
+        if (record.rowType === "note") return null;
+        return <Text>{formatScore(value)}</Text>;
       },
+      onCell: (record) => (record.rowType === "note" ? { colSpan: 0 } : {}),
       responsive: ["md"],
     },
   ];
@@ -184,7 +161,7 @@ const StudentGradingTableSikap = ({
       style={{ borderRadius: 12, border: "1px solid #f0f0f0" }}
       styles={{ body: { padding: 12 } }}
     >
-      <Space direction="vertical" size={8} style={{ width: "100%" }}>
+      <Space orientation="vertical" size={8} style={{ width: "100%" }}>
         <div>
           <Text strong>{student.name}</Text>
           <div>
@@ -234,7 +211,7 @@ const StudentGradingTableSikap = ({
   );
 
   return isMobile ? (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+    <Space orientation="vertical" size={12} style={{ width: "100%" }}>
       {(students || []).map((student, index) =>
         renderMobileCard(student, index),
       )}

@@ -3,7 +3,7 @@
 export const ApiGrading = createApi({
   reducerPath: "ApiGrading",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/lms/grading" }),
-  tagTypes: ["GradingMeta", "GradingClass", "GradingStudent"],
+  tagTypes: ["GradingMeta", "GradingClass", "GradingStudent", "GradingFormative"],
   endpoints: (builder) => ({
     getGradingMeta: builder.query({
       query: () => "/meta",
@@ -19,11 +19,29 @@ export const ApiGrading = createApi({
       providesTags: ["GradingStudent"],
     }),
     getGradingAttitude: builder.query({
-      query: ({ subjectId, classId, month }) =>
+      query: ({ subjectId, classId, month, semester }) =>
         `/attitude?subject_id=${subjectId || ""}&class_id=${
           classId || ""
-        }&month=${encodeURIComponent(month || "")}`,
+        }&month=${encodeURIComponent(month || "")}&semester=${
+          semester || ""
+        }`,
       providesTags: ["GradingStudent"],
+    }),
+    getGradingFormative: builder.query({
+      query: ({
+        subjectId,
+        classId,
+        month,
+        semester,
+        chapterId,
+        subchapterId,
+      }) =>
+        `/formative?subject_id=${subjectId || ""}&class_id=${
+          classId || ""
+        }&month=${encodeURIComponent(month || "")}&semester=${
+          semester || ""
+        }&chapter_id=${chapterId || ""}&subchapter_id=${subchapterId || ""}`,
+      providesTags: ["GradingFormative"],
     }),
     submitGradingAttitude: builder.mutation({
       query: (body) => ({
@@ -32,6 +50,14 @@ export const ApiGrading = createApi({
         body,
       }),
       invalidatesTags: ["GradingStudent"],
+    }),
+    submitGradingFormative: builder.mutation({
+      query: (body) => ({
+        url: "/formative/submit",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["GradingFormative"],
     }),
   }),
 });
@@ -42,4 +68,6 @@ export const {
   useGetGradingStudentsQuery,
   useGetGradingAttitudeQuery,
   useSubmitGradingAttitudeMutation,
+  useGetGradingFormativeQuery,
+  useSubmitGradingFormativeMutation,
 } = ApiGrading;
