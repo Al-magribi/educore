@@ -1,4 +1,4 @@
-import { configureStore } from "@reduxjs/toolkit";
+﻿import { configureStore } from "@reduxjs/toolkit";
 
 import authReducer from "./auth/SliceAuth";
 import { ApiAuth } from "./auth/ApiAuth";
@@ -35,6 +35,7 @@ import { ApiExam } from "./cbt/ApiExam";
 import { ApiLms } from "./lms/ApiLms";
 import { ApiAttendance } from "./lms/ApiAttendance";
 import { ApiGrading } from "./lms/ApiGrading";
+import { ApiRecap } from "./lms/ApiRecap";
 
 export const store = configureStore({
   reducer: {
@@ -76,6 +77,7 @@ export const store = configureStore({
     [ApiLms.reducerPath]: ApiLms.reducer,
     [ApiAttendance.reducerPath]: ApiAttendance.reducer,
     [ApiGrading.reducerPath]: ApiGrading.reducer,
+    [ApiRecap.reducerPath]: ApiRecap.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -114,6 +116,7 @@ export const store = configureStore({
       ApiLms.middleware,
       ApiAttendance.middleware,
       ApiGrading.middleware,
+      ApiRecap.middleware,
     ]),
   devTools: import.meta.env.DEV,
 });

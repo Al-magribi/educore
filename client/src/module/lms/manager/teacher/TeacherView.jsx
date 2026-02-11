@@ -1,9 +1,10 @@
 ﻿import React from "react";
 import { Tabs } from "antd";
-import { BookOpen, ChartBar, CheckCircle } from "lucide-react";
+import { BookOpen, ChartBar, ChartScatter, CheckCircle } from "lucide-react";
 import Learning from "./learnig/Learning";
 import Attendance from "./attendance/Attendance";
 import Grading from "./garding/Grading";
+import Recap from "./recap/Recap";
 
 const TeacherView = ({ subjectId, subject }) => {
   const items = [
@@ -25,12 +26,15 @@ const TeacherView = ({ subjectId, subject }) => {
       key: "3",
       children: <Grading subject={subject} subjectId={subjectId} />,
     },
+    {
+      label: "Rekapitulasi",
+      icon: <ChartScatter size={16} />,
+      key: "4",
+      children: <Recap subject={subject} subjectId={subjectId} />,
+    },
   ];
 
-  return (
-    <Tabs items={items} defaultActiveKey="1" />
-  );
+  return <Tabs items={items} defaultActiveKey="1" />;
 };
 
 export default TeacherView;
-
