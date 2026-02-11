@@ -19,6 +19,8 @@ const StudentGradingTable = ({
   onStudentChange,
   onFormativeChange,
   formativeSubchapters,
+  onSummativeChange,
+  summativeSubchapters,
   onAttitudeChange,
   showFilters = true,
 }) => {
@@ -35,7 +37,9 @@ const StudentGradingTable = ({
     : null;
 
   const isFilterReady =
-    !!filters?.monthId && (typeKey === "sikap" || !!filters?.chapterId);
+    typeKey === "ujianAkhir"
+      ? true
+      : !!filters?.monthId && (typeKey === "sikap" || !!filters?.chapterId);
 
   const renderContent = () => {
     if (typeKey === "sikap") {
@@ -66,7 +70,8 @@ const StudentGradingTable = ({
           students={students}
           isMobile={isMobile}
           isFilterReady={isFilterReady}
-          onStudentChange={onStudentChange}
+          onSummativeChange={onSummativeChange}
+          subchapters={summativeSubchapters}
         />
       );
     }
