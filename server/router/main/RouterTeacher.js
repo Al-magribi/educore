@@ -78,6 +78,8 @@ router.post(
 
     const homebase_id = req.user.homebase_id;
 
+    console.log(req.user);
+
     // Validasi dasar
     if (!username || !password || !full_name) {
       throw new Error("Username, Password, dan Nama Lengkap wajib diisi");
@@ -170,6 +172,7 @@ router.delete(
     const { id } = req.params;
     // Cascade delete akan menghapus data di u_teachers otomatis
     await client.query(`DELETE FROM u_users WHERE id = $1`, [id]);
+    await client.query(`DELETE FROM u_teachers WHERE user_id = $1`, [id]);
     res.status(200).json({ success: true, message: "Guru berhasil dihapus" });
   }),
 );
