@@ -3,7 +3,7 @@ import { Tabs } from "antd";
 import { BookOpen, ChartBar, ChartScatter, CheckCircle } from "lucide-react";
 import Learning from "./learnig/Learning";
 import Attendance from "./attendance/Attendance";
-import Grading from "./garding/Grading";
+import Grading from "./grading/Grading";
 import Recap from "./recap/Recap";
 
 const TeacherView = ({ subjectId, subject }) => {
