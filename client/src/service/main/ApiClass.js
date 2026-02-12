@@ -37,7 +37,7 @@ export const ApiClass = createApi({
 
     deleteClass: builder.mutation({
       query: (id) => ({
-        url: `/delete-class?id=${id}`,
+        url: `/delete-class/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: [{ type: "Class", id: "LIST" }],

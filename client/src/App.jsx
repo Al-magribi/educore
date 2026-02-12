@@ -1,26 +1,32 @@
-﻿// App.jsx
-import { Suspense } from "react";
+// App.jsx
+import { Suspense, lazy } from "react";
 import { useSelector } from "react-redux";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useLoadUserQuery } from "./service/auth/ApiAuth";
-import { AppMetadata, LoadApp, Profile } from "./components";
+import { AppMetadata, LoadApp } from "./components";
 import RouterPublic from "./utils/RoutePublic";
 import RouteProtection from "./utils/RouteProtection";
 
 import { Forgot, Reset, Signin, Signup } from "./module/auth";
 
-// ADMIN LEVEL CENTER
-import {
-  CenterAdmin,
-  CenterConfig,
-  CenterDash,
-  CenterHome,
-  CenterMarket,
-  CenterTeacher,
-} from "./module/center";
+const Profile = lazy(() => import("./components/profile/Profile"));
 
-//ADMIN LEVEL SATUAN
-import { AdminAcademinc, AdminDash, AdminMain } from "./module/admin";
+// ADMIN LEVEL CENTER
+const CenterDash = lazy(() => import("./module/center/dashboard/CenterDash"));
+const CenterHome = lazy(() => import("./module/center/homebase/CenterHome"));
+const CenterAdmin = lazy(() => import("./module/center/admin/CenterAdmin"));
+const CenterTeacher = lazy(
+  () => import("./module/center/teacher/CenterTeacher"),
+);
+const CenterMarket = lazy(() => import("./module/center/market/CenterMarket"));
+const CenterConfig = lazy(() => import("./module/center/config/CenterConfig"));
+
+// ADMIN LEVEL SATUAN
+const AdminDash = lazy(() => import("./module/admin/dashboard/AdminDash"));
+const AdminMain = lazy(() => import("./module/admin/main/AdminMain"));
+const AdminAcademinc = lazy(
+  () => import("./module/admin/academic/AdminAcademinc"),
+);
 
 // CBT
 // ADMIN LEVEL SATUAN & GURU
@@ -32,7 +38,6 @@ import {
 } from "./module/cbt";
 import { StudentDash } from "./module/student";
 import { TeacherDash } from "./module/teacher/index.";
-import { LmsManagement } from "./module/lms";
 
 const NotFoundRedirect = () => {
   const { user } = useSelector((state) => state.auth);
@@ -63,11 +68,7 @@ const NotFoundRedirect = () => {
 };
 
 const App = () => {
-  const { isLoading } = useLoadUserQuery();
-
-  if (isLoading) {
-    return <LoadApp />;
-  }
+  useLoadUserQuery();
 
   return (
     <BrowserRouter>

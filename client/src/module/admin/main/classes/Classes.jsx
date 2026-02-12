@@ -146,14 +146,14 @@ const Classes = () => {
         >
           <Input
             prefix={<Search size={16} color={token.colorTextDescription} />}
-            placeholder="Cari nama kelas..."
+            placeholder='Cari nama kelas...'
             onChange={handleSearch}
             style={{ maxWidth: "300px" }}
             allowClear
           />
 
           <Button
-            type="primary"
+            type='primary'
             icon={<Plus size={16} />}
             onClick={handleAddClass}
           >

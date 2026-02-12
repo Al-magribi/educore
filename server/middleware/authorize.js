@@ -3,8 +3,8 @@ import pool from "../config/connection.js";
 
 export const authorize = (...allowedRolesOrLevels) => {
   return async (req, res, next) => {
-    const client = await pool.connect();
     const { token } = req.cookies;
+    let client;
 
     try {
       // 1. Cek keberadaan token
@@ -16,6 +16,9 @@ export const authorize = (...allowedRolesOrLevels) => {
 
       // 2. Verifikasi Token
       const decode = jwt.verify(token, process.env.JWT);
+
+      // 3. Ambil koneksi DB setelah token valid
+      client = await pool.connect();
 
       // 3. Query ke u_users DAN JOIN ke u_admin untuk ambil level
       // Kita gunakan LEFT JOIN agar user non-admin tetap bisa login
@@ -87,7 +90,9 @@ export const authorize = (...allowedRolesOrLevels) => {
       console.error("[Auth Error]", error);
       return res.status(500).json({ message: "Internal server error." });
     } finally {
-      client.release();
+      if (client) {
+        client.release();
+      }
     }
   };
 };
