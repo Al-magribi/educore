@@ -15,7 +15,9 @@ const Profile = lazy(() => import("./components/profile/Profile"));
 const CenterDash = lazy(() => import("./module/center/dashboard/CenterDash"));
 const CenterHome = lazy(() => import("./module/center/homebase/CenterHome"));
 const CenterAdmin = lazy(() => import("./module/center/admin/CenterAdmin"));
-const CenterTeacher = lazy(() => import("./module/center/teacher/CenterTeacher"));
+const CenterTeacher = lazy(
+  () => import("./module/center/teacher/CenterTeacher"),
+);
 const CenterMarket = lazy(() => import("./module/center/market/CenterMarket"));
 const CenterConfig = lazy(() => import("./module/center/config/CenterConfig"));
 
@@ -26,7 +28,7 @@ const AdminAcademinc = lazy(
   () => import("./module/admin/academic/AdminAcademinc"),
 );
 
-// CBT (ADMIN LEVEL SATUAN & GURU)
+// CBT (ADMIN LEVEL SATUAN & GURU) Menggunakan lazy
 const BankList = lazy(() => import("./module/cbt/bank/view/BankList"));
 const ExamList = lazy(() => import("./module/cbt/exam/view/ExamList"));
 const StudentExamList = lazy(
@@ -47,27 +49,27 @@ const NotFoundRedirect = () => {
   const { user } = useSelector((state) => state.auth);
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to='/' replace />;
   }
 
   switch (user.role) {
     case "student":
-      return <Navigate to="/siswa-dashboard" replace />;
+      return <Navigate to='/siswa-dashboard' replace />;
     case "teacher":
-      return <Navigate to="/guru-dashboard" replace />;
+      return <Navigate to='/guru-dashboard' replace />;
     case "parent":
-      return <Navigate to="/parent-dashboard" replace />;
+      return <Navigate to='/parent-dashboard' replace />;
     case "admin":
     case "center":
       if (user.level === "pusat") {
-        return <Navigate to="/center-dashboard" replace />;
+        return <Navigate to='/center-dashboard' replace />;
       }
       if (user.level === "tahfiz") {
-        return <Navigate to="/tahfiz-dashboard" replace />;
+        return <Navigate to='/tahfiz-dashboard' replace />;
       }
-      return <Navigate to="/admin-dashboard" replace />;
+      return <Navigate to='/admin-dashboard' replace />;
     default:
-      return <Navigate to="/" replace />;
+      return <Navigate to='/' replace />;
   }
 };
 
@@ -82,10 +84,10 @@ const App = () => {
           {/* === PUBLIC ROUTES === */}
           {/* RouterPublic akan otomatis redirect user login ke dashboard masing-masing */}
           <Route element={<RouterPublic />}>
-            <Route path="/" element={<Signin />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/forgot-password" element={<Forgot />} />
-            <Route path="/reset-password" element={<Reset />} />
+            <Route path='/' element={<Signin />} />
+            <Route path='/signup' element={<Signup />} />
+            <Route path='/forgot-password' element={<Forgot />} />
+            <Route path='/reset-password' element={<Reset />} />
           </Route>
 
           {/* === PROTECTED ROUTES === */}
@@ -100,12 +102,12 @@ const App = () => {
               />
             }
           >
-            <Route path="/center-dashboard" element={<CenterDash />} />
-            <Route path="/center-homebase" element={<CenterHome />} />
-            <Route path="/center-admin" element={<CenterAdmin />} />
-            <Route path="/center-teacher" element={<CenterTeacher />} />
-            <Route path="/center-market" element={<CenterMarket />} />
-            <Route path="/center-config" element={<CenterConfig />} />
+            <Route path='/center-dashboard' element={<CenterDash />} />
+            <Route path='/center-homebase' element={<CenterHome />} />
+            <Route path='/center-admin' element={<CenterAdmin />} />
+            <Route path='/center-teacher' element={<CenterTeacher />} />
+            <Route path='/center-market' element={<CenterMarket />} />
+            <Route path='/center-config' element={<CenterConfig />} />
           </Route>
 
           {/* 2. ADMIN SATUAN (Sekolah Biasa) */}
@@ -118,9 +120,9 @@ const App = () => {
             }
           >
             {/* <Route path="/admin-dashboard" element={<AdminDash />} /> */}
-            <Route path="/admin-dashboard" element={<AdminDash />} />
-            <Route path="/admin-data-pokok" element={<AdminMain />} />
-            <Route path="/admin-data-akademik" element={<AdminAcademinc />} />
+            <Route path='/admin-dashboard' element={<AdminDash />} />
+            <Route path='/admin-data-pokok' element={<AdminMain />} />
+            <Route path='/admin-data-akademik' element={<AdminAcademinc />} />
           </Route>
 
           {/* 3. CBT */}
@@ -133,9 +135,9 @@ const App = () => {
               />
             }
           >
-            <Route path="/computer-based-test/bank" element={<BankList />} />
+            <Route path='/computer-based-test/bank' element={<BankList />} />
             <Route
-              path="/computer-based-test/jadwal-ujian"
+              path='/computer-based-test/jadwal-ujian'
               element={<ExamList />}
             />
           </Route>
@@ -151,7 +153,7 @@ const App = () => {
           >
             {/* <Route path="/tahfiz-dashboard" element={<TahfizDash />} /> */}
             <Route
-              path="/tahfiz-dashboard"
+              path='/tahfiz-dashboard'
               element={<div>Halaman Admin Tahfiz</div>}
             />
           </Route>
@@ -159,16 +161,16 @@ const App = () => {
           {/* 5. TEACHER */}
           <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
             {/* <Route path="/teacher-dashboard" element={<TeacherDash />} /> */}
-            <Route path="/guru-dashboard" element={<TeacherDash />} />
+            <Route path='/guru-dashboard' element={<TeacherDash />} />
           </Route>
 
           {/* 6. STUDENT */}
           <Route element={<RouteProtection allowedRoles={["student"]} />}>
             {/* <Route path="/student-dashboard" element={<StudentDash />} /> */}
-            <Route path="/siswa-dashboard" element={<StudentDash />} />
-            <Route path="/siswa/jadwal-ujian" element={<StudentExamList />} />
+            <Route path='/siswa-dashboard' element={<StudentDash />} />
+            <Route path='/siswa/jadwal-ujian' element={<StudentExamList />} />
             <Route
-              path="/computer-based-test/start"
+              path='/computer-based-test/start'
               element={<ExamInterface />}
             />
           </Route>
@@ -177,7 +179,7 @@ const App = () => {
           <Route element={<RouteProtection allowedRoles={["parent"]} />}>
             {/* <Route path="/parent-dashboard" element={<ParentDash />} /> */}
             <Route
-              path="/parent-dashboard"
+              path='/parent-dashboard'
               element={<div>Halaman Orang Tua</div>}
             />
           </Route>
@@ -191,11 +193,11 @@ const App = () => {
               />
             }
           >
-            <Route path="/profile" element={<Profile />} />
+            <Route path='/profile' element={<Profile />} />
           </Route>
 
           {/* 9. CATCH-ALL */}
-          <Route path="*" element={<NotFoundRedirect />} />
+          <Route path='*' element={<NotFoundRedirect />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
