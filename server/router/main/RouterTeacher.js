@@ -74,8 +74,9 @@ router.post(
   "/add-teacher",
   authorize("pusat", "satuan"),
   withTransaction(async (req, res, client) => {
-    const { username, password, full_name, nip, phone, email, homebase_id } =
-      req.body;
+    const { username, password, full_name, nip, phone, email } = req.body;
+
+    const homebase_id = req.user.homebase_id;
 
     // Validasi dasar
     if (!username || !password || !full_name) {
