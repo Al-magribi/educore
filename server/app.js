@@ -56,8 +56,14 @@ app.use("/api/cbt", RouterCbt);
 
 app.use("/api", RouterMigrasi);
 
-await pool.query("SELECT NOW()");
-console.log("[DB] Database Connected Successfully");
+pool
+  .query("SELECT NOW()")
+  .then(() => {
+    console.log("[DB] Database Connected Successfully");
+  })
+  .catch((error) => {
+    console.error("[DB] Initial connection check failed", error);
+  });
 
 // Handle all routes - send index.html for client-side routing
 app.get("/{*splat}", (req, res) => {
