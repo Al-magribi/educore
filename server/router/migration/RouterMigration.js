@@ -726,99 +726,818 @@ router.post("/migrate/step-4-lms", async (req, res) => {
     await destClient.query("BEGIN");
     console.log("Migrating LMS Data...");
 
+    // Helper: map month name to number (for compact type encoding)
+    const monthToNumber = (monthName) => {
+      if (!monthName) return null;
+      const map = {
+        Januari: 1,
+        Februari: 2,
+        Maret: 3,
+        April: 4,
+        Mei: 5,
+        Juni: 6,
+        Juli: 7,
+        Agustus: 8,
+        September: 9,
+        Oktober: 10,
+        November: 11,
+        Desember: 12,
+      };
+      return map[monthName] || null;
+    };
+
+    const normalizeScore = (value) => {
+      if (value === null || value === undefined) return 0;
+      const num = Number(value);
+      return Number.isNaN(num) ? 0 : Math.round(num);
+    };
+
+    const toIdKey = (value) => {
+      if (value === null || value === undefined) return null;
+      return String(value);
+    };
+
+    const BATCH_SIZE = 1000;
+    const bulkInsert = async (client, table, columns, rows) => {
+      if (!rows.length) return;
+      const values = [];
+      const placeholders = rows.map((row, rowIndex) => {
+        const baseIndex = rowIndex * columns.length;
+        row.forEach((value) => values.push(value));
+        const cols = columns.map((_, colIndex) => `$${baseIndex + colIndex + 1}`);
+        return `(${cols.join(", ")})`;
+      });
+      await client.query(
+        `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${placeholders.join(", ")}`,
+        values,
+      );
+    };
+
+    // Cache mapping old student_id -> new user_id (via username/NIS)
+    const sourceStudents = await sourceClient.query(
+      "SELECT id, nis FROM u_students",
+    );
+    const sourceTeachers = await sourceClient.query(
+      "SELECT id, username FROM u_teachers",
+    );
+    const destUsers = await destClient.query(
+      "SELECT id, username FROM u_users",
+    );
+
+    const usernameToUserId = new Map(
+      destUsers.rows.map((row) => [String(row.username).trim(), row.id]),
+    );
+
+    const oldStudentIdToNewUserId = new Map();
+    for (const row of sourceStudents.rows) {
+      const nis = row.nis ? String(row.nis).trim() : "";
+      const username = nis !== "" ? nis : `siswa_${row.id}`;
+      const newUserId = usernameToUserId.get(username);
+      if (newUserId) {
+        oldStudentIdToNewUserId.set(row.id, newUserId);
+      }
+    }
+
+    const oldTeacherIdToNewUserId = new Map();
+    for (const row of sourceTeachers.rows) {
+      const username = row.username ? String(row.username).trim() : "";
+      if (!username) continue;
+      const newUserId = usernameToUserId.get(username);
+      if (newUserId) {
+        oldTeacherIdToNewUserId.set(row.id, newUserId);
+      }
+    }
+
     // 1. CHAPTER (BAB)
+    const validSubjectIds = new Set(
+      (await destClient.query("SELECT id FROM a_subject")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
     const chapters = await sourceClient.query("SELECT * FROM l_chapter");
+    let skippedChapters = 0;
     for (const r of chapters.rows) {
+      const subjectKey = toIdKey(r.subject);
+      const subjectId = subjectKey && validSubjectIds.has(subjectKey)
+        ? r.subject
+        : null;
+      if (!subjectId && r.subject) {
+        skippedChapters++;
+      }
       await destClient.query(
         `INSERT INTO l_chapter (id, subject_id, title, description, order_number) 
          VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
-        [r.id, r.subject, r.title, r.target, r.order_number],
+        [r.id, subjectId, r.title, r.target, r.order_number],
+      );
+    }
+    if (skippedChapters > 0) {
+      console.warn(
+        `Skipped subject for ${skippedChapters} chapters (subject not found).`,
       );
     }
     await resetSequence(destClient, "l_chapter");
 
+    // 1.b CHAPTER CLASS MAPPING (l_cclass -> l_chapter.class_id/class_ids)
+    const chapterClasses = await sourceClient.query(
+      "SELECT chapter, classid FROM l_cclass",
+    );
+    const validClassIds = new Set(
+      (await destClient.query("SELECT id FROM a_class")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+    const chapterToClasses = new Map();
+    for (const row of chapterClasses.rows) {
+      const classKey = toIdKey(row.classid);
+      if (!classKey || !validClassIds.has(classKey)) continue;
+      const list = chapterToClasses.get(row.chapter) || [];
+      list.push(row.classid);
+      chapterToClasses.set(row.chapter, list);
+    }
+    for (const [chapterId, classIds] of chapterToClasses.entries()) {
+      if (!Array.isArray(classIds) || classIds.length === 0) continue;
+      const classId = classIds[0];
+      await destClient.query(
+        `UPDATE l_chapter
+         SET class_id = $2, class_ids = $3
+         WHERE id = $1`,
+        [chapterId, classId, classIds],
+      );
+    }
+
     // 2. CONTENT (Materi)
+    const validChapterIds = new Set(
+      (await destClient.query("SELECT id FROM l_chapter")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
     const contents = await sourceClient.query("SELECT * FROM l_content");
     for (const r of contents.rows) {
+      const chapterKey = toIdKey(r.chapter);
+      if (!chapterKey || !validChapterIds.has(chapterKey)) continue;
       // Cari file attachment dari l_file old table
       const fileRes = await sourceClient.query(
-        "SELECT file, video FROM l_file WHERE content = $1 LIMIT 1",
+        "SELECT title, file, video FROM l_file WHERE content = $1 LIMIT 1",
         [r.id],
       );
       const attach = fileRes.rows[0] ? fileRes.rows[0].file : null;
       const video = fileRes.rows[0] ? fileRes.rows[0].video : null;
+      const attachmentName = fileRes.rows[0] ? fileRes.rows[0].title : null;
 
       await destClient.query(
-        `INSERT INTO l_content (id, chapter_id, title, attachment_url, video_url, created_at) 
-         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
-        [r.id, r.chapter, r.title, attach, video, r.createdat],
+        `INSERT INTO l_content (
+           id,
+           chapter_id,
+           title,
+           body,
+           order_number,
+           attachment_url,
+           attachment_name,
+           video_url,
+           created_at
+         ) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
+        [
+          r.id,
+          r.chapter,
+          r.title,
+          r.target,
+          r.order_number,
+          attach,
+          attachmentName,
+          video,
+          r.createdat,
+        ],
       );
     }
     await resetSequence(destClient, "l_content");
 
-    // 3. NILAI FORMATIF (UNPIVOT)
+    // 3. RESET NILAI (Agar tidak dobel jika migrasi diulang)
+    await destClient.query(
+      "TRUNCATE l_score_attitude, l_score_formative, l_score_summative RESTART IDENTITY",
+    );
+
+    // 4. NILAI SIKAP (l_attitude -> l_score_attitude)
+    const attitudeOld = await sourceClient.query("SELECT * FROM l_attitude");
+    let skippedAttitudeSubjects = 0;
+
+    for (const a of attitudeOld.rows) {
+      const newStudentId = oldStudentIdToNewUserId.get(a.student_id);
+      if (!newStudentId) continue;
+      const subjectKey = toIdKey(a.subject_id);
+      const subjectId =
+        subjectKey && validSubjectIds.has(subjectKey) ? a.subject_id : null;
+      if (!subjectId && a.subject_id) {
+        skippedAttitudeSubjects++;
+        continue;
+      }
+      const classKey = toIdKey(a.class_id);
+      const classId =
+        classKey && validClassIds.has(classKey) ? a.class_id : null;
+
+      await destClient.query(
+        `INSERT INTO l_score_attitude (
+           student_id,
+           subject_id,
+           periode_id,
+           semester,
+           month,
+           kinerja,
+           kedisiplinan,
+           keaktifan,
+           percaya_diri,
+           teacher_note,
+           class_id,
+           teacher_id
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          newStudentId,
+          subjectId,
+          a.periode_id,
+          a.semester,
+          a.month,
+          normalizeScore(a.kinerja),
+          normalizeScore(a.kedisiplinan),
+          normalizeScore(a.keaktifan),
+          normalizeScore(a.percaya_diri),
+          a.catatan_guru || null,
+          classId,
+          oldTeacherIdToNewUserId.get(a.teacher_id) || null,
+        ],
+      );
+    }
+    if (skippedAttitudeSubjects > 0) {
+      console.warn(
+        `Skipped subject for ${skippedAttitudeSubjects} attitude rows (subject not found).`,
+      );
+    }
+
+    // 5. NILAI FORMATIF (UNPIVOT)
     // Di oldtable: l_formative punya student_id (int) yang merujuk ke u_students(id).
     // Di newtable: student_id merujuk ke u_users(id).
-    // KITA PERLU TRANSLATE ID LAGI.
-
-    // Ambil semua data formatif lama + data user mapping
-    // Join dengan u_students lama untuk dapat NIS, lalu join ke u_users baru via username
-    const formatifOld = await sourceClient.query(`
-      SELECT f.*, s.nis 
-      FROM l_formative f
-      JOIN u_students s ON f.student_id = s.id
-    `);
+    const formatifOld = await sourceClient.query(`SELECT * FROM l_formative`);
+    let skippedFormativeSubjects = 0;
+    let skippedFormativeChapters = 0;
+    let formativeBatch = [];
+    const formativeColumns = [
+      "student_id",
+      "subject_id",
+      "chapter_id",
+      "month",
+      "semester",
+      "type",
+      "score",
+      "class_id",
+      "teacher_id",
+    ];
 
     for (const f of formatifOld.rows) {
-      // Cari User ID Baru
-      const userCheck = await destClient.query(
-        "SELECT id FROM u_users WHERE username = $1",
-        [f.nis],
-      );
-      if (userCheck.rows.length === 0) continue; // Skip jika user tidak ketemu
-      const newStudentId = userCheck.rows[0].id;
+      const newStudentId = oldStudentIdToNewUserId.get(f.student_id);
+      if (!newStudentId) continue;
+      const subjectKey = toIdKey(f.subject_id);
+      const subjectId =
+        subjectKey && validSubjectIds.has(subjectKey) ? f.subject_id : null;
+      if (!subjectId && f.subject_id) {
+        skippedFormativeSubjects++;
+        continue;
+      }
+      const chapterKey = toIdKey(f.chapter_id);
+      const chapterId =
+        chapterKey && validChapterIds.has(chapterKey) ? f.chapter_id : null;
+      if (!chapterId && f.chapter_id) {
+        skippedFormativeChapters++;
+      }
+      const classKey = toIdKey(f.class_id);
+      const classId =
+        classKey && validClassIds.has(classKey) ? f.class_id : null;
 
-      // Loop f_1 sampai f_8
+      const monthNumber = monthToNumber(f.month);
+      const monthCode = monthNumber
+        ? `M${String(monthNumber).padStart(2, "0")}`
+        : "M00";
+      const chapterCode =
+        chapterId !== null && chapterId !== undefined
+          ? `B${chapterId}`
+          : "B0";
+
+      // Loop f_1 sampai f_8 (Subbab)
       for (let i = 1; i <= 8; i++) {
         const score = f[`f_${i}`];
         if (score !== null && score !== undefined) {
-          await destClient.query(
-            `INSERT INTO l_score_formative (student_id, subject_id, chapter_id, type, score)
-              VALUES ($1, $2, $3, $4, $5)`,
-            [newStudentId, f.subject_id, f.chapter_id, `Tugas ${i}`, score],
-          );
+          const type = `${monthCode}-${chapterCode}-S${i}`;
+          formativeBatch.push([
+            newStudentId,
+            subjectId,
+            chapterId,
+            f.month,
+            f.semester,
+            type,
+            score,
+            classId,
+            oldTeacherIdToNewUserId.get(f.teacher_id) || null,
+          ]);
+          if (formativeBatch.length >= BATCH_SIZE) {
+            await bulkInsert(
+              destClient,
+              "l_score_formative",
+              formativeColumns,
+              formativeBatch,
+            );
+            formativeBatch = [];
+          }
         }
       }
     }
+    if (formativeBatch.length > 0) {
+      await bulkInsert(
+        destClient,
+        "l_score_formative",
+        formativeColumns,
+        formativeBatch,
+      );
+    }
+    if (skippedFormativeSubjects > 0) {
+      console.warn(
+        `Skipped subject for ${skippedFormativeSubjects} formative rows (subject not found).`,
+      );
+    }
+    if (skippedFormativeChapters > 0) {
+      console.warn(
+        `Skipped chapter for ${skippedFormativeChapters} formative rows (chapter not found).`,
+      );
+    }
 
-    // 4. ATTENDANCE (Presensi)
+    // 6. NILAI SUMATIF (l_summative -> l_score_summative)
+    const summativeOld = await sourceClient.query(`SELECT * FROM l_summative`);
+    let skippedSummativeSubjects = 0;
+    let summativeBatch = [];
+    const summativeColumns = [
+      "student_id",
+      "subject_id",
+      "periode_id",
+      "chapter_id",
+      "semester",
+      "month",
+      "type",
+      "score_written",
+      "score_skill",
+      "final_score",
+      "class_id",
+      "teacher_id",
+    ];
+
+    for (const s of summativeOld.rows) {
+      const newStudentId = oldStudentIdToNewUserId.get(s.student_id);
+      if (!newStudentId) continue;
+      const subjectKey = toIdKey(s.subject_id);
+      const subjectId =
+        subjectKey && validSubjectIds.has(subjectKey) ? s.subject_id : null;
+      if (!subjectId && s.subject_id) {
+        skippedSummativeSubjects++;
+        continue;
+      }
+      const chapterKey = toIdKey(s.chapter_id);
+      const chapterId =
+        chapterKey && validChapterIds.has(chapterKey) ? s.chapter_id : null;
+      const classKey = toIdKey(s.class_id);
+      const classId =
+        classKey && validClassIds.has(classKey) ? s.class_id : null;
+
+      const monthNumber = monthToNumber(s.month);
+      const monthCode = monthNumber
+        ? `M${String(monthNumber).padStart(2, "0")}`
+        : "M00";
+      const chapterCode =
+        chapterId !== null && chapterId !== undefined ? `B${chapterId}` : "B0";
+
+      const skillScores = [s.oral, s.project, s.performance].filter(
+        (value) => value !== null && value !== undefined,
+      );
+      const skillAverage =
+        skillScores.length > 0
+          ? Math.round(
+              skillScores.reduce((sum, v) => sum + Number(v), 0) /
+                skillScores.length,
+            )
+          : null;
+
+      const allScores = [
+        s.written,
+        s.oral,
+        s.project,
+        s.performance,
+      ].filter((value) => value !== null && value !== undefined);
+      const computedFinal =
+        allScores.length > 0
+          ? Math.round(
+              allScores.reduce((sum, v) => sum + Number(v), 0) /
+                allScores.length,
+            )
+          : null;
+
+      const finalScore =
+        s.rata_rata !== null && s.rata_rata !== undefined
+          ? Number(s.rata_rata)
+          : computedFinal;
+
+      const type = `${monthCode}-${chapterCode}`;
+
+      summativeBatch.push([
+        newStudentId,
+        subjectId,
+        s.periode_id,
+        chapterId,
+        s.semester,
+        s.month,
+        type,
+        s.written,
+        skillAverage,
+        finalScore,
+        classId,
+        oldTeacherIdToNewUserId.get(s.teacher_id) || null,
+      ]);
+      if (summativeBatch.length >= BATCH_SIZE) {
+        await bulkInsert(
+          destClient,
+          "l_score_summative",
+          summativeColumns,
+          summativeBatch,
+        );
+        summativeBatch = [];
+      }
+    }
+    if (summativeBatch.length > 0) {
+      await bulkInsert(
+        destClient,
+        "l_score_summative",
+        summativeColumns,
+        summativeBatch,
+      );
+    }
+    if (skippedSummativeSubjects > 0) {
+      console.warn(
+        `Skipped subject for ${skippedSummativeSubjects} summative rows (subject not found).`,
+      );
+    }
+
+    // 7. ATTENDANCE (Presensi)
     // Sama, perlu translate Student ID
-    const attOld = await sourceClient.query(`
-      SELECT a.*, s.nis
-      FROM l_attendance a
-      JOIN u_students s ON a.studentid = s.id
-    `);
+    const attOld = await sourceClient.query(`SELECT * FROM l_attendance`);
 
     for (const a of attOld.rows) {
-      const userCheck = await destClient.query(
-        "SELECT id FROM u_users WHERE username = $1",
-        [a.nis],
-      );
-      if (userCheck.rows.length === 0) continue;
-      const newStudentId = userCheck.rows[0].id;
+      const newStudentId = oldStudentIdToNewUserId.get(a.studentid);
+      if (!newStudentId) continue;
+
+      const subjectKey = toIdKey(a.subjectid);
+      const subjectId =
+        subjectKey && validSubjectIds.has(subjectKey) ? a.subjectid : null;
+
+      const classKey = toIdKey(a.classid);
+      const classId =
+        classKey && validClassIds.has(classKey) ? a.classid : null;
 
       // Cari Teacher ID Baru juga (berdasarkan username yg diambil dr tabel u_teachers old)
       // (Logic disederhanakan: skip teacher mapping jika null, atau set null)
 
       await destClient.query(
-        `INSERT INTO l_attendance (class_id, subject_id, student_id, date, note)
-             VALUES ($1, $2, $3, $4, $5)`,
-        [a.classid, a.subjectid, newStudentId, a.day_date, a.note],
+        `INSERT INTO l_attendance (class_id, subject_id, student_id, date, note, teacher_id)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          classId,
+          subjectId,
+          newStudentId,
+          a.day_date,
+          a.note,
+          oldTeacherIdToNewUserId.get(a.teacher_id) || null,
+        ],
       );
     }
 
     await destClient.query("COMMIT");
     res.json({ message: "Step 4: LMS Data Migrated" });
+  } catch (error) {
+    await destClient.query("ROLLBACK");
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    sourceClient.release();
+    destClient.release();
+  }
+});
+
+/**
+ * STEP 4.1: SET PERIODE_ID FOR FORMATIF SCORES
+ * Source: l_formative.periode_id -> Dest: l_score_formative.periode_id
+ */
+router.post("/migrate/step-4-1-formative-periode", async (req, res) => {
+  const sourceClient = await poolSource.connect();
+  const destClient = await poolDest.connect();
+
+  try {
+    await destClient.query("BEGIN");
+    console.log("Updating Formative periode_id...");
+
+    const toIdKey = (value) => {
+      if (value === null || value === undefined) return null;
+      return String(value);
+    };
+
+    const monthToNumber = (monthName) => {
+      if (!monthName) return null;
+      const map = {
+        Januari: 1,
+        Februari: 2,
+        Maret: 3,
+        April: 4,
+        Mei: 5,
+        Juni: 6,
+        Juli: 7,
+        Agustus: 8,
+        September: 9,
+        Oktober: 10,
+        November: 11,
+        Desember: 12,
+      };
+      return map[monthName] || null;
+    };
+
+    const validSubjectIds = new Set(
+      (await destClient.query("SELECT id FROM a_subject")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+    const validChapterIds = new Set(
+      (await destClient.query("SELECT id FROM l_chapter")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+    const validClassIds = new Set(
+      (await destClient.query("SELECT id FROM a_class")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+
+    // Map old student_id -> new user_id
+    const sourceStudents = await sourceClient.query(
+      "SELECT id, nis FROM u_students",
+    );
+    const destUsers = await destClient.query(
+      "SELECT id, username FROM u_users",
+    );
+    const usernameToUserId = new Map(
+      destUsers.rows.map((row) => [String(row.username).trim(), row.id]),
+    );
+    const oldStudentIdToNewUserId = new Map();
+    for (const row of sourceStudents.rows) {
+      const nis = row.nis ? String(row.nis).trim() : "";
+      const username = nis !== "" ? nis : `siswa_${row.id}`;
+      const newUserId = usernameToUserId.get(username);
+      if (newUserId) {
+        oldStudentIdToNewUserId.set(row.id, newUserId);
+      }
+    }
+
+    const BATCH_SIZE = 1000;
+    const bulkUpdatePeriode = async (client, rows) => {
+      if (!rows.length) return;
+      const values = [];
+      const placeholders = rows.map((row, rowIndex) => {
+        const baseIndex = rowIndex * 7;
+        row.forEach((value) => values.push(value));
+        return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7})`;
+      });
+
+      await client.query(
+        `
+        UPDATE l_score_formative f
+        SET periode_id = v.periode_id::int
+        FROM (VALUES ${placeholders.join(", ")}) AS v(
+          student_id,
+          subject_id,
+          class_id,
+          chapter_id,
+          month,
+          semester,
+          periode_id
+        )
+        WHERE f.student_id = v.student_id::int
+          AND f.subject_id = v.subject_id::int
+          AND COALESCE(f.class_id, 0) = COALESCE(v.class_id::int, 0)
+          AND COALESCE(f.chapter_id, 0) = COALESCE(v.chapter_id::int, 0)
+          AND COALESCE(f.month, '') = COALESCE(v.month::varchar, '')
+          AND COALESCE(f.semester, 0) = COALESCE(v.semester::int, 0)
+        `,
+        values,
+      );
+    };
+
+    const formatifOld = await sourceClient.query(
+      "SELECT * FROM l_formative WHERE periode_id IS NOT NULL",
+    );
+
+    let batch = [];
+    for (const f of formatifOld.rows) {
+      const newStudentId = oldStudentIdToNewUserId.get(f.student_id);
+      if (!newStudentId) continue;
+
+      const subjectKey = toIdKey(f.subject_id);
+      const subjectId =
+        subjectKey && validSubjectIds.has(subjectKey) ? f.subject_id : null;
+      if (!subjectId && f.subject_id) continue;
+
+      const chapterKey = toIdKey(f.chapter_id);
+      const chapterId =
+        chapterKey && validChapterIds.has(chapterKey) ? f.chapter_id : null;
+
+      const classKey = toIdKey(f.class_id);
+      const classId =
+        classKey && validClassIds.has(classKey) ? f.class_id : null;
+
+      const month = f.month || null;
+      const semester = f.semester || null;
+      const periodeId = f.periode_id;
+
+      // Update all rows generated from this formative record (f_1..f_8)
+      // Using matching keys without type (type derived from same row)
+      batch.push([
+        newStudentId,
+        subjectId,
+        classId,
+        chapterId,
+        month,
+        semester,
+        periodeId,
+      ]);
+
+      if (batch.length >= BATCH_SIZE) {
+        await bulkUpdatePeriode(destClient, batch);
+        batch = [];
+      }
+    }
+
+    if (batch.length > 0) {
+      await bulkUpdatePeriode(destClient, batch);
+    }
+
+    await destClient.query("COMMIT");
+    res.json({ message: "Step 4.1: Formative periode_id updated." });
+  } catch (error) {
+    await destClient.query("ROLLBACK");
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    sourceClient.release();
+    destClient.release();
+  }
+});
+
+/**
+ * STEP 4.2: FINAL SCORE
+ * Source: l_finalscore -> Dest: l_score_final
+ */
+router.post("/migrate/step-4-2-finalscore", async (req, res) => {
+  const sourceClient = await poolSource.connect();
+  const destClient = await poolDest.connect();
+
+  try {
+    await destClient.query("BEGIN");
+    console.log("Migrating Final Score...");
+
+    const toIdKey = (value) => {
+      if (value === null || value === undefined) return null;
+      return String(value);
+    };
+
+    const validPeriodeIds = new Set(
+      (await destClient.query("SELECT id FROM a_periode")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+    const validClassIds = new Set(
+      (await destClient.query("SELECT id FROM a_class")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+    const validSubjectIds = new Set(
+      (await destClient.query("SELECT id FROM a_subject")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+
+    const sourceStudents = await sourceClient.query(
+      "SELECT id, nis FROM u_students",
+    );
+    const sourceTeachers = await sourceClient.query(
+      "SELECT id, username FROM u_teachers",
+    );
+    const destUsers = await destClient.query(
+      "SELECT id, username FROM u_users",
+    );
+
+    const usernameToUserId = new Map(
+      destUsers.rows.map((row) => [String(row.username).trim(), row.id]),
+    );
+
+    const oldStudentIdToNewUserId = new Map();
+    for (const row of sourceStudents.rows) {
+      const nis = row.nis ? String(row.nis).trim() : "";
+      const username = nis !== "" ? nis : `siswa_${row.id}`;
+      const newUserId = usernameToUserId.get(username);
+      if (newUserId) {
+        oldStudentIdToNewUserId.set(row.id, newUserId);
+      }
+    }
+
+    const oldTeacherIdToNewUserId = new Map();
+    for (const row of sourceTeachers.rows) {
+      const username = row.username ? String(row.username).trim() : "";
+      if (!username) continue;
+      const newUserId = usernameToUserId.get(username);
+      if (newUserId) {
+        oldTeacherIdToNewUserId.set(row.id, newUserId);
+      }
+    }
+
+    // Reset supaya endpoint bisa dijalankan ulang tanpa data dobel
+    await destClient.query("TRUNCATE l_score_final RESTART IDENTITY");
+
+    const finalScores = await sourceClient.query("SELECT * FROM l_finalscore");
+
+    let inserted = 0;
+    let skippedStudent = 0;
+    let skippedTeacher = 0;
+    let skippedInvalidRef = 0;
+
+    for (const row of finalScores.rows) {
+      const newStudentId = oldStudentIdToNewUserId.get(row.studentid);
+      if (!newStudentId) {
+        skippedStudent++;
+        continue;
+      }
+
+      const newTeacherId = oldTeacherIdToNewUserId.get(row.teacherid);
+      if (!newTeacherId) {
+        skippedTeacher++;
+        continue;
+      }
+
+      const periodeKey = toIdKey(row.periode);
+      const classKey = toIdKey(row.classid);
+      const subjectKey = toIdKey(row.subjectid);
+
+      const periodeId =
+        periodeKey && validPeriodeIds.has(periodeKey) ? row.periode : null;
+      const classId = classKey && validClassIds.has(classKey) ? row.classid : null;
+      const subjectId =
+        subjectKey && validSubjectIds.has(subjectKey) ? row.subjectid : null;
+
+      if (!periodeId || !classId || !subjectId) {
+        skippedInvalidRef++;
+        continue;
+      }
+
+      await destClient.query(
+        `INSERT INTO l_score_final (
+          id,
+          periode_id,
+          semester,
+          month,
+          class_id,
+          student_id,
+          teacher_id,
+          subject_id,
+          final_grade
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          row.id,
+          periodeId,
+          row.semester,
+          null,
+          classId,
+          newStudentId,
+          newTeacherId,
+          subjectId,
+          row.score,
+        ],
+      );
+      inserted++;
+    }
+
+    await resetSequence(destClient, "l_score_final");
+    await destClient.query("COMMIT");
+
+    res.json({
+      message: "Step 4.2: Final score migrated.",
+      stats: {
+        source_rows: finalScores.rows.length,
+        inserted,
+        skipped_student_mapping: skippedStudent,
+        skipped_teacher_mapping: skippedTeacher,
+        skipped_invalid_reference: skippedInvalidRef,
+      },
+    });
   } catch (error) {
     await destClient.query("ROLLBACK");
     console.error(error);

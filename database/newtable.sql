@@ -457,6 +457,32 @@ ALTER TABLE l_attendance
   CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha'));
 
 
+  -- 1. Drop constraint dulu karena tipe data akan diubah
+ALTER TABLE l_attendance
+DROP CONSTRAINT IF EXISTS l_attendance_status_check;
+
+-- 2. Rename kolom sementara
+ALTER TABLE l_attendance RENAME COLUMN status TO status_tmp;
+ALTER TABLE l_attendance RENAME COLUMN note TO note_tmp;
+
+-- 3. Tukar nama kolom
+ALTER TABLE l_attendance RENAME COLUMN status_tmp TO note;
+ALTER TABLE l_attendance RENAME COLUMN note_tmp TO status;
+
+-- 4. Ubah tipe data sesuai yang benar
+ALTER TABLE l_attendance
+ALTER COLUMN status TYPE varchar(20) USING status::varchar(20);
+
+ALTER TABLE l_attendance
+ALTER COLUMN note TYPE text USING note::text;
+
+-- 5. Tambahkan kembali constraint CHECK
+ALTER TABLE l_attendance
+ADD CONSTRAINT l_attendance_status_check
+CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha'));
+
+
+
 -- PENGATURAN BOBOT NILAI (Dari l_weighting newtable)
 CREATE TABLE l_score_weighting (
     id SERIAL PRIMARY KEY,
@@ -465,7 +491,6 @@ CREATE TABLE l_score_weighting (
     weight_attendance integer DEFAULT 0,
     weight_attitude integer DEFAULT 0,
     weight_daily integer DEFAULT 0,
-    weight_mid integer DEFAULT 0,
     weight_final integer DEFAULT 0,
     CONSTRAINT total_weight_100 CHECK ((weight_attendance + weight_attitude + weight_daily + weight_mid + weight_final) = 100)
 );
@@ -474,49 +499,96 @@ CREATE TABLE l_score_weighting (
 CREATE TABLE l_score_attitude (
     id SERIAL PRIMARY KEY,
     student_id integer REFERENCES u_students(user_id),
+    class_id integer REFERENCES a_class(id),
     subject_id integer REFERENCES a_subject(id),
+    teacher_id integer REFERENCES u_teachers(user_id),
     periode_id integer REFERENCES a_periode(id),
-    month varchar(20), -- Januari, Februari, dst
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    month varchar(20),
     kinerja integer DEFAULT 0,
     kedisiplinan integer DEFAULT 0,
     keaktifan integer DEFAULT 0,
     percaya_diri integer DEFAULT 0,
-    
     teacher_note text,
     average_score numeric(5,2) GENERATED ALWAYS AS ((kinerja + kedisiplinan + keaktifan + percaya_diri) / 4.0) STORED
 );
+CREATE INDEX idx_score_attitude_month ON l_score_attitude(month);
+CREATE INDEX idx_score_attitude_semester ON l_score_attitude(semester);
+CREATE INDEX idx_score_attitude_lookup ON l_score_attitude(subject_id, periode_id, month);
+CREATE INDEX idx_score_attitude_class ON l_score_attitude(class_id);
+CREATE INDEX idx_score_attitude_teacher ON l_score_attitude(teacher_id);
+CREATE INDEX idx_score_attitude_teacher_class_month
+ON l_score_attitude(teacher_id, class_id, month);
 
 -- NILAI PENGETAHUAN (Formatif/Harian)
 CREATE TABLE l_score_formative (
     id SERIAL PRIMARY KEY,
+    periode_id integer REFERENCES a_periode(id),
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    month varchar(20),
+    class_id integer REFERENCES a_class(id),
     student_id integer REFERENCES u_students(user_id),
+    teacher_id integer REFERENCES u_teachers(user_id),
     subject_id integer REFERENCES a_subject(id),
     chapter_id integer REFERENCES l_chapter(id),
     type varchar(50), -- Tugas 1, Kuis 1, Praktek
     score integer CHECK (score >= 0 AND score <= 100)
 );
 
--- NILAI SUMATIF (PTS/PAS)
+CREATE INDEX idx_score_formative_month ON l_score_formative(month);
+CREATE INDEX idx_score_formative_chapter ON l_score_formative(chapter_id);
+CREATE INDEX idx_score_formative_semester ON l_score_formative(semester);
+CREATE INDEX idx_score_formative_lookup ON l_score_formative(subject_id, chapter_id, month);
+CREATE INDEX idx_score_formative_class ON l_score_formative(class_id);
+CREATE INDEX idx_score_formative_teacher ON l_score_formative(teacher_id);
+CREATE INDEX idx_score_formative_teacher_class_month
+ON l_score_formative(teacher_id, class_id, month);
+
+-- NILAI SUMATIF
 CREATE TABLE l_score_summative (
     id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students(user_id),
-    subject_id integer REFERENCES a_subject(id),
     periode_id integer REFERENCES a_periode(id),
-    type varchar(20), -- 'PTS', 'PAS'
-    score_written integer,
-    score_skill integer, -- Nilai Praktek
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    month varchar(20),
+    class_id integer REFERENCES a_class(id),
+    student_id integer REFERENCES u_students(user_id),
+    teacher_id integer REFERENCES u_teachers(user_id),
+    subject_id integer REFERENCES a_subject(id),
+    chapter_id integer REFERENCES l_chapter(id),
+    type varchar(50), -- Format: Mxx-B{chapter}-S{sub}
+    score_written integer CHECK (score_written >= 0 AND score_written <= 100),
+    score_skill integer CHECK (score_skill >= 0 AND score_skill <= 100), -- Nilai Praktek
     final_score numeric(5,2)
 );
+
+CREATE INDEX idx_score_summative_month ON l_score_summative(month);
+CREATE INDEX idx_score_summative_chapter ON l_score_summative(chapter_id);
+CREATE INDEX idx_score_summative_semester ON l_score_summative(semester);
+CREATE INDEX idx_score_summative_lookup ON l_score_summative(subject_id, periode_id, month);
+CREATE INDEX idx_score_summative_class ON l_score_summative(class_id);
+CREATE INDEX idx_score_summative_teacher ON l_score_summative(teacher_id);
+CREATE INDEX idx_score_summative_teacher_class_month
+ON l_score_summative(teacher_id, class_id, month);
+CREATE INDEX idx_score_summative_type ON l_score_summative(type);
 
 -- REKAP NILAI AKHIR (Untuk Rapor)
 CREATE TABLE l_score_final (
     id SERIAL PRIMARY KEY,
     periode_id integer REFERENCES a_periode(id),
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    class_id integer REFERENCES a_class(id),
     student_id integer REFERENCES u_students(user_id),
+    teacher_id integer REFERENCES u_teachers(user_id),
     subject_id integer REFERENCES a_subject(id),
-    final_grade integer, -- Nilai Akhir Angka
-    letter_grade varchar(2) -- A, B, C
+    final_grade integer CHECK (final_grade >= 0 AND final_grade <= 100)
 );
+
+CREATE INDEX idx_score_final_semester ON l_score_final(semester);
+CREATE INDEX idx_score_final_lookup ON l_score_final(subject_id, periode_id, semester);
+CREATE INDEX idx_score_final_class ON l_score_final(class_id);
+CREATE INDEX idx_score_final_teacher ON l_score_final(teacher_id);
+CREATE INDEX idx_score_final_teacher_class_semester
+ON l_score_final(teacher_id, class_id, semester);
 
 -- ================================================================
 -- SECTION 6: TAHFIZ (AL-QUR'AN)
@@ -627,3 +699,197 @@ CREATE TABLE configurations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ================================================================
+-- HELPER: Decode type format for monthly reports (Mxx-B{chapter}-S{sub})
+-- Example: M02-B10-S3 -> month_num=2, chapter_id=10, subchapter=3
+-- ================================================================
+CREATE OR REPLACE FUNCTION fn_decode_score_type(p_type text)
+RETURNS TABLE (
+    month_num integer,
+    chapter_id integer,
+    subchapter integer
+)
+LANGUAGE sql
+AS $$
+    SELECT
+        NULLIF(substring(p_type from 'M(\\d{2})'), '')::int AS month_num,
+        NULLIF(substring(p_type from 'B(\\d+)'), '')::int AS chapter_id,
+        NULLIF(substring(p_type from 'S(\\d+)'), '')::int AS subchapter;
+$$;
+
+-- ================================================================
+-- VIEWS: Monthly Reports (Ready for frontend)
+-- ================================================================
+
+CREATE OR REPLACE VIEW v_report_attitude_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  a.subject_id,
+  a.teacher_id,
+  a.month,
+  a.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  a.kinerja,
+  a.kedisiplinan,
+  a.keaktifan,
+  a.percaya_diri,
+  a.average_score,
+  a.teacher_note
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+LEFT JOIN l_score_attitude a
+  ON a.student_id = e.student_id
+ AND a.periode_id = e.periode_id;
+
+CREATE OR REPLACE VIEW v_report_formative_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  f.subject_id,
+  f.teacher_id,
+  f.month,
+  f.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  f.chapter_id,
+  d.subchapter AS subchapter_index,
+  f.score
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+JOIN l_score_formative f ON f.student_id = e.student_id
+LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true;
+
+CREATE OR REPLACE VIEW v_report_summative_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  s.subject_id,
+  s.teacher_id,
+  s.month,
+  s.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  s.chapter_id,
+  d.subchapter AS subchapter_index,
+  s.type,
+  s.score_written,
+  s.score_skill,
+  s.final_score
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+JOIN l_score_summative s ON s.student_id = e.student_id
+LEFT JOIN LATERAL fn_decode_score_type(s.type) d ON true;
+
+-- ================================================================
+-- SAMPLE REPORT QUERIES (Bulanan)
+-- ================================================================
+
+-- 1) Laporan Nilai Sikap Bulanan (per kelas, mapel, periode)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- Note: join ke u_class_enrollments agar konteks kelas & periode akurat
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   a.month,
+--   a.semester,
+--   a.kinerja,
+--   a.kedisiplinan,
+--   a.keaktifan,
+--   a.percaya_diri,
+--   a.average_score,
+--   a.teacher_note
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- LEFT JOIN l_score_attitude a
+--   ON a.student_id = e.student_id
+--  AND a.subject_id = :subject_id
+--  AND a.periode_id = :periode_id
+--  AND a.month = :month
+--  AND a.semester = :semester
+-- WHERE e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+-- ORDER BY u.full_name ASC;
+
+-- 2) Laporan Nilai Formatif Bulanan (per bab/subbab)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   f.chapter_id,
+--   d.subchapter AS subchapter_index,
+--   f.score
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- JOIN l_score_formative f ON f.student_id = e.student_id
+-- LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true
+-- WHERE f.subject_id = :subject_id
+--   AND e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+--   AND f.month = :month
+--   AND f.semester = :semester
+-- ORDER BY f.chapter_id, d.subchapter, u.full_name;
+
+-- 3) Laporan Nilai Sumatif Bulanan (per bab)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   s.chapter_id,
+--   s.score_written,
+--   s.score_skill,
+--   s.final_score
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- JOIN l_score_summative s ON s.student_id = e.student_id
+-- WHERE s.subject_id = :subject_id
+--   AND e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+--   AND s.month = :month
+--   AND s.semester = :semester
+-- ORDER BY s.chapter_id, u.full_name;
+
+-- ================================================================
+-- VIEW: Rekap Absensi Bulanan (LMS)
+-- Menyediakan data dasar rekap attendance per siswa per hari
+-- ================================================================
+CREATE OR REPLACE VIEW v_report_attendance_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  a.subject_id,
+  a.teacher_id,
+  EXTRACT(YEAR FROM a.date)::int AS year_num,
+  EXTRACT(MONTH FROM a.date)::int AS month_num,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  a.date,
+  a.status,
+  CASE
+    WHEN a.status IN ('Hadir', 'Telat') THEN 'H'
+    WHEN a.status = 'Sakit' THEN 'S'
+    WHEN a.status = 'Izin' THEN 'I'
+    WHEN a.status IN ('Alpa', 'Alpha') THEN 'A'
+    ELSE '-'
+  END AS status_code
+FROM u_class_enrollments e
+JOIN u_users u ON u.id = e.student_id
+JOIN u_students st ON st.user_id = e.student_id
+LEFT JOIN l_attendance a
+  ON a.student_id = e.student_id
+ AND a.class_id = e.class_id;

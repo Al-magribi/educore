@@ -3,7 +3,9 @@ import { Grid, Tabs } from "antd";
 import { useGetClassesQuery } from "../../../../../service/lms/ApiLms";
 import { useGetGradingMetaQuery } from "../../../../../service/lms/ApiGrading";
 import RecapAttendance from "./components/RecapAttendance";
-import RecapScore from "./components/RecapScore";
+import RecapFormative from "./components/RecapFormative";
+import RecapSummative from "./components/RecapSummative";
+import FinalScore from "./components/FinalScore";
 
 const { useBreakpoint } = Grid;
 
@@ -107,9 +109,9 @@ const Recap = ({ subjectId, subject }) => {
         },
         {
           key: "score",
-          label: "Rekapitulasi Nilai",
+          label: "Rekapitulasi Formatif",
           children: (
-            <RecapScore
+            <RecapFormative
               isActive={activeTab === "score"}
               subjectId={subjectId}
               subject={subject}
@@ -126,6 +128,30 @@ const Recap = ({ subjectId, subject }) => {
               screens={screens}
             />
           ),
+        },
+        {
+          key: "summative",
+          label: "Rekapitulasi Sumatif",
+          children: (
+            <RecapSummative
+              isActive={activeTab === "summative"}
+              subjectId={subjectId}
+              subject={subject}
+              activePeriode={activePeriode}
+              classes={classes}
+              classLoading={classLoading}
+              classId={classId}
+              setClassId={setClassId}
+              semester={semester}
+              setSemester={setSemester}
+              screens={screens}
+            />
+          ),
+        },
+        {
+          key: "final",
+          label: "Rekapitulasi Nilai Akhir",
+          children: <FinalScore />,
         },
       ]}
     />
