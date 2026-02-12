@@ -92,6 +92,8 @@ router.post(
       allocations, // Array: [{ subject_id, class_id }, ...]
     } = req.body;
 
+    const homebaseId = req.user.homebase_id;
+
     // 1. Insert ke u_users
     const salt = await bcrypt.genSalt(10);
     const hashPassword = await bcrypt.hash(password || "123456", salt); // Default pass
@@ -104,8 +106,8 @@ router.post(
     // 2. Insert ke u_teachers
     const isHomeroom = !!homeroom_class_id;
     await client.query(
-      `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom) VALUES ($1, $2, $3, $4, $5)`,
-      [userId, nip, phone, email, isHomeroom],
+      `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, nip, phone, email, isHomeroom, homebaseId],
     );
 
     // 3. Handle Wali Kelas (Update a_class)
@@ -225,6 +227,8 @@ router.delete(
 
     // Delete u_users (Cascade ke u_teachers)
     await client.query(`DELETE FROM u_users WHERE id = $1`, [id]);
+
+    await client.query(`DELETE FROM u_teachers WHERE user_id = $1`, [id]);
 
     res.json({ status: "success", message: "Guru berhasil dihapus" });
   }),
