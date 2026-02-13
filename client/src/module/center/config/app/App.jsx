@@ -8,6 +8,13 @@ import { SaveOutlined, SettingOutlined } from "@ant-design/icons";
 import ConfigCategoryPanel from "./ConfigCategoryPanel"; // Import panel kategori
 
 const App = () => {
+  const normalizeDomainInput = (rawValue) => {
+    if (typeof rawValue !== "string") return rawValue;
+    const trimmed = rawValue.trim();
+    if (!trimmed) return "";
+    return trimmed.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  };
+
   // 1. Redux Hooks
   const { data: configs, isLoading, isError } = useGetConfigsQuery();
   const [updateConfigs, { isLoading: isUpdating }] = useUpdateConfigsMutation();
@@ -32,7 +39,7 @@ const App = () => {
       // Transform { key: value } -> [{ key, value }]
       const payload = Object.keys(values).map((key) => ({
         key: key,
-        value: values[key],
+        value: key === "domain" ? normalizeDomainInput(values[key]) : values[key],
       }));
 
       await updateConfigs({ configs: payload }).unwrap();

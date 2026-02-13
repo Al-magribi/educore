@@ -1,5 +1,15 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
+const normalizeConfigPayload = (configs = []) =>
+  configs.map((item) => {
+    if (item?.key !== "domain") return item;
+    const rawValue = typeof item.value === "string" ? item.value.trim() : "";
+    const normalizedDomain = rawValue
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/+$/, "");
+    return { ...item, value: normalizedDomain };
+  });
+
 export const ApiApp = createApi({
   reducerPath: "ApiApp",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/center" }),
@@ -20,7 +30,10 @@ export const ApiApp = createApi({
       query: (body) => ({
         url: "/config",
         method: "PUT",
-        body: body,
+        body: {
+          ...body,
+          configs: normalizeConfigPayload(body?.configs || []),
+        },
       }),
       invalidatesTags: ["Configs"],
     }),
