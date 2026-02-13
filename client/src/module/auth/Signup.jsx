@@ -29,6 +29,7 @@ const Signup = () => {
         backgroundColor: "#f0f2f5",
       }}
     >
+      <title>Daftar</title>
       <Card style={{ width: 450, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <Title level={2}>Daftar Akun</Title>

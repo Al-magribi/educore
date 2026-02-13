@@ -29,9 +29,10 @@ const Reset = () => {
         backgroundColor: "#f0f2f5",
       }}
     >
+      <title>Reset Password</title>
       <Card
         style={{ width: 400, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-        bordered={false}
+        variant="borderless"
       >
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <Title level={3}>Reset Password</Title>
