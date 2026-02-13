@@ -8,6 +8,7 @@ import RouterPublic from "./utils/RoutePublic";
 import RouteProtection from "./utils/RouteProtection";
 
 import { Forgot, Reset, Signin, Signup } from "./module/auth";
+import { LmsManagement } from "./module/lms";
 
 const Profile = lazy(() => import("./components/profile/Profile"));
 
