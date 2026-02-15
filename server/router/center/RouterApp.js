@@ -7,6 +7,19 @@ import fs from "fs";
 
 const router = Router();
 
+const normalizeConfigValue = (key, value) => {
+  if (value === null || value === undefined) return "";
+
+  if (key === "domain") {
+    return String(value)
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/+$/, "");
+  }
+
+  return typeof value === "string" ? value : String(value);
+};
+
 // --- KONFIGURASI UPLOAD (MULTER) ---
 // Tentukan lokasi penyimpanan (misal: client/public/assets/web)
 const storage = multer.diskStorage({
@@ -103,14 +116,30 @@ router.put(
   "/config",
   authorize("admin"),
   withTransaction(async (req, res, client) => {
-    const { configs } = req.body;
-    const updatePromises = configs.map((item) => {
-      return client.query(
+    const { configs } = req.body || {};
+
+    if (!Array.isArray(configs) || configs.length === 0) {
+      return res
+        .status(400)
+        .json({ code: 400, message: "Payload configs tidak valid" });
+    }
+
+    const sanitizedConfigs = configs
+      .filter((item) => item && item.key)
+      .map((item) => ({
+        key: item.key,
+        value: normalizeConfigValue(item.key, item.value),
+      }));
+
+    const updatePromises = sanitizedConfigs.map((item) =>
+      client.query(
         "UPDATE configurations SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2",
         [item.value, item.key],
-      );
-    });
+      ),
+    );
+
     await Promise.all(updatePromises);
+
     res.json({ code: 200, message: "Updated" });
   }),
 );
