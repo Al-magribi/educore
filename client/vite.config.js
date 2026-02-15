@@ -40,6 +40,7 @@ export default defineConfig({
             "react-router-dom",
             "@reduxjs/toolkit",
           ],
+          charts: ["@ant-design/plots"],
         },
       },
     },

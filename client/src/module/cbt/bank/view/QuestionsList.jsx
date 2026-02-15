@@ -1,8 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { Suspense, lazy, useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { AppLayout } from "../../../../components";
 import {
-  Empty,
   Collapse,
   Checkbox,
   message,
@@ -12,7 +10,6 @@ import {
   theme,
   Typography,
   Button,
-  Tooltip,
   Modal,
   Space,
   Tag,
@@ -28,8 +25,9 @@ import {
 import QuestionHeader from "./QuestionHeader";
 import QuestionBulkActions from "./QuestionBulkActions";
 import QuestionItem from "./QuestionItem";
-import { QuestionForm } from "../components";
-import ImportExcelModal from "./ImportExcelModal";
+
+const QuestionForm = lazy(() => import("../components/question/QuestionForm"));
+const ImportExcelModal = lazy(() => import("./ImportExcelModal"));
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -141,19 +139,27 @@ const QuestionsList = () => {
 
   if (isFormVisible)
     return (
-      <QuestionForm
-        bankId={bankId}
-        initialData={editingItem}
-        onCancel={() => setIsFormVisible(false)}
-        onSaveSuccess={() => {
-          setIsFormVisible(false);
-          refetch();
-        }}
-      />
+      <Suspense
+        fallback={
+          <Flex justify='center' align='center' style={{ minHeight: 320 }}>
+            <Spin size='large' />
+          </Flex>
+        }
+      >
+        <QuestionForm
+          bankId={bankId}
+          initialData={editingItem}
+          onCancel={() => setIsFormVisible(false)}
+          onSaveSuccess={() => {
+            setIsFormVisible(false);
+            refetch();
+          }}
+        />
+      </Suspense>
     );
 
   return (
-    <Space vertical>
+    <Flex gap='middle' vertical>
       <QuestionHeader
         bankName={bankName}
         totalCount={questions.length}
@@ -272,16 +278,20 @@ const QuestionsList = () => {
         />
       )}
 
-      <ImportExcelModal
-        visible={isImportModalOpen}
-        onCancel={() => setIsImportModalOpen(false)}
-        bankId={bankId}
-        onSuccess={() => {
-          refetch();
-          setIsImportModalOpen(false);
-        }}
-      />
-    </Space>
+      {isImportModalOpen && (
+        <Suspense fallback={null}>
+          <ImportExcelModal
+            visible={isImportModalOpen}
+            onCancel={() => setIsImportModalOpen(false)}
+            bankId={bankId}
+            onSuccess={() => {
+              refetch();
+              setIsImportModalOpen(false);
+            }}
+          />
+        </Suspense>
+      )}
+    </Flex>
   );
 };
 

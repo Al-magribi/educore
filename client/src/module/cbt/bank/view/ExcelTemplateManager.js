@@ -1,6 +1,5 @@
-import * as XLSX from "xlsx";
-
-export const downloadTemplate = () => {
+export const downloadTemplate = async () => {
+  const XLSX = await import("xlsx");
   const template = [
     {
       type_id: 1,

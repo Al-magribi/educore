@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Layout,
   Menu,
@@ -51,6 +51,63 @@ const AppLayout = ({ children, title }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [menuItems, setMenuItems] = useState([]);
   const isMobile = !screens.lg;
+  const preloadedRoutes = useRef(new Set());
+
+  const routePreloaders = {
+    "/profile": () => import("../profile/Profile"),
+    "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
+    "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
+    "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
+    "/center-teacher": () => import("../../module/center/teacher/CenterTeacher"),
+    "/center-market": () => import("../../module/center/market/CenterMarket"),
+    "/center-config": () => import("../../module/center/config/CenterConfig"),
+    "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
+    "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
+    "/admin-data-akademik": () =>
+      import("../../module/admin/academic/AdminAcademinc"),
+    "/computer-based-test/bank": () =>
+      import("../../module/cbt/bank/view/BankList"),
+    "/computer-based-test/jadwal-ujian": () =>
+      import("../../module/cbt/exam/view/ExamList"),
+    "/siswa-dashboard": () => import("../../module/student/dashboard/StudentDash"),
+    "/siswa/jadwal-ujian": () =>
+      import("../../module/cbt/student/view/StudentExamList"),
+    "/computer-based-test/start": () =>
+      import("../../module/cbt/student/view/ExamInterface"),
+    "/guru-dashboard": () => import("../../module/teacher/dashboard/TeacherDash"),
+  };
+
+  const preloadRouteByKey = (key) => {
+    const preloader = routePreloaders[key];
+    if (!preloader || preloadedRoutes.current.has(key)) return;
+    preloadedRoutes.current.add(key);
+    preloader().catch(() => {
+      preloadedRoutes.current.delete(key);
+    });
+  };
+
+  const enhanceMenuItems = (items) =>
+    items.map((item) => {
+      const nextItem = { ...item };
+      const key = item.key;
+
+      if (typeof item.label === "string") {
+        nextItem.label = (
+          <span
+            onMouseEnter={() => preloadRouteByKey(key)}
+            onFocus={() => preloadRouteByKey(key)}
+          >
+            {item.label}
+          </span>
+        );
+      }
+
+      if (Array.isArray(item.children)) {
+        nextItem.children = enhanceMenuItems(item.children);
+      }
+
+      return nextItem;
+    });
 
   // Ant Design Token
   const {
@@ -87,7 +144,7 @@ const AppLayout = ({ children, title }) => {
       default:
         items = [];
     }
-    setMenuItems(items);
+    setMenuItems(enhanceMenuItems(items));
   }, [user]);
 
   useEffect(() => {
@@ -106,6 +163,7 @@ const AppLayout = ({ children, title }) => {
   };
 
   const handleMenuClick = ({ key }) => {
+    preloadRouteByKey(key);
     if (key === "logout") handleLogout();
     else navigate(key);
 

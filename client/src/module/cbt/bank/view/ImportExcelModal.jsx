@@ -14,7 +14,6 @@ import {
   UploadCloud,
   AlertCircle,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 import { downloadTemplate } from "./ExcelTemplateManager";
 import ImportInstruction from "./ImportInstruction";
 import { useBulkCreateQuestionMutation } from "../../../../service/cbt/ApiQuestion";
@@ -40,6 +39,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
 
     reader.onload = async (e) => {
       try {
+        const XLSX = await import("xlsx");
         const data = e.target.result;
         const workbook = XLSX.read(data, { type: "binary" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
