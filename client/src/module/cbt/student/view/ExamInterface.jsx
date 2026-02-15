@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Button,
   Card,
   Col,
   Divider,
@@ -11,6 +12,7 @@ import {
   Space,
   Tag,
   Typography,
+  message,
 } from "antd";
 import { AlarmClock, BookOpenCheck, UserRound } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -19,6 +21,7 @@ import {
   useFinishStudentExamMutation,
   useGetStudentExamAnswersQuery,
   useGetStudentExamQuestionsQuery,
+  useMarkStudentExamViolationMutation,
   useSaveStudentExamAnswerMutation,
 } from "../../../../service/cbt/ApiExam";
 import ProgressPanel from "../components/ProgressPanel";
@@ -38,6 +41,32 @@ const formatTime = (seconds) => {
   const secs = safeSeconds % 60;
   const pad = (value) => String(value).padStart(2, "0");
   return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
+};
+
+const isFullscreenActive = () =>
+  typeof document !== "undefined" && Boolean(document.fullscreenElement);
+
+const requestFullscreenExam = async () => {
+  if (typeof document === "undefined") return false;
+  if (document.fullscreenElement) return true;
+  const rootElement = document.documentElement;
+  if (!rootElement?.requestFullscreen) return false;
+  try {
+    await rootElement.requestFullscreen();
+    return true;
+  } catch (_error) {
+    return false;
+  }
+};
+
+const exitFullscreenExam = async () => {
+  if (typeof document === "undefined") return;
+  if (!document.fullscreenElement || !document.exitFullscreen) return;
+  try {
+    await document.exitFullscreen();
+  } catch (_error) {
+    // ignore
+  }
 };
 
 const ExamInterface = () => {
@@ -81,7 +110,11 @@ const ExamInterface = () => {
     if (!isExamError || !examError) return;
     if (examError?.status !== 403) return;
     const status = examError?.data?.status;
-    if (status === "belum_masuk" || status === "selesai") {
+    if (
+      status === "belum_masuk" ||
+      status === "selesai" ||
+      status === "pelanggaran"
+    ) {
       navigate("/siswa/jadwal-ujian");
     }
   }, [isExamError, examError, navigate]);
@@ -89,6 +122,7 @@ const ExamInterface = () => {
   const totalMinutes = examInfo?.duration_minutes || 90;
   const sessionStartAt = examInfo?.session?.start_at;
   const sessionEndAt = examInfo?.session?.end_at;
+  const sessionRemainingSeconds = examInfo?.session?.remaining_seconds;
   const isCountdownReady = Boolean(
     user?.id &&
       examInfo?.id &&
@@ -98,6 +132,9 @@ const ExamInterface = () => {
   );
   const initialRemainingSeconds = useMemo(() => {
     if (!isCountdownReady) return null;
+    if (Number.isFinite(sessionRemainingSeconds)) {
+      return Math.max(0, Number(sessionRemainingSeconds));
+    }
     if (sessionEndAt) {
       const endMs = new Date(sessionEndAt).getTime();
       if (!Number.isNaN(endMs)) {
@@ -110,11 +147,24 @@ const ExamInterface = () => {
     const endMs = startMs + totalMinutes * 60 * 1000;
     const diffSeconds = Math.round((endMs - Date.now()) / 1000);
     return Math.max(0, diffSeconds);
-  }, [isCountdownReady, sessionEndAt, sessionStartAt, totalMinutes]);
+  }, [
+    isCountdownReady,
+    sessionRemainingSeconds,
+    sessionEndAt,
+    sessionStartAt,
+    totalMinutes,
+  ]);
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const [finishExam] = useFinishStudentExamMutation();
+  const [markViolation] = useMarkStudentExamViolationMutation();
   const [saveAnswer] = useSaveStudentExamAnswerMutation();
   const [isAutoFinishing, setIsAutoFinishing] = useState(false);
+  const [isRequestingFullscreen, setIsRequestingFullscreen] = useState(false);
+  const [fullScreenNotice, setFullScreenNotice] = useState("");
+  const [fullScreenOn, setFullScreenOn] = useState(isFullscreenActive());
+  const violationLockRef = useRef(false);
+  const finishLockRef = useRef(false);
+  const autoFullscreenAttemptedRef = useRef(false);
 
   useEffect(() => {
     if (!isCountdownReady) return;
@@ -130,12 +180,39 @@ const ExamInterface = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, [isCountdownReady, remainingSeconds]);
+
+  const handleExamFinish = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!examId || finishLockRef.current) return;
+      finishLockRef.current = true;
+      let isSuccess = false;
+      try {
+        await finishExam({ exam_id: examId }).unwrap();
+        await exitFullscreenExam();
+        isSuccess = true;
+        if (!silent) {
+          message.success("Ujian berhasil diselesaikan.");
+        }
+        navigate("/siswa/jadwal-ujian");
+      } catch (error) {
+        if (!silent) {
+          message.error(error?.data?.message || "Gagal menyelesaikan ujian.");
+        }
+      } finally {
+        if (!isSuccess) {
+          finishLockRef.current = false;
+        }
+      }
+    },
+    [examId, finishExam, navigate],
+  );
+
   useEffect(() => {
     if (!isCountdownReady) return;
     if (remainingSeconds !== 0 || isAutoFinishing) return;
     if (!examId) return;
     setIsAutoFinishing(true);
-    finishExam({ exam_id: examId }).finally(() => {
+    handleExamFinish({ silent: true }).finally(() => {
       setIsAutoFinishing(false);
     });
   }, [
@@ -143,8 +220,100 @@ const ExamInterface = () => {
     remainingSeconds,
     isAutoFinishing,
     examId,
-    finishExam,
+    handleExamFinish,
   ]);
+
+  const requestFullscreen = useCallback(async () => {
+    setIsRequestingFullscreen(true);
+    const ok = await requestFullscreenExam();
+    if (!ok) {
+      setFullScreenNotice(
+        "Browser menolak mode layar penuh. Klik tombol untuk masuk fullscreen sebelum melanjutkan ujian.",
+      );
+    } else {
+      setFullScreenNotice("");
+      setFullScreenOn(true);
+    }
+    setIsRequestingFullscreen(false);
+  }, []);
+
+  const markViolationAndLeave = useCallback(
+    async (reason) => {
+      if (!examId || violationLockRef.current || finishLockRef.current) return;
+      violationLockRef.current = true;
+      try {
+        await markViolation({ exam_id: examId, reason }).unwrap();
+      } catch (_error) {
+        // ignore, redirect tetap dijalankan
+      } finally {
+        await exitFullscreenExam();
+        message.error(
+          "Pelanggaran terdeteksi. Anda dikeluarkan dari ujian dan harus meminta izin pengawas.",
+        );
+        navigate("/siswa/jadwal-ujian");
+      }
+    },
+    [examId, markViolation, navigate],
+  );
+
+  useEffect(() => {
+    if (!isCountdownReady) return;
+    setFullScreenOn(isFullscreenActive());
+    if (autoFullscreenAttemptedRef.current) return;
+    autoFullscreenAttemptedRef.current = true;
+    requestFullscreen();
+  }, [isCountdownReady, requestFullscreen]);
+
+  useEffect(() => {
+    if (!isCountdownReady || !examId) return;
+
+    const onFullscreenChange = () => {
+      const active = isFullscreenActive();
+      setFullScreenOn(active);
+      if (!active) {
+        markViolationAndLeave("exit_fullscreen");
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        markViolationAndLeave("switch_tab");
+      }
+    };
+
+    const onBlur = () => {
+      if (!document.hidden) {
+        markViolationAndLeave("window_blur");
+      }
+    };
+
+    const blockedCtrlKeys = new Set(["tab", "t", "w", "n", "r"]);
+
+    const onKeyDown = (event) => {
+      const key = String(event.key || "");
+      const lowerKey = key.toLowerCase();
+      const isTabCombo = key === "Tab" && event.altKey;
+      const isCtrlCombo = event.ctrlKey && blockedCtrlKeys.has(lowerKey);
+      const isFunctionKey =
+        key === "F11" || key === "F12" || key === "Escape";
+
+      if (isTabCombo || isCtrlCombo || isFunctionKey) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("keydown", onKeyDown, true);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [examId, isCountdownReady, markViolationAndLeave]);
 
   const questions = examData?.questions || [];
   const totalQuestions = questions.length;
@@ -162,6 +331,10 @@ const ExamInterface = () => {
     setAnswers({});
     setDoubts({});
     hasHydratedRef.current = false;
+    violationLockRef.current = false;
+    finishLockRef.current = false;
+    autoFullscreenAttemptedRef.current = false;
+    setFullScreenNotice("");
   }, [examId]);
 
   useEffect(() => {
@@ -514,10 +687,7 @@ const ExamInterface = () => {
                       canNext={canNext}
                       isDoubt={isCurrentDoubt}
                       showFinish={showFinish}
-                      onFinish={() => {
-                        if (!examId) return;
-                        finishExam({ exam_id: examId });
-                      }}
+                      onFinish={() => handleExamFinish()}
                     />
                   </Space>
                 )}
@@ -526,6 +696,48 @@ const ExamInterface = () => {
           </Row>
         </Space>
       </Content>
+
+      {isCountdownReady && !fullScreenOn && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(7, 16, 38, 0.88)",
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+          }}
+        >
+          <Card
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              borderRadius: 16,
+              border: "1px solid #1f5eff",
+            }}
+          >
+            <Space direction="vertical" size={14} style={{ width: "100%" }}>
+              <Title level={4} style={{ margin: 0 }}>
+                Mode Ujian Wajib Fullscreen
+              </Title>
+              <Text>
+                Ujian dikunci pada mode layar penuh. Jika keluar fullscreen atau
+                berpindah tab, status akan menjadi pelanggaran.
+              </Text>
+              {fullScreenNotice ? <Text type="danger">{fullScreenNotice}</Text> : null}
+              <Button
+                type="primary"
+                size="large"
+                loading={isRequestingFullscreen}
+                onClick={requestFullscreen}
+              >
+                Masuk Fullscreen
+              </Button>
+            </Space>
+          </Card>
+        </div>
+      )}
 
       <QuestionListModal
         open={isSmallScreen && isQuestionListOpen}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import {
   Button,
   Flex,
@@ -13,6 +13,7 @@ import {
   theme,
   Avatar,
   Space,
+  Spin,
 } from "antd";
 import {
   Plus,
@@ -32,8 +33,9 @@ import {
   useGetBanksQuery,
   useDeleteBankMutation,
 } from "../../../../service/cbt/ApiBank";
-import { Link, useSearchParams } from "react-router-dom";
-import QuestionsList from "./QuestionsList";
+import { useSearchParams } from "react-router-dom";
+
+const QuestionsList = lazy(() => import("./QuestionsList"));
 
 const { Text, Title } = Typography;
 const { useToken } = theme;
@@ -274,7 +276,15 @@ const BankList = () => {
   return (
     <AppLayout title="Manajemen Bank Soal">
       {view === "questions" ? (
-        <QuestionsList />
+        <Suspense
+          fallback={
+            <Flex justify="center" align="center" style={{ minHeight: 300 }}>
+              <Spin size="large" />
+            </Flex>
+          }
+        >
+          <QuestionsList />
+        </Suspense>
       ) : (
         <>
           <Flex

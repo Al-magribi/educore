@@ -13,6 +13,7 @@ import {
   Avatar,
   message,
   theme,
+  Grid,
 } from "antd";
 import {
   Plus,
@@ -36,14 +37,17 @@ import StudentAnswers from "../report/components/StudentAnswers";
 
 const { Text, Title } = Typography;
 const { useToken } = theme;
+const { useBreakpoint } = Grid;
 
 const ExamList = () => {
   const { token } = useToken();
+  const screens = useBreakpoint();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view");
   const exam_id = searchParams.get("exam_id");
   const exam_name = searchParams.get("exam_name")?.replaceAll("-", " ");
+  const token_exam = searchParams.get("token");
 
   const [page, setPage] = useState(1);
   const [searchText, setSearchText] = useState("");
@@ -114,6 +118,7 @@ const ExamList = () => {
       view: "report",
       exam_id: item.id,
       exam_name: item.name?.replaceAll(" ", "-"),
+      token: item.token,
     });
   };
 
@@ -126,7 +131,7 @@ const ExamList = () => {
     return (
       <Card
         hoverable
-        size="small"
+        size='small'
         style={{
           height: "100%",
           borderRadius: 12,
@@ -141,17 +146,17 @@ const ExamList = () => {
           },
         }}
         title={
-          <Flex justify="space-between" align="center">
+          <Flex justify='space-between' align='center'>
             <Tag color={statusColor}>
               {item.is_active ? "Aktif" : "Nonaktif"}
             </Tag>
-            <Text type="secondary" style={{ fontSize: 11 }}>
+            <Text type='secondary' style={{ fontSize: 11 }}>
               {item.bank_type || "UJIAN"}
             </Text>
           </Flex>
         }
         actions={[
-          <Tooltip title="Laporan" key="report">
+          <Tooltip title='Laporan' key='report'>
             <div
               onClick={() => handleReport(item)}
               style={{ display: "flex", justifyContent: "center" }}
@@ -159,7 +164,7 @@ const ExamList = () => {
               <Folder size={16} />
             </div>
           </Tooltip>,
-          <Tooltip title="Edit" key="edit">
+          <Tooltip title='Edit' key='edit'>
             <div
               onClick={() => openForm(item)}
               style={{ display: "flex", justifyContent: "center" }}
@@ -167,12 +172,12 @@ const ExamList = () => {
               <Edit size={16} />
             </div>
           </Tooltip>,
-          <Tooltip title="Hapus" key="delete">
+          <Tooltip title='Hapus' key='delete'>
             <Popconfirm
-              title="Hapus Jadwal Ujian?"
+              title='Hapus Jadwal Ujian?'
               onConfirm={() => handleDelete(item.id)}
-              okText="Ya"
-              cancelText="Batal"
+              okText='Ya'
+              cancelText='Batal'
               okButtonProps={{ danger: true }}
             >
               <div style={{ display: "flex", justifyContent: "center" }}>
@@ -182,7 +187,7 @@ const ExamList = () => {
           </Tooltip>,
         ]}
       >
-        <Flex gap="middle" align="start" style={{ marginBottom: 12 }}>
+        <Flex gap='middle' align='start' style={{ marginBottom: 12 }}>
           <div
             style={{
               background: token.colorPrimaryBg,
@@ -205,7 +210,7 @@ const ExamList = () => {
                 {item.name}
               </Title>
             </Tooltip>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text type='secondary' style={{ fontSize: 12 }}>
               {item.bank_title} • {item.subject_name || "Mapel Umum"}
             </Text>
           </div>
@@ -219,14 +224,26 @@ const ExamList = () => {
               {classLabel}
             </Text>
           </Tooltip>
-          <Text style={{ fontSize: 12 }}>Token: {item.token || "-"}</Text>
+          {item.token ? (
+            <Text
+              style={{ fontSize: 12 }}
+              copyable={{
+                text: item.token,
+                tooltips: ["Copy token", "Token disalin"],
+              }}
+            >
+              Token: {item.token}
+            </Text>
+          ) : (
+            <Text style={{ fontSize: 12 }}>Token: -</Text>
+          )}
           <Text style={{ fontSize: 12 }}>
             <Timer size={12} style={{ marginRight: 6 }} />
             {item.duration_minutes} menit
           </Text>
         </Space>
 
-        <Flex align="center" gap={8} style={{ marginTop: "auto" }}>
+        <Flex align='center' gap={8} style={{ marginTop: "auto" }}>
           <Avatar
             size={22}
             style={{
@@ -258,7 +275,7 @@ const ExamList = () => {
   if (view === "report") {
     return (
       <AppLayout title={`Laporan ${exam_name}`}>
-        <Report exam_id={exam_id} exam_name={exam_name} />
+        <Report exam_id={exam_id} exam_name={exam_name} token={token_exam} />
       </AppLayout>
     );
   }
@@ -279,58 +296,56 @@ const ExamList = () => {
   }
 
   return (
-    <AppLayout title="Manajemen Jadwal Ujian">
-      <Flex
-        align="center"
-        justify="space-between"
-        wrap="wrap"
-        gap={16}
-        style={{ marginBottom: 24 }}
-      >
-        <Input
-          prefix={<Search size={16} color="#999" />}
-          style={{ width: 320, borderRadius: 8 }}
-          placeholder={searchPlaceholder}
-          allowClear
-          onChange={(e) => {
-            setTimeout(() => handleSearch(e.target.value), 500);
-          }}
-        />
+    <AppLayout title='Manajemen Jadwal Ujian'>
+      <Flex vertical gap={"large"}>
+        <Flex
+          gap={"middle"}
+          vertical={!!screens.xs}
+          align={screens.xs ? "stretch" : "center"}
+          justify='flex-end'
+          style={{ width: screens.xs ? "100%" : "auto" }}
+        >
+          <Input
+            prefix={<Search size={16} color='#999' />}
+            style={{ width: screens.xs ? "100%" : "auto" }}
+            placeholder={searchPlaceholder}
+            allowClear
+            onChange={(e) => {
+              setTimeout(() => handleSearch(e.target.value), 500);
+            }}
+          />
 
-        <Space>
           <Button
             icon={<Plus size={18} />}
-            type="primary"
+            type='primary'
             onClick={() => openForm(null)}
-            style={{ borderRadius: 8 }}
+            style={{ width: screens.xs ? "100%" : "auto" }}
           >
             Jadwal Ujian
           </Button>
-        </Space>
-      </Flex>
+        </Flex>
 
-      <InfiniteScrollList
-        data={allData}
-        loading={isFetching}
-        hasMore={data?.hasMore || false}
-        onLoadMore={handleLoadMore}
-        renderItem={renderItem}
-        emptyText="Belum ada jadwal ujian tersedia"
-        grid={{
-          gutter: [16, 16],
-          xs: 24,
-          sm: 12,
-          md: 8,
-          lg: 8,
-          xl: 6,
-          xxl: 4,
-        }}
-        height="calc(100vh - 300px)"
-      />
+        <InfiniteScrollList
+          data={allData}
+          loading={isFetching}
+          hasMore={data?.hasMore || false}
+          onLoadMore={handleLoadMore}
+          renderItem={renderItem}
+          emptyText='Belum ada jadwal ujian tersedia'
+          grid={{
+            gutter: [16, 16],
+            xs: 24,
+            sm: 12,
+            md: 8,
+            lg: 6,
+          }}
+          height='calc(100vh - 300px)'
+        />
+      </Flex>
 
       <Modal
         title={
-          <Flex align="center" gap={8}>
+          <Flex align='center' gap={8}>
             <div
               style={{
                 background: token.colorPrimaryBg,

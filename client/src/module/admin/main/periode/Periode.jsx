@@ -11,6 +11,7 @@ import {
   Tooltip,
   Popconfirm,
   Badge,
+  Flex,
 } from "antd";
 // 1. Import Icon dari lucide-react
 import {
@@ -34,7 +35,7 @@ import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
 
-const Periode = () => {
+const Periode = ({ screens }) => {
   const { user } = useSelector((state) => state.auth);
   // === STATE ===
   const [page, setPage] = useState(1);
@@ -160,19 +161,19 @@ const Periode = () => {
         actions={[
           // Tombol Aktifkan (Icon: CheckCircle)
           <Popconfirm
-            key="activate"
-            title="Aktifkan periode ini?"
-            description="Periode lain dalam satu homebase akan dinonaktifkan."
+            key='activate'
+            title='Aktifkan periode ini?'
+            description='Periode lain dalam satu homebase akan dinonaktifkan.'
             onConfirm={() => handleSetActive(item.id)}
             disabled={item.is_active}
-            okText="Ya, Aktifkan"
-            cancelText="Batal"
+            okText='Ya, Aktifkan'
+            cancelText='Batal'
           >
             <Tooltip
               title={item.is_active ? "Sudah Aktif" : "Set sebagai Aktif"}
             >
               <Button
-                type="text"
+                type='text'
                 // Gunakan size 18 agar proporsional
                 icon={
                   <CheckCircle
@@ -186,26 +187,26 @@ const Periode = () => {
           </Popconfirm>,
 
           // Tombol Edit (Icon: Pencil)
-          <Tooltip title="Edit Nama" key="edit">
+          <Tooltip title='Edit Nama' key='edit'>
             <Button
-              type="text"
-              icon={<Pencil size={18} color="#faad14" />}
+              type='text'
+              icon={<Pencil size={18} color='#faad14' />}
               onClick={() => handleOpenModal(item)}
             />
           </Tooltip>,
 
           // Tombol Hapus (Icon: Trash2)
           <Popconfirm
-            key="delete"
-            title="Hapus periode?"
-            description="Data tidak dapat dikembalikan."
+            key='delete'
+            title='Hapus periode?'
+            description='Data tidak dapat dikembalikan.'
             onConfirm={() => handleDelete(item.id)}
-            okText="Ya, Hapus"
-            cancelText="Batal"
+            okText='Ya, Hapus'
+            cancelText='Batal'
             disabled={item.is_active}
           >
             <Button
-              type="text"
+              type='text'
               danger
               icon={<Trash2 size={18} />}
               disabled={item.is_active}
@@ -216,20 +217,20 @@ const Periode = () => {
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           {/* Icon Utama Card (Icon: Calendar) */}
-          <Calendar size={24} color="#1890ff" style={{ marginTop: 4 }} />
+          <Calendar size={24} color='#1890ff' style={{ marginTop: 4 }} />
 
           <div>
             <Title level={5} style={{ margin: 0 }}>
               {item.name}
             </Title>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text type='secondary' style={{ fontSize: 12 }}>
               Homebase: {item.homebase_name || "-"}
             </Text>
             <div style={{ marginTop: 8 }}>
               {item.is_active ? (
-                <Tag color="success">Sedang Berlangsung</Tag>
+                <Tag color='success'>Sedang Berlangsung</Tag>
               ) : (
-                <Tag color="default">Arsip</Tag>
+                <Tag color='default'>Arsip</Tag>
               )}
             </div>
           </div>
@@ -245,7 +246,7 @@ const Periode = () => {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: screens.xs ? "flex-start" : "center",
           marginBottom: 16,
           flexWrap: "wrap",
           gap: 10,
@@ -254,24 +255,31 @@ const Periode = () => {
         <Title level={4} style={{ margin: 0 }}>
           Daftar Periode
         </Title>
-        <div style={{ display: "flex", gap: 10 }}>
+        <Flex
+          gap={8}
+          vertical={!!screens.xs}
+          align={screens.xs ? "stretch" : "center"}
+          justify='flex-end'
+          style={{ width: screens.xs ? "100%" : "auto" }}
+        >
           <Input
-            placeholder="Cari periode..."
+            placeholder='Cari periode...'
             // Icon Search
-            prefix={<Search size={16} color="#bfbfbf" />}
+            prefix={<Search size={16} color='#bfbfbf' />}
             allowClear
             onChange={(e) => setSearch(e.target.value)}
-            style={{ width: 250 }}
+            style={{ width: screens.xs ? "100%" : 260 }}
           />
           <Button
-            type="primary"
+            type='primary'
             // Icon Plus
             icon={<Plus size={18} />}
             onClick={() => handleOpenModal(null)}
+            style={{ width: screens.xs ? "100%" : "auto" }}
           >
-            Tambah Baru
+            Tambah
           </Button>
-        </div>
+        </Flex>
       </div>
 
       {/* INFINITE SCROLL LIST */}
@@ -281,7 +289,7 @@ const Periode = () => {
         hasMore={apiData?.hasMore}
         onLoadMore={handleLoadMore}
         renderItem={renderItem}
-        emptyText="Belum ada data periode"
+        emptyText='Belum ada data periode'
         grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 }}
       />
 
@@ -294,14 +302,14 @@ const Periode = () => {
         confirmLoading={isAdding || isUpdating}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout='vertical' onFinish={handleSubmit}>
           <Form.Item
-            name="name"
-            label="Nama Periode"
+            name='name'
+            label='Nama Periode'
             rules={[{ required: true, message: "Nama periode wajib diisi" }]}
-            help="Contoh: 2025/2026 Ganjil"
+            help='Contoh: 2025/2026 Ganjil'
           >
-            <Input placeholder="Masukkan nama periode..." />
+            <Input placeholder='Masukkan nama periode...' />
           </Form.Item>
         </Form>
       </Modal>

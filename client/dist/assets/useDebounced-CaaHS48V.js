@@ -1,0 +1,1 @@
+import{k as t}from"./index-IfHJv5WL.js";import{r as e}from"./vendor-kOq7Q5-U.js";const r=(r,o)=>{const s=t.c(4),[n,u]=e.useState(r);let c,m;return s[0]!==o||s[1]!==r?(c=()=>{const t=setTimeout(()=>{u(r)},o);return()=>{clearTimeout(t)}},m=[r,o],s[0]=o,s[1]=r,s[2]=c,s[3]=m):(c=s[2],m=s[3]),e.useEffect(c,m),n};export{r as u};

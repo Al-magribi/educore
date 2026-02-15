@@ -54,6 +54,7 @@ const Signin = () => {
         backgroundColor: "#f0f2f5",
       }}
     >
+      <title>{`Masuk ${role}`}</title>
       <Card style={{ width: 400, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
         <Flex align="center" gap={"middle"} style={{ marginBottom: 24 }}>
           <img src={publicConfig.app_logo} alt="Logo" width={70} height={70} />

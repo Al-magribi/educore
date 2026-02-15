@@ -97,11 +97,19 @@ export const ApiExam = createApi({
       }),
       invalidatesTags: ["Exam"],
     }),
+    markStudentExamViolation: builder.mutation({
+      query: ({ exam_id, reason }) => ({
+        url: `/student-exams/${exam_id}/violation`,
+        method: "POST",
+        body: { reason },
+      }),
+      invalidatesTags: ["Exam"],
+    }),
     enterStudentExam: builder.mutation({
-      query: (body) => ({
+      query: ({ exam_id, token, student_ip }) => ({
         url: "/student-exams/enter",
         method: "POST",
-        body,
+        body: { exam_id, token, student_ip },
       }),
       invalidatesTags: ["Exam"],
     }),
@@ -150,6 +158,7 @@ export const {
   useSaveStudentExamAnswerMutation,
   useEnterStudentExamMutation,
   useFinishStudentExamMutation,
+  useMarkStudentExamViolationMutation,
   useCreateExamMutation,
   useUpdateExamMutation,
   useDeleteExamMutation,

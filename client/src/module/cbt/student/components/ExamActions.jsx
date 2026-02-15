@@ -15,7 +15,7 @@ const ExamActions = ({
 }) =>
   isSmallScreen ? (
     <Row gutter={[8, 8]}>
-      <Col span={12}>
+      <Col span={24}>
         <Button
           block
           icon={<ChevronDown size={16} />}
@@ -36,7 +36,7 @@ const ExamActions = ({
           onClick={onPrev}
           disabled={!canPrev}
         >
-          Soal Sebelumnya
+          Sebelumnya
         </Button>
       </Col>
       <Col span={12}>
@@ -47,7 +47,7 @@ const ExamActions = ({
           onClick={onNext}
           disabled={!canNext}
         >
-          Soal Berikutnya
+          Berikutnya
         </Button>
       </Col>
       {showFinish && (

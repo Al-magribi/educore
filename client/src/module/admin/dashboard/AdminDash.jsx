@@ -13,6 +13,8 @@ import {
   Typography,
   Progress,
   Space,
+  Grid,
+  List,
 } from "antd";
 import {
   School,
@@ -24,6 +26,7 @@ import {
 } from "lucide-react";
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const cardStyle = {
   borderRadius: 12,
@@ -56,6 +59,8 @@ const actionTagColor = (action = "") => {
 
 const AdminDash = () => {
   const { data, isLoading, isError } = useGetDashboardSummaryQuery();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   const stats = [
     {
@@ -91,19 +96,23 @@ const AdminDash = () => {
       dataIndex: "created_at",
       key: "created_at",
       render: (text) => new Date(text).toLocaleString("id-ID"),
-      width: 170,
+      width: 190,
+      ellipsis: true,
     },
     {
       title: "User",
       dataIndex: "full_name",
       key: "full_name",
       render: (text) => <Text strong>{text}</Text>,
+      ellipsis: true,
     },
     {
       title: "Aktivitas",
       dataIndex: "action",
       key: "action",
       render: (text) => <Tag color={actionTagColor(text)}>{text}</Tag>,
+      width: 120,
+      align: "center",
     },
   ];
 
@@ -249,14 +258,49 @@ const AdminDash = () => {
               style={cardStyle}
               styles={{ body: { paddingTop: 8 } }}
             >
-              <Table
-                dataSource={data?.logs || []}
-                columns={logColumns}
-                pagination={false}
-                rowKey={(record) => `${record.created_at}-${record.full_name}`}
-                size="small"
-                locale={{ emptyText: "Belum ada aktivitas terbaru" }}
-              />
+              {isMobile ? (
+                <List
+                  dataSource={data?.logs || []}
+                  locale={{ emptyText: "Belum ada aktivitas terbaru" }}
+                  renderItem={(item) => (
+                    <List.Item style={{ padding: "10px 4px" }}>
+                      <Space
+                        direction="vertical"
+                        size={2}
+                        style={{ width: "100%" }}
+                      >
+                        <Space
+                          align="center"
+                          style={{
+                            width: "100%",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <Text strong style={{ fontSize: 13 }}>
+                            {item.full_name}
+                          </Text>
+                          <Tag color={actionTagColor(item.action)} style={{ marginInlineEnd: 0 }}>
+                            {item.action}
+                          </Tag>
+                        </Space>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {new Date(item.created_at).toLocaleString("id-ID")}
+                        </Text>
+                      </Space>
+                    </List.Item>
+                  )}
+                />
+              ) : (
+                <Table
+                  dataSource={data?.logs || []}
+                  columns={logColumns}
+                  pagination={false}
+                  rowKey={(record) => `${record.created_at}-${record.full_name}`}
+                  size="small"
+                  locale={{ emptyText: "Belum ada aktivitas terbaru" }}
+                  scroll={{ x: 520 }}
+                />
+              )}
             </Card>
           </Col>
         </Row>
