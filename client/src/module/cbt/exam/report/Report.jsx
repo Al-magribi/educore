@@ -1,16 +1,21 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Tabs } from "antd";
 import AttendanceTable from "./components/AttendanceTable";
 import ReportHeader from "./components/ReportHeader";
 import ScoreTable from "./components/ScoreTable";
-import { useGetExamAttendanceQuery, useGetExamScoresQuery } from "../../../../service/cbt/ApiExam";
+import {
+  useGetExamAttendanceQuery,
+  useGetExamScoresQuery,
+} from "../../../../service/cbt/ApiExam";
 
-const Report = ({ exam_id, exam_name }) => {
-  const { data: attendanceResponse } = useGetExamAttendanceQuery(
+const Report = ({ exam_id, exam_name, token }) => {
+  const [isMobile, setIsMobile] = useState(false);
+  const { data: attendanceResponse, isLoading: attendanceLoading } =
+    useGetExamAttendanceQuery(
     { exam_id },
     { skip: !exam_id },
   );
-  const { data: scoreResponse } = useGetExamScoresQuery(
+  const { data: scoreResponse, isLoading: scoreLoading } = useGetExamScoresQuery(
     { exam_id },
     { skip: !exam_id },
   );
@@ -58,25 +63,49 @@ const Report = ({ exam_id, exam_name }) => {
     };
   }, [attendanceData, attendanceResponse]);
 
+  useEffect(() => {
+    const updateIsMobile = () => setIsMobile(window.innerWidth <= 480);
+    updateIsMobile();
+    window.addEventListener("resize", updateIsMobile);
+    return () => window.removeEventListener("resize", updateIsMobile);
+  }, []);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <ReportHeader examId={exam_id} examName={exam_name} stats={stats} />
+      <ReportHeader
+        examName={exam_name}
+        stats={stats}
+        isMobile={isMobile}
+        examToken={token}
+      />
 
       <Tabs
-        defaultActiveKey="attendance"
+        defaultActiveKey='attendance'
+        size={isMobile ? "small" : "middle"}
         items={[
           {
             key: "attendance",
             label: "Kehadiran",
             children: (
-              <AttendanceTable data={attendanceData} examId={exam_id} />
+              <AttendanceTable
+                data={attendanceData}
+                examId={exam_id}
+                isMobile={isMobile}
+                isLoading={attendanceLoading}
+              />
             ),
           },
           {
             key: "scores",
             label: "Nilai",
             children: (
-              <ScoreTable data={scoreData} examName={exam_name} examId={exam_id} />
+              <ScoreTable
+                data={scoreData}
+                examName={exam_name}
+                examId={exam_id}
+                isMobile={isMobile}
+                isLoading={scoreLoading}
+              />
             ),
           },
         ]}

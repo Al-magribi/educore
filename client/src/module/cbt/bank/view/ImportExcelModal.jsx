@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   Upload,
@@ -24,7 +24,15 @@ const { Text } = Typography;
 
 const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [bulkCreateQuestion] = useBulkCreateQuestionMutation();
+
+  useEffect(() => {
+    const updateIsMobile = () => setIsMobile(window.innerWidth <= 480);
+    updateIsMobile();
+    window.addEventListener("resize", updateIsMobile);
+    return () => window.removeEventListener("resize", updateIsMobile);
+  }, []);
 
   const handleParseAndUpload = (file) => {
     setLoading(true);
@@ -136,20 +144,35 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
       }
       open={visible}
       onCancel={onCancel}
-      width={700}
-      footer={[
-        <Button key="cancel" onClick={onCancel} disabled={loading}>
-          Batal
-        </Button>,
-        <Button
-          key="dl"
-          icon={<Download size={16} />}
-          onClick={downloadTemplate}
-          disabled={loading}
+      width={isMobile ? "92vw" : 700}
+      footer={
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            justifyContent: "flex-end",
+          }}
         >
-          Unduh Template
-        </Button>,
-      ]}
+          <Button
+            key="cancel"
+            onClick={onCancel}
+            disabled={loading}
+            block={isMobile}
+          >
+            Batal
+          </Button>
+          <Button
+            key="dl"
+            icon={<Download size={16} />}
+            onClick={downloadTemplate}
+            disabled={loading}
+            block={isMobile}
+          >
+            Unduh Template
+          </Button>
+        </div>
+      }
     >
       <ImportInstruction />
 
@@ -159,6 +182,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
           beforeUpload={handleParseAndUpload}
           showUploadList={false}
           disabled={loading}
+          style={{ padding: isMobile ? "12px" : "24px" }}
         >
           <p className="ant-upload-drag-icon">
             <UploadCloud size={48} color={loading ? "#d9d9d9" : "#40a9ff"} />

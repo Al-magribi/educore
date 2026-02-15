@@ -329,7 +329,7 @@ CREATE TABLE c_exam_attendance (
     student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
     class_id integer REFERENCES a_class(id),
     status varchar(20) DEFAULT 'mengerjakan'
-      CHECK (status IN ('belum_masuk', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai')),
+      CHECK (status IN ('belum_masuk', 'izin', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai')),
     ip_address text,
     browser text,
     start_at timestamptz DEFAULT CURRENT_TIMESTAMP,
@@ -372,9 +372,17 @@ ON c_student_answer (exam_id, student_id);
 
 
 ALTER TABLE c_exam_attendance
-  ALTER COLUMN start_at TYPE timestamptz USING start_at AT TIME ZONE 'UTC',
-  ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC',
-  ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'UTC';
+  ALTER COLUMN start_at TYPE timestamptz USING start_at AT TIME ZONE 'Asia/Jakarta',
+  ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Jakarta',
+  ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'Asia/Jakarta';
+
+-- Jika sebelumnya pernah dikonversi memakai AT TIME ZONE 'UTC' (dan waktu jadi maju +7 jam),
+-- jalankan sekali secara manual (opsional) untuk koreksi data lama:
+-- UPDATE c_exam_attendance
+-- SET
+--   start_at = (start_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta',
+--   created_at = (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta',
+--   updated_at = (updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta';
 
 
 
@@ -383,7 +391,7 @@ ALTER TABLE c_exam_attendance
 
 ALTER TABLE c_exam_attendance
   ADD CONSTRAINT c_exam_attendance_status_check
-  CHECK (status IN ('belum_masuk', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai'));
+  CHECK (status IN ('belum_masuk', 'izin', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai'));
 
 
 

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { isIP } from "node:net";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 
@@ -40,6 +41,83 @@ const normalizeIdList = (value) => {
   return value
     .map((id) => parseInt(id, 10))
     .filter((id) => Number.isInteger(id));
+};
+
+const normalizeAttendanceStatus = (value) => {
+  if (value === "izin") return "izinkan";
+  return value;
+};
+
+const extractIpValue = (value) => {
+  if (!value) return null;
+
+  let candidate = String(value).trim();
+  if (!candidate) return null;
+
+  candidate = candidate.split(",")[0]?.trim() || "";
+  candidate = candidate.split(";")[0]?.trim() || "";
+  if (!candidate || candidate.toLowerCase() === "unknown") return null;
+
+  if (candidate.toLowerCase().startsWith("for=")) {
+    candidate = candidate.slice(4).trim();
+  }
+
+  candidate = candidate.replace(/^"|"$/g, "");
+
+  if (candidate.startsWith("[") && candidate.includes("]")) {
+    const closingIndex = candidate.indexOf("]");
+    candidate = candidate.slice(1, closingIndex);
+  }
+
+  if (candidate.startsWith("::ffff:")) {
+    const mapped = candidate.slice(7);
+    if (isIP(mapped)) return mapped;
+  }
+
+  if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(candidate)) {
+    candidate = candidate.split(":")[0];
+  }
+
+  return isIP(candidate) ? candidate : null;
+};
+
+const resolveStudentIpAddress = (req, reportedIp) => {
+  const candidates = [
+    req.headers["cf-connecting-ip"],
+    req.headers["x-real-ip"],
+    req.headers["x-forwarded-for"],
+    req.headers.forwarded,
+    reportedIp,
+    req.socket?.remoteAddress,
+    req.ip,
+  ];
+
+  for (const candidate of candidates) {
+    const validIp = extractIpValue(candidate);
+    if (validIp) return validIp;
+  }
+
+  return req.ip || "-";
+};
+
+const getAllowAttendanceStatus = async (db) => {
+  const constraintResult = await db.query(
+    `
+      SELECT pg_get_constraintdef(oid) AS def
+      FROM pg_constraint
+      WHERE conname = 'c_exam_attendance_status_check'
+      LIMIT 1
+    `,
+  );
+
+  const def = String(constraintResult.rows[0]?.def || "").toLowerCase();
+  if (def.includes("'izinkan'")) {
+    return "izinkan";
+  }
+  if (def.includes("'izin'")) {
+    return "izin";
+  }
+  return "izinkan";
 };
 
 const computeStudentScore = ({ questions, optionsByQuestion, answersByQuestion }) => {
@@ -402,7 +480,7 @@ router.post(
   authorize("student"),
   withQuery(async (req, res, pool) => {
     const userId = req.user.id;
-    const { exam_id, token } = req.body;
+    const { exam_id, token, student_ip } = req.body;
 
     if (!exam_id || !token) {
       return res.status(400).json({ message: "Token ujian wajib diisi" });
@@ -448,11 +526,6 @@ router.post(
     if (examCheck.rowCount === 0) {
       return res.status(403).json({ message: "Token ujian tidak valid" });
     }
-    const examDurationMinutes = parseInt(
-      examCheck.rows[0]?.duration_minutes || 0,
-      10,
-    );
-
     const existingAttendance = await pool.query(
       `
         SELECT status
@@ -464,7 +537,9 @@ router.post(
     );
 
     if (existingAttendance.rowCount > 0) {
-      const currentStatus = existingAttendance.rows[0].status;
+      const currentStatus = normalizeAttendanceStatus(
+        existingAttendance.rows[0].status,
+      );
       if (currentStatus === "pelanggaran") {
         return res.status(403).json({
           status: "pelanggaran",
@@ -486,9 +561,7 @@ router.post(
       }
     }
 
-    const ipAddress =
-      req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
-      req.ip;
+    const ipAddress = resolveStudentIpAddress(req, student_ip);
     const browser = req.headers["user-agent"] || "-";
 
     const logResult = await pool.query(
@@ -592,6 +665,16 @@ router.get(
           start_at,
           $3::int as duration_minutes,
           (start_at + ($3::int * INTERVAL '1 minute')) as end_at,
+          GREATEST(
+            0,
+            FLOOR(
+              EXTRACT(
+                EPOCH FROM (
+                  (start_at + ($3::int * INTERVAL '1 minute')) - NOW()
+                )
+              )
+            )::int
+          ) as remaining_seconds,
           status
         FROM c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
@@ -606,11 +689,12 @@ router.get(
         message: "Anda belum masuk ujian. Silakan masukkan token terlebih dahulu.",
       });
     }
-    if (session.status !== "mengerjakan") {
+    const normalizedSessionStatus = normalizeAttendanceStatus(session.status);
+    if (normalizedSessionStatus !== "mengerjakan") {
       return res.status(403).json({
-        status: session.status,
+        status: normalizedSessionStatus,
         message:
-          session.status === "selesai"
+          normalizedSessionStatus === "selesai"
             ? "Ujian sudah selesai dikerjakan."
             : "Status ujian tidak mengizinkan akses soal.",
       });
@@ -741,7 +825,9 @@ router.post(
       });
     }
 
-    const currentStatus = attendanceResult.rows[0].status;
+    const currentStatus = normalizeAttendanceStatus(
+      attendanceResult.rows[0].status,
+    );
     if (currentStatus !== "mengerjakan") {
       return res.status(403).json({
         status: currentStatus,
@@ -801,6 +887,71 @@ router.post(
 
 // 2.8 POST Student finish exam
 router.post(
+  "/student-exams/:exam_id/violation",
+  authorize("student"),
+  withQuery(async (req, res, pool) => {
+    const userId = req.user.id;
+    const examId = parseInt(req.params.exam_id, 10);
+
+    if (!Number.isInteger(examId)) {
+      return res.status(400).json({ message: "Exam ID tidak valid" });
+    }
+
+    const attendanceResult = await pool.query(
+      `
+        SELECT status
+        FROM c_exam_attendance
+        WHERE exam_id = $1 AND student_id = $2
+        LIMIT 1
+      `,
+      [examId, userId],
+    );
+
+    if (attendanceResult.rowCount === 0) {
+      return res.status(403).json({
+        status: "belum_masuk",
+        message: "Anda belum masuk ujian. Silakan masukkan token.",
+      });
+    }
+
+    const currentStatus = normalizeAttendanceStatus(
+      attendanceResult.rows[0].status,
+    );
+
+    if (currentStatus === "pelanggaran") {
+      return res.json({ message: "Status pelanggaran sudah tercatat." });
+    }
+
+    if (currentStatus === "selesai") {
+      return res.status(403).json({
+        status: "selesai",
+        message: "Ujian sudah selesai dikerjakan.",
+      });
+    }
+
+    if (currentStatus !== "mengerjakan") {
+      return res.status(403).json({
+        status: currentStatus,
+        message: "Status ujian tidak mengizinkan perubahan ke pelanggaran.",
+      });
+    }
+
+    await pool.query(
+      `
+        UPDATE c_exam_attendance
+        SET status = 'pelanggaran',
+            updated_at = NOW()
+        WHERE exam_id = $1 AND student_id = $2
+      `,
+      [examId, userId],
+    );
+
+    return res.json({ message: "Pelanggaran ujian tercatat." });
+  }),
+);
+
+// 2.8 POST Student finish exam
+router.post(
   "/student-exams/:exam_id/finish",
   authorize("student"),
   withQuery(async (req, res, pool) => {
@@ -828,7 +979,9 @@ router.post(
       });
     }
 
-    const currentStatus = attendanceResult.rows[0].status;
+    const currentStatus = normalizeAttendanceStatus(
+      attendanceResult.rows[0].status,
+    );
     if (currentStatus === "selesai") {
       return res.json({ message: "Ujian sudah selesai." });
     }
@@ -891,10 +1044,26 @@ router.get(
 
     const attendanceResult = await pool.query(
       `
+        WITH student_class AS (
+          SELECT
+            s.user_id,
+            s.nis,
+            u.full_name,
+            COALESCE(s.current_class_id, latest_enrollment.class_id) AS class_id
+          FROM u_students s
+          JOIN u_users u ON u.id = s.user_id
+          LEFT JOIN LATERAL (
+            SELECT class_id
+            FROM u_class_enrollments
+            WHERE student_id = s.user_id
+            ORDER BY id DESC
+            LIMIT 1
+          ) AS latest_enrollment ON true
+        )
         SELECT
-          s.user_id as id,
-          s.nis,
-          u.full_name as name,
+          sc.user_id as id,
+          sc.nis,
+          sc.full_name as name,
           c.name as class_name,
           COALESCE(a.ip_address, '-') as ip,
           COALESCE(
@@ -914,22 +1083,27 @@ router.get(
             END,
             '-'
           ) as browser,
-          COALESCE(to_char(a.start_at, 'DD Mon YYYY, HH24:MI'), '-') as start_at,
+          COALESCE(
+            to_char(a.start_at AT TIME ZONE 'Asia/Jakarta', 'DD Mon YYYY, HH24:MI'),
+            '-'
+          ) as start_at,
           COALESCE(a.status, 'belum_masuk') as status
         FROM c_exam_class ec
         JOIN a_class c ON c.id = ec.class_id
-        JOIN u_students s ON s.current_class_id = c.id
-        JOIN u_users u ON u.id = s.user_id
+        JOIN student_class sc ON sc.class_id = c.id
         LEFT JOIN c_exam_attendance a
-          ON a.exam_id = ec.exam_id AND a.student_id = s.user_id
+          ON a.exam_id = ec.exam_id AND a.student_id = sc.user_id
         WHERE ec.exam_id = $1
-        ORDER BY c.name ASC, u.full_name ASC
+        ORDER BY c.name ASC, sc.full_name ASC
       `,
       [examId],
     );
 
     return res.json({
-      data: attendanceResult.rows,
+      data: attendanceResult.rows.map((row) => ({
+        ...row,
+        status: normalizeAttendanceStatus(row.status),
+      })),
       duration_minutes: examOwner.duration_minutes,
     });
   }),
@@ -973,14 +1147,15 @@ router.put(
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
+    const allowStatus = await getAllowAttendanceStatus(client);
     const attendanceResult = await client.query(
       `
         UPDATE c_exam_attendance
-        SET status = 'izinkan', updated_at = NOW()
+        SET status = $3, updated_at = NOW()
         WHERE exam_id = $1 AND student_id = $2
         RETURNING id
       `,
-      [examId, studentId],
+      [examId, studentId, allowStatus],
     );
 
     if (attendanceResult.rowCount === 0) {
@@ -1155,17 +1330,32 @@ router.get(
 
     const rosterResult = await pool.query(
       `
+        WITH student_class AS (
+          SELECT
+            s.user_id,
+            s.nis,
+            u.full_name,
+            COALESCE(s.current_class_id, latest_enrollment.class_id) AS class_id
+          FROM u_students s
+          JOIN u_users u ON u.id = s.user_id
+          LEFT JOIN LATERAL (
+            SELECT class_id
+            FROM u_class_enrollments
+            WHERE student_id = s.user_id
+            ORDER BY id DESC
+            LIMIT 1
+          ) AS latest_enrollment ON true
+        )
         SELECT
-          s.user_id as id,
-          s.nis,
-          u.full_name as name,
+          sc.user_id as id,
+          sc.nis,
+          sc.full_name as name,
           c.name as class_name
         FROM c_exam_class ec
         JOIN a_class c ON c.id = ec.class_id
-        JOIN u_students s ON s.current_class_id = c.id
-        JOIN u_users u ON u.id = s.user_id
+        JOIN student_class sc ON sc.class_id = c.id
         WHERE ec.exam_id = $1
-        ORDER BY c.name ASC, u.full_name ASC
+        ORDER BY c.name ASC, sc.full_name ASC
       `,
       [examId],
     );

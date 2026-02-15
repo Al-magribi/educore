@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Layout, Typography, message, Input } from "antd";
+import { Button, Layout, Typography, message, Input, Flex } from "antd";
 import { UserPlus, Search } from "lucide-react";
 import TeacherList from "./TeacherList";
 import TeacherForm from "./TeacherForm";
@@ -13,7 +13,7 @@ import {
 const { Title, Text } = Typography;
 const { Content } = Layout;
 
-const Teacher = () => {
+const Teacher = ({ screens }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [searchText, setSearchText] = useState("");
@@ -136,30 +136,37 @@ const Teacher = () => {
             <Title level={3} style={{ margin: 0 }}>
               Data Guru
             </Title>
-            <Text type="secondary">
+            <Text type='secondary'>
               Kelola data guru, wali kelas, dan alokasi mengajar
             </Text>
           </div>
 
-          <div style={{ display: "flex", gap: 12 }}>
+          <Flex
+            gap={8}
+            vertical={!!screens.xs}
+            align={screens.xs ? "stretch" : "center"}
+            justify='flex-end'
+            style={{ width: screens.xs ? "100%" : "auto" }}
+          >
             <Input
-              placeholder="Cari Nama / NIP..."
-              prefix={<Search size={16} className="text-gray-400" />}
-              style={{ width: 250, borderRadius: 8 }}
+              placeholder='Cari Nama / NIP...'
+              prefix={<Search size={16} className='text-gray-400' />}
+              style={{ width: screens.xs ? "100%" : "auto" }}
               allowClear
               onChange={(e) => setSearchText(e.target.value)}
             />
             <Button
-              type="primary"
+              type='primary'
               icon={<UserPlus size={18} />}
               onClick={() => {
                 setEditingTeacher(null);
                 setIsModalOpen(true);
               }}
+              style={{ width: screens.xs ? "100%" : "auto" }}
             >
-              Tambah Guru
+              Guru
             </Button>
-          </div>
+          </Flex>
         </div>
 
         <TeacherList

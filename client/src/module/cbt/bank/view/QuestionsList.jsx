@@ -96,7 +96,7 @@ const QuestionsList = () => {
   const handleBulkDelete = () => {
     Modal.confirm({
       title: `Hapus ${selectedIds.length} soal terpilih?`,
-      icon: <AlertTriangle color="red" />,
+      icon: <AlertTriangle color='red' />,
       content: "Tindakan ini tidak dapat dibatalkan.",
       okText: "Hapus",
       okType: "danger",
@@ -121,7 +121,7 @@ const QuestionsList = () => {
 
     Modal.confirm({
       title: "Kosongkan semua soal?",
-      icon: <AlertTriangle color="red" />,
+      icon: <AlertTriangle color='red' />,
       content: `Anda akan menghapus seluruh soal (${allIds.length} soal) dalam bank ini.`,
       okText: "Ya, Hapus Semua",
       okType: "danger",
@@ -153,7 +153,7 @@ const QuestionsList = () => {
     );
 
   return (
-    <>
+    <Space vertical>
       <QuestionHeader
         bankName={bankName}
         totalCount={questions.length}
@@ -174,19 +174,19 @@ const QuestionsList = () => {
       />
 
       {isLoading ? (
-        <Flex justify="center" align="center" style={{ minHeight: 400 }}>
-          <Spin size="large" />
+        <Flex justify='center' align='center' style={{ minHeight: 400 }}>
+          <Spin size='large' />
         </Flex>
       ) : (
         <Collapse
           accordion
           ghost
-          expandIconPlacement="end"
+          expandIconPlacement='end'
           items={questions.map((q, index) => ({
             key: q.id,
             label: (
               <Flex
-                align="center"
+                align='center'
                 gap={12}
                 onClick={(e) => e.stopPropagation()}
                 style={{ width: "100%", overflow: "hidden" }} // Mencegah overflow
@@ -200,11 +200,11 @@ const QuestionsList = () => {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {/* Container utama teks */}
                   <Flex vertical gap={4}>
-                    <Flex gap={8} align="center">
+                    <Flex gap={8} align='center'>
                       <Text strong style={{ color: token.colorPrimary }}>
                         {index + 1}.
                       </Text>
-                      <Flex gap={4} wrap="wrap">
+                      <Flex gap={4} wrap='wrap'>
                         <Tag
                           color={getQuestionTypeName(q.q_type).color}
                           style={{ fontSize: "10px", margin: 0 }}
@@ -218,7 +218,7 @@ const QuestionsList = () => {
                     </Flex>
                     <Text
                       ellipsis
-                      type="secondary"
+                      type='secondary'
                       style={{ fontSize: "13px", display: "block" }}
                     >
                       {q.content
@@ -235,8 +235,8 @@ const QuestionsList = () => {
                   style={{ flexShrink: 0 }}
                 >
                   <Button
-                    type="text"
-                    size="small"
+                    type='text'
+                    size='small'
                     icon={<Edit3 size={16} />}
                     onClick={() => {
                       setEditingItem(q);
@@ -244,12 +244,12 @@ const QuestionsList = () => {
                     }}
                   />
                   <Popconfirm
-                    title="Hapus?"
+                    title='Hapus?'
                     onConfirm={() => handleDeleteSingle(q.id)}
                   >
                     <Button
-                      type="text"
-                      size="small"
+                      type='text'
+                      size='small'
                       danger
                       icon={<Trash2 size={16} />}
                     />
@@ -281,7 +281,7 @@ const QuestionsList = () => {
           setIsImportModalOpen(false);
         }}
       />
-    </>
+    </Space>
   );
 };
 

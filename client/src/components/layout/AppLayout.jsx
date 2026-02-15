@@ -18,7 +18,6 @@ import {
   UserOutlined,
   LogoutOutlined,
   CaretDownOutlined,
-  WindowsOutlined,
 } from "@ant-design/icons";
 
 // Import Menu Data (Sesuaikan path import Anda)
@@ -51,6 +50,7 @@ const AppLayout = ({ children, title }) => {
   // State UI
   const [collapsed, setCollapsed] = useState(false);
   const [menuItems, setMenuItems] = useState([]);
+  const isMobile = !screens.lg;
 
   // Ant Design Token
   const {
@@ -108,6 +108,11 @@ const AppLayout = ({ children, title }) => {
   const handleMenuClick = ({ key }) => {
     if (key === "logout") handleLogout();
     else navigate(key);
+
+    // Auto close drawer after selecting menu on mobile
+    if (isMobile) {
+      setCollapsed(true);
+    }
   };
 
   const userDropdownItems = [
@@ -134,8 +139,8 @@ const AppLayout = ({ children, title }) => {
         trigger={null}
         collapsible
         collapsed={collapsed}
-        breakpoint="lg"
-        collapsedWidth={screens.xs ? 0 : 80} // Di HP (xs) sidebar hilang total saat collapse, di PC jadi icon (80px)
+        breakpoint='lg'
+        collapsedWidth={isMobile ? 0 : 80} // Mobile/tablet jadi drawer (0), desktop jadi icon (80px)
         width={240}
         onBreakpoint={(broken) => {
           setCollapsed(broken);
@@ -144,52 +149,73 @@ const AppLayout = ({ children, title }) => {
           background: "#001529",
           boxShadow: "2px 0 6px rgba(0,21,41,0.35)",
           height: "100vh",
-          position: "sticky", // Agar sidebar tetap diam saat scroll (opsional)
+          position: isMobile ? "fixed" : "sticky",
           top: 0,
           left: 0,
-          zIndex: 101, // Pastikan sidebar di atas konten saat mode mobile (jika pakai fixed)
+          zIndex: isMobile ? 1002 : 101,
         }}
         zeroWidthTriggerStyle={{ top: "10px" }} // Menyesuaikan posisi trigger bawaan jika ada
       >
         {/* Logo Area */}
         <div
           style={{
-            height: 64,
-            margin: 16,
-            background: "rgba(255, 255, 255, 0.2)",
+            height: 72,
+            margin: 12,
+            padding: collapsed ? "0" : "0 14px",
+            background: "rgba(255, 255, 255, 0.18)",
             borderRadius: borderRadiusLG,
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: collapsed ? "center" : "flex-start",
             color: "white",
             fontWeight: "bold",
-            // Sembunyikan text logo jika collapsed
-            fontSize: collapsed ? "0px" : "18px",
             overflow: "hidden",
             whiteSpace: "nowrap",
             transition: "all 0.2s",
           }}
         >
           {collapsed ? (
-            <Avatar src={publicConfig?.app_logo} />
+            <Avatar size={38} src={publicConfig?.app_logo} />
           ) : (
-            <Space>
-              <Avatar src={publicConfig?.app_logo} />
-              <Text style={{ color: "white" }}>{publicConfig?.app_name}</Text>
+            <Space size={10}>
+              <Avatar size={38} src={publicConfig?.app_logo} />
+              <Text
+                style={{
+                  color: "white",
+                  fontSize: 18,
+                  fontWeight: 700,
+                  margin: 0,
+                }}
+                ellipsis
+              >
+                {publicConfig?.app_name}
+              </Text>
             </Space>
           )}
           {/* Ganti icon jika collapsed agar tidak blank */}
         </div>
 
         <Menu
-          theme="dark"
-          mode="inline"
+          theme='dark'
+          mode='inline'
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={handleMenuClick}
           style={{ borderRight: 0 }}
         />
       </Sider>
+
+      {isMobile && !collapsed && (
+        <div
+          onClick={() => setCollapsed(true)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.45)",
+            zIndex: 1001,
+          }}
+        />
+      )}
 
       {/* === MAIN LAYOUT === */}
       <Layout>
@@ -218,7 +244,7 @@ const AppLayout = ({ children, title }) => {
             }}
           >
             <Button
-              type="text"
+              type='text'
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed(!collapsed)}
               style={{
@@ -259,7 +285,7 @@ const AppLayout = ({ children, title }) => {
                 maxWidth: screens.xs ? "60px" : "auto",
                 justifyContent: "flex-end",
               }}
-              className="user-dropdown-trigger"
+              className='user-dropdown-trigger'
             >
               {/* Avatar Selalu Muncul */}
               <Avatar
@@ -275,7 +301,7 @@ const AppLayout = ({ children, title }) => {
                   <Text strong style={{ display: "block" }}>
                     {user?.full_name || "User"}
                   </Text>
-                  <Text type="secondary" style={{ fontSize: "11px" }}>
+                  <Text type='secondary' style={{ fontSize: "11px" }}>
                     {user?.role?.toUpperCase()}
                     {user?.level ? ` - ${user.level.toUpperCase()}` : ""}
                   </Text>
@@ -284,7 +310,7 @@ const AppLayout = ({ children, title }) => {
 
               {/* Icon Panah: Hanya muncul di Desktop */}
               {!screens.xs && (
-                <Button type="text" size="small" icon={<CaretDownOutlined />} />
+                <Button type='text' size='small' icon={<CaretDownOutlined />} />
               )}
             </div>
           </Dropdown>
