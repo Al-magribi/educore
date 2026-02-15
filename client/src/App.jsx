@@ -45,6 +45,9 @@ const TeacherDash = lazy(
   () => import("./module/teacher/dashboard/TeacherDash"),
 );
 
+// LMS
+const LmsManagement = lazy(() => import("./module/lms/manager/LmsManagement"));
+
 const NotFoundRedirect = () => {
   const { user } = useSelector((state) => state.auth);
 
@@ -107,12 +110,30 @@ const App = () => {
             />
           }
         >
-          <Route path='/center-dashboard' element={<LazyRoute Component={CenterDash} />} />
-          <Route path='/center-homebase' element={<LazyRoute Component={CenterHome} />} />
-          <Route path='/center-admin' element={<LazyRoute Component={CenterAdmin} />} />
-          <Route path='/center-teacher' element={<LazyRoute Component={CenterTeacher} />} />
-          <Route path='/center-market' element={<LazyRoute Component={CenterMarket} />} />
-          <Route path='/center-config' element={<LazyRoute Component={CenterConfig} />} />
+          <Route
+            path='/center-dashboard'
+            element={<LazyRoute Component={CenterDash} />}
+          />
+          <Route
+            path='/center-homebase'
+            element={<LazyRoute Component={CenterHome} />}
+          />
+          <Route
+            path='/center-admin'
+            element={<LazyRoute Component={CenterAdmin} />}
+          />
+          <Route
+            path='/center-teacher'
+            element={<LazyRoute Component={CenterTeacher} />}
+          />
+          <Route
+            path='/center-market'
+            element={<LazyRoute Component={CenterMarket} />}
+          />
+          <Route
+            path='/center-config'
+            element={<LazyRoute Component={CenterConfig} />}
+          />
         </Route>
 
         {/* 2. ADMIN SATUAN (Sekolah Biasa) */}
@@ -125,9 +146,18 @@ const App = () => {
           }
         >
           {/* <Route path="/admin-dashboard" element={<AdminDash />} /> */}
-          <Route path='/admin-dashboard' element={<LazyRoute Component={AdminDash} />} />
-          <Route path='/admin-data-pokok' element={<LazyRoute Component={AdminMain} />} />
-          <Route path='/admin-data-akademik' element={<LazyRoute Component={AdminAcademinc} />} />
+          <Route
+            path='/admin-dashboard'
+            element={<LazyRoute Component={AdminDash} />}
+          />
+          <Route
+            path='/admin-data-pokok'
+            element={<LazyRoute Component={AdminMain} />}
+          />
+          <Route
+            path='/admin-data-akademik'
+            element={<LazyRoute Component={AdminAcademinc} />}
+          />
         </Route>
 
         {/* 3. CBT */}
@@ -140,7 +170,10 @@ const App = () => {
             />
           }
         >
-          <Route path='/computer-based-test/bank' element={<LazyRoute Component={BankList} />} />
+          <Route
+            path='/computer-based-test/bank'
+            element={<LazyRoute Component={BankList} />}
+          />
           <Route
             path='/computer-based-test/jadwal-ujian'
             element={<LazyRoute Component={ExamList} />}
@@ -166,14 +199,23 @@ const App = () => {
         {/* 5. TEACHER */}
         <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
           {/* <Route path="/teacher-dashboard" element={<TeacherDash />} /> */}
-          <Route path='/guru-dashboard' element={<LazyRoute Component={TeacherDash} />} />
+          <Route
+            path='/guru-dashboard'
+            element={<LazyRoute Component={TeacherDash} />}
+          />
         </Route>
 
         {/* 6. STUDENT */}
         <Route element={<RouteProtection allowedRoles={["student"]} />}>
           {/* <Route path="/student-dashboard" element={<StudentDash />} /> */}
-          <Route path='/siswa-dashboard' element={<LazyRoute Component={StudentDash} />} />
-          <Route path='/siswa/jadwal-ujian' element={<LazyRoute Component={StudentExamList} />} />
+          <Route
+            path='/siswa-dashboard'
+            element={<LazyRoute Component={StudentDash} />}
+          />
+          <Route
+            path='/siswa/jadwal-ujian'
+            element={<LazyRoute Component={StudentExamList} />}
+          />
           <Route
             path='/computer-based-test/start'
             element={<LazyRoute Component={ExamInterface} />}
@@ -203,6 +245,15 @@ const App = () => {
 
         {/* 9. CATCH-ALL */}
         <Route path='*' element={<NotFoundRedirect />} />
+
+        {/* 10. LMS */}
+        <Route
+          element={
+            <RouteProtection allowedRoles={["admin", "teacher", "student"]} />
+          }
+        >
+          <Route path='/manajemen-lms' element={<LmsManagement />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );
