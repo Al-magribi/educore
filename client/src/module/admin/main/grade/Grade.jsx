@@ -11,6 +11,7 @@ import {
   Tooltip,
   Typography,
   theme,
+  Flex,
 } from "antd";
 import {
   Plus,
@@ -31,7 +32,7 @@ import {
 const { Search: AntSearch } = Input;
 const { Text, Title } = Typography;
 
-const Grade = () => {
+const Grade = ({ screens }) => {
   const { token } = theme.useToken();
   const [form] = Form.useForm();
 
@@ -133,24 +134,24 @@ const Grade = () => {
       }}
       styles={{ body: { padding: "16px" } }}
       actions={[
-        <Tooltip title="Edit Data">
+        <Tooltip title='Edit Data'>
           <Button
-            type="text"
-            icon={<Pencil size={16} className="text-yellow-600" />}
+            type='text'
+            icon={<Pencil size={16} className='text-yellow-600' />}
             onClick={() => openModal(item)}
             block
           />
         </Tooltip>,
-        <Tooltip title="Hapus Data">
+        <Tooltip title='Hapus Data'>
           <Popconfirm
-            title="Hapus Tingkat?"
-            description="Aksi ini tidak dapat dibatalkan."
+            title='Hapus Tingkat?'
+            description='Aksi ini tidak dapat dibatalkan.'
             onConfirm={() => handleDelete(item.id)}
-            okText="Ya"
-            cancelText="Batal"
+            okText='Ya'
+            cancelText='Batal'
             okButtonProps={{ danger: true, loading: isDeleting }}
           >
-            <Button type="text" danger icon={<Trash2 size={16} />} block />
+            <Button type='text' danger icon={<Trash2 size={16} />} block />
           </Popconfirm>
         </Tooltip>,
       ]}
@@ -178,7 +179,7 @@ const Grade = () => {
           <GraduationCap size={20} />
         </div>
         <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
+          <Text type='secondary' style={{ fontSize: 12 }}>
             Tingkat Kelas
           </Text>
           <div style={{ fontSize: 18, fontWeight: "bold", lineHeight: 1 }}>
@@ -206,21 +207,28 @@ const Grade = () => {
           Daftar Tingkat
         </Title>
 
-        <Space>
+        <Flex
+          gap={8}
+          vertical={!!screens.xs}
+          align={screens.xs ? "stretch" : "center"}
+          justify='flex-end'
+          style={{ width: screens.xs ? "100%" : "auto" }}
+        >
           <AntSearch
-            placeholder="Cari tingkat..."
+            placeholder='Cari tingkat...'
             onSearch={handleSearch}
             allowClear
-            style={{ width: 250 }}
+            style={{ width: screens.xs ? "100%" : 260 }}
           />
           <Button
-            type="primary"
+            type='primary'
             icon={<Plus size={16} />}
             onClick={() => openModal(null)}
+            style={{ width: screens.xs ? "100%" : "auto" }}
           >
             Tambah
           </Button>
-        </Space>
+        </Flex>
       </div>
 
       {/* Infinite Scroll List */}
@@ -237,7 +245,7 @@ const Grade = () => {
           hasMore={hasMore}
           onLoadMore={handleLoadMore}
           renderItem={renderGradeItem}
-          emptyText="Belum ada data tingkat kelas"
+          emptyText='Belum ada data tingkat kelas'
           grid={{
             gutter: [16, 16],
             xs: 24,
@@ -258,14 +266,14 @@ const Grade = () => {
         footer={null}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" onFinish={handleSave}>
+        <Form form={form} layout='vertical' onFinish={handleSave}>
           <Form.Item
-            label="Nama Tingkat"
-            name="name"
+            label='Nama Tingkat'
+            name='name'
             rules={[{ required: true, message: "Harap isi nama tingkat!" }]}
-            help="Contoh: X, XI, XII, atau 1, 2, 3"
+            help='Contoh: X, XI, XII, atau 1, 2, 3'
           >
-            <Input placeholder="Masukkan nama..." />
+            <Input placeholder='Masukkan nama...' />
           </Form.Item>
 
           <div
@@ -278,12 +286,12 @@ const Grade = () => {
           >
             <Button onClick={() => setIsModalOpen(false)}>Batal</Button>
             <Button
-              type="primary"
-              htmlType="submit"
+              type='primary'
+              htmlType='submit'
               loading={isAdding || isEditing}
               icon={
                 isAdding || isEditing ? (
-                  <Loader2 className="animate-spin" size={16} />
+                  <Loader2 className='animate-spin' size={16} />
                 ) : null
               }
             >

@@ -14,7 +14,7 @@ import {
 } from "antd";
 import { FileText, Upload as UploadIcon } from "lucide-react";
 import { useUploadContentFileMutation } from "../../../../../../service/lms/ApiLms";
-import { Editor } from "../../../../../../components";
+import Editor from "../../../../../../components/editor/TextEditor";
 import { YoutubeOutlined } from "@ant-design/icons";
 
 const ChapterModals = ({
@@ -68,27 +68,27 @@ const ChapterModals = ({
         centered
         width={820}
       >
-        <Form layout="vertical" form={chapterForm}>
+        <Form layout='vertical' form={chapterForm}>
           <Form.Item
-            name="title"
-            label="Judul Bab"
+            name='title'
+            label='Judul Bab'
             rules={[{ required: true, message: "Judul wajib diisi." }]}
           >
-            <Input placeholder="Contoh: Bab 1 - Pengenalan" />
+            <Input placeholder='Contoh: Bab 1 - Pengenalan' />
           </Form.Item>
-          <Form.Item name="description" label="Deskripsi">
-            <Editor placeholder="Deskripsi singkat bab." height="160px" />
+          <Form.Item name='description' label='Deskripsi'>
+            <Editor placeholder='Deskripsi singkat bab.' height='160px' />
           </Form.Item>
           <Row gutter={[12, 12]}>
             <Col xs={24} md={8}>
-              <Form.Item name="order_number" label="Urutan">
+              <Form.Item name='order_number' label='Urutan'>
                 <InputNumber min={1} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
               <Form.Item
-                name="grade_id"
-                label="Tingkat"
+                name='grade_id'
+                label='Tingkat'
                 rules={[{ required: true, message: "Tingkat wajib diisi." }]}
               >
                 <Select options={gradeOptions} />
@@ -96,11 +96,11 @@ const ChapterModals = ({
             </Col>
             <Col xs={24} md={8}>
               <Form.Item
-                name="class_ids"
-                label="Kelas"
+                name='class_ids'
+                label='Kelas'
                 rules={[{ required: true, message: "Kelas wajib diisi." }]}
               >
-                <Select mode="multiple" options={classOptions} />
+                <Select mode='multiple' options={classOptions} />
               </Form.Item>
             </Col>
           </Row>
@@ -117,42 +117,42 @@ const ChapterModals = ({
         centered
         width={820}
       >
-        <Form layout="vertical" form={contentForm}>
+        <Form layout='vertical' form={contentForm}>
           <Row gutter={[12, 12]}>
             <Col xs={24} md={12}>
               <Form.Item
-                name="title"
-                label="Judul Subbab"
+                name='title'
+                label='Judul Subbab'
                 rules={[{ required: true, message: "Judul wajib diisi." }]}
               >
-                <Input placeholder="Contoh: Materi Inti" />
+                <Input placeholder='Contoh: Materi Inti' />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="video_url" label="Link Youtube">
+              <Form.Item name='video_url' label='Link Youtube'>
                 <Input
                   prefix={<YoutubeOutlined />}
-                  placeholder="https://youtube.com/..."
+                  placeholder='https://youtube.com/...'
                 />
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item name="body" label="Deskripsi">
-            <Editor placeholder="Ringkasan materi." height="180px" />
+          <Form.Item name='body' label='Deskripsi'>
+            <Editor placeholder='Ringkasan materi.' height='180px' />
           </Form.Item>
 
           <Row gutter={[12, 12]}>
             <Col xs={24} md={18}>
               <Form.Item
-                name="attachment_url"
-                label="File Lampiran"
-                extra="Format umum: pdf, docx, pptx, xlsx, gambar."
+                name='attachment_url'
+                label='File Lampiran'
+                extra='Format umum: pdf, docx, pptx, xlsx, gambar.'
               >
                 <Space.Compact style={{ width: "100%" }}>
                   <Input
                     prefix={<FileText size={14} />}
-                    placeholder="Upload atau tempel link file"
+                    placeholder='Upload atau tempel link file'
                   />
                   <Upload
                     beforeUpload={handleUpload}
@@ -160,7 +160,7 @@ const ChapterModals = ({
                     maxCount={1}
                   >
                     <Button
-                      type="primary"
+                      type='primary'
                       icon={<UploadIcon size={14} />}
                       loading={isUploading}
                     >
@@ -171,13 +171,13 @@ const ChapterModals = ({
               </Form.Item>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="attachment_name" label="Nama File">
-                <Input placeholder="Otomatis" disabled />
+              <Form.Item name='attachment_name' label='Nama File'>
+                <Input placeholder='Otomatis' disabled />
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item name="attachment_name" hidden>
+          <Form.Item name='attachment_name' hidden>
             <Input />
           </Form.Item>
         </Form>

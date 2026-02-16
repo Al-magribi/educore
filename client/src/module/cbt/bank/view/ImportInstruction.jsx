@@ -10,12 +10,13 @@ const ImportInstruction = () => (
       showIcon
       icon={<Info size={18} />}
       description={
-        <div style={{ overflowX: "auto" }}>
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <Table
             size="small"
             pagination={false}
             bordered
-            style={{ marginTop: 10, minWidth: "400px" }}
+            scroll={{ x: 360 }}
+            style={{ marginTop: 10, minWidth: "360px" }}
             dataSource={[
               { id: 1, tipe: "PG", key: "Huruf (A/B/C)" },
               { id: 4, tipe: "Isian", key: "Jawaban (10, Sepuluh)" },

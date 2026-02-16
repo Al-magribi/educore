@@ -24,7 +24,7 @@ import { InfiniteScrollList } from "../../../../components";
 
 const { Text, Paragraph } = Typography;
 
-const BranchPanel = () => {
+const BranchPanel = ({ screens }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [form] = Form.useForm();
@@ -93,21 +93,27 @@ const BranchPanel = () => {
     <div>
       {/* --- HEADER --- */}
       <div style={styles.header}>
-        <Flex justify="space-between" align="center" gap={16} wrap="wrap">
+        <Flex
+          gap={8}
+          vertical={!!screens.xs}
+          align={screens.xs ? "stretch" : "center"}
+          justify='flex-end'
+          style={{ width: screens.xs ? "100%" : "auto" }}
+        >
           <Input
             prefix={<Search size={16} style={{ color: "#bfbfbf" }} />}
-            placeholder="Cari cabang atau kategori..."
-            style={{ width: 300, borderRadius: 8 }}
+            placeholder='Cari cabang atau kategori...'
+            style={{ width: screens.xs ? "100%" : "auto" }}
             allowClear
             onChange={(e) => setSearchText(e.target.value)}
           />
           <Button
-            type="primary"
+            type='primary'
             icon={<Plus size={18} />}
             onClick={() => setIsModalOpen(true)}
-            style={{ borderRadius: 8 }}
+            style={{ width: screens.xs ? "100%" : "auto" }}
           >
-            Tambah Cabang
+            Cabang
           </Button>
         </Flex>
       </div>
@@ -117,29 +123,29 @@ const BranchPanel = () => {
         data={filteredData}
         loading={isLoading}
         hasMore={false} // Client side filtering = no load more
-        height="70vh"
-        emptyText="Belum ada data cabang"
+        height='70vh'
+        emptyText='Belum ada data cabang'
         grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 12, lg: 8, xl: 6 }}
         renderItem={(item) => (
           <Badge.Ribbon
             text={item.category_name || "Tanpa Kategori"}
-            color="cyan"
+            color='cyan'
             style={{ top: 12 }}
           >
             <Card
               hoverable
               actions={[
                 <Popconfirm
-                  title="Hapus cabang ini?"
-                  description="Tindakan ini tidak dapat dibatalkan"
+                  title='Hapus cabang ini?'
+                  description='Tindakan ini tidak dapat dibatalkan'
                   onConfirm={() => handleDelete(item.id)}
-                  okText="Hapus"
-                  cancelText="Batal"
+                  okText='Hapus'
+                  cancelText='Batal'
                   okButtonProps={{ danger: true }}
                 >
-                  <Tooltip title="Hapus">
+                  <Tooltip title='Hapus'>
                     <Button
-                      type="text"
+                      type='text'
                       danger
                       icon={<Trash2 size={16} />}
                       style={{ width: "100%" }}
@@ -150,7 +156,7 @@ const BranchPanel = () => {
                 </Popconfirm>,
               ]}
             >
-              <Flex align="flex-start">
+              <Flex align='flex-start'>
                 <div style={styles.iconBox}>
                   <GitBranch size={20} />
                 </div>
@@ -170,7 +176,7 @@ const BranchPanel = () => {
                     {item.name}
                   </Text>
                   <Paragraph
-                    type="secondary"
+                    type='secondary'
                     ellipsis={{ rows: 2 }}
                     style={{ fontSize: 13, margin: 0, minHeight: 40 }}
                   >
@@ -186,7 +192,7 @@ const BranchPanel = () => {
       {/* --- MODAL --- */}
       <Modal
         title={
-          <Flex align="center" gap={8}>
+          <Flex align='center' gap={8}>
             <Plus size={20} /> <span>Tambah Cabang Baru</span>
           </Flex>
         }
@@ -199,32 +205,32 @@ const BranchPanel = () => {
         <Form
           form={form}
           onFinish={handleAdd}
-          layout="vertical"
+          layout='vertical'
           style={{ marginTop: 20 }}
         >
           <Form.Item
-            name="category_id"
-            label="Pilih Kategori"
+            name='category_id'
+            label='Pilih Kategori'
             rules={[{ required: true, message: "Kategori wajib dipilih" }]}
           >
             <Select
-              placeholder="Pilih Kategori"
+              placeholder='Pilih Kategori'
               options={categoriesData?.data?.map((c) => ({
                 label: c.name,
                 value: c.id,
               }))}
-              size="large"
+              size='large'
             />
           </Form.Item>
 
           <Form.Item
-            name="name"
-            label="Nama Cabang"
+            name='name'
+            label='Nama Cabang'
             rules={[{ required: true, message: "Wajib diisi" }]}
           >
             <Input
-              placeholder="Contoh: Fiqih, Bahasa Arab"
-              size="large"
+              placeholder='Contoh: Fiqih, Bahasa Arab'
+              size='large'
               prefix={
                 <GitBranch
                   size={16}
@@ -234,10 +240,10 @@ const BranchPanel = () => {
             />
           </Form.Item>
 
-          <Form.Item name="description" label="Deskripsi (Opsional)">
+          <Form.Item name='description' label='Deskripsi (Opsional)'>
             <Input.TextArea
               rows={3}
-              placeholder="Tambahkan catatan singkat..."
+              placeholder='Tambahkan catatan singkat...'
             />
           </Form.Item>
         </Form>

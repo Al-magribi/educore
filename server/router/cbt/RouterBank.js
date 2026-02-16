@@ -188,10 +188,25 @@ router.get(
 
     // Ambil guru yang satu homebase dengan admin
     const sql = `
-        SELECT u.id, u.full_name 
+        SELECT 
+          u.id, 
+          u.full_name,
+          COALESCE(
+            json_agg(DISTINCT ats.subject_id) FILTER (WHERE ats.subject_id IS NOT NULL),
+            '[]'
+          ) AS subject_ids,
+          COALESCE(
+            json_agg(
+              DISTINCT jsonb_build_object('id', s.id, 'name', s.name)
+            ) FILTER (WHERE s.id IS NOT NULL),
+            '[]'
+          ) AS subjects
         FROM u_users u
         JOIN u_teachers t ON u.id = t.user_id
+        LEFT JOIN at_subject ats ON ats.teacher_id = u.id
+        LEFT JOIN a_subject s ON s.id = ats.subject_id
         WHERE t.homebase_id = $1 AND u.is_active = true
+        GROUP BY u.id, u.full_name
         ORDER BY u.full_name ASC
     `;
     const result = await pool.query(sql, [homebase_id]);

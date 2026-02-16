@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Input, Button, Typography, Space, message, theme } from "antd";
+import { Input, Button, Typography, Space, message, theme, Flex } from "antd";
 import { Search as SearchIcon, Plus } from "lucide-react";
 // Sesuaikan path import ini dengan struktur folder Anda
 import { InfiniteScrollList } from "../../../../components";
@@ -15,7 +15,7 @@ import StudentForm from "./StudentForm";
 
 const { Title, Text } = Typography;
 
-const StudentPage = () => {
+const StudentPage = ({ screens }) => {
   const { token } = theme.useToken();
 
   // --- Local States ---
@@ -94,14 +94,16 @@ const StudentPage = () => {
 
   const handleSubmit = async (values) => {
     try {
-      const payload = {
-        ...values,
-        birth_date: values.birth_date
-          ? values.birth_date.format("YYYY-MM-DD")
-          : null,
-      };
-
       if (editingItem) {
+        const payload = {
+          full_name: values.full_name,
+          nis: values.nis,
+          nisn: values.nisn,
+          gender: values.gender,
+          is_active: values.is_active,
+          class_id: values.class_id,
+        };
+
         await updateStudent({ id: editingItem.id, ...payload }).unwrap();
         // Update lokal agar UI responsif tanpa reload total
         setAccumulatedData((prev) =>
@@ -111,6 +113,16 @@ const StudentPage = () => {
         );
         message.success("Berhasil diperbarui");
       } else {
+        const payload = {
+          username: values.username,
+          password: values.password,
+          full_name: values.full_name,
+          nis: values.nis,
+          nisn: values.nisn,
+          gender: values.gender,
+          class_id: values.class_id,
+        };
+
         await addStudent(payload).unwrap();
         // Untuk create, reset ke page 1 agar data baru muncul di atas
         setPage(1);
@@ -150,24 +162,31 @@ const StudentPage = () => {
           <Title level={3} style={{ margin: 0 }}>
             Data Siswa <span>({apiData?.totalData || 0})</span>
           </Title>
-          <Text type="secondary">Kelola data siswa sekolah</Text>
+          <Text type='secondary'>Kelola data siswa sekolah</Text>
         </div>
-        <Space>
+        <Flex
+          gap={8}
+          vertical={!!screens.xs}
+          align={screens.xs ? "stretch" : "center"}
+          justify='flex-end'
+          style={{ width: screens.xs ? "100%" : "auto" }}
+        >
           <Input
-            placeholder="Cari Siswa..."
+            placeholder='Cari Siswa...'
             prefix={<SearchIcon size={16} color={token.colorTextPlaceholder} />}
             onChange={handleSearch}
-            style={{ width: 250 }}
+            style={{ width: screens.xs ? "100%" : "auto" }}
             allowClear
           />
           <Button
-            type="primary"
+            type='primary'
             icon={<Plus size={18} />}
             onClick={() => handleOpenDrawer(null)}
+            style={{ width: screens.xs ? "100%" : "auto" }}
           >
-            Tambah
+            Siswa
           </Button>
-        </Space>
+        </Flex>
       </div>
 
       {/* Infinite Scroll List Section */}
@@ -176,8 +195,8 @@ const StudentPage = () => {
         loading={isFetching}
         hasMore={hasMore}
         onLoadMore={handleLoadMore}
-        height="calc(100vh - 150px)" // Tinggi area scroll
-        emptyText="Tidak ada siswa ditemukan"
+        height='calc(100vh - 150px)' // Tinggi area scroll
+        emptyText='Tidak ada siswa ditemukan'
         grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 }} // Grid Card
         renderItem={(item) => (
           <StudentCard

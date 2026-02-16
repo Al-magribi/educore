@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Input, Button, theme } from "antd";
+import { Input, Button, theme, Flex } from "antd";
 import { Search, Plus, Upload as UploadIcon } from "lucide-react"; // Import icon upload
 import { useGetClassesQuery } from "../../../../service/main/ApiClass";
 
@@ -9,8 +9,9 @@ import ClassModal from "./ClassModal";
 import StudentDrawer from "./StudentDrawer";
 import UploadStudent from "./components/UploadStudent"; // Import Drawer baru
 
-const Classes = () => {
+const Classes = ({ screens }) => {
   const { token } = theme.useToken();
+  const isMobile = !!screens?.xs;
 
   // State Query
   const [page, setPage] = useState(1);
@@ -136,19 +137,22 @@ const Classes = () => {
           </span>
         </div>
 
-        <div
+        <Flex
+          gap={12}
+          wrap
           style={{
-            display: "flex",
-            gap: "12px",
-            flex: 1,
-            justifyContent: "flex-end",
+            flex: isMobile ? "0 0 100%" : 1,
+            justifyContent: isMobile ? "stretch" : "flex-end",
+            alignItems: isMobile ? "stretch" : "center",
+            flexDirection: isMobile ? "column" : "row",
+            width: isMobile ? "100%" : "auto",
           }}
         >
           <Input
             prefix={<Search size={16} color={token.colorTextDescription} />}
             placeholder='Cari nama kelas...'
             onChange={handleSearch}
-            style={{ maxWidth: "300px" }}
+            style={{ width: isMobile ? "100%" : 300 }}
             allowClear
           />
 
@@ -156,6 +160,7 @@ const Classes = () => {
             type='primary'
             icon={<Plus size={16} />}
             onClick={handleAddClass}
+            style={{ width: isMobile ? "100%" : "auto" }}
           >
             Tambah Kelas
           </Button>
@@ -164,10 +169,11 @@ const Classes = () => {
           <Button
             icon={<UploadIcon size={16} />}
             onClick={() => setIsUploadDrawerOpen(true)}
+            style={{ width: isMobile ? "100%" : "auto" }}
           >
             Upload Siswa
           </Button>
-        </div>
+        </Flex>
       </div>
 
       {/* CONTENT AREA */}

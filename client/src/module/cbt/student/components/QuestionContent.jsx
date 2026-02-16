@@ -4,6 +4,7 @@ import {
   Card,
   Checkbox,
   Empty,
+  Flex,
   Input,
   Radio,
   Space,
@@ -78,6 +79,11 @@ const QuestionContent = ({
   onAnswerChange,
   palette,
 }) => {
+  const [rightOrder, setRightOrder] = useState([]);
+  const [rightPool, setRightPool] = useState([]);
+  const [assignments, setAssignments] = useState({});
+  const lastQuestionIdRef = useRef(null);
+
   if (!question) {
     return (
       <Card style={{ borderRadius: 16 }}>
@@ -93,10 +99,6 @@ const QuestionContent = ({
   const isTextAnswer = isEssay || isShortAnswer;
   const options = question.options || [];
   const questionType = getQuestionType(question.q_type);
-  const [rightOrder, setRightOrder] = useState([]);
-  const [rightPool, setRightPool] = useState([]);
-  const [assignments, setAssignments] = useState({});
-  const lastQuestionIdRef = useRef(null);
 
   const leftItems = useMemo(
     () =>
@@ -226,13 +228,18 @@ const QuestionContent = ({
 
   return (
     <Space vertical size={18} style={{ width: "100%" }}>
-      <Space
-        align={isSmallScreen ? "start" : "center"}
-        orientation={isSmallScreen ? "vertical" : "horizontal"}
-        size={isSmallScreen ? 8 : 12}
-        style={{ justifyContent: "space-between", width: "100%" }}
-      >
-        <Space align="center" size={12} wrap>
+      <Space vertical size={isSmallScreen ? 10 : 12} style={{ width: "100%" }}>
+        <Flex
+          align={isSmallScreen ? "flex-start" : "center"}
+          justify="space-between"
+          gap={8}
+          wrap
+        >
+          <Flex
+            align="center"
+            gap={12}
+            style={{ minWidth: 0, flex: isSmallScreen ? 1 : "initial" }}
+          >
           <div
             style={{
               width: 40,
@@ -246,29 +253,49 @@ const QuestionContent = ({
           >
             <GraduationCap size={18} />
           </div>
-          <div>
-            <Text style={{ color: palette.subtle }}>
+          <div style={{ minWidth: 0 }}>
+            <Text style={{ color: palette.subtle, fontSize: 12 }}>
               Pertanyaan {index + 1}
             </Text>
             <Title
               level={4}
-              style={{ margin: 0, fontSize: isSmallScreen ? 16 : undefined }}
+              style={{
+                margin: 0,
+                fontSize: isSmallScreen ? 16 : undefined,
+                lineHeight: 1.2,
+              }}
             >
               {question.title || "Pertanyaan"}
             </Title>
           </div>
-          <Tag color="default">
+          </Flex>
+          <Tag color="default" style={{ whiteSpace: "nowrap", marginInlineEnd: 0 }}>
             {index + 1} dari {totalQuestions}
           </Tag>
-        </Space>
-        <Space size={8}>
+        </Flex>
+        <Flex
+          align="center"
+          justify="space-between"
+          gap={8}
+          wrap
+          style={{ width: "100%" }}
+        >
           {isSmallScreen && (
-            <Button icon={<ListChecks size={16} />} onClick={onOpenList}>
+            <Button
+              size="small"
+              icon={<ListChecks size={16} />}
+              onClick={onOpenList}
+            >
               Daftar Soal
             </Button>
           )}
-          <Tag color={questionType.color}>{questionType.label}</Tag>
-        </Space>
+          <Tag
+            color={questionType.color}
+            style={{ whiteSpace: "nowrap", marginInlineStart: "auto" }}
+          >
+            {questionType.label}
+          </Tag>
+        </Flex>
       </Space>
 
       <Card
@@ -277,9 +304,15 @@ const QuestionContent = ({
           borderRadius: 16,
           borderColor: "#e7eef8",
         }}
+        styles={{ body: { padding: isSmallScreen ? 14 : 24 } }}
       >
         <div
-          style={{ fontSize: 16, color: palette.ink }}
+          style={{
+            fontSize: isSmallScreen ? 15 : 16,
+            color: palette.ink,
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+          }}
           dangerouslySetInnerHTML={{ __html: question.content || "" }}
         />
       </Card>
@@ -329,7 +362,11 @@ const QuestionContent = ({
                           {String.fromCharCode(65 + idx)}
                         </Tag>
                         <div
-                          style={{ color: palette.subtle }}
+                          style={{
+                            color: palette.subtle,
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
+                          }}
                           dangerouslySetInnerHTML={{
                             __html: item.label || "-",
                           }}
@@ -377,7 +414,11 @@ const QuestionContent = ({
                                     }}
                                   >
                                     <div
-                                      style={{ color: palette.ink }}
+                                      style={{
+                                        color: palette.ink,
+                                        overflowWrap: "anywhere",
+                                        wordBreak: "break-word",
+                                      }}
                                       dangerouslySetInnerHTML={{
                                         __html: assignedItem.content || "",
                                       }}
@@ -438,7 +479,11 @@ const QuestionContent = ({
                             }}
                           >
                             <div
-                              style={{ color: palette.ink }}
+                              style={{
+                                color: palette.ink,
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                              }}
                               dangerouslySetInnerHTML={{
                                 __html: item.content || "",
                               }}
@@ -474,12 +519,18 @@ const QuestionContent = ({
                 }}
               >
                 <Checkbox value={option.id} style={{ width: "100%" }}>
-                  <Space align="start">
+                  <Space align="start" style={{ width: "100%" }}>
                     <Tag color="blue" style={{ minWidth: 32 }}>
                       {option.label || String.fromCharCode(65 + idx)}
                     </Tag>
                     <div
-                      style={{ color: palette.subtle }}
+                      style={{
+                        color: palette.subtle,
+                        flex: 1,
+                        minWidth: 0,
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                      }}
                       dangerouslySetInnerHTML={{ __html: option.content || "" }}
                     />
                   </Space>
@@ -508,12 +559,18 @@ const QuestionContent = ({
                 }}
               >
                 <Radio value={option.id} style={{ width: "100%" }}>
-                  <Space align="start">
+                  <Space align="start" style={{ width: "100%" }}>
                     <Tag color="blue" style={{ minWidth: 32 }}>
                       {option.label || String.fromCharCode(65 + idx)}
                     </Tag>
                     <div
-                      style={{ color: palette.subtle }}
+                      style={{
+                        color: palette.subtle,
+                        flex: 1,
+                        minWidth: 0,
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                      }}
                       dangerouslySetInnerHTML={{ __html: option.content || "" }}
                     />
                   </Space>

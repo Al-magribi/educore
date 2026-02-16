@@ -10,9 +10,8 @@ import {
   Col,
   Typography,
   theme,
-  Spin,
 } from "antd";
-import { User, School, BookOpen } from "lucide-react";
+import { User, School } from "lucide-react";
 import {
   useGetClassesQuery,
   useGetGradesQuery,
@@ -44,15 +43,15 @@ const StudentFormDrawer = ({
   useEffect(() => {
     if (open) {
       if (initialValues) {
-        // Jika Edit: Isi form dan set gradeId agar dropdown kelas muncul
-        form.setFieldsValue(initialValues);
+        // Map data dari API ke nama field form agar mode edit selalu terisi.
+        const normalizedValues = {
+          ...initialValues,
+          grade_id: initialValues.grade_id ?? initialValues.current_grade_id,
+          class_id: initialValues.class_id ?? initialValues.current_class_id,
+        };
 
-        // Asumsi: initialValues membawa 'current_grade_id' atau kita ambil dari class relation
-        // Jika backend belum mengirim grade_id, user mungkin perlu memilih ulang tingkat saat edit
-        if (initialValues.current_class_id) {
-          // Logic opsional: idealnya data student membawa grade_id dari backend
-          // Disini kita biarkan user memilih atau set manual jika ada datanya
-        }
+        form.setFieldsValue(normalizedValues);
+        setSelectedGradeId(normalizedValues.grade_id ?? null);
       } else {
         // Jika Tambah Baru: Reset form
         form.resetFields();
@@ -132,11 +131,7 @@ const StudentFormDrawer = ({
           )}
 
           {initialValues && (
-            <Form.Item
-              name='is_active'
-              label='Status Akun'
-              valuePropName='checked'
-            >
+            <Form.Item name='is_active' label='Status Akun'>
               <Select>
                 <Option value={true}>Aktif</Option>
                 <Option value={false}>Non-Aktif</Option>

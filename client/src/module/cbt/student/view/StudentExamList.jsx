@@ -49,7 +49,7 @@ const StudentExamList = () => {
 
   if (isLoading) {
     return (
-      <AppLayout title="Jadwal Ujian">
+      <AppLayout title='Jadwal Ujian'>
         <Card>
           <Skeleton active paragraph={{ rows: 6 }} />
         </Card>
@@ -59,9 +59,9 @@ const StudentExamList = () => {
 
   if (isError) {
     return (
-      <AppLayout title="Jadwal Ujian">
+      <AppLayout title='Jadwal Ujian'>
         <Card>
-          <Text type="danger">Gagal memuat jadwal ujian.</Text>
+          <Text type='danger'>Gagal memuat jadwal ujian.</Text>
         </Card>
       </AppLayout>
     );
@@ -78,11 +78,11 @@ const StudentExamList = () => {
   };
 
   return (
-    <AppLayout title="Jadwal Ujian">
+    <AppLayout title='Jadwal Ujian'>
       <Space vertical size={20} style={{ width: "100%" }}>
         <Card hoverable>
           <Space vertical size={10} style={{ width: "100%" }}>
-            <Space align="center" size={12}>
+            <Space align='center' size={12}>
               <div
                 style={{
                   width: 44,
@@ -94,25 +94,25 @@ const StudentExamList = () => {
                   justifyContent: "center",
                 }}
               >
-                <ClipboardList size={20} color="#4f46e5" />
+                <ClipboardList size={20} color='#4f46e5' />
               </div>
               <div>
                 <Title level={4} style={{ margin: 0 }}>
                   Jadwal Ujian
                 </Title>
-                <Text type="secondary">
+                <Text type='secondary'>
                   Daftar ujian aktif sesuai kelas Anda
                 </Text>
               </div>
             </Space>
             <Space wrap size={8}>
-              <Tag color="blue" icon={<GraduationCap size={12} />}>
+              <Tag color='blue' icon={<GraduationCap size={12} />}>
                 {className}
               </Tag>
-              <Tag color="geekblue" icon={<BookOpen size={12} />}>
+              <Tag color='geekblue' icon={<BookOpen size={12} />}>
                 {subjectCount} Mapel
               </Tag>
-              <Tag color="purple" icon={<CalendarClock size={12} />}>
+              <Tag color='purple' icon={<CalendarClock size={12} />}>
                 {examCount} Ujian Aktif
               </Tag>
             </Space>
@@ -121,8 +121,8 @@ const StudentExamList = () => {
 
         <Card
           title={
-            <Space align="center" size={8}>
-              <ClipboardList size={18} color="#1d4ed8" />
+            <Space align='center' size={8}>
+              <ClipboardList size={18} color='#1d4ed8' />
               <span>Daftar Ujian</span>
             </Space>
           }
@@ -132,49 +132,42 @@ const StudentExamList = () => {
             <Row gutter={[16, 16]}>
               {data.map((item) => (
                 <Col key={item.id} xs={24} md={12} xl={8}>
-                  <Card hoverable>
-                    <Space vertical size={10} style={{ width: "100%" }}>
-                      <Space align="center" size={8}>
-                        <Text strong>{item.name}</Text>
-                        <Tag color="green">Aktif</Tag>
-                      </Space>
-                      <Space size={12} wrap>
-                        <Text type="secondary">
-                          <BookOpen size={14} /> {item.subject_name || "-"}
-                        </Text>
-                        <Text type="secondary">
-                          <UserRound size={14} /> {item.teacher_name || "-"}
-                        </Text>
-                        <Text type="secondary">
-                          <Timer size={14} /> {item.duration_minutes} menit
-                        </Text>
-                      </Space>
-                      <Text type="secondary">
-                        <CalendarClock size={14} /> Dibuat:{" "}
-                        {formatDateTime(item.created_at)}
-                      </Text>
-                      <Space
-                        align="center"
-                        style={{
-                          justifyContent: "space-between",
-                          width: "100%",
-                        }}
-                      >
-                        <Tag color="blue">{item.bank_type || "Ujian"}</Tag>
+                  <Badge.Ribbon text={item.bank_type || "Ujian"}>
+                    <Card
+                      hoverable
+                      actions={[
                         <Button
-                          type="primary"
+                          type='primary'
                           onClick={() => openJoinModal(item)}
                         >
                           Ikuti Ujian
-                        </Button>
+                        </Button>,
+                      ]}
+                    >
+                      <Space vertical size={10} style={{ width: "100%" }}>
+                        <Space align='center' size={8}>
+                          <Text strong>{item.name}</Text>
+                          <Tag color='green'>Aktif</Tag>
+                        </Space>
+                        <Space size={12} wrap>
+                          <Text type='secondary'>
+                            <BookOpen size={14} /> {item.subject_name || "-"}
+                          </Text>
+                          <Text type='secondary'>
+                            <UserRound size={14} /> {item.teacher_name || "-"}
+                          </Text>
+                          <Text type='secondary'>
+                            <Timer size={14} /> {item.duration_minutes} menit
+                          </Text>
+                        </Space>
                       </Space>
-                    </Space>
-                  </Card>
+                    </Card>
+                  </Badge.Ribbon>
                 </Col>
               ))}
             </Row>
           ) : (
-            <Empty description="Belum ada jadwal ujian untuk kelas Anda." />
+            <Empty description='Belum ada jadwal ujian untuk kelas Anda.' />
           )}
         </Card>
       </Space>

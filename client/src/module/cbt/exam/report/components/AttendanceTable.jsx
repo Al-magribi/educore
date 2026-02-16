@@ -32,9 +32,14 @@ import { InfiniteScrollList } from "../../../../../components";
 
 const { Text } = Typography;
 
-const AttendanceTable = ({ data, examId }) => {
+const AttendanceTable = ({
+  data,
+  examId,
+  isMobile = false,
+  isLoading = false,
+}) => {
   const [pollingMinutes, setPollingMinutes] = useState(5);
-  useGetExamAttendanceQuery(
+  const { isLoading: pollingLoading } = useGetExamAttendanceQuery(
     { exam_id: examId },
     {
       skip: !examId,
@@ -54,6 +59,8 @@ const AttendanceTable = ({ data, examId }) => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [classFilter, setClassFilter] = useState("all");
+  const tableLoading = isLoading || pollingLoading;
+  const normalizeStatus = (value) => (value === "izin" ? "izinkan" : value);
 
   const classOptions = useMemo(() => {
     const classes = Array.from(
@@ -64,8 +71,9 @@ const AttendanceTable = ({ data, examId }) => {
 
   const filteredData = useMemo(() => {
     return data.filter((item) => {
+      const normalizedStatus = normalizeStatus(item.status);
       const matchStatus =
-        statusFilter === "all" ? true : item.status === statusFilter;
+        statusFilter === "all" ? true : normalizedStatus === statusFilter;
       const matchClass =
         classFilter === "all" ? true : item.className === classFilter;
       const matchSearch = `${item.nis} ${item.name} ${item.className}`
@@ -93,14 +101,10 @@ const AttendanceTable = ({ data, examId }) => {
 
   const getActionDisabled = (status) => {
     return {
-      jawaban:
-        status === "pelanggaran" ||
-        status === "belum_masuk" ||
-        status === "izinkan",
-      izinkan:
-        status !== "mengerjakan",
-      ulangi: status === "belum_masuk",
-      selesaikan: status === "belum_masuk" || status === "selesai",
+      jawaban: status === "belum_masuk",
+      izinkan: status !== "mengerjakan" && status !== "pelanggaran",
+      ulangi: status !== "selesai",
+      selesaikan: status === "belum_masuk",
     };
   };
 
@@ -119,8 +123,7 @@ const AttendanceTable = ({ data, examId }) => {
   const confirmAllow = (student) => {
     Modal.confirm({
       title: "Izinkan Siswa?",
-      content:
-        "Siswa akan diizinkan masuk kembali tanpa mengubah waktu ujian.",
+      content: "Siswa akan diizinkan masuk kembali tanpa mengubah waktu ujian.",
       okText: "Izinkan",
       cancelText: "Batal",
       onOk: async () => {
@@ -181,20 +184,21 @@ const AttendanceTable = ({ data, examId }) => {
   };
 
   const renderItem = (item) => {
-    const disabled = getActionDisabled(item.status);
+    const normalizedStatus = normalizeStatus(item.status);
+    const disabled = getActionDisabled(normalizedStatus);
     return (
       <Badge.Ribbon
-        text={getRibbon(item.status).text}
-        color={getRibbon(item.status).color}
+        text={getRibbon(normalizedStatus).text}
+        color={getRibbon(normalizedStatus).color}
       >
         <Card
           hoverable
-          size="small"
+          size='small'
           style={{ borderRadius: 14, height: "100%" }}
           styles={{
             body: { display: "flex", flexDirection: "column", gap: 12 },
           }}
-          title={<Text type="secondary">NIS {item.nis}</Text>}
+          title={<Text type='secondary'>NIS {item.nis}</Text>}
         >
           <div>
             <Text strong style={{ fontSize: 15 }}>
@@ -205,7 +209,7 @@ const AttendanceTable = ({ data, examId }) => {
             </div>
           </div>
 
-          <Flex wrap="wrap" gap={12}>
+          <Flex wrap='wrap' gap={12}>
             <Space size={6}>
               <Globe size={14} />
               <Text>{item.ip}</Text>
@@ -214,40 +218,48 @@ const AttendanceTable = ({ data, examId }) => {
               <Monitor size={14} />
               <Text>{item.browser}</Text>
             </Space>
-            <Text type="secondary">Mulai: {item.startAt}</Text>
+            <Text type='secondary'>Mulai: {item.startAt}</Text>
           </Flex>
 
-          <Flex wrap="wrap" gap={8}>
+          <Flex
+            wrap='wrap'
+            gap={8}
+            style={{ flexDirection: isMobile ? "column" : "row" }}
+          >
             <Button
-              size="small"
+              size='small'
               icon={<Eye size={14} />}
               disabled={disabled.jawaban}
               onClick={() => handleAnswers(item)}
+              block={isMobile}
             >
               Jawaban
             </Button>
             <Button
-              size="small"
+              size='small'
               icon={<UserCheck size={14} />}
               disabled={disabled.izinkan || allowLoading}
               onClick={() => confirmAllow(item)}
+              block={isMobile}
             >
               Izinkan
             </Button>
             <Button
-              size="small"
+              size='small'
               icon={<RefreshCcw size={14} />}
               disabled={disabled.ulangi || repeatLoading}
               onClick={() => confirmRepeat(item)}
+              block={isMobile}
             >
               Ulangi
             </Button>
             <Button
-              size="small"
+              size='small'
               danger
               icon={<UserX size={14} />}
               disabled={disabled.selesaikan || finishLoading}
               onClick={() => confirmFinish(item)}
+              block={isMobile}
             >
               Selesaikan
             </Button>
@@ -261,35 +273,46 @@ const AttendanceTable = ({ data, examId }) => {
     <>
       <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
         <Flex
-          justify="space-between"
-          align="center"
-          wrap="wrap"
+          justify='space-between'
+          align={isMobile ? "stretch" : "center"}
+          wrap='wrap'
           gap={12}
-          style={{ marginBottom: 16 }}
+          style={{
+            marginBottom: 16,
+            flexDirection: isMobile ? "column" : "row",
+          }}
         >
-          <Space wrap>
+          <Space
+            wrap
+            style={{
+              width: isMobile ? "100%" : "auto",
+              flexDirection: isMobile ? "column" : "row",
+              alignItems: isMobile ? "stretch" : "center",
+            }}
+          >
             <Input.Search
-              placeholder="Cari nama / NIS / kelas"
+              placeholder='Cari nama / NIS / kelas'
               allowClear
               onSearch={(value) => setSearchText(value)}
-              style={{ width: 260 }}
+              style={{ width: isMobile ? "100%" : 260 }}
             />
             <Select
               value={pollingMinutes}
               onChange={setPollingMinutes}
-              style={{ width: 180 }}
+              style={{ width: isMobile ? "100%" : 180 }}
               options={[
-                { value: 1, label: "Auto Refetch 1 menit" },
-                { value: 2, label: "Auto Refetch 2 menit" },
-                { value: 3, label: "Auto Refetch 3 menit" },
-                { value: 4, label: "Auto Refetch 4 menit" },
-                { value: 5, label: "Auto Refetch 5 menit" },
+                { value: 1, label: "Auto Update 1 menit" },
+                { value: 2, label: "Auto Update 2 menit" },
+                { value: 3, label: "Auto Update 3 menit" },
+                { value: 4, label: "Auto Update 4 menit" },
+                { value: 5, label: "Auto Update 5 menit" },
               ]}
+              virtual={false}
             />
             <Select
               value={statusFilter}
               onChange={setStatusFilter}
-              style={{ width: 180 }}
+              style={{ width: isMobile ? "100%" : 180 }}
               options={[
                 { value: "all", label: "Semua Status" },
                 { value: "belum_masuk", label: "Belum Masuk" },
@@ -298,26 +321,33 @@ const AttendanceTable = ({ data, examId }) => {
                 { value: "pelanggaran", label: "Pelanggaran" },
                 { value: "selesai", label: "Selesai" },
               ]}
+              virtual={false}
             />
             <Select
               value={classFilter}
               onChange={setClassFilter}
-              style={{ width: 180 }}
-              options={[{ value: "all", label: "Semua Kelas" }, ...classOptions]}
+              style={{ width: isMobile ? "100%" : 180 }}
+              options={[
+                { value: "all", label: "Semua Kelas" },
+                ...classOptions,
+              ]}
+              virtual={false}
             />
           </Space>
-          <Tag color="blue" icon={<CheckCircle2 size={12} />}>
-            Total Peserta: {data.length}
-          </Tag>
+          <div style={{ width: isMobile ? "100%" : "auto" }}>
+            <Tag color='blue' icon={<CheckCircle2 size={12} />}>
+              Total Peserta: {data.length}
+            </Tag>
+          </div>
         </Flex>
 
         <InfiniteScrollList
           data={filteredData}
-          loading={false}
+          loading={tableLoading}
           hasMore={false}
           onLoadMore={() => {}}
           renderItem={renderItem}
-          emptyText="Belum ada peserta ujian"
+          emptyText='Belum ada peserta ujian'
           grid={{
             gutter: [16, 16],
             xs: 24,
@@ -327,7 +357,7 @@ const AttendanceTable = ({ data, examId }) => {
             xl: 8,
             xxl: 6,
           }}
-          height="auto"
+          height='auto'
         />
       </Card>
     </>

@@ -11,6 +11,9 @@ import {
   Space,
   Typography,
   message,
+  Grid,
+  Row,
+  Col,
 } from "antd";
 import { useSelector } from "react-redux";
 import { User, BookOpen, Users, Timer } from "lucide-react";
@@ -26,8 +29,10 @@ import {
 } from "../../../../service/public/ApiPublic";
 
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const ExamForm = ({ initialValues, onClose, onSuccess }) => {
+  const screens = useBreakpoint();
   const [form] = Form.useForm();
   const { user } = useSelector((state) => state.auth);
   const isAdmin = user?.role === "admin";
@@ -170,7 +175,8 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
           <Select
             placeholder='Cari nama guru'
             loading={loadingTeachers}
-            showSearch={{ optionFilterProp: ["label"] }}
+            showSearch
+            optionFilterProp='label'
             allowClear
             suffixIcon={<User size={14} />}
             virtual={false}
@@ -194,7 +200,8 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
             resolvedTeacherId ? "Pilih bank soal" : "Pilih guru terlebih dahulu"
           }
           loading={loadingBanks}
-          showSearch={{ optionFilterProp: ["label"] }}
+          showSearch
+          optionFilterProp='label'
           disabled={!resolvedTeacherId}
           suffixIcon={<BookOpen size={14} />}
           options={(banks || []).map((bank) => ({
@@ -205,81 +212,93 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
         />
       </Form.Item>
 
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1.4fr 0.6fr", gap: 12 }}
-      >
-        <Form.Item
-          label='Nama Jadwal Ujian'
-          name='name'
-          rules={[{ required: true, message: "Nama jadwal wajib diisi" }]}
-        >
-          <Input placeholder='Contoh: PTS Matematika Kelas X' />
-        </Form.Item>
-        <Form.Item
-          label='Durasi (Menit)'
-          name='duration_minutes'
-          rules={[{ required: true, message: "Durasi wajib diisi" }]}
-        >
-          <InputNumber
-            min={10}
-            style={{ width: "100%" }}
-            placeholder='90'
-            prefix={<Timer size={14} />}
-          />
-        </Form.Item>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Form.Item
-          label='Grade'
-          name='grade_id'
-          rules={[{ required: true, message: "Pilih grade" }]}
-        >
-          <Select
-            placeholder='Pilih grade'
-            loading={loadingGrades}
-            showSearch
-            onChange={() => form.setFieldValue("class_ids", [])}
-            virtual={false}
+      <Row gutter={screens.xs ? 0 : 12}>
+        <Col xs={24} md={16}>
+          <Form.Item
+            label='Nama Jadwal Ujian'
+            name='name'
+            rules={[{ required: true, message: "Nama jadwal wajib diisi" }]}
           >
-            {grades?.map((grade) => (
-              <Select.Option key={grade.id} value={grade.id}>
-                {grade.name}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
+            <Input placeholder='Contoh: PTS Matematika Kelas X' />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={8}>
+          <Form.Item
+            label='Durasi (Menit)'
+            name='duration_minutes'
+            rules={[{ required: true, message: "Durasi wajib diisi" }]}
+          >
+            <InputNumber
+              min={10}
+              style={{ width: "100%" }}
+              placeholder='90'
+              prefix={<Timer size={14} />}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
 
-        <Form.Item
-          label={
-            <Space size={6} align='center'>
-              <Users size={14} />
-              <span>Kelas</span>
-            </Space>
-          }
-          name='class_ids'
-          rules={[{ required: true, message: "Pilih minimal 1 kelas" }]}
-        >
-          <Select
-            mode='multiple'
-            placeholder={gradeId ? "Pilih kelas" : "Pilih grade dahulu"}
-            loading={loadingClasses}
-            options={classOptions}
-            disabled={!gradeId}
-            maxTagCount='responsive'
-            allowClear
-            showSearch={{ optionFilterProp: ["label"] }}
-            virtual={false}
-          />
-        </Form.Item>
-      </div>
+      <Row gutter={screens.xs ? 0 : 12}>
+        <Col xs={24} sm={12}>
+          <Form.Item
+            label='Tingkat'
+            name='grade_id'
+            rules={[{ required: true, message: "Pilih grade" }]}
+          >
+            <Select
+              placeholder='Pilih tingakat'
+              loading={loadingGrades}
+              showSearch
+              onChange={() => form.setFieldValue("class_ids", [])}
+              virtual={false}
+            >
+              {grades?.map((grade) => (
+                <Select.Option key={grade.id} value={grade.id}>
+                  {grade.name}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} sm={12}>
+          <Form.Item
+            label={
+              <Space size={6} align='center'>
+                <Users size={14} />
+                <span>Kelas</span>
+              </Space>
+            }
+            name='class_ids'
+            rules={[{ required: true, message: "Pilih minimal 1 kelas" }]}
+          >
+            <Select
+              mode='multiple'
+              placeholder={gradeId ? "Pilih kelas" : "Pilih grade dahulu"}
+              loading={loadingClasses}
+              options={classOptions}
+              disabled={!gradeId}
+              maxTagCount='responsive'
+              allowClear
+              showSearch={{ optionFilterProp: "label" }}
+              virtual={false}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
 
       <Flex
+        vertical={!!screens.xs}
         justify='space-between'
-        align='center'
+        align={screens.xs ? "stretch" : "center"}
+        gap={screens.xs ? 6 : 0}
         style={{ marginTop: -8, marginBottom: 12 }}
       >
-        <Button size='small' onClick={handleSelectAllClasses}>
+        <Button
+          size='small'
+          onClick={handleSelectAllClasses}
+          style={{ width: screens.xs ? "100%" : "auto" }}
+        >
           Pilih Semua Kelas
         </Button>
         <Text type='secondary' style={{ fontSize: 12 }}>
@@ -288,7 +307,14 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
         </Text>
       </Flex>
 
-      <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: screens.xs ? "column" : "row",
+          gap: screens.xs ? 8 : 16,
+          marginBottom: 16,
+        }}
+      >
         <Form.Item
           label='Status Aktif'
           name='is_active'
@@ -310,6 +336,7 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
       <div
         style={{
           display: "flex",
+          flexDirection: screens.xs ? "column-reverse" : "row",
           justifyContent: "flex-end",
           gap: 8,
           marginTop: 16,
@@ -317,10 +344,21 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
           borderTop: "1px solid #f0f0f0",
         }}
       >
-        <Button onClick={onClose} disabled={isLoading}>
+        <Button
+          onClick={onClose}
+          disabled={isLoading}
+          block={!!screens.xs}
+          style={{ minWidth: screens.xs ? "100%" : 92 }}
+        >
           Batal
         </Button>
-        <Button type='primary' htmlType='submit' loading={isLoading}>
+        <Button
+          type='primary'
+          htmlType='submit'
+          loading={isLoading}
+          block={!!screens.xs}
+          style={{ minWidth: screens.xs ? "100%" : 132 }}
+        >
           {isEdit ? "Simpan Perubahan" : "Buat Jadwal"}
         </Button>
       </div>

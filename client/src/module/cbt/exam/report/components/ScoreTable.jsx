@@ -18,7 +18,13 @@ const { Text } = Typography;
 
 const PAGE_SIZE = 8;
 
-const ScoreTable = ({ data, examName, examId }) => {
+const ScoreTable = ({
+  data,
+  examName,
+  examId,
+  isMobile = false,
+  isLoading = false,
+}) => {
   const [, setSearchParams] = useSearchParams();
   const [classFilter, setClassFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
@@ -81,22 +87,27 @@ const ScoreTable = ({ data, examName, examId }) => {
       title: "No",
       dataIndex: "no",
       width: 60,
+      align: "center",
       render: (_, __, index) => index + 1,
     },
     {
       title: "NIS",
       dataIndex: "nis",
       width: 120,
+      ellipsis: true,
     },
     {
       title: "Nama Siswa",
       dataIndex: "name",
+      width: 220,
+      ellipsis: true,
       render: (value) => <Text strong>{value}</Text>,
     },
     {
       title: "Kelas",
       dataIndex: "className",
       width: 120,
+      ellipsis: true,
     },
     {
       title: "Nilai",
@@ -111,7 +122,11 @@ const ScoreTable = ({ data, examName, examId }) => {
       key: "action",
       width: 140,
       render: (_, record) => (
-        <Button size="small" onClick={() => handleOpenStudent(record)}>
+        <Button
+          size='small'
+          onClick={() => handleOpenStudent(record)}
+          block={isMobile}
+        >
           Detail Jawaban
         </Button>
       ),
@@ -131,21 +146,31 @@ const ScoreTable = ({ data, examName, examId }) => {
   return (
     <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
       <Flex
-        justify="space-between"
-        align="center"
-        wrap="wrap"
+        justify='space-between'
+        align={isMobile ? "stretch" : "center"}
+        wrap='wrap'
         gap={12}
-        style={{ marginBottom: 16 }}
+        style={{
+          marginBottom: 16,
+          flexDirection: isMobile ? "column" : "row",
+        }}
       >
-        <Space wrap>
+        <Space
+          wrap
+          style={{
+            width: isMobile ? "100%" : "auto",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "stretch" : "center",
+          }}
+        >
           <Input.Search
-            placeholder="Cari nama / NIS"
+            placeholder='Cari nama / NIS'
             allowClear
             onSearch={(value) => {
               setSearchText(value);
               setVisibleCount(PAGE_SIZE);
             }}
-            style={{ width: 260, maxWidth: "100%" }}
+            style={{ width: isMobile ? "100%" : 260, maxWidth: "100%" }}
           />
           <Select
             value={classFilter}
@@ -153,13 +178,27 @@ const ScoreTable = ({ data, examName, examId }) => {
               setClassFilter(value);
               setVisibleCount(PAGE_SIZE);
             }}
-            style={{ width: 180, maxWidth: "100%" }}
+            style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
             options={[{ value: "all", label: "Semua Kelas" }, ...classOptions]}
+            virtual={false}
           />
         </Space>
-        <Space wrap>
-          <Tag color="blue">Total Nilai: {filteredData.length}</Tag>
-          <Button icon={<Download size={14} />} onClick={handleExportExcel}>
+        <Space
+          wrap
+          style={{
+            width: isMobile ? "100%" : "auto",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "stretch" : "center",
+          }}
+        >
+          <div style={{ width: isMobile ? "100%" : "auto" }}>
+            <Tag color='blue'>Total Nilai: {filteredData.length}</Tag>
+          </div>
+          <Button
+            icon={<Download size={14} />}
+            onClick={handleExportExcel}
+            block={isMobile}
+          >
             Download Excel
           </Button>
         </Space>
@@ -167,11 +206,15 @@ const ScoreTable = ({ data, examName, examId }) => {
 
       <div style={{ maxHeight: 480, overflow: "auto" }} onScroll={handleScroll}>
         <Table
-          rowKey="id"
+          rowKey='id'
           columns={columns}
           dataSource={slicedData}
+          loading={isLoading}
           pagination={false}
           sticky
+          size={isMobile ? "small" : "middle"}
+          tableLayout='fixed'
+          scroll={isMobile ? { x: 760 } : undefined}
         />
         {slicedData.length >= filteredData.length ? (
           <div

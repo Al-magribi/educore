@@ -40,7 +40,7 @@ import { InfiniteScrollList } from "../../../../components";
 
 const { Text } = Typography;
 
-const SubjectTable = () => {
+const SubjectTable = ({ screens }) => {
   // --- States ---
   const [searchText, setSearchText] = useState("");
   const [filterCategory, setFilterCategory] = useState(null);
@@ -215,11 +215,17 @@ const SubjectTable = () => {
       {/* --- HEADER --- */}
       <div style={styles.header}>
         <Flex justify='space-between' align='center' gap={16} wrap='wrap'>
-          <Space wrap size={12} style={{ flex: 1 }}>
+          <Flex
+            gap={8}
+            vertical={!!screens.xs}
+            align={screens.xs ? "stretch" : "center"}
+            justify='flex-end'
+            style={{ width: screens.xs ? "100%" : "auto" }}
+          >
             <Input
               prefix={<Search size={16} style={{ color: "#bfbfbf" }} />}
               placeholder='Cari mata pelajaran...'
-              style={{ width: 250, borderRadius: 8 }}
+              style={{ width: screens.xs ? "100%" : "auto" }}
               allowClear
               onChange={(e) => setSearchText(e.target.value)}
             />
@@ -227,7 +233,7 @@ const SubjectTable = () => {
             <Select
               placeholder='Filter Kategori'
               allowClear
-              style={{ width: 180 }}
+              style={{ width: screens.xs ? "100%" : "auto" }}
               value={filterCategory}
               onChange={(val) => {
                 setFilterCategory(val);
@@ -244,7 +250,7 @@ const SubjectTable = () => {
             <Select
               placeholder='Filter Cabang'
               allowClear
-              style={{ width: 180 }}
+              style={{ width: screens.xs ? "100%" : "auto" }}
               value={filterBranch}
               onChange={setFilterBranch}
               options={filterBranchesList?.map((b) => ({
@@ -255,7 +261,7 @@ const SubjectTable = () => {
               suffixIcon={<GitBranch size={14} style={{ color: "#bfbfbf" }} />}
               virtual={false}
             />
-          </Space>
+          </Flex>
 
           <Button
             type='primary'
