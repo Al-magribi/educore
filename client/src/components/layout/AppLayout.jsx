@@ -66,10 +66,12 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
   const routePreloaders = {
     "/profile": () => import("../profile/Profile"),
-    "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
+    "/center-dashboard": () =>
+      import("../../module/center/dashboard/CenterDash"),
     "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
     "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
-    "/center-teacher": () => import("../../module/center/teacher/CenterTeacher"),
+    "/center-teacher": () =>
+      import("../../module/center/teacher/CenterTeacher"),
     "/center-market": () => import("../../module/center/market/CenterMarket"),
     "/center-config": () => import("../../module/center/config/CenterConfig"),
     "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
@@ -80,12 +82,14 @@ const AppLayout = ({ children, title, asShell = false }) => {
       import("../../module/cbt/bank/view/BankList"),
     "/computer-based-test/jadwal-ujian": () =>
       import("../../module/cbt/exam/view/ExamList"),
-    "/siswa-dashboard": () => import("../../module/student/dashboard/StudentDash"),
+    "/siswa-dashboard": () =>
+      import("../../module/student/dashboard/StudentDash"),
     "/siswa/jadwal-ujian": () =>
       import("../../module/cbt/student/view/StudentExamList"),
     "/computer-based-test/start": () =>
       import("../../module/cbt/student/view/ExamInterface"),
-    "/guru-dashboard": () => import("../../module/teacher/dashboard/TeacherDash"),
+    "/guru-dashboard": () =>
+      import("../../module/teacher/dashboard/TeacherDash"),
   };
 
   const preloadRouteByKey = (key) => {
@@ -223,7 +227,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
         trigger={null}
         collapsible
         collapsed={collapsed}
-        breakpoint='lg'
+        breakpoint="lg"
         collapsedWidth={isMobile ? 0 : 80} // Mobile/tablet jadi drawer (0), desktop jadi icon (80px)
         width={240}
         onBreakpoint={(broken) => {
@@ -280,8 +284,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
         </div>
 
         <Menu
-          theme='dark'
-          mode='inline'
+          theme="dark"
+          mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={handleMenuClick}
@@ -328,7 +332,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
             }}
           >
             <Button
-              type='text'
+              type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed(!collapsed)}
               style={{
@@ -369,7 +373,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
                 maxWidth: screens.xs ? "60px" : "auto",
                 justifyContent: "flex-end",
               }}
-              className='user-dropdown-trigger'
+              className="user-dropdown-trigger"
             >
               {/* Avatar Selalu Muncul */}
               <Avatar
@@ -385,7 +389,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
                   <Text strong style={{ display: "block" }}>
                     {user?.full_name || "User"}
                   </Text>
-                  <Text type='secondary' style={{ fontSize: "11px" }}>
+                  <Text type="secondary" style={{ fontSize: "11px" }}>
                     {user?.role?.toUpperCase()}
                     {user?.level ? ` - ${user.level.toUpperCase()}` : ""}
                   </Text>
@@ -394,7 +398,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
               {/* Icon Panah: Hanya muncul di Desktop */}
               {!screens.xs && (
-                <Button type='text' size='small' icon={<CaretDownOutlined />} />
+                <Button type="text" size="small" icon={<CaretDownOutlined />} />
               )}
             </div>
           </Dropdown>
@@ -418,7 +422,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
         <Layout.Footer
           style={{ textAlign: "center", color: "#8c8c8c", fontSize: "12px" }}
         >
-          LMS School System ©{new Date().getFullYear()}
+          Almadev ©{new Date().getFullYear()}
         </Layout.Footer>
       </Layout>
     </Layout>

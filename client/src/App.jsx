@@ -82,6 +82,12 @@ const LazyRoute = ({ Component }) => (
   </Suspense>
 );
 
+const LazyPage = ({ title, Component }) => (
+  <AppLayout title={title}>
+    <LazyRoute Component={Component} />
+  </AppLayout>
+);
+
 const App = () => {
   useLoadUserQuery();
 
@@ -119,27 +125,51 @@ const App = () => {
             >
               <Route
                 path='/center-dashboard'
-                element={<LazyRoute Component={CenterDash} />}
+                element={
+                  <LazyPage title='Dashboard Center' Component={CenterDash} />
+                }
               />
               <Route
                 path='/center-homebase'
-                element={<LazyRoute Component={CenterHome} />}
+                element={
+                  <LazyPage
+                    title='Manajemen Satuan Pendidikan'
+                    Component={CenterHome}
+                  />
+                }
               />
               <Route
                 path='/center-admin'
-                element={<LazyRoute Component={CenterAdmin} />}
+                element={
+                  <LazyPage title='Manajemen Admin' Component={CenterAdmin} />
+                }
               />
               <Route
                 path='/center-teacher'
-                element={<LazyRoute Component={CenterTeacher} />}
+                element={
+                  <LazyPage
+                    title='Manajement Guru'
+                    Component={CenterTeacher}
+                  />
+                }
               />
               <Route
                 path='/center-market'
-                element={<LazyRoute Component={CenterMarket} />}
+                element={
+                  <LazyPage
+                    title='Analisis Pasar & Demografi'
+                    Component={CenterMarket}
+                  />
+                }
               />
               <Route
                 path='/center-config'
-                element={<LazyRoute Component={CenterConfig} />}
+                element={
+                  <LazyPage
+                    title='Manjemen Database'
+                    Component={CenterConfig}
+                  />
+                }
               />
             </Route>
 
@@ -154,15 +184,22 @@ const App = () => {
             >
               <Route
                 path='/admin-dashboard'
-                element={<LazyRoute Component={AdminDash} />}
+                element={
+                  <LazyPage title='Dashboard Satuan' Component={AdminDash} />
+                }
               />
               <Route
                 path='/admin-data-pokok'
-                element={<LazyRoute Component={AdminMain} />}
+                element={<LazyPage title='Data Pokok' Component={AdminMain} />}
               />
               <Route
                 path='/admin-data-akademik'
-                element={<LazyRoute Component={AdminAcademinc} />}
+                element={
+                  <LazyPage
+                    title='Manajemen Pendidikan'
+                    Component={AdminAcademinc}
+                  />
+                }
               />
             </Route>
 
@@ -177,11 +214,21 @@ const App = () => {
             >
               <Route
                 path='/computer-based-test/bank'
-                element={<LazyRoute Component={BankList} />}
+                element={
+                  <LazyPage
+                    title='Manajemen Bank Soal'
+                    Component={BankList}
+                  />
+                }
               />
               <Route
                 path='/computer-based-test/jadwal-ujian'
-                element={<LazyRoute Component={ExamList} />}
+                element={
+                  <LazyPage
+                    title='Manajemen Jadwal Ujian'
+                    Component={ExamList}
+                  />
+                }
               />
             </Route>
 
@@ -196,7 +243,11 @@ const App = () => {
             >
               <Route
                 path='/tahfiz-dashboard'
-                element={<div>Halaman Admin Tahfiz</div>}
+                element={
+                  <AppLayout title='Dashboard Tahfiz'>
+                    <div>Halaman Admin Tahfiz</div>
+                  </AppLayout>
+                }
               />
             </Route>
 
@@ -204,7 +255,9 @@ const App = () => {
             <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
               <Route
                 path='/guru-dashboard'
-                element={<LazyRoute Component={TeacherDash} />}
+                element={
+                  <LazyPage title='Dashboard Guru' Component={TeacherDash} />
+                }
               />
             </Route>
 
@@ -212,11 +265,16 @@ const App = () => {
             <Route element={<RouteProtection allowedRoles={["student"]} />}>
               <Route
                 path='/siswa-dashboard'
-                element={<LazyRoute Component={StudentDash} />}
+                element={<LazyPage title='Dashboard' Component={StudentDash} />}
               />
               <Route
                 path='/siswa/jadwal-ujian'
-                element={<LazyRoute Component={StudentExamList} />}
+                element={
+                  <LazyPage
+                    title='Jadwal Ujian'
+                    Component={StudentExamList}
+                  />
+                }
               />
             </Route>
 
@@ -224,7 +282,11 @@ const App = () => {
             <Route element={<RouteProtection allowedRoles={["parent"]} />}>
               <Route
                 path='/parent-dashboard'
-                element={<div>Halaman Orang Tua</div>}
+                element={
+                  <AppLayout title='Dashboard Orang Tua'>
+                    <div>Halaman Orang Tua</div>
+                  </AppLayout>
+                }
               />
             </Route>
 
@@ -239,7 +301,7 @@ const App = () => {
             >
               <Route
                 path='/profile'
-                element={<LazyRoute Component={Profile} />}
+                element={<LazyPage title='Profile Saya' Component={Profile} />}
               />
             </Route>
 
