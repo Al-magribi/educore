@@ -1,10 +1,9 @@
-import React, { use } from "react";
-import { AppLayout } from "../../../components";
+import React, { Suspense, lazy } from "react";
 import { BookOpen, SquareUser, Users } from "lucide-react";
 import { Grid, Tabs } from "antd";
-import Subject from "./subject/Subject";
-import Teacher from "./teacher/Teacher";
-import StudentPage from "./student/StudentPage";
+const Subject = lazy(() => import("./subject/Subject"));
+const Teacher = lazy(() => import("./teacher/Teacher"));
+const StudentPage = lazy(() => import("./student/StudentPage"));
 
 const { useBreakpoint } = Grid;
 
@@ -33,10 +32,11 @@ const AdminAcademinc = () => {
   ];
 
   return (
-    <AppLayout title='Manajemen Pendidikan'>
+    <Suspense fallback={<div>Memuat data...</div>}>
       <Tabs items={items} defaultActiveKey='subject' />
-    </AppLayout>
+    </Suspense>
   );
 };
 
 export default AdminAcademinc;
+

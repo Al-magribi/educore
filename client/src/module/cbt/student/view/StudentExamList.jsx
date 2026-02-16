@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { AppLayout } from "../../../../components";
 import { useGetStudentExamsQuery } from "../../../../service/cbt/ApiExam";
 import JoinExamModal from "./JoinExamModal";
 import {
@@ -49,21 +48,17 @@ const StudentExamList = () => {
 
   if (isLoading) {
     return (
-      <AppLayout title='Jadwal Ujian'>
-        <Card>
-          <Skeleton active paragraph={{ rows: 6 }} />
-        </Card>
-      </AppLayout>
+      <Card>
+        <Skeleton active paragraph={{ rows: 6 }} />
+      </Card>
     );
   }
 
   if (isError) {
     return (
-      <AppLayout title='Jadwal Ujian'>
-        <Card>
-          <Text type='danger'>Gagal memuat jadwal ujian.</Text>
-        </Card>
-      </AppLayout>
+      <Card>
+        <Text type="danger">Gagal memuat jadwal ujian.</Text>
+      </Card>
     );
   }
 
@@ -78,11 +73,11 @@ const StudentExamList = () => {
   };
 
   return (
-    <AppLayout title='Jadwal Ujian'>
+    <>
       <Space vertical size={20} style={{ width: "100%" }}>
         <Card hoverable>
           <Space vertical size={10} style={{ width: "100%" }}>
-            <Space align='center' size={12}>
+            <Space align="center" size={12}>
               <div
                 style={{
                   width: 44,
@@ -94,25 +89,25 @@ const StudentExamList = () => {
                   justifyContent: "center",
                 }}
               >
-                <ClipboardList size={20} color='#4f46e5' />
+                <ClipboardList size={20} color="#4f46e5" />
               </div>
               <div>
                 <Title level={4} style={{ margin: 0 }}>
                   Jadwal Ujian
                 </Title>
-                <Text type='secondary'>
+                <Text type="secondary">
                   Daftar ujian aktif sesuai kelas Anda
                 </Text>
               </div>
             </Space>
             <Space wrap size={8}>
-              <Tag color='blue' icon={<GraduationCap size={12} />}>
+              <Tag color="blue" icon={<GraduationCap size={12} />}>
                 {className}
               </Tag>
-              <Tag color='geekblue' icon={<BookOpen size={12} />}>
+              <Tag color="geekblue" icon={<BookOpen size={12} />}>
                 {subjectCount} Mapel
               </Tag>
-              <Tag color='purple' icon={<CalendarClock size={12} />}>
+              <Tag color="purple" icon={<CalendarClock size={12} />}>
                 {examCount} Ujian Aktif
               </Tag>
             </Space>
@@ -121,8 +116,8 @@ const StudentExamList = () => {
 
         <Card
           title={
-            <Space align='center' size={8}>
-              <ClipboardList size={18} color='#1d4ed8' />
+            <Space align="center" size={8}>
+              <ClipboardList size={18} color="#1d4ed8" />
               <span>Daftar Ujian</span>
             </Space>
           }
@@ -137,7 +132,7 @@ const StudentExamList = () => {
                       hoverable
                       actions={[
                         <Button
-                          type='primary'
+                          type="primary"
                           onClick={() => openJoinModal(item)}
                         >
                           Ikuti Ujian
@@ -145,18 +140,18 @@ const StudentExamList = () => {
                       ]}
                     >
                       <Space vertical size={10} style={{ width: "100%" }}>
-                        <Space align='center' size={8}>
+                        <Space align="center" size={8}>
                           <Text strong>{item.name}</Text>
-                          <Tag color='green'>Aktif</Tag>
+                          <Tag color="green">Aktif</Tag>
                         </Space>
                         <Space size={12} wrap>
-                          <Text type='secondary'>
+                          <Text type="secondary">
                             <BookOpen size={14} /> {item.subject_name || "-"}
                           </Text>
-                          <Text type='secondary'>
+                          <Text type="secondary">
                             <UserRound size={14} /> {item.teacher_name || "-"}
                           </Text>
-                          <Text type='secondary'>
+                          <Text type="secondary">
                             <Timer size={14} /> {item.duration_minutes} menit
                           </Text>
                         </Space>
@@ -167,7 +162,7 @@ const StudentExamList = () => {
               ))}
             </Row>
           ) : (
-            <Empty description='Belum ada jadwal ujian untuk kelas Anda.' />
+            <Empty description="Belum ada jadwal ujian untuk kelas Anda." />
           )}
         </Card>
       </Space>
@@ -176,7 +171,7 @@ const StudentExamList = () => {
         onClose={closeJoinModal}
         exam={activeExam}
       />
-    </AppLayout>
+    </>
   );
 };
 

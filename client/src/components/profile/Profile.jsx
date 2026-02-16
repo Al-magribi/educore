@@ -25,7 +25,6 @@ import {
   SaveOutlined,
 } from "@ant-design/icons";
 import { useSelector } from "react-redux";
-import AppLayout from "../layout/AppLayout";
 import { useUpdateProfileMutation } from "../../service/auth/ApiAuth";
 
 const { Title, Text } = Typography;
@@ -306,7 +305,7 @@ const Profile = () => {
   ];
 
   return (
-    <AppLayout title="Profile Saya">
+    <>
       <Row gutter={[24, 24]}>
         <Col xs={24} md={8} lg={7}>
           <Card
@@ -379,8 +378,9 @@ const Profile = () => {
           </Card>
         </Col>
       </Row>
-    </AppLayout>
+    </>
   );
 };
 
 export default Profile;
+
