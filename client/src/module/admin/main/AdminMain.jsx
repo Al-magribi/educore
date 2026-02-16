@@ -3,6 +3,7 @@ import { Calendar, Folders, GitBranch, GraduationCap } from "lucide-react";
 
 import { Grid, Tabs } from "antd";
 import { useSelector } from "react-redux";
+import { LoadApp } from "../../../components";
 
 const { useBreakpoint } = Grid;
 const Periode = lazy(() => import("./periode/Periode"));
@@ -43,11 +44,10 @@ const AdminMain = () => {
   ].filter(Boolean);
 
   return (
-    <Suspense fallback={<div>Memuat data...</div>}>
-      <Tabs items={items} defaultActiveKey='periode' />
+    <Suspense fallback={<LoadApp />}>
+      <Tabs items={items} defaultActiveKey="periode" />
     </Suspense>
   );
 };
 
 export default AdminMain;
-

@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from "react";
 import { BookOpen, SquareUser, Users } from "lucide-react";
 import { Grid, Tabs } from "antd";
+import { LoadApp } from "../../../components";
 const Subject = lazy(() => import("./subject/Subject"));
 const Teacher = lazy(() => import("./teacher/Teacher"));
 const StudentPage = lazy(() => import("./student/StudentPage"));
@@ -32,11 +33,10 @@ const AdminAcademinc = () => {
   ];
 
   return (
-    <Suspense fallback={<div>Memuat data...</div>}>
-      <Tabs items={items} defaultActiveKey='subject' />
+    <Suspense fallback={<LoadApp />}>
+      <Tabs items={items} defaultActiveKey="subject" />
     </Suspense>
   );
 };
 
 export default AdminAcademinc;
-
