@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import {
   Button,
   Card,
@@ -9,12 +9,14 @@ import {
   Space,
   Tag,
   Typography,
+  Skeleton,
 } from "antd";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
-import ChapterContents from "./ChapterContents";
+const ChapterContents = lazy(() => import("./ChapterContents"));
 
 const { Text } = Typography;
+const chapterFallback = <Skeleton active paragraph={{ rows: 3 }} />;
 
 const ChapterList = ({
   isLoading,
@@ -147,11 +149,13 @@ const ChapterList = ({
                                       }}
                                     />
                                   )}
-                                  <ChapterContents
-                                    chapterId={chapter.id}
-                                    onEdit={onEditContent}
-                                    onDelete={onDeleteContent}
-                                  />
+                                  <Suspense fallback={chapterFallback}>
+                                    <ChapterContents
+                                      chapterId={chapter.id}
+                                      onEdit={onEditContent}
+                                      onDelete={onDeleteContent}
+                                    />
+                                  </Suspense>
                                 </Flex>
                               ),
                             },

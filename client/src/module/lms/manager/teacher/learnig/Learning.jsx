@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Flex, Form, message } from "antd";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Card, Flex, Form, Skeleton, message } from "antd";
 import {
   useAddChapterMutation,
   useAddContentMutation,
@@ -11,10 +11,10 @@ import {
   useUpdateChapterMutation,
   useUpdateContentMutation,
 } from "../../../../../service/lms/ApiLms";
-import LearningHeader from "./components/LearningHeader";
-import LearningFilters from "./components/LearningFilters";
-import ChapterList from "./components/ChapterList";
-import ChapterModals from "./components/ChapterModals";
+const LearningHeader = lazy(() => import("./components/LearningHeader"));
+const LearningFilters = lazy(() => import("./components/LearningFilters"));
+const ChapterList = lazy(() => import("./components/ChapterList"));
+const ChapterModals = lazy(() => import("./components/ChapterModals"));
 
 const Learning = ({ subjectId, subject }) => {
   const [filterGradeId, setFilterGradeId] = useState(null);
@@ -208,51 +208,59 @@ const Learning = ({ subjectId, subject }) => {
   };
 
   return (
-    <Flex vertical gap={16}>
-      <LearningHeader subject={subject} onAddChapter={openChapterModal} />
-      <LearningFilters
-        gradeOptions={gradeOptions}
-        classOptions={classOptions}
-        filterGradeId={filterGradeId}
-        filterClassId={filterClassId}
-        onGradeChange={(value) => {
-          setFilterGradeId(value || null);
-          setFilterClassId(null);
-        }}
-        onClassChange={(value) => setFilterClassId(value || null)}
-      />
-      <ChapterList
-        isLoading={isLoading}
-        chapterItems={chapterItems}
-        onChapterDragEnd={handleChapterDragEnd}
-        onAddContent={openContentModal}
-        onEditChapter={openChapterModal}
-        onDeleteChapter={handleDeleteChapter}
-        onEditContent={openContentModal}
-        onDeleteContent={handleDeleteContent}
-      />
-      <ChapterModals
-        chapterModalOpen={chapterModalOpen}
-        editingChapter={editingChapter}
-        onCancelChapter={() => {
-          setChapterModalOpen(false);
-          setEditingChapter(null);
-        }}
-        onOkChapter={submitChapter}
-        chapterForm={chapterForm}
-        gradeOptions={gradeOptions}
-        classOptions={classOptions}
-        contentModalOpen={contentModalOpen}
-        editingContent={editingContent}
-        onCancelContent={() => {
-          setContentModalOpen(false);
-          setEditingContent(null);
-          setActiveChapterId(null);
-        }}
-        onOkContent={submitContent}
-        contentForm={contentForm}
-      />
-    </Flex>
+    <Suspense
+      fallback={
+        <Card style={{ borderRadius: 12 }}>
+          <Skeleton active paragraph={{ rows: 4 }} />
+        </Card>
+      }
+    >
+      <Flex vertical gap={16}>
+        <LearningHeader subject={subject} onAddChapter={openChapterModal} />
+        <LearningFilters
+          gradeOptions={gradeOptions}
+          classOptions={classOptions}
+          filterGradeId={filterGradeId}
+          filterClassId={filterClassId}
+          onGradeChange={(value) => {
+            setFilterGradeId(value || null);
+            setFilterClassId(null);
+          }}
+          onClassChange={(value) => setFilterClassId(value || null)}
+        />
+        <ChapterList
+          isLoading={isLoading}
+          chapterItems={chapterItems}
+          onChapterDragEnd={handleChapterDragEnd}
+          onAddContent={openContentModal}
+          onEditChapter={openChapterModal}
+          onDeleteChapter={handleDeleteChapter}
+          onEditContent={openContentModal}
+          onDeleteContent={handleDeleteContent}
+        />
+        <ChapterModals
+          chapterModalOpen={chapterModalOpen}
+          editingChapter={editingChapter}
+          onCancelChapter={() => {
+            setChapterModalOpen(false);
+            setEditingChapter(null);
+          }}
+          onOkChapter={submitChapter}
+          chapterForm={chapterForm}
+          gradeOptions={gradeOptions}
+          classOptions={classOptions}
+          contentModalOpen={contentModalOpen}
+          editingContent={editingContent}
+          onCancelContent={() => {
+            setContentModalOpen(false);
+            setEditingContent(null);
+            setActiveChapterId(null);
+          }}
+          onOkContent={submitContent}
+          contentForm={contentForm}
+        />
+      </Flex>
+    </Suspense>
   );
 };
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { Suspense, lazy, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import {
   Card,
@@ -25,8 +25,8 @@ import {
 import { AppLayout } from "../../../components";
 import { useGetSubjectsQuery } from "../../../service/lms/ApiLms";
 import { useSearchParams } from "react-router-dom";
-import TeacherView from "./teacher/TeacherView";
-import AdminView from "./admin/AdminView";
+const TeacherView = lazy(() => import("./teacher/TeacherView"));
+const AdminView = lazy(() => import("./admin/AdminView"));
 
 const { Title, Text } = Typography;
 
@@ -139,21 +139,29 @@ const LmsManagement = () => {
 
         {/* Content */}
         {view && subject_id ? (
-          isTeacher ? (
-            <TeacherView
-              subjectId={subject_id}
-              subject={subjects.find(
-                (item) => String(item.id) === String(subject_id),
-              )}
-            />
-          ) : (
-            <AdminView
-              subjectId={subject_id}
-              subject={subjects.find(
-                (item) => String(item.id) === String(subject_id),
-              )}
-            />
-          )
+          <Suspense
+            fallback={
+              <Card style={{ borderRadius: 12 }}>
+                <Skeleton active paragraph={{ rows: 4 }} />
+              </Card>
+            }
+          >
+            {isTeacher ? (
+              <TeacherView
+                subjectId={subject_id}
+                subject={subjects.find(
+                  (item) => String(item.id) === String(subject_id),
+                )}
+              />
+            ) : (
+              <AdminView
+                subjectId={subject_id}
+                subject={subjects.find(
+                  (item) => String(item.id) === String(subject_id),
+                )}
+              />
+            )}
+          </Suspense>
         ) : isLoading ? (
           <Row gutter={[16, 16]}>
             {[1, 2, 3, 4, 5, 6].map((key) => (
