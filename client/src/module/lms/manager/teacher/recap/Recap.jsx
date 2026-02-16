@@ -1,11 +1,12 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
-import { Grid, Tabs } from "antd";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Card, Grid, Skeleton, Tabs } from "antd";
 import { useGetClassesQuery } from "../../../../../service/lms/ApiLms";
 import { useGetGradingMetaQuery } from "../../../../../service/lms/ApiGrading";
-import RecapAttendance from "./components/RecapAttendance";
-import RecapFormative from "./components/RecapFormative";
-import RecapSummative from "./components/RecapSummative";
-import FinalScore from "./components/FinalScore";
+
+const RecapAttendance = lazy(() => import("./components/RecapAttendance"));
+const RecapFormative = lazy(() => import("./components/RecapFormative"));
+const RecapSummative = lazy(() => import("./components/RecapSummative"));
+const FinalScore = lazy(() => import("./components/FinalScore"));
 
 const { useBreakpoint } = Grid;
 
@@ -36,6 +37,12 @@ const getDefaultMonthForSemester = (semester) => {
   }
   return SEMESTER_MONTH_MAP[semester]?.[0] || 7;
 };
+
+const recapFallback = (
+  <Card style={{ borderRadius: 12 }}>
+    <Skeleton active paragraph={{ rows: 4 }} />
+  </Card>
+);
 
 const Recap = ({ subjectId, subject }) => {
   const screens = useBreakpoint();
@@ -89,69 +96,79 @@ const Recap = ({ subjectId, subject }) => {
           key: "attendance",
           label: "Rekapitulasi Absensi",
           children: (
-            <RecapAttendance
-              isActive={activeTab === "attendance"}
-              subjectId={subjectId}
-              subject={subject}
-              activePeriode={activePeriode}
-              classes={classes}
-              classLoading={classLoading}
-              classId={classId}
-              setClassId={setClassId}
-              semester={semester}
-              setSemester={setSemester}
-              month={month}
-              setMonth={setMonth}
-              monthOptions={monthOptions}
-              screens={screens}
-            />
+            <Suspense fallback={recapFallback}>
+              <RecapAttendance
+                isActive={activeTab === "attendance"}
+                subjectId={subjectId}
+                subject={subject}
+                activePeriode={activePeriode}
+                classes={classes}
+                classLoading={classLoading}
+                classId={classId}
+                setClassId={setClassId}
+                semester={semester}
+                setSemester={setSemester}
+                month={month}
+                setMonth={setMonth}
+                monthOptions={monthOptions}
+                screens={screens}
+              />
+            </Suspense>
           ),
         },
         {
           key: "score",
           label: "Rekapitulasi Formatif",
           children: (
-            <RecapFormative
-              isActive={activeTab === "score"}
-              subjectId={subjectId}
-              subject={subject}
-              activePeriode={activePeriode}
-              classes={classes}
-              classLoading={classLoading}
-              classId={classId}
-              setClassId={setClassId}
-              semester={semester}
-              setSemester={setSemester}
-              month={month}
-              setMonth={setMonth}
-              monthOptions={monthOptions}
-              screens={screens}
-            />
+            <Suspense fallback={recapFallback}>
+              <RecapFormative
+                isActive={activeTab === "score"}
+                subjectId={subjectId}
+                subject={subject}
+                activePeriode={activePeriode}
+                classes={classes}
+                classLoading={classLoading}
+                classId={classId}
+                setClassId={setClassId}
+                semester={semester}
+                setSemester={setSemester}
+                month={month}
+                setMonth={setMonth}
+                monthOptions={monthOptions}
+                screens={screens}
+              />
+            </Suspense>
           ),
         },
         {
           key: "summative",
           label: "Rekapitulasi Sumatif",
           children: (
-            <RecapSummative
-              isActive={activeTab === "summative"}
-              subjectId={subjectId}
-              subject={subject}
-              activePeriode={activePeriode}
-              classes={classes}
-              classLoading={classLoading}
-              classId={classId}
-              setClassId={setClassId}
-              semester={semester}
-              setSemester={setSemester}
-              screens={screens}
-            />
+            <Suspense fallback={recapFallback}>
+              <RecapSummative
+                isActive={activeTab === "summative"}
+                subjectId={subjectId}
+                subject={subject}
+                activePeriode={activePeriode}
+                classes={classes}
+                classLoading={classLoading}
+                classId={classId}
+                setClassId={setClassId}
+                semester={semester}
+                setSemester={setSemester}
+                screens={screens}
+              />
+            </Suspense>
           ),
         },
         {
           key: "final",
           label: "Rekapitulasi Nilai Akhir",
-          children: <FinalScore />,
+          children: (
+            <Suspense fallback={recapFallback}>
+              <FinalScore />
+            </Suspense>
+          ),
         },
       ]}
     />

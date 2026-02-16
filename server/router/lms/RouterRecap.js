@@ -721,8 +721,6 @@ router.get(
             nis: student.nis,
             full_name: student.full_name,
             month_scores: monthScores,
-            written_average: 0,
-            skill_average: 0,
             final_average: 0,
           },
         ];
@@ -755,50 +753,29 @@ router.get(
     const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
     const students = Array.from(studentsMap.values()).map((student) => {
-      const writtenScores = [];
-      const skillScores = [];
-      const finalScores = [];
+      const combinedScores = [];
 
       for (const monthNumber of semesterMonths) {
         const monthData = student.month_scores[monthNumber];
         for (const scoreItem of monthData.summative) {
           if (scoreItem.score_written !== null && scoreItem.score_written !== undefined) {
-            writtenScores.push(Number(scoreItem.score_written));
+            combinedScores.push(Number(scoreItem.score_written));
           }
           if (scoreItem.score_skill !== null && scoreItem.score_skill !== undefined) {
-            skillScores.push(Number(scoreItem.score_skill));
-          }
-          if (scoreItem.final_score !== null && scoreItem.final_score !== undefined) {
-            finalScores.push(Number(scoreItem.final_score));
+            combinedScores.push(Number(scoreItem.score_skill));
           }
         }
       }
 
-      const writtenAverage = writtenScores.length
+      const finalAverage = combinedScores.length
         ? round2(
-            writtenScores.reduce((sum, value) => sum + value, 0) /
-              writtenScores.length,
-          )
-        : 0;
-
-      const skillAverage = skillScores.length
-        ? round2(
-            skillScores.reduce((sum, value) => sum + value, 0) /
-              skillScores.length,
-          )
-        : 0;
-
-      const finalAverage = finalScores.length
-        ? round2(
-            finalScores.reduce((sum, value) => sum + value, 0) /
-              finalScores.length,
+            combinedScores.reduce((sum, value) => sum + value, 0) /
+              combinedScores.length,
           )
         : 0;
 
       return {
         ...student,
-        written_average: writtenAverage,
-        skill_average: skillAverage,
         final_average: finalAverage,
       };
     });
@@ -824,15 +801,11 @@ router.get(
           0,
         );
         acc.summativeCount += allSummativeCount;
-        acc.writtenAvgSum += Number(item.written_average || 0);
-        acc.skillAvgSum += Number(item.skill_average || 0);
         acc.finalAvgSum += Number(item.final_average || 0);
         return acc;
       },
       {
         summativeCount: 0,
-        writtenAvgSum: 0,
-        skillAvgSum: 0,
         finalAvgSum: 0,
       },
     );
@@ -857,12 +830,6 @@ router.get(
           })),
         },
         summary: {
-          written_average: totalStudents
-            ? round2(totals.writtenAvgSum / totalStudents)
-            : 0,
-          skill_average: totalStudents
-            ? round2(totals.skillAvgSum / totalStudents)
-            : 0,
           final_average: totalStudents
             ? round2(totals.finalAvgSum / totalStudents)
             : 0,

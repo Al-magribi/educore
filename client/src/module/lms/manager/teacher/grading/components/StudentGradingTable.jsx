@@ -1,14 +1,29 @@
-﻿import React from "react";
-import { Card, DatePicker, Grid, Select, Space, Typography } from "antd";
+import React, { Suspense, lazy } from "react";
+import { Card, DatePicker, Grid, Select, Skeleton, Space, Typography } from "antd";
 import dayjs from "dayjs";
 import { Filter } from "lucide-react";
-import StudentGradingTableSikap from "./StudentGradingTableSikap";
-import StudentGradingTableFormatif from "./StudentGradingTableFormatif";
-import StudentGradingTableSumatif from "./StudentGradingTableSumatif";
-import StudentGradingTableUjianAkhir from "./StudentGradingTableUjianAkhir";
+
+const StudentGradingTableSikap = lazy(
+  () => import("./StudentGradingTableSikap"),
+);
+const StudentGradingTableFormatif = lazy(
+  () => import("./StudentGradingTableFormatif"),
+);
+const StudentGradingTableSumatif = lazy(
+  () => import("./StudentGradingTableSumatif"),
+);
+const StudentGradingTableUjianAkhir = lazy(
+  () => import("./StudentGradingTableUjianAkhir"),
+);
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
+
+const tableFallback = (
+  <Card style={{ borderRadius: 12 }}>
+    <Skeleton active paragraph={{ rows: 4 }} />
+  </Card>
+);
 
 const StudentGradingTable = ({
   students,
@@ -89,7 +104,7 @@ const StudentGradingTable = ({
     <Space vertical size={16} style={{ width: "100%" }}>
       {showFilters && (
         <Card
-          size="small"
+          size='small'
           style={{ borderRadius: 12, border: "1px solid #f0f0f0" }}
           styles={{ body: { padding: 12 } }}
         >
@@ -102,18 +117,18 @@ const StudentGradingTable = ({
                   ? "1fr"
                   : typeKey === "sikap"
                     ? "minmax(160px, 240px) minmax(160px, 1fr)"
-                  : "minmax(160px, 240px) repeat(2, minmax(160px, 1fr))",
+                    : "minmax(160px, 240px) repeat(2, minmax(160px, 1fr))",
               }}
             >
-              <Space align="center" size={8}>
+              <Space align='center' size={8}>
                 <Filter size={16} />
                 <Text strong>Filter Penilaian</Text>
               </Space>
               <DatePicker
                 value={monthValue}
-                picker="month"
+                picker='month'
                 allowClear
-                placeholder="Pilih bulan"
+                placeholder='Pilih bulan'
                 onChange={(value) =>
                   onFilterChange(
                     typeKey,
@@ -124,22 +139,20 @@ const StudentGradingTable = ({
                 style={{ width: "100%" }}
               />
               {typeKey !== "sikap" && (
-                <>
-                  <Select
-                    value={filters?.chapterId}
-                    allowClear
-                    placeholder="Pilih bab"
-                    options={chapterOptions}
-                    onChange={(value) =>
-                      onFilterChange(typeKey, "chapterId", value)
-                    }
-                    style={{ width: "100%" }}
-                  />
-                </>
+                <Select
+                  value={filters?.chapterId}
+                  allowClear
+                  placeholder='Pilih bab'
+                  options={chapterOptions}
+                  onChange={(value) =>
+                    onFilterChange(typeKey, "chapterId", value)
+                  }
+                  style={{ width: "100%" }}
+                />
               )}
             </div>
             {!isFilterReady && (
-              <Text type="secondary">
+              <Text type='secondary'>
                 {typeKey === "sikap"
                   ? "Bulan wajib dipilih."
                   : "Bulan wajib dipilih, bab wajib dipilih."}
@@ -149,7 +162,7 @@ const StudentGradingTable = ({
         </Card>
       )}
 
-      {renderContent()}
+      <Suspense fallback={tableFallback}>{renderContent()}</Suspense>
     </Space>
   );
 };

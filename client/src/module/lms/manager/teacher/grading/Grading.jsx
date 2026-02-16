@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -10,12 +10,11 @@ import {
   Upload,
   Select,
   Modal,
+  Skeleton,
 } from "antd";
 import { Download, Save, Upload as UploadIcon } from "lucide-react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
-import GradingHeader from "./components/GradingHeader";
-import StudentGradingTable from "./components/StudentGradingTable";
 import {
   buildFormatifSubchapters,
   extractSubIdFromType,
@@ -42,6 +41,11 @@ import {
   useGetChaptersQuery,
   useGetContentsQuery,
 } from "../../../../../service/lms/ApiLms";
+
+const GradingHeader = lazy(() => import("./components/GradingHeader"));
+const StudentGradingTable = lazy(() =>
+  import("./components/StudentGradingTable"),
+);
 
 const Grading = ({ subject }) => {
   const { data: metaRes } = useGetGradingMetaQuery();
@@ -1590,7 +1594,14 @@ const Grading = ({ subject }) => {
   );
 
   return (
-    <Flex vertical gap="middle">
+    <Suspense
+      fallback={
+        <Card style={{ borderRadius: 12 }}>
+          <Skeleton active paragraph={{ rows: 5 }} />
+        </Card>
+      }
+    >
+      <Flex vertical gap="middle">
       <GradingHeader
         subject={subject}
         unit={unit}
@@ -1801,8 +1812,10 @@ const Grading = ({ subject }) => {
           <Empty description="Belum ada data penilaian pada semester ini." />
         </Card>
       )}
-    </Flex>
+      </Flex>
+    </Suspense>
   );
 };
 
 export default Grading;
+

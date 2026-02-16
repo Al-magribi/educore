@@ -19,6 +19,16 @@ const { Title, Text } = Typography;
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
+const getMonthAverage = (record, monthKey, scoreKey) => {
+  const values =
+    record.month_scores?.[monthKey]?.summative
+      ?.map((item) => item?.[scoreKey])
+      .filter((value) => value !== null && value !== undefined) || [];
+
+  if (!values.length) return "-";
+  return round2(values.reduce((sum, value) => sum + Number(value), 0) / values.length);
+};
+
 const buildExcelRows = (rows, monthMatrix) =>
   rows.map((row) => {
     const entry = {
@@ -29,25 +39,18 @@ const buildExcelRows = (rows, monthMatrix) =>
 
     for (const monthMeta of monthMatrix) {
       const monthKey = String(monthMeta.month);
-      const summativeValues = row.month_scores?.[monthKey]?.summative || [];
-      const summativeCount = Math.max(
-        1,
-        Number(monthMeta.max_summative_entries || 0),
+      entry[`${monthMeta.month_name} - Tertulis`] = getMonthAverage(
+        row,
+        monthKey,
+        "score_written",
       );
-
-      for (let index = 0; index < summativeCount; index += 1) {
-        const value = summativeValues[index] || {};
-        entry[`${monthMeta.month_name} - Nilai ${index + 1} Tertulis`] =
-          value.score_written ?? "-";
-        entry[`${monthMeta.month_name} - Nilai ${index + 1} Praktik`] =
-          value.score_skill ?? "-";
-        entry[`${monthMeta.month_name} - Nilai ${index + 1} Akhir`] =
-          value.final_score ?? "-";
-      }
+      entry[`${monthMeta.month_name} - Praktik`] = getMonthAverage(
+        row,
+        monthKey,
+        "score_skill",
+      );
     }
 
-    entry["Rata-rata Tertulis"] = round2(row.written_average);
-    entry["Rata-rata Praktik"] = round2(row.skill_average);
     entry["Nilai Sumatif"] = round2(row.final_average);
     return entry;
   });
@@ -93,8 +96,6 @@ const RecapSummative = ({
         nis: item.nis || "-",
         full_name: item.full_name,
         month_scores: item.month_scores || {},
-        written_average: Number(item.written_average || 0),
-        skill_average: Number(item.skill_average || 0),
         final_average: Number(item.final_average || 0),
       })),
     [students],
@@ -126,79 +127,30 @@ const RecapSummative = ({
 
     const monthColumns = monthMatrix.map((monthMeta) => {
       const monthKey = String(monthMeta.month);
-      const summativeCount = Math.max(
-        1,
-        Number(monthMeta.max_summative_entries || 0),
-      );
-
-      const summativeChildren = Array.from(
-        { length: summativeCount },
-        (_, index) => ({
-          title: `Nilai ${index + 1}`,
-          key: `${monthKey}-s-${index}`,
-          children: [
-            {
-              title: "Tertulis",
-              key: `${monthKey}-s-${index}-written`,
-              width: 92,
-              align: "center",
-              render: (_, record) => {
-                const value =
-                  record.month_scores?.[monthKey]?.summative?.[index]
-                    ?.score_written;
-                return value ?? "-";
-              },
-            },
-            {
-              title: "Praktik",
-              key: `${monthKey}-s-${index}-skill`,
-              width: 92,
-              align: "center",
-              render: (_, record) => {
-                const value =
-                  record.month_scores?.[monthKey]?.summative?.[index]
-                    ?.score_skill;
-                return value ?? "-";
-              },
-            },
-            {
-              title: "Akhir",
-              key: `${monthKey}-s-${index}-final`,
-              width: 92,
-              align: "center",
-              render: (_, record) => {
-                const value =
-                  record.month_scores?.[monthKey]?.summative?.[index]
-                    ?.final_score;
-                return value ?? "-";
-              },
-            },
-          ],
-        }),
-      );
-
       return {
         title: monthMeta.month_name,
         key: `month-${monthKey}`,
-        children: summativeChildren,
+        children: [
+          {
+            title: "Tertulis",
+            key: `${monthKey}-written`,
+            width: 92,
+            align: "center",
+            render: (_, record) =>
+              getMonthAverage(record, monthKey, "score_written"),
+          },
+          {
+            title: "Praktik",
+            key: `${monthKey}-skill`,
+            width: 92,
+            align: "center",
+            render: (_, record) => getMonthAverage(record, monthKey, "score_skill"),
+          },
+        ],
       };
     });
 
     const endColumns = [
-      {
-        title: "Rata-rata Tertulis",
-        dataIndex: "written_average",
-        width: 140,
-        align: "center",
-        render: (value) => <Tag>{round2(value)}</Tag>,
-      },
-      {
-        title: "Rata-rata Praktik",
-        dataIndex: "skill_average",
-        width: 140,
-        align: "center",
-        render: (value) => <Tag>{round2(value)}</Tag>,
-      },
       {
         title: "Nilai Sumatif",
         dataIndex: "final_average",
@@ -238,7 +190,9 @@ const RecapSummative = ({
             <Title level={5} style={{ margin: 0 }}>
               Rekapitulasi Sumatif
             </Title>
-            <Text type="secondary">Rekap nilai sumatif dalam satu semester</Text>
+            <Text type="secondary">
+              Rekap nilai sumatif dalam satu semester
+            </Text>
           </Space>
           <Space wrap>
             <Tag color="blue">{subject?.name || "Mata Pelajaran"}</Tag>
