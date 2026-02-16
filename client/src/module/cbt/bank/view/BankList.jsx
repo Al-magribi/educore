@@ -26,7 +26,7 @@ import {
   MessageCircleQuestionMark,
   Folder,
 } from "lucide-react";
-import { AppLayout, InfiniteScrollList } from "../../../../components";
+import { InfiniteScrollList } from "../../../../components";
 import { BankForm } from "../components";
 import GroupBankForm from "../components/bank/Grouped/GroupBankForm";
 import {
@@ -274,7 +274,7 @@ const BankList = () => {
   };
 
   return (
-    <AppLayout title="Manajemen Bank Soal">
+    <>
       {view === "questions" ? (
         <Suspense
           fallback={
@@ -408,8 +408,9 @@ const BankList = () => {
           }}
         />
       </Modal>
-    </AppLayout>
+    </>
   );
 };
 
 export default BankList;
+

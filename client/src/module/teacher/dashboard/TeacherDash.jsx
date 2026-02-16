@@ -1,5 +1,4 @@
 import React from "react";
-import { AppLayout } from "../../../components";
 import { useGetTeacherDashQuery } from "../../../service/main/ApiDash";
 import {
   Row,
@@ -196,23 +195,15 @@ const TeacherDash = () => {
 
   if (isLoading) {
     return (
-      <AppLayout title="Dashboard Guru">
-        <div style={{ textAlign: "center", padding: 60 }}>
-          <Spin size="large" />
-        </div>
-      </AppLayout>
+      <div style={{ textAlign: "center", padding: 60 }}>
+        <Spin size="large" />
+      </div>
     );
   }
 
   if (isError) {
     return (
-      <AppLayout title="Dashboard Guru">
-        <Alert
-          title="Gagal memuat data dashboard guru."
-          type="error"
-          showIcon
-        />
-      </AppLayout>
+      <Alert title="Gagal memuat data dashboard guru." type="error" showIcon />
     );
   }
 
@@ -220,142 +211,140 @@ const TeacherDash = () => {
   const teacherInitial = teacherName?.[0]?.toUpperCase() || "G";
 
   return (
-    <AppLayout title="Dashboard Guru">
-      <div style={{ padding: "0 8px" }}>
-        <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-          <Col xs={24} lg={16}>
-            <Card style={cardStyle}>
-              <Space align="center" size={16} style={{ width: "100%" }}>
-                <Avatar
-                  size={56}
-                  src={data?.teacher?.img_url || undefined}
-                  style={{
-                    background: "#0f172a",
-                    fontWeight: 600,
-                  }}
-                >
-                  {teacherInitial}
-                </Avatar>
-                <div style={{ flex: 1 }}>
-                  <Title level={4} style={{ margin: 0 }}>
-                    {teacherName}
-                  </Title>
-                  <Text type="secondary">
-                    {data?.homebase?.name || "Homebase"} ·{" "}
-                    {data?.homebase?.level || "Satuan"}
-                  </Text>
-                  <div style={{ marginTop: 8 }}>
-                    <Space wrap>
-                      <Tag color="blue">NIP: {data?.teacher?.nip || "-"}</Tag>
-                      <Tag color={data?.activePeriode ? "green" : "volcano"}>
-                        {data?.activePeriode
-                          ? `Periode Aktif: ${data.activePeriode.name}`
-                          : "Belum ada periode aktif"}
-                      </Tag>
-                    </Space>
-                  </div>
-                </div>
-              </Space>
-            </Card>
-          </Col>
-          <Col xs={24} lg={8}>
-            <Card style={cardStyle}>
-              <Space vertical size={8} style={{ width: "100%" }}>
-                <Text strong>Ringkasan Mengajar</Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Statistik singkat aktivitas akademik Anda
+    <div style={{ padding: "0 8px" }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col xs={24} lg={16}>
+          <Card style={cardStyle}>
+            <Space align="center" size={16} style={{ width: "100%" }}>
+              <Avatar
+                size={56}
+                src={data?.teacher?.img_url || undefined}
+                style={{
+                  background: "#0f172a",
+                  fontWeight: 600,
+                }}
+              >
+                {teacherInitial}
+              </Avatar>
+              <div style={{ flex: 1 }}>
+                <Title level={4} style={{ margin: 0 }}>
+                  {teacherName}
+                </Title>
+                <Text type="secondary">
+                  {data?.homebase?.name || "Homebase"} -{" "}
+                  {data?.homebase?.level || "Satuan"}
                 </Text>
-                <Row gutter={[12, 12]} style={{ marginTop: 4 }}>
-                  {stats.map((item) => (
-                    <Col span={12} key={item.title}>
-                      <Card
-                        size="small"
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid #f0f0f0",
-                        }}
-                      >
-                        <Statistic
-                          title={item.title}
-                          value={item.value}
-                          prefix={item.icon}
-                        />
-                      </Card>
-                    </Col>
-                  ))}
-                </Row>
+                <div style={{ marginTop: 8 }}>
+                  <Space wrap>
+                    <Tag color="blue">NIP: {data?.teacher?.nip || "-"}</Tag>
+                    <Tag color={data?.activePeriode ? "green" : "volcano"}>
+                      {data?.activePeriode
+                        ? `Periode Aktif: ${data.activePeriode.name}`
+                        : "Belum ada periode aktif"}
+                    </Tag>
+                  </Space>
+                </div>
+              </div>
+            </Space>
+          </Card>
+        </Col>
+        <Col xs={24} lg={8}>
+          <Card style={cardStyle}>
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Text strong>Ringkasan Mengajar</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Statistik singkat aktivitas akademik Anda
+              </Text>
+              <Row gutter={[12, 12]} style={{ marginTop: 4 }}>
+                {stats.map((item) => (
+                  <Col span={12} key={item.title}>
+                    <Card
+                      size="small"
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid #f0f0f0",
+                      }}
+                    >
+                      <Statistic
+                        title={item.title}
+                        value={item.value}
+                        prefix={item.icon}
+                      />
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space align="center" size={8}>
+                <BookOpen style={iconStyle("#1677ff")} />
+                <span>Mata Pelajaran</span>
               </Space>
-            </Card>
-          </Col>
-        </Row>
+            }
+            style={cardStyle}
+          >
+            <Table
+              dataSource={data?.subjects || []}
+              columns={subjectColumns}
+              pagination={false}
+              rowKey={(record) => record.id}
+              size="small"
+              locale={{ emptyText: "Belum ada data mata pelajaran" }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space align="center" size={8}>
+                <Layers style={iconStyle("#13c2c2")} />
+                <span>Bank Soal Terbaru</span>
+              </Space>
+            }
+            style={cardStyle}
+          >
+            <Table
+              dataSource={data?.banks || []}
+              columns={bankColumns}
+              pagination={false}
+              rowKey={(record) => record.id}
+              size="small"
+              locale={{ emptyText: "Belum ada bank soal" }}
+            />
+          </Card>
+        </Col>
+      </Row>
 
-        <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-          <Col xs={24} lg={12}>
-            <Card
-              title={
-                <Space align="center" size={8}>
-                  <BookOpen style={iconStyle("#1677ff")} />
-                  <span>Mata Pelajaran</span>
-                </Space>
-              }
-              style={cardStyle}
-            >
-              <Table
-                dataSource={data?.subjects || []}
-                columns={subjectColumns}
-                pagination={false}
-                rowKey={(record) => record.id}
-                size="small"
-                locale={{ emptyText: "Belum ada data mata pelajaran" }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} lg={12}>
-            <Card
-              title={
-                <Space align="center" size={8}>
-                  <Layers style={iconStyle("#13c2c2")} />
-                  <span>Bank Soal Terbaru</span>
-                </Space>
-              }
-              style={cardStyle}
-            >
-              <Table
-                dataSource={data?.banks || []}
-                columns={bankColumns}
-                pagination={false}
-                rowKey={(record) => record.id}
-                size="small"
-                locale={{ emptyText: "Belum ada bank soal" }}
-              />
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]}>
-          <Col xs={24}>
-            <Card
-              title={
-                <Space align="center" size={8}>
-                  <ClipboardList style={iconStyle("#fa8c16")} />
-                  <span>Jadwal Ujian Terbaru</span>
-                </Space>
-              }
-              style={cardStyle}
-            >
-              <Table
-                dataSource={data?.exams || []}
-                columns={examColumns}
-                pagination={false}
-                rowKey={(record) => record.id}
-                size="small"
-                locale={{ emptyText: "Belum ada jadwal ujian" }}
-              />
-            </Card>
-          </Col>
-        </Row>
-      </div>
-    </AppLayout>
+      <Row gutter={[16, 16]}>
+        <Col xs={24}>
+          <Card
+            title={
+              <Space align="center" size={8}>
+                <ClipboardList style={iconStyle("#fa8c16")} />
+                <span>Jadwal Ujian Terbaru</span>
+              </Space>
+            }
+            style={cardStyle}
+          >
+            <Table
+              dataSource={data?.exams || []}
+              columns={examColumns}
+              pagination={false}
+              rowKey={(record) => record.id}
+              size="small"
+              locale={{ emptyText: "Belum ada jadwal ujian" }}
+            />
+          </Card>
+        </Col>
+      </Row>
+    </div>
   );
 };
 

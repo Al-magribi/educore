@@ -3,7 +3,7 @@ import { Suspense, lazy } from "react";
 import { useSelector } from "react-redux";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useLoadUserQuery } from "./service/auth/ApiAuth";
-import { AppMetadata, LoadApp } from "./components";
+import { AppLayout, AppMetadata, LoadApp } from "./components";
 import RouterPublic from "./utils/RoutePublic";
 import RouteProtection from "./utils/RouteProtection";
 
@@ -98,140 +98,7 @@ const App = () => {
           <Route path='/reset-password' element={<Reset />} />
         </Route>
 
-        {/* === PROTECTED ROUTES === */}
-
-        {/* 1. ADMIN PUSAT (Center) */}
-        {/* Bisa diakses oleh role 'center' ATAU 'admin' dengan level 'pusat' */}
-        <Route
-          element={
-            <RouteProtection
-              allowedRoles={["admin"]}
-              allowedLevels={["pusat"]}
-            />
-          }
-        >
-          <Route
-            path='/center-dashboard'
-            element={<LazyRoute Component={CenterDash} />}
-          />
-          <Route
-            path='/center-homebase'
-            element={<LazyRoute Component={CenterHome} />}
-          />
-          <Route
-            path='/center-admin'
-            element={<LazyRoute Component={CenterAdmin} />}
-          />
-          <Route
-            path='/center-teacher'
-            element={<LazyRoute Component={CenterTeacher} />}
-          />
-          <Route
-            path='/center-market'
-            element={<LazyRoute Component={CenterMarket} />}
-          />
-          <Route
-            path='/center-config'
-            element={<LazyRoute Component={CenterConfig} />}
-          />
-        </Route>
-
-        {/* 2. ADMIN SATUAN (Sekolah Biasa) */}
-        <Route
-          element={
-            <RouteProtection
-              allowedRoles={["admin"]}
-              allowedLevels={["satuan"]} // sesuaikan dengan default db
-            />
-          }
-        >
-          {/* <Route path="/admin-dashboard" element={<AdminDash />} /> */}
-          <Route
-            path='/admin-dashboard'
-            element={<LazyRoute Component={AdminDash} />}
-          />
-          <Route
-            path='/admin-data-pokok'
-            element={<LazyRoute Component={AdminMain} />}
-          />
-          <Route
-            path='/admin-data-akademik'
-            element={<LazyRoute Component={AdminAcademinc} />}
-          />
-        </Route>
-
-        {/* 3. CBT */}
-        {/* LEVEL SATUAN & GURU */}
-        <Route
-          element={
-            <RouteProtection
-              allowedRoles={["teacher", "admin"]}
-              allowedLevels={["satuan"]}
-            />
-          }
-        >
-          <Route
-            path='/computer-based-test/bank'
-            element={<LazyRoute Component={BankList} />}
-          />
-          <Route
-            path='/computer-based-test/jadwal-ujian'
-            element={<LazyRoute Component={ExamList} />}
-          />
-        </Route>
-
-        {/* 4. ADMIN TAHFIZ */}
-        <Route
-          element={
-            <RouteProtection
-              allowedRoles={["admin"]}
-              allowedLevels={["tahfiz"]}
-            />
-          }
-        >
-          {/* <Route path="/tahfiz-dashboard" element={<TahfizDash />} /> */}
-          <Route
-            path='/tahfiz-dashboard'
-            element={<div>Halaman Admin Tahfiz</div>}
-          />
-        </Route>
-
-        {/* 5. TEACHER */}
-        <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
-          {/* <Route path="/teacher-dashboard" element={<TeacherDash />} /> */}
-          <Route
-            path='/guru-dashboard'
-            element={<LazyRoute Component={TeacherDash} />}
-          />
-        </Route>
-
-        {/* 6. STUDENT */}
-        <Route element={<RouteProtection allowedRoles={["student"]} />}>
-          {/* <Route path="/student-dashboard" element={<StudentDash />} /> */}
-          <Route
-            path='/siswa-dashboard'
-            element={<LazyRoute Component={StudentDash} />}
-          />
-          <Route
-            path='/siswa/jadwal-ujian'
-            element={<LazyRoute Component={StudentExamList} />}
-          />
-          <Route
-            path='/computer-based-test/start'
-            element={<LazyRoute Component={ExamInterface} />}
-          />
-        </Route>
-
-        {/* 7. PARENT */}
-        <Route element={<RouteProtection allowedRoles={["parent"]} />}>
-          {/* <Route path="/parent-dashboard" element={<ParentDash />} /> */}
-          <Route
-            path='/parent-dashboard'
-            element={<div>Halaman Orang Tua</div>}
-          />
-        </Route>
-
-        {/* 8. PROFILE */}
+        {/* === PROTECTED ROUTES WITH PERSISTENT LAYOUT SHELL === */}
         <Route
           element={
             <RouteProtection
@@ -240,20 +107,168 @@ const App = () => {
             />
           }
         >
-          <Route path='/profile' element={<LazyRoute Component={Profile} />} />
+          <Route element={<AppLayout asShell />}>
+            {/* 1. ADMIN PUSAT (Center) */}
+            <Route
+              element={
+                <RouteProtection
+                  allowedRoles={["admin"]}
+                  allowedLevels={["pusat"]}
+                />
+              }
+            >
+              <Route
+                path='/center-dashboard'
+                element={<LazyRoute Component={CenterDash} />}
+              />
+              <Route
+                path='/center-homebase'
+                element={<LazyRoute Component={CenterHome} />}
+              />
+              <Route
+                path='/center-admin'
+                element={<LazyRoute Component={CenterAdmin} />}
+              />
+              <Route
+                path='/center-teacher'
+                element={<LazyRoute Component={CenterTeacher} />}
+              />
+              <Route
+                path='/center-market'
+                element={<LazyRoute Component={CenterMarket} />}
+              />
+              <Route
+                path='/center-config'
+                element={<LazyRoute Component={CenterConfig} />}
+              />
+            </Route>
+
+            {/* 2. ADMIN SATUAN (Sekolah Biasa) */}
+            <Route
+              element={
+                <RouteProtection
+                  allowedRoles={["admin"]}
+                  allowedLevels={["satuan"]}
+                />
+              }
+            >
+              <Route
+                path='/admin-dashboard'
+                element={<LazyRoute Component={AdminDash} />}
+              />
+              <Route
+                path='/admin-data-pokok'
+                element={<LazyRoute Component={AdminMain} />}
+              />
+              <Route
+                path='/admin-data-akademik'
+                element={<LazyRoute Component={AdminAcademinc} />}
+              />
+            </Route>
+
+            {/* 3. CBT */}
+            <Route
+              element={
+                <RouteProtection
+                  allowedRoles={["teacher", "admin"]}
+                  allowedLevels={["satuan"]}
+                />
+              }
+            >
+              <Route
+                path='/computer-based-test/bank'
+                element={<LazyRoute Component={BankList} />}
+              />
+              <Route
+                path='/computer-based-test/jadwal-ujian'
+                element={<LazyRoute Component={ExamList} />}
+              />
+            </Route>
+
+            {/* 4. ADMIN TAHFIZ */}
+            <Route
+              element={
+                <RouteProtection
+                  allowedRoles={["admin"]}
+                  allowedLevels={["tahfiz"]}
+                />
+              }
+            >
+              <Route
+                path='/tahfiz-dashboard'
+                element={<div>Halaman Admin Tahfiz</div>}
+              />
+            </Route>
+
+            {/* 5. TEACHER */}
+            <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
+              <Route
+                path='/guru-dashboard'
+                element={<LazyRoute Component={TeacherDash} />}
+              />
+            </Route>
+
+            {/* 6. STUDENT */}
+            <Route element={<RouteProtection allowedRoles={["student"]} />}>
+              <Route
+                path='/siswa-dashboard'
+                element={<LazyRoute Component={StudentDash} />}
+              />
+              <Route
+                path='/siswa/jadwal-ujian'
+                element={<LazyRoute Component={StudentExamList} />}
+              />
+            </Route>
+
+            {/* 7. PARENT */}
+            <Route element={<RouteProtection allowedRoles={["parent"]} />}>
+              <Route
+                path='/parent-dashboard'
+                element={<div>Halaman Orang Tua</div>}
+              />
+            </Route>
+
+            {/* 8. PROFILE */}
+            <Route
+              element={
+                <RouteProtection
+                  allowedRoles={["admin", "teacher", "student", "parent"]}
+                  allowedLevels={["pusat", "satuan", "tahfiz"]}
+                />
+              }
+            >
+              <Route
+                path='/profile'
+                element={<LazyRoute Component={Profile} />}
+              />
+            </Route>
+
+            {/* 9. LMS */}
+            <Route
+              element={
+                <RouteProtection
+                  allowedRoles={["admin", "teacher", "student"]}
+                />
+              }
+            >
+              <Route
+                path='/manajemen-lms'
+                element={<LazyRoute Component={LmsManagement} />}
+              />
+            </Route>
+          </Route>
         </Route>
 
-        {/* 9. CATCH-ALL */}
+        {/* Student exam page intentionally outside shell (fullscreen flow) */}
+        <Route element={<RouteProtection allowedRoles={["student"]} />}>
+          <Route
+            path='/computer-based-test/start'
+            element={<LazyRoute Component={ExamInterface} />}
+          />
+        </Route>
+
+        {/* CATCH-ALL */}
         <Route path='*' element={<NotFoundRedirect />} />
-
-        {/* 10. LMS */}
-        <Route
-          element={
-            <RouteProtection allowedRoles={["admin", "teacher", "student"]} />
-          }
-        >
-          <Route path='/manajemen-lms' element={<LmsManagement />} />
-        </Route>
       </Routes>
     </BrowserRouter>
   );

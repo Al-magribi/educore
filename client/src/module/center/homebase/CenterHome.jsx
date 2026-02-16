@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { AppLayout } from "../../../components"; // Sesuaikan path
 import {
   Button,
   Card,
@@ -175,7 +174,7 @@ const CenterHome = () => {
     >
       <div style={{ flex: 1 }}>
         <Text type="secondary" style={{ display: "block", marginTop: 4 }}>
-          {item.description || "— Tidak ada deskripsi —"}
+          {item.description || "- Tidak ada deskripsi -"}
         </Text>
         <Text
           style={{
@@ -185,7 +184,7 @@ const CenterHome = () => {
             display: "block",
           }}
         >
-          ID: {item.id} • Dibuat:{" "}
+          ID: {item.id} - Dibuat:{" "}
           {new Date(item.created_at).toLocaleDateString("id-ID")}
         </Text>
       </div>
@@ -193,7 +192,7 @@ const CenterHome = () => {
   );
 
   return (
-    <AppLayout title="Manajemen Satuan Pendidikan">
+    <>
       <div
         style={{
           display: "flex",
@@ -240,8 +239,9 @@ const CenterHome = () => {
         homebaseId={selectedHomebaseId}
         onCancel={closeDetailDashboard}
       />
-    </AppLayout>
+    </>
   );
 };
 
 export default CenterHome;
+

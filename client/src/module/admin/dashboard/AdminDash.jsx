@@ -1,5 +1,4 @@
 import React from "react";
-import { AppLayout } from "../../../components";
 import { useGetDashboardSummaryQuery } from "../../../service/main/ApiDash";
 import {
   Row,
@@ -118,24 +117,24 @@ const AdminDash = () => {
 
   if (isLoading) {
     return (
-      <AppLayout title="Dashboard">
+      <>
         <div style={{ textAlign: "center", padding: 60 }}>
           <Spin size="large" />
         </div>
-      </AppLayout>
+      </>
     );
   }
 
   if (isError) {
     return (
-      <AppLayout title="Dashboard">
+      <>
         <Alert message="Gagal memuat data dashboard." type="error" showIcon />
-      </AppLayout>
+      </>
     );
   }
 
   return (
-    <AppLayout title="Dashboard Satuan">
+    <>
       <div style={{ padding: "0 8px" }}>
         <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
           <Col xs={24} lg={16}>
@@ -305,8 +304,9 @@ const AdminDash = () => {
           </Col>
         </Row>
       </div>
-    </AppLayout>
+    </>
   );
 };
 
 export default AdminDash;
+

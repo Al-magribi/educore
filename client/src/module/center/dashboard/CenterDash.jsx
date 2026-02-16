@@ -1,5 +1,4 @@
 import React from "react";
-import { AppLayout } from "../../../components";
 import { useGetDashboardSummaryQuery } from "../../../service/center/ApiCenterDash";
 import {
   Row,
@@ -32,19 +31,19 @@ const CenterDash = () => {
 
   if (isLoading) {
     return (
-      <AppLayout title="Dashboard">
+      <>
         <div style={{ textAlign: "center", padding: 50 }}>
           <Spin size="large" />
         </div>
-      </AppLayout>
+      </>
     );
   }
 
   if (isError) {
     return (
-      <AppLayout title="Dashboard">
+      <>
         <Alert message="Gagal memuat data" type="error" showIcon />
-      </AppLayout>
+      </>
     );
   }
 
@@ -75,7 +74,7 @@ const CenterDash = () => {
   ];
 
   return (
-    <AppLayout title={"Dashboard Center"}>
+    <>
       <div style={{ padding: "0 10px" }}>
         {/* SECTION 1: STATISTIC CARDS */}
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -188,8 +187,9 @@ const CenterDash = () => {
           </Col>
         </Row>
       </div>
-    </AppLayout>
+    </>
   );
 };
 
 export default CenterDash;
+

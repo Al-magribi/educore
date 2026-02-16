@@ -1,5 +1,4 @@
 import React from "react";
-import { AppLayout } from "../../../components";
 import { AppleOutlined, DatabaseOutlined } from "@ant-design/icons";
 import { Tabs } from "antd";
 import Database from "./database/Database";
@@ -21,10 +20,11 @@ const CenterConfig = () => {
     },
   ];
   return (
-    <AppLayout title={"Manjemen Database"}>
+    <>
       <Tabs defaultActiveKey="app" items={items} />
-    </AppLayout>
+    </>
   );
 };
 
 export default CenterConfig;
+

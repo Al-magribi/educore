@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { AppLayout, InfiniteScrollList } from "../../../components"; // Pastikan path benar
+import { InfiniteScrollList } from "../../../components"; // Pastikan path benar
 import {
   useGetAdminsQuery,
   useDeleteAdminMutation,
@@ -210,7 +210,7 @@ const CenterAdmin = () => {
   };
 
   return (
-    <AppLayout title={"Manajemen Admin"}>
+    <>
       {/* Toolbar */}
       <div
         style={{
@@ -263,8 +263,9 @@ const CenterAdmin = () => {
         onCancel={() => setIsModalOpen(false)}
         onSuccess={handleSuccess}
       />
-    </AppLayout>
+    </>
   );
 };
 
 export default CenterAdmin;
+

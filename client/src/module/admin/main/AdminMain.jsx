@@ -1,15 +1,14 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Calendar, Folders, GitBranch, GraduationCap } from "lucide-react";
 
-import { AppLayout } from "../../../components";
-import Periode from "./periode/Periode";
-import Major from "./major/Major";
-import Grade from "./grade/Grade";
-import Classes from "./classes/Classes";
 import { Grid, Tabs } from "antd";
 import { useSelector } from "react-redux";
 
 const { useBreakpoint } = Grid;
+const Periode = lazy(() => import("./periode/Periode"));
+const Major = lazy(() => import("./major/Major"));
+const Grade = lazy(() => import("./grade/Grade"));
+const Classes = lazy(() => import("./classes/Classes"));
 
 const AdminMain = () => {
   const { user } = useSelector((state) => state.auth);
@@ -44,10 +43,11 @@ const AdminMain = () => {
   ].filter(Boolean);
 
   return (
-    <AppLayout title={"Data Pokok"}>
+    <Suspense fallback={<div>Memuat data...</div>}>
       <Tabs items={items} defaultActiveKey='periode' />
-    </AppLayout>
+    </Suspense>
   );
 };
 
 export default AdminMain;
+

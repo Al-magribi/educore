@@ -1,4 +1,11 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Layout,
   Menu,
@@ -10,7 +17,7 @@ import {
   Grid,
   Space, // Import Grid
 } from "antd";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
   MenuFoldOutlined,
@@ -34,11 +41,13 @@ import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid; // Destructure hook
+const LayoutShellContext = createContext(null);
 
-const AppLayout = ({ children, title }) => {
+const AppLayout = ({ children, title, asShell = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const screens = useBreakpoint(); // Hook untuk deteksi ukuran layar (xs, sm, md, lg, xl, xxl)
+  const shellContext = useContext(LayoutShellContext);
 
   const { publicConfig } = useSelector((state) => state.app);
 
@@ -50,8 +59,10 @@ const AppLayout = ({ children, title }) => {
   // State UI
   const [collapsed, setCollapsed] = useState(false);
   const [menuItems, setMenuItems] = useState([]);
+  const [shellTitle, setShellTitle] = useState(null);
   const isMobile = !screens.lg;
   const preloadedRoutes = useRef(new Set());
+  const effectiveTitle = asShell ? shellTitle : title;
 
   const routePreloaders = {
     "/profile": () => import("../profile/Profile"),
@@ -148,14 +159,20 @@ const AppLayout = ({ children, title }) => {
   }, [user]);
 
   useEffect(() => {
-    if (title) {
-      document.title = title;
+    if (effectiveTitle) {
+      document.title = effectiveTitle;
       return;
     }
     if (publicConfig?.app_name) {
       document.title = publicConfig.app_name;
     }
-  }, [title, publicConfig?.app_name]);
+  }, [effectiveTitle, publicConfig?.app_name]);
+
+  useEffect(() => {
+    if (asShell || !shellContext?.inShell) return;
+    shellContext.setShellTitle(title || null);
+    return () => shellContext.setShellTitle(null);
+  }, [asShell, shellContext, title]);
 
   // 3. Handle Logout
   const handleLogout = async () => {
@@ -190,7 +207,16 @@ const AppLayout = ({ children, title }) => {
     },
   ];
 
-  return (
+  if (!asShell && shellContext?.inShell) {
+    return children || null;
+  }
+
+  const shellValue = useMemo(
+    () => ({ inShell: true, setShellTitle }),
+    [setShellTitle],
+  );
+
+  const layoutContent = (
     <Layout style={{ minHeight: "100vh" }}>
       {/* === SIDEBAR === */}
       <Sider
@@ -324,7 +350,7 @@ const AppLayout = ({ children, title }) => {
                 textOverflow: "ellipsis",
               }}
             >
-              {title || "Dashboard"}
+              {effectiveTitle || "Dashboard"}
             </Title>
           </div>
 
@@ -385,7 +411,7 @@ const AppLayout = ({ children, title }) => {
             overflowX: "hidden", // Mencegah scroll horizontal jika tabel lebar
           }}
         >
-          {children}
+          {asShell ? <Outlet /> : children}
         </Content>
 
         {/* Footer */}
@@ -397,6 +423,16 @@ const AppLayout = ({ children, title }) => {
       </Layout>
     </Layout>
   );
+
+  if (asShell) {
+    return (
+      <LayoutShellContext.Provider value={shellValue}>
+        {layoutContent}
+      </LayoutShellContext.Provider>
+    );
+  }
+
+  return layoutContent;
 };
 
 export default AppLayout;

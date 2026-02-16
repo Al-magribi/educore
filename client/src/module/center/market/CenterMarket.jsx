@@ -1,5 +1,4 @@
 import React, { Suspense, lazy } from "react";
-import { AppLayout } from "../../../components";
 import { Row, Col, Alert, Card, Skeleton } from "antd";
 
 const StudentSegmented = lazy(() => import("./StudentSegmented"));
@@ -20,7 +19,7 @@ const StudentListFallback = () => (
 
 const CenterMarket = () => {
   return (
-    <AppLayout title={"Analisis Pasar & Demografi"}>
+    <>
       <div style={{ paddingBottom: 20 }}>
         <Alert
           title="Market Insight"
@@ -51,7 +50,7 @@ const CenterMarket = () => {
           </Col>
         </Row>
       </div>
-    </AppLayout>
+    </>
   );
 };
 

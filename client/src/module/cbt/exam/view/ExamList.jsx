@@ -26,7 +26,7 @@ import {
   Folder,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { AppLayout, InfiniteScrollList } from "../../../../components";
+import { InfiniteScrollList } from "../../../../components";
 import {
   useGetExamsQuery,
   useDeleteExamMutation,
@@ -211,7 +211,7 @@ const ExamList = () => {
               </Title>
             </Tooltip>
             <Text type='secondary' style={{ fontSize: 12 }}>
-              {item.bank_title} • {item.subject_name || "Mapel Umum"}
+              {item.bank_title} - {item.subject_name || "Mapel Umum"}
             </Text>
           </div>
         </Flex>
@@ -274,29 +274,29 @@ const ExamList = () => {
 
   if (view === "report") {
     return (
-      <AppLayout title={`Laporan ${exam_name}`}>
+      <>
         <Report exam_id={exam_id} exam_name={exam_name} token={token_exam} />
-      </AppLayout>
+      </>
     );
   }
   if (view === "student_answers") {
     return (
-      <AppLayout title={`Jawaban ${exam_name}`}>
+      <>
         <StudentAnswers />
-      </AppLayout>
+      </>
     );
   }
 
   if (view === "student_answers") {
     return (
-      <AppLayout title={`Jawaban Siswa ${exam_name}`}>
+      <>
         <StudentAnswers exam_id={exam_id} exam_name={exam_name} />
-      </AppLayout>
+      </>
     );
   }
 
   return (
-    <AppLayout title='Manajemen Jadwal Ujian'>
+    <>
       <Flex vertical gap={"large"}>
         <Flex
           gap={"middle"}
@@ -374,8 +374,9 @@ const ExamList = () => {
           onSuccess={handleFormSuccess}
         />
       </Modal>
-    </AppLayout>
+    </>
   );
 };
 
 export default ExamList;
+
