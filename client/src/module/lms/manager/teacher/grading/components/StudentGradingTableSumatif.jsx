@@ -18,20 +18,33 @@ const StudentGradingTableSumatif = ({
       const scores = student?.summativeScores || {};
       Object.keys(scores).forEach((key) => {
         if (key === "__new") return;
-        const numericKey = Number(key);
-        if (Number.isFinite(numericKey) && numericKey > 0) {
-          derivedKeys.add(numericKey);
-        }
+        derivedKeys.add(String(key));
       });
     });
     const derived = Array.from(derivedKeys)
-      .sort((a, b) => a - b)
-      .map((key) => ({
-        id: key,
-        scoreKey: key,
-        labelIndex: key,
-        title: `Nilai ${key}`,
-      }));
+      .sort((a, b) => {
+        const aNum = Number(a);
+        const bNum = Number(b);
+        const aValid = Number.isFinite(aNum) && aNum > 0;
+        const bValid = Number.isFinite(bNum) && bNum > 0;
+        if (aValid && bValid) return aNum - bNum;
+        if (aValid) return -1;
+        if (bValid) return 1;
+        return a.localeCompare(b);
+      })
+      .map((key, index) => {
+        const numericKey = Number(key);
+        const labelIndex =
+          Number.isFinite(numericKey) && numericKey > 0
+            ? numericKey
+            : index + 1;
+        return {
+          id: key,
+          scoreKey: key,
+          labelIndex,
+          title: `Nilai ${labelIndex}`,
+        };
+      });
     const merged = [...base];
     const existingKeys = new Set(
       base.map((item) =>

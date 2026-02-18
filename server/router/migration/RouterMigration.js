@@ -1906,4 +1906,258 @@ router.post("/migrate/step-8-teacher-subjects", async (req, res) => {
   }
 });
 
+/**
+ * STEP 9: ATTENDANCE ONLY (Old l_attendance -> New l_attendance)
+ * Rules:
+ * - old l_attendance.note -> new l_attendance.status
+ * - teacher_id diambil dari old l_chapter + l_cclass sesuai pasangan subject + class
+ */
+router.post("/migrate/step-9-attendance", async (req, res) => {
+  const sourceClient = await poolSource.connect();
+  const destClient = await poolDest.connect();
+
+  try {
+    await destClient.query("BEGIN");
+    console.log("Migrating attendance only...");
+
+    const toIdKey = (value) => {
+      if (value === null || value === undefined) return null;
+      return String(value);
+    };
+
+    const normalizeAttendanceStatus = (value) => {
+      if (value === null || value === undefined) return null;
+      const raw = String(value).trim();
+      if (!raw) return null;
+
+      const lower = raw.toLowerCase();
+      if (lower === "hadir") return "Hadir";
+      if (lower === "telat") return "Telat";
+      if (lower === "izin") return "Izin";
+      if (lower === "sakit") return "Sakit";
+      if (lower === "alpa") return "Alpa";
+      if (lower === "alpha") return "Alpa";
+      return null;
+    };
+
+    const BATCH_SIZE = 1000;
+    const bulkInsertAttendance = async (client, rows) => {
+      if (!rows.length) return;
+      const values = [];
+      const placeholders = rows.map((row, rowIndex) => {
+        const baseIndex = rowIndex * 7;
+        row.forEach((value) => values.push(value));
+        return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7})`;
+      });
+
+      await client.query(
+        `INSERT INTO l_attendance (periode_id, class_id, subject_id, student_id, date, status, teacher_id)
+         VALUES ${placeholders.join(", ")}`,
+        values,
+      );
+    };
+
+    const validSubjectIds = new Set(
+      (await destClient.query("SELECT id FROM a_subject")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+    const validClassIds = new Set(
+      (await destClient.query("SELECT id FROM a_class")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+    const validPeriodeIds = new Set(
+      (await destClient.query("SELECT id FROM a_periode")).rows.map((row) =>
+        toIdKey(row.id),
+      ),
+    );
+
+    // Map old student_id -> new user_id (username = NIS, fallback siswa_{id})
+    const sourceStudents = await sourceClient.query(
+      "SELECT id, nis FROM u_students",
+    );
+    const sourceTeachers = await sourceClient.query(
+      "SELECT id, username FROM u_teachers",
+    );
+    const destUsers = await destClient.query(
+      "SELECT id, username FROM u_users",
+    );
+    const usernameToUserId = new Map(
+      destUsers.rows.map((row) => [String(row.username).trim(), row.id]),
+    );
+
+    const oldStudentIdToNewUserId = new Map();
+    for (const row of sourceStudents.rows) {
+      const nis = row.nis ? String(row.nis).trim() : "";
+      const username = nis !== "" ? nis : `siswa_${row.id}`;
+      const newUserId = usernameToUserId.get(username);
+      if (newUserId) oldStudentIdToNewUserId.set(row.id, newUserId);
+    }
+
+    const oldTeacherIdToNewUserId = new Map();
+    for (const row of sourceTeachers.rows) {
+      const username = row.username ? String(row.username).trim() : "";
+      if (!username) continue;
+      const newUserId = usernameToUserId.get(username);
+      if (newUserId) oldTeacherIdToNewUserId.set(row.id, newUserId);
+    }
+
+    // Ambil kandidat teacher dari relasi:
+    // l_cclass.chapter -> l_chapter (subject, teacher)
+    // validasi penugasan mapel guru dari at_subject (teacher, subject)
+    // Jika banyak kandidat, pilih teacher dengan chapter terbanyak.
+    const teacherCandidates = await sourceClient.query(`
+      SELECT
+        lc.classid AS class_id,
+        ch.subject AS subject_id,
+        ch.teacher AS old_teacher_id,
+        COUNT(*)::int AS chapter_count
+      FROM l_chapter ch
+      JOIN l_cclass lc ON lc.chapter = ch.id
+      JOIN at_subject ats ON ats.teacher = ch.teacher AND ats.subject = ch.subject
+      WHERE ch.teacher IS NOT NULL
+      GROUP BY lc.classid, ch.subject, ch.teacher
+      ORDER BY lc.classid, ch.subject, chapter_count DESC, ch.teacher ASC
+    `);
+
+    const teacherByClassSubject = new Map();
+    for (const row of teacherCandidates.rows) {
+      const key = `${row.class_id}::${row.subject_id}`;
+      if (!teacherByClassSubject.has(key)) {
+        teacherByClassSubject.set(key, row.old_teacher_id);
+      }
+    }
+
+    const totalRes = await sourceClient.query(
+      "SELECT COUNT(*)::int AS total FROM l_attendance",
+    );
+    const sourceRows = totalRes.rows[0]?.total || 0;
+
+    let inserted = 0;
+    let processed = 0;
+    let skippedStudentMap = 0;
+    let skippedInvalidRef = 0;
+    let skippedInvalidStatus = 0;
+    let missingTeacher = 0;
+    let skippedInvalidPeriode = 0;
+    let lastId = 0;
+    let insertBatch = [];
+
+    const sourceAttendanceColumns = await sourceClient.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'l_attendance'`,
+    );
+    const sourceColumnSet = new Set(
+      sourceAttendanceColumns.rows.map((r) => r.column_name),
+    );
+    const sourcePeriodeColumn = sourceColumnSet.has("periode_id")
+      ? "periode_id"
+      : "periode";
+
+    while (true) {
+      const attendanceRows = await sourceClient.query(
+        `SELECT id, ${sourcePeriodeColumn} AS source_periode_id, classid, subjectid, studentid, day_date, note
+         FROM l_attendance
+         WHERE id > $1
+         ORDER BY id ASC
+         LIMIT $2`,
+        [lastId, BATCH_SIZE],
+      );
+      if (attendanceRows.rows.length === 0) break;
+
+      for (const row of attendanceRows.rows) {
+        processed++;
+        lastId = row.id;
+
+        const newStudentId = oldStudentIdToNewUserId.get(row.studentid);
+        if (!newStudentId) {
+          skippedStudentMap++;
+          continue;
+        }
+
+        const subjectKey = toIdKey(row.subjectid);
+        const classKey = toIdKey(row.classid);
+        const subjectId =
+          subjectKey && validSubjectIds.has(subjectKey) ? row.subjectid : null;
+        const classId =
+          classKey && validClassIds.has(classKey) ? row.classid : null;
+        if (!subjectId || !classId) {
+          skippedInvalidRef++;
+          continue;
+        }
+
+        const periodeKey = toIdKey(row.source_periode_id);
+        const periodeId =
+          periodeKey && validPeriodeIds.has(periodeKey)
+            ? row.source_periode_id
+            : null;
+        if (row.source_periode_id !== null && !periodeId) {
+          skippedInvalidPeriode++;
+        }
+
+        // old l_attendance.note -> new l_attendance.status
+        const status = normalizeAttendanceStatus(row.note);
+        if (!status) {
+          skippedInvalidStatus++;
+          continue;
+        }
+
+        const teacherKey = `${classId}::${subjectId}`;
+        const oldTeacherId = teacherByClassSubject.get(teacherKey) || null;
+        const newTeacherId = oldTeacherId
+          ? oldTeacherIdToNewUserId.get(oldTeacherId) || null
+          : null;
+        if (!newTeacherId) {
+          missingTeacher++;
+        }
+
+        insertBatch.push([
+          periodeId,
+          classId,
+          subjectId,
+          newStudentId,
+          row.day_date,
+          status,
+          newTeacherId,
+        ]);
+        if (insertBatch.length >= BATCH_SIZE) {
+          await bulkInsertAttendance(destClient, insertBatch);
+          inserted += insertBatch.length;
+          insertBatch = [];
+        }
+      }
+    }
+
+    if (insertBatch.length > 0) {
+      await bulkInsertAttendance(destClient, insertBatch);
+      inserted += insertBatch.length;
+    }
+
+    await destClient.query("COMMIT");
+    res.json({
+      message: "Step 9: Attendance migrated successfully.",
+      stats: {
+        source_rows: sourceRows,
+        processed_rows: processed,
+        inserted,
+        skipped_student_mapping: skippedStudentMap,
+        skipped_invalid_reference: skippedInvalidRef,
+        skipped_invalid_periode: skippedInvalidPeriode,
+        skipped_invalid_status: skippedInvalidStatus,
+        inserted_without_teacher: missingTeacher,
+      },
+    });
+  } catch (error) {
+    await destClient.query("ROLLBACK");
+    console.error("Migration Step 9 Error:", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    sourceClient.release();
+    destClient.release();
+  }
+});
+
 export default router;
