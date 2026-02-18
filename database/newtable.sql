@@ -1,4 +1,4 @@
--- Active: 1768875297035@@212.85.24.143@5432@lms
+﻿-- Active: 1768875297035@@212.85.24.143@5432@lms
 /* REVISI FIXEDTABLE.SQL
    Digabungkan dengan fitur dari newtable.sql
 */
@@ -448,46 +448,27 @@ ADD COLUMN attachment_name text;
 
 CREATE TABLE l_attendance (
     id SERIAL PRIMARY KEY,
+    periode_id integer REFERENCES a_periode(id) ON DELETE CASCADE,
     class_id integer REFERENCES a_class(id),
     subject_id integer REFERENCES a_subject(id),
     student_id integer REFERENCES u_students(user_id),
     date date DEFAULT CURRENT_DATE,
-    status varchar(20) CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha')), 
-    note text,
+    status varchar(20) CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa')), 
     teacher_id integer REFERENCES u_teachers(user_id)
 );
+
+ALTER TABLE l_attendance
+  ADD COLUMN IF NOT EXISTS periode_id integer REFERENCES a_periode(id) ON DELETE CASCADE;
 
 ALTER TABLE l_attendance
   DROP CONSTRAINT IF EXISTS l_attendance_status_check;
 
 ALTER TABLE l_attendance
   ADD CONSTRAINT l_attendance_status_check
-  CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha'));
+  CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa'));
 
 
-  -- 1. Drop constraint dulu karena tipe data akan diubah
-ALTER TABLE l_attendance
-DROP CONSTRAINT IF EXISTS l_attendance_status_check;
-
--- 2. Rename kolom sementara
-ALTER TABLE l_attendance RENAME COLUMN status TO status_tmp;
-ALTER TABLE l_attendance RENAME COLUMN note TO note_tmp;
-
--- 3. Tukar nama kolom
-ALTER TABLE l_attendance RENAME COLUMN status_tmp TO note;
-ALTER TABLE l_attendance RENAME COLUMN note_tmp TO status;
-
--- 4. Ubah tipe data sesuai yang benar
-ALTER TABLE l_attendance
-ALTER COLUMN status TYPE varchar(20) USING status::varchar(20);
-
-ALTER TABLE l_attendance
-ALTER COLUMN note TYPE text USING note::text;
-
--- 5. Tambahkan kembali constraint CHECK
-ALTER TABLE l_attendance
-ADD CONSTRAINT l_attendance_status_check
-CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha'));
+ 
 
 
 
@@ -892,7 +873,7 @@ SELECT
     WHEN a.status IN ('Hadir', 'Telat') THEN 'H'
     WHEN a.status = 'Sakit' THEN 'S'
     WHEN a.status = 'Izin' THEN 'I'
-    WHEN a.status IN ('Alpa', 'Alpha') THEN 'A'
+    WHEN a.status = 'Alpa' THEN 'A'
     ELSE '-'
   END AS status_code
 FROM u_class_enrollments e
@@ -901,3 +882,4 @@ JOIN u_students st ON st.user_id = e.student_id
 LEFT JOIN l_attendance a
   ON a.student_id = e.student_id
  AND a.class_id = e.class_id;
+

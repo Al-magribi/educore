@@ -107,7 +107,6 @@ router.get(
          c.name AS class_name,
          a.id AS attendance_id,
          a.status,
-         a.note,
          a.date
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
@@ -124,21 +123,10 @@ router.get(
       [subject_id, date, class_id, activePeriode.id],
     );
 
-    const students = studentResult.rows.map((row) => {
-      const noteStatus = normalizeStatus(row.note);
-      const statusValue = row.status
-        ? normalizeStatus(row.status)
-        : ALLOWED_STATUSES.has(noteStatus)
-          ? noteStatus
-          : null;
-      const resolvedNote =
-        !row.status && ALLOWED_STATUSES.has(noteStatus) ? null : row.note;
-      return {
-        ...row,
-        status: statusValue,
-        note: resolvedNote,
-      };
-    });
+    const students = studentResult.rows.map((row) => ({
+      ...row,
+      status: normalizeStatus(row.status),
+    }));
 
     return res.json({
       status: "success",
@@ -167,7 +155,7 @@ router.post(
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
     const { id: userId, role, homebase_id } = req.user;
-    const { subject_id, class_id, date, items } = req.body;
+    const { subject_id, class_id, date, teacher_id, items } = req.body;
 
     if (!subject_id || !class_id || !date) {
       return res.status(400).json({
@@ -180,6 +168,14 @@ router.post(
       return res.status(400).json({
         status: "error",
         message: "Data absensi siswa belum ada.",
+      });
+    }
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
       });
     }
 
@@ -230,18 +226,16 @@ router.post(
            student_id,
            date,
            status,
-           note,
            teacher_id
          )
-         VALUES ($1, $2, $3, $4::date, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4::date, $5, $6)`,
         [
           class_id,
           subject_id,
           item.student_id,
           date,
           status,
-          item.note || null,
-          userId,
+          effectiveTeacherId,
         ],
       );
     }

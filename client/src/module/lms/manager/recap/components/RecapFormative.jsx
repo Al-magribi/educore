@@ -10,10 +10,11 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { Download, Filter, RefreshCcw, Users } from "lucide-react";
-import { useGetScoreMonthlyRecapQuery } from "../../../../../../service/lms/ApiRecap";
+import { useGetScoreMonthlyRecapQuery } from "../../../../../service/lms/ApiRecap";
 
 const { Title, Text } = Typography;
 
@@ -34,10 +35,21 @@ const buildExcelRows = (rows, monthMatrix) =>
         1,
         Number(monthMeta.max_formative_entries || 0),
       );
+      const monthEntries = monthMeta.entries || [];
 
       for (let index = 0; index < formativeCount; index += 1) {
-        entry[`${monthMeta.month_name} - Formatif Nilai ${index + 1}`] =
-          formativeValues[index] ?? "-";
+        const chapterTitle = monthEntries[index]?.chapter_title || "-";
+        const slotKey = monthEntries[index]?.slot_key;
+        const scoreItem = slotKey
+          ? formativeValues.find((item) => item?.slot_key === slotKey)
+          : formativeValues[index];
+        const scoreValue =
+          scoreItem && typeof scoreItem === "object"
+            ? scoreItem.score
+            : scoreItem;
+        entry[
+          `${monthMeta.month_name} - Formatif Nilai ${index + 1} (${chapterTitle})`
+        ] = scoreValue ?? "-";
       }
     }
 
@@ -56,6 +68,11 @@ const RecapFormative = ({
   setClassId,
   semester,
   setSemester,
+  isAdminView = false,
+  teacherId,
+  setTeacherId,
+  teachers = [],
+  teacherLoading = false,
   screens,
 }) => {
   const {
@@ -67,9 +84,15 @@ const RecapFormative = ({
       subjectId,
       classId,
       semester,
+      teacherId,
     },
     {
-      skip: !isActive || !subjectId || !classId || !semester,
+      skip:
+        !isActive ||
+        !subjectId ||
+        !classId ||
+        !semester ||
+        (isAdminView && !teacherId),
     },
   );
 
@@ -121,19 +144,35 @@ const RecapFormative = ({
         1,
         Number(monthMeta.max_formative_entries || 0),
       );
+      const monthEntries = monthMeta.entries || [];
 
       const formativeChildren = Array.from(
         { length: formativeCount },
-        (_, index) => ({
-          title: `Nilai ${index + 1}`,
-          key: `${monthKey}-f-${index}`,
-          width: 92,
-          align: "center",
-          render: (_, record) => {
-            const value = record.month_scores?.[monthKey]?.formative?.[index];
-            return value ?? "-";
-          },
-        }),
+        (_, index) => {
+          const chapterTitle =
+            monthEntries[index]?.chapter_title || "-";
+          const slotKey = monthEntries[index]?.slot_key;
+          return {
+            title: (
+              <Tooltip title={chapterTitle}>
+                <span>{`Nilai ${index + 1}`}</span>
+              </Tooltip>
+            ),
+            key: `${monthKey}-f-${index}`,
+            width: 92,
+            align: "center",
+            render: (_, record) => {
+              const formativeValues =
+                record.month_scores?.[monthKey]?.formative || [];
+              const value = slotKey
+                ? formativeValues.find((item) => item?.slot_key === slotKey)
+                : formativeValues[index];
+              const scoreValue =
+                value && typeof value === "object" ? value.score : value;
+              return scoreValue ?? "-";
+            },
+          };
+        },
       );
 
       return {
@@ -189,7 +228,9 @@ const RecapFormative = ({
           </Space>
           <Space wrap>
             <Tag color="blue">{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color="processing">{activePeriode?.name || "Periode"}</Tag>
+            <Tag color="processing">
+              {activePeriode?.name || recapData?.meta?.periode_name || "Periode"}
+            </Tag>
           </Space>
         </Flex>
 
@@ -211,6 +252,19 @@ const RecapFormative = ({
               ]}
               suffixIcon={<Filter size={14} />}
             />
+            {isAdminView && (
+              <Select
+                value={teacherId}
+                onChange={setTeacherId}
+                style={{ minWidth: 220 }}
+                placeholder="Pilih guru"
+                options={teachers.map((item) => ({
+                  value: item.id,
+                  label: item.full_name,
+                }))}
+                loading={teacherLoading}
+              />
+            )}
             <Select
               value={classId}
               onChange={setClassId}
@@ -254,6 +308,12 @@ const RecapFormative = ({
           type="info"
           showIcon
           message="Pilih kelas untuk menampilkan rekap nilai."
+        />
+      ) : isAdminView && !teacherId ? (
+        <Alert
+          type="info"
+          showIcon
+          message="Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru."
         />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>

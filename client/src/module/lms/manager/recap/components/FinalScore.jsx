@@ -13,49 +13,21 @@ import {
   Typography,
 } from "antd";
 import { Download, Filter, RefreshCcw, Users } from "lucide-react";
-import { useGetScoreSummativeRecapQuery } from "../../../../../../service/lms/ApiRecap";
+import { useGetFinalScoreRecapQuery } from "../../../../../service/lms/ApiRecap";
 
 const { Title, Text } = Typography;
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
-const getMonthAverage = (record, monthKey, scoreKey) => {
-  const values =
-    record.month_scores?.[monthKey]?.summative
-      ?.map((item) => item?.[scoreKey])
-      .filter((value) => value !== null && value !== undefined) || [];
+const buildExcelRows = (rows) =>
+  rows.map((row) => ({
+    No: row.no,
+    NIS: row.nis,
+    "Nama Siswa": row.full_name,
+    "Nilai Akhir": row.final_grade ?? "-",
+  }));
 
-  if (!values.length) return "-";
-  return round2(values.reduce((sum, value) => sum + Number(value), 0) / values.length);
-};
-
-const buildExcelRows = (rows, monthMatrix) =>
-  rows.map((row) => {
-    const entry = {
-      No: row.no,
-      NIS: row.nis,
-      "Nama Siswa": row.full_name,
-    };
-
-    for (const monthMeta of monthMatrix) {
-      const monthKey = String(monthMeta.month);
-      entry[`${monthMeta.month_name} - Tertulis`] = getMonthAverage(
-        row,
-        monthKey,
-        "score_written",
-      );
-      entry[`${monthMeta.month_name} - Praktik`] = getMonthAverage(
-        row,
-        monthKey,
-        "score_skill",
-      );
-    }
-
-    entry["Nilai Sumatif"] = round2(row.final_average);
-    return entry;
-  });
-
-const RecapSummative = ({
+const FinalScore = ({
   isActive,
   subjectId,
   subject,
@@ -66,26 +38,36 @@ const RecapSummative = ({
   setClassId,
   semester,
   setSemester,
+  isAdminView = false,
+  teacherId,
+  setTeacherId,
+  teachers = [],
+  teacherLoading = false,
   screens,
 }) => {
   const {
     data: recapRes,
     isFetching,
     refetch,
-  } = useGetScoreSummativeRecapQuery(
+  } = useGetFinalScoreRecapQuery(
     {
       subjectId,
       classId,
       semester,
+      teacherId,
     },
     {
-      skip: !isActive || !subjectId || !classId || !semester,
+      skip:
+        !isActive ||
+        !subjectId ||
+        !classId ||
+        !semester ||
+        (isAdminView && !teacherId),
     },
   );
 
   const recapData = recapRes?.data || {};
   const summary = recapData?.summary || {};
-  const monthMatrix = recapData?.month_matrix || [];
   const students = recapData?.students || [];
 
   const rows = useMemo(
@@ -95,14 +77,16 @@ const RecapSummative = ({
         no: index + 1,
         nis: item.nis || "-",
         full_name: item.full_name,
-        month_scores: item.month_scores || {},
-        final_average: Number(item.final_average || 0),
+        final_grade:
+          item.final_grade === null || item.final_grade === undefined
+            ? null
+            : Number(item.final_grade),
       })),
     [students],
   );
 
-  const columns = useMemo(() => {
-    const staticColumns = [
+  const columns = useMemo(
+    () => [
       {
         title: "No",
         dataIndex: "no",
@@ -119,62 +103,38 @@ const RecapSummative = ({
       {
         title: "Nama Siswa",
         dataIndex: "full_name",
-        width: 220,
+        width: 240,
         fixed: "left",
         render: (value) => <Text strong>{value}</Text>,
       },
-    ];
-
-    const monthColumns = monthMatrix.map((monthMeta) => {
-      const monthKey = String(monthMeta.month);
-      return {
-        title: monthMeta.month_name,
-        key: `month-${monthKey}`,
-        children: [
-          {
-            title: "Tertulis",
-            key: `${monthKey}-written`,
-            width: 92,
-            align: "center",
-            render: (_, record) =>
-              getMonthAverage(record, monthKey, "score_written"),
-          },
-          {
-            title: "Praktik",
-            key: `${monthKey}-skill`,
-            width: 92,
-            align: "center",
-            render: (_, record) => getMonthAverage(record, monthKey, "score_skill"),
-          },
-        ],
-      };
-    });
-
-    const endColumns = [
       {
-        title: "Nilai Sumatif",
-        dataIndex: "final_average",
-        width: 128,
+        title: "Nilai Akhir",
+        dataIndex: "final_grade",
+        width: 140,
         align: "center",
-        render: (value) => <Tag color="blue">{round2(value)}</Tag>,
+        render: (value) =>
+          value === null || value === undefined ? (
+            "-"
+          ) : (
+            <Tag color="blue">{round2(value)}</Tag>
+          ),
       },
-    ];
-
-    return [...staticColumns, ...monthColumns, ...endColumns];
-  }, [monthMatrix]);
+    ],
+    [],
+  );
 
   const handleDownloadExcel = () => {
     if (!rows.length) return;
-    const sheetRows = buildExcelRows(rows, monthMatrix);
+    const sheetRows = buildExcelRows(rows);
     const sheet = XLSX.utils.json_to_sheet(sheetRows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, "Rekap Nilai Sumatif");
+    XLSX.utils.book_append_sheet(workbook, sheet, "Rekap Nilai Akhir");
 
     const selectedClassName =
       classes.find((item) => String(item.id) === String(classId))?.name ||
       "Kelas";
     const safeName =
-      `Rekap_Nilai_Sumatif_${selectedClassName}_Semester${semester}`.replace(
+      `Rekap_Nilai_Akhir_${selectedClassName}_Semester${semester}`.replace(
         /[\\/:*?"<>|]/g,
         "-",
       );
@@ -188,15 +148,17 @@ const RecapSummative = ({
         <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
           <Space vertical size={2}>
             <Title level={5} style={{ margin: 0 }}>
-              Rekapitulasi Sumatif
+              Rekapitulasi Nilai Akhir
             </Title>
             <Text type="secondary">
-              Rekap nilai sumatif dalam satu semester
+              Rekap nilai akhir siswa dalam satu semester
             </Text>
           </Space>
           <Space wrap>
             <Tag color="blue">{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color="processing">{activePeriode?.name || "Periode"}</Tag>
+            <Tag color="processing">
+              {activePeriode?.name || recapData?.meta?.periode_name || "Periode"}
+            </Tag>
           </Space>
         </Flex>
 
@@ -218,6 +180,19 @@ const RecapSummative = ({
               ]}
               suffixIcon={<Filter size={14} />}
             />
+            {isAdminView && (
+              <Select
+                value={teacherId}
+                onChange={setTeacherId}
+                style={{ minWidth: 220 }}
+                placeholder="Pilih guru"
+                options={teachers.map((item) => ({
+                  value: item.id,
+                  label: item.full_name,
+                }))}
+                loading={teacherLoading}
+              />
+            )}
             <Select
               value={classId}
               onChange={setClassId}
@@ -251,7 +226,10 @@ const RecapSummative = ({
             Total Siswa: {recapData?.meta?.total_students || 0}
           </Tag>
           <Tag color="cyan">
-            Avg Nilai Sumatif: {round2(summary.final_average)}
+            Avg Nilai Akhir: {round2(summary.final_average)}
+          </Tag>
+          <Tag color="purple">
+            Sudah Dinilai: {summary.total_graded || 0}
           </Tag>
         </Flex>
       </Card>
@@ -260,13 +238,19 @@ const RecapSummative = ({
         <Alert
           type="info"
           showIcon
-          message="Pilih kelas untuk menampilkan rekap nilai."
+          message="Pilih kelas untuk menampilkan rekap nilai akhir."
+        />
+      ) : isAdminView && !teacherId ? (
+        <Alert
+          type="info"
+          showIcon
+          message="Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru."
         />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
-              <Empty description="Belum ada data nilai pada filter ini." />
+              <Empty description="Belum ada data nilai akhir pada filter ini." />
             </div>
           ) : (
             <Table
@@ -276,7 +260,7 @@ const RecapSummative = ({
               loading={isFetching}
               pagination={false}
               size={screens.xs ? "small" : "middle"}
-              scroll={{ x: 2200 }}
+              scroll={{ x: 1200 }}
               sticky
             />
           )}
@@ -286,4 +270,4 @@ const RecapSummative = ({
   );
 };
 
-export default RecapSummative;
+export default FinalScore;

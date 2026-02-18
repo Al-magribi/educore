@@ -54,6 +54,12 @@ export const AdminMenus = [
   //   icon: <DatabaseOutlined />,
   // },
   {
+    label: "LMS",
+    key: "/manajemen-lms",
+    icon: <BranchesOutlined />,
+  },
+
+  {
     label: "CBT",
     key: "/computer-based-test",
     icon: <DesktopOutlined />,
@@ -177,5 +183,3 @@ export const TahfizMenus = [
     icon: <AuditOutlined />,
   },
 ];
-
-

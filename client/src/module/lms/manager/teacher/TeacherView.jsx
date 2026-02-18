@@ -5,7 +5,7 @@ import { BookOpen, ChartBar, ChartScatter, CheckCircle } from "lucide-react";
 const Learning = lazy(() => import("./learnig/Learning"));
 const Attendance = lazy(() => import("./attendance/Attendance"));
 const Grading = lazy(() => import("./grading/Grading"));
-const Recap = lazy(() => import("./recap/Recap"));
+const Recap = lazy(() => import("../recap/Recap"));
 
 const tabFallback = (
   <Card style={{ borderRadius: 12 }}>

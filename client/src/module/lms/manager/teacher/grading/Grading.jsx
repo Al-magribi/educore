@@ -380,12 +380,23 @@ const Grading = ({ subject }) => {
         scoreEntries.forEach((entry) => {
           if (!entry) return;
           const parsedSubId = extractSubIdFromType(entry.type);
+          const resolvedSubId =
+            parsedSubId != null || !/^M\d{2}-B\d+$/.test(String(entry.type || ""))
+              ? parsedSubId
+              : 1;
           const scoreKey = isFormativeFilterActive
-            ? (parsedSubId ?? "default")
+            ? (resolvedSubId ?? "default")
             : entry.type ||
               `${entry.month || "M00"}-B${entry.chapter_id ?? "0"}-S${
-                parsedSubId ?? "0"
+                resolvedSubId ?? "0"
               }`;
+          if (
+            isFormativeFilterActive &&
+            scoreKey !== "default" &&
+            Object.prototype.hasOwnProperty.call(nextScores, scoreKey)
+          ) {
+            return;
+          }
           nextScores[scoreKey] = entry.score ?? 0;
         });
         nextScores.__new = 0;
@@ -1381,18 +1392,16 @@ const Grading = ({ subject }) => {
           rawScore === null || rawScore === undefined
             ? null
             : normalizeScoreValue(rawScore);
-        const normalizedValue = scoreValue === 0 ? null : scoreValue;
         items.push({
           student_id: student.student_id,
           subchapter_id: sub.id,
-          score: normalizedValue,
+          score: scoreValue,
         });
       });
 
       const newRaw = student.formatifScores?.__new;
       if (newRaw !== null && newRaw !== undefined && newRaw !== "") {
         const newValue = normalizeScoreValue(newRaw);
-        if (newValue === 0) return;
         items.push({
           student_id: student.student_id,
           subchapter_id: nextFormatifIndex,
@@ -1460,8 +1469,8 @@ const Grading = ({ subject }) => {
         items.push({
           student_id: student.student_id,
           subchapter_id: sub.id,
-          score_written: scoreWritten === 0 ? null : scoreWritten,
-          score_skill: scoreSkill === 0 ? null : scoreSkill,
+          score_written: scoreWritten,
+          score_skill: scoreSkill,
         });
       });
 
@@ -1479,12 +1488,11 @@ const Grading = ({ subject }) => {
           ? null
           : normalizeScoreValue(newObj.score_skill);
       if (newWritten == null && newSkill == null) return;
-      if (newWritten === 0 && newSkill === 0) return;
       items.push({
         student_id: student.student_id,
         subchapter_id: nextSumatifIndex,
-        score_written: newWritten === 0 ? null : newWritten,
-        score_skill: newSkill === 0 ? null : newSkill,
+        score_written: newWritten,
+        score_skill: newSkill,
       });
     });
     if (!items.length) {

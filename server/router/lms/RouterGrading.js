@@ -14,7 +14,6 @@ const normalizeScoreNullable = (value) => {
   if (value === null || value === undefined || value === "") return null;
   const numberValue = Number(value);
   if (Number.isNaN(numberValue)) return null;
-  if (numberValue === 0) return null;
   return Math.round(numberValue);
 };
 
@@ -48,6 +47,18 @@ const getMonthNumber = (month) => {
   const index = MONTHS_ID.indexOf(namePart);
   if (index >= 0) return index + 1;
   return null;
+};
+
+const isSameMonthValue = (storedMonth, targetMonth) => {
+  const storedNum = getMonthNumber(storedMonth);
+  const targetNum = getMonthNumber(targetMonth);
+  if (storedNum != null && targetNum != null) {
+    return Number(storedNum) === Number(targetNum);
+  }
+  return (
+    String(storedMonth || "").trim().toLowerCase() ===
+    String(targetMonth || "").trim().toLowerCase()
+  );
 };
 
 const buildFormativeType = (month, chapterId, subchapterId) => {
@@ -543,11 +554,6 @@ router.get(
       effectiveTeacherId,
     ];
     let paramIndex = 6;
-    if (month) {
-      joinConditions.push(`f.month = $${paramIndex}`);
-      joinParams.push(month);
-      paramIndex += 1;
-    }
     if (chapter_id) {
       joinConditions.push(`f.chapter_id = $${paramIndex}`);
       joinParams.push(chapter_id);
@@ -590,6 +596,7 @@ router.get(
       }
       const entry = studentsMap.get(studentId);
       if (!row.type) continue;
+      if (month && !isSameMonthValue(row.month, month)) continue;
       if (entry._typeSet.has(row.type)) continue;
       entry._typeSet.add(row.type);
       entry.scores.push({
@@ -729,11 +736,6 @@ router.get(
       effectiveTeacherId,
     ];
     let paramIndex = 6;
-    if (month) {
-      joinConditions.push(`s.month = $${paramIndex}`);
-      joinParams.push(month);
-      paramIndex += 1;
-    }
     if (chapter_id) {
       joinConditions.push(`s.chapter_id = $${paramIndex}`);
       joinParams.push(chapter_id);
@@ -778,6 +780,7 @@ router.get(
       }
       const entry = studentsMap.get(studentId);
       if (!row.type) continue;
+      if (month && !isSameMonthValue(row.month, month)) continue;
       const parsedSubchapter = extractSubchapterFromType(row.type);
       const subchapterId = parsedSubchapter ?? 1;
       if (entry._subSet.has(subchapterId)) continue;
