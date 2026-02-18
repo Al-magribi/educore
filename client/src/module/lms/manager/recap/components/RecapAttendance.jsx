@@ -12,14 +12,8 @@ import {
   Tag,
   Typography,
 } from "antd";
-import {
-  CalendarDays,
-  Download,
-  Filter,
-  RefreshCcw,
-  Users,
-} from "lucide-react";
-import { useGetAttendanceRecapQuery } from "../../../../../../service/lms/ApiRecap";
+import { Download, Filter, RefreshCcw, Users } from "lucide-react";
+import { useGetAttendanceRecapQuery } from "../../../../../service/lms/ApiRecap";
 
 const { Title, Text } = Typography;
 
@@ -60,9 +54,11 @@ const RecapAttendance = ({
   setClassId,
   semester,
   setSemester,
-  month,
-  setMonth,
-  monthOptions,
+  isAdminView = false,
+  teacherId,
+  setTeacherId,
+  teachers = [],
+  teacherLoading = false,
   screens,
 }) => {
   const {
@@ -74,10 +70,14 @@ const RecapAttendance = ({
       subjectId,
       classId,
       semester,
-      month,
+      teacherId,
     },
     {
-      skip: !isActive || !subjectId || !classId || !semester || !month,
+      skip:
+        !isActive ||
+        !subjectId ||
+        !classId ||
+        !semester,
     },
   );
 
@@ -85,10 +85,6 @@ const RecapAttendance = ({
   const recapMeta = recapData?.meta || {};
   const dayColumns = recapData?.days || [];
   const students = recapData?.students || [];
-
-  const monthLabel =
-    MONTH_OPTIONS.find((item) => Number(item.value) === Number(month))?.label ||
-    "Bulan";
 
   const attendanceRows = useMemo(
     () =>
@@ -141,38 +137,58 @@ const RecapAttendance = ({
       },
     ];
 
-    const dynamicDays = dayColumns.map((day) => ({
-      title: String(day.day).padStart(2, "0"),
-      dataIndex: `day_${day.date}`,
-      key: `day_${day.date}`,
-      width: 56,
-      align: "center",
-      render: (value) => (
-        <Tag
-          color={statusTagColor(value)}
-          style={{ marginInlineEnd: 0, minWidth: 34 }}
-        >
-          {value}
-        </Tag>
-      ),
-    }));
+    const dayColumnsByMonth = dayColumns.reduce((acc, day) => {
+      const monthNumber = Number(day.month || 0);
+      if (!monthNumber) return acc;
+      if (!acc[monthNumber]) acc[monthNumber] = [];
+      acc[monthNumber].push(day);
+      return acc;
+    }, {});
+
+    const monthGroups = (recapMeta.months || [])
+      .map((monthMeta) => {
+        const monthNumber = Number(monthMeta.month || 0);
+        const monthDays = dayColumnsByMonth[monthNumber] || [];
+        if (!monthDays.length) return null;
+        return {
+          title: monthMeta.month_name || "-",
+          children: monthDays.map((day) => ({
+            title: String(day.day).padStart(2, "0"),
+            dataIndex: `day_${day.date}`,
+            key: `day_${day.date}`,
+            width: 56,
+            align: "center",
+            render: (value) => (
+              <Tag
+                color={statusTagColor(value)}
+                style={{ marginInlineEnd: 0, minWidth: 34 }}
+              >
+                {value}
+              </Tag>
+            ),
+          })),
+        };
+      })
+      .filter(Boolean);
 
     return [
       ...baseColumns,
-      {
-        title: monthLabel,
-        children: dynamicDays.length
-          ? dynamicDays
-          : [
-              {
-                title: "-",
-                dataIndex: "empty_day",
-                width: 64,
-                align: "center",
-                render: () => "-",
-              },
-            ],
-      },
+      ...(monthGroups.length
+        ? monthGroups
+        : [
+            {
+              title: "Tanggal",
+              children: [
+                {
+                  title: "-",
+                  dataIndex: "empty_day",
+                  width: 64,
+                  align: "center",
+                  render: () => "-",
+                },
+              ],
+            },
+          ]),
       {
         title: "Ringkasan",
         children: [
@@ -226,66 +242,37 @@ const RecapAttendance = ({
         ],
       },
     ];
-  }, [dayColumns, monthLabel]);
+  }, [dayColumns, recapMeta.months]);
 
   const handleDownloadAttendanceExcel = () => {
     if (!attendanceRows.length) return;
+    const sheetRows = attendanceRows.map((row) => {
+      const entry = {
+        No: row.no,
+        NIS: row.nis,
+        "Nama Siswa": row.full_name,
+      };
 
-    const headerTop = ["No", "NIS", "Nama Siswa"];
-    const headerSub = ["", "", ""];
-
-    dayColumns.forEach(() => {
-      headerTop.push(monthLabel);
-    });
-    dayColumns.forEach((day) => {
-      headerSub.push(String(day.day).padStart(2, "0"));
-    });
-
-    headerTop.push("Ringkasan", "", "", "", "Presentase (%)", "", "", "");
-    headerSub.push("H", "S", "I", "A", "H", "S", "I", "A");
-
-    const rows = attendanceRows.map((row) => {
-      const base = [row.no, row.nis, row.full_name];
       dayColumns.forEach((day) => {
-        base.push(row[`day_${day.date}`] || "-");
+        const monthName =
+          MONTH_OPTIONS.find((item) => Number(item.value) === Number(day.month))
+            ?.label || "Bulan";
+        const label = `${String(day.day).padStart(2, "0")} ${monthName}`;
+        entry[label] = row[`day_${day.date}`] || "-";
       });
-      base.push(
-        row.summary_hadir,
-        row.summary_sakit,
-        row.summary_izin,
-        row.summary_alpa,
-        `${row.percent_hadir}%`,
-        `${row.percent_sakit}%`,
-        `${row.percent_izin}%`,
-        `${row.percent_alpa}%`,
-      );
-      return base;
+
+      entry.H = row.summary_hadir;
+      entry.S = row.summary_sakit;
+      entry.I = row.summary_izin;
+      entry.A = row.summary_alpa;
+      entry["%H"] = `${row.percent_hadir}%`;
+      entry["%S"] = `${row.percent_sakit}%`;
+      entry["%I"] = `${row.percent_izin}%`;
+      entry["%A"] = `${row.percent_alpa}%`;
+      return entry;
     });
 
-    const sheet = XLSX.utils.aoa_to_sheet([headerTop, headerSub, ...rows]);
-
-    const dayStart = 3;
-    const dayEnd = dayStart + dayColumns.length - 1;
-    const summaryStart = dayEnd + 1;
-    const summaryEnd = summaryStart + 3;
-    const percentStart = summaryEnd + 1;
-    const percentEnd = percentStart + 3;
-
-    const merges = [
-      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
-      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
-      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } },
-    ];
-
-    if (dayColumns.length > 0) {
-      merges.push({ s: { r: 0, c: dayStart }, e: { r: 0, c: dayEnd } });
-    }
-    merges.push(
-      { s: { r: 0, c: summaryStart }, e: { r: 0, c: summaryEnd } },
-      { s: { r: 0, c: percentStart }, e: { r: 0, c: percentEnd } },
-    );
-
-    sheet["!merges"] = merges;
+    const sheet = XLSX.utils.json_to_sheet(sheetRows);
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Rekap Absensi");
@@ -294,7 +281,7 @@ const RecapAttendance = ({
       classes.find((item) => String(item.id) === String(classId))?.name ||
       "Kelas";
     const safeName =
-      `Rekap_Absensi_${selectedClassName}_${monthLabel}_Semester${semester}`.replace(
+      `Rekap_Absensi_Semester_${selectedClassName}_Semester${semester}`.replace(
         /[\\/:*?"<>|]/g,
         "-",
       );
@@ -311,7 +298,7 @@ const RecapAttendance = ({
               Rekapitulasi Absensi
             </Title>
             <Text type="secondary">
-              Rekap per bulan berdasarkan periode aktif, semester, dan kelas.
+              Rekap absensi dalam satu semester berdasarkan periode aktif dan kelas.
             </Text>
           </Space>
           <Space wrap>
@@ -342,13 +329,23 @@ const RecapAttendance = ({
               ]}
               suffixIcon={<Filter size={14} />}
             />
-            <Select
-              value={month}
-              onChange={setMonth}
-              style={{ minWidth: 180 }}
-              options={monthOptions}
-              suffixIcon={<CalendarDays size={14} />}
-            />
+            {isAdminView && (teacherLoading || teachers.length > 0) && (
+              <Select
+                value={teacherId}
+                onChange={(value) => setTeacherId(value || null)}
+                style={{ minWidth: 220 }}
+                placeholder="Semua guru"
+                allowClear
+                options={[
+                  { value: "", label: "Semua guru" },
+                  ...teachers.map((item) => ({
+                    value: item.id,
+                    label: item.full_name,
+                  })),
+                ]}
+                loading={teacherLoading}
+              />
+            )}
             <Select
               value={classId}
               onChange={setClassId}
@@ -388,7 +385,7 @@ const RecapAttendance = ({
             Total Pertemuan: {recapMeta.total_meetings || 0}
           </Tag>
           <Tag color="purple">
-            Bulan: {recapMeta.month_name || monthLabel} {recapMeta.target_year || ""}
+            Semester: {recapMeta.semester || semester}
           </Tag>
         </Flex>
       </Card>

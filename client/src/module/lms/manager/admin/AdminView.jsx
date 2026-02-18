@@ -1,20 +1,30 @@
-import React from "react";
-import { Card, Flex, Typography } from "antd";
+import React, { Suspense, lazy } from "react";
+import { Card, Col, Row, Skeleton, Typography } from "antd";
+import { useGetClassesQuery } from "../../../../service/lms/ApiLms";
 
-const { Title, Text } = Typography;
+const Recap = lazy(() => import("../recap/Recap"));
 
-const AdminView = ({ subject }) => {
+const { Text, Title } = Typography;
+
+const recapFallback = (
+  <Card style={{ borderRadius: 12 }}>
+    <Skeleton active paragraph={{ rows: 4 }} />
+  </Card>
+);
+
+const AdminView = ({ subjectId, subject }) => {
+  const { data: classesRes } = useGetClassesQuery(
+    { subjectId, gradeId: null },
+    { skip: !subjectId },
+  );
+  const classes = classesRes?.data || [];
+
   return (
-    <Card style={{ borderRadius: 12 }}>
-      <Flex vertical gap={8}>
-        <Title level={4} style={{ margin: 0 }}>
-          {subject?.name || "Detail Pelajaran"}
-        </Title>
-        <Text type='secondary'>
-          Tampilan admin untuk LMS sedang disiapkan.
-        </Text>
-      </Flex>
-    </Card>
+    <>
+      <Suspense fallback={recapFallback}>
+        <Recap subjectId={subjectId} subject={subject} isAdminView />
+      </Suspense>
+    </>
   );
 };
 

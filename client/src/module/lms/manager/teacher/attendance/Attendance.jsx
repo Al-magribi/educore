@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
 import {
   Alert,
   Button,
@@ -49,6 +50,7 @@ const normalizeStatus = (status) => {
 };
 
 const Attendance = ({ subjectId, subject }) => {
+  const { user } = useSelector((state) => state.auth);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [searchText, setSearchText] = useState("");
@@ -99,8 +101,7 @@ const Attendance = ({ subjectId, subject }) => {
       nis: item.nis,
       nisn: item.nisn,
       class_name: item.class_name,
-      status: normalizeStatus(item.status) || "Hadir",
-      note: item.note || "",
+      status: normalizeStatus(item.status) || undefined,
     }));
     setRows(nextRows);
     initialRowsRef.current = nextRows.map((row) => ({ ...row }));
@@ -145,15 +146,6 @@ const Attendance = ({ subjectId, subject }) => {
     setDirty(true);
   };
 
-  const handleNoteChange = (value, record) => {
-    setRows((prev) =>
-      prev.map((item) =>
-        item.student_id === record.student_id ? { ...item, note: value } : item,
-      ),
-    );
-    setDirty(true);
-  };
-
   const handleSetAll = (value) => {
     if (!value) return;
     setRows((prev) => prev.map((item) => ({ ...item, status: value })));
@@ -177,16 +169,22 @@ const Attendance = ({ subjectId, subject }) => {
       message.error("Status kehadiran semua siswa wajib dipilih.");
       return;
     }
+    const teacherId = Number(user?.id || 0) || null;
+    if (!teacherId) {
+      message.error("teacher_id tidak ditemukan. Silakan login ulang.");
+      return;
+    }
 
     try {
       await submitAttendance({
         subject_id: subjectId,
         class_id: selectedClassId,
         date: dateValue,
+        teacher_id: teacherId,
         items: rows.map((row) => ({
           student_id: row.student_id,
           status: row.status,
-          note: row.note,
+          teacher_id: teacherId,
         })),
       }).unwrap();
       message.success("Absensi berhasil disimpan.");
@@ -225,6 +223,7 @@ const Attendance = ({ subjectId, subject }) => {
           value={record.status}
           onChange={(value) => handleStatusChange(value, record)}
           style={{ width: "100%" }}
+          placeholder="Pilih Status"
           options={STATUS_OPTIONS.map((item) => ({
             value: item.value,
             label: item.label,
@@ -239,18 +238,6 @@ const Attendance = ({ subjectId, subject }) => {
               </Tag>
             );
           }}
-        />
-      ),
-    },
-    {
-      title: "Catatan",
-      dataIndex: "note",
-      render: (_, record) => (
-        <Input
-          value={record.note}
-          onChange={(event) => handleNoteChange(event.target.value, record)}
-          placeholder="Catatan singkat"
-          maxLength={120}
         />
       ),
     },
