@@ -16,6 +16,13 @@ const LearningFilters = lazy(() => import("./components/LearningFilters"));
 const ChapterList = lazy(() => import("./components/ChapterList"));
 const ChapterModals = lazy(() => import("./components/ChapterModals"));
 
+const toStringArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") return value ? [value] : [];
+  return [];
+};
+
 const Learning = ({ subjectId, subject }) => {
   const [filterGradeId, setFilterGradeId] = useState(null);
   const [filterClassId, setFilterClassId] = useState(null);
@@ -137,12 +144,25 @@ const Learning = ({ subjectId, subject }) => {
     setActiveChapterId(chapterId);
     contentForm.resetFields();
     if (content) {
+      const videoUrls = toStringArray(content.video_urls).length
+        ? toStringArray(content.video_urls)
+        : toStringArray(content.video_url);
+      const attachmentUrls = toStringArray(content.attachment_urls).length
+        ? toStringArray(content.attachment_urls)
+        : toStringArray(content.attachment_url);
+      const attachmentNames = toStringArray(content.attachment_names).length
+        ? toStringArray(content.attachment_names)
+        : toStringArray(content.attachment_name);
+      const attachments = attachmentUrls.map((url, index) => ({
+        url,
+        name: attachmentNames[index] || null,
+      }));
+
       contentForm.setFieldsValue({
         title: content.title,
         body: content.body,
-        video_url: content.video_url,
-        attachment_url: content.attachment_url,
-        attachment_name: content.attachment_name,
+        video_urls: videoUrls,
+        attachments,
       });
     }
     setContentModalOpen(true);
@@ -151,11 +171,37 @@ const Learning = ({ subjectId, subject }) => {
   const submitContent = async () => {
     try {
       const values = await contentForm.validateFields();
+      const videoUrls = (values.video_urls || [])
+        .map((url) => (typeof url === "string" ? url.trim() : ""))
+        .filter(Boolean);
+      const attachments = (values.attachments || [])
+        .map((item) => ({
+          url: typeof item?.url === "string" ? item.url.trim() : "",
+          name:
+            typeof item?.name === "string" && item.name.trim()
+              ? item.name.trim()
+              : null,
+        }))
+        .filter((item) => item.url);
+
+      const payload = {
+        title: values.title,
+        body: values.body,
+        order_number: values.order_number,
+        video_urls: videoUrls,
+        attachment_urls: attachments.map((item) => item.url),
+        attachment_names: attachments.map((item) => item.name),
+        // Backward compatibility for endpoints/consumers expecting single fields.
+        video_url: videoUrls[0] || null,
+        attachment_url: attachments[0]?.url || null,
+        attachment_name: attachments[0]?.name || null,
+      };
+
       if (editingContent) {
-        await updateContent({ id: editingContent.id, ...values }).unwrap();
+        await updateContent({ id: editingContent.id, ...payload }).unwrap();
         message.success("Subbab diperbarui.");
       } else {
-        await addContent({ chapterId: activeChapterId, ...values }).unwrap();
+        await addContent({ chapterId: activeChapterId, ...payload }).unwrap();
         message.success("Subbab ditambahkan.");
       }
       setContentModalOpen(false);

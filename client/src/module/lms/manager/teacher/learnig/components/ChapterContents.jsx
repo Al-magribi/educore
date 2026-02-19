@@ -4,6 +4,7 @@ import {
   Card,
   Empty,
   Flex,
+  Grid,
   Popconfirm,
   Space,
   Tag,
@@ -27,8 +28,16 @@ import {
 import YouTubePlayer from "../../../../player/YouTubePlayer";
 
 const { Text } = Typography;
+const toArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") return value ? [value] : [];
+  return [];
+};
 
 const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const { data: contentsRes, isLoading } = useGetContentsQuery({ chapterId });
   const contents = contentsRes?.data || [];
   const [contentItems, setContentItems] = useState([]);
@@ -63,16 +72,29 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
 
     try {
       await Promise.all(
-        updated.map((item, idx) =>
-          updateContent({
+        updated.map((item, idx) => {
+          const videoUrls = toArray(item.video_urls).length
+            ? toArray(item.video_urls)
+            : toArray(item.video_url);
+          const attachmentUrls = toArray(item.attachment_urls).length
+            ? toArray(item.attachment_urls)
+            : toArray(item.attachment_url);
+          const attachmentNames = toArray(item.attachment_names).length
+            ? toArray(item.attachment_names)
+            : toArray(item.attachment_name);
+          return updateContent({
             id: item.id,
             title: item.title,
             body: item.body,
-            video_url: item.video_url,
-            attachment_url: item.attachment_url,
+            video_urls: videoUrls,
+            attachment_urls: attachmentUrls,
+            attachment_names: attachmentNames,
+            video_url: videoUrls[0] || null,
+            attachment_url: attachmentUrls[0] || null,
+            attachment_name: attachmentNames[0] || null,
             order_number: idx + 1,
-          }).unwrap(),
-        ),
+          }).unwrap();
+        }),
       );
       message.success("Urutan subbab diperbarui.");
     } catch (error) {
@@ -103,137 +125,213 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
             {...droppableProvided.droppableProps}
           >
             <Flex vertical gap={12}>
-              {contentItems.map((item, index) => (
-                <Draggable
-                  draggableId={`content-${item.id}`}
-                  index={index}
-                  key={item.id}
-                >
-                  {(draggableProvided) => (
-                    <div
-                      ref={draggableProvided.innerRef}
-                      {...draggableProvided.draggableProps}
-                      style={{
-                        ...draggableProvided.draggableProps.style,
-                      }}
-                    >
-                      <Card
-                        size="small"
-                        style={{ borderRadius: 12 }}
-                        styles={{ body: { padding: 16 } }}
+              {contentItems.map((item, index) => {
+                const videoUrls = toArray(item.video_urls).length
+                  ? toArray(item.video_urls)
+                  : toArray(item.video_url);
+                const attachmentUrls = toArray(item.attachment_urls).length
+                  ? toArray(item.attachment_urls)
+                  : toArray(item.attachment_url);
+                const attachmentNames = toArray(item.attachment_names).length
+                  ? toArray(item.attachment_names)
+                  : toArray(item.attachment_name);
+
+                return (
+                  <Draggable
+                    draggableId={`content-${item.id}`}
+                    index={index}
+                    key={item.id}
+                  >
+                    {(draggableProvided) => (
+                      <div
+                        ref={draggableProvided.innerRef}
+                        {...draggableProvided.draggableProps}
+                        style={{
+                          ...draggableProvided.draggableProps.style,
+                        }}
                       >
-                        <Flex vertical gap={12}>
-                          <Flex align="center" justify="space-between" wrap="wrap" gap={8}>
-                            <Space size={8}>
-                              <span
-                                {...draggableProvided.dragHandleProps}
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  color: "#8c8c8c",
-                                }}
+                        <Card
+                          size='small'
+                          style={{ borderRadius: 12, borderColor: "#f0f0f0" }}
+                          styles={{ body: { padding: isMobile ? 12 : 16 } }}
+                        >
+                          <Flex vertical gap={12}>
+                            <Flex
+                              align='flex-start'
+                              justify='space-between'
+                              wrap='wrap'
+                              gap={10}
+                            >
+                              <Flex
+                                align='center'
+                                gap={8}
+                                style={{ minWidth: 0, flex: 1 }}
+                                wrap='wrap'
                               >
-                                <GripVertical size={14} />
-                              </span>
-                              <Text strong>{item.title}</Text>
-                              {item.video_url && (
-                                <Tag
-                                  color="red"
-                                  icon={<Youtube size={12} />}
-                                  style={{ cursor: "pointer" }}
-                                  onClick={() => {
-                                    setActiveVideoUrl(item.video_url);
-                                    setActiveVideoTitle(item.title);
-                                    setVideoModalOpen(true);
+                                <span
+                                  {...draggableProvided.dragHandleProps}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    color: "#8c8c8c",
+                                    cursor: "grab",
+                                    marginTop: 2,
                                   }}
                                 >
-                                  Youtube
-                                </Tag>
-                              )}
-                              {item.attachment_url && (
-                                <Tag
-                                  color="blue"
-                                  icon={<LinkIcon size={12} />}
-                                  style={{ cursor: "pointer" }}
-                                  onClick={() => {
-                                    window.open(
-                                      item.attachment_url,
-                                      "_blank",
-                                      "noreferrer",
-                                    );
+                                  <GripVertical size={14} />
+                                </span>
+                                <Text
+                                  strong
+                                  style={{
+                                    fontSize: 14,
+                                    maxWidth: isMobile ? "100%" : "68%",
                                   }}
+                                  ellipsis={{ tooltip: item.title }}
                                 >
-                                  File
-                                </Tag>
-                              )}
-                            </Space>
-                            <Space size={8} wrap>
-                              {item.video_url ? (
+                                  {item.title}
+                                </Text>
+                                {videoUrls.length > 0 ? (
+                                  <Tag
+                                    color='red'
+                                    icon={<Youtube size={12} />}
+                                    style={{ marginRight: 0, cursor: "pointer" }}
+                                    onClick={() => {
+                                      setActiveVideoUrl(videoUrls[0]);
+                                      setActiveVideoTitle(item.title);
+                                      setVideoModalOpen(true);
+                                    }}
+                                  >
+                                    Video {videoUrls.length}
+                                  </Tag>
+                                ) : null}
+                                {attachmentUrls.length > 0 ? (
+                                  <Tag
+                                    color='blue'
+                                    icon={<LinkIcon size={12} />}
+                                    style={{ marginRight: 0, cursor: "pointer" }}
+                                    onClick={() =>
+                                      window.open(
+                                        attachmentUrls[0],
+                                        "_blank",
+                                        "noreferrer",
+                                      )
+                                    }
+                                  >
+                                    File {attachmentUrls.length}
+                                  </Tag>
+                                ) : null}
+                              </Flex>
+
+                              <Space size={8} wrap>
                                 <Button
-                                  key="play"
-                                  size="small"
-                                  type="primary"
-                                  icon={<PlayCircle size={14} />}
-                                  onClick={() => {
-                                    setActiveVideoUrl(item.video_url);
-                                    setActiveVideoTitle(item.title);
-                                    setVideoModalOpen(true);
-                                  }}
+                                  size={isMobile ? "middle" : "small"}
+                                  icon={<Pencil size={14} />}
+                                  onClick={() => onEdit(item, chapterId)}
                                 >
-                                  Putar
+                                  Edit
                                 </Button>
-                              ) : null}
-                              {item.attachment_url ? (
-                                <Button
-                                  key="download"
-                                  size="small"
-                                  icon={<Download size={14} />}
-                                  href={item.attachment_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  download
+                                <Popconfirm
+                                  title='Hapus subbab ini?'
+                                  onConfirm={() => onDelete(item.id)}
                                 >
-                                  Download
-                                </Button>
-                              ) : null}
-                              <Button
-                                key="edit"
-                                size="small"
-                                icon={<Pencil size={14} />}
-                                onClick={() => onEdit(item, chapterId)}
-                              >
-                                Edit
-                              </Button>
-                              <Popconfirm
-                                key="delete"
-                                title="Hapus subbab ini?"
-                                onConfirm={() => onDelete(item.id)}
-                              >
-                                <Button
-                                  size="small"
-                                  danger
-                                  icon={<Trash2 size={14} />}
-                                >
-                                  Hapus
-                                </Button>
-                              </Popconfirm>
-                            </Space>
-                          </Flex>
-                          <div>
+                                  <Button
+                                    size={isMobile ? "middle" : "small"}
+                                    danger
+                                    icon={<Trash2 size={14} />}
+                                  >
+                                    Hapus
+                                  </Button>
+                                </Popconfirm>
+                              </Space>
+                            </Flex>
+
                             {item.body ? (
                               <div
+                                style={{
+                                  background: "#fafafa",
+                                  border: "1px solid #f0f0f0",
+                                  borderRadius: 10,
+                                  padding: isMobile ? 10 : 12,
+                                }}
                                 dangerouslySetInnerHTML={{ __html: item.body }}
                               />
                             ) : (
-                              <Text type="secondary">Tanpa deskripsi.</Text>
+                              <Text type='secondary'>Tanpa deskripsi.</Text>
                             )}
-                          </div>
-                        </Flex>
-                      </Card>
-                    </div>
-                  )}
-                </Draggable>
-              ))}
+
+                            {(videoUrls.length > 0 || attachmentUrls.length > 0) && (
+                              <Flex vertical gap={10}>
+                                {videoUrls.length > 0 ? (
+                                  <Flex vertical gap={6}>
+                                    <Text type='secondary' style={{ fontSize: 12 }}>
+                                      Video Pembelajaran
+                                    </Text>
+                                    <Space size={8} wrap>
+                                      {videoUrls.map((url, mediaIndex) => (
+                                        <Button
+                                          key={`play-${item.id}-${mediaIndex}`}
+                                          size={isMobile ? "middle" : "small"}
+                                          type='primary'
+                                          ghost
+                                          icon={<PlayCircle size={14} />}
+                                          style={
+                                            isMobile
+                                              ? { flex: 1, minWidth: 140 }
+                                              : undefined
+                                          }
+                                          onClick={() => {
+                                            setActiveVideoUrl(url);
+                                            setActiveVideoTitle(
+                                              `${item.title} (${mediaIndex + 1})`,
+                                            );
+                                            setVideoModalOpen(true);
+                                          }}
+                                        >
+                                          Putar Video {mediaIndex + 1}
+                                        </Button>
+                                      ))}
+                                    </Space>
+                                  </Flex>
+                                ) : null}
+
+                                {attachmentUrls.length > 0 ? (
+                                  <Flex vertical gap={6}>
+                                    <Text type='secondary' style={{ fontSize: 12 }}>
+                                      File Lampiran
+                                    </Text>
+                                    <Space size={8} wrap>
+                                      {attachmentUrls.map((url, fileIndex) => (
+                                        <Button
+                                          key={`download-${item.id}-${fileIndex}`}
+                                          size={isMobile ? "middle" : "small"}
+                                          icon={<Download size={14} />}
+                                          href={url}
+                                          target='_blank'
+                                          rel='noreferrer'
+                                          download
+                                          style={
+                                            isMobile
+                                              ? { flex: 1, minWidth: 170 }
+                                              : undefined
+                                          }
+                                        >
+                                          {attachmentNames[fileIndex]
+                                            ? `Download ${attachmentNames[fileIndex]}`
+                                            : `Download File ${fileIndex + 1}`}
+                                        </Button>
+                                      ))}
+                                    </Space>
+                                  </Flex>
+                                ) : null}
+                              </Flex>
+                            )}
+                          </Flex>
+                        </Card>
+                      </div>
+                    )}
+                  </Draggable>
+                );
+              })}
             </Flex>
             {droppableProvided.placeholder}
           </div>

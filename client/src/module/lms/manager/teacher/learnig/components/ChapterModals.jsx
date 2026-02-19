@@ -2,6 +2,7 @@ import React from "react";
 import {
   Button,
   Col,
+  Flex,
   Form,
   Input,
   InputNumber,
@@ -12,7 +13,7 @@ import {
   Upload,
   message,
 } from "antd";
-import { FileText, Upload as UploadIcon } from "lucide-react";
+import { FileText, Plus, Trash2, Upload as UploadIcon } from "lucide-react";
 import { useUploadContentFileMutation } from "../../../../../../service/lms/ApiLms";
 import Editor from "../../../../../../components/editor/TextEditor";
 import { YoutubeOutlined } from "@ant-design/icons";
@@ -34,7 +35,7 @@ const ChapterModals = ({
   const [uploadContentFile, { isLoading: isUploading }] =
     useUploadContentFileMutation();
 
-  const handleUpload = async (file) => {
+  const handleUpload = async (file, index) => {
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -45,9 +46,15 @@ const ChapterModals = ({
         message.error("Upload gagal.");
         return false;
       }
+      const attachments = contentForm.getFieldValue("attachments") || [];
+      const nextAttachments = [...attachments];
+      nextAttachments[index] = {
+        ...(nextAttachments[index] || {}),
+        url,
+        name: name || null,
+      };
       contentForm.setFieldsValue({
-        attachment_url: url,
-        attachment_name: name || null,
+        attachments: nextAttachments,
       });
       message.success("File berhasil diupload.");
     } catch (error) {
@@ -129,11 +136,55 @@ const ChapterModals = ({
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name='video_url' label='Link Youtube'>
-                <Input
-                  prefix={<YoutubeOutlined />}
-                  placeholder='https://youtube.com/...'
-                />
+              <Form.Item label='Link Youtube'>
+                <Form.List name='video_urls'>
+                  {(fields, { add, remove }) => (
+                    <Flex vertical gap={8}>
+                      {fields.map((field) => (
+                        <Space.Compact key={field.key} style={{ width: "100%" }}>
+                          <Form.Item
+                            {...field}
+                            style={{ flex: 1, marginBottom: 0 }}
+                            rules={[
+                              {
+                                validator: (_, value) => {
+                                  if (!value || !String(value).trim()) {
+                                    return Promise.resolve();
+                                  }
+                                  const valid =
+                                    /(youtube\.com|youtu\.be)/i.test(String(value));
+                                  if (!valid) {
+                                    return Promise.reject(
+                                      new Error("Masukkan link YouTube yang valid."),
+                                    );
+                                  }
+                                  return Promise.resolve();
+                                },
+                              },
+                            ]}
+                          >
+                            <Input
+                              prefix={<YoutubeOutlined />}
+                              placeholder='https://youtube.com/...'
+                            />
+                          </Form.Item>
+                          <Button
+                            danger
+                            icon={<Trash2 size={14} />}
+                            onClick={() => remove(field.name)}
+                          />
+                        </Space.Compact>
+                      ))}
+                      <Button
+                        type='dashed'
+                        icon={<Plus size={14} />}
+                        onClick={() => add("")}
+                      >
+                        Tambah Link
+                      </Button>
+                    </Flex>
+                  )}
+                </Form.List>
               </Form.Item>
             </Col>
           </Row>
@@ -142,43 +193,89 @@ const ChapterModals = ({
             <Editor placeholder='Ringkasan materi.' height='180px' />
           </Form.Item>
 
-          <Row gutter={[12, 12]}>
-            <Col xs={24} md={18}>
-              <Form.Item
-                name='attachment_url'
-                label='File Lampiran'
-                extra='Format umum: pdf, docx, pptx, xlsx, gambar.'
-              >
-                <Space.Compact style={{ width: "100%" }}>
-                  <Input
-                    prefix={<FileText size={14} />}
-                    placeholder='Upload atau tempel link file'
-                  />
-                  <Upload
-                    beforeUpload={handleUpload}
-                    showUploadList={false}
-                    maxCount={1}
+          <Form.Item
+            label='File Lampiran'
+            extra='Format umum: pdf, docx, pptx, xlsx, gambar.'
+          >
+            <Form.List name='attachments'>
+              {(fields, { add, remove }) => (
+                <Flex vertical gap={8}>
+                  {fields.map((field) => (
+                    <Row key={field.key} gutter={[8, 8]}>
+                      <Col xs={24} md={14}>
+                        <Form.Item
+                          name={[field.name, "url"]}
+                          rules={[
+                            {
+                              validator: (_, value) => {
+                                if (!value || !String(value).trim()) {
+                                  return Promise.resolve();
+                                }
+                                const normalized = String(value).trim();
+                                const valid =
+                                  /^https?:\/\//i.test(normalized) ||
+                                  normalized.startsWith("/assets/");
+                                if (!valid) {
+                                  return Promise.reject(
+                                    new Error("Masukkan URL valid atau path /assets/..."),
+                                  );
+                                }
+                                return Promise.resolve();
+                              },
+                            },
+                          ]}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Input
+                            prefix={<FileText size={14} />}
+                            placeholder='Upload atau tempel link file'
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={6}>
+                        <Form.Item
+                          name={[field.name, "name"]}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Input placeholder='Nama file' />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={4}>
+                        <Space.Compact style={{ width: "100%" }}>
+                          <Upload
+                            beforeUpload={(file) =>
+                              handleUpload(file, field.name)
+                            }
+                            showUploadList={false}
+                            maxCount={1}
+                          >
+                            <Button
+                              type='primary'
+                              icon={<UploadIcon size={14} />}
+                              loading={isUploading}
+                            >
+                              Upload
+                            </Button>
+                          </Upload>
+                          <Button
+                            danger
+                            icon={<Trash2 size={14} />}
+                            onClick={() => remove(field.name)}
+                          />
+                        </Space.Compact>
+                      </Col>
+                    </Row>
+                  ))}
+                  <Button
+                    type='dashed'
+                    icon={<Plus size={14} />}
+                    onClick={() => add({ url: "", name: "" })}
                   >
-                    <Button
-                      type='primary'
-                      icon={<UploadIcon size={14} />}
-                      loading={isUploading}
-                    >
-                      Upload
-                    </Button>
-                  </Upload>
-                </Space.Compact>
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={6}>
-              <Form.Item name='attachment_name' label='Nama File'>
-                <Input placeholder='Otomatis' disabled />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name='attachment_name' hidden>
-            <Input />
+                    Tambah File
+                  </Button>
+                </Flex>
+              )}
+            </Form.List>
           </Form.Item>
         </Form>
       </Modal>

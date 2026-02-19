@@ -120,11 +120,11 @@ export const StudentMenus = [
     key: "/siswa/jadwal-ujian",
     icon: <DesktopOutlined />,
   },
-  // {
-  //   label: "LMS",
-  //   key: "/siswa-lms",
-  //   icon: <BranchesOutlined />,
-  // },
+  {
+    label: "LMS",
+    key: "/siswa/mata-pelajaran",
+    icon: <BranchesOutlined />,
+  },
   // {
   //   label: "Laporan Akademik",
   //   key: "/siswa-laporan-akademik",

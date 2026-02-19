@@ -47,32 +47,33 @@ const TeacherDash = lazy(
 
 // LMS
 const LmsManagement = lazy(() => import("./module/lms/manager/LmsManagement"));
+const SubjectList = lazy(() => import("./module/lms/student/SubjectList"));
 
 const NotFoundRedirect = () => {
   const { user } = useSelector((state) => state.auth);
 
   if (!user) {
-    return <Navigate to='/' replace />;
+    return <Navigate to="/" replace />;
   }
 
   switch (user.role) {
     case "student":
-      return <Navigate to='/siswa-dashboard' replace />;
+      return <Navigate to="/siswa-dashboard" replace />;
     case "teacher":
-      return <Navigate to='/guru-dashboard' replace />;
+      return <Navigate to="/guru-dashboard" replace />;
     case "parent":
-      return <Navigate to='/parent-dashboard' replace />;
+      return <Navigate to="/parent-dashboard" replace />;
     case "admin":
     case "center":
       if (user.level === "pusat") {
-        return <Navigate to='/center-dashboard' replace />;
+        return <Navigate to="/center-dashboard" replace />;
       }
       if (user.level === "tahfiz") {
-        return <Navigate to='/tahfiz-dashboard' replace />;
+        return <Navigate to="/tahfiz-dashboard" replace />;
       }
-      return <Navigate to='/admin-dashboard' replace />;
+      return <Navigate to="/admin-dashboard" replace />;
     default:
-      return <Navigate to='/' replace />;
+      return <Navigate to="/" replace />;
   }
 };
 
@@ -98,10 +99,10 @@ const App = () => {
         {/* === PUBLIC ROUTES === */}
         {/* RouterPublic akan otomatis redirect user login ke dashboard masing-masing */}
         <Route element={<RouterPublic />}>
-          <Route path='/' element={<Signin />} />
-          <Route path='/signup' element={<Signup />} />
-          <Route path='/forgot-password' element={<Forgot />} />
-          <Route path='/reset-password' element={<Reset />} />
+          <Route path="/" element={<Signin />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<Forgot />} />
+          <Route path="/reset-password" element={<Reset />} />
         </Route>
 
         {/* === PROTECTED ROUTES WITH PERSISTENT LAYOUT SHELL === */}
@@ -124,49 +125,46 @@ const App = () => {
               }
             >
               <Route
-                path='/center-dashboard'
+                path="/center-dashboard"
                 element={
-                  <LazyPage title='Dashboard Center' Component={CenterDash} />
+                  <LazyPage title="Dashboard Center" Component={CenterDash} />
                 }
               />
               <Route
-                path='/center-homebase'
+                path="/center-homebase"
                 element={
                   <LazyPage
-                    title='Manajemen Satuan Pendidikan'
+                    title="Manajemen Satuan Pendidikan"
                     Component={CenterHome}
                   />
                 }
               />
               <Route
-                path='/center-admin'
+                path="/center-admin"
                 element={
-                  <LazyPage title='Manajemen Admin' Component={CenterAdmin} />
+                  <LazyPage title="Manajemen Admin" Component={CenterAdmin} />
                 }
               />
               <Route
-                path='/center-teacher'
+                path="/center-teacher"
                 element={
-                  <LazyPage
-                    title='Manajement Guru'
-                    Component={CenterTeacher}
-                  />
+                  <LazyPage title="Manajement Guru" Component={CenterTeacher} />
                 }
               />
               <Route
-                path='/center-market'
+                path="/center-market"
                 element={
                   <LazyPage
-                    title='Analisis Pasar & Demografi'
+                    title="Analisis Pasar & Demografi"
                     Component={CenterMarket}
                   />
                 }
               />
               <Route
-                path='/center-config'
+                path="/center-config"
                 element={
                   <LazyPage
-                    title='Manjemen Database'
+                    title="Manjemen Database"
                     Component={CenterConfig}
                   />
                 }
@@ -183,20 +181,20 @@ const App = () => {
               }
             >
               <Route
-                path='/admin-dashboard'
+                path="/admin-dashboard"
                 element={
-                  <LazyPage title='Dashboard Satuan' Component={AdminDash} />
+                  <LazyPage title="Dashboard Satuan" Component={AdminDash} />
                 }
               />
               <Route
-                path='/admin-data-pokok'
-                element={<LazyPage title='Data Pokok' Component={AdminMain} />}
+                path="/admin-data-pokok"
+                element={<LazyPage title="Data Pokok" Component={AdminMain} />}
               />
               <Route
-                path='/admin-data-akademik'
+                path="/admin-data-akademik"
                 element={
                   <LazyPage
-                    title='Manajemen Pendidikan'
+                    title="Manajemen Pendidikan"
                     Component={AdminAcademinc}
                   />
                 }
@@ -213,19 +211,16 @@ const App = () => {
               }
             >
               <Route
-                path='/computer-based-test/bank'
+                path="/computer-based-test/bank"
                 element={
-                  <LazyPage
-                    title='Manajemen Bank Soal'
-                    Component={BankList}
-                  />
+                  <LazyPage title="Manajemen Bank Soal" Component={BankList} />
                 }
               />
               <Route
-                path='/computer-based-test/jadwal-ujian'
+                path="/computer-based-test/jadwal-ujian"
                 element={
                   <LazyPage
-                    title='Manajemen Jadwal Ujian'
+                    title="Manajemen Jadwal Ujian"
                     Component={ExamList}
                   />
                 }
@@ -242,9 +237,9 @@ const App = () => {
               }
             >
               <Route
-                path='/tahfiz-dashboard'
+                path="/tahfiz-dashboard"
                 element={
-                  <AppLayout title='Dashboard Tahfiz'>
+                  <AppLayout title="Dashboard Tahfiz">
                     <div>Halaman Admin Tahfiz</div>
                   </AppLayout>
                 }
@@ -254,9 +249,9 @@ const App = () => {
             {/* 5. TEACHER */}
             <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
               <Route
-                path='/guru-dashboard'
+                path="/guru-dashboard"
                 element={
-                  <LazyPage title='Dashboard Guru' Component={TeacherDash} />
+                  <LazyPage title="Dashboard Guru" Component={TeacherDash} />
                 }
               />
             </Route>
@@ -264,16 +259,13 @@ const App = () => {
             {/* 6. STUDENT */}
             <Route element={<RouteProtection allowedRoles={["student"]} />}>
               <Route
-                path='/siswa-dashboard'
-                element={<LazyPage title='Dashboard' Component={StudentDash} />}
+                path="/siswa-dashboard"
+                element={<LazyPage title="Dashboard" Component={StudentDash} />}
               />
               <Route
-                path='/siswa/jadwal-ujian'
+                path="/siswa/jadwal-ujian"
                 element={
-                  <LazyPage
-                    title='Jadwal Ujian'
-                    Component={StudentExamList}
-                  />
+                  <LazyPage title="Jadwal Ujian" Component={StudentExamList} />
                 }
               />
             </Route>
@@ -281,9 +273,9 @@ const App = () => {
             {/* 7. PARENT */}
             <Route element={<RouteProtection allowedRoles={["parent"]} />}>
               <Route
-                path='/parent-dashboard'
+                path="/parent-dashboard"
                 element={
-                  <AppLayout title='Dashboard Orang Tua'>
+                  <AppLayout title="Dashboard Orang Tua">
                     <div>Halaman Orang Tua</div>
                   </AppLayout>
                 }
@@ -300,8 +292,8 @@ const App = () => {
               }
             >
               <Route
-                path='/profile'
-                element={<LazyPage title='Profile Saya' Component={Profile} />}
+                path="/profile"
+                element={<LazyPage title="Profile Saya" Component={Profile} />}
               />
             </Route>
 
@@ -314,8 +306,16 @@ const App = () => {
               }
             >
               <Route
-                path='/manajemen-lms'
-                element={<LazyRoute Component={LmsManagement} />}
+                path="/manajemen-lms"
+                element={
+                  <LazyPage title="Manajemen LMS" Component={LmsManagement} />
+                }
+              />
+              <Route
+                path="/siswa/mata-pelajaran"
+                element={
+                  <LazyPage title="Mata Pelajaran" Component={SubjectList} />
+                }
               />
             </Route>
           </Route>
@@ -324,13 +324,13 @@ const App = () => {
         {/* Student exam page intentionally outside shell (fullscreen flow) */}
         <Route element={<RouteProtection allowedRoles={["student"]} />}>
           <Route
-            path='/computer-based-test/start'
+            path="/computer-based-test/start"
             element={<LazyRoute Component={ExamInterface} />}
           />
         </Route>
 
         {/* CATCH-ALL */}
-        <Route path='*' element={<NotFoundRedirect />} />
+        <Route path="*" element={<NotFoundRedirect />} />
       </Routes>
     </BrowserRouter>
   );

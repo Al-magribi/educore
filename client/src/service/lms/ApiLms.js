@@ -6,7 +6,12 @@ export const ApiLms = createApi({
   tagTypes: ["LmsSubject", "LmsChapter", "LmsContent", "LmsMeta"],
   endpoints: (builder) => ({
     getSubjects: builder.query({
-      query: () => "/subjects",
+      query: (params = {}) => {
+        const searchParams = new URLSearchParams();
+        if (params.classId) searchParams.set("class_id", params.classId);
+        const queryString = searchParams.toString();
+        return queryString ? `/subjects?${queryString}` : "/subjects";
+      },
       providesTags: ["LmsSubject"],
     }),
     getGrades: builder.query({
@@ -117,3 +122,4 @@ export const {
   useUploadContentFileMutation,
   useDeleteContentMutation,
 } = ApiLms;
+

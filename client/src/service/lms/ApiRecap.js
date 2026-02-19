@@ -5,6 +5,7 @@ export const ApiRecap = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: "/api/lms/recap" }),
   tagTypes: [
     "RecapAttendance",
+    "RecapStudentSubjectReport",
     "RecapScoreMonthly",
     "RecapScoreSummative",
     "RecapFinalScore",
@@ -21,6 +22,13 @@ export const ApiRecap = createApi({
           classId || ""
         }&semester=${semester || ""}&teacher_id=${teacherId || ""}`,
       providesTags: ["RecapAttendance"],
+    }),
+    getStudentSubjectReport: builder.query({
+      query: ({ subjectId, classId, semester, month }) =>
+        `/student-subject-report?subject_id=${subjectId || ""}&class_id=${
+          classId || ""
+        }&semester=${semester || ""}&month=${month || ""}`,
+      providesTags: ["RecapStudentSubjectReport"],
     }),
     getScoreMonthlyRecap: builder.query({
       query: ({ subjectId, classId, semester, teacherId }) =>
@@ -56,6 +64,7 @@ export const ApiRecap = createApi({
 export const {
   useGetRecapTeachersQuery,
   useGetAttendanceRecapQuery,
+  useGetStudentSubjectReportQuery,
   useGetScoreMonthlyRecapQuery,
   useGetScoreSummativeRecapQuery,
   useGetFinalScoreRecapQuery,
