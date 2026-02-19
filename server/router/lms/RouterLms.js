@@ -30,12 +30,64 @@ const lmsStorage = multer.diskStorage({
 
 const uploadLmsFile = multer({ storage: lmsStorage });
 
+const normalizeStringArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => (typeof item === "string" ? item.trim() : ""))
+          .filter(Boolean);
+      }
+      if (typeof parsed === "string" && parsed.trim()) {
+        return [parsed.trim()];
+      }
+    } catch (error) {
+      // Keep backward compatibility for plain text URL values.
+    }
+    return [trimmed];
+  }
+  return [];
+};
+
+const toStoredMediaValue = (values) => {
+  if (!values || values.length === 0) return null;
+  if (values.length === 1) return values[0];
+  return JSON.stringify(values);
+};
+
+const parseStoredMediaValue = (value) => normalizeStringArray(value);
+
+const parseContentMedia = (row) => {
+  const videoUrls = parseStoredMediaValue(row.video_url);
+  const attachmentUrls = parseStoredMediaValue(row.attachment_url);
+  const attachmentNames = parseStoredMediaValue(row.attachment_name);
+
+  return {
+    ...row,
+    video_urls: videoUrls,
+    attachment_urls: attachmentUrls,
+    attachment_names: attachmentNames,
+    video_url: videoUrls[0] || null,
+    attachment_url: attachmentUrls[0] || null,
+    attachment_name: attachmentNames[0] || null,
+  };
+};
+
 // ==========================================
 // GET Subjects for LMS (Role-based)
 // ==========================================
 router.get(
   "/subjects",
-  authorize("satuan", "teacher"),
+  authorize("satuan", "teacher", "student"),
   withQuery(async (req, res, pool) => {
     const { id: userId, role, homebase_id } = req.user;
 
@@ -58,6 +110,46 @@ router.get(
         LEFT JOIN a_subject_category c ON b.category_id = c.id
         WHERE ats.teacher_id = $1 AND s.homebase_id = $2
         GROUP BY s.id, s.name, s.code, s.kkm, s.branch_id, b.name, c.name
+        ORDER BY s.name ASC
+      `;
+      const result = await pool.query(sql, [userId, homebase_id]);
+      return res.json({ status: "success", data: result.rows });
+    }
+
+    // Siswa: hanya mapel pada kelas aktifnya
+    if (role === "student") {
+      const sql = `
+        SELECT
+          s.id,
+          s.name,
+          s.code,
+          s.kkm,
+          s.branch_id,
+          b.name AS branch_name,
+          c.name AS category_name,
+          cl.id AS class_id,
+          cl.name AS class_name,
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT tu.full_name), NULL) AS teacher_names
+        FROM u_students st
+        JOIN a_class cl ON cl.id = st.current_class_id
+        JOIN at_subject ats ON ats.class_id = cl.id
+        JOIN a_subject s ON ats.subject_id = s.id
+        LEFT JOIN a_subject_branch b ON s.branch_id = b.id
+        LEFT JOIN a_subject_category c ON b.category_id = c.id
+        LEFT JOIN u_users tu ON tu.id = ats.teacher_id
+        WHERE st.user_id = $1
+          AND st.homebase_id = $2
+          AND s.homebase_id = $2
+        GROUP BY
+          s.id,
+          s.name,
+          s.code,
+          s.kkm,
+          s.branch_id,
+          b.name,
+          c.name,
+          cl.id,
+          cl.name
         ORDER BY s.name ASC
       `;
       const result = await pool.query(sql, [userId, homebase_id]);
@@ -191,7 +283,7 @@ router.get(
 // ==========================================
 router.get(
   "/subjects/:subjectId/chapters",
-  authorize("satuan", "teacher"),
+  authorize("satuan", "teacher", "student"),
   withQuery(async (req, res, pool) => {
     const { id: userId, role, homebase_id } = req.user;
     const { subjectId } = req.params;
@@ -245,6 +337,55 @@ router.get(
         grade_id || null,
         class_id || null,
       ]);
+      return res.json({ status: "success", data: result.rows });
+    }
+
+    if (role === "student") {
+      const sql = `
+        SELECT
+          ch.id,
+          ch.subject_id,
+          ch.title,
+          ch.description,
+          ch.order_number,
+          ch.grade_id,
+          g.name AS grade_name,
+          ch.class_id,
+          cl.name AS class_name,
+          ch.class_ids,
+          cls.class_names
+        FROM l_chapter ch
+        JOIN a_subject s ON s.id = ch.subject_id
+        JOIN u_students st ON st.user_id = $2
+        JOIN a_class active_cl ON active_cl.id = st.current_class_id
+        LEFT JOIN a_grade g ON ch.grade_id = g.id
+        LEFT JOIN a_class cl ON ch.class_id = cl.id
+        LEFT JOIN LATERAL (
+          SELECT ARRAY_AGG(c.name ORDER BY c.name) AS class_names
+          FROM a_class c
+          WHERE ch.class_ids IS NOT NULL AND c.id = ANY(ch.class_ids)
+        ) cls ON true
+        WHERE ch.subject_id = $1
+          AND st.homebase_id = $3
+          AND s.homebase_id = $3
+          AND EXISTS (
+            SELECT 1
+            FROM at_subject ats
+            WHERE ats.subject_id = ch.subject_id
+              AND ats.class_id = active_cl.id
+          )
+          AND (
+            ch.grade_id IS NULL
+            OR ch.grade_id = active_cl.grade_id
+          )
+          AND (
+            ch.class_id IS NULL
+            OR ch.class_id = active_cl.id
+            OR active_cl.id = ANY(ch.class_ids)
+          )
+        ORDER BY COALESCE(ch.order_number, 9999), ch.title ASC
+      `;
+      const result = await pool.query(sql, [subjectId, userId, homebase_id]);
       return res.json({ status: "success", data: result.rows });
     }
 
@@ -465,7 +606,9 @@ router.delete(
         WHERE ch.id = $1 AND ats.teacher_id = $2
       `;
       const files = await client.query(fileSql, [id, userId]);
-      attachmentUrls = files.rows.map((row) => row.attachment_url).filter(Boolean);
+      attachmentUrls = files.rows.flatMap((row) =>
+        parseStoredMediaValue(row.attachment_url),
+      );
     } else {
       const checkSql = `
         SELECT 1
@@ -485,7 +628,9 @@ router.delete(
         WHERE ch.id = $1 AND s.homebase_id = $2
       `;
       const files = await client.query(fileSql, [id, homebase_id]);
-      attachmentUrls = files.rows.map((row) => row.attachment_url).filter(Boolean);
+      attachmentUrls = files.rows.flatMap((row) =>
+        parseStoredMediaValue(row.attachment_url),
+      );
     }
 
     await client.query("DELETE FROM l_content WHERE chapter_id = $1", [id]);
@@ -504,7 +649,7 @@ router.delete(
 // ==========================================
 router.get(
   "/chapters/:chapterId/contents",
-  authorize("satuan", "teacher"),
+  authorize("satuan", "teacher", "student"),
   withQuery(async (req, res, pool) => {
     const { id: userId, role, homebase_id } = req.user;
     const { chapterId } = req.params;
@@ -533,7 +678,54 @@ router.get(
         ORDER BY COALESCE(c.order_number, 9999), c.created_at DESC
       `;
       const result = await pool.query(sql, [chapterId, userId]);
-      return res.json({ status: "success", data: result.rows });
+      return res.json({
+        status: "success",
+        data: result.rows.map(parseContentMedia),
+      });
+    }
+
+    if (role === "student") {
+      const sql = `
+        SELECT
+          c.id,
+          c.chapter_id,
+          c.title,
+          c.body,
+          c.video_url,
+          c.attachment_url,
+          c.attachment_name,
+          c.order_number,
+          c.created_at
+        FROM l_content c
+        JOIN l_chapter ch ON ch.id = c.chapter_id
+        JOIN a_subject s ON s.id = ch.subject_id
+        JOIN u_students st ON st.user_id = $2
+        JOIN a_class active_cl ON active_cl.id = st.current_class_id
+        WHERE c.chapter_id = $1
+          AND st.homebase_id = $3
+          AND s.homebase_id = $3
+          AND EXISTS (
+            SELECT 1
+            FROM at_subject ats
+            WHERE ats.subject_id = ch.subject_id
+              AND ats.class_id = active_cl.id
+          )
+          AND (
+            ch.grade_id IS NULL
+            OR ch.grade_id = active_cl.grade_id
+          )
+          AND (
+            ch.class_id IS NULL
+            OR ch.class_id = active_cl.id
+            OR active_cl.id = ANY(ch.class_ids)
+          )
+        ORDER BY COALESCE(c.order_number, 9999), c.created_at DESC
+      `;
+      const result = await pool.query(sql, [chapterId, userId, homebase_id]);
+      return res.json({
+        status: "success",
+        data: result.rows.map(parseContentMedia),
+      });
     }
 
     const sql = `
@@ -555,7 +747,10 @@ router.get(
       ORDER BY COALESCE(c.order_number, 9999), c.created_at DESC
     `;
     const result = await pool.query(sql, [chapterId, homebase_id]);
-    return res.json({ status: "success", data: result.rows });
+    return res.json({
+      status: "success",
+      data: result.rows.map(parseContentMedia),
+    });
   }),
 );
 
@@ -572,8 +767,11 @@ router.post(
       title,
       body,
       video_url,
+      video_urls,
       attachment_url,
+      attachment_urls,
       attachment_name,
+      attachment_names,
       order_number,
     } = req.body;
 
@@ -601,6 +799,16 @@ router.post(
       }
     }
 
+    const normalizedVideoUrls = normalizeStringArray(video_urls).length
+      ? normalizeStringArray(video_urls)
+      : normalizeStringArray(video_url);
+    const normalizedAttachmentUrls = normalizeStringArray(attachment_urls).length
+      ? normalizeStringArray(attachment_urls)
+      : normalizeStringArray(attachment_url);
+    const normalizedAttachmentNames = normalizeStringArray(attachment_names).length
+      ? normalizeStringArray(attachment_names)
+      : normalizeStringArray(attachment_name);
+
     const sql = `
       INSERT INTO l_content (
         chapter_id,
@@ -618,9 +826,9 @@ router.post(
       chapterId,
       title,
       body || null,
-      video_url || null,
-      attachment_url || null,
-      attachment_name || null,
+      toStoredMediaValue(normalizedVideoUrls),
+      toStoredMediaValue(normalizedAttachmentUrls),
+      toStoredMediaValue(normalizedAttachmentNames),
       order_number || null,
     ]);
     return res.json({ status: "success", data: result.rows[0] });
@@ -640,12 +848,15 @@ router.put(
       title,
       body,
       video_url,
+      video_urls,
       attachment_url,
+      attachment_urls,
       attachment_name,
+      attachment_names,
       order_number,
     } = req.body;
 
-    let existingAttachmentUrl = null;
+    let existingAttachmentUrls = [];
     if (role === "teacher") {
       const checkSql = `
         SELECT c.attachment_url
@@ -658,7 +869,9 @@ router.put(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
-      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
+      existingAttachmentUrls = parseStoredMediaValue(
+        check.rows[0]?.attachment_url,
+      );
     } else {
       const checkSql = `
         SELECT c.attachment_url
@@ -671,8 +884,20 @@ router.put(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
-      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
+      existingAttachmentUrls = parseStoredMediaValue(
+        check.rows[0]?.attachment_url,
+      );
     }
+
+    const normalizedVideoUrls = normalizeStringArray(video_urls).length
+      ? normalizeStringArray(video_urls)
+      : normalizeStringArray(video_url);
+    const normalizedAttachmentUrls = normalizeStringArray(attachment_urls).length
+      ? normalizeStringArray(attachment_urls)
+      : normalizeStringArray(attachment_url);
+    const normalizedAttachmentNames = normalizeStringArray(attachment_names).length
+      ? normalizeStringArray(attachment_names)
+      : normalizeStringArray(attachment_name);
 
     const sql = `
       UPDATE l_content
@@ -687,20 +912,20 @@ router.put(
     await client.query(sql, [
       title,
       body || null,
-      video_url || null,
-      attachment_url || null,
-      attachment_name || null,
+      toStoredMediaValue(normalizedVideoUrls),
+      toStoredMediaValue(normalizedAttachmentUrls),
+      toStoredMediaValue(normalizedAttachmentNames),
       order_number || null,
       id,
     ]);
 
-    if (
-      existingAttachmentUrl &&
-      existingAttachmentUrl !== attachment_url
-    ) {
-      const filePath = resolveLmsAssetPath(existingAttachmentUrl);
+    const nextSet = new Set(normalizedAttachmentUrls);
+    const removedUrls = existingAttachmentUrls.filter((url) => !nextSet.has(url));
+    const uniqueRemovedUrls = Array.from(new Set(removedUrls));
+    uniqueRemovedUrls.forEach((url) => {
+      const filePath = resolveLmsAssetPath(url);
       safeUnlink(filePath);
-    }
+    });
     return res.json({ status: "success" });
   }),
 );
@@ -715,7 +940,7 @@ router.delete(
     const { id: userId, role, homebase_id } = req.user;
     const { id } = req.params;
 
-    let existingAttachmentUrl = null;
+    let existingAttachmentUrls = [];
     if (role === "teacher") {
       const checkSql = `
         SELECT c.attachment_url
@@ -728,7 +953,9 @@ router.delete(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
-      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
+      existingAttachmentUrls = parseStoredMediaValue(
+        check.rows[0]?.attachment_url,
+      );
     } else {
       const checkSql = `
         SELECT c.attachment_url
@@ -741,14 +968,20 @@ router.delete(
       if (check.rowCount === 0) {
         return res.status(403).json({ status: "error", message: "Forbidden" });
       }
-      existingAttachmentUrl = check.rows[0]?.attachment_url || null;
+      existingAttachmentUrls = parseStoredMediaValue(
+        check.rows[0]?.attachment_url,
+      );
     }
 
     await client.query("DELETE FROM l_content WHERE id = $1", [id]);
-    const filePath = resolveLmsAssetPath(existingAttachmentUrl);
-    safeUnlink(filePath);
+    const uniqueUrls = Array.from(new Set(existingAttachmentUrls));
+    uniqueUrls.forEach((url) => {
+      const filePath = resolveLmsAssetPath(url);
+      safeUnlink(filePath);
+    });
     return res.json({ status: "success" });
   }),
 );
 
 export default router;
+
