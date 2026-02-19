@@ -27,6 +27,25 @@ const extractClassLevel = (className) => {
   return match?.[1] || "Lainnya";
 };
 
+const classNameSorter = (a, b) =>
+  String(a).localeCompare(String(b), "id", {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+const levelSorter = (levelA, levelB) => {
+  if (levelA === "Lainnya") return 1;
+  if (levelB === "Lainnya") return -1;
+  return Number(levelA) - Number(levelB);
+};
+
+const getPrimaryLevel = (classNames = []) => {
+  const levels = [...new Set(classNames.map((item) => extractClassLevel(item)))].sort(
+    levelSorter,
+  );
+  return levels[0] || "Lainnya";
+};
+
 const RecapLearningSummary = ({
   isActive,
   subjectId,
@@ -134,13 +153,36 @@ const RecapLearningSummary = ({
       }
     }
 
-    return Array.from(groupedRows.values()).map((row, index) => ({
-      key: row.key,
+    const mappedRows = Array.from(groupedRows.values()).map((row) => {
+      const classNames = Array.from(row.classNamesSet).sort(classNameSorter);
+      return {
+        key: row.key,
+        chapter_title: row.chapter_title,
+        teachers: Array.from(row.teachersMap.values()),
+        subchapters: Array.from(row.subchaptersMap.values()),
+        class_names: classNames,
+        primary_level: getPrimaryLevel(classNames),
+      };
+    });
+
+    const sortedRows = mappedRows.sort((a, b) => {
+      const levelCompare = levelSorter(a.primary_level, b.primary_level);
+      if (levelCompare !== 0) return levelCompare;
+
+      const classA = a.class_names[0] || "";
+      const classB = b.class_names[0] || "";
+      const classCompare = classNameSorter(classA, classB);
+      if (classCompare !== 0) return classCompare;
+
+      return String(a.chapter_title).localeCompare(String(b.chapter_title), "id", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+
+    return sortedRows.map((row, index) => ({
+      ...row,
       no: index + 1,
-      chapter_title: row.chapter_title,
-      teachers: Array.from(row.teachersMap.values()),
-      subchapters: Array.from(row.subchaptersMap.values()),
-      class_names: Array.from(row.classNamesSet),
     }));
   }, [items]);
 
@@ -199,11 +241,9 @@ const RecapLearningSummary = ({
           return acc;
         }, {});
 
-        const sortedEntries = Object.entries(groupedByLevel).sort(([levelA], [levelB]) => {
-          if (levelA === "Lainnya") return 1;
-          if (levelB === "Lainnya") return -1;
-          return Number(levelA) - Number(levelB);
-        });
+        const sortedEntries = Object.entries(groupedByLevel).sort(([levelA], [levelB]) =>
+          levelSorter(levelA, levelB),
+        );
 
         return (
           <Space direction="vertical" size={4}>
@@ -213,16 +253,9 @@ const RecapLearningSummary = ({
                   {level === "Lainnya" ? "Lainnya" : `Tingkat ${level}`}
                 </Text>
                 <Space size={[4, 4]} wrap>
-                  {[...new Set(classNames)]
-                    .sort((a, b) =>
-                      String(a).localeCompare(String(b), "id", {
-                        numeric: true,
-                        sensitivity: "base",
-                      }),
-                    )
-                    .map((className) => (
+                  {[...new Set(classNames)].sort(classNameSorter).map((className) => (
                     <Tag key={`${level}-${className}`}>{className}</Tag>
-                    ))}
+                  ))}
                 </Space>
               </Space>
             ))}
