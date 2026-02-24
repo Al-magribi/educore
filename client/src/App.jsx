@@ -50,6 +50,9 @@ const LmsManagement = lazy(() => import("./module/lms/manager/LmsManagement"));
 const SubjectList = lazy(() => import("./module/lms/student/SubjectList"));
 const Parent = lazy(() => import("./module/lms/parent/Parent"));
 
+// ORANG TUA
+const ParentDash = lazy(() => import("./module/parent/dashboard/ParentDash"));
+
 const NotFoundRedirect = () => {
   const { user } = useSelector((state) => state.auth);
 
@@ -274,11 +277,12 @@ const App = () => {
             {/* 7. PARENT */}
             <Route element={<RouteProtection allowedRoles={["parent"]} />}>
               <Route
-                path="/parent-dashboard"
+                path="/orangtua-dashboard"
                 element={
-                  <AppLayout title="Dashboard Orang Tua">
-                    <div>Halaman Orang Tua</div>
-                  </AppLayout>
+                  <LazyPage
+                    title="Dashboard Orang Tua"
+                    Component={ParentDash}
+                  />
                 }
               />
             </Route>
