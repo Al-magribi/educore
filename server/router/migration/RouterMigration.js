@@ -2160,4 +2160,143 @@ router.post("/migrate/step-9-attendance", async (req, res) => {
   }
 });
 
+/**
+ * STEP 10: PARENTS (Akun Orang Tua)
+ * Source: u_parents (old) -> Dest: u_users (role=parent) + u_parents (new)
+ */
+router.post("/migrate/step-10-parents", async (req, res) => {
+  const sourceClient = await poolSource.connect();
+  const destClient = await poolDest.connect();
+
+  try {
+    await destClient.query("BEGIN");
+    console.log("Migrating parent accounts...");
+
+    const toKey = (value) => {
+      if (value === null || value === undefined) return "";
+      return String(value).trim();
+    };
+
+    // Mapping old student_id -> new user_id (username = NIS, fallback siswa_{id})
+    const sourceStudents = await sourceClient.query(
+      "SELECT id, nis FROM u_students",
+    );
+    const destUsers = await destClient.query(
+      "SELECT id, username, role FROM u_users",
+    );
+
+    const usernameToUser = new Map(
+      destUsers.rows.map((row) => [
+        toKey(row.username).toLowerCase(),
+        { id: row.id, role: row.role },
+      ]),
+    );
+
+    const oldStudentIdToNewUserId = new Map();
+    for (const row of sourceStudents.rows) {
+      const nis = toKey(row.nis);
+      const username = nis !== "" ? nis : `siswa_${row.id}`;
+      const user = usernameToUser.get(username.toLowerCase());
+      if (user) oldStudentIdToNewUserId.set(row.id, user.id);
+    }
+
+    const parentsOld = await sourceClient.query(`
+      SELECT id, studentid, email, name, password, createdat
+      FROM u_parents
+      ORDER BY id ASC
+    `);
+
+    let processed = 0;
+    let createdUsers = 0;
+    let reusedUsers = 0;
+    let createdProfiles = 0;
+    let updatedProfiles = 0;
+    let skippedStudentMap = 0;
+
+    for (const row of parentsOld.rows) {
+      processed++;
+
+      const newStudentId = oldStudentIdToNewUserId.get(row.studentid);
+      if (!newStudentId) {
+        skippedStudentMap++;
+        continue;
+      }
+
+      const email = toKey(row.email).toLowerCase();
+      const fullName = toKey(row.name) || `Parent ${row.id}`;
+      const baseUsername = email || `parent_${row.id}`;
+
+      let username = baseUsername;
+      let userRef = usernameToUser.get(username);
+      let suffix = 1;
+
+      while (userRef && userRef.role !== "parent") {
+        username = `${baseUsername}_${suffix}`;
+        userRef = usernameToUser.get(username);
+        suffix++;
+      }
+
+      let parentUserId;
+      if (userRef && userRef.role === "parent") {
+        parentUserId = userRef.id;
+        reusedUsers++;
+      } else {
+        const insertedUser = await destClient.query(
+          `INSERT INTO u_users (username, password, full_name, role, is_active, created_at)
+           VALUES ($1, $2, $3, 'parent', $4, $5)
+           RETURNING id`,
+          [username, row.password || "", fullName, true, row.createdat],
+        );
+        parentUserId = insertedUser.rows[0].id;
+        createdUsers++;
+
+        usernameToUser.set(username, { id: parentUserId, role: "parent" });
+      }
+
+      const profileRes = await destClient.query(
+        "SELECT user_id FROM u_parents WHERE user_id = $1",
+        [parentUserId],
+      );
+
+      if (profileRes.rows.length > 0) {
+        await destClient.query(
+          `UPDATE u_parents
+           SET student_id = $2, email = $3
+           WHERE user_id = $1`,
+          [parentUserId, newStudentId, email || null],
+        );
+        updatedProfiles++;
+      } else {
+        await destClient.query(
+          `INSERT INTO u_parents (user_id, student_id, phone, email)
+           VALUES ($1, $2, $3, $4)`,
+          [parentUserId, newStudentId, null, email || null],
+        );
+        createdProfiles++;
+      }
+    }
+
+    await destClient.query("COMMIT");
+    res.json({
+      message: "Step 10: Parent accounts migrated successfully.",
+      stats: {
+        source_rows: parentsOld.rows.length,
+        processed_rows: processed,
+        created_users: createdUsers,
+        reused_users: reusedUsers,
+        created_profiles: createdProfiles,
+        updated_profiles: updatedProfiles,
+        skipped_missing_student_mapping: skippedStudentMap,
+      },
+    });
+  } catch (error) {
+    await destClient.query("ROLLBACK");
+    console.error("Migration Step 10 Error:", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    sourceClient.release();
+    destClient.release();
+  }
+});
+
 export default router;
