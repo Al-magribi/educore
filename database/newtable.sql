@@ -128,10 +128,30 @@ CREATE TABLE u_student_siblings (
 -- AKUN ORANG TUA (Login khusus ortu)
 CREATE TABLE u_parents (
     user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id), -- Link ke anak
+    student_id integer REFERENCES u_students(user_id), -- Legacy primary child (opsional)
     phone text,
     email text
 );
+
+-- RELASI ORANG TUA - SISWA (multi anak per orang tua)
+-- Rule:
+-- 1. 1 orang tua bisa memiliki banyak siswa
+-- 2. 1 siswa hanya boleh dimiliki 1 orang tua
+CREATE TABLE u_parent_students (
+    id SERIAL PRIMARY KEY,
+    parent_user_id integer NOT NULL REFERENCES u_users(id) ON DELETE CASCADE,
+    student_id integer NOT NULL REFERENCES u_students(user_id) ON DELETE CASCADE,
+    homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_parent_student_pair UNIQUE (parent_user_id, student_id),
+    CONSTRAINT uq_parent_student_owner UNIQUE (student_id)
+);
+
+CREATE INDEX idx_parent_students_parent_homebase
+ON u_parent_students(parent_user_id, homebase_id);
+
+CREATE INDEX idx_parent_students_homebase
+ON u_parent_students(homebase_id);
 
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (
