@@ -57,6 +57,16 @@ export const AdminMenus = [
     label: "LMS",
     key: "/manajemen-lms",
     icon: <BranchesOutlined />,
+    children: [
+      {
+        label: "Mata Pelajaran",
+        key: "/manajemen-lms",
+      },
+      {
+        label: "Orang Tua",
+        key: "/manajemen-lms/data-orang-tua",
+      },
+    ],
   },
 
   {

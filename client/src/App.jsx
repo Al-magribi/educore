@@ -48,6 +48,7 @@ const TeacherDash = lazy(
 // LMS
 const LmsManagement = lazy(() => import("./module/lms/manager/LmsManagement"));
 const SubjectList = lazy(() => import("./module/lms/student/SubjectList"));
+const Parent = lazy(() => import("./module/lms/parent/Parent"));
 
 const NotFoundRedirect = () => {
   const { user } = useSelector((state) => state.auth);
@@ -311,6 +312,14 @@ const App = () => {
                   <LazyPage title="Manajemen LMS" Component={LmsManagement} />
                 }
               />
+
+              <Route
+                path="/manajemen-lms/data-orang-tua"
+                element={
+                  <LazyPage title="Daftar Orang Tua" Component={Parent} />
+                }
+              />
+
               <Route
                 path="/siswa/mata-pelajaran"
                 element={

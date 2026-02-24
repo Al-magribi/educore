@@ -36,6 +36,7 @@ import { ApiLms } from "./lms/ApiLms";
 import { ApiAttendance } from "./lms/ApiAttendance";
 import { ApiGrading } from "./lms/ApiGrading";
 import { ApiRecap } from "./lms/ApiRecap";
+import { ApiParent } from "./lms/ApiParent";
 
 export const store = configureStore({
   reducer: {
@@ -78,6 +79,7 @@ export const store = configureStore({
     [ApiAttendance.reducerPath]: ApiAttendance.reducer,
     [ApiGrading.reducerPath]: ApiGrading.reducer,
     [ApiRecap.reducerPath]: ApiRecap.reducer,
+    [ApiParent.reducerPath]: ApiParent.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -117,6 +119,7 @@ export const store = configureStore({
       ApiAttendance.middleware,
       ApiGrading.middleware,
       ApiRecap.middleware,
+      ApiParent.middleware,
     ]),
   devTools: import.meta.env.DEV,
 });
