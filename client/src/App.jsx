@@ -66,7 +66,8 @@ const NotFoundRedirect = () => {
     case "teacher":
       return <Navigate to="/guru-dashboard" replace />;
     case "parent":
-      return <Navigate to="/parent-dashboard" replace />;
+      return <Navigate to="/orangtua-dashboard" replace />;
+
     case "admin":
     case "center":
       if (user.level === "pusat") {
