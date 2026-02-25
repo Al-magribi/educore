@@ -2131,5 +2131,273 @@ router.get(
   }),
 );
 
+router.get(
+  "/recap/report-score",
+  authorize("satuan", "teacher", "admin"),
+  withQuery(async (req, res, pool) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { subject_id, class_id, semester, teacher_id } = req.query;
+
+    if (!subject_id || !class_id || !semester) {
+      return res.status(400).json({
+        status: "error",
+        message: "subject_id, class_id, dan semester wajib diisi.",
+      });
+    }
+
+    const semesterValue = Number(semester);
+    if (![1, 2].includes(semesterValue)) {
+      return res.status(400).json({
+        status: "error",
+        message: "semester harus 1 atau 2.",
+      });
+    }
+
+    const classHomebaseId = await getClassHomebaseId(pool, class_id);
+    if (!classHomebaseId) {
+      return res.status(404).json({
+        status: "error",
+        message: "Kelas tidak ditemukan.",
+      });
+    }
+
+    if (homebase_id && Number(classHomebaseId) !== Number(homebase_id)) {
+      return res.status(403).json({
+        status: "error",
+        message: "Kelas tidak berada di homebase yang sama.",
+      });
+    }
+
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+
+    if (role === "teacher") {
+      const accessCheck = await pool.query(
+        `SELECT 1
+         FROM at_subject
+         WHERE teacher_id = $1 AND subject_id = $2 AND class_id = $3
+         LIMIT 1`,
+        [userId, subject_id, class_id],
+      );
+      if (accessCheck.rowCount === 0) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+    } else {
+      const accessCheck = await pool.query(
+        `SELECT 1
+         FROM a_subject s
+         JOIN a_class c ON c.id = $2
+         WHERE s.id = $1 AND s.homebase_id = $3 AND c.homebase_id = $3
+         LIMIT 1`,
+        [subject_id, class_id, homebase_id],
+      );
+      if (accessCheck.rowCount === 0) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+
+      if (effectiveTeacherId) {
+        const teacherAccessCheck = await pool.query(
+          `SELECT 1
+           FROM at_subject
+           WHERE teacher_id = $1
+             AND subject_id = $2
+             AND class_id = $3
+           LIMIT 1`,
+          [effectiveTeacherId, subject_id, class_id],
+        );
+        if (teacherAccessCheck.rowCount === 0) {
+          return res.status(403).json({
+            status: "error",
+            message: "Guru tidak mengampu kombinasi mapel dan kelas ini.",
+          });
+        }
+      }
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      pool,
+      classHomebaseId || homebase_id,
+    );
+
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const classSubjectMeta = await pool.query(
+      `SELECT
+         c.name AS class_name,
+         s.name AS subject_name
+       FROM a_class c
+       JOIN a_subject s ON s.id = $1
+       WHERE c.id = $2
+       LIMIT 1`,
+      [subject_id, class_id],
+    );
+
+    const studentsResult = await pool.query(
+      `SELECT
+         u.id AS student_id,
+         u.full_name,
+         st.nis
+       FROM u_class_enrollments e
+       JOIN u_users u ON e.student_id = u.id
+       JOIN u_students st ON st.user_id = e.student_id
+       WHERE e.class_id = $1
+         AND e.periode_id = $2
+       ORDER BY u.full_name ASC`,
+      [class_id, activePeriode.id],
+    );
+
+    const teacherFilterSummativeQuery =
+      role === "teacher" || effectiveTeacherId ? "AND s.teacher_id = $5" : "";
+    const teacherFilterFinalQuery =
+      role === "teacher" || effectiveTeacherId ? "AND f.teacher_id = $5" : "";
+    const teacherFilterParams =
+      role === "teacher" || effectiveTeacherId ? [effectiveTeacherId] : [];
+
+    const summativeResult = await pool.query(
+      `SELECT
+         s.student_id,
+         s.score_written,
+         s.score_skill
+       FROM l_score_summative s
+       WHERE s.subject_id = $1
+         AND s.class_id = $2
+         AND s.periode_id = $3
+         AND s.semester = $4
+         ${teacherFilterSummativeQuery}
+       ORDER BY s.student_id ASC, s.id ASC`,
+      [
+        subject_id,
+        class_id,
+        activePeriode.id,
+        semesterValue,
+        ...teacherFilterParams,
+      ],
+    );
+
+    const finalResult = await pool.query(
+      `SELECT
+         f.student_id,
+         f.final_grade
+       FROM l_score_final f
+       WHERE f.subject_id = $1
+         AND f.class_id = $2
+         AND f.periode_id = $3
+         AND f.semester = $4
+         ${teacherFilterFinalQuery}
+       ORDER BY f.student_id ASC`,
+      [
+        subject_id,
+        class_id,
+        activePeriode.id,
+        semesterValue,
+        ...teacherFilterParams,
+      ],
+    );
+
+    const summativeScoresByStudent = new Map();
+    for (const row of summativeResult.rows) {
+      const key = String(row.student_id);
+      if (!summativeScoresByStudent.has(key)) {
+        summativeScoresByStudent.set(key, []);
+      }
+      if (row.score_written !== null && row.score_written !== undefined) {
+        summativeScoresByStudent.get(key).push(Number(row.score_written));
+      }
+      if (row.score_skill !== null && row.score_skill !== undefined) {
+        summativeScoresByStudent.get(key).push(Number(row.score_skill));
+      }
+    }
+
+    const finalMap = new Map(
+      finalResult.rows.map((row) => [
+        String(row.student_id),
+        row.final_grade === null || row.final_grade === undefined
+          ? null
+          : Number(row.final_grade),
+      ]),
+    );
+
+    const students = studentsResult.rows.map((student) => {
+      const studentKey = String(student.student_id);
+      const summativeValues = summativeScoresByStudent.get(studentKey) || [];
+      const summativeAverage = summativeValues.length
+        ? round2(
+            summativeValues.reduce((sum, value) => sum + Number(value), 0) /
+              summativeValues.length,
+          )
+        : null;
+      const finalGrade = finalMap.get(studentKey) ?? null;
+      const reportGrade =
+        summativeAverage !== null && finalGrade !== null
+          ? round2((Number(summativeAverage) + Number(finalGrade)) / 2)
+          : null;
+
+      return {
+        student_id: student.student_id,
+        nis: student.nis,
+        full_name: student.full_name,
+        summative_average: summativeAverage,
+        final_grade: finalGrade,
+        report_grade: reportGrade,
+      };
+    });
+
+    const summativeAverages = students
+      .map((item) => item.summative_average)
+      .filter((value) => value !== null && value !== undefined);
+    const finalAverages = students
+      .map((item) => item.final_grade)
+      .filter((value) => value !== null && value !== undefined);
+    const reportAverages = students
+      .map((item) => item.report_grade)
+      .filter((value) => value !== null && value !== undefined);
+
+    return res.json({
+      status: "success",
+      data: {
+        meta: {
+          subject_id: Number(subject_id),
+          class_id: Number(class_id),
+          class_name: classSubjectMeta.rows[0]?.class_name || "-",
+          subject_name: classSubjectMeta.rows[0]?.subject_name || "-",
+          periode_id: activePeriode.id,
+          periode_name: activePeriode.name,
+          semester: semesterValue,
+          total_students: students.length,
+        },
+        summary: {
+          summative_average: summativeAverages.length
+            ? round2(
+                summativeAverages.reduce(
+                  (sum, value) => sum + Number(value),
+                  0,
+                ) / summativeAverages.length,
+              )
+            : 0,
+          final_average: finalAverages.length
+            ? round2(
+                finalAverages.reduce((sum, value) => sum + Number(value), 0) /
+                  finalAverages.length,
+              )
+            : 0,
+          report_average: reportAverages.length
+            ? round2(
+                reportAverages.reduce((sum, value) => sum + Number(value), 0) /
+                  reportAverages.length,
+              )
+            : 0,
+          total_graded: reportAverages.length,
+        },
+        students,
+      },
+    });
+  }),
+);
+
 export default router;
 

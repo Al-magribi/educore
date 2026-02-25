@@ -903,3 +903,30 @@ LEFT JOIN l_attendance a
   ON a.student_id = e.student_id
  AND a.class_id = e.class_id;
 
+-- ================================================================
+-- PARENT DASHBOARD PERFORMANCE INDEXES (LMS)
+-- ================================================================
+CREATE INDEX IF NOT EXISTS idx_parent_students_parent
+ON u_parent_students(parent_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_l_attendance_student_periode
+ON l_attendance(student_id, periode_id);
+
+CREATE INDEX IF NOT EXISTS idx_l_chapter_class_ids_gin
+ON l_chapter USING GIN (class_ids);
+
+-- ================================================================
+-- PARENT ACADEMIC REPORT PERFORMANCE INDEXES
+-- ================================================================
+CREATE INDEX IF NOT EXISTS idx_l_attendance_student_subject_date
+ON l_attendance(student_id, subject_id, date);
+
+CREATE INDEX IF NOT EXISTS idx_score_attitude_student_subject_semester_month
+ON l_score_attitude(student_id, subject_id, semester, month);
+
+CREATE INDEX IF NOT EXISTS idx_score_formative_student_subject_semester_month
+ON l_score_formative(student_id, subject_id, semester, month);
+
+CREATE INDEX IF NOT EXISTS idx_score_summative_student_subject_semester_month
+ON l_score_summative(student_id, subject_id, semester, month);
+
