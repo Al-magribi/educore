@@ -5,6 +5,25 @@ export const ApiParent = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: "/api/lms" }),
   tagTypes: ["Parent", "ParentMeta"],
   endpoints: (builder) => ({
+    getParentDashboard: builder.query({
+      query: () => "/parent/dashboard",
+      providesTags: ["ParentMeta"],
+    }),
+    getParentAcademicReport: builder.query({
+      query: ({
+        student_id = null,
+        semester = null,
+        month = null,
+      } = {}) => {
+        const params = new URLSearchParams();
+        if (student_id) params.set("student_id", String(student_id));
+        if (semester) params.set("semester", String(semester));
+        if (month) params.set("month", String(month));
+        const qs = params.toString();
+        return qs ? `/parent/academic-report?${qs}` : "/parent/academic-report";
+      },
+      providesTags: ["ParentMeta"],
+    }),
     getParents: builder.query({
       query: ({
         page = 1,
@@ -65,6 +84,8 @@ export const ApiParent = createApi({
 });
 
 export const {
+  useGetParentDashboardQuery,
+  useGetParentAcademicReportQuery,
   useGetParentsQuery,
   useGetParentMetaQuery,
   useGetParentStudentLinksQuery,

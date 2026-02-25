@@ -8,6 +8,7 @@ const RecapAttendance = lazy(() => import("./components/RecapAttendance"));
 const RecapFormative = lazy(() => import("./components/RecapFormative"));
 const RecapSummative = lazy(() => import("./components/RecapSummative"));
 const FinalScore = lazy(() => import("./components/FinalScore"));
+const NilaiRaport = lazy(() => import("./components/NilaiRaport"));
 const RecapLearningSummary = lazy(
   () => import("./components/RecapLearningSummary"),
 );
@@ -40,22 +41,29 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
 
   const classId = useMemo(() => {
     if (!classes.length) return null;
-    if (selectedClassId && classes.some((item) => String(item.id) === String(selectedClassId))) {
+    if (
+      selectedClassId &&
+      classes.some((item) => String(item.id) === String(selectedClassId))
+    ) {
       return selectedClassId;
     }
     return classes[0].id;
   }, [classes, selectedClassId]);
 
-  const { data: teachersRes, isLoading: teacherLoading } = useGetRecapTeachersQuery(
-    { subjectId, classId },
-    { skip: !isAdminView || !subjectId || !classId },
-  );
+  const { data: teachersRes, isLoading: teacherLoading } =
+    useGetRecapTeachersQuery(
+      { subjectId, classId },
+      { skip: !isAdminView || !subjectId || !classId },
+    );
   const teachers = teachersRes?.data || [];
 
   const selectedTeacherId = useMemo(() => {
     if (!isAdminView) return null;
     if (!teachers.length) return null;
-    if (teacherId && teachers.some((item) => String(item.id) === String(teacherId))) {
+    if (
+      teacherId &&
+      teachers.some((item) => String(item.id) === String(teacherId))
+    ) {
       return teacherId;
     }
     return null;
@@ -175,6 +183,32 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
         </Suspense>
       ),
     },
+    {
+      key: "nilai-raport",
+      label: "Nilai Raport",
+      children: (
+        <Suspense fallback={recapFallback}>
+          <NilaiRaport
+            isActive={activeTab === "nilai-raport"}
+            subjectId={subjectId}
+            subject={subject}
+            activePeriode={activePeriode}
+            classes={classes}
+            classLoading={classLoading}
+            classId={classId}
+            setClassId={setSelectedClassId}
+            semester={semester}
+            setSemester={setSemester}
+            isAdminView={isAdminView}
+            teacherId={normalizedTeacherId}
+            setTeacherId={setTeacherId}
+            teachers={teachers}
+            teacherLoading={teacherLoading}
+            screens={screens}
+          />
+        </Suspense>
+      ),
+    },
   ];
 
   if (isAdminView) {
@@ -196,11 +230,7 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
   }
 
   return (
-    <Tabs
-      activeKey={activeTab}
-      onChange={setActiveTab}
-      items={tabItems}
-    />
+    <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
   );
 };
 

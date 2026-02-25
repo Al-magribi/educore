@@ -52,6 +52,9 @@ const Parent = lazy(() => import("./module/lms/parent/Parent"));
 
 // ORANG TUA
 const ParentDash = lazy(() => import("./module/parent/dashboard/ParentDash"));
+const AcademicReport = lazy(
+  () => import("./module/parent/report/AcademicReport"),
+);
 
 const NotFoundRedirect = () => {
   const { user } = useSelector((state) => state.auth);
@@ -283,6 +286,16 @@ const App = () => {
                   <LazyPage
                     title="Dashboard Orang Tua"
                     Component={ParentDash}
+                  />
+                }
+              />
+
+              <Route
+                path="/orangtua-laporan-akademik"
+                element={
+                  <LazyPage
+                    title={"Laporan Bulanan"}
+                    Component={AcademicReport}
                   />
                 }
               />
