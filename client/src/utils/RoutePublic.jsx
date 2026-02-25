@@ -19,7 +19,7 @@ const RouterPublic = () => {
         return <Navigate to="/guru-dashboard" replace />;
 
       case "parent":
-        return <Navigate to="/parent-dashboard" replace />;
+        return <Navigate to="/orangtua-dashboard" replace />;
 
       // SKENARIO KHUSUS ADMIN
       case "admin":
