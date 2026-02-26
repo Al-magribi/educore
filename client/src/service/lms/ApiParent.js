@@ -80,6 +80,14 @@ export const ApiParent = createApi({
       }),
       invalidatesTags: ["Parent", "ParentMeta"],
     }),
+    deleteParentsBulk: builder.mutation({
+      query: (ids) => ({
+        url: "/parents",
+        method: "DELETE",
+        body: { ids },
+      }),
+      invalidatesTags: ["Parent", "ParentMeta"],
+    }),
   }),
 });
 
@@ -93,4 +101,5 @@ export const {
   useAddParentMutation,
   useUpdateParentMutation,
   useDeleteParentMutation,
+  useDeleteParentsBulkMutation,
 } = ApiParent;

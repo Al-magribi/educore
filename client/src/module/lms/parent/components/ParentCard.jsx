@@ -2,6 +2,7 @@ import React from "react";
 import {
   Button,
   Card,
+  Checkbox,
   Divider,
   Dropdown,
   Flex,
@@ -13,14 +14,15 @@ import {
 import {
   ChevronDown,
   Copy,
-  MoreHorizontal,
+  Mail,
   Pencil,
+  Phone,
   Trash2,
 } from "lucide-react";
 
 const { Text } = Typography;
 
-const ParentCard = ({ item, index, onEdit, onDelete }) => {
+const ParentCard = ({ item, index, onEdit, onDelete, isSelected, onSelectChange }) => {
   const no = index + 1;
   const menuItems = [
     {
@@ -43,24 +45,39 @@ const ParentCard = ({ item, index, onEdit, onDelete }) => {
   ];
 
   return (
-    <Card bordered style={{ borderRadius: 12, height: "100%" }}>
+    <Card
+      bordered
+      hoverable
+      style={{
+        borderRadius: 12,
+        height: "100%",
+      }}
+      styles={{ body: { padding: 14 } }}
+    >
       <Flex vertical gap={12}>
-        <Flex justify="space-between" align="flex-start" gap={8}>
-          <Flex vertical gap={2}>
+        <Flex justify="space-between" align="center" gap={8}>
+          <Space size={8} align="center">
+            <Checkbox
+              checked={!!isSelected}
+              onChange={(event) => onSelectChange?.(item.id, event.target.checked)}
+            />
             <Text type="secondary">#{no}</Text>
-            <Text strong style={{ fontSize: 16 }}>
-              {item.full_name || "-"}
-            </Text>
-            <Text type="secondary">@{item.username || "-"}</Text>
-          </Flex>
+          </Space>
           <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
-            <Button>
+            <Button size="small">
               <Space size={6}>
-                Pilihan Aksi
+                Aksi
                 <ChevronDown size={14} />
               </Space>
             </Button>
           </Dropdown>
+        </Flex>
+
+        <Flex vertical gap={2}>
+          <Text strong style={{ fontSize: 20, lineHeight: 1.2 }} ellipsis={{ tooltip: item.full_name }}>
+            {item.full_name || "-"}
+          </Text>
+          <Text type="secondary">@{item.username || "-"}</Text>
         </Flex>
 
         <Flex wrap="wrap" gap={8}>
@@ -70,9 +87,11 @@ const ParentCard = ({ item, index, onEdit, onDelete }) => {
           <Tag color="blue">{item.student_count || 0} siswa</Tag>
         </Flex>
 
-        <Flex vertical gap={6}>
+        <Flex vertical gap={8}>
           <Text type="secondary">Kontak</Text>
+
           <Space size={8} wrap>
+            <Mail size={14} />
             <Text>{item.email || "-"}</Text>
             {item.email ? (
               <Button
@@ -86,22 +105,26 @@ const ParentCard = ({ item, index, onEdit, onDelete }) => {
               />
             ) : null}
           </Space>
-          <Text>{item.phone || "-"}</Text>
+
+          <Space size={8} wrap>
+            <Phone size={14} />
+            <Text>{item.phone || "-"}</Text>
+          </Space>
         </Flex>
 
-        <Divider style={{ margin: "4px 0" }} />
+        <Divider style={{ margin: "2px 0" }} />
 
         <Flex vertical gap={8}>
           <Text type="secondary">Daftar Siswa</Text>
           {Array.isArray(item.students) && item.students.length > 0 ? (
-            <Space wrap>
+            <Flex wrap="wrap" gap={6}>
               {item.students.map((student) => (
                 <Tag key={student.student_id}>
                   {student.nis || "-"} - {student.full_name || "-"}
                   {student.class_name ? ` (${student.class_name})` : ""}
                 </Tag>
               ))}
-            </Space>
+            </Flex>
           ) : (
             <Text type="secondary">Belum ada siswa terhubung.</Text>
           )}
