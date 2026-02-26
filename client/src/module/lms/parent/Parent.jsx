@@ -4,6 +4,7 @@ import InfiniteScrollList from "../../../components/scroll/InfiniteScrollList";
 import {
   useAddParentMutation,
   useDeleteParentMutation,
+  useDeleteParentsBulkMutation,
   useGetParentMetaQuery,
   useGetParentsQuery,
   useLazyGetParentByIdQuery,
@@ -28,6 +29,8 @@ const Parent = () => {
   const [classFilter, setClassFilter] = useState(null);
   const [openForm, setOpenForm] = useState(false);
   const [editingParent, setEditingParent] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [selectedParentIds, setSelectedParentIds] = useState([]);
 
   const { data: parentRes, isFetching: isLoadingParents } = useGetParentsQuery({
     page,
@@ -42,11 +45,13 @@ const Parent = () => {
   const [addParent, { isLoading: isAdding }] = useAddParentMutation();
   const [updateParent, { isLoading: isUpdating }] = useUpdateParentMutation();
   const [deleteParent, { isLoading: isDeleting }] = useDeleteParentMutation();
+  const [deleteParentsBulk, { isLoading: isBulkDeleting }] = useDeleteParentsBulkMutation();
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(1);
       setRows([]);
+      setSelectedParentIds([]);
       setSearch(searchText.trim());
     }, 350);
     return () => clearTimeout(timer);
@@ -55,6 +60,7 @@ const Parent = () => {
   useEffect(() => {
     setPage(1);
     setRows([]);
+    setSelectedParentIds([]);
   }, [gradeFilter, classFilter]);
 
   useEffect(() => {
@@ -77,6 +83,16 @@ const Parent = () => {
 
   const totalData = parentRes?.totalData || 0;
   const hasMore = rows.length < totalData;
+  const visibleParentIds = useMemo(
+    () =>
+      rows
+        .map((item) => Number(item.id))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    [rows],
+  );
+  const allVisibleSelected =
+    visibleParentIds.length > 0 &&
+    visibleParentIds.every((id) => selectedParentIds.includes(id));
   const activePeriode = metaRes?.data?.active_periode || null;
   const students = useMemo(() => metaRes?.data?.students ?? [], [metaRes?.data?.students]);
 
@@ -223,9 +239,112 @@ const Parent = () => {
       closeForm();
       setPage(1);
       setRows([]);
+      setSelectedParentIds([]);
     } catch (error) {
       if (error?.errorFields) return;
       message.error(error?.data?.message || "Gagal menyimpan data.");
+    }
+  };
+
+  const handleImportExcel = async (importRows) => {
+    if (!Array.isArray(importRows) || importRows.length === 0) return;
+
+    const studentLookup = new Map(
+      students
+        .filter((item) => item?.nis)
+        .map((item) => [String(item.nis).trim(), item]),
+    );
+
+    const unknownNis = new Set();
+    const linkedNis = new Set();
+    const failedParents = [];
+    let successCount = 0;
+
+    setIsImporting(true);
+
+    try {
+      for (const row of importRows) {
+        const nisList = Array.from(
+          new Set(
+            (row?.nis_list || [])
+              .map((value) => String(value || "").trim())
+              .filter(Boolean),
+          ),
+        );
+
+        const validNisList = [];
+        nisList.forEach((nis) => {
+          const student = studentLookup.get(nis);
+
+          if (!student) {
+            unknownNis.add(nis);
+            return;
+          }
+
+          if (student.owner_parent_id) {
+            linkedNis.add(nis);
+            return;
+          }
+
+          validNisList.push(nis);
+        });
+
+        if (validNisList.length === 0) {
+          failedParents.push(String(row?.username || "-"));
+          continue;
+        }
+
+        const payload = {
+          username: String(row?.username || "").trim(),
+          full_name: String(row?.full_name || "").trim(),
+          password: String(row?.password || ""),
+          phone: row?.phone ? String(row.phone).trim() : null,
+          email: row?.email ? String(row.email).trim() : null,
+          is_active: row?.is_active !== false,
+          nis_list: validNisList,
+        };
+
+        try {
+          await addParent(payload).unwrap();
+          successCount += 1;
+        } catch {
+          failedParents.push(payload.username || "-");
+        }
+      }
+
+      if (successCount > 0) {
+        message.success(`Import selesai: ${successCount} data orang tua berhasil ditambahkan.`);
+        setPage(1);
+        setRows([]);
+        setSelectedParentIds([]);
+      }
+
+      if (failedParents.length > 0 || unknownNis.size > 0 || linkedNis.size > 0) {
+        const failedPreview = failedParents.slice(0, 5).join(", ");
+        const unknownPreview = Array.from(unknownNis).slice(0, 5).join(", ");
+        const linkedPreview = Array.from(linkedNis).slice(0, 5).join(", ");
+
+        const notes = [];
+        if (failedParents.length > 0) {
+          notes.push(
+            `Gagal akun: ${failedPreview}${failedParents.length > 5 ? ` (+${failedParents.length - 5} lainnya)` : ""}`,
+          );
+        }
+        if (unknownNis.size > 0) {
+          notes.push(
+            `NIS tidak ditemukan: ${unknownPreview}${unknownNis.size > 5 ? ` (+${unknownNis.size - 5} lainnya)` : ""}`,
+          );
+        }
+        if (linkedNis.size > 0) {
+          notes.push(
+            `NIS sudah terhubung: ${linkedPreview}${linkedNis.size > 5 ? ` (+${linkedNis.size - 5} lainnya)` : ""}`,
+          );
+        }
+
+        message.warning(notes.join(" | "));
+      }
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -242,11 +361,57 @@ const Parent = () => {
           message.success("Orang tua berhasil dihapus.");
           setPage(1);
           setRows([]);
+          setSelectedParentIds([]);
         } catch (error) {
           message.error(error?.data?.message || "Gagal menghapus data.");
         }
       },
     });
+  };
+
+  const handleSelectParent = (parentId, checked) => {
+    setSelectedParentIds((prev) => {
+      const id = Number(parentId);
+      if (!Number.isInteger(id) || id <= 0) return prev;
+      if (checked) return Array.from(new Set([...prev, id]));
+      return prev.filter((item) => item !== id);
+    });
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedParentIds.length === 0) return;
+
+    Modal.confirm({
+      title: "Hapus Bulk Orang Tua",
+      content: `Yakin ingin menghapus ${selectedParentIds.length} data orang tua terpilih?`,
+      okText: "Hapus Semua",
+      okButtonProps: { danger: true, loading: isBulkDeleting },
+      cancelText: "Batal",
+      onOk: async () => {
+        try {
+          const res = await deleteParentsBulk(selectedParentIds).unwrap();
+          message.success(res?.message || "Data orang tua berhasil dihapus.");
+          setSelectedParentIds([]);
+          setPage(1);
+          setRows([]);
+        } catch (error) {
+          message.error(error?.data?.message || "Gagal menghapus data secara bulk.");
+        }
+      },
+    });
+  };
+
+  const handleToggleSelectAllVisible = (checked) => {
+    if (!checked) {
+      setSelectedParentIds((prev) => prev.filter((id) => !visibleParentIds.includes(id)));
+      return;
+    }
+
+    setSelectedParentIds((prev) => Array.from(new Set([...prev, ...visibleParentIds])));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedParentIds([]);
   };
 
   return (
@@ -263,6 +428,13 @@ const Parent = () => {
           onChangeGradeFilter={handleChangeGradeFilter}
           onChangeClassFilter={handleChangeClassFilter}
           onCreate={openCreateDrawer}
+          selectedCount={selectedParentIds.length}
+          onBulkDelete={handleBulkDelete}
+          isBulkDeleting={isBulkDeleting}
+          visibleCount={visibleParentIds.length}
+          allVisibleSelected={allVisibleSelected}
+          onToggleSelectAllVisible={handleToggleSelectAllVisible}
+          onClearSelection={handleClearSelection}
         />
 
         <InfiniteScrollList
@@ -276,6 +448,8 @@ const Parent = () => {
               index={index}
               onEdit={handleEditByParentId}
               onDelete={handleDelete}
+              isSelected={selectedParentIds.includes(Number(item.id))}
+              onSelectChange={handleSelectParent}
             />
           )}
           emptyText="Data orang tua tidak ditemukan"
@@ -308,7 +482,9 @@ const Parent = () => {
         form={form}
         onClose={closeForm}
         onSubmit={handleSubmit}
+        onImportExcel={handleImportExcel}
         isSubmitting={isAdding || isUpdating}
+        isImporting={isImporting}
         studentOptions={studentOptions}
       />
     </Flex>
