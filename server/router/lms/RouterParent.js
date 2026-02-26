@@ -46,8 +46,10 @@ const syncLegacyParentLinks = async (client, homebaseId) => {
     `INSERT INTO u_parent_students (parent_user_id, student_id, homebase_id)
      SELECT up.user_id, up.student_id, s.homebase_id
      FROM u_parents up
+     JOIN u_users pu ON pu.id = up.user_id AND pu.role = 'parent'
      JOIN u_students s ON s.user_id = up.student_id
      WHERE up.student_id IS NOT NULL
+       AND up.user_id IS NOT NULL
        AND s.homebase_id = $1
      ON CONFLICT (student_id) DO NOTHING`,
     [homebaseId],
@@ -659,6 +661,7 @@ router.get(
     const homebaseId = req.user.homebase_id;
     await ensureParentStudentTable(pool);
     await syncLegacyParentLinks(pool, homebaseId);
+    const activePeriode = await getActivePeriode(pool, homebaseId);
 
     const pageNum = parseInt(req.query.page, 10) || 1;
     const limitNum = parseInt(req.query.limit, 10) || 10;
@@ -667,8 +670,19 @@ router.get(
     const gradeId = parsePositiveInt(req.query.grade_id);
     const classId = parsePositiveInt(req.query.class_id);
 
+    if (!activePeriode?.id) {
+      return res.json({
+        status: "success",
+        data: [],
+        totalData: 0,
+        totalPages: 0,
+        page: pageNum,
+        limit: limitNum,
+      });
+    }
+
     const whereParts = [];
-    const baseParams = [homebaseId];
+    const baseParams = [homebaseId, activePeriode.id];
 
     if (search) {
       baseParams.push(`%${search}%`);
@@ -683,6 +697,7 @@ router.get(
             JOIN u_students ex_s ON ex_s.user_id = ex_ups.student_id
             WHERE ex_ups.parent_user_id = u.id
               AND ex_ups.homebase_id = $1
+              AND ex_s.current_periode_id = $2
               AND ex_s.nis ILIKE $${searchParamIndex}
           )
         )`);
@@ -698,6 +713,7 @@ router.get(
           LEFT JOIN a_class fg_c ON fg_c.id = fg_s.current_class_id
           WHERE fg_ups.parent_user_id = u.id
             AND fg_ups.homebase_id = $1
+            AND fg_s.current_periode_id = $2
             AND fg_c.grade_id = $${gradeParamIndex}
         )`);
     }
@@ -711,6 +727,7 @@ router.get(
           JOIN u_students fc_s ON fc_s.user_id = fc_ups.student_id
           WHERE fc_ups.parent_user_id = u.id
             AND fc_ups.homebase_id = $1
+            AND fc_s.current_periode_id = $2
             AND fc_s.current_class_id = $${classParamIndex}
         )`);
     }
@@ -754,6 +771,7 @@ router.get(
         LEFT JOIN a_class c ON c.id = s.current_class_id
         WHERE ups.parent_user_id = u.id
           AND ups.homebase_id = $1
+          AND s.current_periode_id = $2
       ) children ON true
       WHERE u.role = 'parent'
         AND COALESCE(children.student_count, 0) > 0
@@ -770,8 +788,10 @@ router.get(
         AND EXISTS (
           SELECT 1
           FROM u_parent_students ups
+          JOIN u_students s ON s.user_id = ups.student_id
           WHERE ups.parent_user_id = u.id
             AND ups.homebase_id = $1
+            AND s.current_periode_id = $2
         )
         ${whereFilter}
     `;
@@ -790,6 +810,64 @@ router.get(
       totalPages: Math.ceil(totalData / limitNum),
       page: pageNum,
       limit: limitNum,
+      active_periode: activePeriode,
+    });
+  }),
+);
+
+router.delete(
+  "/parents",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const homebaseId = req.user.homebase_id;
+    await ensureParentStudentTable(client);
+    await syncLegacyParentLinks(client, homebaseId);
+
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const parentIds = Array.from(
+      new Set(
+        ids
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0),
+      ),
+    );
+
+    if (parentIds.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Daftar ID orang tua tidak valid.",
+      });
+    }
+
+    const ownedParentsRes = await client.query(
+      `SELECT DISTINCT ups.parent_user_id AS id
+       FROM u_parent_students ups
+       JOIN u_users u ON u.id = ups.parent_user_id
+       WHERE ups.homebase_id = $1
+         AND u.role = 'parent'
+         AND ups.parent_user_id = ANY($2::int[])`,
+      [homebaseId, parentIds],
+    );
+
+    const deletableIds = ownedParentsRes.rows.map((row) => Number(row.id));
+    if (deletableIds.length === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Tidak ada data orang tua yang dapat dihapus.",
+      });
+    }
+
+    const deleteRes = await client.query(
+      `DELETE FROM u_users
+       WHERE id = ANY($1::int[])
+         AND role = 'parent'`,
+      [deletableIds],
+    );
+
+    res.json({
+      status: "success",
+      message: `${deleteRes.rowCount || 0} data orang tua berhasil dihapus.`,
+      deleted: deleteRes.rowCount || 0,
     });
   }),
 );
