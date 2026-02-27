@@ -67,7 +67,8 @@ router.post(
 router.post(
   "/signin",
   withTransaction(async (req, res, client) => {
-    const { username, password } = req.body;
+    const username = String(req.body?.username || "").trim();
+    const password = String(req.body?.password || "").trim();
 
     // 1. Validasi Input
     if (!username || !password) {

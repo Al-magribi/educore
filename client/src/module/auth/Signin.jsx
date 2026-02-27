@@ -28,9 +28,15 @@ const Signin = () => {
     useDoSigninMutation();
 
   const onFinish = (values) => {
+    const sanitizedValues = {
+      ...values,
+      username: (values.username || "").trim(),
+      password: (values.password || "").trim(),
+    };
+
     // Menggabungkan role ke dalam values agar dikirim ke backend
     // Backend perlu tahu role apa yang sedang mencoba login
-    const payload = { ...values, role: role.toLowerCase() }; // pastikan format role sesuai (lowercase)
+    const payload = { ...sanitizedValues, role: role.toLowerCase() }; // pastikan format role sesuai (lowercase)
     doSignin(payload);
   };
 
