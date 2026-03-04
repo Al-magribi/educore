@@ -603,3 +603,94 @@ CREATE TABLE configurations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ================================================================
+-- SECTION 7: STUDENT DATABASE PRESENTATION VIEW
+-- Dipakai untuk kebutuhan monitoring keterisian database siswa
+-- ================================================================
+
+CREATE OR REPLACE VIEW vw_student_database_profile AS
+SELECT
+    u.id AS student_id,
+    u.full_name,
+    u.gender,
+    s.nis,
+    s.nisn,
+    s.birth_place,
+    s.birth_date,
+    s.height,
+    s.weight,
+    s.head_circumference,
+    s.order_number,
+    s.siblings_count,
+    s.address,
+    s.postal_code,
+    hb.name AS education_unit,
+    pr.name AS province,
+    ci.name AS city,
+    di.name AS district,
+    vi.name AS village,
+    cl.id AS class_id,
+    cl.name AS class_name,
+    gr.id AS grade_id,
+    gr.name AS grade_name,
+    pe.name AS academic_year,
+    fam.father_name,
+    fam.father_nik,
+    fam.father_birth_place,
+    fam.father_birth_date,
+    fam.father_phone,
+    fam.mother_name,
+    fam.mother_nik,
+    fam.mother_birth_place,
+    fam.mother_birth_date,
+    fam.mother_phone,
+    COALESCE(sib.siblings, '[]'::json) AS siblings
+FROM u_users u
+JOIN u_students s ON s.user_id = u.id
+LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
+LEFT JOIN LATERAL (
+    SELECT ce.class_id, ce.periode_id
+    FROM u_class_enrollments ce
+    WHERE ce.student_id = u.id
+    ORDER BY ce.enrolled_at DESC, ce.id DESC
+    LIMIT 1
+) ce_last ON true
+LEFT JOIN a_class cl ON cl.id = ce_last.class_id
+LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+LEFT JOIN a_periode pe ON pe.id = ce_last.periode_id
+LEFT JOIN db_province pr ON pr.id = s.province_id
+LEFT JOIN db_city ci ON ci.id = s.city_id
+LEFT JOIN db_district di ON di.id = s.district_id
+LEFT JOIN db_village vi ON vi.id = s.village_id
+LEFT JOIN LATERAL (
+    SELECT
+      sf.father_name,
+      sf.father_nik,
+      sf.father_birth_place,
+      sf.father_birth_date,
+      sf.father_phone,
+      sf.mother_name,
+      sf.mother_nik,
+      sf.mother_birth_place,
+      sf.mother_birth_date,
+      sf.mother_phone
+    FROM u_student_families sf
+    WHERE sf.student_id = u.id
+    ORDER BY sf.id DESC
+    LIMIT 1
+) fam ON true
+LEFT JOIN LATERAL (
+    SELECT json_agg(
+      json_build_object(
+        'id', ss.id,
+        'name', ss.name,
+        'gender', ss.gender,
+        'birth_date', ss.birth_date
+      )
+      ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
+    ) AS siblings
+    FROM u_student_siblings ss
+    WHERE ss.student_id = u.id
+) sib ON true
+WHERE u.role = 'student';

@@ -86,11 +86,31 @@ const AppLayout = ({ children, title, asShell = false }) => {
       import("../../module/student/dashboard/StudentDash"),
     "/siswa/jadwal-ujian": () =>
       import("../../module/cbt/student/view/StudentExamList"),
+    "/siswa-database": () =>
+      import("../../module/database/view/StudentDatabase"),
     "/computer-based-test/start": () =>
       import("../../module/cbt/student/view/ExamInterface"),
     "/guru-dashboard": () =>
       import("../../module/teacher/dashboard/TeacherDash"),
+    "/guru-database-kelas": () =>
+      import("../../module/database/manager/ClassDbManager"),
   };
+
+  const filterMenuByAccess = (items, currentUser) =>
+    items
+      .filter((item) => {
+        if (item.requiresHomeroom) {
+          return Boolean(currentUser?.is_homeroom);
+        }
+        return true;
+      })
+      .map((item) => {
+        if (!Array.isArray(item.children)) return item;
+        return {
+          ...item,
+          children: filterMenuByAccess(item.children, currentUser),
+        };
+      });
 
   const preloadRouteByKey = (key) => {
     const preloader = routePreloaders[key];
@@ -159,7 +179,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
       default:
         items = [];
     }
-    setMenuItems(enhanceMenuItems(items));
+    const filteredItems = filterMenuByAccess(items, user);
+    setMenuItems(enhanceMenuItems(filteredItems));
   }, [user]);
 
   useEffect(() => {
@@ -211,14 +232,14 @@ const AppLayout = ({ children, title, asShell = false }) => {
     },
   ];
 
-  if (!asShell && shellContext?.inShell) {
-    return children || null;
-  }
-
   const shellValue = useMemo(
     () => ({ inShell: true, setShellTitle }),
     [setShellTitle],
   );
+
+  if (!asShell && shellContext?.inShell) {
+    return children || null;
+  }
 
   const layoutContent = (
     <Layout style={{ minHeight: "100vh" }}>

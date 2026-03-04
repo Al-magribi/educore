@@ -8,9 +8,28 @@ const buildDbMenus = () => ({
       icon: <SettingOutlined />,
     },
   ],
-  admin: [],
-  teacher: [],
-  student: [],
+  admin: [
+    {
+      label: "Database",
+      key: "/admin-database",
+      icon: <DatabaseOutlined />,
+    },
+  ],
+  teacher: [
+    {
+      label: "Database",
+      key: "/guru-database-kelas",
+      icon: <DatabaseOutlined />,
+      requiresHomeroom: true,
+    },
+  ],
+  student: [
+    {
+      label: "Database",
+      key: "/siswa-database",
+      icon: <DatabaseOutlined />,
+    },
+  ],
   parent: [
     {
       label: "Data Siswa",
