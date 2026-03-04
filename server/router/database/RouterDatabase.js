@@ -856,4 +856,129 @@ router.put(
   }),
 );
 
+router.get(
+  "/parent/students",
+  authorize("parent"),
+  withQuery(async (req, res, pool) => {
+    const parentUserId = req.user.id;
+
+    const query = `
+      SELECT
+        u.id AS student_id,
+        u.full_name,
+        u.gender,
+        s.nis,
+        s.nisn,
+        s.birth_place,
+        s.birth_date,
+        s.height,
+        s.weight,
+        s.head_circumference,
+        s.order_number,
+        s.siblings_count,
+        s.address,
+        s.postal_code,
+        hb.name AS education_unit,
+        pe.name AS academic_year,
+        cl.name AS class_name,
+        gr.name AS grade_name,
+        fam.father_name,
+        fam.father_nik,
+        fam.father_birth_place,
+        fam.father_birth_date,
+        fam.father_phone,
+        fam.mother_name,
+        fam.mother_nik,
+        fam.mother_birth_place,
+        fam.mother_birth_date,
+        fam.mother_phone,
+        COALESCE(sib.siblings, '[]'::json) AS siblings
+      FROM u_parents p
+      JOIN u_students s ON s.user_id = p.student_id
+      JOIN u_users u ON u.id = s.user_id
+      LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
+      LEFT JOIN a_class cl ON cl.id = s.current_class_id
+      LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+      LEFT JOIN a_periode pe ON pe.id = s.current_periode_id
+      LEFT JOIN LATERAL (
+        SELECT
+          sf.father_name,
+          sf.father_nik,
+          sf.father_birth_place,
+          sf.father_birth_date,
+          sf.father_phone,
+          sf.mother_name,
+          sf.mother_nik,
+          sf.mother_birth_place,
+          sf.mother_birth_date,
+          sf.mother_phone
+        FROM u_student_families sf
+        WHERE sf.student_id = s.user_id
+        ORDER BY sf.id DESC
+        LIMIT 1
+      ) fam ON true
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', ss.id,
+            'name', ss.name,
+            'gender', ss.gender,
+            'birth_date', ss.birth_date
+          )
+          ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
+        ) AS siblings
+        FROM u_student_siblings ss
+        WHERE ss.student_id = s.user_id
+      ) sib ON true
+      WHERE p.user_id = $1
+      ORDER BY u.full_name ASC
+    `;
+
+    const result = await pool.query(query, [parentUserId]);
+    const data = result.rows.map((row) => {
+      const completion = calculateCompletion(row);
+      return {
+        ...row,
+        completion_percent: completion.completionPercent,
+        completion_status: completion.isComplete ? "Terisi" : "Belum Terisi",
+      };
+    });
+
+    res.status(200).json({ data });
+  }),
+);
+
+router.put(
+  "/parent/students/:studentId",
+  authorize("parent"),
+  withTransaction(async (req, res, client) => {
+    const parentUserId = req.user.id;
+    const studentId = parseInt(req.params.studentId, 10);
+
+    if (!Number.isInteger(studentId)) {
+      return res.status(400).json({ message: "ID siswa tidak valid." });
+    }
+
+    const ownership = await client.query(
+      `
+        SELECT 1
+        FROM u_parents p
+        WHERE p.user_id = $1
+          AND p.student_id = $2
+        LIMIT 1
+      `,
+      [parentUserId, studentId],
+    );
+
+    if (ownership.rows.length === 0) {
+      return res.status(403).json({
+        message: "Anda tidak memiliki akses untuk memperbarui data siswa ini.",
+      });
+    }
+
+    await updateStudentProfileData(client, studentId, req.body);
+    res.status(200).json({ message: "Data siswa berhasil diperbarui." });
+  }),
+);
+
 export default router;

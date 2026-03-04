@@ -51,6 +51,21 @@ export const ApiStudentDatabase = createApi({
       }),
       invalidatesTags: ["StudentDatabase"],
     }),
+    getParentStudents: builder.query({
+      query: () => ({
+        url: "/parent/students",
+        method: "GET",
+      }),
+      providesTags: ["StudentDatabase"],
+    }),
+    updateParentStudent: builder.mutation({
+      query: ({ studentId, ...body }) => ({
+        url: `/parent/students/${studentId}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["StudentDatabase"],
+    }),
   }),
 });
 
@@ -59,4 +74,6 @@ export const {
   useUpdateStudentDatabaseMutation,
   useGetMyStudentProfileQuery,
   useUpdateMyStudentProfileMutation,
+  useGetParentStudentsQuery,
+  useUpdateParentStudentMutation,
 } = ApiStudentDatabase;

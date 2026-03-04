@@ -88,6 +88,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
       import("../../module/cbt/student/view/StudentExamList"),
     "/siswa-database": () =>
       import("../../module/database/view/StudentDatabase"),
+    "/orangtua-database-siswa": () =>
+      import("../../module/database/view/ParentStudentDatabase"),
     "/computer-based-test/start": () =>
       import("../../module/cbt/student/view/ExamInterface"),
     "/guru-dashboard": () =>

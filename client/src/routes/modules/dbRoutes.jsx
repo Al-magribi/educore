@@ -12,6 +12,9 @@ const ClassDbManager = lazy(
 const StudentDatabase = lazy(
   () => import("../../module/database/view/StudentDatabase"),
 );
+const ParentStudentDatabase = lazy(
+  () => import("../../module/database/view/ParentStudentDatabase"),
+);
 
 const renderDbRoutes = ({ LazyPage }) => (
   <>
@@ -37,6 +40,15 @@ const renderDbRoutes = ({ LazyPage }) => (
       <Route
         path="/siswa-database"
         element={<LazyPage title="Database Siswa" Component={StudentDatabase} />}
+      />
+    </Route>
+
+    <Route element={<RouteProtection allowedRoles={["parent"]} />}>
+      <Route
+        path="/orangtua-database-siswa"
+        element={
+          <LazyPage title="Database Data Siswa" Component={ParentStudentDatabase} />
+        }
       />
     </Route>
   </>

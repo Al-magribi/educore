@@ -125,11 +125,14 @@ CREATE TABLE u_student_siblings (
 );
 
 -- AKUN ORANG TUA (Login khusus ortu)
+-- Revisi: 1 akun orang tua dapat terhubung ke lebih dari 1 siswa
 CREATE TABLE u_parents (
-    user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    user_id integer REFERENCES u_users(id) ON DELETE CASCADE,
     student_id integer REFERENCES u_students(user_id), -- Link ke anak
     phone text,
-    email text
+    email text,
+    CONSTRAINT uq_parent_student UNIQUE (user_id, student_id)
 );
 
 -- SYSTEM LOGS (Dari table logs newtable)
