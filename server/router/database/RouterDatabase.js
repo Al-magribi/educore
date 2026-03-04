@@ -980,5 +980,4 @@ router.put(
     res.status(200).json({ message: "Data siswa berhasil diperbarui." });
   }),
 );
-
 export default router;
