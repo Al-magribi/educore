@@ -3,3 +3,6 @@ node_modules
 .cursor
 .vscode
 client/node_modules
+
+# build output
+**/dist/
