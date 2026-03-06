@@ -143,7 +143,7 @@ router.get(
         [selectedHomebaseId, selectedPeriodeId],
       ),
       pool.query(
-        `SELECT COUNT(DISTINCT h.teacher_id) AS count
+        `SELECT COUNT(DISTINCT h.musyrif_id) AS count
          FROM t_halaqoh h
          JOIN a_periode p ON p.id = h.periode_id
          WHERE p.homebase_id = $1
