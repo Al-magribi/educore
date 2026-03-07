@@ -13,7 +13,6 @@ import {
   Modal,
   Space,
   Tag,
-  Grid,
 } from "antd";
 import { Edit3, Trash2, AlertTriangle } from "lucide-react";
 import {
@@ -25,12 +24,13 @@ import {
 import QuestionHeader from "./QuestionHeader";
 import QuestionBulkActions from "./QuestionBulkActions";
 import QuestionItem from "./QuestionItem";
+import "katex/dist/katex.min.css";
+import { InlineMath } from "react-katex";
 
 const QuestionForm = lazy(() => import("../components/question/QuestionForm"));
 const ImportExcelModal = lazy(() => import("./ImportExcelModal"));
 
 const { Text } = Typography;
-const { useBreakpoint } = Grid;
 
 const getQuestionTypeName = (type) => {
   const types = {
@@ -44,9 +44,64 @@ const getQuestionTypeName = (type) => {
   return types[type] || { label: "Unknown", color: "default" };
 };
 
-const QuestionsList = () => {
-  const screens = useBreakpoint();
+const normalizeQuestionPreview = (value = "") => {
+  if (typeof value !== "string" || !value) return "";
 
+  const withFormulaMarkers = value.replace(
+    /<span[^>]*class=["'][^"']*ql-formula[^"']*["'][^>]*data-value=["']([^"']+)["'][^>]*><\/span>/gi,
+    (_, formula) => `$${formula}$`,
+  );
+
+  const withoutTags = withFormulaMarkers
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (typeof window === "undefined") return withoutTags;
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = withoutTags;
+  return textarea.value;
+};
+
+const QuestionPreviewText = ({ value }) => {
+  const normalized = normalizeQuestionPreview(value);
+  const segments = normalized.split(/(\$[^$]+\$)/g);
+  const hasValidDollarPair = segments.some(
+    (segment) => segment.startsWith("$") && segment.endsWith("$"),
+  );
+  const normalizedNoDollar = normalized.replace(/\$/g, "").trim();
+  const hasLatexFallback = /\\[a-zA-Z]+|[_^{}]/.test(normalizedNoDollar);
+
+  return (
+    <div
+      style={{
+        fontSize: 13,
+        color: "rgba(0,0,0,0.45)",
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        wordBreak: "break-word",
+      }}
+    >
+      {hasValidDollarPair
+        ? segments.map((segment, idx) => {
+            if (segment.startsWith("$") && segment.endsWith("$")) {
+              const formula = segment.slice(1, -1).trim();
+              if (!formula) return null;
+              return <InlineMath key={`${idx}-${formula}`} math={formula} />;
+            }
+            return <span key={`${idx}-${segment}`}>{segment}</span>;
+          })
+        : hasLatexFallback
+          ? <InlineMath math={normalizedNoDollar} />
+          : <span>{normalized}</span>}
+    </div>
+  );
+};
+
+const QuestionsList = () => {
   const { token } = theme.useToken();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -222,16 +277,7 @@ const QuestionsList = () => {
                         </Tag>
                       </Flex>
                     </Flex>
-                    <Text
-                      ellipsis
-                      type='secondary'
-                      style={{ fontSize: "13px", display: "block" }}
-                    >
-                      {q.content
-                        ?.replace(/<[^>]*>/g, "")
-                        ?.replace(/&nbsp;/g, " ")
-                        .substring(0, screens.sm ? 100 : 30)}
-                    </Text>
+                    <QuestionPreviewText value={q.content} />
                   </Flex>
                 </div>
 

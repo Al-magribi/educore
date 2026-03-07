@@ -6,6 +6,43 @@ import { InlineMath } from "react-katex";
 
 const { Text } = Typography;
 
+const QL_FORMULA_REGEX =
+  /<span[^>]*class=["'][^"']*ql-formula[^"']*["'][^>]*data-value=["']([^"']+)["'][^>]*><\/span>/gi;
+
+const hasLatexSyntax = (text = "") =>
+  /\\[a-zA-Z]+|[_^{}]/.test(text) || /[a-zA-Z0-9]\s*\\times\s*[a-zA-Z0-9]/.test(text);
+
+const renderMathOrText = (text, keyPrefix = "seg") => {
+  const segments = text.split(/(\$[^$]+\$)/g);
+  const hasValidDollarPair = segments.some(
+    (segment) => segment.startsWith("$") && segment.endsWith("$"),
+  );
+
+  if (hasValidDollarPair) {
+    return segments.map((segment, idx) => {
+      if (segment.startsWith("$") && segment.endsWith("$")) {
+        const formula = segment.slice(1, -1).trim();
+        if (!formula) return null;
+        return <InlineMath key={`${keyPrefix}-math-${idx}`} math={formula} />;
+      }
+
+      return (
+        <span
+          key={`${keyPrefix}-text-${idx}`}
+          dangerouslySetInnerHTML={{ __html: segment }}
+        />
+      );
+    });
+  }
+
+  const normalizedNoDollar = text.replace(/\$/g, "").trim();
+  if (hasLatexSyntax(normalizedNoDollar)) {
+    return <InlineMath math={normalizedNoDollar} />;
+  }
+
+  return <span dangerouslySetInnerHTML={{ __html: text }} />;
+};
+
 /**
  * MathRenderer yang diperbarui untuk menangani luapan konten (overflow)
  * dan kompatibilitas dengan format Quill Editor.
@@ -15,23 +52,16 @@ const MathRenderer = ({ value }) => {
 
   // Render logic untuk rumus Matematika
   const renderContent = () => {
-    if (typeof value === "string" && value.includes("$")) {
-      const segments = value.split(/(\$.*?\$)/g);
-      return (
-        <>
-          {segments.map((segment, i) => {
-            if (segment.startsWith("$") && segment.endsWith("$")) {
-              const formula = segment.replaceAll("$", "");
-              return <InlineMath key={i} math={formula} />;
-            }
-            return (
-              <span key={i} dangerouslySetInnerHTML={{ __html: segment }} />
-            );
-          })}
-        </>
-      );
+    const normalizedValue =
+      typeof value === "string"
+        ? value.replace(QL_FORMULA_REGEX, (_, formula) => `$${formula}$`)
+        : value;
+
+    if (typeof normalizedValue !== "string") {
+      return <div dangerouslySetInnerHTML={{ __html: normalizedValue }} />;
     }
-    return <div dangerouslySetInnerHTML={{ __html: value }} />;
+
+    return <>{renderMathOrText(normalizedValue, "viewer")}</>;
   };
 
   return (

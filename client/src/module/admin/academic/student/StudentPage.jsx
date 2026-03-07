@@ -197,7 +197,7 @@ const StudentPage = ({ screens }) => {
         onLoadMore={handleLoadMore}
         height='calc(100vh - 150px)' // Tinggi area scroll
         emptyText='Tidak ada siswa ditemukan'
-        grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 }} // Grid Card
+        grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6 }} // Grid Card
         renderItem={(item) => (
           <StudentCard
             student={item}
