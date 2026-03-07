@@ -1,104 +1,51 @@
 import { configureStore } from "@reduxjs/toolkit";
 
 import authReducer from "./auth/SliceAuth";
-import { ApiAuth } from "./auth/ApiAuth";
-
-// PUBLIC
 import appReducer from "./center/SliceApp";
-import { ApiPublic } from "./public/ApiPublic";
 
-// ADMIN - PUSAT
-import { ApiApp } from "./center/ApiApp";
-import { ApiDatabase } from "./center/ApiDatabase";
-import { ApiCenterDash } from "./center/ApiCenterDash";
-import { ApiHomebase } from "./center/ApiHomebase";
-import { ApiAdmin } from "./center/ApiAdmin";
-import { ApiAnalysis } from "./center/ApiAnalysis";
+const apiModules = import.meta.glob("./**/Api*.js", { eager: true });
 
-// ADMIN - PUSAT - SATUAN
-import { ApiTeacher } from "./main/ApiTeacher";
-import { ApiPeriode } from "./main/ApiPeriode";
-import { ApiMajor } from "./main/ApiMajor";
-import { ApiGrade } from "./main/ApiGrade";
-import { ApiClass } from "./main/ApiClass";
-import { ApiDash } from "./main/ApiDash";
-import { ApiSubject } from "./academic/ApiSubject";
-import { ApiHomeTeacher } from "./academic/ApiTeacher";
-import { ApiStudent } from "./academic/ApiStudent";
+const isApiService = (candidate) =>
+  Boolean(
+    candidate &&
+      typeof candidate === "object" &&
+      typeof candidate.reducerPath === "string" &&
+      typeof candidate.reducer === "function" &&
+      typeof candidate.middleware === "function",
+  );
 
-// CBT
-import { ApiBank } from "./cbt/ApiBank";
-import { ApiQuestion } from "./cbt/ApiQuestion";
-import { ApiExam } from "./cbt/ApiExam";
+const apiServiceMap = new Map();
+
+for (const moduleExports of Object.values(apiModules)) {
+  for (const moduleValue of Object.values(moduleExports)) {
+    if (!isApiService(moduleValue)) {
+      continue;
+    }
+
+    if (!apiServiceMap.has(moduleValue.reducerPath)) {
+      apiServiceMap.set(moduleValue.reducerPath, moduleValue);
+    }
+  }
+}
+
+const apiServices = Array.from(apiServiceMap.values()).sort((a, b) =>
+  a.reducerPath.localeCompare(b.reducerPath),
+);
+
+const apiReducers = apiServices.reduce((accumulator, service) => {
+  accumulator[service.reducerPath] = service.reducer;
+  return accumulator;
+}, {});
 
 export const store = configureStore({
   reducer: {
-    // PUBLIC
     app: appReducer,
-    [ApiPublic.reducerPath]: ApiPublic.reducer,
-
-    // OTENTIKASI
     auth: authReducer,
-    [ApiAuth.reducerPath]: ApiAuth.reducer,
-
-    // ADMIN - PUSAT
-    [ApiApp.reducerPath]: ApiApp.reducer,
-    [ApiDatabase.reducerPath]: ApiDatabase.reducer,
-    [ApiCenterDash.reducerPath]: ApiCenterDash.reducer,
-    [ApiHomebase.reducerPath]: ApiHomebase.reducer,
-    [ApiAdmin.reducerPath]: ApiAdmin.reducer,
-    [ApiAnalysis.reducerPath]: ApiAnalysis.reducer,
-
-    // ADMIN - SATUAN
-    [ApiPeriode.reducerPath]: ApiPeriode.reducer,
-    [ApiMajor.reducerPath]: ApiMajor.reducer,
-    [ApiGrade.reducerPath]: ApiGrade.reducer,
-    [ApiClass.reducerPath]: ApiClass.reducer,
-    [ApiDash.reducerPath]: ApiDash.reducer,
-    [ApiSubject.reducerPath]: ApiSubject.reducer,
-    [ApiHomeTeacher.reducerPath]: ApiHomeTeacher.reducer,
-    [ApiStudent.reducerPath]: ApiStudent.reducer,
-
-    // ADMIN - PUSAT - SATUAN
-    [ApiTeacher.reducerPath]: ApiTeacher.reducer,
-
-    // CBT
-    [ApiBank.reducerPath]: ApiBank.reducer,
-    [ApiQuestion.reducerPath]: ApiQuestion.reducer,
-    [ApiExam.reducerPath]: ApiExam.reducer,
+    ...apiReducers,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,
-    }).concat([
-      ApiAuth.middleware,
-      ApiPublic.middleware,
-
-      // ADMIN - PUSAT
-      ApiApp.middleware,
-      ApiDatabase.middleware,
-      ApiCenterDash.middleware,
-      ApiHomebase.middleware,
-      ApiAdmin.middleware,
-      ApiAnalysis.middleware,
-
-      // ADMIN - SATUAN
-      ApiPeriode.middleware,
-      ApiMajor.middleware,
-      ApiGrade.middleware,
-      ApiClass.middleware,
-      ApiDash.middleware,
-      ApiSubject.middleware,
-      ApiHomeTeacher.middleware,
-      ApiStudent.middleware,
-
-      // ADMIN - PUSAT - SATUAN
-      ApiTeacher.middleware,
-
-      // CBT
-      ApiBank.middleware,
-      ApiQuestion.middleware,
-      ApiExam.middleware,
-    ]),
+    }).concat(apiServices.map((service) => service.middleware)),
   devTools: import.meta.env.DEV,
 });

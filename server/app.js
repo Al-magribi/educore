@@ -7,19 +7,7 @@ import { fileURLToPath } from "url";
 import { express as userAgent } from "express-useragent";
 
 import pool from "./config/connection.js";
-
-// Routers
-import RouterPublic from "./router/public/RouterPublic.js";
-
-import RouterAuth from "./router/auth/index.js";
-import RouterCenter from "./router/center/index.js";
-import RouterMain from "./router/main/index.js";
-
-import RouterMigrasi from "./router/migration/RouterMigration.js";
-import RouterAcademic from "./router/academic/index.js";
-
-// CBT
-import RouterCbt from "./router/cbt/index.js";
+import registerApiRoutes from "./router/registerApiRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,18 +31,7 @@ app.use(express.static(path.join(__dirname, "../client/dist")));
 
 app.use("/temp_backup", express.static(path.join(backupPath)));
 
-// Routers
-app.use("/api/public", RouterPublic);
-
-app.use("/api/auth", RouterAuth);
-app.use("/api/center", RouterCenter);
-app.use("/api/main", RouterMain);
-app.use("/api/academic", RouterAcademic);
-
-// CBT
-app.use("/api/cbt", RouterCbt);
-
-app.use("/api", RouterMigrasi);
+registerApiRoutes(app);
 
 pool
   .query("SELECT NOW()")
