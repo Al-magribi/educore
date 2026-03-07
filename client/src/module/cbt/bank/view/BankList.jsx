@@ -26,7 +26,7 @@ import {
   MessageCircleQuestionMark,
   Folder,
 } from "lucide-react";
-import { InfiniteScrollList } from "../../../../components";
+import { InfiniteScrollList, LoadApp } from "../../../../components";
 import { BankForm } from "../components";
 import GroupBankForm from "../components/bank/Grouped/GroupBankForm";
 import {
@@ -154,7 +154,7 @@ const BankList = () => {
     return (
       <Card
         hoverable
-        size="small"
+        size='small'
         style={{
           height: "100%",
           borderRadius: 12,
@@ -169,11 +169,11 @@ const BankList = () => {
           },
         }}
         title={
-          <Flex justify="space-between" align="center">
+          <Flex justify='space-between' align='center'>
             <Tag color={color}>{item.type}</Tag>
-            <Flex align="center" gap={4}>
-              <Calendar size={12} color="#999" />
-              <Text type="secondary" style={{ fontSize: 11 }}>
+            <Flex align='center' gap={4}>
+              <Calendar size={12} color='#999' />
+              <Text type='secondary' style={{ fontSize: 11 }}>
                 {new Date(item.created_at).toLocaleDateString("id-ID", {
                   day: "numeric",
                   month: "short",
@@ -188,7 +188,7 @@ const BankList = () => {
           //   key="view"
           //   to={`/cbt/bank-soal?bank_name=${item.title.replaceAll(/ /g, "-")}&bank_id=${item.id}`}
           // >
-          <Tooltip title="Lihat Soal">
+          <Tooltip title='Lihat Soal'>
             {/* Gunakan div wrapper agar event click tidak bentrok dengan card hover */}
             <div style={{ display: "flex", justifyContent: "center" }}>
               <MessageCircleQuestionMark
@@ -201,7 +201,7 @@ const BankList = () => {
           </Tooltip>,
           // </Link>,
 
-          <Tooltip title="Edit" key="edit">
+          <Tooltip title='Edit' key='edit'>
             <div
               onClick={() => openForm(item)}
               style={{ display: "flex", justifyContent: "center" }}
@@ -210,12 +210,12 @@ const BankList = () => {
             </div>
           </Tooltip>,
 
-          <Tooltip title="Hapus" key="delete">
+          <Tooltip title='Hapus' key='delete'>
             <Popconfirm
-              title="Hapus Bank Soal?"
+              title='Hapus Bank Soal?'
               onConfirm={() => handleDelete(item.id)}
-              okText="Ya"
-              cancelText="Batal"
+              okText='Ya'
+              cancelText='Batal'
               okButtonProps={{ danger: true }}
             >
               <div style={{ display: "flex", justifyContent: "center" }}>
@@ -225,7 +225,7 @@ const BankList = () => {
           </Tooltip>,
         ]}
       >
-        <Flex gap={"middle"} align="start" style={{ marginBottom: 12 }}>
+        <Flex gap={"middle"} align='start' style={{ marginBottom: 12 }}>
           <div
             style={{
               background: token.colorPrimaryBg,
@@ -248,13 +248,13 @@ const BankList = () => {
                 {item.title}
               </Title>
             </Tooltip>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text type='secondary' style={{ fontSize: 12 }}>
               {item.subject_name || "Mapel Umum"}
             </Text>
           </div>
         </Flex>
 
-        <Flex align="center" gap={8} style={{ marginTop: "auto" }}>
+        <Flex align='center' gap={8} style={{ marginTop: "auto" }}>
           <Avatar
             size={22}
             style={{
@@ -274,12 +274,12 @@ const BankList = () => {
   };
 
   return (
-    <>
+    <Suspense fallback={<LoadApp />}>
       {view === "questions" ? (
         <Suspense
           fallback={
-            <Flex justify="center" align="center" style={{ minHeight: 300 }}>
-              <Spin size="large" />
+            <Flex justify='center' align='center' style={{ minHeight: 300 }}>
+              <Spin size='large' />
             </Flex>
           }
         >
@@ -288,16 +288,16 @@ const BankList = () => {
       ) : (
         <>
           <Flex
-            align="center"
-            justify="space-between"
-            wrap="wrap"
+            align='center'
+            justify='space-between'
+            wrap='wrap'
             gap={16}
             style={{ marginBottom: 24 }}
           >
             <Input
-              prefix={<Search size={16} color="#999" />}
+              prefix={<Search size={16} color='#999' />}
               style={{ width: 320, borderRadius: 8 }}
-              placeholder="Cari judul, mapel, atau guru..."
+              placeholder='Cari judul, mapel, atau guru...'
               allowClear
               onChange={(e) => {
                 setTimeout(() => handleSearch(e.target.value), 500);
@@ -307,7 +307,7 @@ const BankList = () => {
             <Space>
               <Button
                 icon={<Plus size={18} />}
-                type="primary"
+                type='primary'
                 onClick={() => openForm(null)}
                 style={{ borderRadius: 8 }}
               >
@@ -328,7 +328,7 @@ const BankList = () => {
             hasMore={data?.hasMore || false}
             onLoadMore={handleLoadMore}
             renderItem={renderItem}
-            emptyText="Belum ada bank soal tersedia"
+            emptyText='Belum ada bank soal tersedia'
             grid={{
               gutter: [16, 16],
               xs: 24,
@@ -336,16 +336,15 @@ const BankList = () => {
               md: 8,
               lg: 8,
               xl: 6,
-              xxl: 4,
             }}
-            height="calc(100vh - 300px)"
+            height='calc(100vh - 300px)'
           />
         </>
       )}
 
       <Modal
         title={
-          <Flex align="center" gap={8}>
+          <Flex align='center' gap={8}>
             <div
               style={{
                 background: token.colorPrimaryBg,
@@ -377,7 +376,7 @@ const BankList = () => {
 
       <Modal
         title={
-          <Flex align="center" gap={8}>
+          <Flex align='center' gap={8}>
             <div
               style={{
                 background: token.colorPrimaryBg,
@@ -408,9 +407,8 @@ const BankList = () => {
           }}
         />
       </Modal>
-    </>
+    </Suspense>
   );
 };
 
 export default BankList;
-
