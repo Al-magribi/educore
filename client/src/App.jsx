@@ -112,7 +112,10 @@ const App = () => {
                 NotFoundRedirect,
               })}
 
-            {isTahfizEnabled && renderTahfizRoutes()}
+            {isTahfizEnabled &&
+              renderTahfizRoutes({
+                LazyPage,
+              })}
 
             {renderRoleRoutes({
               LazyPage,
