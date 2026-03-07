@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -26,7 +26,7 @@ import {
   Folder,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { InfiniteScrollList } from "../../../../components";
+import { InfiniteScrollList, LoadApp } from "../../../../components";
 import {
   useGetExamsQuery,
   useDeleteExamMutation,
@@ -296,7 +296,7 @@ const ExamList = () => {
   }
 
   return (
-    <>
+    <Suspense fallback={<LoadApp />}>
       <Flex vertical gap={"large"}>
         <Flex
           gap={"middle"}
@@ -374,9 +374,8 @@ const ExamList = () => {
           onSuccess={handleFormSuccess}
         />
       </Modal>
-    </>
+    </Suspense>
   );
 };
 
 export default ExamList;
-
