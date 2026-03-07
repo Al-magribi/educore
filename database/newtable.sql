@@ -512,8 +512,13 @@ CREATE TABLE t_surah (
 CREATE TABLE t_juz (
     id SERIAL PRIMARY KEY,
     number integer NOT NULL UNIQUE,
+    line_count integer,
     description text
 );
+
+ALTER TABLE t_juz
+ADD COLUMN line_count integer;
+
 
 -- MAPPING JUZ KE SURAH (Dari t_juzitems newtable)
 -- Berguna untuk mengetahui Juz 30 itu surat apa sampai apa
@@ -531,35 +536,86 @@ CREATE TABLE t_activity_type (
     code varchar(10) UNIQUE
 );
 
+CREATE TABLE t_musyrif (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer REFERENCES a_homebase(id),
+    full_name varchar(150) NOT NULL,
+    phone varchar(30),
+    gender varchar(10),
+    is_active boolean DEFAULT true,
+    notes text,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE t_halaqoh (
     id SERIAL PRIMARY KEY,
     periode_id integer REFERENCES a_periode(id),
     name varchar(100) NOT NULL,
-    teacher_id integer REFERENCES u_teachers(user_id), -- Musyrif
+    musyrif_id integer REFERENCES t_musyrif(id),
     is_active boolean DEFAULT true
 );
 
 CREATE TABLE t_halaqoh_students (
     id SERIAL PRIMARY KEY,
     halaqoh_id integer REFERENCES t_halaqoh(id),
-    student_id integer REFERENCES u_students(user_id)
+    student_id integer REFERENCES u_students(user_id),
+    CONSTRAINT uq_halaqoh_student UNIQUE (halaqoh_id, student_id)
 );
 
--- TARGET HAFALAN (Dari t_target newtable)
-CREATE TABLE t_target (
-    id SERIAL PRIMARY KEY,
-    periode_id integer REFERENCES a_periode(id),
-    grade_id integer REFERENCES a_grade(id),
-    juz_id integer REFERENCES t_juz(id), -- Target hafal Juz berapa
-    description text
+CREATE TABLE t_target_plan (
+  id SERIAL PRIMARY KEY,
+  periode_id INT NOT NULL REFERENCES a_periode(id) ON DELETE CASCADE,
+  homebase_id INT NULL REFERENCES a_homebase(id) ON DELETE CASCADE, -- NULL = berlaku semua satuan
+  grade_id INT NOT NULL REFERENCES a_grade(id) ON DELETE CASCADE,
+  title VARCHAR(150),
+  notes TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by INT REFERENCES u_users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- satu rule per kombinasi periode + satuan + tingkat
+CREATE UNIQUE INDEX uq_target_plan_scope
+ON t_target_plan (periode_id, COALESCE(homebase_id, 0), grade_id);
+
+
+
+CREATE TABLE t_target_item (
+  id SERIAL PRIMARY KEY,
+  plan_id INT NOT NULL REFERENCES t_target_plan(id) ON DELETE CASCADE,
+  target_type VARCHAR(10) NOT NULL CHECK (target_type IN ('juz','surah')),
+  juz_id INT NULL REFERENCES t_juz(id),
+  surah_id INT NULL REFERENCES t_surah(id),
+  start_ayat INT NULL,
+  end_ayat INT NULL,
+  order_no INT DEFAULT 1,
+  is_mandatory BOOLEAN DEFAULT TRUE,
+  notes TEXT, -- pastikan hanya salah satu: juz ATAU surah
+  CONSTRAINT ck_target_item_ref CHECK (
+    (target_type='juz' AND juz_id IS NOT NULL AND surah_id IS NULL) OR
+    (target_type='surah' AND surah_id IS NOT NULL AND juz_id IS NULL)
+  ),
+
+  CONSTRAINT ck_target_item_ayat CHECK (  -- jika surah parsial, validasi ayat
+    (target_type='juz' AND start_ayat IS NULL AND end_ayat IS NULL) OR
+    (target_type='surah' AND (
+      (start_ayat IS NULL AND end_ayat IS NULL) OR
+      (start_ayat IS NOT NULL AND end_ayat IS NOT NULL AND start_ayat <= end_ayat)
+    ))
+  )
+);
+
+CREATE INDEX idx_target_item_plan ON t_target_item(plan_id);
+
 
 -- SETORAN HARIAN (Menggabungkan t_process & t_daily_record)
 CREATE TABLE t_daily_record (
     id SERIAL PRIMARY KEY,
     student_id integer REFERENCES u_students(user_id),
     halaqoh_id integer REFERENCES t_halaqoh(id),
-    teacher_id integer REFERENCES u_teachers(user_id),
+    musyrif_id integer REFERENCES t_musyrif(id),
     date date DEFAULT CURRENT_DATE,
     
     type_id integer REFERENCES t_activity_type(id),
@@ -577,22 +633,6 @@ CREATE TABLE t_daily_record (
     note text
 );
 
--- UJIAN TAHFIZ (Dari t_exam & t_scoring)
-CREATE TABLE t_exam (
-    id SERIAL PRIMARY KEY,
-    periode_id integer REFERENCES a_periode(id),
-    student_id integer REFERENCES u_students(user_id),
-    examiner_id integer REFERENCES u_teachers(user_id), -- Penguji
-    date date DEFAULT CURRENT_DATE,
-    title varchar(100),
-    
-    score_fashohah numeric(5,2),
-    score_tajweed numeric(5,2),
-    score_fluency numeric(5,2),
-    final_score numeric(5,2),
-    
-    result_status varchar(20) -- Mumtaz, Jayyid, dll
-);
 
 
 

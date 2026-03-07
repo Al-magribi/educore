@@ -75,8 +75,8 @@ router.get(
       pool.query(
         `SELECT COUNT(*) 
          FROM t_daily_record d
-         JOIN u_teachers t ON d.teacher_id = t.user_id
-         WHERE d.date = CURRENT_DATE AND t.homebase_id = $1`,
+         JOIN t_musyrif m ON d.musyrif_id = m.id
+         WHERE d.date = CURRENT_DATE AND m.homebase_id = $1`,
         [homebaseId],
       ),
       pool.query(
