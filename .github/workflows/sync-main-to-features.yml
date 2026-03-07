@@ -45,11 +45,11 @@ jobs:
           git fetch origin
           git checkout "${TARGET_BRANCH}"
 
-          if git merge origin/main --no-ff -X ours -m "${MERGE_MESSAGE}"; then
+          if git merge origin/main --no-ff -X theirs -m "${MERGE_MESSAGE}"; then
             echo "Merge completed for ${TARGET_BRANCH}"
           else
-            echo "Conflict detected on ${TARGET_BRANCH}, resolving by preferring target branch content"
-            git checkout --ours .
+            echo "Conflict detected on ${TARGET_BRANCH}, resolving by preferring main branch content"
+            git checkout --theirs .
             git add -A
             git commit -m "${MERGE_MESSAGE} (auto-resolved)"
           fi
