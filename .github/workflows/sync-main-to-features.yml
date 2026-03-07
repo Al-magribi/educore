@@ -1,0 +1,57 @@
+name: Sync Main To Feature Branches
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-main-to-features
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch:
+          - feature/db
+          - feature/lms
+          - feature/tahfiz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge main into ${{ matrix.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_BRANCH="${{ matrix.branch }}"
+          MERGE_MESSAGE="chore(sync): merge main into ${TARGET_BRANCH}"
+
+          git fetch origin
+          git checkout "${TARGET_BRANCH}"
+
+          if git merge origin/main --no-ff -X ours -m "${MERGE_MESSAGE}"; then
+            echo "Merge completed for ${TARGET_BRANCH}"
+          else
+            echo "Conflict detected on ${TARGET_BRANCH}, resolving by preferring target branch content"
+            git checkout --ours .
+            git add -A
+            git commit -m "${MERGE_MESSAGE} (auto-resolved)"
+          fi
+
+          git push origin "HEAD:${TARGET_BRANCH}"
