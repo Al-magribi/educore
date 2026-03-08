@@ -5,6 +5,9 @@ import grading from "./RouterGrading.js";
 import recap from "./RouterRecap.js";
 import parent from "./RouterParent.js";
 
+import schedule from "./RouterSchedule.js";
+import duty from "./RouterDuty.js";
+
 const RouterLms = Router();
 
 RouterLms.use(lms);
@@ -12,5 +15,7 @@ RouterLms.use(Attendance);
 RouterLms.use(grading);
 RouterLms.use(recap);
 RouterLms.use(parent);
+RouterLms.use(schedule);
+RouterLms.use(duty);
 
 export default RouterLms;

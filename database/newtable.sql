@@ -1,4 +1,4 @@
-﻿-- Active: 1768875297035@@212.85.24.143@5432@lms
+﻿-- Active: 1759750046693@@212.85.24.143@5432@lms
 /* REVISI FIXEDTABLE.SQL
    Digabungkan dengan fitur dari newtable.sql
 */
@@ -1503,4 +1503,251 @@ ON l_score_formative(student_id, subject_id, semester, month);
 
 CREATE INDEX IF NOT EXISTS idx_score_summative_student_subject_semester_month
 ON l_score_summative(student_id, subject_id, semester, month);
+
+-- ================================================================
+-- SECTION 9: LMS SCHEDULING & DUTY (JADWAL MENGAJAR + PIKET)
+-- ================================================================
+
+CREATE SCHEMA IF NOT EXISTS lms;
+
+CREATE TABLE IF NOT EXISTS lms.l_schedule_config (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    session_minutes integer NOT NULL CHECK (session_minutes > 0),
+    max_sessions_per_meeting integer NOT NULL DEFAULT 2 CHECK (max_sessions_per_meeting > 0),
+    require_different_days_if_over_max boolean NOT NULL DEFAULT true,
+    allow_same_day_multiple_meetings boolean NOT NULL DEFAULT true,
+    minimum_gap_slots integer NOT NULL DEFAULT 4 CHECK (minimum_gap_slots >= 0),
+    created_by integer REFERENCES public.u_users(id),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_schedule_config_homebase_periode UNIQUE (homebase_id, periode_id)
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_schedule_day_template (
+    id SERIAL PRIMARY KEY,
+    config_id integer NOT NULL REFERENCES lms.l_schedule_config(id) ON DELETE CASCADE,
+    day_of_week smallint NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+    start_time time NOT NULL,
+    end_time time NOT NULL,
+    is_school_day boolean NOT NULL DEFAULT true,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_day_template_time_range CHECK (start_time < end_time),
+    CONSTRAINT uq_schedule_day_template UNIQUE (config_id, day_of_week)
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_schedule_break (
+    id SERIAL PRIMARY KEY,
+    day_template_id integer NOT NULL REFERENCES lms.l_schedule_day_template(id) ON DELETE CASCADE,
+    break_start time NOT NULL,
+    break_end time NOT NULL,
+    label text,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_schedule_break_time_range CHECK (break_start < break_end)
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_time_slot (
+    id SERIAL PRIMARY KEY,
+    config_id integer NOT NULL REFERENCES lms.l_schedule_config(id) ON DELETE CASCADE,
+    day_of_week smallint NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+    slot_no integer NOT NULL CHECK (slot_no > 0),
+    start_time time NOT NULL,
+    end_time time NOT NULL,
+    is_break boolean NOT NULL DEFAULT false,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_time_slot_range CHECK (start_time < end_time),
+    CONSTRAINT uq_time_slot_slot_no UNIQUE (config_id, day_of_week, slot_no),
+    CONSTRAINT uq_time_slot_range UNIQUE (config_id, day_of_week, start_time, end_time)
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_teaching_load (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    class_id integer NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    subject_id integer NOT NULL REFERENCES public.a_subject(id) ON DELETE CASCADE,
+    teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE RESTRICT,
+    weekly_sessions integer NOT NULL CHECK (weekly_sessions > 0),
+    max_sessions_per_meeting integer NOT NULL DEFAULT 2 CHECK (max_sessions_per_meeting > 0),
+    require_different_days boolean NOT NULL DEFAULT true,
+    allow_same_day_with_gap boolean NOT NULL DEFAULT true,
+    minimum_gap_slots integer NOT NULL DEFAULT 4 CHECK (minimum_gap_slots >= 0),
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer REFERENCES public.u_users(id),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_teaching_load UNIQUE (periode_id, class_id, subject_id, teacher_id)
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_teacher_unavailability (
+    id SERIAL PRIMARY KEY,
+    teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    day_of_week smallint CHECK (day_of_week BETWEEN 1 AND 7),
+    specific_date date,
+    start_time time,
+    end_time time,
+    reason text,
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer REFERENCES public.u_users(id),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_unavailability_scope CHECK (
+        day_of_week IS NOT NULL OR specific_date IS NOT NULL
+    ),
+    CONSTRAINT chk_unavailability_time_pair CHECK (
+        (start_time IS NULL AND end_time IS NULL) OR
+        (start_time IS NOT NULL AND end_time IS NOT NULL AND start_time < end_time)
+    )
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_schedule_generation_run (
+    id SERIAL PRIMARY KEY,
+    config_id integer NOT NULL REFERENCES lms.l_schedule_config(id) ON DELETE CASCADE,
+    generated_by integer REFERENCES public.u_users(id),
+    strategy text,
+    status varchar(20) NOT NULL DEFAULT 'success'
+        CHECK (status IN ('running', 'success', 'failed', 'cancelled')),
+    notes text,
+    generated_at timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_schedule_entry (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    teaching_load_id integer NOT NULL REFERENCES lms.l_teaching_load(id) ON DELETE CASCADE,
+    class_id integer NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    subject_id integer NOT NULL REFERENCES public.a_subject(id) ON DELETE CASCADE,
+    teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE RESTRICT,
+    day_of_week smallint NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+    slot_start_id integer NOT NULL REFERENCES lms.l_time_slot(id) ON DELETE RESTRICT,
+    slot_count integer NOT NULL CHECK (slot_count > 0),
+    meeting_no integer NOT NULL CHECK (meeting_no > 0),
+    source_type varchar(20) NOT NULL DEFAULT 'generated'
+        CHECK (source_type IN ('generated', 'manual')),
+    is_manual_override boolean NOT NULL DEFAULT false,
+    locked boolean NOT NULL DEFAULT false,
+    status varchar(20) NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'published', 'archived')),
+    generated_run_id integer REFERENCES lms.l_schedule_generation_run(id) ON DELETE SET NULL,
+    created_by integer REFERENCES public.u_users(id),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_schedule_entry_meeting UNIQUE (teaching_load_id, meeting_no)
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_schedule_entry_slot (
+    id SERIAL PRIMARY KEY,
+    schedule_entry_id integer NOT NULL REFERENCES lms.l_schedule_entry(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    day_of_week smallint NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+    slot_id integer NOT NULL REFERENCES lms.l_time_slot(id) ON DELETE RESTRICT,
+    class_id integer NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE RESTRICT,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_schedule_entry_slot_pair UNIQUE (schedule_entry_id, slot_id),
+    CONSTRAINT uq_schedule_class_slot UNIQUE (periode_id, class_id, day_of_week, slot_id),
+    CONSTRAINT uq_schedule_teacher_slot UNIQUE (periode_id, teacher_id, day_of_week, slot_id)
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_schedule_entry_history (
+    id SERIAL PRIMARY KEY,
+    schedule_entry_id integer REFERENCES lms.l_schedule_entry(id) ON DELETE SET NULL,
+    action_type varchar(20) NOT NULL
+        CHECK (action_type IN ('create', 'update', 'delete')),
+    old_data jsonb,
+    new_data jsonb,
+    changed_by integer REFERENCES public.u_users(id),
+    changed_at timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_duty_assignment (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    date date NOT NULL,
+    slot_id integer REFERENCES lms.l_time_slot(id) ON DELETE SET NULL,
+    duty_teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE RESTRICT,
+    assigned_by integer REFERENCES public.u_users(id),
+    note text,
+    status varchar(20) NOT NULL DEFAULT 'assigned'
+        CHECK (status IN ('assigned', 'done', 'cancelled')),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_teacher_session_log (
+    id SERIAL PRIMARY KEY,
+    schedule_entry_id integer NOT NULL REFERENCES lms.l_schedule_entry(id) ON DELETE CASCADE,
+    date date NOT NULL,
+    teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE RESTRICT,
+    duty_assignment_id integer REFERENCES lms.l_duty_assignment(id) ON DELETE SET NULL,
+    checkin_at timestamp,
+    checkout_at timestamp,
+    checkin_by integer REFERENCES public.u_users(id),
+    checkout_by integer REFERENCES public.u_users(id),
+    note text,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_teacher_session_daily UNIQUE (schedule_entry_id, date),
+    CONSTRAINT chk_teacher_session_time_order CHECK (
+        checkout_at IS NULL OR checkin_at IS NULL OR checkout_at >= checkin_at
+    )
+);
+
+CREATE TABLE IF NOT EXISTS lms.l_daily_absence_report (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    date date NOT NULL,
+    reporter_teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE RESTRICT,
+    target_type varchar(20) NOT NULL CHECK (target_type IN ('teacher', 'student')),
+    target_user_id integer NOT NULL REFERENCES public.u_users(id) ON DELETE CASCADE,
+    class_id integer REFERENCES public.a_class(id) ON DELETE SET NULL,
+    slot_id integer REFERENCES lms.l_time_slot(id) ON DELETE SET NULL,
+    reason text,
+    follow_up text,
+    status varchar(20) NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'closed')),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ================================================================
+-- LMS SCHEDULING & DUTY INDEXES
+-- ================================================================
+CREATE INDEX IF NOT EXISTS idx_schedule_day_template_config
+ON lms.l_schedule_day_template(config_id, day_of_week);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_break_day_template
+ON lms.l_schedule_break(day_template_id, break_start, break_end);
+
+CREATE INDEX IF NOT EXISTS idx_time_slot_config_day
+ON lms.l_time_slot(config_id, day_of_week, slot_no);
+
+CREATE INDEX IF NOT EXISTS idx_teaching_load_lookup
+ON lms.l_teaching_load(periode_id, homebase_id, class_id, teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_unavailability_lookup
+ON lms.l_teacher_unavailability(teacher_id, periode_id, day_of_week, specific_date);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_entry_lookup
+ON lms.l_schedule_entry(periode_id, homebase_id, day_of_week, class_id, teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_entry_slot_lookup
+ON lms.l_schedule_entry_slot(periode_id, day_of_week, slot_id, class_id, teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_duty_assignment_lookup
+ON lms.l_duty_assignment(homebase_id, periode_id, date, duty_teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_session_log_lookup
+ON lms.l_teacher_session_log(date, teacher_id, schedule_entry_id);
+
+CREATE INDEX IF NOT EXISTS idx_daily_absence_report_lookup
+ON lms.l_daily_absence_report(homebase_id, periode_id, date, target_type, target_user_id);
 
