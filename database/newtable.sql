@@ -647,93 +647,201 @@ CREATE TABLE configurations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ================================================================
--- SECTION 7: STUDENT DATABASE PRESENTATION VIEW
--- Dipakai untuk kebutuhan monitoring keterisian database siswa
--- ================================================================
 
-CREATE OR REPLACE VIEW vw_student_database_profile AS
-SELECT
-    u.id AS student_id,
-    u.full_name,
-    u.gender,
-    s.nis,
-    s.nisn,
-    s.birth_place,
-    s.birth_date,
-    s.height,
-    s.weight,
-    s.head_circumference,
-    s.order_number,
-    s.siblings_count,
-    s.address,
-    s.postal_code,
-    hb.name AS education_unit,
-    pr.name AS province,
-    ci.name AS city,
-    di.name AS district,
-    vi.name AS village,
-    cl.id AS class_id,
-    cl.name AS class_name,
-    gr.id AS grade_id,
-    gr.name AS grade_name,
-    pe.name AS academic_year,
-    fam.father_name,
-    fam.father_nik,
-    fam.father_birth_place,
-    fam.father_birth_date,
-    fam.father_phone,
-    fam.mother_name,
-    fam.mother_nik,
-    fam.mother_birth_place,
-    fam.mother_birth_date,
-    fam.mother_phone,
-    COALESCE(sib.siblings, '[]'::json) AS siblings
-FROM u_users u
-JOIN u_students s ON s.user_id = u.id
-LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
-LEFT JOIN LATERAL (
-    SELECT ce.class_id, ce.periode_id
-    FROM u_class_enrollments ce
-    WHERE ce.student_id = u.id
-    ORDER BY ce.enrolled_at DESC, ce.id DESC
-    LIMIT 1
-) ce_last ON true
-LEFT JOIN a_class cl ON cl.id = ce_last.class_id
-LEFT JOIN a_grade gr ON gr.id = cl.grade_id
-LEFT JOIN a_periode pe ON pe.id = ce_last.periode_id
-LEFT JOIN db_province pr ON pr.id = s.province_id
-LEFT JOIN db_city ci ON ci.id = s.city_id
-LEFT JOIN db_district di ON di.id = s.district_id
-LEFT JOIN db_village vi ON vi.id = s.village_id
-LEFT JOIN LATERAL (
-    SELECT
-      sf.father_name,
-      sf.father_nik,
-      sf.father_birth_place,
-      sf.father_birth_date,
-      sf.father_phone,
-      sf.mother_name,
-      sf.mother_nik,
-      sf.mother_birth_place,
-      sf.mother_birth_date,
-      sf.mother_phone
-    FROM u_student_families sf
-    WHERE sf.student_id = u.id
-    ORDER BY sf.id DESC
-    LIMIT 1
-) fam ON true
-LEFT JOIN LATERAL (
-    SELECT json_agg(
-      json_build_object(
-        'id', ss.id,
-        'name', ss.name,
-        'gender', ss.gender,
-        'birth_date', ss.birth_date
-      )
-      ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
-    ) AS siblings
-    FROM u_student_siblings ss
-    WHERE ss.student_id = u.id
-) sib ON true
-WHERE u.role = 'student';
+
+-- =========================================
+-- FINANCE SCHEMA
+-- =========================================
+create schema if not exists finance;
+
+-- =========================================
+-- 1) MASTER KOMPONEN BIAYA
+-- =========================================
+create table if not exists finance.fee_component (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  code varchar(50) not null,            -- SPP, UANG_GEDUNG, SERAGAM, BUKU, KAS_KELAS, TABUNGAN, dll
+  name varchar(120) not null,
+  charge_type varchar(20) not null check (charge_type in ('monthly','once','custom')),
+  is_savings boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (homebase_id, code)
+);
+
+create index if not exists idx_fee_component_homebase
+  on finance.fee_component(homebase_id);
+
+-- =========================================
+-- 2) RULE TARIF (PER SATUAN, TINGKAT, PERIODE)
+-- =========================================
+create table if not exists finance.fee_rule (
+  id bigserial primary key,
+  component_id bigint not null references finance.fee_component(id) on delete cascade,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  grade_id int references public.a_grade(id) on delete set null,       -- null = semua tingkat
+  periode_id int references public.a_periode(id) on delete set null,   -- null = lintas periode/default
+  billing_cycle varchar(20) not null check (billing_cycle in ('monthly','once','custom')),
+  amount numeric(14,2) not null check (amount >= 0),
+  valid_from date,
+  valid_to date,
+  is_active boolean not null default true,
+  created_by int references public.u_users(id),
+  created_at timestamptz not null default now(),
+  check (valid_to is null or valid_from is null or valid_to >= valid_from)
+);
+
+create index if not exists idx_fee_rule_lookup
+  on finance.fee_rule(homebase_id, grade_id, periode_id, component_id, is_active);
+
+-- Bulan aktif untuk rule monthly (supaya support tahun ajaran Jul-Jun)
+create table if not exists finance.fee_rule_month (
+  id bigserial primary key,
+  fee_rule_id bigint not null references finance.fee_rule(id) on delete cascade,
+  month_num smallint not null check (month_num between 1 and 12),
+  unique (fee_rule_id, month_num)
+);
+
+create index if not exists idx_fee_rule_month_rule
+  on finance.fee_rule_month(fee_rule_id);
+
+-- =========================================
+-- 3) TAGIHAN
+-- =========================================
+create table if not exists finance.invoice (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  periode_id int references public.a_periode(id),
+  invoice_no varchar(60) not null unique,
+  issue_date date not null default current_date,
+  due_date date,
+  status varchar(20) not null default 'draft'
+    check (status in ('draft','issued','partial','paid','cancelled')),
+  notes text,
+  created_by int not null references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_invoice_student
+  on finance.invoice(student_id, status);
+
+create table if not exists finance.invoice_item (
+  id bigserial primary key,
+  invoice_id bigint not null references finance.invoice(id) on delete cascade,
+  component_id bigint not null references finance.fee_component(id),
+  fee_rule_id bigint references finance.fee_rule(id),
+  bill_year smallint,                         -- contoh 2026
+  bill_month smallint check (bill_month between 1 and 12), -- untuk SPP bulanan
+  description text,
+  qty numeric(12,2) not null default 1 check (qty > 0),
+  unit_amount numeric(14,2) not null check (unit_amount >= 0),
+  amount numeric(14,2) generated always as (qty * unit_amount) stored
+);
+
+create index if not exists idx_invoice_item_invoice
+  on finance.invoice_item(invoice_id);
+
+-- Cegah duplikasi SPP bulan yang sama di student yang sama
+create unique index if not exists uq_invoice_item_monthly
+  on finance.invoice_item(component_id, fee_rule_id, bill_year, bill_month, invoice_id)
+  where bill_month is not null and bill_year is not null;
+
+-- =========================================
+-- 4) METODE PEMBAYARAN (MANUAL BANK / MIDTRANS)
+-- =========================================
+create table if not exists finance.payment_method (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  method_type varchar(20) not null check (method_type in ('manual_bank','midtrans')),
+  name varchar(100) not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists finance.bank_account (
+  id bigserial primary key,
+  payment_method_id bigint not null references finance.payment_method(id) on delete cascade,
+  bank_name varchar(100) not null,
+  account_name varchar(120) not null,
+  account_number varchar(60) not null,
+  branch varchar(100),
+  is_active boolean not null default true
+);
+
+-- =========================================
+-- 5) PEMBAYARAN
+-- =========================================
+create table if not exists finance.payment (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  payer_user_id int not null references public.u_users(id), -- parent/siswa/admin
+  method_id bigint not null references finance.payment_method(id),
+  bank_account_id bigint references finance.bank_account(id),
+  payment_date timestamptz not null default now(),
+  amount numeric(14,2) not null check (amount > 0),
+  status varchar(20) not null
+    check (status in ('pending','paid','failed','expired','cancelled','refunded')),
+  reference_no varchar(120),
+  proof_url text, -- bukti transfer manual
+  notes text,
+  created_by int references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_payment_student
+  on finance.payment(student_id, status, payment_date desc);
+
+create table if not exists finance.payment_allocation (
+  id bigserial primary key,
+  payment_id bigint not null references finance.payment(id) on delete cascade,
+  invoice_item_id bigint not null references finance.invoice_item(id) on delete cascade,
+  allocated_amount numeric(14,2) not null check (allocated_amount > 0),
+  unique (payment_id, invoice_item_id)
+);
+
+create index if not exists idx_payment_alloc_item
+  on finance.payment_allocation(invoice_item_id);
+
+-- =========================================
+-- 6) GATEWAY TRANSACTION (MIDTRANS)
+-- =========================================
+create table if not exists finance.gateway_transaction (
+  id bigserial primary key,
+  payment_id bigint not null unique references finance.payment(id) on delete cascade,
+  provider varchar(30) not null default 'midtrans',
+  order_id varchar(120) not null unique,
+  transaction_id varchar(120),
+  transaction_status varchar(40),
+  snap_token text,
+  snap_redirect_url text,
+  gross_amount numeric(14,2),
+  raw_response jsonb,
+  webhook_payload jsonb,
+  last_synced_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- =========================================
+-- 7) TABUNGAN SISWA (MANUAL OLEH WALIKELAS/ADMIN FINANCE)
+-- =========================================
+create table if not exists finance.savings_ledger (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  component_id bigint not null references finance.fee_component(id), -- wajib komponen is_savings=true (validasi di service/trigger)
+  trx_date date not null default current_date,
+  direction varchar(10) not null check (direction in ('in','out')),
+  amount numeric(14,2) not null check (amount > 0),
+  note text,
+  recorded_by int not null references public.u_users(id),
+  approved_by int references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_savings_student
+  on finance.savings_ledger(student_id, trx_date desc);
+
+
