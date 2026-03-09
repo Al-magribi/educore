@@ -76,24 +76,24 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
       destroyOnHidden
       width={600}
     >
-      <Form form={form} layout="vertical" onFinish={handleFinish}>
+      <Form form={form} layout='vertical' onFinish={handleFinish}>
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item
-              name="full_name"
-              label="Nama Lengkap"
+              name='full_name'
+              label='Nama Lengkap'
               rules={[{ required: true, message: "Wajib diisi" }]}
             >
-              <Input placeholder="Nama Admin" prefix={<UserOutlined />} />
+              <Input placeholder='Nama Admin' prefix={<UserOutlined />} />
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item
-              name="username"
-              label="Username"
+              name='username'
+              label='Username'
               rules={[{ required: true, message: "Wajib diisi" }]}
             >
-              <Input placeholder="Username Login" disabled={!!initialData} />
+              <Input placeholder='Username Login' disabled={!!initialData} />
             </Form.Item>
           </Col>
         </Row>
@@ -101,21 +101,22 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item
-              name="level"
-              label="Level Akses"
-              initialValue="admin"
+              name='level'
+              label='Level Akses'
+              initialValue='admin'
               rules={[{ required: true, message: "Pilih level akses" }]}
             >
-              <Select placeholder="Pilih Level">
-                <Option value="pusat">Pusat</Option>
-                <Option value="satuan">Satuan (Sekolah)</Option>
-                <Option value="tahfiz">Tahfiz</Option>
+              <Select placeholder='Pilih Level'>
+                <Option value='pusat'>Pusat</Option>
+                <Option value='satuan'>Satuan (Sekolah)</Option>
+                <Option value='tahfiz'>Tahfiz</Option>
+                <Option value='keuangan'>Keuangan</Option>
               </Select>
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="phone" label="No. Telepon">
-              <Input placeholder="08xxx" prefix={<PhoneOutlined />} />
+            <Form.Item name='phone' label='No. Telepon'>
+              <Input placeholder='08xxx' prefix={<PhoneOutlined />} />
             </Form.Item>
           </Col>
         </Row>
@@ -130,8 +131,8 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
           {({ getFieldValue }) =>
             getFieldValue("level") === "satuan" ? (
               <Form.Item
-                name="homebase_id"
-                label="Pilih Satuan Pendidikan (Homebase)"
+                name='homebase_id'
+                label='Pilih Satuan Pendidikan (Homebase)'
                 rules={[
                   {
                     required: true,
@@ -140,11 +141,11 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
                 ]}
               >
                 <Select
-                  placeholder="Pilih Homebase"
+                  placeholder='Pilih Homebase'
                   loading={loadingHomebase}
                   allowClear
                   showSearch
-                  optionFilterProp="children"
+                  optionFilterProp='children'
                 >
                   {homebaseData?.data?.map((hb) => (
                     <Option key={hb.id} value={hb.id}>
@@ -157,12 +158,12 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
           }
         </Form.Item>
 
-        <Form.Item name="email" label="Email">
-          <Input placeholder="email@sekolah.com" prefix={<MailOutlined />} />
+        <Form.Item name='email' label='Email'>
+          <Input placeholder='email@sekolah.com' prefix={<MailOutlined />} />
         </Form.Item>
 
         <Form.Item
-          name="password"
+          name='password'
           label={initialData ? "Password Baru (Opsional)" : "Password"}
           rules={[
             {
@@ -184,11 +185,11 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
 
         {initialData && (
           <Form.Item
-            name="is_active"
-            label="Status Akun"
-            valuePropName="checked"
+            name='is_active'
+            label='Status Akun'
+            valuePropName='checked'
           >
-            <Switch checkedChildren="Aktif" unCheckedChildren="Nonaktif" />
+            <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
           </Form.Item>
         )}
       </Form>

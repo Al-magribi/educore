@@ -749,224 +749,201 @@ CREATE TABLE configurations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ================================================================
--- HELPER: Decode type format for monthly reports (Mxx-B{chapter}-S{sub})
--- Example: M02-B10-S3 -> month_num=2, chapter_id=10, subchapter=3
--- ================================================================
-CREATE OR REPLACE FUNCTION fn_decode_score_type(p_type text)
-RETURNS TABLE (
-    month_num integer,
-    chapter_id integer,
-    subchapter integer
-)
-LANGUAGE sql
-AS $$
-    SELECT
-        NULLIF(substring(p_type from 'M(\\d{2})'), '')::int AS month_num,
-        NULLIF(substring(p_type from 'B(\\d+)'), '')::int AS chapter_id,
-        NULLIF(substring(p_type from 'S(\\d+)'), '')::int AS subchapter;
-$$;
 
--- ================================================================
--- VIEWS: Monthly Reports (Ready for frontend)
--- ================================================================
 
-CREATE OR REPLACE VIEW v_report_attitude_monthly AS
-SELECT
-  e.periode_id,
-  e.class_id,
-  a.subject_id,
-  a.teacher_id,
-  a.month,
-  a.semester,
-  u.id AS student_id,
-  u.full_name,
-  st.nis,
-  a.kinerja,
-  a.kedisiplinan,
-  a.keaktifan,
-  a.percaya_diri,
-  a.average_score,
-  a.teacher_note
-FROM u_class_enrollments e
-JOIN u_users u ON e.student_id = u.id
-JOIN u_students st ON e.student_id = st.user_id
-LEFT JOIN l_score_attitude a
-  ON a.student_id = e.student_id
- AND a.periode_id = e.periode_id;
+-- =========================================
+-- FINANCE SCHEMA
+-- =========================================
+create schema if not exists finance;
 
-CREATE OR REPLACE VIEW v_report_formative_monthly AS
-SELECT
-  e.periode_id,
-  e.class_id,
-  f.subject_id,
-  f.teacher_id,
-  f.month,
-  f.semester,
-  u.id AS student_id,
-  u.full_name,
-  st.nis,
-  f.chapter_id,
-  d.subchapter AS subchapter_index,
-  f.score
-FROM u_class_enrollments e
-JOIN u_users u ON e.student_id = u.id
-JOIN u_students st ON e.student_id = st.user_id
-JOIN l_score_formative f ON f.student_id = e.student_id
-LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true;
+-- =========================================
+-- 1) MASTER KOMPONEN BIAYA
+-- =========================================
+create table if not exists finance.fee_component (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  code varchar(50) not null,            -- SPP, UANG_GEDUNG, SERAGAM, BUKU, KAS_KELAS, TABUNGAN, dll
+  name varchar(120) not null,
+  charge_type varchar(20) not null check (charge_type in ('monthly','once','custom')),
+  is_savings boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (homebase_id, code)
+);
 
-CREATE OR REPLACE VIEW v_report_summative_monthly AS
-SELECT
-  e.periode_id,
-  e.class_id,
-  s.subject_id,
-  s.teacher_id,
-  s.month,
-  s.semester,
-  u.id AS student_id,
-  u.full_name,
-  st.nis,
-  s.chapter_id,
-  d.subchapter AS subchapter_index,
-  s.type,
-  s.score_written,
-  s.score_skill,
-  s.final_score
-FROM u_class_enrollments e
-JOIN u_users u ON e.student_id = u.id
-JOIN u_students st ON e.student_id = st.user_id
-JOIN l_score_summative s ON s.student_id = e.student_id
-LEFT JOIN LATERAL fn_decode_score_type(s.type) d ON true;
+create index if not exists idx_fee_component_homebase
+  on finance.fee_component(homebase_id);
 
--- ================================================================
--- SAMPLE REPORT QUERIES (Bulanan)
--- ================================================================
+-- =========================================
+-- 2) RULE TARIF (PER SATUAN, TINGKAT, PERIODE)
+-- =========================================
+create table if not exists finance.fee_rule (
+  id bigserial primary key,
+  component_id bigint not null references finance.fee_component(id) on delete cascade,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  grade_id int references public.a_grade(id) on delete set null,       -- null = semua tingkat
+  periode_id int references public.a_periode(id) on delete set null,   -- null = lintas periode/default
+  billing_cycle varchar(20) not null check (billing_cycle in ('monthly','once','custom')),
+  amount numeric(14,2) not null check (amount >= 0),
+  valid_from date,
+  valid_to date,
+  is_active boolean not null default true,
+  created_by int references public.u_users(id),
+  created_at timestamptz not null default now(),
+  check (valid_to is null or valid_from is null or valid_to >= valid_from)
+);
 
--- 1) Laporan Nilai Sikap Bulanan (per kelas, mapel, periode)
--- Params: :subject_id, :class_id, :periode_id, :month, :semester
--- Note: join ke u_class_enrollments agar konteks kelas & periode akurat
--- SELECT
---   u.id AS student_id,
---   u.full_name,
---   st.nis,
---   a.month,
---   a.semester,
---   a.kinerja,
---   a.kedisiplinan,
---   a.keaktifan,
---   a.percaya_diri,
---   a.average_score,
---   a.teacher_note
--- FROM u_class_enrollments e
--- JOIN u_users u ON e.student_id = u.id
--- JOIN u_students st ON e.student_id = st.user_id
--- LEFT JOIN l_score_attitude a
---   ON a.student_id = e.student_id
---  AND a.subject_id = :subject_id
---  AND a.periode_id = :periode_id
---  AND a.month = :month
---  AND a.semester = :semester
--- WHERE e.class_id = :class_id
---   AND e.periode_id = :periode_id
--- ORDER BY u.full_name ASC;
+create index if not exists idx_fee_rule_lookup
+  on finance.fee_rule(homebase_id, grade_id, periode_id, component_id, is_active);
 
--- 2) Laporan Nilai Formatif Bulanan (per bab/subbab)
--- Params: :subject_id, :class_id, :periode_id, :month, :semester
--- SELECT
---   u.id AS student_id,
---   u.full_name,
---   st.nis,
---   f.chapter_id,
---   d.subchapter AS subchapter_index,
---   f.score
--- FROM u_class_enrollments e
--- JOIN u_users u ON e.student_id = u.id
--- JOIN u_students st ON e.student_id = st.user_id
--- JOIN l_score_formative f ON f.student_id = e.student_id
--- LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true
--- WHERE f.subject_id = :subject_id
---   AND e.class_id = :class_id
---   AND e.periode_id = :periode_id
---   AND f.month = :month
---   AND f.semester = :semester
--- ORDER BY f.chapter_id, d.subchapter, u.full_name;
+-- Bulan aktif untuk rule monthly (supaya support tahun ajaran Jul-Jun)
+create table if not exists finance.fee_rule_month (
+  id bigserial primary key,
+  fee_rule_id bigint not null references finance.fee_rule(id) on delete cascade,
+  month_num smallint not null check (month_num between 1 and 12),
+  unique (fee_rule_id, month_num)
+);
 
--- 3) Laporan Nilai Sumatif Bulanan (per bab)
--- Params: :subject_id, :class_id, :periode_id, :month, :semester
--- SELECT
---   u.id AS student_id,
---   u.full_name,
---   st.nis,
---   s.chapter_id,
---   s.score_written,
---   s.score_skill,
---   s.final_score
--- FROM u_class_enrollments e
--- JOIN u_users u ON e.student_id = u.id
--- JOIN u_students st ON e.student_id = st.user_id
--- JOIN l_score_summative s ON s.student_id = e.student_id
--- WHERE s.subject_id = :subject_id
---   AND e.class_id = :class_id
---   AND e.periode_id = :periode_id
---   AND s.month = :month
---   AND s.semester = :semester
--- ORDER BY s.chapter_id, u.full_name;
+create index if not exists idx_fee_rule_month_rule
+  on finance.fee_rule_month(fee_rule_id);
 
--- ================================================================
--- VIEW: Rekap Absensi Bulanan (LMS)
--- Menyediakan data dasar rekap attendance per siswa per hari
--- ================================================================
-CREATE OR REPLACE VIEW v_report_attendance_monthly AS
-SELECT
-  e.periode_id,
-  e.class_id,
-  a.subject_id,
-  a.teacher_id,
-  EXTRACT(YEAR FROM a.date)::int AS year_num,
-  EXTRACT(MONTH FROM a.date)::int AS month_num,
-  u.id AS student_id,
-  u.full_name,
-  st.nis,
-  a.date,
-  a.status,
-  CASE
-    WHEN a.status IN ('Hadir', 'Telat') THEN 'H'
-    WHEN a.status = 'Sakit' THEN 'S'
-    WHEN a.status = 'Izin' THEN 'I'
-    WHEN a.status = 'Alpa' THEN 'A'
-    ELSE '-'
-  END AS status_code
-FROM u_class_enrollments e
-JOIN u_users u ON u.id = e.student_id
-JOIN u_students st ON st.user_id = e.student_id
-LEFT JOIN l_attendance a
-  ON a.student_id = e.student_id
- AND a.class_id = e.class_id;
+-- =========================================
+-- 3) TAGIHAN
+-- =========================================
+create table if not exists finance.invoice (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  periode_id int references public.a_periode(id),
+  invoice_no varchar(60) not null unique,
+  issue_date date not null default current_date,
+  due_date date,
+  status varchar(20) not null default 'draft'
+    check (status in ('draft','issued','partial','paid','cancelled')),
+  notes text,
+  created_by int not null references public.u_users(id),
+  created_at timestamptz not null default now()
+);
 
--- ================================================================
--- PARENT DASHBOARD PERFORMANCE INDEXES (LMS)
--- ================================================================
-CREATE INDEX IF NOT EXISTS idx_parent_students_parent
-ON u_parent_students(parent_user_id);
+create index if not exists idx_invoice_student
+  on finance.invoice(student_id, status);
 
-CREATE INDEX IF NOT EXISTS idx_l_attendance_student_periode
-ON l_attendance(student_id, periode_id);
+create table if not exists finance.invoice_item (
+  id bigserial primary key,
+  invoice_id bigint not null references finance.invoice(id) on delete cascade,
+  component_id bigint not null references finance.fee_component(id),
+  fee_rule_id bigint references finance.fee_rule(id),
+  bill_year smallint,                         -- contoh 2026
+  bill_month smallint check (bill_month between 1 and 12), -- untuk SPP bulanan
+  description text,
+  qty numeric(12,2) not null default 1 check (qty > 0),
+  unit_amount numeric(14,2) not null check (unit_amount >= 0),
+  amount numeric(14,2) generated always as (qty * unit_amount) stored
+);
 
-CREATE INDEX IF NOT EXISTS idx_l_chapter_class_ids_gin
-ON l_chapter USING GIN (class_ids);
+create index if not exists idx_invoice_item_invoice
+  on finance.invoice_item(invoice_id);
 
--- ================================================================
--- PARENT ACADEMIC REPORT PERFORMANCE INDEXES
--- ================================================================
-CREATE INDEX IF NOT EXISTS idx_l_attendance_student_subject_date
-ON l_attendance(student_id, subject_id, date);
+-- Cegah duplikasi SPP bulan yang sama di student yang sama
+create unique index if not exists uq_invoice_item_monthly
+  on finance.invoice_item(component_id, fee_rule_id, bill_year, bill_month, invoice_id)
+  where bill_month is not null and bill_year is not null;
 
-CREATE INDEX IF NOT EXISTS idx_score_attitude_student_subject_semester_month
-ON l_score_attitude(student_id, subject_id, semester, month);
+-- =========================================
+-- 4) METODE PEMBAYARAN (MANUAL BANK / MIDTRANS)
+-- =========================================
+create table if not exists finance.payment_method (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  method_type varchar(20) not null check (method_type in ('manual_bank','midtrans')),
+  name varchar(100) not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
 
-CREATE INDEX IF NOT EXISTS idx_score_formative_student_subject_semester_month
-ON l_score_formative(student_id, subject_id, semester, month);
+create table if not exists finance.bank_account (
+  id bigserial primary key,
+  payment_method_id bigint not null references finance.payment_method(id) on delete cascade,
+  bank_name varchar(100) not null,
+  account_name varchar(120) not null,
+  account_number varchar(60) not null,
+  branch varchar(100),
+  is_active boolean not null default true
+);
 
-CREATE INDEX IF NOT EXISTS idx_score_summative_student_subject_semester_month
-ON l_score_summative(student_id, subject_id, semester, month);
+-- =========================================
+-- 5) PEMBAYARAN
+-- =========================================
+create table if not exists finance.payment (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  payer_user_id int not null references public.u_users(id), -- parent/siswa/admin
+  method_id bigint not null references finance.payment_method(id),
+  bank_account_id bigint references finance.bank_account(id),
+  payment_date timestamptz not null default now(),
+  amount numeric(14,2) not null check (amount > 0),
+  status varchar(20) not null
+    check (status in ('pending','paid','failed','expired','cancelled','refunded')),
+  reference_no varchar(120),
+  proof_url text, -- bukti transfer manual
+  notes text,
+  created_by int references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_payment_student
+  on finance.payment(student_id, status, payment_date desc);
+
+create table if not exists finance.payment_allocation (
+  id bigserial primary key,
+  payment_id bigint not null references finance.payment(id) on delete cascade,
+  invoice_item_id bigint not null references finance.invoice_item(id) on delete cascade,
+  allocated_amount numeric(14,2) not null check (allocated_amount > 0),
+  unique (payment_id, invoice_item_id)
+);
+
+create index if not exists idx_payment_alloc_item
+  on finance.payment_allocation(invoice_item_id);
+
+-- =========================================
+-- 6) GATEWAY TRANSACTION (MIDTRANS)
+-- =========================================
+create table if not exists finance.gateway_transaction (
+  id bigserial primary key,
+  payment_id bigint not null unique references finance.payment(id) on delete cascade,
+  provider varchar(30) not null default 'midtrans',
+  order_id varchar(120) not null unique,
+  transaction_id varchar(120),
+  transaction_status varchar(40),
+  snap_token text,
+  snap_redirect_url text,
+  gross_amount numeric(14,2),
+  raw_response jsonb,
+  webhook_payload jsonb,
+  last_synced_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- =========================================
+-- 7) TABUNGAN SISWA (MANUAL OLEH WALIKELAS/ADMIN FINANCE)
+-- =========================================
+create table if not exists finance.savings_ledger (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  component_id bigint not null references finance.fee_component(id), -- wajib komponen is_savings=true (validasi di service/trigger)
+  trx_date date not null default current_date,
+  direction varchar(10) not null check (direction in ('in','out')),
+  amount numeric(14,2) not null check (amount > 0),
+  note text,
+  recorded_by int not null references public.u_users(id),
+  approved_by int references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_savings_student
+  on finance.savings_ledger(student_id, trx_date desc);
+
 
