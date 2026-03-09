@@ -1,95 +1,126 @@
 import React, { useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  Form,
-  InputNumber,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Switch,
-  Table,
-  Tag,
-} from "antd";
-import { BookOpenText, Pencil, Plus, Trash2 } from "lucide-react";
+import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from "antd";
+import { BookOpenText, Pencil, Plus } from "lucide-react";
 
-const ScheduleLoadCard = ({
-  canManage,
-  classes,
-  subjects,
-  teachers,
-  loads,
-  loading,
-  onSave,
-  onDelete,
-}) => {
+const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loading, onSave }) => {
   const [openModal, setOpenModal] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [editingRuleId, setEditingRuleId] = useState(null);
+  const [teacherKeyword, setTeacherKeyword] = useState("");
+  const [selectedGradeId, setSelectedGradeId] = useState(null);
   const [form] = Form.useForm();
 
-  const classOptions = useMemo(
-    () => (classes || []).map((item) => ({ value: item.id, label: item.name })),
-    [classes],
+  const gradeOptions = useMemo(
+    () => (grades || []).map((item) => ({ value: item.id, label: item.name })),
+    [grades],
   );
   const subjectOptions = useMemo(
     () => (subjects || []).map((item) => ({ value: item.id, label: item.name })),
     [subjects],
   );
-  const teacherOptions = useMemo(
-    () => (teachers || []).map((item) => ({ value: item.id, label: item.full_name })),
-    [teachers],
-  );
+  const sortedAssignments = useMemo(() => {
+    return [...(teacherAssignments || [])].sort((a, b) => {
+      const gradeCompare = (a.grade_name || "").localeCompare(b.grade_name || "");
+      if (gradeCompare !== 0) return gradeCompare;
+      const subjectCompare = (a.subject_name || "").localeCompare(b.subject_name || "");
+      if (subjectCompare !== 0) return subjectCompare;
+      const teacherCompare = (a.teacher_name || "").localeCompare(b.teacher_name || "");
+      if (teacherCompare !== 0) return teacherCompare;
+      return (a.class_name || "").localeCompare(b.class_name || "");
+    });
+  }, [teacherAssignments]);
+
+  const filteredAssignments = useMemo(() => {
+    const keyword = String(teacherKeyword || "").trim().toLowerCase();
+    return sortedAssignments.filter((item) => {
+      const matchTeacher = keyword
+        ? String(item.teacher_name || "").toLowerCase().includes(keyword)
+        : true;
+      const matchGrade = selectedGradeId ? Number(item.grade_id) === Number(selectedGradeId) : true;
+      return matchTeacher && matchGrade;
+    });
+  }, [sortedAssignments, teacherKeyword, selectedGradeId]);
 
   const handleOpenCreate = () => {
-    setEditing(null);
+    setEditingRuleId(null);
     form.resetFields();
     form.setFieldsValue({
-      weekly_sessions: 2,
+      weekly_sessions: 4,
       max_sessions_per_meeting: 2,
+      minimum_gap_slots: 4,
       require_different_days: true,
       allow_same_day_with_gap: true,
-      minimum_gap_slots: 4,
       is_active: true,
     });
     setOpenModal(true);
   };
 
   const handleOpenEdit = (record) => {
-    setEditing(record);
-    form.setFieldsValue(record);
+    setEditingRuleId(record.teaching_load_grade_rule_id || null);
+    form.setFieldsValue({
+      grade_id: record.grade_id,
+      subject_id: record.subject_id,
+      weekly_sessions: record.weekly_sessions || 4,
+      max_sessions_per_meeting: record.max_sessions_per_meeting || 2,
+      minimum_gap_slots: Number.isFinite(record.minimum_gap_slots)
+        ? record.minimum_gap_slots
+        : 4,
+      require_different_days: record.require_different_days ?? true,
+      allow_same_day_with_gap: record.allow_same_day_with_gap ?? true,
+      is_active: record.is_active ?? true,
+      id: record.teaching_load_grade_rule_id || undefined,
+    });
     setOpenModal(true);
   };
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    await onSave({ ...values, id: editing?.id });
+    await onSave({
+      ...values,
+      id: editingRuleId || values.id,
+      scope_type: "grade",
+    });
     setOpenModal(false);
   };
 
-  const columns = [
-    { title: "Kelas", dataIndex: "class_name", key: "class_name", width: 160 },
+  const assignmentColumns = [
+    { title: "Guru", dataIndex: "teacher_name", key: "teacher_name", width: 240 },
     { title: "Mapel", dataIndex: "subject_name", key: "subject_name", width: 180 },
-    { title: "Guru", dataIndex: "teacher_name", key: "teacher_name", width: 220 },
+    { title: "Tingkat", dataIndex: "grade_name", key: "grade_name", width: 120 },
+    {
+      title: "Kelas",
+      dataIndex: "class_name",
+      key: "class_name",
+      width: 260,
+      render: (_, record) => {
+        const total = Number(record.class_count || 0);
+        const classNames = Array.isArray(record.class_names) ? record.class_names : [];
+        return (
+          <Space wrap size={4}>
+            {classNames.map((name) => (
+              <Tag key={`${record.teacher_id}-${record.subject_id}-${record.grade_id}-${name}`}>
+                {name}
+              </Tag>
+            ))}
+            {total > 0 ? <Tag color='cyan'>{total} kelas</Tag> : null}
+          </Space>
+        );
+      },
+    },
     {
       title: "Beban Sesi",
       dataIndex: "weekly_sessions",
-      width: 100,
-      render: (value) => <Tag color='blue'>{value} sesi</Tag>,
+      key: "weekly_sessions",
+      width: 120,
+      render: (value) =>
+        value ? <Tag color='blue'>{value} sesi</Tag> : <Tag color='default'>Belum diatur</Tag>,
     },
     {
-      title: "Aturan",
-      key: "rule",
-      width: 220,
-      render: (_, record) => (
-        <Space wrap size={4}>
-          <Tag>{record.max_sessions_per_meeting} sesi/pertemuan</Tag>
-          {record.require_different_days ? <Tag color='gold'>Pisah hari</Tag> : null}
-          {record.allow_same_day_with_gap ? (
-            <Tag color='purple'>Gap {record.minimum_gap_slots}</Tag>
-          ) : null}
-        </Space>
-      ),
+      title: "Status Beban",
+      dataIndex: "teaching_load_grade_rule_id",
+      key: "teaching_load_grade_rule_id",
+      width: 140,
+      render: (value) =>
+        value ? <Tag color='green'>Sudah diatur</Tag> : <Tag color='orange'>Belum diatur</Tag>,
     },
     {
       title: "Aksi",
@@ -97,16 +128,13 @@ const ScheduleLoadCard = ({
       width: 120,
       render: (_, record) =>
         canManage ? (
-          <Space>
-            <Button
-              type='text'
-              icon={<Pencil size={14} />}
-              onClick={() => handleOpenEdit(record)}
-            />
-            <Popconfirm title='Hapus beban ajar ini?' onConfirm={() => onDelete(record.id)}>
-              <Button type='text' danger icon={<Trash2 size={14} />} />
-            </Popconfirm>
-          </Space>
+          <Button
+            size='small'
+            icon={<Pencil size={12} />}
+            onClick={() => handleOpenEdit(record)}
+          >
+            Edit
+          </Button>
         ) : null,
     },
   ];
@@ -118,44 +146,65 @@ const ScheduleLoadCard = ({
       title={
         <Space>
           <BookOpenText size={18} />
-          <span>Beban Ajar Per Kelas</span>
+          <span>Beban Ajar</span>
         </Space>
       }
       extra={
         canManage ? (
           <Button type='primary' icon={<Plus size={14} />} onClick={handleOpenCreate}>
-            Tambah
+            Atur Per Tingkat
           </Button>
         ) : null
       }
     >
       <Table
-        rowKey='id'
+        rowKey={(record) =>
+          `${record.teacher_id}-${record.subject_id}-${record.grade_id || "general"}`
+        }
         size='small'
         loading={loading}
-        columns={columns}
-        dataSource={loads || []}
-        scroll={{ x: 960 }}
-        pagination={{ pageSize: 6 }}
+        columns={assignmentColumns}
+        dataSource={filteredAssignments}
+        scroll={{ x: 900 }}
+        pagination={{ pageSize: 8 }}
+        title={() => (
+          <Space wrap>
+            <Input
+              allowClear
+              placeholder='Filter nama guru'
+              value={teacherKeyword}
+              onChange={(event) => setTeacherKeyword(event.target.value)}
+              style={{ width: 240 }}
+            />
+            <Select
+              allowClear
+              placeholder='Filter tingkat'
+              options={gradeOptions}
+              value={selectedGradeId}
+              onChange={(value) => setSelectedGradeId(value)}
+              style={{ width: 180 }}
+            />
+          </Space>
+        )}
       />
 
       <Modal
         open={openModal}
-        title={editing ? "Ubah Beban Ajar" : "Tambah Beban Ajar"}
+        title={editingRuleId ? "Edit Beban Ajar Per Tingkat" : "Atur Beban Ajar Per Tingkat"}
         onCancel={() => setOpenModal(false)}
         onOk={handleSubmit}
         okText='Simpan'
         confirmLoading={loading}
       >
         <Form form={form} layout='vertical'>
-          <Form.Item name='class_id' label='Kelas' rules={[{ required: true }]}>
-            <Select showSearch optionFilterProp='label' options={classOptions} />
+          <Form.Item name='id' hidden>
+            <InputNumber />
+          </Form.Item>
+          <Form.Item name='grade_id' label='Tingkat' rules={[{ required: true }]}>
+            <Select showSearch optionFilterProp='label' options={gradeOptions} />
           </Form.Item>
           <Form.Item name='subject_id' label='Mata Pelajaran' rules={[{ required: true }]}>
             <Select showSearch optionFilterProp='label' options={subjectOptions} />
-          </Form.Item>
-          <Form.Item name='teacher_id' label='Guru' rules={[{ required: true }]}>
-            <Select showSearch optionFilterProp='label' options={teacherOptions} />
           </Form.Item>
           <Form.Item name='weekly_sessions' label='Beban sesi per minggu' rules={[{ required: true }]}>
             <InputNumber min={1} max={12} style={{ width: "100%" }} />
@@ -167,20 +216,9 @@ const ScheduleLoadCard = ({
           >
             <InputNumber min={1} max={4} style={{ width: "100%" }} />
           </Form.Item>
-          <Form.Item name='minimum_gap_slots' label='Minimal gap slot'>
+          <Form.Item name='minimum_gap_slots' label='Minimal gap slot' rules={[{ required: true }]}>
             <InputNumber min={0} max={10} style={{ width: "100%" }} />
           </Form.Item>
-          <Space size={16}>
-            <Form.Item name='require_different_days' valuePropName='checked' style={{ marginBottom: 0 }}>
-              <Switch checkedChildren='Pisah Hari' unCheckedChildren='Boleh Sama Hari' />
-            </Form.Item>
-            <Form.Item name='allow_same_day_with_gap' valuePropName='checked' style={{ marginBottom: 0 }}>
-              <Switch checkedChildren='Gap Aktif' unCheckedChildren='Gap Nonaktif' />
-            </Form.Item>
-            <Form.Item name='is_active' valuePropName='checked' style={{ marginBottom: 0 }}>
-              <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
-            </Form.Item>
-          </Space>
         </Form>
       </Modal>
     </Card>

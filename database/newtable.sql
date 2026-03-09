@@ -235,6 +235,9 @@ CREATE TABLE at_subject (
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX IF NOT EXISTS idx_at_subject_teacher_subject_class
+ON at_subject(teacher_id, subject_id, class_id);
+
 
 -- 1. Buat tabel Cabang (Branch) sebagai penghubung Kategori dan Mapel
 CREATE TABLE a_subject_branch (
@@ -1583,6 +1586,24 @@ CREATE TABLE IF NOT EXISTS lms.l_teaching_load (
     CONSTRAINT uq_teaching_load UNIQUE (periode_id, class_id, subject_id, teacher_id)
 );
 
+CREATE TABLE IF NOT EXISTS lms.l_teaching_load_grade_rule (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    grade_id integer NOT NULL REFERENCES public.a_grade(id) ON DELETE CASCADE,
+    subject_id integer NOT NULL REFERENCES public.a_subject(id) ON DELETE CASCADE,
+    weekly_sessions integer NOT NULL CHECK (weekly_sessions > 0),
+    max_sessions_per_meeting integer NOT NULL DEFAULT 2 CHECK (max_sessions_per_meeting > 0),
+    require_different_days boolean NOT NULL DEFAULT true,
+    allow_same_day_with_gap boolean NOT NULL DEFAULT true,
+    minimum_gap_slots integer NOT NULL DEFAULT 4 CHECK (minimum_gap_slots >= 0),
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer REFERENCES public.u_users(id),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_teaching_load_grade_rule UNIQUE (homebase_id, periode_id, grade_id, subject_id)
+);
+
 CREATE TABLE IF NOT EXISTS lms.l_teacher_unavailability (
     id SERIAL PRIMARY KEY,
     teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
@@ -1732,6 +1753,9 @@ ON lms.l_time_slot(config_id, day_of_week, slot_no);
 
 CREATE INDEX IF NOT EXISTS idx_teaching_load_lookup
 ON lms.l_teaching_load(periode_id, homebase_id, class_id, teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_teaching_load_grade_rule_lookup
+ON lms.l_teaching_load_grade_rule(periode_id, homebase_id, grade_id, subject_id);
 
 CREATE INDEX IF NOT EXISTS idx_teacher_unavailability_lookup
 ON lms.l_teacher_unavailability(teacher_id, periode_id, day_of_week, specific_date);

@@ -45,6 +45,85 @@ const splitSessions = (weeklySessions, maxPerMeeting) => {
   return chunks;
 };
 
+const syncGradeRulesToTeachingLoad = async (executor, homebaseId, periodeId, userId = null) => {
+  const gradeRuleResult = await executor.query(
+    `SELECT *
+     FROM lms.l_teaching_load_grade_rule
+     WHERE homebase_id = $1
+       AND periode_id = $2
+       AND is_active = true`,
+    [homebaseId, periodeId],
+  );
+
+  let syncedRows = 0;
+  for (const rule of gradeRuleResult.rows) {
+    const assignmentResult = await executor.query(
+      `SELECT DISTINCT
+         COALESCE(ats.class_id, c.id) AS class_id,
+         ats.teacher_id
+       FROM public.at_subject ats
+       JOIN public.u_teachers t ON t.user_id = ats.teacher_id
+       JOIN public.a_class c
+         ON c.homebase_id = $1
+        AND c.grade_id = $2
+        AND (ats.class_id IS NULL OR ats.class_id = c.id)
+       WHERE t.homebase_id = $1
+         AND ats.subject_id = $3
+         AND (ats.class_id IS NULL OR c.id = ats.class_id)`,
+      [homebaseId, rule.grade_id, rule.subject_id],
+    );
+
+    for (const assignment of assignmentResult.rows) {
+      await executor.query(
+        `INSERT INTO lms.l_teaching_load (
+           homebase_id,
+           periode_id,
+           class_id,
+           subject_id,
+           teacher_id,
+           weekly_sessions,
+           max_sessions_per_meeting,
+           require_different_days,
+           allow_same_day_with_gap,
+           minimum_gap_slots,
+           is_active,
+           created_by
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (periode_id, class_id, subject_id, teacher_id)
+         DO UPDATE SET
+           weekly_sessions = EXCLUDED.weekly_sessions,
+           max_sessions_per_meeting = EXCLUDED.max_sessions_per_meeting,
+           require_different_days = EXCLUDED.require_different_days,
+           allow_same_day_with_gap = EXCLUDED.allow_same_day_with_gap,
+           minimum_gap_slots = EXCLUDED.minimum_gap_slots,
+           is_active = EXCLUDED.is_active,
+           updated_at = CURRENT_TIMESTAMP`,
+        [
+          homebaseId,
+          periodeId,
+          assignment.class_id,
+          rule.subject_id,
+          assignment.teacher_id,
+          rule.weekly_sessions,
+          rule.max_sessions_per_meeting,
+          rule.require_different_days,
+          rule.allow_same_day_with_gap,
+          rule.minimum_gap_slots,
+          rule.is_active,
+          userId || rule.created_by || null,
+        ],
+      );
+      syncedRows += 1;
+    }
+  }
+
+  return {
+    rule_count: gradeRuleResult.rowCount,
+    synced_rows: syncedRows,
+  };
+};
+
 const ensureActivePeriode = async (executor, homebaseId, requestedPeriodeId) => {
   if (requestedPeriodeId) return requestedPeriodeId;
   const activePeriode = await executor.query(
@@ -101,7 +180,7 @@ router.get(
     const config = configResult.rows[0] || null;
     const configId = config?.id || null;
 
-    const [dayTemplateResult, breakResult, slotResult, loadResult, unavailabilityResult] =
+    const [dayTemplateResult, breakResult, slotResult] =
       configId
         ? await Promise.all([
             pool.query(
@@ -126,44 +205,117 @@ router.get(
                ORDER BY day_of_week, slot_no`,
               [configId],
             ),
-            pool.query(
-              `SELECT
-                 l.*,
-                 c.name AS class_name,
-                 s.name AS subject_name,
-                 u.full_name AS teacher_name
-               FROM lms.l_teaching_load l
-               JOIN public.a_class c ON c.id = l.class_id
-               JOIN public.a_subject s ON s.id = l.subject_id
-               JOIN public.u_users u ON u.id = l.teacher_id
-               WHERE l.periode_id = $1
-                 AND l.homebase_id = $2
-               ORDER BY c.name, s.name, u.full_name`,
-              [periodeId, homebase_id],
-            ),
-            pool.query(
-              `SELECT
-                 ua.*,
-                 u.full_name AS teacher_name
-               FROM lms.l_teacher_unavailability ua
-               JOIN public.u_users u ON u.id = ua.teacher_id
-               WHERE ua.periode_id = $1
-                 AND u.id IN (
-                   SELECT user_id
-                   FROM public.u_teachers
-                   WHERE homebase_id = $2
-                 )
-               ORDER BY ua.teacher_id, ua.day_of_week, ua.start_time`,
-              [periodeId, homebase_id],
-            ),
           ])
-        : [
-            { rows: [] },
-            { rows: [] },
-            { rows: [] },
-            { rows: [] },
-            { rows: [] },
-          ];
+        : [{ rows: [] }, { rows: [] }, { rows: [] }];
+
+    const [loadResult, unavailabilityResult] = await Promise.all([
+      pool.query(
+        `SELECT
+           l.*,
+           c.name AS class_name,
+           s.name AS subject_name,
+           u.full_name AS teacher_name
+         FROM lms.l_teaching_load l
+         JOIN public.a_class c ON c.id = l.class_id
+         JOIN public.a_subject s ON s.id = l.subject_id
+         JOIN public.u_users u ON u.id = l.teacher_id
+         WHERE l.periode_id = $1
+           AND l.homebase_id = $2
+         ORDER BY c.name, s.name, u.full_name`,
+        [periodeId, homebase_id],
+      ),
+      pool.query(
+        `SELECT
+           ua.*,
+           u.full_name AS teacher_name
+         FROM lms.l_teacher_unavailability ua
+         JOIN public.u_users u ON u.id = ua.teacher_id
+         WHERE ua.periode_id = $1
+           AND u.id IN (
+             SELECT user_id
+             FROM public.u_teachers
+             WHERE homebase_id = $2
+           )
+         ORDER BY ua.teacher_id, ua.day_of_week, ua.start_time`,
+        [periodeId, homebase_id],
+      ),
+    ]);
+
+    const assignmentResult = await pool.query(
+      `WITH assignment_expanded AS (
+         SELECT DISTINCT
+           ats.teacher_id,
+           ats.subject_id,
+           c.id AS class_id,
+           c.name AS class_name,
+           c.grade_id
+         FROM public.at_subject ats
+         JOIN public.u_teachers t ON t.user_id = ats.teacher_id
+         JOIN public.a_subject s ON s.id = ats.subject_id
+         JOIN public.a_class c
+           ON c.homebase_id = $1
+          AND (ats.class_id IS NULL OR ats.class_id = c.id)
+         WHERE t.homebase_id = $1
+           AND s.homebase_id = $1
+       )
+       SELECT
+         a.teacher_id,
+         a.subject_id,
+         a.grade_id,
+         u.full_name AS teacher_name,
+         s.name AS subject_name,
+         g.name AS grade_name,
+         ARRAY_AGG(DISTINCT a.class_id ORDER BY a.class_id) AS class_ids,
+         ARRAY_AGG(DISTINCT a.class_name ORDER BY a.class_name) AS class_names,
+         STRING_AGG(DISTINCT a.class_name, ', ' ORDER BY a.class_name) AS class_name,
+         COUNT(DISTINCT a.class_id) AS class_count,
+         r.id AS teaching_load_grade_rule_id,
+         r.weekly_sessions,
+         r.max_sessions_per_meeting,
+         r.require_different_days,
+         r.allow_same_day_with_gap,
+         r.minimum_gap_slots,
+         r.is_active
+       FROM assignment_expanded a
+       JOIN public.u_users u ON u.id = a.teacher_id
+       JOIN public.a_subject s ON s.id = a.subject_id
+       LEFT JOIN public.a_grade g ON g.id = a.grade_id
+       LEFT JOIN lms.l_teaching_load_grade_rule r
+         ON r.homebase_id = $1
+        AND r.periode_id = $2
+        AND r.grade_id = a.grade_id
+        AND r.subject_id = a.subject_id
+       GROUP BY
+         a.teacher_id,
+         a.subject_id,
+         a.grade_id,
+         u.full_name,
+         s.name,
+         g.name,
+         r.id,
+         r.weekly_sessions,
+         r.max_sessions_per_meeting,
+         r.require_different_days,
+         r.allow_same_day_with_gap,
+         r.minimum_gap_slots,
+         r.is_active
+       ORDER BY u.full_name, s.name, g.name`,
+      [homebase_id, periodeId],
+    );
+
+    const gradeRuleResult = await pool.query(
+      `SELECT
+         r.*,
+         g.name AS grade_name,
+         s.name AS subject_name
+       FROM lms.l_teaching_load_grade_rule r
+       JOIN public.a_grade g ON g.id = r.grade_id
+       JOIN public.a_subject s ON s.id = r.subject_id
+       WHERE r.homebase_id = $1
+         AND r.periode_id = $2
+       ORDER BY g.name, s.name`,
+      [homebase_id, periodeId],
+    );
 
     const teacherFilterClause = role === "teacher" ? "AND e.teacher_id = $3" : "";
     const entryParams =
@@ -209,7 +361,7 @@ router.get(
       entryParams,
     );
 
-    const [classResult, subjectResult, teacherResult] = await Promise.all([
+    const [classResult, subjectResult, teacherResult, gradeResult] = await Promise.all([
       pool.query(
         `SELECT id, name
          FROM public.a_class
@@ -232,6 +384,13 @@ router.get(
          ORDER BY u.full_name ASC`,
         [homebase_id],
       ),
+      pool.query(
+        `SELECT id, name
+         FROM public.a_grade
+         WHERE homebase_id = $1
+         ORDER BY id ASC`,
+        [homebase_id],
+      ),
     ]);
 
     return res.json({
@@ -243,11 +402,14 @@ router.get(
         breaks: breakResult.rows,
         slots: slotResult.rows,
         loads: loadResult.rows,
+        load_grade_rules: gradeRuleResult.rows,
+        teacher_assignments: assignmentResult.rows,
         unavailability: unavailabilityResult.rows,
         entries: entryResult.rows,
         classes: classResult.rows,
         subjects: subjectResult.rows,
         teachers: teacherResult.rows,
+        grades: gradeResult.rows,
         can_manage:
           role === "admin" && (admin_level === "satuan" || admin_level === "center"),
       },
@@ -446,6 +608,8 @@ router.post(
     const {
       id,
       periode_id,
+      scope_type = "class",
+      grade_id,
       class_id,
       subject_id,
       teacher_id,
@@ -462,6 +626,97 @@ router.post(
       return res.status(400).json({
         status: "error",
         message: "Periode aktif tidak ditemukan.",
+      });
+    }
+
+    const scopeType = String(scope_type || "class").toLowerCase();
+    if (scopeType === "grade") {
+      const gradeId = toInt(grade_id, null);
+      const subjectId = toInt(subject_id, null);
+      const weeklySessions = toInt(weekly_sessions, null);
+      if (!gradeId || !subjectId || !weeklySessions) {
+        return res.status(400).json({
+          status: "error",
+          message: "grade_id, subject_id, dan weekly_sessions wajib diisi untuk mode tingkat.",
+        });
+      }
+
+      const rulePayload = [
+        homebase_id,
+        periodeId,
+        gradeId,
+        subjectId,
+        weeklySessions,
+        toInt(max_sessions_per_meeting, 2),
+        Boolean(require_different_days),
+        Boolean(allow_same_day_with_gap),
+        toInt(minimum_gap_slots, 4),
+        Boolean(is_active),
+        userId,
+      ];
+      const ruleId = toInt(id, null);
+      const gradeRuleResult = ruleId
+        ? await client.query(
+            `UPDATE lms.l_teaching_load_grade_rule
+             SET grade_id = $3,
+                 subject_id = $4,
+                 weekly_sessions = $5,
+                 max_sessions_per_meeting = $6,
+                 require_different_days = $7,
+                 allow_same_day_with_gap = $8,
+                 minimum_gap_slots = $9,
+                 is_active = $10,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $12
+               AND homebase_id = $1
+               AND periode_id = $2
+             RETURNING *`,
+            [...rulePayload, ruleId],
+          )
+        : await client.query(
+            `INSERT INTO lms.l_teaching_load_grade_rule (
+               homebase_id,
+               periode_id,
+               grade_id,
+               subject_id,
+               weekly_sessions,
+               max_sessions_per_meeting,
+               require_different_days,
+               allow_same_day_with_gap,
+               minimum_gap_slots,
+               is_active,
+               created_by
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (homebase_id, periode_id, grade_id, subject_id)
+             DO UPDATE SET
+               weekly_sessions = EXCLUDED.weekly_sessions,
+               max_sessions_per_meeting = EXCLUDED.max_sessions_per_meeting,
+               require_different_days = EXCLUDED.require_different_days,
+               allow_same_day_with_gap = EXCLUDED.allow_same_day_with_gap,
+               minimum_gap_slots = EXCLUDED.minimum_gap_slots,
+               is_active = EXCLUDED.is_active,
+               updated_at = CURRENT_TIMESTAMP
+             RETURNING *`,
+            rulePayload,
+          );
+
+      if (ruleId && gradeRuleResult.rowCount === 0) {
+        return res.status(404).json({
+          status: "error",
+          message: "Aturan beban ajar tingkat tidak ditemukan.",
+        });
+      }
+
+      const syncStats = await syncGradeRulesToTeachingLoad(client, homebase_id, periodeId, userId);
+      return res.json({
+        status: "success",
+        message: "Aturan beban ajar tingkat berhasil disimpan dan diterapkan.",
+        data: {
+          scope_type: "grade",
+          rule: gradeRuleResult.rows[0],
+          sync: syncStats,
+        },
       });
     }
 
@@ -674,6 +929,8 @@ router.post(
         message: "Konfigurasi jadwal belum tersedia.",
       });
     }
+
+    await syncGradeRulesToTeachingLoad(client, homebase_id, periodeId, userId);
 
     const [loadResult, slotResult, unavailabilityResult] = await Promise.all([
       client.query(
