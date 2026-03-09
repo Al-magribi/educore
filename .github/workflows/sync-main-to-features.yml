@@ -23,6 +23,7 @@ jobs:
           - feature/db
           - feature/lms
           - feature/tahfiz
+          - feature/finance
 
     steps:
       - name: Checkout repository
