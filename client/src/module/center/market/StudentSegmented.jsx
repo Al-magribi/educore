@@ -21,7 +21,7 @@ import {
 } from "@ant-design/icons";
 import { useGetStudentSegmentQuery } from "../../../service/center/ApiAnalysis";
 import { InfiniteScrollList } from "../../../components"; // Pastikan path benar
-import useDebounced from "../../../utils/UseDebounced"; // Pastikan path benar
+import useDebounced from "../../../utils/useDebounced";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
