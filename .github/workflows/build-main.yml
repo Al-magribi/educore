@@ -1,4 +1,4 @@
-name: Build Main
+name: Publish Product CBT
 
 on:
   push:
@@ -10,10 +10,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
 
     steps:
@@ -40,9 +40,17 @@ jobs:
         run: npm run build
         working-directory: client
 
-      - name: Upload client build artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: client-dist
-          path: client/dist
-          if-no-files-found: error
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish branch product/cbt
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin
+          git checkout -B product/cbt
+          git add -f client/dist
+          git commit -m "build(product/cbt): publish from ${GITHUB_SHA::7}"
+          git push origin product/cbt --force
