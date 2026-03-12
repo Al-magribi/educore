@@ -29,7 +29,73 @@ const TYPE_LABELS = {
   multi: "PG Multi Jawaban",
   short: "Jawaban Singkat",
   essay: "Uraian",
+  true_false: "Benar / Salah",
   match: "Mencocokkan",
+};
+
+const createMarkup = (value) => ({
+  __html: typeof value === "string" ? value : "",
+});
+
+const normalizeTagValue = (value) =>
+  String(value ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const isTrueFalseOptionSet = (options = []) => {
+  const normalized = options
+    .map((option) =>
+      normalizeTagValue(
+        typeof option === "string"
+          ? option
+          : option?.content ?? option?.label ?? option?.value,
+      ).toLowerCase(),
+    )
+    .filter(Boolean);
+
+  return (
+    normalized.length === 2 &&
+    normalized.includes("benar") &&
+    normalized.includes("salah")
+  );
+};
+
+const normalizeAnswerType = (item) => {
+  const rawType =
+    item?.type ?? item?.questionType ?? item?.question_type ?? item?.q_type;
+
+  switch (rawType) {
+    case 1:
+    case "1":
+    case "single":
+      return isTrueFalseOptionSet(item?.options) ? "true_false" : "single";
+    case 2:
+    case "2":
+    case "multi":
+      return "multi";
+    case 3:
+    case "3":
+    case "essay":
+      return "essay";
+    case 4:
+    case "4":
+    case "short":
+      return "short";
+    case 5:
+    case "5":
+    case "true_false":
+    case "truefalse":
+    case "boolean":
+      return "true_false";
+    case 6:
+    case "6":
+    case "match":
+      return "match";
+    default:
+      return rawType || "single";
+  }
 };
 
 const TypeTag = ({ type }) => (
@@ -38,7 +104,53 @@ const TypeTag = ({ type }) => (
 
 const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
   const isCorrect = item.correct === true;
-  const isWrong = item.correct === false;
+  const normalizedType = normalizeAnswerType(item);
+  const selectedValues = Array.isArray(item.selected)
+    ? item.selected.map(String)
+    : item.selected !== undefined && item.selected !== null
+      ? [String(item.selected)]
+      : [];
+  const optionValues = Array.isArray(item.options) ? item.options : [];
+  const correctValues = Array.isArray(item.correctAnswers)
+    ? item.correctAnswers
+    : item.correctAnswers !== undefined && item.correctAnswers !== null
+      ? [item.correctAnswers]
+      : [];
+
+  const renderHtmlBlock = (value, style = {}) => (
+    <div
+      style={{
+        width: "100%",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+        ...style,
+      }}
+      dangerouslySetInnerHTML={createMarkup(value)}
+    />
+  );
+
+  const renderOptionTag = (option, color = "default", icon = null) => {
+    const rawValue =
+      typeof option === "string"
+        ? option
+        : option?.content ?? option?.label ?? option?.value ?? option?.id;
+    const key = String(
+      typeof option === "object" && option !== null
+        ? option.id ?? rawValue
+        : rawValue,
+    );
+
+    return (
+      <Tag
+        key={key}
+        color={color}
+        icon={icon}
+        style={{ maxWidth: "100%", whiteSpace: "normal" }}
+      >
+        <span dangerouslySetInnerHTML={createMarkup(rawValue)} />
+      </Tag>
+    );
+  };
 
   return (
     <Card size='small' style={{ borderRadius: 12 }}>
@@ -56,42 +168,48 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
         </Space>
       </Flex>
 
-      <Title level={5} style={{ margin: "8px 0" }}>
-        {item.question}
-      </Title>
+      {renderHtmlBlock(item.question, {
+        margin: "8px 0",
+        fontSize: 16,
+        fontWeight: 600,
+        color: "rgba(0, 0, 0, 0.88)",
+      })}
 
-      {item.type === "single" && (
+      {normalizedType === "single" && (
         <Space orientation='vertical' size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {item.options.map((opt) => (
-                <Tag
-                  key={opt}
-                  color={opt === item.selected ? "green" : "default"}
-                  icon={
-                    opt === item.selected ? <CheckCircle2 size={12} /> : null
-                  }
-                  style={{ maxWidth: "100%", whiteSpace: "normal" }}
-                >
-                  {opt}
-                </Tag>
-              ))}
+              {optionValues.map((opt) =>
+                renderOptionTag(
+                  opt,
+                  selectedValues.includes(
+                    String(
+                      typeof opt === "object" && opt !== null
+                        ? opt.id ?? opt.content ?? opt.label ?? opt.value
+                        : opt,
+                    ),
+                  )
+                    ? "green"
+                    : "default",
+                  selectedValues.includes(
+                    String(
+                      typeof opt === "object" && opt !== null
+                        ? opt.id ?? opt.content ?? opt.label ?? opt.value
+                        : opt,
+                    ),
+                  )
+                    ? <CheckCircle2 size={12} />
+                    : null,
+                ),
+              )}
             </Space>
           </div>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Benar</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {item.correctAnswers?.length ? (
-                item.correctAnswers.map((opt) => (
-                  <Tag
-                    key={opt}
-                    color='blue'
-                    style={{ maxWidth: "100%", whiteSpace: "normal" }}
-                  >
-                    {opt}
-                  </Tag>
-                ))
+              {correctValues.length ? (
+                correctValues.map((opt) => renderOptionTag(opt, "blue"))
               ) : (
                 <Tag color='default'>-</Tag>
               )}
@@ -100,22 +218,25 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
         </Space>
       )}
 
-      {item.type === "multi" && (
+      {normalizedType === "true_false" && (
         <Space orientation='vertical' size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {item.options.map((opt) => {
-                const selected = item.selected.includes(opt);
-                return (
-                  <Tag
-                    key={opt}
-                    color={selected ? "green" : "default"}
-                    icon={selected ? <CheckCircle2 size={12} /> : null}
-                    style={{ maxWidth: "100%", whiteSpace: "normal" }}
-                  >
-                    {opt}
-                  </Tag>
+              {optionValues.map((opt) => {
+                const optionValue = String(
+                  typeof opt === "object" && opt !== null
+                    ? opt.id ?? opt.content ?? opt.label ?? opt.value
+                    : opt,
+                );
+                const isSelected =
+                  selectedValues.includes(optionValue) ||
+                  selectedValues.includes(normalizeTagValue(optionValue));
+
+                return renderOptionTag(
+                  opt,
+                  isSelected ? "green" : "default",
+                  isSelected ? <CheckCircle2 size={12} /> : null,
                 );
               })}
             </Space>
@@ -123,16 +244,8 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Benar</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {item.correctAnswers?.length ? (
-                item.correctAnswers.map((opt) => (
-                  <Tag
-                    key={opt}
-                    color='blue'
-                    style={{ maxWidth: "100%", whiteSpace: "normal" }}
-                  >
-                    {opt}
-                  </Tag>
-                ))
+              {correctValues.length ? (
+                correctValues.map((opt) => renderOptionTag(opt, "blue"))
               ) : (
                 <Tag color='default'>-</Tag>
               )}
@@ -141,9 +254,48 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
         </Space>
       )}
 
-      {item.type === "short" && (
+      {normalizedType === "multi" && (
         <Space orientation='vertical' size={8} style={{ width: "100%" }}>
-          <Text>Jawaban Siswa: {item.answer}</Text>
+          <div style={{ width: "100%" }}>
+            <Text type='secondary'>Jawaban Siswa</Text>
+            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
+              {optionValues.map((opt) => {
+                const optionValue = String(
+                  typeof opt === "object" && opt !== null
+                    ? opt.id ?? opt.content ?? opt.label ?? opt.value
+                    : opt,
+                );
+                const selected =
+                  selectedValues.includes(optionValue) ||
+                  selectedValues.includes(normalizeTagValue(optionValue));
+
+                return renderOptionTag(
+                  opt,
+                  selected ? "green" : "default",
+                  selected ? <CheckCircle2 size={12} /> : null,
+                );
+              })}
+            </Space>
+          </div>
+          <div style={{ width: "100%" }}>
+            <Text type='secondary'>Jawaban Benar</Text>
+            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
+              {correctValues.length ? (
+                correctValues.map((opt) => renderOptionTag(opt, "blue"))
+              ) : (
+                <Tag color='default'>-</Tag>
+              )}
+            </Space>
+          </div>
+        </Space>
+      )}
+
+      {normalizedType === "short" && (
+        <Space orientation='vertical' size={8} style={{ width: "100%" }}>
+          <div>
+            <Text>Jawaban Siswa:</Text>
+            {renderHtmlBlock(item.answer || "-")}
+          </div>
           <Flex align='center' gap={8} wrap='wrap'>
             <Text type='secondary'>Poin:</Text>
             <InputNumber
@@ -161,11 +313,11 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
         </Space>
       )}
 
-      {item.type === "essay" && (
+      {normalizedType === "essay" && (
         <Space orientation='vertical' size={8} style={{ width: "100%" }}>
           <Text>Jawaban Siswa:</Text>
           <Card size='small' style={{ background: "#fafafa" }}>
-            {item.answer}
+            {renderHtmlBlock(item.answer || "-")}
           </Card>
           <Flex align='center' gap={8} wrap='wrap'>
             <Text type='secondary'>Poin:</Text>
@@ -184,7 +336,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
         </Space>
       )}
 
-      {item.type === "match" && (
+      {normalizedType === "match" && (
         <Space orientation='vertical' size={12} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
@@ -201,14 +353,14 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
                   wrap='wrap'
                 >
                   <Tag style={{ maxWidth: "100%", whiteSpace: "normal" }}>
-                    {pair.left}
+                    <span dangerouslySetInnerHTML={createMarkup(pair.left)} />
                   </Tag>
                   <Text type='secondary'>→</Text>
                   <Tag
                     color={pair.correct ? "green" : "red"}
                     style={{ maxWidth: "100%", whiteSpace: "normal" }}
                   >
-                    {pair.right}
+                    <span dangerouslySetInnerHTML={createMarkup(pair.right)} />
                   </Tag>
                   {pair.correct ? (
                     <CheckCircle2 size={14} color='#16a34a' />
@@ -235,14 +387,16 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
                     wrap='wrap'
                   >
                     <Tag style={{ maxWidth: "100%", whiteSpace: "normal" }}>
-                      {pair.left}
+                      <span dangerouslySetInnerHTML={createMarkup(pair.left)} />
                     </Tag>
                     <Text type='secondary'>→</Text>
                     <Tag
                       color='blue'
                       style={{ maxWidth: "100%", whiteSpace: "normal" }}
                     >
-                      {pair.right}
+                      <span
+                        dangerouslySetInnerHTML={createMarkup(pair.right)}
+                      />
                     </Tag>
                   </Flex>
                 ))
@@ -298,7 +452,12 @@ const StudentAnswers = () => {
   const [saveStates, setSaveStates] = useState({});
 
   useEffect(() => {
-    setLocalAnswers((fetchedAnswers || []).map((item) => ({ ...item })));
+    setLocalAnswers(
+      (fetchedAnswers || []).map((item) => ({
+        ...item,
+        type: normalizeAnswerType(item),
+      })),
+    );
     setSaveStates({});
   }, [fetchedAnswers]);
 
@@ -307,7 +466,11 @@ const StudentAnswers = () => {
       if (item.type === "short" || item.type === "essay") {
         return acc + (Number(item.points) || 0);
       }
-      if (item.type === "single" || item.type === "multi") {
+      if (
+        item.type === "single" ||
+        item.type === "multi" ||
+        item.type === "true_false"
+      ) {
         return acc + (item.correct ? item.maxPoints || 0 : 0);
       }
       if (item.type === "match") {

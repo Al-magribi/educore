@@ -1537,6 +1537,7 @@ router.get(
       const base = {
         id: question.id,
         no: index + 1,
+        q_type: question.q_type,
         question: stripHtml(question.content),
         maxPoints: question.score_point || 0,
       };
@@ -1606,6 +1607,28 @@ router.get(
         };
       }
 
+      if (question.q_type === 5) {
+        const selectedId = Number(answerValue);
+        const selectedOption = questionOptions.find(
+          (opt) => opt.id === selectedId,
+        );
+        const correctOptions = questionOptions.filter((opt) => opt.is_correct);
+
+        return {
+          ...base,
+          type: "true_false",
+          options: questionOptions.map((opt) => stripHtml(opt.content) || "-"),
+          selected: selectedOption ? stripHtml(selectedOption.content) : "-",
+          correctAnswers: correctOptions.map(
+            (opt) => stripHtml(opt.content) || "-",
+          ),
+          correct:
+            selectedOption && correctOptions.length > 0
+              ? correctOptions.some((opt) => opt.id === selectedOption.id)
+              : null,
+        };
+      }
+
       if (question.q_type === 6) {
         const pairs = Array.isArray(answerValue) ? answerValue : [];
         const leftById = new Map(
@@ -1633,7 +1656,7 @@ router.get(
         };
       }
 
-      return { ...base, type: "single", options: [], selected: "-" };
+      return { ...base, type: "unknown", options: [], selected: "-" };
     });
 
     return res.json({ data: items });

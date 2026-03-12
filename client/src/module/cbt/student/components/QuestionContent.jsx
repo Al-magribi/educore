@@ -28,6 +28,17 @@ const QUESTION_TYPES = {
 const getQuestionType = (type) =>
   QUESTION_TYPES[type] || { label: "Unknown", color: "default" };
 
+const createMarkup = (value) => ({
+  __html: typeof value === "string" ? value : "",
+});
+
+const normalizeTextContent = (value = "") =>
+  String(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 const shuffleList = (items) => {
   if (!Array.isArray(items)) return [];
   const result = [...items];
@@ -95,6 +106,7 @@ const QuestionContent = ({
   const isMulti = question.q_type === 2;
   const isEssay = question.q_type === 3;
   const isShortAnswer = question.q_type === 4;
+  const isTrueFalse = question.q_type === 5;
   const isMatching = question.q_type === 6;
   const isTextAnswer = isEssay || isShortAnswer;
   const options = question.options || [];
@@ -150,6 +162,14 @@ const QuestionContent = ({
       setRightOrder(nextRightOrder);
     }
   }, [isMatching, question, answerValue, assignments, rightOrder.length]);
+
+  const getOptionBadgeLabel = (option, idx) => {
+    if (isTrueFalse) {
+      const normalized = normalizeTextContent(option?.content || option?.label);
+      if (normalized) return normalized;
+    }
+    return option.label || String.fromCharCode(65 + idx);
+  };
 
   const handleDragEnd = (result) => {
     if (!result.destination) return;
@@ -313,7 +333,7 @@ const QuestionContent = ({
             overflowWrap: "anywhere",
             wordBreak: "break-word",
           }}
-          dangerouslySetInnerHTML={{ __html: question.content || "" }}
+          dangerouslySetInnerHTML={createMarkup(question.content)}
         />
       </Card>
 
@@ -368,7 +388,7 @@ const QuestionContent = ({
                             wordBreak: "break-word",
                           }}
                           dangerouslySetInnerHTML={{
-                            __html: item.label || "-",
+                            __html: typeof item.label === "string" ? item.label : "-",
                           }}
                         />
                       </Space>
@@ -420,7 +440,7 @@ const QuestionContent = ({
                                         wordBreak: "break-word",
                                       }}
                                       dangerouslySetInnerHTML={{
-                                        __html: assignedItem.content || "",
+                                        __html: typeof assignedItem.content === "string" ? assignedItem.content : "",
                                       }}
                                     />
                                   </div>
@@ -485,7 +505,7 @@ const QuestionContent = ({
                                 wordBreak: "break-word",
                               }}
                               dangerouslySetInnerHTML={{
-                                __html: item.content || "",
+                                __html: typeof item.content === "string" ? item.content : "",
                               }}
                             />
                           </Card>
@@ -521,7 +541,7 @@ const QuestionContent = ({
                 <Checkbox value={option.id} style={{ width: "100%" }}>
                   <Space align="start" style={{ width: "100%" }}>
                     <Tag color="blue" style={{ minWidth: 32 }}>
-                      {option.label || String.fromCharCode(65 + idx)}
+                      {getOptionBadgeLabel(option, idx)}
                     </Tag>
                     <div
                       style={{
@@ -531,7 +551,7 @@ const QuestionContent = ({
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
                       }}
-                      dangerouslySetInnerHTML={{ __html: option.content || "" }}
+                      dangerouslySetInnerHTML={createMarkup(option.content)}
                     />
                   </Space>
                 </Checkbox>
@@ -561,7 +581,7 @@ const QuestionContent = ({
                 <Radio value={option.id} style={{ width: "100%" }}>
                   <Space align="start" style={{ width: "100%" }}>
                     <Tag color="blue" style={{ minWidth: 32 }}>
-                      {option.label || String.fromCharCode(65 + idx)}
+                      {getOptionBadgeLabel(option, idx)}
                     </Tag>
                     <div
                       style={{
@@ -571,7 +591,7 @@ const QuestionContent = ({
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
                       }}
-                      dangerouslySetInnerHTML={{ __html: option.content || "" }}
+                      dangerouslySetInnerHTML={createMarkup(option.content)}
                     />
                   </Space>
                 </Radio>
