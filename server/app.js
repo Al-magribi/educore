@@ -11,6 +11,9 @@ import registerApiRoutes from "./router/registerApiRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const clientDistPath = path.join(__dirname, "../client/dist");
+const clientIndexPath = path.join(clientDistPath, "index.html");
+const hasClientBuild = fs.existsSync(clientIndexPath);
 
 const app = express();
 
@@ -26,8 +29,9 @@ if (!fs.existsSync(backupPath)) {
   fs.mkdirSync(backupPath, { recursive: true });
 }
 
-// BUILD
-app.use(express.static(path.join(__dirname, "../client/dist")));
+if (hasClientBuild) {
+  app.use(express.static(clientDistPath));
+}
 
 app.use("/temp_backup", express.static(path.join(backupPath)));
 
@@ -42,9 +46,17 @@ pool
     console.error("[DB] Initial connection check failed", error);
   });
 
-// Handle all routes - send index.html for client-side routing
+// Handle all routes - send index.html for client-side routing when the build exists.
 app.get("/{*splat}", (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+  if (!hasClientBuild) {
+    res.status(503).json({
+      message:
+        "Client build not found. Run `npm --prefix client run build` or use the `product/cbt` branch.",
+    });
+    return;
+  }
+
+  res.sendFile(clientIndexPath);
 });
 
 export default app;
