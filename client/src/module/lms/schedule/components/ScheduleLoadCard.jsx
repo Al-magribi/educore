@@ -2,13 +2,26 @@ import React, { useMemo, useState } from "react";
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag } from "antd";
 import { BookOpenText, Pencil, Plus } from "lucide-react";
 
-const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loading, onSave }) => {
+const ScheduleLoadCard = ({
+  canManage,
+  classes,
+  grades,
+  subjects,
+  teachers,
+  teacherAssignments,
+  loading,
+  onSave,
+}) => {
   const [openModal, setOpenModal] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState(null);
+  const [editingLoadId, setEditingLoadId] = useState(null);
   const [teacherKeyword, setTeacherKeyword] = useState("");
   const [selectedGradeId, setSelectedGradeId] = useState(null);
   const [form] = Form.useForm();
 
+  const classOptions = useMemo(
+    () => (classes || []).map((item) => ({ value: item.id, label: item.name })),
+    [classes],
+  );
   const gradeOptions = useMemo(
     () => (grades || []).map((item) => ({ value: item.id, label: item.name })),
     [grades],
@@ -17,14 +30,19 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
     () => (subjects || []).map((item) => ({ value: item.id, label: item.name })),
     [subjects],
   );
+  const teacherOptions = useMemo(
+    () => (teachers || []).map((item) => ({ value: item.id, label: item.full_name })),
+    [teachers],
+  );
+
   const sortedAssignments = useMemo(() => {
     return [...(teacherAssignments || [])].sort((a, b) => {
-      const gradeCompare = (a.grade_name || "").localeCompare(b.grade_name || "");
-      if (gradeCompare !== 0) return gradeCompare;
-      const subjectCompare = (a.subject_name || "").localeCompare(b.subject_name || "");
-      if (subjectCompare !== 0) return subjectCompare;
       const teacherCompare = (a.teacher_name || "").localeCompare(b.teacher_name || "");
       if (teacherCompare !== 0) return teacherCompare;
+      const subjectCompare = (a.subject_name || "").localeCompare(b.subject_name || "");
+      if (subjectCompare !== 0) return subjectCompare;
+      const gradeCompare = (a.grade_name || "").localeCompare(b.grade_name || "");
+      if (gradeCompare !== 0) return gradeCompare;
       return (a.class_name || "").localeCompare(b.class_name || "");
     });
   }, [teacherAssignments]);
@@ -41,10 +59,10 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
   }, [sortedAssignments, teacherKeyword, selectedGradeId]);
 
   const handleOpenCreate = () => {
-    setEditingRuleId(null);
+    setEditingLoadId(null);
     form.resetFields();
     form.setFieldsValue({
-      weekly_sessions: 4,
+      weekly_sessions: 2,
       max_sessions_per_meeting: 2,
       minimum_gap_slots: 4,
       require_different_days: true,
@@ -55,11 +73,13 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
   };
 
   const handleOpenEdit = (record) => {
-    setEditingRuleId(record.teaching_load_grade_rule_id || null);
+    setEditingLoadId(record.teaching_load_id || null);
     form.setFieldsValue({
-      grade_id: record.grade_id,
+      id: record.teaching_load_id || undefined,
+      class_id: record.class_id,
       subject_id: record.subject_id,
-      weekly_sessions: record.weekly_sessions || 4,
+      teacher_id: record.teacher_id,
+      weekly_sessions: record.weekly_sessions || 2,
       max_sessions_per_meeting: record.max_sessions_per_meeting || 2,
       minimum_gap_slots: Number.isFinite(record.minimum_gap_slots)
         ? record.minimum_gap_slots
@@ -67,7 +87,6 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
       require_different_days: record.require_different_days ?? true,
       allow_same_day_with_gap: record.allow_same_day_with_gap ?? true,
       is_active: record.is_active ?? true,
-      id: record.teaching_load_grade_rule_id || undefined,
     });
     setOpenModal(true);
   };
@@ -76,36 +95,16 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
     const values = await form.validateFields();
     await onSave({
       ...values,
-      id: editingRuleId || values.id,
-      scope_type: "grade",
+      id: editingLoadId || values.id,
     });
     setOpenModal(false);
   };
 
   const assignmentColumns = [
-    { title: "Guru", dataIndex: "teacher_name", key: "teacher_name", width: 240 },
+    { title: "Guru", dataIndex: "teacher_name", key: "teacher_name", width: 220 },
     { title: "Mapel", dataIndex: "subject_name", key: "subject_name", width: 180 },
     { title: "Tingkat", dataIndex: "grade_name", key: "grade_name", width: 120 },
-    {
-      title: "Kelas",
-      dataIndex: "class_name",
-      key: "class_name",
-      width: 260,
-      render: (_, record) => {
-        const total = Number(record.class_count || 0);
-        const classNames = Array.isArray(record.class_names) ? record.class_names : [];
-        return (
-          <Space wrap size={4}>
-            {classNames.map((name) => (
-              <Tag key={`${record.teacher_id}-${record.subject_id}-${record.grade_id}-${name}`}>
-                {name}
-              </Tag>
-            ))}
-            {total > 0 ? <Tag color='cyan'>{total} kelas</Tag> : null}
-          </Space>
-        );
-      },
-    },
+    { title: "Kelas", dataIndex: "class_name", key: "class_name", width: 160 },
     {
       title: "Beban Sesi",
       dataIndex: "weekly_sessions",
@@ -116,8 +115,8 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
     },
     {
       title: "Status Beban",
-      dataIndex: "teaching_load_grade_rule_id",
-      key: "teaching_load_grade_rule_id",
+      dataIndex: "teaching_load_id",
+      key: "teaching_load_id",
       width: 140,
       render: (value) =>
         value ? <Tag color='green'>Sudah diatur</Tag> : <Tag color='orange'>Belum diatur</Tag>,
@@ -146,20 +145,20 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
       title={
         <Space>
           <BookOpenText size={18} />
-          <span>Beban Ajar</span>
+          <span>Beban Ajar Per Kelas</span>
         </Space>
       }
       extra={
         canManage ? (
           <Button type='primary' icon={<Plus size={14} />} onClick={handleOpenCreate}>
-            Atur Per Tingkat
+            Atur Per Kelas
           </Button>
         ) : null
       }
     >
       <Table
         rowKey={(record) =>
-          `${record.teacher_id}-${record.subject_id}-${record.grade_id || "general"}`
+          `${record.teacher_id}-${record.subject_id}-${record.class_id || "general"}`
         }
         size='small'
         loading={loading}
@@ -190,7 +189,7 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
 
       <Modal
         open={openModal}
-        title={editingRuleId ? "Edit Beban Ajar Per Tingkat" : "Atur Beban Ajar Per Tingkat"}
+        title={editingLoadId ? "Edit Beban Ajar Per Kelas" : "Atur Beban Ajar Per Kelas"}
         onCancel={() => setOpenModal(false)}
         onOk={handleSubmit}
         okText='Simpan'
@@ -200,11 +199,14 @@ const ScheduleLoadCard = ({ canManage, grades, subjects, teacherAssignments, loa
           <Form.Item name='id' hidden>
             <InputNumber />
           </Form.Item>
-          <Form.Item name='grade_id' label='Tingkat' rules={[{ required: true }]}>
-            <Select showSearch optionFilterProp='label' options={gradeOptions} />
+          <Form.Item name='teacher_id' label='Guru' rules={[{ required: true }]}>
+            <Select showSearch optionFilterProp='label' options={teacherOptions} />
           </Form.Item>
           <Form.Item name='subject_id' label='Mata Pelajaran' rules={[{ required: true }]}>
             <Select showSearch optionFilterProp='label' options={subjectOptions} />
+          </Form.Item>
+          <Form.Item name='class_id' label='Kelas' rules={[{ required: true }]}>
+            <Select showSearch optionFilterProp='label' options={classOptions} />
           </Form.Item>
           <Form.Item name='weekly_sessions' label='Beban sesi per minggu' rules={[{ required: true }]}>
             <InputNumber min={1} max={12} style={{ width: "100%" }} />

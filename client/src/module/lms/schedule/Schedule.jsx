@@ -183,8 +183,6 @@ const Schedule = () => {
                 subjects={payload.subjects || []}
                 teachers={payload.teachers || []}
                 teacherAssignments={payload.teacher_assignments || []}
-                loads={payload.loads || []}
-                loadGradeRules={payload.load_grade_rules || []}
                 loading={savingLoad || deletingLoad || isFetching}
                 onSave={handleLoadSave}
                 onDelete={handleDeleteLoad}

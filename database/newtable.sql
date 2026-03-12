@@ -864,6 +864,27 @@ create table if not exists finance.payment_method (
   created_at timestamptz not null default now()
 );
 
+-- Beban ajar aktif dipakai per kelas.
+-- Contoh: guru A, Fisika, kelas 10-1 = 2 sesi; guru A, Fisika, kelas 10-2 = 3 sesi.
+-- Tabel grade_rule di bawah ini bersifat legacy dan tidak dipakai oleh alur schedule aktif.
+CREATE TABLE IF NOT EXISTS lms.l_teaching_load_grade_rule (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    grade_id integer NOT NULL REFERENCES public.a_grade(id) ON DELETE CASCADE,
+    subject_id integer NOT NULL REFERENCES public.a_subject(id) ON DELETE CASCADE,
+    weekly_sessions integer NOT NULL CHECK (weekly_sessions > 0),
+    max_sessions_per_meeting integer NOT NULL DEFAULT 2 CHECK (max_sessions_per_meeting > 0),
+    require_different_days boolean NOT NULL DEFAULT true,
+    allow_same_day_with_gap boolean NOT NULL DEFAULT true,
+    minimum_gap_slots integer NOT NULL DEFAULT 4 CHECK (minimum_gap_slots >= 0),
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer REFERENCES public.u_users(id),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_teaching_load_grade_rule UNIQUE (homebase_id, periode_id, grade_id, subject_id)
+);
+
 create table if not exists finance.bank_account (
   id bigserial primary key,
   payment_method_id bigint not null references finance.payment_method(id) on delete cascade,
