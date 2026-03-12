@@ -190,8 +190,6 @@ const Classes = ({ screens }) => {
             sm: 12,
             md: 8,
             lg: 6,
-            xl: 6,
-            xxl: 4,
           }}
           renderItem={(item) => (
             <ClassItem
