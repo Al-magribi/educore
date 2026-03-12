@@ -25,7 +25,6 @@ router.get(
       majorCount,
       subjectCount,
       activeExams,
-      tahfizToday,
       attendanceStats,
       recentLogs,
     ] = await Promise.all([
@@ -73,13 +72,6 @@ router.get(
         [homebaseId],
       ),
       pool.query(
-        `SELECT COUNT(*) 
-         FROM t_daily_record d
-         JOIN t_musyrif m ON d.musyrif_id = m.id
-         WHERE d.date = CURRENT_DATE AND m.homebase_id = $1`,
-        [homebaseId],
-      ),
-      pool.query(
         `SELECT status, COUNT(*) as count 
          FROM l_attendance a
          JOIN a_class c ON a.class_id = c.id
@@ -120,7 +112,6 @@ router.get(
           majors: parseInt(majorCount.rows[0].count, 10),
           subjects: parseInt(subjectCount.rows[0].count, 10),
           activeExams: parseInt(activeExams.rows[0].count, 10),
-          tahfizToday: parseInt(tahfizToday.rows[0].count, 10),
         },
         attendance: attendanceStats.rows,
         logs: recentLogs.rows,

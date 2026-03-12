@@ -37,6 +37,7 @@ import {
   TahfizMenus,
 } from "./Menus";
 import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
+import LoadApp from "../loader/LoadApp";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -60,9 +61,14 @@ const AppLayout = ({ children, title, asShell = false }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [menuItems, setMenuItems] = useState([]);
   const [shellTitle, setShellTitle] = useState(null);
+  const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
   const preloadedRoutes = useRef(new Set());
   const effectiveTitle = asShell ? shellTitle : title;
+
+  const isCbtRoute = (path) =>
+    path?.startsWith("/computer-based-test") ||
+    path?.startsWith("/siswa/jadwal-ujian");
 
   const routePreloaders = {
     "/profile": () => import("../profile/Profile"),
@@ -201,6 +207,16 @@ const AppLayout = ({ children, title, asShell = false }) => {
     return () => shellContext.setShellTitle(null);
   }, [asShell, shellContext, title]);
 
+  useEffect(() => {
+    if (!isRouteTransitioning) return;
+
+    const timer = window.setTimeout(() => {
+      setIsRouteTransitioning(false);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [isRouteTransitioning, location.pathname]);
+
   // 3. Handle Logout
   const handleLogout = async () => {
     doLogout();
@@ -209,7 +225,12 @@ const AppLayout = ({ children, title, asShell = false }) => {
   const handleMenuClick = ({ key }) => {
     preloadRouteByKey(key);
     if (key === "logout") handleLogout();
-    else navigate(key);
+    else {
+      if (key !== location.pathname && isCbtRoute(key)) {
+        setIsRouteTransitioning(true);
+      }
+      navigate(key);
+    }
 
     // Auto close drawer after selecting menu on mobile
     if (isMobile) {
@@ -438,7 +459,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
             overflowX: "hidden", // Mencegah scroll horizontal jika tabel lebar
           }}
         >
-          {asShell ? <Outlet /> : children}
+          {asShell ? (isRouteTransitioning ? <LoadApp /> : <Outlet />) : children}
         </Content>
 
         {/* Footer */}
