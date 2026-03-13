@@ -12,8 +12,10 @@ import {
   Popconfirm,
   Badge,
   Flex,
+  Layout,
+  Grid,
+  Statistic,
 } from "antd";
-// 1. Import Icon dari lucide-react
 import {
   Plus,
   Search,
@@ -21,6 +23,8 @@ import {
   Trash2,
   CheckCircle,
   Calendar,
+  FolderClock,
+  Archive,
 } from "lucide-react";
 
 import { InfiniteScrollList } from "../../../../components";
@@ -34,20 +38,22 @@ import {
 import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
+const { Content } = Layout;
+const { useBreakpoint } = Grid;
 
 const Periode = ({ screens }) => {
+  const breakpointScreens = useBreakpoint();
+  const activeScreens = screens || breakpointScreens;
   const { user } = useSelector((state) => state.auth);
-  // === STATE ===
+
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [listData, setListData] = useState([]);
 
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
 
-  // === RTK QUERY HOOKS ===
   const {
     data: apiData,
     isFetching,
@@ -62,10 +68,9 @@ const Periode = ({ screens }) => {
   const [addPeriode, { isLoading: isAdding }] = useAddPeriodeMutation();
   const [updatePeriode, { isLoading: isUpdating }] = useUpdatePeriodeMutation();
   const [deletePeriode, { isLoading: isDeleting }] = useDeletePeriodeMutation();
-  const [setActivePeriode, { isLoading: isSettingActive }] =
-    useSetActivePeriodeMutation();
+  const [setActivePeriode] = useSetActivePeriodeMutation();
 
-  // === EFFECT: INFINITE SCROLL DATA MERGE ===
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (apiData?.data) {
       if (page === 1) {
@@ -84,8 +89,8 @@ const Periode = ({ screens }) => {
   useEffect(() => {
     setPage(1);
   }, [search]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  // === HANDLERS ===
   const handleLoadMore = () => {
     if (apiData?.hasMore && !isFetching) {
       setPage((prev) => prev + 1);
@@ -148,7 +153,30 @@ const Periode = ({ screens }) => {
     }
   };
 
-  // === RENDER ITEM (CARD) ===
+  const totalPeriodes = apiData?.totalData || listData.length || 0;
+  const activePeriodeCount = listData.filter((item) => item.is_active).length;
+  const archivedPeriodeCount = Math.max(totalPeriodes - activePeriodeCount, 0);
+  const summaryCards = [
+    {
+      key: "total",
+      title: "Total Periode",
+      value: totalPeriodes,
+      icon: <FolderClock size={18} />,
+    },
+    {
+      key: "active",
+      title: "Periode Aktif",
+      value: activePeriodeCount,
+      icon: <CheckCircle size={18} />,
+    },
+    {
+      key: "archive",
+      title: "Arsip",
+      value: archivedPeriodeCount,
+      icon: <Archive size={18} />,
+    },
+  ];
+
   const renderItem = (item) => (
     <Badge.Ribbon
       text={item.is_active ? "Aktif" : "Non-Aktif"}
@@ -159,7 +187,6 @@ const Periode = ({ screens }) => {
         style={{ height: "100%", display: "flex", flexDirection: "column" }}
         styles={{ body: { flex: 1, padding: "16px" } }}
         actions={[
-          // Tombol Aktifkan (Icon: CheckCircle)
           <Popconfirm
             key='activate'
             title='Aktifkan periode ini?'
@@ -174,7 +201,6 @@ const Periode = ({ screens }) => {
             >
               <Button
                 type='text'
-                // Gunakan size 18 agar proporsional
                 icon={
                   <CheckCircle
                     size={18}
@@ -185,8 +211,6 @@ const Periode = ({ screens }) => {
               />
             </Tooltip>
           </Popconfirm>,
-
-          // Tombol Edit (Icon: Pencil)
           <Tooltip title='Edit Nama' key='edit'>
             <Button
               type='text'
@@ -194,8 +218,6 @@ const Periode = ({ screens }) => {
               onClick={() => handleOpenModal(item)}
             />
           </Tooltip>,
-
-          // Tombol Hapus (Icon: Trash2)
           <Popconfirm
             key='delete'
             title='Hapus periode?'
@@ -216,7 +238,6 @@ const Periode = ({ screens }) => {
         ]}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          {/* Icon Utama Card (Icon: Calendar) */}
           <Calendar size={24} color='#1890ff' style={{ marginTop: 4 }} />
 
           <div>
@@ -240,80 +261,162 @@ const Periode = ({ screens }) => {
   );
 
   return (
-    <div style={{ padding: 24 }}>
-      {/* HEADER */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: screens.xs ? "flex-start" : "center",
-          marginBottom: 16,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <Title level={4} style={{ margin: 0 }}>
-          Daftar Periode
-        </Title>
-        <Flex
-          gap={8}
-          vertical={!!screens.xs}
-          align={screens.xs ? "stretch" : "center"}
-          justify='flex-end'
-          style={{ width: screens.xs ? "100%" : "auto" }}
+    <Layout
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
+      }}
+    >
+      <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 20,
+            borderRadius: 24,
+            overflow: "hidden",
+            background:
+              "linear-gradient(135deg, #0f172a 0%, #7c3aed 52%, #c084fc 100%)",
+          }}
+          styles={{ body: { padding: activeScreens.md ? 28 : 20 } }}
         >
-          <Input
-            placeholder='Cari periode...'
-            // Icon Search
-            prefix={<Search size={16} color='#bfbfbf' />}
-            allowClear
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: screens.xs ? "100%" : 260 }}
-          />
-          <Button
-            type='primary'
-            // Icon Plus
-            icon={<Plus size={18} />}
-            onClick={() => handleOpenModal(null)}
-            style={{ width: screens.xs ? "100%" : "auto" }}
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "start"}
+            vertical={!activeScreens.md}
+            gap={20}
           >
-            Tambah
-          </Button>
+            <div>
+              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                Master Data / Periode
+              </Text>
+              <Title
+                level={2}
+                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+              >
+                Daftar Periode
+              </Title>
+              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
+                Atur periode akademik aktif dan arsip periode dalam satu panel.
+              </Text>
+            </div>
+          </Flex>
+        </Card>
+
+        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+          {summaryCards.map((item) => (
+            <Card
+              key={item.key}
+              bordered={false}
+              style={{
+                flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+                minWidth: activeScreens.md ? 0 : "100%",
+                borderRadius: 20,
+                background: "rgba(255,255,255,0.88)",
+                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+              }}
+              styles={{ body: { padding: "18px 20px" } }}
+            >
+              <Flex justify='space-between' align='start'>
+                <Statistic title={item.title} value={item.value} />
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 14,
+                    background: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
+                    color: "#7c3aed",
+                  }}
+                >
+                  {item.icon}
+                </div>
+              </Flex>
+            </Card>
+          ))}
         </Flex>
-      </div>
 
-      {/* INFINITE SCROLL LIST */}
-      <InfiniteScrollList
-        data={listData}
-        loading={isFetching}
-        hasMore={apiData?.hasMore}
-        onLoadMore={handleLoadMore}
-        renderItem={renderItem}
-        emptyText='Belum ada data periode'
-        grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 }}
-      />
-
-      {/* MODAL FORM */}
-      <Modal
-        title={editingItem ? "Edit Periode" : "Tambah Periode Baru"}
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        onOk={form.submit}
-        confirmLoading={isAdding || isUpdating}
-        destroyOnHidden
-      >
-        <Form form={form} layout='vertical' onFinish={handleSubmit}>
-          <Form.Item
-            name='name'
-            label='Nama Periode'
-            rules={[{ required: true, message: "Nama periode wajib diisi" }]}
-            help='Contoh: 2025/2026 Ganjil'
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 18,
+            borderRadius: 22,
+            background: "rgba(255,255,255,0.92)",
+            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+          }}
+          styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+        >
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "stretch"}
+            vertical={!activeScreens.md}
+            gap={16}
           >
-            <Input placeholder='Masukkan nama periode...' />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
+            <div>
+              <Title level={4} style={{ margin: 0 }}>
+                Direktori Periode
+              </Title>
+              <Text type='secondary'>
+                Cari periode lalu aktifkan, edit, atau tambahkan periode baru.
+              </Text>
+            </div>
+            <Flex
+              gap={10}
+              vertical={!activeScreens.md}
+              style={{ width: !activeScreens.md ? "100%" : "auto" }}
+            >
+              <Input
+                placeholder='Cari periode...'
+                prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
+                allowClear
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ width: !activeScreens.md ? "100%" : 280 }}
+                size='large'
+              />
+              <Button
+                type='primary'
+                icon={<Plus size={18} />}
+                onClick={() => handleOpenModal(null)}
+                size='large'
+              >
+                Tambah Periode
+              </Button>
+            </Flex>
+          </Flex>
+        </Card>
+
+        <InfiniteScrollList
+          data={listData}
+          loading={isFetching}
+          hasMore={apiData?.hasMore}
+          onLoadMore={handleLoadMore}
+          renderItem={renderItem}
+          emptyText='Belum ada data periode'
+          grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 }}
+        />
+
+        <Modal
+          title={editingItem ? "Edit Periode" : "Tambah Periode Baru"}
+          open={isModalOpen}
+          onCancel={() => setIsModalOpen(false)}
+          onOk={form.submit}
+          confirmLoading={isAdding || isUpdating}
+          destroyOnHidden
+        >
+          <Form form={form} layout='vertical' onFinish={handleSubmit}>
+            <Form.Item
+              name='name'
+              label='Nama Periode'
+              rules={[{ required: true, message: "Nama periode wajib diisi" }]}
+              help='Contoh: 2025/2026 Ganjil'
+            >
+              <Input placeholder='Masukkan nama periode...' />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Content>
+    </Layout>
   );
 };
 

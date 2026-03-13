@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Input, Button, Typography, Space, message, theme, Flex } from "antd";
-import { Search as SearchIcon, Plus } from "lucide-react";
-// Sesuaikan path import ini dengan struktur folder Anda
+import {
+  Input,
+  Button,
+  Typography,
+  message,
+  Flex,
+  Layout,
+  Card,
+  Grid,
+  Statistic,
+} from "antd";
+import { Search as SearchIcon, Plus, Users, UserCheck, Layers3 } from "lucide-react";
 import { InfiniteScrollList } from "../../../../components";
 import {
   useGetStudentsQuery,
@@ -14,11 +23,13 @@ import StudentCard from "./StudentCard";
 import StudentForm from "./StudentForm";
 
 const { Title, Text } = Typography;
+const { Content } = Layout;
+const { useBreakpoint } = Grid;
 
 const StudentPage = ({ screens }) => {
-  const { token } = theme.useToken();
+  const breakpointScreens = useBreakpoint();
+  const activeScreens = screens || breakpointScreens;
 
-  // --- Local States ---
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [accumulatedData, setAccumulatedData] = useState([]);
@@ -27,10 +38,9 @@ const StudentPage = ({ screens }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  // --- API Hooks ---
   const { data: apiData, isFetching } = useGetStudentsQuery({
     page,
-    limit: 12, // Load 12 item per batch
+    limit: 12,
     search,
   });
 
@@ -38,30 +48,21 @@ const StudentPage = ({ screens }) => {
   const [updateStudent, { isLoading: isUpdating }] = useUpdateStudentMutation();
   const [deleteStudent, { isLoading: isDeleting }] = useDeleteStudentMutation();
 
-  // --- Logic Infinite Scroll & Accumulation ---
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (apiData?.data) {
       if (page === 1) {
-        // Jika page 1 (awal atau hasil search baru), replace data
         setAccumulatedData(apiData.data);
       } else {
-        // PERBAIKAN DISINI: Mencegah duplikasi data (Key Error Fix)
         setAccumulatedData((prev) => {
-          // 1. Buat Set dari ID yang sudah ada di state sebelumnya
           const existingIds = new Set(prev.map((item) => item.id));
-
-          // 2. Filter data baru yang masuk, hanya ambil yang ID-nya belum ada
           const newUniqueItems = apiData.data.filter(
             (item) => !existingIds.has(item.id),
           );
-
-          // 3. Gabungkan
           return [...prev, ...newUniqueItems];
         });
       }
 
-      // Cek apakah masih ada data untuk page berikutnya
-      // Gunakan totalData dari API untuk validasi akurat
       const currentCount = (page - 1) * 12 + apiData.data.length;
       if (currentCount >= apiData.totalData) {
         setHasMore(false);
@@ -70,18 +71,15 @@ const StudentPage = ({ screens }) => {
       }
     }
   }, [apiData, page]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  // --- Handlers ---
   const handleSearch = (e) => {
     setSearch(e.target.value);
-    setPage(1); // Reset ke page 1 saat search
+    setPage(1);
     setHasMore(true);
-    // Note: accumulatedData akan di-reset oleh useEffect saat data baru masuk
   };
 
   const handleLoadMore = () => {
-    // Pastikan tidak meload jika sedang fetching atau tidak ada data lagi
-    // Tambahkan !isFetching agar tidak double request saat scroll cepat
     if (!isFetching && hasMore) {
       setPage((prev) => prev + 1);
     }
@@ -105,7 +103,6 @@ const StudentPage = ({ screens }) => {
         };
 
         await updateStudent({ id: editingItem.id, ...payload }).unwrap();
-        // Update lokal agar UI responsif tanpa reload total
         setAccumulatedData((prev) =>
           prev.map((item) =>
             item.id === editingItem.id ? { ...item, ...payload } : item,
@@ -124,12 +121,11 @@ const StudentPage = ({ screens }) => {
         };
 
         await addStudent(payload).unwrap();
-        // Untuk create, reset ke page 1 agar data baru muncul di atas
         setPage(1);
         message.success("Siswa ditambahkan");
       }
       setIsDrawerOpen(false);
-    } catch (error) {
+    } catch {
       message.error("Gagal menyimpan data");
     }
   };
@@ -137,86 +133,194 @@ const StudentPage = ({ screens }) => {
   const handleDelete = async (id) => {
     try {
       await deleteStudent(id).unwrap();
-      // Hapus dari state lokal langsung agar smooth
       setAccumulatedData((prev) => prev.filter((item) => item.id !== id));
       message.success("Siswa dihapus");
-    } catch (error) {
+    } catch {
       message.error("Gagal menghapus");
     }
   };
 
+  const totalStudents = apiData?.totalData || 0;
+  const activeStudents = accumulatedData.filter((item) => item.is_active).length;
+  const loadedStudents = accumulatedData.length;
+  const summaryCards = [
+    {
+      key: "students",
+      title: "Total Siswa",
+      value: totalStudents,
+      icon: <Users size={18} />,
+    },
+    {
+      key: "active",
+      title: "Aktif di List",
+      value: activeStudents,
+      icon: <UserCheck size={18} />,
+    },
+    {
+      key: "loaded",
+      title: "Data Dimuat",
+      value: loadedStudents,
+      icon: <Layers3 size={18} />,
+    },
+  ];
+
   return (
-    <div style={{ minHeight: "100vh" }}>
-      {/* Header Section */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 24,
-          flexWrap: "wrap",
-          gap: 16,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ margin: 0 }}>
-            Data Siswa <span>({apiData?.totalData || 0})</span>
-          </Title>
-          <Text type='secondary'>Kelola data siswa sekolah</Text>
-        </div>
-        <Flex
-          gap={8}
-          vertical={!!screens.xs}
-          align={screens.xs ? "stretch" : "center"}
-          justify='flex-end'
-          style={{ width: screens.xs ? "100%" : "auto" }}
+    <Layout
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
+      }}
+    >
+      <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 20,
+            borderRadius: 24,
+            overflow: "hidden",
+            background:
+              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #60a5fa 100%)",
+          }}
+          styles={{ body: { padding: activeScreens.md ? 28 : 20 } }}
         >
-          <Input
-            placeholder='Cari Siswa...'
-            prefix={<SearchIcon size={16} color={token.colorTextPlaceholder} />}
-            onChange={handleSearch}
-            style={{ width: screens.xs ? "100%" : "auto" }}
-            allowClear
-          />
-          <Button
-            type='primary'
-            icon={<Plus size={18} />}
-            onClick={() => handleOpenDrawer(null)}
-            style={{ width: screens.xs ? "100%" : "auto" }}
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "start"}
+            vertical={!activeScreens.md}
+            gap={20}
           >
-            Siswa
-          </Button>
+            <div>
+              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                Akademik / Siswa
+              </Text>
+              <Title
+                level={2}
+                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+              >
+                Data Siswa
+              </Title>
+              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
+                Kelola daftar siswa, pencarian cepat, dan pembaruan data dalam
+                satu panel.
+              </Text>
+            </div>
+          </Flex>
+        </Card>
+
+        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+          {summaryCards.map((item) => (
+            <Card
+              key={item.key}
+              bordered={false}
+              style={{
+                flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+                minWidth: activeScreens.md ? 0 : "100%",
+                borderRadius: 20,
+                background: "rgba(255,255,255,0.88)",
+                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+              }}
+              styles={{ body: { padding: "18px 20px" } }}
+            >
+              <Flex justify='space-between' align='start'>
+                <Statistic title={item.title} value={item.value} />
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 14,
+                    background: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
+                    color: "#1d4ed8",
+                  }}
+                >
+                  {item.icon}
+                </div>
+              </Flex>
+            </Card>
+          ))}
         </Flex>
-      </div>
 
-      {/* Infinite Scroll List Section */}
-      <InfiniteScrollList
-        data={accumulatedData}
-        loading={isFetching}
-        hasMore={hasMore}
-        onLoadMore={handleLoadMore}
-        height='calc(100vh - 150px)' // Tinggi area scroll
-        emptyText='Tidak ada siswa ditemukan'
-        grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6 }} // Grid Card
-        renderItem={(item) => (
-          <StudentCard
-            student={item}
-            onEdit={handleOpenDrawer}
-            onDelete={handleDelete}
-            isDeleting={isDeleting}
-          />
-        )}
-      />
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 18,
+            borderRadius: 22,
+            background: "rgba(255,255,255,0.92)",
+            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+          }}
+          styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+        >
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "stretch"}
+            vertical={!activeScreens.md}
+            gap={16}
+          >
+            <div>
+              <Title level={4} style={{ margin: 0 }}>
+                Direktori Siswa
+              </Title>
+              <Text type='secondary'>
+                Temukan siswa dengan cepat lalu lanjutkan tambah atau edit data.
+              </Text>
+            </div>
 
-      {/* Form Drawer */}
-      <StudentForm
-        open={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        onSubmit={handleSubmit}
-        initialValues={editingItem}
-        isLoading={isAdding || isUpdating}
-      />
-    </div>
+            <Flex
+              gap={10}
+              vertical={!activeScreens.md}
+              style={{ width: !activeScreens.md ? "100%" : "auto" }}
+            >
+              <Input
+                placeholder='Cari siswa...'
+                prefix={
+                  <SearchIcon size={16} color='rgba(0,0,0,.25)' />
+                }
+                onChange={handleSearch}
+                style={{ width: !activeScreens.md ? "100%" : 280 }}
+                size='large'
+                allowClear
+              />
+              <Button
+                type='primary'
+                icon={<Plus size={18} />}
+                onClick={() => handleOpenDrawer(null)}
+                size='large'
+              >
+                Tambah Siswa
+              </Button>
+            </Flex>
+          </Flex>
+        </Card>
+
+        <InfiniteScrollList
+          data={accumulatedData}
+          loading={isFetching}
+          hasMore={hasMore}
+          onLoadMore={handleLoadMore}
+          height={activeScreens.md ? "calc(100vh - 360px)" : "calc(100vh - 320px)"}
+          emptyText='Tidak ada siswa ditemukan'
+          grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6 }}
+          renderItem={(item) => (
+            <StudentCard
+              student={item}
+              onEdit={handleOpenDrawer}
+              onDelete={handleDelete}
+              isDeleting={isDeleting}
+            />
+          )}
+        />
+
+        <StudentForm
+          open={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          onSubmit={handleSubmit}
+          initialValues={editingItem}
+          isLoading={isAdding || isUpdating}
+        />
+      </Content>
+    </Layout>
   );
 };
 

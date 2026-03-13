@@ -183,4 +183,85 @@ router.delete(
   }),
 );
 
+// ==========================================
+// 5. BULK IMPORT (POST) - Import Guru
+// ==========================================
+router.post(
+  "/upload-teachers",
+  authorize("pusat", "satuan"),
+  withTransaction(async (req, res, client) => {
+    const payload = Array.isArray(req.body) ? { teachers: req.body } : req.body;
+    const teachers = Array.isArray(payload?.teachers) ? payload.teachers : [];
+    const defaultHomebaseId = payload?.homebase_id || null;
+    const isSatuanLevel = req.user.level === "satuan";
+
+    if (teachers.length === 0) {
+      throw new Error("Data guru untuk import tidak boleh kosong");
+    }
+
+    let imported = 0;
+    let skippedInvalid = 0;
+    let skippedDuplicate = 0;
+
+    for (const row of teachers) {
+      const nip = (row?.nip || "").toString().trim();
+      const fullName = (row?.full_name || row?.name || "").toString().trim();
+      const phone = (row?.phone || "").toString().trim();
+      const email = (row?.email || "").toString().trim();
+      const homebaseId = isSatuanLevel
+        ? req.user.homebase_id
+        : row?.homebase_id || defaultHomebaseId;
+
+      if (!nip || !fullName || !homebaseId) {
+        skippedInvalid++;
+        continue;
+      }
+
+      const duplicateNip = await client.query(
+        "SELECT user_id FROM u_teachers WHERE nip = $1 AND homebase_id = $2",
+        [nip, homebaseId],
+      );
+      if (duplicateNip.rows.length > 0) {
+        skippedDuplicate++;
+        continue;
+      }
+
+      const duplicateUsername = await client.query(
+        "SELECT id FROM u_users WHERE username = $1",
+        [nip],
+      );
+      if (duplicateUsername.rows.length > 0) {
+        skippedDuplicate++;
+        continue;
+      }
+
+      const hashedPassword = await bcrypt.hash("123456", SALT_ROUNDS);
+      const userResult = await client.query(
+        `INSERT INTO u_users (username, password, full_name, role, is_active)
+         VALUES ($1, $2, $3, 'teacher', true) RETURNING id`,
+        [nip, hashedPassword, fullName],
+      );
+
+      await client.query(
+        `INSERT INTO u_teachers (user_id, nip, phone, email, homebase_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userResult.rows[0].id, nip, phone || null, email || null, homebaseId],
+      );
+
+      imported++;
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Berhasil mengimpor ${imported} dari ${teachers.length} data guru`,
+      summary: {
+        total: teachers.length,
+        imported,
+        skipped_invalid: skippedInvalid,
+        skipped_duplicate: skippedDuplicate,
+      },
+    });
+  }),
+);
+
 export default router;

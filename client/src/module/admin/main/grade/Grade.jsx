@@ -3,7 +3,6 @@ import {
   Card,
   Button,
   Input,
-  Space,
   Modal,
   Form,
   message,
@@ -12,16 +11,20 @@ import {
   Typography,
   theme,
   Flex,
+  Layout,
+  Grid,
+  Statistic,
 } from "antd";
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   Loader2,
   GraduationCap,
+  Layers3,
+  Search,
 } from "lucide-react";
-import { InfiniteScrollList } from "../../../../components"; // Sesuaikan path import
+import { InfiniteScrollList } from "../../../../components";
 import {
   useGetGradesQuery,
   useAddGradeMutation,
@@ -31,47 +34,41 @@ import {
 
 const { Search: AntSearch } = Input;
 const { Text, Title } = Typography;
+const { Content } = Layout;
+const { useBreakpoint } = Grid;
 
 const Grade = ({ screens }) => {
+  const breakpointScreens = useBreakpoint();
+  const activeScreens = screens || breakpointScreens;
   const { token } = theme.useToken();
   const [form] = Form.useForm();
 
-  // State untuk Data & Pagination
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [allItems, setAllItems] = useState([]); // State lokal untuk menampung akumulasi data
+  const [allItems, setAllItems] = useState([]);
   const [hasMore, setHasMore] = useState(true);
 
-  // State Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  // RTK Query
-  const { data, isFetching } = useGetGradesQuery({ page, limit: 12, search }); // Limit disesuaikan untuk Grid
+  const { data, isFetching } = useGetGradesQuery({ page, limit: 12, search });
   const [addGrade, { isLoading: isAdding }] = useAddGradeMutation();
   const [editGrade, { isLoading: isEditing }] = useEditGradeMutation();
   const [deleteGrade, { isLoading: isDeleting }] = useDeleteGradeMutation();
 
-  // ----------------------------------------------------------------
-  // EFFECT: Akumulasi Data untuk Infinite Scroll
-  // ----------------------------------------------------------------
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (data) {
       if (page === 1) {
-        // Jika halaman 1 (awal atau hasil search baru), replace data
         setAllItems(data.data);
       } else {
-        // Jika halaman selanjutnya, append data
         setAllItems((prev) => [...prev, ...data.data]);
       }
-      // Cek apakah masih ada halaman berikutnya
       setHasMore(page < data.meta.totalPages);
     }
   }, [data, page]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  // ----------------------------------------------------------------
-  // HANDLERS
-  // ----------------------------------------------------------------
   const handleLoadMore = () => {
     if (!isFetching && hasMore) {
       setPage((prev) => prev + 1);
@@ -80,17 +77,14 @@ const Grade = ({ screens }) => {
 
   const handleSearch = (value) => {
     setSearch(value);
-    setPage(1); // Reset ke halaman 1 saat mencari
-    setAllItems([]); // Kosongkan tampilan sementara
+    setPage(1);
+    setAllItems([]);
   };
 
   const handleDelete = async (id) => {
     try {
       await deleteGrade(id).unwrap();
       message.success("Data berhasil dihapus");
-      // Note: Data akan auto-refetch, tapi karena kita pakai local state 'allItems',
-      // kita perlu mereset list atau menghapus item secara manual dari state lokal
-      // Cara paling aman untuk konsistensi: Reset ke page 1
       setPage(1);
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus data");
@@ -108,7 +102,7 @@ const Grade = ({ screens }) => {
       }
       setIsModalOpen(false);
       form.resetFields();
-      setPage(1); // Refresh list dari awal
+      setPage(1);
     } catch (error) {
       message.error(error?.data?.message || "Terjadi kesalahan");
     }
@@ -121,9 +115,30 @@ const Grade = ({ screens }) => {
     setIsModalOpen(true);
   };
 
-  // ----------------------------------------------------------------
-  // RENDER ITEM (Card Design)
-  // ----------------------------------------------------------------
+  const totalGrades = data?.meta?.totalData || allItems.length || 0;
+  const loadedGrades = allItems.length;
+  const remainingGrades = Math.max(totalGrades - loadedGrades, 0);
+  const summaryCards = [
+    {
+      key: "total",
+      title: "Total Tingkat",
+      value: totalGrades,
+      icon: <GraduationCap size={18} />,
+    },
+    {
+      key: "loaded",
+      title: "Data Dimuat",
+      value: loadedGrades,
+      icon: <Layers3 size={18} />,
+    },
+    {
+      key: "remaining",
+      title: "Sisa Data",
+      value: remainingGrades,
+      icon: <Search size={18} />,
+    },
+  ];
+
   const renderGradeItem = (item) => (
     <Card
       hoverable
@@ -134,7 +149,7 @@ const Grade = ({ screens }) => {
       }}
       styles={{ body: { padding: "16px" } }}
       actions={[
-        <Tooltip title='Edit Data'>
+        <Tooltip title='Edit Data' key='edit'>
           <Button
             type='text'
             icon={<Pencil size={16} className='text-yellow-600' />}
@@ -142,7 +157,7 @@ const Grade = ({ screens }) => {
             block
           />
         </Tooltip>,
-        <Tooltip title='Hapus Data'>
+        <Tooltip title='Hapus Data' key='delete'>
           <Popconfirm
             title='Hapus Tingkat?'
             description='Aksi ini tidak dapat dibatalkan.'
@@ -191,54 +206,131 @@ const Grade = ({ screens }) => {
   );
 
   return (
-    <div style={{ padding: "20px" }}>
-      {/* Header & Search */}
-      <div
-        style={{
-          marginBottom: 24,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 16,
-        }}
-      >
-        <Title level={4} style={{ margin: 0 }}>
-          Daftar Tingkat
-        </Title>
-
-        <Flex
-          gap={8}
-          vertical={!!screens.xs}
-          align={screens.xs ? "stretch" : "center"}
-          justify='flex-end'
-          style={{ width: screens.xs ? "100%" : "auto" }}
+    <Layout
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
+      }}
+    >
+      <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 20,
+            borderRadius: 24,
+            overflow: "hidden",
+            background:
+              "linear-gradient(135deg, #0f172a 0%, #b45309 52%, #f59e0b 100%)",
+          }}
+          styles={{ body: { padding: activeScreens.md ? 28 : 20 } }}
         >
-          <AntSearch
-            placeholder='Cari tingkat...'
-            onSearch={handleSearch}
-            allowClear
-            style={{ width: screens.xs ? "100%" : 260 }}
-          />
-          <Button
-            type='primary'
-            icon={<Plus size={16} />}
-            onClick={() => openModal(null)}
-            style={{ width: screens.xs ? "100%" : "auto" }}
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "start"}
+            vertical={!activeScreens.md}
+            gap={20}
           >
-            Tambah
-          </Button>
-        </Flex>
-      </div>
+            <div>
+              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                Master Data / Tingkat
+              </Text>
+              <Title
+                level={2}
+                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+              >
+                Daftar Tingkat
+              </Title>
+              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
+                Kelola tingkat kelas untuk kebutuhan kelas dan struktur akademik.
+              </Text>
+            </div>
+          </Flex>
+        </Card>
 
-      {/* Infinite Scroll List */}
-      <div
-        style={{
-          background: token.colorBgContainer,
-          padding: 16,
-          borderRadius: token.borderRadiusLG,
-        }}
-      >
+        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+          {summaryCards.map((item) => (
+            <Card
+              key={item.key}
+              bordered={false}
+              style={{
+                flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+                minWidth: activeScreens.md ? 0 : "100%",
+                borderRadius: 20,
+                background: "rgba(255,255,255,0.88)",
+                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+              }}
+              styles={{ body: { padding: "18px 20px" } }}
+            >
+              <Flex justify='space-between' align='start'>
+                <Statistic title={item.title} value={item.value} />
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 14,
+                    background: "linear-gradient(135deg, #fef3c7, #ffedd5)",
+                    color: "#b45309",
+                  }}
+                >
+                  {item.icon}
+                </div>
+              </Flex>
+            </Card>
+          ))}
+        </Flex>
+
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 18,
+            borderRadius: 22,
+            background: "rgba(255,255,255,0.92)",
+            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+          }}
+          styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+        >
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "stretch"}
+            vertical={!activeScreens.md}
+            gap={16}
+          >
+            <div>
+              <Title level={4} style={{ margin: 0 }}>
+                Direktori Tingkat
+              </Title>
+              <Text type='secondary'>
+                Cari tingkat kelas yang ada atau tambahkan level baru.
+              </Text>
+            </div>
+
+            <Flex
+              gap={10}
+              vertical={!activeScreens.md}
+              style={{ width: !activeScreens.md ? "100%" : "auto" }}
+            >
+              <AntSearch
+                placeholder='Cari tingkat...'
+                onSearch={handleSearch}
+                allowClear
+                style={{ width: !activeScreens.md ? "100%" : 280 }}
+                size='large'
+              />
+              <Button
+                type='primary'
+                icon={<Plus size={16} />}
+                onClick={() => openModal(null)}
+                size='large'
+              >
+                Tambah Tingkat
+              </Button>
+            </Flex>
+          </Flex>
+        </Card>
+
         <InfiniteScrollList
           data={allItems}
           loading={isFetching}
@@ -256,51 +348,50 @@ const Grade = ({ screens }) => {
             xxl: 4,
           }}
         />
-      </div>
 
-      {/* Modal Form */}
-      <Modal
-        title={editingItem ? "Edit Grade" : "Tambah Grade Baru"}
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        footer={null}
-        destroyOnHidden
-      >
-        <Form form={form} layout='vertical' onFinish={handleSave}>
-          <Form.Item
-            label='Nama Tingkat'
-            name='name'
-            rules={[{ required: true, message: "Harap isi nama tingkat!" }]}
-            help='Contoh: X, XI, XII, atau 1, 2, 3'
-          >
-            <Input placeholder='Masukkan nama...' />
-          </Form.Item>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 24,
-            }}
-          >
-            <Button onClick={() => setIsModalOpen(false)}>Batal</Button>
-            <Button
-              type='primary'
-              htmlType='submit'
-              loading={isAdding || isEditing}
-              icon={
-                isAdding || isEditing ? (
-                  <Loader2 className='animate-spin' size={16} />
-                ) : null
-              }
+        <Modal
+          title={editingItem ? "Edit Grade" : "Tambah Grade Baru"}
+          open={isModalOpen}
+          onCancel={() => setIsModalOpen(false)}
+          footer={null}
+          destroyOnHidden
+        >
+          <Form form={form} layout='vertical' onFinish={handleSave}>
+            <Form.Item
+              label='Nama Tingkat'
+              name='name'
+              rules={[{ required: true, message: "Harap isi nama tingkat!" }]}
+              help='Contoh: X, XI, XII, atau 1, 2, 3'
             >
-              Simpan
-            </Button>
-          </div>
-        </Form>
-      </Modal>
-    </div>
+              <Input placeholder='Masukkan nama...' />
+            </Form.Item>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 24,
+              }}
+            >
+              <Button onClick={() => setIsModalOpen(false)}>Batal</Button>
+              <Button
+                type='primary'
+                htmlType='submit'
+                loading={isAdding || isEditing}
+                icon={
+                  isAdding || isEditing ? (
+                    <Loader2 className='animate-spin' size={16} />
+                  ) : null
+                }
+              >
+                Simpan
+              </Button>
+            </div>
+          </Form>
+        </Modal>
+      </Content>
+    </Layout>
   );
 };
 
