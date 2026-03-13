@@ -6,7 +6,7 @@ import buildDbMenus from "./dbMenus";
 import buildTahfizMenus from "./tahfizMenus";
 import buildLmsMenus from "./lmsMenus";
 
-const roleKeys = ["center", "admin", "teacher", "student", "parent", "tahfiz"];
+const roleKeys = ["center", "admin", "finance", "teacher", "student", "parent", "tahfiz"];
 
 const buildEmptyMenus = () =>
   roleKeys.reduce((accumulator, role) => {
@@ -49,6 +49,7 @@ const combinedMenus = mergeMenus(
 
 export const CenterMenus = combinedMenus.center;
 export const AdminMenus = combinedMenus.admin;
+export const FinanceMenus = combinedMenus.finance;
 export const TeacherMenus = combinedMenus.teacher;
 export const StudentMenus = combinedMenus.student;
 export const ParentMenus = combinedMenus.parent;

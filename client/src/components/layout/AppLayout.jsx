@@ -31,6 +31,7 @@ import {
 import {
   CenterMenus,
   AdminMenus,
+  FinanceMenus,
   TeacherMenus,
   StudentMenus,
   ParentMenus,
@@ -84,6 +85,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
     "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
     "/admin-data-akademik": () =>
       import("../../module/admin/academic/AdminAcademinc"),
+    "/finance-dashboard": () =>
+      import("../../module/finance/dashboard/FinanceDash"),
     "/computer-based-test/bank": () =>
       import("../../module/cbt/bank/view/BankList"),
     "/computer-based-test/jadwal-ujian": () =>
@@ -180,6 +183,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
           items = CenterMenus;
         } else if (user.level === "tahfiz") {
           items = TahfizMenus;
+        } else if (user.level === "finance") {
+          items = FinanceMenus;
         } else {
           items = AdminMenus;
         }
