@@ -65,7 +65,7 @@ CREATE TABLE l_schedule_break(
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT l_schedule_break_day_template_id_fkey FOREIGN KEY(day_template_id) REFERENCES lms.l_schedule_day_template(id),
+    CONSTRAINT l_schedule_break_day_template_id_fkey FOREIGN KEY(day_template_id) REFERENCES lms.l_schedule_day_template(id) ON DELETE CASCADE,
     CONSTRAINT chk_schedule_break_time_range CHECK ((break_start < break_end))
 );
 CREATE INDEX idx_schedule_break_day_template ON lms.l_schedule_break USING btree (day_template_id, break_start, break_end);

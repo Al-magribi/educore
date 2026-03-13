@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import dayjs from "dayjs";
 import {
+  Alert,
   Button,
   Card,
   Col,
@@ -101,6 +102,7 @@ const ScheduleConfigCard = ({
   config,
   dayTemplates,
   breaks,
+  sessionShortages,
   onSave,
   loading,
 }) => {
@@ -217,6 +219,33 @@ const ScheduleConfigCard = ({
         </Row>
 
         <Divider style={{ margin: "10px 0 16px" }} />
+
+        <Text type='secondary'>
+          Jam istirahat yang diatur pada setiap hari aktif akan otomatis
+          ditampilkan sebagai baris khusus di jadwal final.
+        </Text>
+
+        {(sessionShortages || []).length > 0 ? (
+          <>
+            <Divider style={{ margin: "16px 0" }} />
+            <Alert
+              showIcon
+              type='warning'
+              message={`Masih ada ${(sessionShortages || []).length} beban ajar yang kekurangan sesi`}
+              description={`${sessionShortages
+                .slice(0, 2)
+                .map(
+                  (item) =>
+                    `${item.teacher_name} - ${item.subject_name} ${item.class_name}: kurang ${item.missing_sessions} sesi`,
+                )
+                .join(" | ")}${
+                sessionShortages.length > 2 ? " | Cek tab Beban Ajar/Jadwal Final untuk detail." : ""
+              }`}
+            />
+          </>
+        ) : null}
+
+        <Divider style={{ margin: "16px 0" }} />
 
         <Form.List name='days'>
           {(dayFields, { add, remove }) => (

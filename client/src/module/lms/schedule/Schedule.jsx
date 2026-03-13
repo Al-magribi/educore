@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Alert, Button, Flex, Skeleton, Space, Tabs, message } from "antd";
 import { useSelector } from "react-redux";
 import {
@@ -13,6 +13,7 @@ import {
   useDeleteUnavailabilityMutation,
   useGenerateScheduleMutation,
   useGetScheduleBootstrapQuery,
+  useImportTeachingLoadMutation,
   useSaveScheduleConfigMutation,
   useSaveTeachingLoadMutation,
   useSaveUnavailabilityMutation,
@@ -35,6 +36,8 @@ const Schedule = () => {
     useSaveScheduleConfigMutation();
   const [saveTeachingLoad, { isLoading: savingLoad }] =
     useSaveTeachingLoadMutation();
+  const [importTeachingLoad, { isLoading: importingLoad }] =
+    useImportTeachingLoadMutation();
   const [deleteTeachingLoad, { isLoading: deletingLoad }] =
     useDeleteTeachingLoadMutation();
   const [saveUnavailability, { isLoading: savingRule }] =
@@ -47,6 +50,56 @@ const Schedule = () => {
     useUpdateScheduleEntryMutation();
 
   const payload = data?.data || {};
+
+  const sessionShortages = useMemo(() => {
+    const allocatedByAssignment = (payload.entries || []).reduce((acc, item) => {
+      const key = [item.teacher_id, item.subject_id, item.class_id].join(":");
+      acc[key] = (acc[key] || 0) + Number(item.slot_count || 0);
+      return acc;
+    }, {});
+
+    return (payload.teacher_assignments || [])
+      .map((item) => {
+        const requiredSessions = Number(item.weekly_sessions || 0);
+        const allocatedSessions =
+          allocatedByAssignment[
+            [item.teacher_id, item.subject_id, item.class_id].join(":")
+          ] || 0;
+        const missingSessions = Math.max(requiredSessions - allocatedSessions, 0);
+
+        return {
+          key: [item.teacher_id, item.subject_id, item.class_id].join(":"),
+          teacher_id: item.teacher_id,
+          teacher_name: item.teacher_name,
+          subject_id: item.subject_id,
+          subject_name: item.subject_name,
+          subject_code: item.subject_code,
+          class_id: item.class_id,
+          class_name: item.class_name,
+          grade_id: item.grade_id,
+          grade_name: item.grade_name,
+          teaching_load_id: item.teaching_load_id,
+          required_sessions: requiredSessions,
+          allocated_sessions: allocatedSessions,
+          missing_sessions: missingSessions,
+          is_configured: Boolean(item.teaching_load_id),
+        };
+      })
+      .filter((item) => item.is_configured && item.missing_sessions > 0)
+      .sort((left, right) => {
+        const byTeacher = String(left.teacher_name || "").localeCompare(
+          String(right.teacher_name || ""),
+        );
+        if (byTeacher !== 0) return byTeacher;
+        const bySubject = String(left.subject_name || "").localeCompare(
+          String(right.subject_name || ""),
+        );
+        if (bySubject !== 0) return bySubject;
+        return String(left.class_name || "").localeCompare(
+          String(right.class_name || ""),
+        );
+      });
+  }, [payload.entries, payload.teacher_assignments]);
 
   const handleConfigSave = async (body) => {
     try {
@@ -72,6 +125,27 @@ const Schedule = () => {
       message.success("Beban ajar dihapus.");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus beban ajar.");
+    }
+  };
+
+  const handleImportLoad = async (body) => {
+    try {
+      const response = await importTeachingLoad(body).unwrap();
+      const summary = response?.data || {};
+      const errorCount = summary.error_count || 0;
+      if (errorCount > 0) {
+        message.warning(
+          `Import selesai. ${summary.updated_count || 0} baris diproses, ${errorCount} baris bermasalah.`,
+        );
+      } else {
+        message.success(
+          `Import beban ajar berhasil. ${summary.updated_count || 0} baris diproses.`,
+        );
+      }
+      return response;
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal import beban ajar.");
+      throw error;
     }
   };
 
@@ -162,6 +236,7 @@ const Schedule = () => {
                 config={payload.config}
                 dayTemplates={payload.day_templates || []}
                 breaks={payload.breaks || []}
+                sessionShortages={sessionShortages}
                 loading={savingConfig || isFetching}
                 onSave={handleConfigSave}
               />
@@ -183,8 +258,10 @@ const Schedule = () => {
                 subjects={payload.subjects || []}
                 teachers={payload.teachers || []}
                 teacherAssignments={payload.teacher_assignments || []}
-                loading={savingLoad || deletingLoad || isFetching}
+                sessionShortages={sessionShortages}
+                loading={savingLoad || deletingLoad || importingLoad || isFetching}
                 onSave={handleLoadSave}
+                onImport={handleImportLoad}
                 onDelete={handleDeleteLoad}
               />
             ),
@@ -221,6 +298,12 @@ const Schedule = () => {
                 canManage={isManager}
                 entries={payload.entries || []}
                 slots={payload.slots || []}
+                breaks={payload.breaks || []}
+                classes={payload.classes || []}
+                grades={payload.grades || []}
+                teacherAssignments={payload.teacher_assignments || []}
+                teachers={payload.teachers || []}
+                sessionShortages={sessionShortages}
                 onGenerate={handleGenerate}
                 onRefresh={refetch}
                 onUpdateEntry={handleUpdateEntry}

@@ -26,6 +26,14 @@ export const ApiSchedule = createApi({
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
+    importTeachingLoad: builder.mutation({
+      query: (body) => ({
+        url: "/schedule/load/import",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
     deleteTeachingLoad: builder.mutation({
       query: (id) => ({
         url: `/schedule/load/${id}`,
@@ -71,6 +79,7 @@ export const {
   useGetScheduleBootstrapQuery,
   useSaveScheduleConfigMutation,
   useSaveTeachingLoadMutation,
+  useImportTeachingLoadMutation,
   useDeleteTeachingLoadMutation,
   useSaveUnavailabilityMutation,
   useDeleteUnavailabilityMutation,
