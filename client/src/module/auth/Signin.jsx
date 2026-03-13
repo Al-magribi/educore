@@ -18,6 +18,15 @@ import { useDoSigninMutation } from "../../service/auth/ApiAuth";
 import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
+const roleOptions = ["Admin", "Finance", "Guru", "Siswa", "Wali"];
+
+const getSigninPayloadRole = (role) => {
+  if (role === "Finance") {
+    return "admin";
+  }
+
+  return role.toLowerCase();
+};
 
 const Signin = () => {
   const { publicConfig } = useSelector((state) => state.app);
@@ -36,7 +45,10 @@ const Signin = () => {
 
     // Menggabungkan role ke dalam values agar dikirim ke backend
     // Backend perlu tahu role apa yang sedang mencoba login
-    const payload = { ...sanitizedValues, role: role.toLowerCase() }; // pastikan format role sesuai (lowercase)
+    const payload = {
+      ...sanitizedValues,
+      role: getSigninPayloadRole(role),
+    };
     doSignin(payload);
   };
 
@@ -99,7 +111,7 @@ const Signin = () => {
             >
               <Segmented
                 block
-                options={["Admin", "Guru", "Siswa", "Wali"]}
+                options={roleOptions}
                 value={role}
                 onChange={setRole}
               />

@@ -16,6 +16,7 @@ import {
 } from "./routes/modules/cbtRoutes";
 import renderLmsRoutes from "./routes/modules/lmsRoutes";
 import renderDbRoutes from "./routes/modules/dbRoutes";
+import renderFinanceRoutes from "./routes/modules/financeRoutes";
 import renderTahfizRoutes from "./routes/modules/tahfizRoutes";
 import renderRoleRoutes from "./routes/modules/roleRoutes";
 
@@ -23,6 +24,7 @@ const isCbtEnabled = hasFeature(FEATURES.CBT);
 const isDbEnabled = hasFeature(FEATURES.DB);
 const isLmsEnabled = hasFeature(FEATURES.LMS);
 const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
+const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
 
 const NotFoundRedirect = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
@@ -53,7 +55,13 @@ const NotFoundRedirect = () => {
         }
         return <Navigate to="/tahfiz-dashboard" replace />;
       }
-      return <Navigate to="/admin-dashboard" replace />;
+      if (user.level === "finance") {
+        if (!isFinanceEnabled) {
+          return <Navigate to='/admin-dashboard' replace />;
+        }
+        return <Navigate to='/finance-dashboard' replace />;
+      }
+      return <Navigate to='/admin-dashboard' replace />;
     default:
       return <Navigate to="/" replace />;
   }
@@ -119,6 +127,11 @@ const App = () => {
               renderDbRoutes({
                 LazyPage,
                 NotFoundRedirect,
+              })}
+
+            {isFinanceEnabled &&
+              renderFinanceRoutes({
+                LazyPage,
               })}
 
             {isTahfizEnabled && renderTahfizRoutes()}
