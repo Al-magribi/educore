@@ -10,7 +10,9 @@ router.get(
   "/teacher",
   authorize("satuan"),
   withQuery(async (req, res, pool) => {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const page = Number.parseInt(req.query.page, 10) || 1;
+    const limit = Number.parseInt(req.query.limit, 10) || 10;
+    const search = req.query.search || "";
     const offset = (page - 1) * limit;
     const homebaseId = req.user.homebase_id;
 
@@ -70,8 +72,8 @@ router.get(
       status: "success",
       data: result.rows,
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
+      page,
+      limit,
     });
   }),
 );
@@ -231,6 +233,117 @@ router.delete(
     await client.query(`DELETE FROM u_teachers WHERE user_id = $1`, [id]);
 
     res.json({ status: "success", message: "Guru berhasil dihapus" });
+  }),
+);
+
+
+// --- UPLOAD TEACHERS (BULK) ---
+router.post(
+  "/teacher/upload",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const teachers = req.body;
+    const homebaseId = req.user.homebase_id;
+    let importedCount = 0;
+    let skippedInvalid = 0;
+    let skippedDuplicate = 0;
+
+    if (!Array.isArray(teachers) || teachers.length === 0) {
+      return res.status(400).json({ message: "Data tidak valid." });
+    }
+
+    for (const teacher of teachers) {
+      const username = (teacher?.username || teacher?.nip || "").toString().trim();
+      const password = (teacher?.password || "123456").toString().trim();
+      const fullName = (teacher?.full_name || teacher?.name || "").toString().trim();
+      const nip = (teacher?.nip || "").toString().trim();
+      const phone = (teacher?.phone || "").toString().trim();
+      const email = (teacher?.email || "").toString().trim();
+      const homeroomClassId = teacher?.homeroom_class_id || null;
+      const allocations = Array.isArray(teacher?.allocations)
+        ? teacher.allocations
+        : [];
+
+      if (!username || !fullName) {
+        skippedInvalid++;
+        continue;
+      }
+
+      if (nip) {
+        const existing = await client.query(
+          "SELECT user_id FROM u_teachers WHERE nip = $1 AND homebase_id = $2",
+          [nip, homebaseId],
+        );
+        if (existing.rows.length > 0) {
+          skippedDuplicate++;
+          continue;
+        }
+      }
+
+      const existingUsername = await client.query(
+        "SELECT id FROM u_users WHERE username = $1",
+        [username],
+      );
+      if (existingUsername.rows.length > 0) {
+        skippedDuplicate++;
+        continue;
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const hashPassword = await bcrypt.hash(password || "123456", salt);
+      const userRes = await client.query(
+        `INSERT INTO u_users (username, password, full_name, role) VALUES ($1, $2, $3, 'teacher') RETURNING id`,
+        [username, hashPassword, fullName],
+      );
+      const userId = userRes.rows[0].id;
+
+      await client.query(
+        `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          userId,
+          nip || null,
+          phone || null,
+          email || null,
+          Boolean(homeroomClassId),
+          homebaseId,
+        ],
+      );
+
+      if (homeroomClassId) {
+        await client.query(
+          `UPDATE u_teachers SET is_homeroom = false WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
+          [homeroomClassId],
+        );
+        await client.query(
+          `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
+          [userId, homeroomClassId],
+        );
+      }
+
+      for (const item of allocations) {
+        if (!item?.subject_id || !item?.class_id) {
+          continue;
+        }
+
+        await client.query(
+          `INSERT INTO at_subject (teacher_id, subject_id, class_id) VALUES ($1, $2, $3)`,
+          [userId, item.subject_id, item.class_id],
+        );
+      }
+
+      importedCount++;
+    }
+
+    res.status(201).json({
+      status: "success",
+      message: `Berhasil mengimpor ${importedCount} dari ${teachers.length} data guru.`,
+      summary: {
+        total: teachers.length,
+        imported: importedCount,
+        skipped_invalid: skippedInvalid,
+        skipped_duplicate: skippedDuplicate,
+      },
+    });
   }),
 );
 
