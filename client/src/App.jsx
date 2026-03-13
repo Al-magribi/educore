@@ -25,7 +25,11 @@ const isLmsEnabled = hasFeature(FEATURES.LMS);
 const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
 
 const NotFoundRedirect = () => {
-  const { user } = useSelector((state) => state.auth);
+  const { user, isInitialized } = useSelector((state) => state.auth);
+
+  if (!isInitialized) {
+    return <LoadApp />;
+  }
 
   if (!user) {
     return <Navigate to='/' replace />;

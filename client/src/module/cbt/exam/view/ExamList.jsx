@@ -9,11 +9,12 @@ import {
   Typography,
   Tooltip,
   Popconfirm,
-  Space,
   Avatar,
   message,
   theme,
   Grid,
+  Layout,
+  Statistic,
 } from "antd";
 import {
   Plus,
@@ -24,6 +25,9 @@ import {
   Trash2,
   BookOpen,
   Folder,
+  ClipboardList,
+  Layers3,
+  ShieldCheck,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { InfiniteScrollList, LoadApp } from "../../../../components";
@@ -38,6 +42,7 @@ import StudentAnswers from "../report/components/StudentAnswers";
 const { Text, Title } = Typography;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
+const { Content } = Layout;
 
 const ExamList = () => {
   const { token } = useToken();
@@ -63,6 +68,7 @@ const ExamList = () => {
 
   const [deleteExam] = useDeleteExamMutation();
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (data?.data) {
       if (page === 1) {
@@ -78,6 +84,7 @@ const ExamList = () => {
       }
     }
   }, [data, page]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSearch = (val) => {
     setSearchText(val);
@@ -97,7 +104,7 @@ const ExamList = () => {
       message.success("Jadwal ujian berhasil dihapus");
       setPage(1);
       setAllData((prev) => prev.filter((item) => item.id !== id));
-    } catch (err) {
+    } catch {
       message.error("Gagal menghapus jadwal ujian");
     }
   };
@@ -122,6 +129,11 @@ const ExamList = () => {
     });
   };
 
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const renderItem = (item) => {
     const statusColor = item.is_active ? "green" : "default";
     const classNames = item.classes?.map((c) => c.name).join(", ");
@@ -134,9 +146,10 @@ const ExamList = () => {
         size='small'
         style={{
           height: "100%",
-          borderRadius: 12,
+          borderRadius: 16,
           display: "flex",
           flexDirection: "column",
+          boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
         }}
         styles={{
           body: {
@@ -192,7 +205,7 @@ const ExamList = () => {
             style={{
               background: token.colorPrimaryBg,
               padding: 10,
-              borderRadius: 8,
+              borderRadius: 10,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -216,7 +229,7 @@ const ExamList = () => {
           </div>
         </Flex>
 
-        <Space vertical size={4} style={{ marginBottom: 12 }}>
+        <Flex vertical gap={4} style={{ marginBottom: 12 }}>
           <Text style={{ fontSize: 12 }}>Grade: {item.grade_name || "-"}</Text>
           <Tooltip title={classNames || ""}>
             <Text style={{ fontSize: 12 }}>
@@ -241,7 +254,7 @@ const ExamList = () => {
             <Timer size={12} style={{ marginRight: 6 }} />
             {item.duration_minutes} menit
           </Text>
-        </Space>
+        </Flex>
 
         <Flex align='center' gap={8} style={{ marginTop: "auto" }}>
           <Avatar
@@ -272,76 +285,209 @@ const ExamList = () => {
     [],
   );
 
+  const totalExams = toNumber(data?.totalData || data?.total || allData.length);
+  const activeExams = allData.filter((item) => item.is_active).length;
+  const totalClasses = allData.reduce(
+    (sum, item) => sum + toNumber(item.class_count),
+    0,
+  );
+  const summaryCards = [
+    {
+      key: "exams",
+      title: "Total Ujian",
+      value: totalExams,
+      icon: <ClipboardList size={18} />,
+      bg: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
+      color: "#1d4ed8",
+    },
+    {
+      key: "active",
+      title: "Ujian Aktif",
+      value: activeExams,
+      icon: <ShieldCheck size={18} />,
+      bg: "linear-gradient(135deg, #dcfce7, #ecfccb)",
+      color: "#16a34a",
+    },
+    {
+      key: "classes",
+      title: "Cakupan Kelas",
+      value: totalClasses,
+      icon: <Users size={18} />,
+      bg: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
+      color: "#7c3aed",
+    },
+    {
+      key: "loaded",
+      title: "Data Dimuat",
+      value: allData.length,
+      icon: <Layers3 size={18} />,
+      bg: "linear-gradient(135deg, #fef3c7, #ffedd5)",
+      color: "#d97706",
+    },
+  ];
+
   if (view === "report") {
-    return (
-      <>
-        <Report exam_id={exam_id} exam_name={exam_name} token={token_exam} />
-      </>
-    );
-  }
-  if (view === "student_answers") {
-    return (
-      <>
-        <StudentAnswers />
-      </>
-    );
+    return <Report exam_id={exam_id} exam_name={exam_name} token={token_exam} />;
   }
 
   if (view === "student_answers") {
-    return (
-      <>
-        <StudentAnswers exam_id={exam_id} exam_name={exam_name} />
-      </>
-    );
+    return <StudentAnswers />;
   }
 
   return (
     <Suspense fallback={<LoadApp />}>
-      <Flex vertical gap={"large"}>
-        <Flex
-          gap={"middle"}
-          vertical={!!screens.xs}
-          align={screens.xs ? "stretch" : "center"}
-          justify='flex-end'
-          style={{ width: screens.xs ? "100%" : "auto" }}
-        >
-          <Input
-            prefix={<Search size={16} color='#999' />}
-            style={{ width: screens.xs ? "100%" : "auto" }}
-            placeholder={searchPlaceholder}
-            allowClear
-            onChange={(e) => {
-              setTimeout(() => handleSearch(e.target.value), 500);
+      <Layout
+        style={{
+          minHeight: "100vh",
+          background:
+            "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
+        }}
+      >
+        <Content style={{ padding: screens.md ? "24px" : "12px" }}>
+          <Card
+            bordered={false}
+            style={{
+              marginBottom: 20,
+              borderRadius: 24,
+              overflow: "hidden",
+              background:
+                "linear-gradient(135deg, #0f172a 0%, #0f766e 52%, #38bdf8 100%)",
             }}
-          />
-
-          <Button
-            icon={<Plus size={18} />}
-            type='primary'
-            onClick={() => openForm(null)}
-            style={{ width: screens.xs ? "100%" : "auto" }}
+            styles={{ body: { padding: screens.md ? 28 : 20 } }}
           >
-            Jadwal Ujian
-          </Button>
-        </Flex>
+            <Flex
+              justify='space-between'
+              align={screens.md ? "center" : "start"}
+              vertical={!screens.md}
+              gap={20}
+            >
+              <div>
+                <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                  CBT / Jadwal Ujian
+                </Text>
+                <Title
+                  level={2}
+                  style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+                >
+                  Direktori Ujian
+                </Title>
+                <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
+                  Kelola jadwal ujian, token, cakupan kelas, dan laporan hasil
+                  dari satu panel.
+                </Text>
+              </div>
+            </Flex>
+          </Card>
 
-        <InfiniteScrollList
-          data={allData}
-          loading={isFetching}
-          hasMore={data?.hasMore || false}
-          onLoadMore={handleLoadMore}
-          renderItem={renderItem}
-          emptyText='Belum ada jadwal ujian tersedia'
-          grid={{
-            gutter: [16, 16],
-            xs: 24,
-            sm: 12,
-            md: 8,
-            lg: 6,
-          }}
-          height='calc(100vh - 300px)'
-        />
-      </Flex>
+          <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+            {summaryCards.map((item) => (
+              <Card
+                key={item.key}
+                bordered={false}
+                style={{
+                  flex: screens.xl
+                    ? "1 1 0"
+                    : screens.md
+                      ? "1 1 calc(50% - 8px)"
+                      : "1 1 100%",
+                  minWidth: screens.md ? 0 : "100%",
+                  borderRadius: 20,
+                  background: "rgba(255,255,255,0.88)",
+                  boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+                }}
+                styles={{ body: { padding: "18px 20px" } }}
+              >
+                <Flex justify='space-between' align='start'>
+                  <Statistic title={item.title} value={item.value} />
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 14,
+                      background: item.bg,
+                      color: item.color,
+                    }}
+                  >
+                    {item.icon}
+                  </div>
+                </Flex>
+              </Card>
+            ))}
+          </Flex>
+
+          <Card
+            bordered={false}
+            style={{
+              marginBottom: 18,
+              borderRadius: 22,
+              background: "rgba(255,255,255,0.92)",
+              boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+            }}
+            styles={{ body: { padding: screens.md ? 20 : 16 } }}
+          >
+            <Flex
+              gap={16}
+              justify='space-between'
+              align={screens.md ? "center" : "stretch"}
+              vertical={!screens.md}
+            >
+              <div>
+                <Title level={4} style={{ margin: 0 }}>
+                  Filter dan Aksi
+                </Title>
+                <Text type='secondary'>
+                  Cari jadwal ujian dan lanjutkan membuat atau mengedit data.
+                </Text>
+              </div>
+
+              <Flex
+                gap={10}
+                vertical={!screens.md}
+                style={{ width: !screens.md ? "100%" : "auto" }}
+              >
+                <Input
+                  prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
+                  style={{ width: !screens.md ? "100%" : 320 }}
+                  placeholder={searchPlaceholder}
+                  allowClear
+                  size='large'
+                  onChange={(e) => {
+                    setTimeout(() => handleSearch(e.target.value), 500);
+                  }}
+                />
+
+                <Button
+                  icon={<Plus size={18} />}
+                  type='primary'
+                  onClick={() => openForm(null)}
+                  size='large'
+                >
+                  Jadwal Ujian
+                </Button>
+              </Flex>
+            </Flex>
+          </Card>
+
+          <InfiniteScrollList
+            data={allData}
+            loading={isFetching}
+            hasMore={data?.hasMore || false}
+            onLoadMore={handleLoadMore}
+            renderItem={renderItem}
+            emptyText='Belum ada jadwal ujian tersedia'
+            grid={{
+              gutter: [16, 16],
+              xs: 24,
+              sm: 12,
+              md: 8,
+              lg: 6,
+            }}
+            height='calc(100vh - 360px)'
+          />
+        </Content>
+      </Layout>
 
       <Modal
         title={

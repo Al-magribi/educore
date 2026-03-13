@@ -8,7 +8,7 @@ export const ApiHomeTeacher = createApi({
     // --- TEACHER CRUD (Updated for Pagination) ---
     getTeachers: builder.query({
       query: ({ page = 1, limit = 10, search = "" }) =>
-        `/teacher?page=${page}&limit=${limit}&search=${search}`,
+        `/teacher?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`,
       providesTags: ["Teacher"],
     }),
     addTeacher: builder.mutation({
@@ -35,6 +35,16 @@ export const ApiHomeTeacher = createApi({
       invalidatesTags: ["Teacher", "Class"],
     }),
 
+    // --- BULK UPLOAD ---
+    uploadTeachers: builder.mutation({
+      query: (body) => ({
+        url: "/teacher/upload",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Teacher", "Class"],
+    }),
+
     // --- HELPER FOR DROPDOWNS ---
     // Asumsi endpoint ini sudah ada di router lain, tapi kita define disini untuk kemudahan
     getClassesList: builder.query({
@@ -53,6 +63,7 @@ export const {
   useAddTeacherMutation,
   useUpdateTeacherMutation,
   useDeleteTeacherMutation,
+  useUploadTeachersMutation, // <-- Add this export
   useGetClassesListQuery,
   useGetSubjectsListQuery,
 } = ApiHomeTeacher;
