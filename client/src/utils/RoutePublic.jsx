@@ -1,9 +1,14 @@
 // utils/RouterPublic.jsx
+import { LoadApp } from "../components";
 import { useSelector } from "react-redux";
 import { Navigate, Outlet } from "react-router-dom";
 
 const RouterPublic = () => {
-  const { user } = useSelector((state) => state.auth);
+  const { user, isInitialized } = useSelector((state) => state.auth);
+
+  if (!isInitialized) {
+    return <LoadApp />;
+  }
 
   if (user) {
     switch (user.role) {
@@ -30,7 +35,6 @@ const RouterPublic = () => {
         }
 
       default:
-        // Jika role tidak dikenali, logout atau ke home
         return <Navigate to="/" replace />;
     }
   }

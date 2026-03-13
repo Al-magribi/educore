@@ -1,63 +1,73 @@
 import React, { useState, useEffect } from "react";
-import { Input, Button, theme, Flex } from "antd";
-import { Search, Plus, Upload as UploadIcon } from "lucide-react"; // Import icon upload
+import {
+  Input,
+  Button,
+  Flex,
+  Layout,
+  Card,
+  Grid,
+  Typography,
+  Statistic,
+} from "antd";
+import {
+  Search,
+  Plus,
+  Upload as UploadIcon,
+  GraduationCap,
+  Users,
+  LayoutGrid,
+} from "lucide-react";
 import { useGetClassesQuery } from "../../../../service/main/ApiClass";
 
 import { InfiniteScrollList } from "../../../../components";
 import ClassItem from "./ClassItem";
 import ClassModal from "./ClassModal";
 import StudentDrawer from "./StudentDrawer";
-import UploadStudent from "./components/UploadStudent"; // Import Drawer baru
+import UploadStudent from "./components/UploadStudent";
+
+const { Content } = Layout;
+const { useBreakpoint } = Grid;
+const { Title, Text } = Typography;
 
 const Classes = ({ screens }) => {
-  const { token } = theme.useToken();
-  const isMobile = !!screens?.xs;
+  const breakpointScreens = useBreakpoint();
+  const activeScreens = screens || breakpointScreens;
 
-  // State Query
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [limit] = useState(12);
 
-  // State Data & UI
   const [listData, setListData] = useState([]);
   const [hasMore, setHasMore] = useState(true);
 
-  // Modal & Drawer State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Untuk manage siswa per kelas
-  const [isUploadDrawerOpen, setIsUploadDrawerOpen] = useState(false); // STATE BARU: Untuk upload global
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isUploadDrawerOpen, setIsUploadDrawerOpen] = useState(false);
 
   const [selectedClass, setSelectedClass] = useState(null);
   const [modalMode, setModalMode] = useState("add");
 
-  // Fetch Data
   const { data, isFetching, refetch } = useGetClassesQuery({
     page,
     limit,
     search,
   });
 
-  // --- INFINITE SCROLL LOGIC ---
-  // --- PERBAIKAN LOGIC STATE UPDATE ---
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (data) {
       if (page === 1) {
-        // Jika halaman 1, replace semua data (Fresh Load / Reset)
         setListData(data.classes);
       } else {
-        // Jika halaman > 1 (Scroll / Refetch background)
         setListData((prev) => {
-          // 1. Buat Map dari data baru untuk akses cepat
           const newItemsMap = new Map(
             data.classes.map((item) => [item.id, item]),
           );
 
-          // 2. Update item yang sudah ada di list sebelumnya (Realtime Update count)
           const updatedPrev = prev.map((item) =>
             newItemsMap.has(item.id) ? newItemsMap.get(item.id) : item,
           );
 
-          // 3. Cari item yang benar-benar baru (belum ada di list)
           const reallyNewItems = data.classes.filter(
             (item) => !prev.some((p) => p.id === item.id),
           );
@@ -73,6 +83,7 @@ const Classes = ({ screens }) => {
     setPage(1);
     setHasMore(true);
   }, [search]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleLoadMore = () => {
     if (!isFetching && hasMore) {
@@ -80,7 +91,6 @@ const Classes = ({ screens }) => {
     }
   };
 
-  // --- ACTIONS ---
   const handleSearch = (e) => setSearch(e.target.value);
 
   const handleAddClass = () => {
@@ -113,71 +123,175 @@ const Classes = ({ screens }) => {
     refetch();
   };
 
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const totalClasses = toNumber(data?.totalData || data?.total || listData.length);
+  const totalStudents = listData.reduce(
+    (sum, item) => sum + toNumber(item.students_count),
+    0,
+  );
+  const loadedClasses = listData.length;
+  const summaryCards = [
+    {
+      key: "classes",
+      title: "Total Kelas",
+      value: totalClasses,
+      icon: <LayoutGrid size={18} />,
+    },
+    {
+      key: "students",
+      title: "Siswa Terdata",
+      value: totalStudents,
+      icon: <Users size={18} />,
+    },
+    {
+      key: "loaded",
+      title: "Kelas Dimuat",
+      value: loadedClasses,
+      icon: <GraduationCap size={18} />,
+    },
+  ];
+
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* HEADER AREA */}
-      <div
-        style={{
-          padding: "16px",
-          background: token.colorBgContainer,
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>
-            Manajemen Kelas
-          </h2>
-          <span style={{ color: token.colorTextSecondary, fontSize: "13px" }}>
-            Kelola data kelas, jurusan, dan siswa
-          </span>
-        </div>
-
-        <Flex
-          gap={12}
-          wrap
+    <Layout
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
+      }}
+    >
+      <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
+        <Card
+          bordered={false}
           style={{
-            flex: isMobile ? "0 0 100%" : 1,
-            justifyContent: isMobile ? "stretch" : "flex-end",
-            alignItems: isMobile ? "stretch" : "center",
-            flexDirection: isMobile ? "column" : "row",
-            width: isMobile ? "100%" : "auto",
+            marginBottom: 20,
+            borderRadius: 24,
+            overflow: "hidden",
+            background:
+              "linear-gradient(135deg, #0f172a 0%, #0369a1 52%, #22c55e 100%)",
           }}
+          styles={{ body: { padding: activeScreens.md ? 28 : 20 } }}
         >
-          <Input
-            prefix={<Search size={16} color={token.colorTextDescription} />}
-            placeholder='Cari nama kelas...'
-            onChange={handleSearch}
-            style={{ width: isMobile ? "100%" : 300 }}
-            allowClear
-          />
-
-          <Button
-            type='primary'
-            icon={<Plus size={16} />}
-            onClick={handleAddClass}
-            style={{ width: isMobile ? "100%" : "auto" }}
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "start"}
+            vertical={!activeScreens.md}
+            gap={20}
           >
-            Tambah Kelas
-          </Button>
+            <div>
+              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                Master Data / Kelas
+              </Text>
+              <Title
+                level={2}
+                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+              >
+                Manajemen Kelas
+              </Title>
+              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
+                Kelola kelas, distribusi siswa, dan upload data siswa dari satu
+                area kerja.
+              </Text>
+            </div>
+          </Flex>
+        </Card>
 
-          {/* BUTTON UPLOAD DATA SISWA GLOBAL */}
-          <Button
-            icon={<UploadIcon size={16} />}
-            onClick={() => setIsUploadDrawerOpen(true)}
-            style={{ width: isMobile ? "100%" : "auto" }}
-          >
-            Upload Siswa
-          </Button>
+        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+          {summaryCards.map((item) => (
+            <Card
+              key={item.key}
+              bordered={false}
+              style={{
+                flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+                minWidth: activeScreens.md ? 0 : "100%",
+                borderRadius: 20,
+                background: "rgba(255,255,255,0.88)",
+                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+              }}
+              styles={{ body: { padding: "18px 20px" } }}
+            >
+              <Flex justify='space-between' align='start'>
+                <Statistic title={item.title} value={item.value} />
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 14,
+                    background: "linear-gradient(135deg, #dcfce7, #dbeafe)",
+                    color: "#0369a1",
+                  }}
+                >
+                  {item.icon}
+                </div>
+              </Flex>
+            </Card>
+          ))}
         </Flex>
-      </div>
 
-      {/* CONTENT AREA */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 18,
+            borderRadius: 22,
+            background: "rgba(255,255,255,0.92)",
+            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+          }}
+          styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+        >
+          <Flex
+            justify='space-between'
+            align={activeScreens.md ? "center" : "stretch"}
+            vertical={!activeScreens.md}
+            gap={16}
+          >
+            <div>
+              <Title level={4} style={{ margin: 0 }}>
+                Direktori Kelas
+              </Title>
+              <Text type='secondary'>
+                Cari kelas, tambah kelas baru, atau lakukan upload siswa global.
+              </Text>
+            </div>
+
+            <Flex
+              gap={10}
+              vertical={!activeScreens.md}
+              style={{ width: !activeScreens.md ? "100%" : "auto" }}
+            >
+              <Input
+                prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
+                placeholder='Cari nama kelas...'
+                onChange={handleSearch}
+                style={{ width: !activeScreens.md ? "100%" : 300 }}
+                allowClear
+                size='large'
+              />
+
+              <Button
+                type='primary'
+                icon={<Plus size={16} />}
+                onClick={handleAddClass}
+                size='large'
+              >
+                Tambah Kelas
+              </Button>
+
+              <Button
+                icon={<UploadIcon size={16} />}
+                onClick={() => setIsUploadDrawerOpen(true)}
+                size='large'
+              >
+                Upload Siswa
+              </Button>
+            </Flex>
+          </Flex>
+        </Card>
+
         <InfiniteScrollList
           data={listData}
           loading={isFetching}
@@ -199,27 +313,24 @@ const Classes = ({ screens }) => {
             />
           )}
         />
-      </div>
 
-      {/* MODAL MANAGE CLASS */}
-      <ClassModal
-        open={isModalOpen}
-        mode={modalMode}
-        initialData={selectedClass}
-        onCancel={() => setIsModalOpen(false)}
-        onSuccess={handleModalSuccess}
-      />
+        <ClassModal
+          open={isModalOpen}
+          mode={modalMode}
+          initialData={selectedClass}
+          onCancel={() => setIsModalOpen(false)}
+          onSuccess={handleModalSuccess}
+        />
 
-      {/* DRAWER MANAGE STUDENT (PER CLASS) */}
-      <StudentDrawer
-        open={isDrawerOpen}
-        classData={selectedClass}
-        onClose={handleModalSuccess}
-      />
+        <StudentDrawer
+          open={isDrawerOpen}
+          classData={selectedClass}
+          onClose={handleModalSuccess}
+        />
 
-      {/* DRAWER UPLOAD GLOBAL (NEW) */}
-      <UploadStudent open={isUploadDrawerOpen} onClose={handleUploadClose} />
-    </div>
+        <UploadStudent open={isUploadDrawerOpen} onClose={handleUploadClose} />
+      </Content>
+    </Layout>
   );
 };
 

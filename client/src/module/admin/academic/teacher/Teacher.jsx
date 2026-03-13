@@ -1,61 +1,72 @@
-import React, { useState, useEffect } from "react";
-import { Button, Layout, Typography, message, Input, Flex } from "antd";
-import { UserPlus, Search } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  Button,
+  Layout,
+  Typography,
+  message,
+  Input,
+  Flex,
+  Grid,
+  Card,
+  Space,
+  Statistic,
+} from "antd";
+import { UserPlus, Users, BookOpen, School } from "lucide-react";
+import {
+  DownloadOutlined,
+  SearchOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import TeacherList from "./TeacherList";
 import TeacherForm from "./TeacherForm";
+import UploadTeacher from "./UploadTeacher"; // 1. Import UploadTeacher
+import { downloadTeacherTemplate } from "./teacherImportTemplate";
 import {
   useGetTeachersQuery,
   useAddTeacherMutation,
   useUpdateTeacherMutation,
   useDeleteTeacherMutation,
-} from "../../../../service/academic/ApiTeacher"; // Sesuaikan path
+  useGetClassesListQuery,
+  useGetSubjectsListQuery,
+} from "../../../../service/academic/ApiTeacher";
+import useDebounced from "../../../../utils/useDebounced";
 
 const { Title, Text } = Typography;
 const { Content } = Layout;
+const { useBreakpoint } = Grid;
 
-const Teacher = ({ screens }) => {
+const Teacher = () => {
+  const screens = useBreakpoint();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [searchText, setSearchText] = useState("");
+  const debouncedSearch = useDebounced(searchText, 500);
 
-  const [page, setPage] = useState(1);
-  const [limit] = useState(12);
-  const [allTeachers, setAllTeachers] = useState([]);
-
-  const { data: teachersData, isFetching } = useGetTeachersQuery({
-    page,
-    limit,
-    search: searchText,
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
   });
 
+  const {
+    data: teachersData,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useGetTeachersQuery({
+    page: pagination.current,
+    limit: pagination.pageSize,
+    search: debouncedSearch,
+  });
   const [addTeacher, { isLoading: isAdding }] = useAddTeacherMutation();
   const [updateTeacher, { isLoading: isUpdating }] = useUpdateTeacherMutation();
   const [deleteTeacher] = useDeleteTeacherMutation();
+  const { data: classesData = [] } = useGetClassesListQuery();
+  const { data: subjectsData = [] } = useGetSubjectsListQuery();
 
   useEffect(() => {
-    if (teachersData?.data) {
-      if (page === 1) {
-        setAllTeachers(teachersData.data);
-      } else {
-        setAllTeachers((prev) => {
-          const newItems = teachersData.data.filter(
-            (newItem) => !prev.some((prevItem) => prevItem.id === newItem.id),
-          );
-          return [...prev, ...newItems];
-        });
-      }
-    }
-  }, [teachersData, page]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [searchText]);
-
-  const handleLoadMore = () => {
-    if (!isFetching && allTeachers.length < (teachersData?.total || 0)) {
-      setPage((prev) => prev + 1);
-    }
-  };
+    setPagination((prev) => ({ ...prev, current: 1 }));
+  }, [debouncedSearch]);
 
   const handleEdit = (teacher) => {
     setEditingTeacher(teacher);
@@ -66,25 +77,18 @@ const Teacher = ({ screens }) => {
     try {
       await deleteTeacher(id).unwrap();
       message.success("Guru berhasil dihapus");
-      setPage(1);
+      refetch(); // Refetch data setelah hapus
     } catch (error) {
-      message.error("Gagal menghapus guru");
+      message.error("Gagal menghapus guru: " + error?.data?.message);
     }
   };
 
-  // --- PERBAIKAN UTAMA DI SINI ---
   const handleSubmit = async (values) => {
     try {
-      // LOGIKA FLATTENING: Ubah format Form kembali ke format Database
-      // Form: [{ subject_id: 1, class_ids: [101, 102] }]
-      // API:  [{ subject_id: 1, class_id: 101 }, { subject_id: 1, class_id: 102 }]
-
       const formattedAllocations = [];
-
-      if (values.allocations && values.allocations.length > 0) {
+      if (values.allocations?.length) {
         values.allocations.forEach((group) => {
-          // Pastikan class_ids ada dan berupa array
-          if (group.class_ids && Array.isArray(group.class_ids)) {
+          if (group.class_ids?.length) {
             group.class_ids.forEach((classId) => {
               formattedAllocations.push({
                 subject_id: group.subject_id,
@@ -95,98 +99,250 @@ const Teacher = ({ screens }) => {
         });
       }
 
-      // Bungkus data yang sudah diformat ke payload
-      const payload = {
-        ...values,
-        allocations: formattedAllocations, // Timpa dengan data yang sudah di-flatten
-      };
+      const payload = { ...values, allocations: formattedAllocations };
 
       if (editingTeacher) {
         await updateTeacher({ id: editingTeacher.id, ...payload }).unwrap();
-        message.success("Data guru diperbarui");
-        setPage(1);
+        message.success("Data guru berhasil diperbarui");
       } else {
         await addTeacher(payload).unwrap();
-        message.success("Guru baru ditambahkan");
-        setPage(1);
+        message.success("Guru baru berhasil ditambahkan");
       }
+      refetch();
       setIsModalOpen(false);
       setEditingTeacher(null);
     } catch (error) {
       console.error(error);
-      message.error("Terjadi kesalahan saat menyimpan");
+      message.error("Terjadi kesalahan: " + error?.data?.message);
     }
   };
 
-  return (
-    <Layout style={{ minHeight: "100vh", backgroundColor: "white" }}>
-      <Content>
-        {/* Header & Search */}
-        <div
-          style={{
-            marginBottom: 24,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 16,
-          }}
-        >
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
-              Data Guru
-            </Title>
-            <Text type='secondary'>
-              Kelola data guru, wali kelas, dan alokasi mengajar
-            </Text>
-          </div>
+  const handleTableChange = (nextPage) => {
+    setPagination((prev) => ({
+      ...prev,
+      current: nextPage?.current || 1,
+      pageSize: nextPage?.pageSize || prev.pageSize,
+    }));
+  };
 
+  const showModal = () => {
+    setEditingTeacher(null);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingTeacher(null);
+  };
+
+  const showUpload = () => setIsUploadOpen(true);
+  const closeUpload = () => setIsUploadOpen(false);
+  const handleDownloadTemplate = () => {
+    downloadTeacherTemplate({
+      classes: classesData,
+      subjects: subjectsData,
+    });
+  };
+
+  const teacherItems = teachersData?.data || [];
+  const totalTeachers = teachersData?.total ?? teachersData?.totalItems ?? 0;
+  const homeroomCount = teacherItems.filter((item) => item.is_homeroom).length;
+  const allocationCount = teacherItems.reduce(
+    (total, item) => total + (item.allocations?.length || 0),
+    0,
+  );
+  const summaryCards = [
+    {
+      key: "teacher",
+      title: "Total Guru",
+      value: totalTeachers,
+      icon: <Users size={18} />,
+    },
+    {
+      key: "homeroom",
+      title: "Wali Kelas",
+      value: homeroomCount,
+      icon: <School size={18} />,
+    },
+    {
+      key: "allocation",
+      title: "Alokasi Tampil",
+      value: allocationCount,
+      icon: <BookOpen size={18} />,
+    },
+  ];
+
+  return (
+    <Layout
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
+      }}
+    >
+      <Content style={{ padding: screens.md ? "24px" : "12px" }}>
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 20,
+            borderRadius: 24,
+            overflow: "hidden",
+            background:
+              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #38bdf8 100%)",
+          }}
+          styles={{ body: { padding: screens.md ? 28 : 20 } }}
+        >
           <Flex
-            gap={8}
-            vertical={!!screens.xs}
-            align={screens.xs ? "stretch" : "center"}
-            justify='flex-end'
-            style={{ width: screens.xs ? "100%" : "auto" }}
+            justify='space-between'
+            align={screens.md ? "center" : "start"}
+            vertical={!screens.md}
+            gap={20}
           >
-            <Input
-              placeholder='Cari Nama / NIP...'
-              prefix={<Search size={16} className='text-gray-400' />}
-              style={{ width: screens.xs ? "100%" : "auto" }}
-              allowClear
-              onChange={(e) => setSearchText(e.target.value)}
-            />
-            <Button
-              type='primary'
-              icon={<UserPlus size={18} />}
-              onClick={() => {
-                setEditingTeacher(null);
-                setIsModalOpen(true);
-              }}
-              style={{ width: screens.xs ? "100%" : "auto" }}
-            >
-              Guru
-            </Button>
+            <div>
+              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                Akademik / Guru
+              </Text>
+              <Title
+                level={2}
+                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+              >
+                Data Guru
+              </Title>
+              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
+                Kelola guru, wali kelas, dan distribusi alokasi mengajar dalam
+                satu panel.
+              </Text>
+            </div>
           </Flex>
-        </div>
+        </Card>
+
+        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+          {summaryCards.map((item) => (
+            <Card
+              key={item.key}
+              bordered={false}
+              style={{
+                flex: screens.md ? "1 1 0" : "1 1 100%",
+                minWidth: screens.md ? 0 : "100%",
+                borderRadius: 20,
+                background: "rgba(255,255,255,0.88)",
+                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+              }}
+              styles={{ body: { padding: "18px 20px" } }}
+            >
+              <Flex justify='space-between' align='start'>
+                <Statistic title={item.title} value={item.value} />
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 14,
+                    background: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
+                    color: "#1d4ed8",
+                  }}
+                >
+                  {item.icon}
+                </div>
+              </Flex>
+            </Card>
+          ))}
+        </Flex>
+
+        <Card
+          bordered={false}
+          style={{
+            marginBottom: 18,
+            borderRadius: 22,
+            background: "rgba(255,255,255,0.92)",
+            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+          }}
+          styles={{ body: { padding: screens.md ? 20 : 16 } }}
+        >
+          <Flex
+            justify='space-between'
+            align={screens.md ? "center" : "stretch"}
+            vertical={!screens.md}
+            gap={16}
+          >
+            <div>
+              <Title level={4} style={{ margin: 0 }}>
+                Direktori Guru
+              </Title>
+              <Text type='secondary'>
+                Cari cepat berdasarkan nama atau NIP, lalu lanjutkan edit,
+                import, atau tambah guru baru.
+              </Text>
+            </div>
+
+            <Flex
+              gap={10}
+              vertical={!screens.md}
+              style={{ width: !screens.md ? "100%" : "auto" }}
+            >
+              <Input
+                placeholder='Cari Nama / NIP...'
+                prefix={<SearchOutlined style={{ color: "rgba(0,0,0,.25)" }} />}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ width: !screens.md ? "100%" : 280 }}
+                size='large'
+                allowClear
+              />
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleDownloadTemplate}
+                size='large'
+                style={{ minWidth: 170 }}
+              >
+                Download Template
+              </Button>
+              <Button
+                icon={<UploadOutlined />}
+                onClick={showUpload}
+                size='large'
+              >
+                Import Guru
+              </Button>
+              <Button
+                type='primary'
+                icon={<UserPlus size={16} />}
+                onClick={showModal}
+                size='large'
+              >
+                Tambah Guru
+              </Button>
+            </Flex>
+          </Flex>
+        </Card>
 
         <TeacherList
-          data={allTeachers}
-          loading={isFetching}
-          hasMore={allTeachers.length < (teachersData?.total || 0)}
-          onLoadMore={handleLoadMore}
+          data={teacherItems}
+          loading={isLoading || isFetching}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          pagination={{
+            ...pagination,
+            total: teachersData?.total ?? teachersData?.totalItems ?? 0,
+          }}
+          onPageChange={handleTableChange}
         />
 
         <TeacherForm
           open={isModalOpen}
-          onCancel={() => {
-            setIsModalOpen(false);
-            setEditingTeacher(null);
-          }}
+          onCancel={closeModal}
           onSubmit={handleSubmit}
           initialValues={editingTeacher}
           loading={isAdding || isUpdating}
+        />
+
+        <UploadTeacher
+          open={isUploadOpen}
+          onClose={closeUpload}
+          onFinish={() => {
+            closeUpload();
+            refetch();
+          }}
         />
       </Content>
     </Layout>
