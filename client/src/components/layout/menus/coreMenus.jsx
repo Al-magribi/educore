@@ -27,6 +27,13 @@ const buildCoreMenus = () => ({
       icon: <AuditOutlined />,
     },
   ],
+  finance: [
+    {
+      label: "Dashboard",
+      key: "/finance-dashboard",
+      icon: <WindowsOutlined />,
+    },
+  ],
   teacher: [{ label: "Dashboard", key: "/guru-dashboard", icon: <WindowsOutlined /> }],
   student: [{ label: "Dashboard", key: "/siswa-dashboard", icon: <WindowsOutlined /> }],
   parent: [

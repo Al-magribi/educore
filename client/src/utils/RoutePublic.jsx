@@ -2,6 +2,10 @@
 import { LoadApp } from "../components";
 import { useSelector } from "react-redux";
 import { Navigate, Outlet } from "react-router-dom";
+import { FEATURES, hasFeature } from "../config/productFeatures";
+
+const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
+const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
 
 const RouterPublic = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
@@ -19,7 +23,7 @@ const RouterPublic = () => {
         return <Navigate to='/guru-dashboard' replace />;
 
       case "parent":
-        return <Navigate to='/parent-dashboard' replace />;
+        return <Navigate to='/orangtua-dashboard' replace />;
 
       // SKENARIO KHUSUS ADMIN
       case "admin":
@@ -28,9 +32,19 @@ const RouterPublic = () => {
         if (user.level === "pusat") {
           return <Navigate to='/center-dashboard' replace />;
         } else if (user.level === "tahfiz") {
-          return <Navigate to='/tahfiz-dashboard' replace />;
+          return (
+            <Navigate
+              to={isTahfizEnabled ? "/tahfiz-dashboard" : "/admin-dashboard"}
+              replace
+            />
+          );
         } else if (user.level === "finance") {
-          return <Navigate to='/finance-dashboard' replace />;
+          return (
+            <Navigate
+              to={isFinanceEnabled ? "/finance-dashboard" : "/admin-dashboard"}
+              replace
+            />
+          );
         } else {
           // Default: Satuan / Admin Sekolah
           return <Navigate to='/admin-dashboard' replace />;

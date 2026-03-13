@@ -1,6 +1,7 @@
 export {
   CenterMenus,
   AdminMenus,
+  FinanceMenus,
   TeacherMenus,
   StudentMenus,
   ParentMenus,
