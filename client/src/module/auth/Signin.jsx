@@ -18,7 +18,7 @@ import { useDoSigninMutation } from "../../service/auth/ApiAuth";
 import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
-const roleOptions = ["Admin", "Finance", "Guru", "Siswa", "Wali"];
+const roleOptions = ["Admin", "Guru", "Siswa", "Wali"];
 
 const getSigninPayloadRole = (role) => {
   if (role === "Finance") {
@@ -74,25 +74,25 @@ const Signin = () => {
     >
       <title>{`Masuk ${role}`}</title>
       <Card style={{ width: 400, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-        <Flex align="center" gap={"middle"} style={{ marginBottom: 24 }}>
-          <img src={publicConfig.app_logo} alt="Logo" width={70} height={70} />
+        <Flex align='center' gap={"middle"} style={{ marginBottom: 24 }}>
+          <img src={publicConfig.app_logo} alt='Logo' width={70} height={70} />
 
           <Flex vertical gap={"small"}>
             <Title level={2} style={{ marginBottom: 0 }}>
               Masuk
             </Title>
-            <Text type="secondary">
+            <Text type='secondary'>
               Selamat datang kembali di platform kami
             </Text>
           </Flex>
         </Flex>
 
         <Form
-          name="login"
+          name='login'
           initialValues={{ remember: true }}
           onFinish={onFinish}
-          layout="vertical"
-          size="large"
+          layout='vertical'
+          size='large'
         >
           {/* Role Selection dengan Warna Custom */}
           <Form.Item style={{ marginBottom: 16 }}>
@@ -119,36 +119,36 @@ const Signin = () => {
           </Form.Item>
 
           <Form.Item
-            name="username"
+            name='username'
             rules={[{ required: true, message: "Mohon masukkan username!" }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="Username" />
+            <Input prefix={<UserOutlined />} placeholder='Username' />
           </Form.Item>
 
           <Form.Item
-            name="password"
+            name='password'
             rules={[{ required: true, message: "Mohon masukkan Password!" }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
+            <Input.Password prefix={<LockOutlined />} placeholder='Password' />
           </Form.Item>
 
           <Flex
-            justify="space-between"
-            align="center"
+            justify='space-between'
+            align='center'
             style={{ marginBottom: 24 }}
           >
-            <Form.Item name="remember" valuePropName="checked" noStyle>
+            <Form.Item name='remember' valuePropName='checked' noStyle>
               <Checkbox>Ingat Saya</Checkbox>
             </Form.Item>
-            <Link to="/forgot-password" style={{ color: "#1677ff" }}>
+            <Link to='/forgot-password' style={{ color: "#1677ff" }}>
               Lupa Password?
             </Link>
           </Flex>
 
           <Form.Item>
             <Button
-              type="primary"
-              htmlType="submit"
+              type='primary'
+              htmlType='submit'
               block
               loading={isLoading}
               icon={<LoginOutlined />}
@@ -159,7 +159,7 @@ const Signin = () => {
 
           <div style={{ textAlign: "center" }}>
             <Text>
-              Belum punya akun? <Link to="/signup">Daftar sekarang</Link>
+              Belum punya akun? <Link to='/signup'>Daftar sekarang</Link>
             </Text>
           </div>
         </Form>
