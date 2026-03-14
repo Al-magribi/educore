@@ -1,4 +1,4 @@
-﻿-- Active: 1759750046693@@212.85.24.143@5432@lms
+-- Active: 1768875297035@@212.85.24.143@5432@lms
 /* REVISI FIXEDTABLE.SQL
    Digabungkan dengan fitur dari newtable.sql
 */
@@ -128,30 +128,10 @@ CREATE TABLE u_student_siblings (
 -- AKUN ORANG TUA (Login khusus ortu)
 CREATE TABLE u_parents (
     user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id), -- Legacy primary child (opsional)
+    student_id integer REFERENCES u_students(user_id), -- Link ke anak
     phone text,
     email text
 );
-
--- RELASI ORANG TUA - SISWA (multi anak per orang tua)
--- Rule:
--- 1. 1 orang tua bisa memiliki banyak siswa
--- 2. 1 siswa hanya boleh dimiliki 1 orang tua
-CREATE TABLE u_parent_students (
-    id SERIAL PRIMARY KEY,
-    parent_user_id integer NOT NULL REFERENCES u_users(id) ON DELETE CASCADE,
-    student_id integer NOT NULL REFERENCES u_students(user_id) ON DELETE CASCADE,
-    homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
-    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_parent_student_pair UNIQUE (parent_user_id, student_id),
-    CONSTRAINT uq_parent_student_owner UNIQUE (student_id)
-);
-
-CREATE INDEX idx_parent_students_parent_homebase
-ON u_parent_students(parent_user_id, homebase_id);
-
-CREATE INDEX idx_parent_students_homebase
-ON u_parent_students(homebase_id);
 
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (
@@ -234,9 +214,6 @@ CREATE TABLE at_subject (
     class_id integer REFERENCES a_class(id),
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX IF NOT EXISTS idx_at_subject_teacher_subject_class
-ON at_subject(teacher_id, subject_id, class_id);
 
 
 -- 1. Buat tabel Cabang (Branch) sebagai penghubung Kategori dan Mapel
@@ -471,27 +448,46 @@ ADD COLUMN attachment_name text;
 
 CREATE TABLE l_attendance (
     id SERIAL PRIMARY KEY,
-    periode_id integer REFERENCES a_periode(id) ON DELETE CASCADE,
     class_id integer REFERENCES a_class(id),
     subject_id integer REFERENCES a_subject(id),
     student_id integer REFERENCES u_students(user_id),
     date date DEFAULT CURRENT_DATE,
-    status varchar(20) CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa')), 
+    status varchar(20) CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha')), 
+    note text,
     teacher_id integer REFERENCES u_teachers(user_id)
 );
-
-ALTER TABLE l_attendance
-  ADD COLUMN IF NOT EXISTS periode_id integer REFERENCES a_periode(id) ON DELETE CASCADE;
 
 ALTER TABLE l_attendance
   DROP CONSTRAINT IF EXISTS l_attendance_status_check;
 
 ALTER TABLE l_attendance
   ADD CONSTRAINT l_attendance_status_check
-  CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa'));
+  CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha'));
 
 
- 
+  -- 1. Drop constraint dulu karena tipe data akan diubah
+ALTER TABLE l_attendance
+DROP CONSTRAINT IF EXISTS l_attendance_status_check;
+
+-- 2. Rename kolom sementara
+ALTER TABLE l_attendance RENAME COLUMN status TO status_tmp;
+ALTER TABLE l_attendance RENAME COLUMN note TO note_tmp;
+
+-- 3. Tukar nama kolom
+ALTER TABLE l_attendance RENAME COLUMN status_tmp TO note;
+ALTER TABLE l_attendance RENAME COLUMN note_tmp TO status;
+
+-- 4. Ubah tipe data sesuai yang benar
+ALTER TABLE l_attendance
+ALTER COLUMN status TYPE varchar(20) USING status::varchar(20);
+
+ALTER TABLE l_attendance
+ALTER COLUMN note TYPE text USING note::text;
+
+-- 5. Tambahkan kembali constraint CHECK
+ALTER TABLE l_attendance
+ADD CONSTRAINT l_attendance_status_check
+CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa', 'Alpha'));
 
 
 
@@ -862,27 +858,6 @@ create table if not exists finance.payment_method (
   name varchar(100) not null,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
-);
-
--- Beban ajar aktif dipakai per kelas.
--- Contoh: guru A, Fisika, kelas 10-1 = 2 sesi; guru A, Fisika, kelas 10-2 = 3 sesi.
--- Tabel grade_rule di bawah ini bersifat legacy dan tidak dipakai oleh alur schedule aktif.
-CREATE TABLE IF NOT EXISTS lms.l_teaching_load_grade_rule (
-    id SERIAL PRIMARY KEY,
-    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    periode_id integer NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
-    grade_id integer NOT NULL REFERENCES public.a_grade(id) ON DELETE CASCADE,
-    subject_id integer NOT NULL REFERENCES public.a_subject(id) ON DELETE CASCADE,
-    weekly_sessions integer NOT NULL CHECK (weekly_sessions > 0),
-    max_sessions_per_meeting integer NOT NULL DEFAULT 2 CHECK (max_sessions_per_meeting > 0),
-    require_different_days boolean NOT NULL DEFAULT true,
-    allow_same_day_with_gap boolean NOT NULL DEFAULT true,
-    minimum_gap_slots integer NOT NULL DEFAULT 4 CHECK (minimum_gap_slots >= 0),
-    is_active boolean NOT NULL DEFAULT true,
-    created_by integer REFERENCES public.u_users(id),
-    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_teaching_load_grade_rule UNIQUE (homebase_id, periode_id, grade_id, subject_id)
 );
 
 create table if not exists finance.bank_account (
@@ -1316,6 +1291,7 @@ CREATE UNIQUE INDEX uq_time_slot_slot_no ON lms.l_time_slot USING btree (config_
 CREATE UNIQUE INDEX uq_time_slot_range ON lms.l_time_slot USING btree (config_id, day_of_week, start_time, end_time);
 CREATE INDEX idx_time_slot_config_day ON lms.l_time_slot USING btree (config_id, day_of_week, slot_no);
 
+
 SET search_path TO public;
 */
 
@@ -1642,3 +1618,198 @@ CREATE INDEX idx_daily_absence_report_lookup ON lms.l_daily_absence_report USING
 
 SET search_path TO public;
 COMMIT;
+
+-- ================================================================
+-- HELPER: Decode type format for monthly reports (Mxx-B{chapter}-S{sub})
+-- Example: M02-B10-S3 -> month_num=2, chapter_id=10, subchapter=3
+-- ================================================================
+CREATE OR REPLACE FUNCTION fn_decode_score_type(p_type text)
+RETURNS TABLE (
+    month_num integer,
+    chapter_id integer,
+    subchapter integer
+)
+LANGUAGE sql
+AS $$
+    SELECT
+        NULLIF(substring(p_type from 'M(\\d{2})'), '')::int AS month_num,
+        NULLIF(substring(p_type from 'B(\\d+)'), '')::int AS chapter_id,
+        NULLIF(substring(p_type from 'S(\\d+)'), '')::int AS subchapter;
+$$;
+
+-- ================================================================
+-- VIEWS: Monthly Reports (Ready for frontend)
+-- ================================================================
+
+CREATE OR REPLACE VIEW v_report_attitude_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  a.subject_id,
+  a.teacher_id,
+  a.month,
+  a.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  a.kinerja,
+  a.kedisiplinan,
+  a.keaktifan,
+  a.percaya_diri,
+  a.average_score,
+  a.teacher_note
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+LEFT JOIN l_score_attitude a
+  ON a.student_id = e.student_id
+ AND a.periode_id = e.periode_id;
+
+CREATE OR REPLACE VIEW v_report_formative_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  f.subject_id,
+  f.teacher_id,
+  f.month,
+  f.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  f.chapter_id,
+  d.subchapter AS subchapter_index,
+  f.score
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+JOIN l_score_formative f ON f.student_id = e.student_id
+LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true;
+
+CREATE OR REPLACE VIEW v_report_summative_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  s.subject_id,
+  s.teacher_id,
+  s.month,
+  s.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  s.chapter_id,
+  d.subchapter AS subchapter_index,
+  s.type,
+  s.score_written,
+  s.score_skill,
+  s.final_score
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+JOIN l_score_summative s ON s.student_id = e.student_id
+LEFT JOIN LATERAL fn_decode_score_type(s.type) d ON true;
+
+-- ================================================================
+-- SAMPLE REPORT QUERIES (Bulanan)
+-- ================================================================
+
+-- 1) Laporan Nilai Sikap Bulanan (per kelas, mapel, periode)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- Note: join ke u_class_enrollments agar konteks kelas & periode akurat
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   a.month,
+--   a.semester,
+--   a.kinerja,
+--   a.kedisiplinan,
+--   a.keaktifan,
+--   a.percaya_diri,
+--   a.average_score,
+--   a.teacher_note
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- LEFT JOIN l_score_attitude a
+--   ON a.student_id = e.student_id
+--  AND a.subject_id = :subject_id
+--  AND a.periode_id = :periode_id
+--  AND a.month = :month
+--  AND a.semester = :semester
+-- WHERE e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+-- ORDER BY u.full_name ASC;
+
+-- 2) Laporan Nilai Formatif Bulanan (per bab/subbab)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   f.chapter_id,
+--   d.subchapter AS subchapter_index,
+--   f.score
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- JOIN l_score_formative f ON f.student_id = e.student_id
+-- LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true
+-- WHERE f.subject_id = :subject_id
+--   AND e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+--   AND f.month = :month
+--   AND f.semester = :semester
+-- ORDER BY f.chapter_id, d.subchapter, u.full_name;
+
+-- 3) Laporan Nilai Sumatif Bulanan (per bab)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   s.chapter_id,
+--   s.score_written,
+--   s.score_skill,
+--   s.final_score
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- JOIN l_score_summative s ON s.student_id = e.student_id
+-- WHERE s.subject_id = :subject_id
+--   AND e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+--   AND s.month = :month
+--   AND s.semester = :semester
+-- ORDER BY s.chapter_id, u.full_name;
+
+-- ================================================================
+-- VIEW: Rekap Absensi Bulanan (LMS)
+-- Menyediakan data dasar rekap attendance per siswa per hari
+-- ================================================================
+CREATE OR REPLACE VIEW v_report_attendance_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  a.subject_id,
+  a.teacher_id,
+  EXTRACT(YEAR FROM a.date)::int AS year_num,
+  EXTRACT(MONTH FROM a.date)::int AS month_num,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  a.date,
+  a.status,
+  CASE
+    WHEN a.status IN ('Hadir', 'Telat') THEN 'H'
+    WHEN a.status = 'Sakit' THEN 'S'
+    WHEN a.status = 'Izin' THEN 'I'
+    WHEN a.status IN ('Alpa', 'Alpha') THEN 'A'
+    ELSE '-'
+  END AS status_code
+FROM u_class_enrollments e
+JOIN u_users u ON u.id = e.student_id
+JOIN u_students st ON st.user_id = e.student_id
+LEFT JOIN l_attendance a
+  ON a.student_id = e.student_id
+ AND a.class_id = e.class_id;
+
