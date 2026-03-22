@@ -1,6 +1,7 @@
 import {
   BookOutlined,
   CreditCardOutlined,
+  FundOutlined,
   MoneyCollectOutlined,
   ReadOutlined,
   SettingFilled,
@@ -29,6 +30,11 @@ const buildFinanceMenus = (user = {}) => {
       label: "Tabungan Siswa",
       key: "/finance/laporan-tabungan",
       icon: <BookOutlined />,
+    },
+    {
+      label: "Laporan Kas Kelas",
+      key: "/finance/laporan-kas-kelas",
+      icon: <FundOutlined />,
     },
     {
       label: "Pengaturan",
@@ -96,9 +102,9 @@ const buildFinanceMenus = (user = {}) => {
     center: [],
     admin: [],
     finance: financeMenus,
-    teacher: [],
-    student: [],
-    parent: [],
+    teacher: user?.is_homeroom ? [teacherFinanceNode] : [],
+    student: [studentFinanceNode],
+    parent: [parentFinanceNode],
     tahfiz: [],
   };
 };

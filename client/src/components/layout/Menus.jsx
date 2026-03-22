@@ -6,4 +6,5 @@ export {
   StudentMenus,
   ParentMenus,
   TahfizMenus,
+  getCombinedMenus,
 } from "./menus/index.js";
