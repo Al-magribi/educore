@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  App as AntdApp,
   Form,
   Input,
   Button,
@@ -8,7 +9,6 @@ import {
   Segmented,
   Checkbox,
   Flex,
-  message,
   ConfigProvider,
   Space, // 1. Import ConfigProvider
 } from "antd";
@@ -18,7 +18,7 @@ import { useDoSigninMutation } from "../../service/auth/ApiAuth";
 import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
-const roleOptions = ["Admin", "Guru", "Siswa", "Wali"];
+const roleOptions = ["Admin", "Finance", "Guru", "Siswa", "Wali"];
 
 const getSigninPayloadRole = (role) => {
   if (role === "Finance") {
@@ -30,6 +30,7 @@ const getSigninPayloadRole = (role) => {
 
 const Signin = () => {
   const { publicConfig } = useSelector((state) => state.app);
+  const { message } = AntdApp.useApp();
 
   const [role, setRole] = useState("Admin");
 
@@ -60,7 +61,7 @@ const Signin = () => {
     if (error) {
       message.error(error?.data?.message || "Terjadi kesalahan");
     }
-  }, [data, error, isSuccess]);
+  }, [data, error, isSuccess, message]);
 
   return (
     <div

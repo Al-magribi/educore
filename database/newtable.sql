@@ -841,6 +841,61 @@ create table if not exists finance.savings_ledger (
 create index if not exists idx_savings_student
   on finance.savings_ledger(student_id, trx_date desc);
 
+-- =========================================
+-- 8) SPP BULANAN KHUSUS
+-- Tarif dan transaksi per satuan, periode, dan tingkat.
+-- =========================================
+create table if not exists finance.spp_tariff (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  periode_id int not null references public.a_periode(id) on delete cascade,
+  grade_id int not null references public.a_grade(id) on delete cascade,
+  amount numeric(14,2) not null check (amount >= 0),
+  description text,
+  is_active boolean not null default true,
+  created_by int references public.u_users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (homebase_id, periode_id, grade_id)
+);
+
+create index if not exists idx_spp_tariff_scope
+  on finance.spp_tariff(homebase_id, periode_id, grade_id, is_active);
+
+create table if not exists finance.spp_payment_transaction (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  periode_id int not null references public.a_periode(id) on delete cascade,
+  grade_id int not null references public.a_grade(id) on delete cascade,
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  total_amount numeric(14,2) not null check (total_amount >= 0),
+  payment_method varchar(50),
+  notes text,
+  paid_at timestamptz not null default now(),
+  processed_by int references public.u_users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists finance.spp_payment_allocation (
+  id bigserial primary key,
+  transaction_id bigint not null references finance.spp_payment_transaction(id) on delete cascade,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  periode_id int not null references public.a_periode(id) on delete cascade,
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  bill_month smallint not null check (bill_month between 1 and 12),
+  amount numeric(14,2) not null check (amount >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (student_id, periode_id, bill_month)
+);
+
+create index if not exists idx_spp_payment_transaction_scope
+  on finance.spp_payment_transaction(homebase_id, periode_id, grade_id, student_id, paid_at desc);
+
+create index if not exists idx_spp_payment_allocation_scope
+  on finance.spp_payment_allocation(homebase_id, periode_id, bill_month, student_id);
+
 -- ================================================================
 -- SECTION 9: LMS SCHEDULING
 -- Dibuat dalam schema `lms` agar tampil seperti struktur pada gambar.
@@ -1510,6 +1565,58 @@ CREATE TABLE l_daily_absence_report(
     CONSTRAINT l_daily_absence_report_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'closed'::character varying])::text[])))
 );
 CREATE INDEX idx_daily_absence_report_lookup ON lms.l_daily_absence_report USING btree (homebase_id, periode_id, date, target_type, target_user_id);
+
+CREATE SCHEMA IF NOT EXISTS finance;
+
+CREATE TABLE finance.other_payment_types (
+    type_id SERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+    grade_ids INT[] NOT NULL DEFAULT '{}',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX uq_other_payment_types_homebase_name
+    ON finance.other_payment_types(homebase_id, LOWER(name));
+
+CREATE TABLE finance.other_payment_charges (
+    charge_id SERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    type_id INT NOT NULL REFERENCES finance.other_payment_types(type_id) ON DELETE RESTRICT,
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    amount_due NUMERIC(14, 2) NOT NULL CHECK (amount_due > 0),
+    notes TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'unpaid'
+      CHECK (status IN ('unpaid', 'partial', 'paid')),
+    created_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_other_payment_charges_scope
+    ON finance.other_payment_charges(homebase_id, periode_id, student_id, type_id, status);
+
+CREATE TABLE finance.other_payment_installments (
+    installment_id SERIAL PRIMARY KEY,
+    charge_id INT NOT NULL REFERENCES finance.other_payment_charges(charge_id) ON DELETE CASCADE,
+    installment_number INT NOT NULL DEFAULT 1,
+    amount_paid NUMERIC(14, 2) NOT NULL CHECK (amount_paid > 0),
+    payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    payment_method VARCHAR(50),
+    processed_by INT REFERENCES public.u_users(id),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_other_payment_installments_charge
+    ON finance.other_payment_installments(charge_id, payment_date DESC, installment_id DESC);
 
 SET search_path TO public;
 COMMIT;

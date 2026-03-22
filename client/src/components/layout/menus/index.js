@@ -3,6 +3,7 @@ import { FEATURES, hasFeature } from "../../../config/productFeatures";
 import buildCoreMenus from "./coreMenus";
 import buildCbtMenus from "./cbtMenus";
 import buildDbMenus from "./dbMenus";
+import buildFinanceMenus from "./financeMenus";
 import buildTahfizMenus from "./tahfizMenus";
 import buildLmsMenus from "./lmsMenus";
 
@@ -27,25 +28,32 @@ const mergeMenus = (...menuGroups) => {
   return merged;
 };
 
-const featureMenuBuilders = [];
+const getCombinedMenus = (user = {}) => {
+  const featureMenuBuilders = [];
 
-if (hasFeature(FEATURES.CBT)) {
-  featureMenuBuilders.push(buildCbtMenus);
-}
-if (hasFeature(FEATURES.DB)) {
-  featureMenuBuilders.push(buildDbMenus);
-}
-if (hasFeature(FEATURES.TAHFIZ)) {
-  featureMenuBuilders.push(buildTahfizMenus);
-}
-if (hasFeature(FEATURES.LMS)) {
-  featureMenuBuilders.push(buildLmsMenus);
-}
+  if (hasFeature(FEATURES.CBT)) {
+    featureMenuBuilders.push(buildCbtMenus);
+  }
+  if (hasFeature(FEATURES.DB)) {
+    featureMenuBuilders.push(buildDbMenus);
+  }
+  if (hasFeature(FEATURES.FINANCE)) {
+    featureMenuBuilders.push(buildFinanceMenus);
+  }
+  if (hasFeature(FEATURES.TAHFIZ)) {
+    featureMenuBuilders.push(buildTahfizMenus);
+  }
+  if (hasFeature(FEATURES.LMS)) {
+    featureMenuBuilders.push(buildLmsMenus);
+  }
 
-const combinedMenus = mergeMenus(
-  buildCoreMenus(),
-  ...featureMenuBuilders.map((builder) => builder()),
-);
+  return mergeMenus(
+    buildCoreMenus(user),
+    ...featureMenuBuilders.map((builder) => builder(user)),
+  );
+};
+
+const combinedMenus = getCombinedMenus();
 
 export const CenterMenus = combinedMenus.center;
 export const AdminMenus = combinedMenus.admin;
@@ -54,3 +62,4 @@ export const TeacherMenus = combinedMenus.teacher;
 export const StudentMenus = combinedMenus.student;
 export const ParentMenus = combinedMenus.parent;
 export const TahfizMenus = hasFeature(FEATURES.TAHFIZ) ? combinedMenus.tahfiz : [];
+export { getCombinedMenus };

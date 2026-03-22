@@ -38,7 +38,7 @@ const RouterPublic = () => {
               replace
             />
           );
-        } else if (user.level === "finance") {
+        } else if (user.level === "keuangan") {
           return (
             <Navigate
               to={isFinanceEnabled ? "/finance-dashboard" : "/admin-dashboard"}

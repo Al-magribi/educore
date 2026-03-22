@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -29,13 +30,7 @@ import {
 
 // Import Menu Data (Sesuaikan path import Anda)
 import {
-  CenterMenus,
-  AdminMenus,
-  FinanceMenus,
-  TeacherMenus,
-  StudentMenus,
-  ParentMenus,
-  TahfizMenus,
+  getCombinedMenus,
 } from "./Menus";
 import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
 import LoadApp from "../loader/LoadApp";
@@ -44,6 +39,45 @@ const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid; // Destructure hook
 const LayoutShellContext = createContext(null);
+const routePreloaders = {
+  "/profile": () => import("../profile/Profile"),
+  "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
+  "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
+  "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
+  "/center-teacher": () => import("../../module/center/teacher/CenterTeacher"),
+  "/center-market": () => import("../../module/center/market/CenterMarket"),
+  "/center-config": () => import("../../module/center/config/CenterConfig"),
+  "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
+  "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
+  "/admin-data-akademik": () =>
+    import("../../module/admin/academic/AdminAcademinc"),
+  "/finance-dashboard": () =>
+    import("../../module/finance/dashboard/FinanceDash"),
+  "/finance/pembayaran-spp": () =>
+    import("../../module/finance/fee/monthly/Monthly"),
+  "/finance/pembayaran-spp/laporan": () =>
+    import("../../module/finance/fee/monthly/Report"),
+  "/finance/pembayaran-lainnya": () =>
+    import("../../module/finance/fee/others/Others"),
+  "/finance/transaksi": () =>
+    import("../../module/finance/fee/transaction/Transaction"),
+  "/finance/laporan-tabungan": () =>
+    import("../../module/finance/report/SavingReport"),
+  "/finance/laporan-kas-kelas": () =>
+    import("../../module/finance/report/CashReport"),
+  "/computer-based-test/bank": () =>
+    import("../../module/cbt/bank/view/BankList"),
+  "/computer-based-test/jadwal-ujian": () =>
+    import("../../module/cbt/exam/view/ExamList"),
+  "/siswa-dashboard": () =>
+    import("../../module/student/dashboard/StudentDash"),
+  "/siswa/jadwal-ujian": () =>
+    import("../../module/cbt/student/view/StudentExamList"),
+  "/computer-based-test/start": () =>
+    import("../../module/cbt/student/view/ExamInterface"),
+  "/guru-dashboard": () =>
+    import("../../module/teacher/dashboard/TeacherDash"),
+};
 
 const AppLayout = ({ children, title, asShell = false }) => {
   const navigate = useNavigate();
@@ -60,7 +94,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
   // State UI
   const [collapsed, setCollapsed] = useState(false);
-  const [menuItems, setMenuItems] = useState([]);
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
@@ -71,107 +104,75 @@ const AppLayout = ({ children, title, asShell = false }) => {
     path?.startsWith("/computer-based-test") ||
     path?.startsWith("/siswa/jadwal-ujian");
 
-  const routePreloaders = {
-    "/profile": () => import("../profile/Profile"),
-    "/center-dashboard": () =>
-      import("../../module/center/dashboard/CenterDash"),
-    "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
-    "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
-    "/center-teacher": () =>
-      import("../../module/center/teacher/CenterTeacher"),
-    "/center-market": () => import("../../module/center/market/CenterMarket"),
-    "/center-config": () => import("../../module/center/config/CenterConfig"),
-    "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
-    "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
-    "/admin-data-akademik": () =>
-      import("../../module/admin/academic/AdminAcademinc"),
-    "/finance-dashboard": () =>
-      import("../../module/finance/dashboard/FinanceDash"),
-    "/computer-based-test/bank": () =>
-      import("../../module/cbt/bank/view/BankList"),
-    "/computer-based-test/jadwal-ujian": () =>
-      import("../../module/cbt/exam/view/ExamList"),
-    "/siswa-dashboard": () =>
-      import("../../module/student/dashboard/StudentDash"),
-    "/siswa/jadwal-ujian": () =>
-      import("../../module/cbt/student/view/StudentExamList"),
-    "/computer-based-test/start": () =>
-      import("../../module/cbt/student/view/ExamInterface"),
-    "/guru-dashboard": () =>
-      import("../../module/teacher/dashboard/TeacherDash"),
-  };
-
-  const preloadRouteByKey = (key) => {
+  const preloadRouteByKey = useCallback((key) => {
     const preloader = routePreloaders[key];
     if (!preloader || preloadedRoutes.current.has(key)) return;
     preloadedRoutes.current.add(key);
     preloader().catch(() => {
       preloadedRoutes.current.delete(key);
     });
-  };
-
-  const enhanceMenuItems = (items) =>
-    items.map((item) => {
-      const nextItem = { ...item };
-      const key = item.key;
-
-      if (typeof item.label === "string") {
-        nextItem.label = (
-          <span
-            onMouseEnter={() => preloadRouteByKey(key)}
-            onFocus={() => preloadRouteByKey(key)}
-          >
-            {item.label}
-          </span>
-        );
-      }
-
-      if (Array.isArray(item.children)) {
-        nextItem.children = enhanceMenuItems(item.children);
-      }
-
-      return nextItem;
-    });
+  }, []);
 
   // Ant Design Token
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  // 2. Tentukan Menu Berdasarkan Role & Level
-  useEffect(() => {
-    if (!user) return;
-
+  const menuItems = useMemo(() => {
+    const combinedMenus = getCombinedMenus(user);
     let items = [];
-    switch (user.role) {
+    switch (user?.role) {
       case "student":
-        items = StudentMenus;
+        items = combinedMenus.student;
         break;
       case "teacher":
-        items = TeacherMenus;
+        items = combinedMenus.teacher;
         break;
       case "parent":
-        items = ParentMenus;
+        items = combinedMenus.parent;
         break;
       case "center":
-        items = CenterMenus;
+        items = combinedMenus.center;
         break;
       case "admin":
         if (user.level === "pusat") {
-          items = CenterMenus;
+          items = combinedMenus.center;
         } else if (user.level === "tahfiz") {
-          items = TahfizMenus;
-        } else if (user.level === "finance") {
-          items = FinanceMenus;
+          items = combinedMenus.tahfiz;
+        } else if (user.level === "keuangan") {
+          items = combinedMenus.finance;
         } else {
-          items = AdminMenus;
+          items = combinedMenus.admin;
         }
         break;
       default:
         items = [];
     }
-    setMenuItems(enhanceMenuItems(items));
-  }, [user]);
+    const enhanceMenuItems = (sourceItems) =>
+      sourceItems.map((item) => {
+        const nextItem = { ...item };
+        const key = item.key;
+
+        if (typeof item.label === "string") {
+          nextItem.label = (
+            <span
+              onMouseEnter={() => preloadRouteByKey(key)}
+              onFocus={() => preloadRouteByKey(key)}
+            >
+              {item.label}
+            </span>
+          );
+        }
+
+        if (Array.isArray(item.children)) {
+          nextItem.children = enhanceMenuItems(item.children);
+        }
+
+        return nextItem;
+      });
+
+    return enhanceMenuItems(items);
+  }, [preloadRouteByKey, user]);
 
   useEffect(() => {
     if (effectiveTitle) {
@@ -237,14 +238,14 @@ const AppLayout = ({ children, title, asShell = false }) => {
     },
   ];
 
-  if (!asShell && shellContext?.inShell) {
-    return children || null;
-  }
-
   const shellValue = useMemo(
     () => ({ inShell: true, setShellTitle }),
     [setShellTitle],
   );
+
+  if (!asShell && shellContext?.inShell) {
+    return children || null;
+  }
 
   const layoutContent = (
     <Layout style={{ minHeight: "100vh" }}>

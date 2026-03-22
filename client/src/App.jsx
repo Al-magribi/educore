@@ -55,7 +55,7 @@ const NotFoundRedirect = () => {
         }
         return <Navigate to='/tahfiz-dashboard' replace />;
       }
-      if (user.level === "finance") {
+      if (user.level === "keuangan") {
         if (!isFinanceEnabled) {
           return <Navigate to='/admin-dashboard' replace />;
         }
@@ -67,17 +67,23 @@ const NotFoundRedirect = () => {
   }
 };
 
-const LazyRoute = ({ Component }) => (
-  <Suspense fallback={<LoadApp />}>
-    <Component />
-  </Suspense>
-);
+const LazyRoute = ({ Component }) => {
+  const RouteComponent = Component;
 
-const LazyPage = ({ title, Component }) => (
-  <AppLayout title={title}>
-    <LazyRoute Component={Component} />
-  </AppLayout>
-);
+  return (
+    <Suspense fallback={<LoadApp />}>
+      <RouteComponent />
+    </Suspense>
+  );
+};
+
+const LazyPage = ({ title, Component }) => {
+  return (
+    <AppLayout title={title}>
+      <LazyRoute Component={Component} />
+    </AppLayout>
+  );
+};
 
 const App = () => {
   useLoadUserQuery();
@@ -92,7 +98,7 @@ const App = () => {
           element={
             <RouteProtection
               allowedRoles={["admin", "teacher", "student", "parent"]}
-              allowedLevels={["pusat", "satuan", "tahfiz"]}
+              allowedLevels={["pusat", "satuan", "tahfiz", "keuangan"]}
             />
           }
         >
@@ -127,6 +133,7 @@ const App = () => {
             {isFinanceEnabled &&
               renderFinanceRoutes({
                 LazyPage,
+                NotFoundRedirect,
               })}
 
             {isTahfizEnabled && renderTahfizRoutes()}
