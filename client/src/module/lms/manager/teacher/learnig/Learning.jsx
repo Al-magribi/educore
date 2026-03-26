@@ -15,6 +15,7 @@ const LearningHeader = lazy(() => import("./components/LearningHeader"));
 const LearningFilters = lazy(() => import("./components/LearningFilters"));
 const ChapterList = lazy(() => import("./components/ChapterList"));
 const ChapterModals = lazy(() => import("./components/ChapterModals"));
+const EMPTY_LIST = [];
 
 const toStringArray = (value) => {
   if (!value) return [];
@@ -39,9 +40,9 @@ const Learning = ({ subjectId, subject }) => {
     classId: filterClassId,
   });
 
-  const chapters = chaptersRes?.data || [];
-  const grades = gradesRes?.data || [];
-  const classes = classesRes?.data || [];
+  const chapters = chaptersRes?.data ?? EMPTY_LIST;
+  const grades = gradesRes?.data ?? EMPTY_LIST;
+  const classes = classesRes?.data ?? EMPTY_LIST;
   const [chapterItems, setChapterItems] = useState([]);
 
   const [chapterModalOpen, setChapterModalOpen] = useState(false);
@@ -248,7 +249,7 @@ const Learning = ({ subjectId, subject }) => {
         ),
       );
       message.success("Urutan bab diperbarui.");
-    } catch (error) {
+    } catch {
       message.error("Gagal mengubah urutan bab.");
     }
   };

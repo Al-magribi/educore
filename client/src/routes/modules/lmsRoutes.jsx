@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
@@ -20,19 +20,26 @@ const renderLmsRoutes = ({ LazyRoute }) => (
   >
     <Route
       path='/manajemen-mata-pelajaran'
-      element={
-        <LazyRoute title='Manajemen Mata Pelajaran' Component={LmsManagement} />
-      }
+      element={createElement(LazyRoute, {
+        title: "Manajemen Mata Pelajaran",
+        Component: LmsManagement,
+      })}
     />
 
     <Route
       path='/manajemen-jadwal'
-      element={<LazyRoute title='Manajemen Jadwal' Component={Schedule} />}
+      element={createElement(LazyRoute, {
+        title: "Manajemen Jadwal",
+        Component: Schedule,
+      })}
     />
 
     <Route
       path='/manajemen-piket'
-      element={<LazyRoute title='Manajemen Piket' Component={Duty} />}
+      element={createElement(LazyRoute, {
+        title: "Manajemen Piket",
+        Component: Duty,
+      })}
     />
   </Route>
 );

@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
@@ -13,7 +13,10 @@ const renderFinanceRoutes = ({ LazyPage }) => (
   >
     <Route
       path="/finance-dashboard"
-      element={<LazyPage title="Dashboard Finance" Component={FinanceDash} />}
+      element={createElement(LazyPage, {
+        title: "Dashboard Finance",
+        Component: FinanceDash,
+      })}
     />
   </Route>
 );
