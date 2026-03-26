@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -83,7 +83,7 @@ const Halaqoh = () => {
     setDrawerOpen(true);
   };
 
-  const openEdit = (record) => {
+  const openEdit = useCallback((record) => {
     setEditingData(record);
     form.setFieldsValue({
       periode_id: record.periode_id,
@@ -93,7 +93,7 @@ const Halaqoh = () => {
       student_ids: (record.students || []).map((item) => item.id),
     });
     setDrawerOpen(true);
-  };
+  }, [form]);
 
   const handleSubmit = async (values) => {
     const payload = {
@@ -118,14 +118,14 @@ const Halaqoh = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     try {
       await deleteHalaqoh(id).unwrap();
       message.success("Halaqoh berhasil dihapus.");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus halaqoh.");
     }
-  };
+  }, [deleteHalaqoh]);
 
   const columns = useMemo(
     () => [
@@ -177,7 +177,7 @@ const Halaqoh = () => {
         ),
       },
     ],
-    [deleting],
+    [deleting, handleDelete, openEdit],
   );
 
   return (

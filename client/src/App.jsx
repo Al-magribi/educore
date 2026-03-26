@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, createElement } from "react";
 import { useSelector } from "react-redux";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -69,7 +69,7 @@ const NotFoundRedirect = () => {
 
 const LazyRoute = ({ Component }) => (
   <Suspense fallback={<LoadApp />}>
-    <Component />
+    {Component ? createElement(Component) : null}
   </Suspense>
 );
 

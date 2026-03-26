@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -64,7 +64,7 @@ const Musyrif = () => {
     setDrawerOpen(true);
   };
 
-  const openEdit = (record) => {
+  const openEdit = useCallback((record) => {
     setEditingData(record);
     form.setFieldsValue({
       homebase_id: record.homebase_id,
@@ -75,7 +75,7 @@ const Musyrif = () => {
       is_active: record.is_active,
     });
     setDrawerOpen(true);
-  };
+  }, [form]);
 
   const handleSubmit = async (values) => {
     const payload = {
@@ -101,14 +101,14 @@ const Musyrif = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     try {
       await deleteMusyrif(id).unwrap();
       message.success("Musyrif berhasil dihapus.");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus musyrif.");
     }
-  };
+  }, [deleteMusyrif]);
 
   const columns = useMemo(
     () => [
@@ -170,7 +170,7 @@ const Musyrif = () => {
         ),
       },
     ],
-    [deleting],
+    [deleting, handleDelete, openEdit],
   );
 
   return (

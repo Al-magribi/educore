@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Card,
@@ -48,15 +48,10 @@ const TahfizDashboard = () => {
     queryArg,
   );
 
-  useEffect(() => {
-    if (!data?.filters) return;
-    if (selectedHomebaseId == null && data.filters.selected_homebase_id != null) {
-      setSelectedHomebaseId(data.filters.selected_homebase_id);
-    }
-    if (selectedPeriodeId == null && data.filters.selected_periode_id != null) {
-      setSelectedPeriodeId(data.filters.selected_periode_id);
-    }
-  }, [data, selectedHomebaseId, selectedPeriodeId]);
+  const selectedHomebaseValue =
+    selectedHomebaseId ?? data?.filters?.selected_homebase_id;
+  const selectedPeriodeValue =
+    selectedPeriodeId ?? data?.filters?.selected_periode_id;
 
   const homebaseOptions = (data?.filters?.homebases || []).map((item) => ({
     value: item.id,
@@ -181,9 +176,10 @@ const TahfizDashboard = () => {
                 placeholder="Pilih homebase"
                 size="large"
                 loading={isFetching}
+                value={selectedHomebaseValue}
               />
               <Select
-                value={selectedPeriodeId}
+                value={selectedPeriodeValue}
                 options={periodeOptions}
                 onChange={setSelectedPeriodeId}
                 placeholder="Pilih periode"

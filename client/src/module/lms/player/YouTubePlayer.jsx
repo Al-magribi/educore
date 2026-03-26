@@ -19,7 +19,7 @@ const getYouTubeId = (input) => {
         return url.pathname.replace("/shorts/", "") || null;
       }
     }
-  } catch (error) {
+  } catch {
     const match = input.match(/[?&]v=([^&]+)/);
     return match ? match[1] : null;
   }

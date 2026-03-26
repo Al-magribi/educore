@@ -28,6 +28,8 @@ import {
 import YouTubePlayer from "../../../../player/YouTubePlayer";
 
 const { Text } = Typography;
+const EMPTY_LIST = [];
+
 const toArray = (value) => {
   if (!value) return [];
   if (Array.isArray(value)) return value.filter(Boolean);
@@ -39,7 +41,7 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const { data: contentsRes, isLoading } = useGetContentsQuery({ chapterId });
-  const contents = contentsRes?.data || [];
+  const contents = contentsRes?.data ?? EMPTY_LIST;
   const [contentItems, setContentItems] = useState([]);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState("");
@@ -97,7 +99,7 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
         }),
       );
       message.success("Urutan subbab diperbarui.");
-    } catch (error) {
+    } catch {
       message.error("Gagal mengubah urutan subbab.");
     }
   };

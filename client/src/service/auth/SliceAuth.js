@@ -27,7 +27,7 @@ const UserSlice = createSlice({
     );
 
     // --- LOAD USER (INIT) ---
-    builder.addMatcher(ApiAuth.endpoints.loadUser.matchPending, (state) => {
+    builder.addMatcher(ApiAuth.endpoints.loadUser.matchPending, () => {
       // Jangan set isInitialized false disini jika ingin background re-fetching,
       // tapi untuk initial load, ini oke.
     });

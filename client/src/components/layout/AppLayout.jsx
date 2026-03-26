@@ -1,9 +1,9 @@
 import React, {
+  useCallback,
   createContext,
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import {
@@ -44,6 +44,29 @@ const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid; // Destructure hook
 const LayoutShellContext = createContext(null);
+const ROUTE_PRELOADERS = {
+  "/profile": () => import("../profile/Profile"),
+  "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
+  "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
+  "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
+  "/center-teacher": () => import("../../module/center/teacher/CenterTeacher"),
+  "/center-market": () => import("../../module/center/market/CenterMarket"),
+  "/center-config": () => import("../../module/center/config/CenterConfig"),
+  "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
+  "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
+  "/admin-data-akademik": () =>
+    import("../../module/admin/academic/AdminAcademinc"),
+  "/finance-dashboard": () => import("../../module/finance/dashboard/FinanceDash"),
+  "/computer-based-test/bank": () => import("../../module/cbt/bank/view/BankList"),
+  "/computer-based-test/jadwal-ujian": () =>
+    import("../../module/cbt/exam/view/ExamList"),
+  "/siswa-dashboard": () => import("../../module/student/dashboard/StudentDash"),
+  "/siswa/jadwal-ujian": () =>
+    import("../../module/cbt/student/view/StudentExamList"),
+  "/computer-based-test/start": () =>
+    import("../../module/cbt/student/view/ExamInterface"),
+  "/guru-dashboard": () => import("../../module/teacher/dashboard/TeacherDash"),
+};
 
 const AppLayout = ({ children, title, asShell = false }) => {
   const navigate = useNavigate();
@@ -60,87 +83,28 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
   // State UI
   const [collapsed, setCollapsed] = useState(false);
-  const [menuItems, setMenuItems] = useState([]);
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
-  const preloadedRoutes = useRef(new Set());
   const effectiveTitle = asShell ? shellTitle : title;
 
   const isCbtRoute = (path) =>
     path?.startsWith("/computer-based-test") ||
     path?.startsWith("/siswa/jadwal-ujian");
 
-  const routePreloaders = {
-    "/profile": () => import("../profile/Profile"),
-    "/center-dashboard": () =>
-      import("../../module/center/dashboard/CenterDash"),
-    "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
-    "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
-    "/center-teacher": () =>
-      import("../../module/center/teacher/CenterTeacher"),
-    "/center-market": () => import("../../module/center/market/CenterMarket"),
-    "/center-config": () => import("../../module/center/config/CenterConfig"),
-    "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
-    "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
-    "/admin-data-akademik": () =>
-      import("../../module/admin/academic/AdminAcademinc"),
-    "/finance-dashboard": () =>
-      import("../../module/finance/dashboard/FinanceDash"),
-    "/computer-based-test/bank": () =>
-      import("../../module/cbt/bank/view/BankList"),
-    "/computer-based-test/jadwal-ujian": () =>
-      import("../../module/cbt/exam/view/ExamList"),
-    "/siswa-dashboard": () =>
-      import("../../module/student/dashboard/StudentDash"),
-    "/siswa/jadwal-ujian": () =>
-      import("../../module/cbt/student/view/StudentExamList"),
-    "/computer-based-test/start": () =>
-      import("../../module/cbt/student/view/ExamInterface"),
-    "/guru-dashboard": () =>
-      import("../../module/teacher/dashboard/TeacherDash"),
-  };
-
-  const preloadRouteByKey = (key) => {
-    const preloader = routePreloaders[key];
-    if (!preloader || preloadedRoutes.current.has(key)) return;
-    preloadedRoutes.current.add(key);
-    preloader().catch(() => {
-      preloadedRoutes.current.delete(key);
-    });
-  };
-
-  const enhanceMenuItems = (items) =>
-    items.map((item) => {
-      const nextItem = { ...item };
-      const key = item.key;
-
-      if (typeof item.label === "string") {
-        nextItem.label = (
-          <span
-            onMouseEnter={() => preloadRouteByKey(key)}
-            onFocus={() => preloadRouteByKey(key)}
-          >
-            {item.label}
-          </span>
-        );
-      }
-
-      if (Array.isArray(item.children)) {
-        nextItem.children = enhanceMenuItems(item.children);
-      }
-
-      return nextItem;
-    });
+  const preloadRouteByKey = useCallback((key) => {
+    const preloader = ROUTE_PRELOADERS[key];
+    if (!preloader) return;
+    preloader().catch(() => {});
+  }, []);
 
   // Ant Design Token
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  // 2. Tentukan Menu Berdasarkan Role & Level
-  useEffect(() => {
-    if (!user) return;
+  const menuItems = useMemo(() => {
+    if (!user) return [];
 
     let items = [];
     switch (user.role) {
@@ -170,7 +134,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
       default:
         items = [];
     }
-    setMenuItems(enhanceMenuItems(items));
+
+    return items;
   }, [user]);
 
   useEffect(() => {
@@ -237,14 +202,14 @@ const AppLayout = ({ children, title, asShell = false }) => {
     },
   ];
 
-  if (!asShell && shellContext?.inShell) {
-    return children || null;
-  }
-
   const shellValue = useMemo(
     () => ({ inShell: true, setShellTitle }),
     [setShellTitle],
   );
+
+  if (!asShell && shellContext?.inShell) {
+    return children || null;
+  }
 
   const layoutContent = (
     <Layout style={{ minHeight: "100vh" }}>

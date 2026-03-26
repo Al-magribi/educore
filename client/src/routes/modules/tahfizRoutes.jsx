@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
@@ -18,27 +18,45 @@ const renderTahfizRoutes = ({ LazyPage }) => (
   >
     <Route
       path="/tahfiz-dashboard"
-      element={<LazyPage title="Dashboard Tahfiz" Component={TahfizDashboard} />}
+      element={createElement(LazyPage, {
+        title: "Dashboard Tahfiz",
+        Component: TahfizDashboard,
+      })}
     />
     <Route
       path="/tahfiz-alquran"
-      element={<LazyPage title="Referensi Al-Qur'an" Component={Alquran} />}
+      element={createElement(LazyPage, {
+        title: "Referensi Al-Qur'an",
+        Component: Alquran,
+      })}
     />
     <Route
       path="/tahfiz-halaqoh"
-      element={<LazyPage title="Manajemen Halaqoh" Component={Halaqoh} />}
+      element={createElement(LazyPage, {
+        title: "Manajemen Halaqoh",
+        Component: Halaqoh,
+      })}
     />
     <Route
       path="/tahfiz-target"
-      element={<LazyPage title="Target Tahfiz" Component={Target} />}
+      element={createElement(LazyPage, {
+        title: "Target Tahfiz",
+        Component: Target,
+      })}
     />
     <Route
       path="/tahfiz-penilaian"
-      element={<LazyPage title="Manajemen Halaqoh" Component={Halaqoh} />}
+      element={createElement(LazyPage, {
+        title: "Manajemen Halaqoh",
+        Component: Halaqoh,
+      })}
     />
     <Route
       path="/tahfiz-hafalan"
-      element={<LazyPage title="Target Tahfiz" Component={Target} />}
+      element={createElement(LazyPage, {
+        title: "Target Tahfiz",
+        Component: Target,
+      })}
     />
   </Route>
 );

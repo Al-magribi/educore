@@ -18,7 +18,7 @@ import dayjs from "dayjs";
 import {
   buildFormatifSubchapters,
   extractSubIdFromType,
-} from "./components/StudentGradingTableFormatif";
+} from "./components/formatifUtils";
 import {
   ExclamationCircleOutlined,
   DeleteOutlined,

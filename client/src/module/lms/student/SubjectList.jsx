@@ -18,6 +18,7 @@ import Subject from "./subject/Subject";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
+const EMPTY_SUBJECTS = [];
 
 const SubjectList = () => {
   const { user } = useSelector((state) => state.auth);
@@ -33,7 +34,7 @@ const SubjectList = () => {
     error,
   } = useGetSubjectsQuery();
 
-  const subjects = subjectsRes?.data || [];
+  const subjects = subjectsRes?.data ?? EMPTY_SUBJECTS;
 
   const filteredSubjects = useMemo(() => {
     if (!keyword.trim()) return subjects;
