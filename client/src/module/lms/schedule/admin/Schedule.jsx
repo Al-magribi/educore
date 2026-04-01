@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Button, Flex, Skeleton, Space, Tabs, message } from "antd";
-import { useSelector } from "react-redux";
 import {
   CircleHelp,
   LayoutGrid,
@@ -18,17 +17,15 @@ import {
   useSaveTeachingLoadMutation,
   useSaveUnavailabilityMutation,
   useUpdateScheduleEntryMutation,
-} from "../../../service/lms/ApiSchedule";
-import ScheduleConfigCard from "./components/ScheduleConfigCard";
-import ScheduleLoadCard from "./components/ScheduleLoadCard";
-import ScheduleUnavailabilityCard from "./components/ScheduleUnavailabilityCard";
-import ScheduleTimetableCard from "./components/ScheduleTimetableCard";
-import ScheduleGuideModal from "./components/ScheduleGuideModal";
+} from "../../../../service/lms/ApiSchedule";
+import ScheduleConfigCard from "./ScheduleConfigCard";
+import ScheduleLoadCard from "./ScheduleLoadCard";
+import ScheduleUnavailabilityCard from "./ScheduleUnavailabilityCard";
+import ScheduleTimetableCard from "./ScheduleTimetableCard";
+import ScheduleGuideModal from "./ScheduleGuideModal";
 
 const Schedule = () => {
   const [guideOpen, setGuideOpen] = useState(false);
-  const { user } = useSelector((state) => state.auth);
-  const isManager = user?.role === "admin" && user?.level === "satuan";
 
   const { data, isLoading, isFetching, refetch } =
     useGetScheduleBootstrapQuery();
@@ -50,6 +47,7 @@ const Schedule = () => {
     useUpdateScheduleEntryMutation();
 
   const payload = data?.data || {};
+  const canManage = Boolean(payload.can_manage);
 
   const sessionShortages = useMemo(() => {
     const allocatedByAssignment = (payload.entries || []).reduce((acc, item) => {
@@ -167,19 +165,38 @@ const Schedule = () => {
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (body = {}) => {
     try {
-      const response = await generateSchedule({}).unwrap();
+      const response = await generateSchedule(body).unwrap();
       const failedCount = response?.data?.failed_items?.length || 0;
-      if (failedCount > 0) {
+      const generatedCount = response?.data?.generated_entries || 0;
+      const operation = response?.data?.operation;
+
+      if (operation === "preview_reset") {
+        message.info(
+          `Simulasi reset selesai. ${response?.data?.summary?.deleted_generated_entries || 0} jadwal otomatis akan dibersihkan.`,
+        );
+      } else if (operation === "reset_generated") {
+        message.success(
+          `Reset jadwal otomatis selesai. ${response?.data?.summary?.deleted_generated_entries || 0} entri dibersihkan.`,
+        );
+      } else if (response?.data?.dry_run) {
+        message.info(
+          failedCount > 0
+            ? `Simulasi selesai. ${generatedCount} entri dapat dibuat, ${failedCount} item masih konflik.`
+            : `Simulasi berhasil. ${generatedCount} entri dapat dibuat.`,
+        );
+      } else if (failedCount > 0) {
         message.warning(
-          `Generate selesai. ${failedCount} item belum bisa dijadwalkan.`,
+          `Generate selesai. ${generatedCount} entri dibuat, ${failedCount} item belum bisa dijadwalkan.`,
         );
       } else {
-        message.success("Generate jadwal berhasil.");
+        message.success(`Generate jadwal berhasil. ${generatedCount} entri dibuat.`);
       }
+      return response;
     } catch (error) {
       message.error(error?.data?.message || "Generate jadwal gagal.");
+      throw error;
     }
   };
 
@@ -211,9 +228,9 @@ const Schedule = () => {
 
       <Alert
         showIcon
-        type={isManager ? "info" : "warning"}
+        type={canManage ? "info" : "warning"}
         title={
-          isManager
+          canManage
             ? "Atur slot dan generate jadwal, lalu sesuaikan manual bila perlu."
             : "Mode lihat jadwal. Perubahan hanya dapat dilakukan admin satuan."
         }
@@ -232,7 +249,7 @@ const Schedule = () => {
             ),
             children: (
               <ScheduleConfigCard
-                canManage={isManager}
+                canManage={canManage}
                 config={payload.config}
                 dayTemplates={payload.day_templates || []}
                 breaks={payload.breaks || []}
@@ -252,7 +269,7 @@ const Schedule = () => {
             ),
             children: (
               <ScheduleLoadCard
-                canManage={isManager}
+                canManage={canManage}
                 classes={payload.classes || []}
                 grades={payload.grades || []}
                 subjects={payload.subjects || []}
@@ -276,7 +293,7 @@ const Schedule = () => {
             ),
             children: (
               <ScheduleUnavailabilityCard
-                canManage={isManager}
+                canManage={canManage}
                 teachers={payload.teachers || []}
                 rules={payload.unavailability || []}
                 loading={savingRule || deletingRule || isFetching}
@@ -295,7 +312,7 @@ const Schedule = () => {
             ),
             children: (
               <ScheduleTimetableCard
-                canManage={isManager}
+                canManage={canManage}
                 entries={payload.entries || []}
                 slots={payload.slots || []}
                 breaks={payload.breaks || []}

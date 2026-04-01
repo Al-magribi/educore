@@ -9,6 +9,7 @@ import {
   Modal,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Tooltip,
@@ -26,6 +27,24 @@ const DAY_OPTIONS = [
   { value: 5, label: "Jumat" },
   { value: 6, label: "Sabtu" },
   { value: 7, label: "Minggu" },
+];
+
+const GENERATE_ACTION_OPTIONS = [
+  {
+    value: "generate_new",
+    label: "Generate Baru",
+    description: "Hanya untuk periode yang belum memiliki jadwal sama sekali.",
+  },
+  {
+    value: "regenerate_generated",
+    label: "Regenerate Otomatis",
+    description: "Hapus hasil generate lama, pertahankan manual override dan lock.",
+  },
+  {
+    value: "reset_generated",
+    label: "Reset Jadwal Otomatis",
+    description: "Bersihkan jadwal hasil generate tanpa membuat jadwal baru.",
+  },
 ];
 
 const HEADER_BG = "#e7c1a3";
@@ -77,8 +96,11 @@ const ScheduleTimetableCard = ({
   onUpdateEntry,
 }) => {
   const [openModal, setOpenModal] = useState(false);
+  const [openGenerateModal, setOpenGenerateModal] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [lastGenerateResult, setLastGenerateResult] = useState(null);
   const [form] = Form.useForm();
+  const [generateForm] = Form.useForm();
 
   const gradeGroups = useMemo(() => {
     const grouped = new Map();
@@ -249,6 +271,32 @@ const ScheduleTimetableCard = ({
     );
   }, [sessionShortages, teacherAssignments, teachers]);
 
+  const displayGenerateResult = useMemo(() => {
+    if (!lastGenerateResult) return null;
+
+    const assignmentMap = new Map(
+      (teacherAssignments || []).map((item) => [
+        `${item.teacher_id}:${item.subject_id}:${item.class_id}`,
+        item,
+      ]),
+    );
+
+    return {
+      ...lastGenerateResult,
+      failed_items: (lastGenerateResult.failed_items || []).map((item, index) => {
+        const assignment =
+          assignmentMap.get(`${item.teacher_id}:${item.subject_id}:${item.class_id}`) || {};
+        return {
+          key: `${item.teacher_id}:${item.subject_id}:${item.class_id}:${item.meeting_no || index}`,
+          ...item,
+          teacher_name: assignment.teacher_name,
+          subject_name: assignment.subject_name,
+          class_name: assignment.class_name,
+        };
+      }),
+    };
+  }, [lastGenerateResult, teacherAssignments]);
+
   const openEditor = useCallback(
     (record) => {
       setEditing(record);
@@ -274,6 +322,21 @@ const ScheduleTimetableCard = ({
     setOpenModal(false);
     setEditing(null);
   };
+
+  const openGenerateDialog = useCallback(() => {
+    generateForm.setFieldsValue({
+      action: "regenerate_generated",
+      dry_run: false,
+    });
+    setOpenGenerateModal(true);
+  }, [generateForm]);
+
+  const handleGenerateSubmit = useCallback(async () => {
+    const values = await generateForm.validateFields();
+    const response = await onGenerate(values);
+    setLastGenerateResult(response?.data || null);
+    setOpenGenerateModal(false);
+  }, [generateForm, onGenerate]);
 
   const currentDay = Form.useWatch("day_of_week", form);
   const slotStartOptions = useMemo(() => {
@@ -638,6 +701,41 @@ const ScheduleTimetableCard = ({
     },
   ];
 
+  const generateAction = Form.useWatch("action", generateForm);
+  const generatePreview = Form.useWatch("dry_run", generateForm);
+
+  const failedColumns = [
+    {
+      title: "Guru / Mapel / Kelas",
+      key: "assignment",
+      render: (_, record) => (
+        <Space direction='vertical' size={0}>
+          <Text strong>{record.teacher_name || `Guru #${record.teacher_id}`}</Text>
+          <Text type='secondary'>
+            {record.subject_name || `Mapel #${record.subject_id}`} |{" "}
+            {record.class_name || `Kelas #${record.class_id}`}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Pertemuan",
+      key: "meeting",
+      width: 120,
+      render: (_, record) => (
+        <Tag color='gold'>
+          #{record.meeting_no} / {record.chunk_size} sesi
+        </Tag>
+      ),
+    },
+    {
+      title: "Alasan Utama",
+      dataIndex: "failure_reason",
+      key: "failure_reason",
+      width: 260,
+    },
+  ];
+
   return (
     <Card
       style={{
@@ -667,7 +765,7 @@ const ScheduleTimetableCard = ({
             <Button
               type='primary'
               icon={<Sparkles size={14} />}
-              onClick={onGenerate}
+              onClick={openGenerateDialog}
               loading={loading}
             >
               Generate
@@ -693,6 +791,73 @@ const ScheduleTimetableCard = ({
             )
             .join(" | ")}${sessionShortages.length > 4 ? " | ..." : ""}`}
         />
+      ) : null}
+
+      {displayGenerateResult ? (
+        <Card
+          size='small'
+          style={{
+            marginBottom: 20,
+            borderRadius: 18,
+            borderColor: "#ead9cc",
+            background: "#fffaf4",
+          }}
+          title='Ringkasan Generate Terakhir'
+        >
+          <Space direction='vertical' size={12} style={{ width: "100%" }}>
+            <Alert
+              showIcon
+              type={
+                displayGenerateResult.dry_run
+                  ? "info"
+                  : (displayGenerateResult.failed_items || []).length > 0
+                    ? "warning"
+                    : "success"
+              }
+              message={
+                displayGenerateResult.dry_run
+                  ? "Mode simulasi"
+                  : displayGenerateResult.operation === "reset_generated"
+                    ? "Reset jadwal otomatis"
+                    : "Generate jadwal"
+              }
+              description={`Aksi: ${GENERATE_ACTION_OPTIONS.find((item) => item.value === displayGenerateResult.action)?.label || displayGenerateResult.action}. Generated: ${displayGenerateResult.summary?.generated_entries || 0}. Konflik: ${displayGenerateResult.summary?.failed_count || 0}. Generated lama yang dibersihkan: ${displayGenerateResult.summary?.deleted_generated_entries || 0}.`}
+            />
+
+            <Space wrap>
+              <Tag color='blue'>Load: {displayGenerateResult.summary?.total_loads || 0}</Tag>
+              <Tag color='geekblue'>Slot: {displayGenerateResult.summary?.total_slots || 0}</Tag>
+              <Tag color='purple'>Rule guru: {displayGenerateResult.summary?.weekly_rules || 0}</Tag>
+              <Tag color='gold'>
+                Manual tersimpan: {displayGenerateResult.summary?.existing_entries?.manual_entries || 0}
+              </Tag>
+              <Tag color='red'>
+                Locked tersimpan: {displayGenerateResult.summary?.existing_entries?.locked_entries || 0}
+              </Tag>
+            </Space>
+
+            {(displayGenerateResult.failed_summary || []).length > 0 ? (
+              <Space wrap>
+                {displayGenerateResult.failed_summary.map((item) => (
+                  <Tag key={item.code} color='orange'>
+                    {item.label}: {item.count}
+                  </Tag>
+                ))}
+              </Space>
+            ) : null}
+
+            {(displayGenerateResult.failed_items || []).length > 0 ? (
+              <Table
+                rowKey='key'
+                size='small'
+                columns={failedColumns}
+                dataSource={displayGenerateResult.failed_items.slice(0, 10)}
+                pagination={false}
+                scroll={{ x: 720 }}
+              />
+            ) : null}
+          </Space>
+        </Card>
       ) : null}
 
       {!timetableRows.length ? (
@@ -760,6 +925,62 @@ const ScheduleTimetableCard = ({
           </Card>
         </Space>
       )}
+
+      <Modal
+        open={openGenerateModal}
+        title='Generate Jadwal'
+        onCancel={() => setOpenGenerateModal(false)}
+        onOk={handleGenerateSubmit}
+        okText={generatePreview ? "Jalankan Simulasi" : "Jalankan"}
+        confirmLoading={loading}
+      >
+        <Form form={generateForm} layout='vertical'>
+          <Form.Item
+            name='action'
+            label='Aksi'
+            rules={[{ required: true }]}
+          >
+            <Select
+              options={GENERATE_ACTION_OPTIONS.map((item) => ({
+                value: item.value,
+                label: item.label,
+              }))}
+            />
+          </Form.Item>
+          <Alert
+            showIcon
+            type='info'
+            style={{ marginBottom: 16 }}
+            message={
+              GENERATE_ACTION_OPTIONS.find((item) => item.value === generateAction)
+                ?.label || "Generate"
+            }
+            description={
+              GENERATE_ACTION_OPTIONS.find((item) => item.value === generateAction)
+                ?.description || "-"
+            }
+          />
+          <Form.Item
+            name='dry_run'
+            label='Simulasi terlebih dahulu'
+            valuePropName='checked'
+          >
+            <Switch checkedChildren='Simulasi' unCheckedChildren='Eksekusi' />
+          </Form.Item>
+          <Alert
+            showIcon
+            type={generatePreview ? "warning" : "success"}
+            message={generatePreview ? "Tidak ada data yang diubah" : "Perubahan akan diterapkan"}
+            description={
+              generatePreview
+                ? "Sistem hanya menghitung hasil, konflik, dan jumlah entri yang bisa dibuat."
+                : generateAction === "reset_generated"
+                  ? "Semua jadwal otomatis yang tidak dikunci dan bukan manual override akan dibersihkan."
+                  : "Sistem akan menulis hasil generate sesuai aksi yang dipilih."
+            }
+          />
+        </Form>
+      </Modal>
 
       <Modal
         open={openModal}

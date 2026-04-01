@@ -6,7 +6,10 @@ import RouteProtection from "../../utils/RouteProtection";
 const LmsManagement = lazy(
   () => import("../../module/lms/manager/LmsManagement"),
 );
-const Schedule = lazy(() => import("../../module/lms/schedule/Schedule"));
+const Schedule = lazy(() => import("../../module/lms/schedule/admin/Schedule"));
+const TeacherSchedule = lazy(
+  () => import("../../module/lms/schedule/teacher/TeacherSchedule"),
+);
 const Duty = lazy(() => import("../../module/lms/duty/Duty"));
 
 const renderLmsRoutes = ({ LazyRoute }) => (
@@ -31,6 +34,14 @@ const renderLmsRoutes = ({ LazyRoute }) => (
       element={createElement(LazyRoute, {
         title: "Manajemen Jadwal",
         Component: Schedule,
+      })}
+    />
+
+    <Route
+      path='/jadwal-guru'
+      element={createElement(LazyRoute, {
+        title: "Jadwal Guru",
+        Component: TeacherSchedule,
       })}
     />
 

@@ -133,6 +133,32 @@ const AppLayout = ({ children, title, asShell = false }) => {
       return nextItem;
     });
 
+  const filterMenuItemsByUser = (items, currentUser) =>
+    items
+      .map((item) => {
+        if (
+          currentUser?.role === "teacher" &&
+          item.key === "/manajemen-piket" &&
+          !currentUser?.has_duty_today
+        ) {
+          return null;
+        }
+
+        if (Array.isArray(item.children)) {
+          const nextChildren = filterMenuItemsByUser(item.children, currentUser);
+          if (nextChildren.length === 0) {
+            return null;
+          }
+          return {
+            ...item,
+            children: nextChildren,
+          };
+        }
+
+        return item;
+      })
+      .filter(Boolean);
+
   // Ant Design Token
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -170,7 +196,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
       default:
         items = [];
     }
-    setMenuItems(enhanceMenuItems(items));
+    setMenuItems(enhanceMenuItems(filterMenuItemsByUser(items, user)));
   }, [user]);
 
   useEffect(() => {

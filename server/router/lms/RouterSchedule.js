@@ -75,6 +75,45 @@ const gapSatisfied = (
   return false;
 };
 
+const GENERATE_ACTIONS = new Set([
+  "generate_new",
+  "regenerate_generated",
+  "reset_generated",
+]);
+
+const FAILURE_LABELS = {
+  no_day_slots: "Tidak ada slot tersedia pada hari sekolah aktif.",
+  same_day_rule: "Aturan hari yang berbeda untuk mapel yang sama tidak terpenuhi.",
+  no_contiguous_segment: "Tidak ditemukan slot berurutan sesuai kebutuhan sesi.",
+  gap_rule: "Jarak minimal antarsesi mapel yang sama tidak terpenuhi.",
+  class_conflict: "Slot kelas sudah terisi.",
+  teacher_conflict: "Slot guru sudah terisi.",
+  teacher_unavailability: "Guru tidak tersedia pada slot tersebut.",
+  no_available_slot: "Tidak ada kombinasi slot yang dapat dipakai.",
+};
+
+const summarizeFailureStats = (stats = {}) =>
+  Object.entries(stats)
+    .filter(([, count]) => Number(count) > 0)
+    .sort((left, right) => Number(right[1]) - Number(left[1]))
+    .map(([code, count]) => ({
+      code,
+      count: Number(count),
+      label: FAILURE_LABELS[code] || code,
+    }));
+
+const getPrimaryFailureCode = (stats = {}) => {
+  const sorted = summarizeFailureStats(stats);
+  return sorted[0]?.code || "no_available_slot";
+};
+
+const aggregateFailureCodes = (failedItems = []) =>
+  failedItems.reduce((acc, item) => {
+    const code = item.failure_code || "no_available_slot";
+    acc[code] = (acc[code] || 0) + 1;
+    return acc;
+  }, {});
+
 router.get(
   "/schedule/bootstrap",
   authorize("satuan", "teacher", "student"),
@@ -302,8 +341,7 @@ router.get(
         subjects: subjectResult.rows,
         teachers: teacherResult.rows,
         grades: gradeResult.rows,
-        can_manage:
-          role === "admin" && (admin_level === "satuan" || admin_level === "center"),
+        can_manage: role === "admin" && admin_level === "satuan",
       },
     });
   }),
@@ -344,6 +382,23 @@ router.put(
       return res.status(400).json({
         status: "error",
         message: "Template hari wajib diisi minimal 1 hari.",
+      });
+    }
+
+    const existingEntryResult = await client.query(
+      `SELECT 1
+       FROM lms.l_schedule_entry
+       WHERE homebase_id = $1
+         AND periode_id = $2
+         AND status <> 'archived'
+       LIMIT 1`,
+      [homebase_id, periodeId],
+    );
+    if (existingEntryResult.rowCount > 0) {
+      return res.status(409).json({
+        status: "error",
+        message:
+          "Konfigurasi slot tidak dapat diubah karena jadwal sudah dibuat. Kosongkan atau arsipkan jadwal periode ini terlebih dahulu.",
       });
     }
 
@@ -548,6 +603,28 @@ router.post(
       return res.status(400).json({
         status: "error",
         message: "class_id, subject_id, teacher_id, dan weekly_sessions wajib diisi.",
+      });
+    }
+
+    const assignmentValidation = await client.query(
+      `SELECT 1
+       FROM public.at_subject ats
+       JOIN public.u_teachers t ON t.user_id = ats.teacher_id
+       JOIN public.a_subject s ON s.id = ats.subject_id
+       JOIN public.a_class c ON c.id = ats.class_id
+       WHERE ats.teacher_id = $1
+         AND ats.subject_id = $2
+         AND ats.class_id = $3
+         AND t.homebase_id = $4
+         AND s.homebase_id = $4
+         AND c.homebase_id = $4
+       LIMIT 1`,
+      [payload[4], payload[3], payload[2], homebase_id],
+    );
+    if (assignmentValidation.rowCount === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Kombinasi guru, mapel, dan kelas tidak ditemukan di alokasi mengajar.",
       });
     }
 
@@ -854,6 +931,14 @@ router.post(
           .filter((item) => item.day_of_week || item.specific_date)
       : null;
 
+    if (normalizedEntries?.some((item) => item.specific_date)) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "Ketentuan jadwal otomatis hanya mendukung aturan mingguan berbasis hari. specific_date tidak digunakan di modul ini.",
+      });
+    }
+
     if (normalizedEntries) {
       if (normalizedEntries.length === 0) {
         return res.status(400).json({
@@ -949,10 +1034,18 @@ router.post(
       });
     }
 
-    if (!toInt(day_of_week, null) && !specific_date) {
+    if (specific_date) {
       return res.status(400).json({
         status: "error",
-        message: "Salah satu day_of_week/specific_date wajib diisi.",
+        message:
+          "Ketentuan jadwal otomatis hanya mendukung aturan mingguan berbasis hari. specific_date tidak digunakan di modul ini.",
+      });
+    }
+
+    if (!toInt(day_of_week, null)) {
+      return res.status(400).json({
+        status: "error",
+        message: "day_of_week wajib diisi untuk ketentuan jadwal otomatis.",
       });
     }
 
@@ -1025,6 +1118,10 @@ router.post(
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
+    const action = GENERATE_ACTIONS.has(req.body?.action)
+      ? req.body.action
+      : "regenerate_generated";
+    const dryRun = Boolean(req.body?.dry_run);
     const periodeId = await ensureActivePeriode(
       client,
       homebase_id,
@@ -1051,63 +1148,80 @@ router.post(
       });
     }
 
-    const [loadResult, slotResult, unavailabilityResult] = await Promise.all([
-      client.query(
-        `SELECT *
-         FROM lms.l_teaching_load
-         WHERE homebase_id = $1
-           AND periode_id = $2
-           AND is_active = true
-         ORDER BY class_id, subject_id, teacher_id`,
-        [homebase_id, periodeId],
-      ),
-      client.query(
-        `SELECT *
-         FROM lms.l_time_slot
-         WHERE config_id = $1
-           AND is_break = false
-         ORDER BY day_of_week, slot_no`,
-        [config.id],
-      ),
-      client.query(
-        `SELECT *
-         FROM lms.l_teacher_unavailability
-         WHERE periode_id = $1
-           AND is_active = true
-           AND specific_date IS NULL`,
-        [periodeId],
-      ),
-    ]);
+    const [loadResult, slotResult, unavailabilityResult, existingEntrySummaryResult] =
+      await Promise.all([
+        client.query(
+          `SELECT *
+           FROM lms.l_teaching_load
+           WHERE homebase_id = $1
+             AND periode_id = $2
+             AND is_active = true
+           ORDER BY class_id, subject_id, teacher_id`,
+          [homebase_id, periodeId],
+        ),
+        client.query(
+          `SELECT *
+           FROM lms.l_time_slot
+           WHERE config_id = $1
+             AND is_break = false
+           ORDER BY day_of_week, slot_no`,
+          [config.id],
+        ),
+        client.query(
+          `SELECT *
+           FROM lms.l_teacher_unavailability
+           WHERE periode_id = $1
+             AND is_active = true
+             AND specific_date IS NULL`,
+          [periodeId],
+        ),
+        client.query(
+          `SELECT
+             COUNT(*) FILTER (WHERE status <> 'archived')::int AS total_entries,
+             COUNT(*) FILTER (
+               WHERE status <> 'archived'
+                 AND source_type = 'generated'
+                 AND COALESCE(locked, false) = false
+                 AND COALESCE(is_manual_override, false) = false
+             )::int AS generated_replaceable_entries,
+             COUNT(*) FILTER (
+               WHERE status <> 'archived'
+                 AND (source_type = 'manual' OR COALESCE(is_manual_override, false) = true)
+             )::int AS manual_entries,
+             COUNT(*) FILTER (
+               WHERE status <> 'archived'
+                 AND COALESCE(locked, false) = true
+             )::int AS locked_entries
+           FROM lms.l_schedule_entry
+           WHERE homebase_id = $1
+             AND periode_id = $2`,
+          [homebase_id, periodeId],
+        ),
+      ]);
 
-    const runResult = await client.query(
-      `INSERT INTO lms.l_schedule_generation_run (config_id, generated_by, strategy, status)
-       VALUES ($1, $2, $3, 'running')
-       RETURNING *`,
-      [config.id, userId, "greedy-first-fit"],
-    );
-    const run = runResult.rows[0];
+    const existingSummary = existingEntrySummaryResult.rows[0] || {
+      total_entries: 0,
+      generated_replaceable_entries: 0,
+      manual_entries: 0,
+      locked_entries: 0,
+    };
 
-    await client.query(
-      `DELETE FROM lms.l_schedule_entry_slot ess
-       USING lms.l_schedule_entry e
-       WHERE ess.schedule_entry_id = e.id
-         AND e.homebase_id = $1
-         AND e.periode_id = $2
-         AND e.source_type = 'generated'
-         AND COALESCE(e.locked, false) = false
-         AND COALESCE(e.is_manual_override, false) = false`,
-      [homebase_id, periodeId],
-    );
+    if (action === "generate_new" && Number(existingSummary.total_entries || 0) > 0) {
+      return res.status(409).json({
+        status: "error",
+        message:
+          "Generate baru hanya dapat dijalankan saat periode ini belum memiliki jadwal. Gunakan regenerate atau reset generated schedule.",
+        data: {
+          action,
+          dry_run: dryRun,
+          existing_entries: existingSummary,
+        },
+      });
+    }
 
-    await client.query(
-      `DELETE FROM lms.l_schedule_entry
-       WHERE homebase_id = $1
-         AND periode_id = $2
-         AND source_type = 'generated'
-         AND COALESCE(locked, false) = false
-         AND COALESCE(is_manual_override, false) = false`,
-      [homebase_id, periodeId],
-    );
+    const shouldClearGenerated =
+      action === "regenerate_generated" || action === "reset_generated";
+    const deletableGeneratedCount = Number(existingSummary.generated_replaceable_entries || 0);
 
     const occupiedClassSlot = new Set();
     const occupiedTeacherSlot = new Set();
@@ -1118,8 +1232,14 @@ router.post(
        JOIN lms.l_schedule_entry e ON e.id = ess.schedule_entry_id
        WHERE e.homebase_id = $1
          AND e.periode_id = $2
-         AND e.status <> 'archived'`,
-      [homebase_id, periodeId],
+         AND e.status <> 'archived'
+         AND NOT (
+           $3::boolean = true
+           AND e.source_type = 'generated'
+           AND COALESCE(e.locked, false) = false
+           AND COALESCE(e.is_manual_override, false) = false
+         )`,
+      [homebase_id, periodeId, shouldClearGenerated],
     );
 
     for (const item of preservedSlots.rows) {
@@ -1148,6 +1268,102 @@ router.post(
       return acc;
     }, new Map());
 
+    const baseSummary = {
+      total_loads: loadResult.rowCount,
+      total_slots: slotResult.rowCount,
+      weekly_rules: unavailabilityResult.rowCount,
+      deleted_generated_entries: shouldClearGenerated ? deletableGeneratedCount : 0,
+      existing_entries: {
+        total_entries: Number(existingSummary.total_entries || 0),
+        generated_replaceable_entries: deletableGeneratedCount,
+        manual_entries: Number(existingSummary.manual_entries || 0),
+        locked_entries: Number(existingSummary.locked_entries || 0),
+      },
+      action,
+      dry_run: dryRun,
+    };
+
+    if (action === "reset_generated") {
+      if (!dryRun && deletableGeneratedCount > 0) {
+        await client.query(
+          `DELETE FROM lms.l_schedule_entry_slot ess
+           USING lms.l_schedule_entry e
+           WHERE ess.schedule_entry_id = e.id
+             AND e.homebase_id = $1
+             AND e.periode_id = $2
+             AND e.source_type = 'generated'
+             AND COALESCE(e.locked, false) = false
+             AND COALESCE(e.is_manual_override, false) = false`,
+          [homebase_id, periodeId],
+        );
+
+        await client.query(
+          `DELETE FROM lms.l_schedule_entry
+           WHERE homebase_id = $1
+             AND periode_id = $2
+             AND source_type = 'generated'
+             AND COALESCE(locked, false) = false
+             AND COALESCE(is_manual_override, false) = false`,
+          [homebase_id, periodeId],
+        );
+      }
+
+      return res.json({
+        status: "success",
+        message: dryRun
+          ? "Simulasi reset jadwal otomatis selesai."
+          : "Jadwal otomatis berhasil direset.",
+        data: {
+          operation: dryRun ? "preview_reset" : "reset_generated",
+          action,
+          dry_run: dryRun,
+          generated_entries: 0,
+          failed_items: [],
+          failed_summary: [],
+          summary: {
+            ...baseSummary,
+            generated_entries: 0,
+            failed_count: 0,
+          },
+        },
+      });
+    }
+
+    let run = null;
+    if (!dryRun) {
+      const runResult = await client.query(
+        `INSERT INTO lms.l_schedule_generation_run (config_id, generated_by, strategy, status)
+         VALUES ($1, $2, $3, 'running')
+         RETURNING *`,
+        [config.id, userId, "greedy-first-fit"],
+      );
+      run = runResult.rows[0];
+
+      if (shouldClearGenerated) {
+        await client.query(
+          `DELETE FROM lms.l_schedule_entry_slot ess
+           USING lms.l_schedule_entry e
+           WHERE ess.schedule_entry_id = e.id
+             AND e.homebase_id = $1
+             AND e.periode_id = $2
+             AND e.source_type = 'generated'
+             AND COALESCE(e.locked, false) = false
+             AND COALESCE(e.is_manual_override, false) = false`,
+          [homebase_id, periodeId],
+        );
+
+        await client.query(
+          `DELETE FROM lms.l_schedule_entry
+           WHERE homebase_id = $1
+             AND periode_id = $2
+             AND source_type = 'generated'
+             AND COALESCE(locked, false) = false
+             AND COALESCE(is_manual_override, false) = false`,
+          [homebase_id, periodeId],
+        );
+      }
+    }
+
     const failedItems = [];
     let insertedCount = 0;
 
@@ -1165,10 +1381,22 @@ router.post(
         const allowSameDayWithGap = Boolean(load.allow_same_day_with_gap);
         const effectiveGap = toInt(load.minimum_gap_slots, 0);
         const disallowSameSubjectSameDay = effectiveGap === 0;
+        const attemptStats = {
+          no_day_slots: 0,
+          same_day_rule: 0,
+          no_contiguous_segment: 0,
+          gap_rule: 0,
+          class_conflict: 0,
+          teacher_conflict: 0,
+          teacher_unavailability: 0,
+        };
 
         for (let day = 1; day <= 7 && !chosen; day += 1) {
           const daySlots = slotByDay.get(day) || [];
-          if (!daySlots.length) continue;
+          if (!daySlots.length) {
+            attemptStats.no_day_slots += 1;
+            continue;
+          }
 
           const existingSameDayMeetings = meetingsPlaced.filter(
             (meeting) => Number(meeting.day_of_week) === day,
@@ -1179,10 +1407,12 @@ router.post(
             requireDifferentDays &&
             !allowSameDayWithGap
           ) {
+            attemptStats.same_day_rule += 1;
             continue;
           }
 
           if (existingSameDayMeetings.length > 0 && disallowSameSubjectSameDay) {
+            attemptStats.same_day_rule += 1;
             continue;
           }
 
@@ -1191,7 +1421,10 @@ router.post(
             const contiguous = segment.every((slot, idx) =>
               idx === 0 ? true : Number(slot.slot_no) === Number(segment[idx - 1].slot_no) + 1,
             );
-            if (!contiguous) continue;
+            if (!contiguous) {
+              attemptStats.no_contiguous_segment += 1;
+              continue;
+            }
 
             const startSlotNo = Number(segment[0].slot_no);
             const endSlotNo = Number(segment[segment.length - 1].slot_no);
@@ -1206,15 +1439,23 @@ router.post(
                   effectiveGap,
                 ),
               );
-              if (!passGap) continue;
+              if (!passGap) {
+                attemptStats.gap_rule += 1;
+                continue;
+              }
             }
 
-            const isBusy = segment.some((slot) => {
-              const classKey = `${day}:${slot.id}:${load.class_id}`;
-              const teacherKey = `${day}:${slot.id}:${load.teacher_id}`;
-              return occupiedClassSlot.has(classKey) || occupiedTeacherSlot.has(teacherKey);
-            });
-            if (isBusy) continue;
+            const hasClassConflict = segment.some((slot) =>
+              occupiedClassSlot.has(`${day}:${slot.id}:${load.class_id}`),
+            );
+            const hasTeacherConflict = segment.some((slot) =>
+              occupiedTeacherSlot.has(`${day}:${slot.id}:${load.teacher_id}`),
+            );
+            if (hasClassConflict || hasTeacherConflict) {
+              if (hasClassConflict) attemptStats.class_conflict += 1;
+              if (hasTeacherConflict) attemptStats.teacher_conflict += 1;
+              continue;
+            }
 
             const teacherBlocks = blockedByTeacher.get(Number(load.teacher_id)) || [];
             const violatingBlock = segment.some((slot) => {
@@ -1231,7 +1472,10 @@ router.post(
                 );
               });
             });
-            if (violatingBlock) continue;
+            if (violatingBlock) {
+              attemptStats.teacher_unavailability += 1;
+              continue;
+            }
 
             chosen = { day_of_week: day, segment };
             break;
@@ -1239,65 +1483,78 @@ router.post(
         }
 
         if (!chosen) {
+          const failureCode = getPrimaryFailureCode(attemptStats);
           failedItems.push({
+            teaching_load_id: load.id,
             class_id: load.class_id,
             subject_id: load.subject_id,
             teacher_id: load.teacher_id,
             weekly_sessions: load.weekly_sessions,
+            meeting_no: chunkIndex + 1,
+            chunk_size: chunkSize,
+            failure_code: failureCode,
+            failure_reason: FAILURE_LABELS[failureCode] || FAILURE_LABELS.no_available_slot,
+            failure_summary: summarizeFailureStats(attemptStats),
+            debug_counts: attemptStats,
             reason: `Tidak ada slot tersedia untuk pertemuan ke-${chunkIndex + 1}.`,
           });
           break;
         }
 
-        const insertedEntry = await client.query(
-          `INSERT INTO lms.l_schedule_entry (
-             homebase_id,
-             periode_id,
-             teaching_load_id,
-             class_id,
-             subject_id,
-             teacher_id,
-             day_of_week,
-             slot_start_id,
-             slot_count,
-             meeting_no,
-             source_type,
-             status,
-             generated_run_id,
-             created_by
-           )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'generated', 'draft', $11, $12)
-           RETURNING *`,
-          [
-            homebase_id,
-            periodeId,
-            load.id,
-            load.class_id,
-            load.subject_id,
-            load.teacher_id,
-            chosen.day_of_week,
-            chosen.segment[0].id,
-            chunkSize,
-            chunkIndex + 1,
-            run.id,
-            userId,
-          ],
-        );
-        const entryId = insertedEntry.rows[0].id;
+        if (!dryRun && run) {
+          const insertedEntry = await client.query(
+            `INSERT INTO lms.l_schedule_entry (
+               homebase_id,
+               periode_id,
+               teaching_load_id,
+               class_id,
+               subject_id,
+               teacher_id,
+               day_of_week,
+               slot_start_id,
+               slot_count,
+               meeting_no,
+               source_type,
+               status,
+               generated_run_id,
+               created_by
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'generated', 'draft', $11, $12)
+             RETURNING *`,
+            [
+              homebase_id,
+              periodeId,
+              load.id,
+              load.class_id,
+              load.subject_id,
+              load.teacher_id,
+              chosen.day_of_week,
+              chosen.segment[0].id,
+              chunkSize,
+              chunkIndex + 1,
+              run.id,
+              userId,
+            ],
+          );
+          const entryId = insertedEntry.rows[0].id;
+
+          for (const slot of chosen.segment) {
+            await client.query(
+              `INSERT INTO lms.l_schedule_entry_slot (
+                 schedule_entry_id,
+                 periode_id,
+                 day_of_week,
+                 slot_id,
+                 class_id,
+                 teacher_id
+               )
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [entryId, periodeId, chosen.day_of_week, slot.id, load.class_id, load.teacher_id],
+            );
+          }
+        }
 
         for (const slot of chosen.segment) {
-          await client.query(
-            `INSERT INTO lms.l_schedule_entry_slot (
-               schedule_entry_id,
-               periode_id,
-               day_of_week,
-               slot_id,
-               class_id,
-               teacher_id
-             )
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [entryId, periodeId, chosen.day_of_week, slot.id, load.class_id, load.teacher_id],
-          );
           occupiedClassSlot.add(`${chosen.day_of_week}:${slot.id}:${load.class_id}`);
           occupiedTeacherSlot.add(`${chosen.day_of_week}:${slot.id}:${load.teacher_id}`);
         }
@@ -1311,26 +1568,54 @@ router.post(
       }
     }
 
-    await client.query(
-      `UPDATE lms.l_schedule_generation_run
-       SET status = $2,
-           notes = $3
-       WHERE id = $1`,
-      [
-        run.id,
-        failedItems.length ? "failed" : "success",
-        failedItems.length ? JSON.stringify(failedItems) : `Generated ${insertedCount} entries`,
-      ],
+    const failedSummary = Object.entries(aggregateFailureCodes(failedItems)).map(
+      ([code, count]) => ({
+        code,
+        count,
+        label: FAILURE_LABELS[code] || code,
+      }),
     );
+
+    if (!dryRun && run) {
+      await client.query(
+        `UPDATE lms.l_schedule_generation_run
+         SET status = $2,
+             notes = $3
+         WHERE id = $1`,
+        [
+          run.id,
+          failedItems.length ? "failed" : "success",
+          failedItems.length
+            ? JSON.stringify({
+                failed_summary: failedSummary,
+                failed_items: failedItems,
+              })
+            : `Generated ${insertedCount} entries`,
+        ],
+      );
+    }
 
     return res.json({
       status: "success",
-      message: failedItems.length
-        ? "Generate selesai dengan beberapa konflik."
-        : "Generate jadwal berhasil.",
+      message: dryRun
+        ? failedItems.length
+          ? "Simulasi generate selesai dengan beberapa konflik."
+          : "Simulasi generate berhasil."
+        : failedItems.length
+          ? "Generate selesai dengan beberapa konflik."
+          : "Generate jadwal berhasil.",
       data: {
+        operation: dryRun ? "preview_generate" : action,
+        action,
+        dry_run: dryRun,
         generated_entries: insertedCount,
         failed_items: failedItems,
+        failed_summary: failedSummary,
+        summary: {
+          ...baseSummary,
+          generated_entries: insertedCount,
+          failed_count: failedItems.length,
+        },
       },
     });
   }),
@@ -1461,7 +1746,7 @@ router.patch(
            is_manual_override = true,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
-      [entryId, nextDay, nextSlotStartId, nextSlotCount],
+      [entryId, nextDay, segmentResult.rows[0].id, nextSlotCount],
     );
 
     await client.query(`DELETE FROM lms.l_schedule_entry_slot WHERE schedule_entry_id = $1`, [
@@ -1508,7 +1793,7 @@ router.patch(
         }),
         JSON.stringify({
           day_of_week: nextDay,
-          slot_start_id: nextSlotStartId,
+          slot_start_id: segmentResult.rows[0].id,
           slot_count: nextSlotCount,
         }),
         userId,
