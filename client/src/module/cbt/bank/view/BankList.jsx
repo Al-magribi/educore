@@ -194,7 +194,7 @@ const BankList = () => {
     return (
       <Card
         hoverable
-        size='small'
+        size="small"
         style={{
           height: "100%",
           borderRadius: 16,
@@ -210,11 +210,11 @@ const BankList = () => {
           },
         }}
         title={
-          <Flex justify='space-between' align='center'>
+          <Flex justify="space-between" align="center">
             <Tag color={color}>{item.type}</Tag>
-            <Flex align='center' gap={4}>
-              <Calendar size={12} color='#999' />
-              <Text type='secondary' style={{ fontSize: 11 }}>
+            <Flex align="center" gap={4}>
+              <Calendar size={12} color="#999" />
+              <Text type="secondary" style={{ fontSize: 11 }}>
                 {new Date(item.created_at).toLocaleDateString("id-ID", {
                   day: "numeric",
                   month: "short",
@@ -225,7 +225,7 @@ const BankList = () => {
           </Flex>
         }
         actions={[
-          <Tooltip title='Lihat Soal' key='view'>
+          <Tooltip title="Lihat Soal" key="view">
             <div style={{ display: "flex", justifyContent: "center" }}>
               <MessageCircleQuestionMark
                 size={16}
@@ -235,7 +235,7 @@ const BankList = () => {
               />
             </div>
           </Tooltip>,
-          <Tooltip title='Edit' key='edit'>
+          <Tooltip title="Edit" key="edit">
             <div
               onClick={() => openForm(item)}
               style={{ display: "flex", justifyContent: "center" }}
@@ -243,12 +243,12 @@ const BankList = () => {
               <Edit size={16} />
             </div>
           </Tooltip>,
-          <Tooltip title='Hapus' key='delete'>
+          <Tooltip title="Hapus" key="delete">
             <Popconfirm
-              title='Hapus Bank Soal?'
+              title="Hapus Bank Soal?"
               onConfirm={() => handleDelete(item.id)}
-              okText='Ya'
-              cancelText='Batal'
+              okText="Ya"
+              cancelText="Batal"
               okButtonProps={{ danger: true }}
             >
               <div style={{ display: "flex", justifyContent: "center" }}>
@@ -258,7 +258,7 @@ const BankList = () => {
           </Tooltip>,
         ]}
       >
-        <Flex gap='middle' align='start' style={{ marginBottom: 12 }}>
+        <Flex gap="middle" align="start" style={{ marginBottom: 12 }}>
           <div
             style={{
               background: token.colorPrimaryBg,
@@ -281,13 +281,13 @@ const BankList = () => {
                 {item.title}
               </Title>
             </Tooltip>
-            <Text type='secondary' style={{ fontSize: 12 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
               {item.subject_name || "Mapel Umum"}
             </Text>
           </div>
         </Flex>
 
-        <Flex align='center' gap={8} style={{ marginTop: "auto" }}>
+        <Flex align="center" gap={8} style={{ marginTop: "auto" }}>
           <Avatar
             size={22}
             style={{
@@ -311,184 +311,131 @@ const BankList = () => {
       {view === "questions" ? (
         <Suspense
           fallback={
-            <Flex justify='center' align='center' style={{ minHeight: 300 }}>
-              <Spin size='large' />
+            <Flex justify="center" align="center" style={{ minHeight: 300 }}>
+              <Spin size="large" />
             </Flex>
           }
         >
           <QuestionsList />
         </Suspense>
       ) : (
-        <Layout
-          style={{
-            minHeight: "100vh",
-            background:
-              "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
-          }}
-        >
-          <Content style={{ padding: screens.md ? "24px" : "12px" }}>
-            <Card
-              bordered={false}
-              style={{
-                marginBottom: 20,
-                borderRadius: 24,
-                overflow: "hidden",
-                background:
-                  "linear-gradient(135deg, #0f172a 0%, #7c3aed 52%, #ec4899 100%)",
-              }}
-              styles={{ body: { padding: screens.md ? 28 : 20 } }}
-            >
-              <Flex
-                justify='space-between'
-                align={screens.md ? "center" : "start"}
-                vertical={!screens.md}
-                gap={20}
+        <>
+          <Flex gap={16} wrap="wrap" style={{ marginBottom: 20 }}>
+            {summaryCards.map((item) => (
+              <Card
+                key={item.key}
+                style={{
+                  flex: screens.xl
+                    ? "1 1 0"
+                    : screens.md
+                      ? "1 1 calc(50% - 8px)"
+                      : "1 1 100%",
+                  minWidth: screens.md ? 0 : "100%",
+                }}
+                styles={{ body: { padding: "18px 20px" } }}
+                hoverable
               >
-                <div>
-                  <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                    CBT / Bank Soal
-                  </Text>
-                  <Title
-                    level={2}
-                    style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
-                  >
-                    Direktori Bank Soal
-                  </Title>
-                  <Text
-                    style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}
-                  >
-                    Kelola bank soal, lihat pertanyaan, dan gabungkan bank dari
-                    satu panel kerja.
-                  </Text>
-                </div>
-              </Flex>
-            </Card>
-
-            <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-              {summaryCards.map((item) => (
-                <Card
-                  key={item.key}
-                  bordered={false}
-                  style={{
-                    flex: screens.xl
-                      ? "1 1 0"
-                      : screens.md
-                        ? "1 1 calc(50% - 8px)"
-                        : "1 1 100%",
-                    minWidth: screens.md ? 0 : "100%",
-                    borderRadius: 20,
-                    background: "rgba(255,255,255,0.88)",
-                    boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-                  }}
-                  styles={{ body: { padding: "18px 20px" } }}
-                >
-                  <Flex justify='space-between' align='start'>
-                    <Statistic title={item.title} value={item.value} />
-                    <div
-                      style={{
-                        width: 42,
-                        height: 42,
-                        display: "grid",
-                        placeItems: "center",
-                        borderRadius: 14,
-                        background: item.bg,
-                        color: item.color,
-                      }}
-                    >
-                      {item.icon}
-                    </div>
-                  </Flex>
-                </Card>
-              ))}
-            </Flex>
-
-            <Card
-              bordered={false}
-              style={{
-                marginBottom: 18,
-                borderRadius: 22,
-                background: "rgba(255,255,255,0.92)",
-                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-              }}
-              styles={{ body: { padding: screens.md ? 20 : 16 } }}
-            >
-              <Flex
-                align={screens.md ? "center" : "stretch"}
-                justify='space-between'
-                vertical={!screens.md}
-                gap={16}
-              >
-                <div>
-                  <Title level={4} style={{ margin: 0 }}>
-                    Filter dan Aksi
-                  </Title>
-                  <Text type='secondary'>
-                    Cari bank soal, buat bank baru, atau gabungkan beberapa bank.
-                  </Text>
-                </div>
-
-                <Flex
-                  gap={10}
-                  vertical={!screens.md}
-                  style={{ width: !screens.md ? "100%" : "auto" }}
-                >
-                  <Input
-                    prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
-                    style={{ width: !screens.md ? "100%" : 320 }}
-                    placeholder='Cari judul, mapel, atau guru...'
-                    allowClear
-                    size='large'
-                    onChange={(e) => {
-                      setTimeout(() => handleSearch(e.target.value), 500);
+                <Flex justify="space-between" align="start">
+                  <Statistic title={item.title} value={item.value} />
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 14,
+                      background: item.bg,
+                      color: item.color,
                     }}
-                  />
-
-                  <Space direction={!screens.md ? "vertical" : "horizontal"}>
-                    <Button
-                      icon={<Plus size={18} />}
-                      type='primary'
-                      onClick={() => openForm(null)}
-                      size='large'
-                    >
-                      Bank Soal
-                    </Button>
-
-                    <Button
-                      icon={<Folder size={18} />}
-                      onClick={() => setIsGroupModalOpen(true)}
-                      size='large'
-                    >
-                      Gabung Bank Soal
-                    </Button>
-                  </Space>
+                  >
+                    {item.icon}
+                  </div>
                 </Flex>
-              </Flex>
-            </Card>
+              </Card>
+            ))}
+          </Flex>
 
-            <InfiniteScrollList
-              data={allData}
-              loading={isFetching}
-              hasMore={data?.hasMore || false}
-              onLoadMore={handleLoadMore}
-              renderItem={renderItem}
-              emptyText='Belum ada bank soal tersedia'
-              grid={{
-                gutter: [16, 16],
-                xs: 24,
-                sm: 12,
-                md: 8,
-                lg: 8,
-                xl: 6,
-              }}
-              height='calc(100vh - 360px)'
-            />
-          </Content>
-        </Layout>
+          <Card
+            style={{ marginBottom: 18 }}
+            styles={{ body: { padding: screens.md ? 20 : 16 } }}
+            hoverable
+          >
+            <Flex
+              align={screens.md ? "center" : "stretch"}
+              justify="space-between"
+              vertical={!screens.md}
+              gap={16}
+            >
+              <div>
+                <Title level={4} style={{ margin: 0 }}>
+                  Filter dan Aksi
+                </Title>
+                <Text type="secondary">
+                  Cari bank soal, buat bank baru, atau gabungkan beberapa bank.
+                </Text>
+              </div>
+
+              <Flex
+                gap={10}
+                vertical={!screens.md}
+                style={{ width: !screens.md ? "100%" : "auto" }}
+              >
+                <Input
+                  prefix={<Search size={16} color="rgba(0,0,0,.25)" />}
+                  style={{ width: !screens.md ? "100%" : 320 }}
+                  placeholder="Cari judul, mapel, atau guru..."
+                  allowClear
+                  size="large"
+                  onChange={(e) => {
+                    setTimeout(() => handleSearch(e.target.value), 500);
+                  }}
+                />
+
+                <Space direction={!screens.md ? "vertical" : "horizontal"}>
+                  <Button
+                    icon={<Plus size={18} />}
+                    type="primary"
+                    onClick={() => openForm(null)}
+                    size="large"
+                  >
+                    Bank Soal
+                  </Button>
+
+                  <Button
+                    icon={<Folder size={18} />}
+                    onClick={() => setIsGroupModalOpen(true)}
+                    size="large"
+                  >
+                    Gabung Bank Soal
+                  </Button>
+                </Space>
+              </Flex>
+            </Flex>
+          </Card>
+
+          <InfiniteScrollList
+            data={allData}
+            loading={isFetching}
+            hasMore={data?.hasMore || false}
+            onLoadMore={handleLoadMore}
+            renderItem={renderItem}
+            emptyText="Belum ada bank soal tersedia"
+            grid={{
+              gutter: [16, 16],
+              xs: 24,
+              sm: 12,
+              md: 8,
+              lg: 8,
+              xl: 6,
+            }}
+            height="calc(100vh - 360px)"
+          />
+        </>
       )}
 
       <Modal
         title={
-          <Flex align='center' gap={8}>
+          <Flex align="center" gap={8}>
             <div
               style={{
                 background: token.colorPrimaryBg,
@@ -520,7 +467,7 @@ const BankList = () => {
 
       <Modal
         title={
-          <Flex align='center' gap={8}>
+          <Flex align="center" gap={8}>
             <div
               style={{
                 background: token.colorPrimaryBg,

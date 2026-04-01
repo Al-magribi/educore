@@ -143,7 +143,7 @@ const ExamList = () => {
     return (
       <Card
         hoverable
-        size='small'
+        size="small"
         style={{
           height: "100%",
           borderRadius: 16,
@@ -159,17 +159,17 @@ const ExamList = () => {
           },
         }}
         title={
-          <Flex justify='space-between' align='center'>
+          <Flex justify="space-between" align="center">
             <Tag color={statusColor}>
               {item.is_active ? "Aktif" : "Nonaktif"}
             </Tag>
-            <Text type='secondary' style={{ fontSize: 11 }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
               {item.bank_type || "UJIAN"}
             </Text>
           </Flex>
         }
         actions={[
-          <Tooltip title='Laporan' key='report'>
+          <Tooltip title="Laporan" key="report">
             <div
               onClick={() => handleReport(item)}
               style={{ display: "flex", justifyContent: "center" }}
@@ -177,7 +177,7 @@ const ExamList = () => {
               <Folder size={16} />
             </div>
           </Tooltip>,
-          <Tooltip title='Edit' key='edit'>
+          <Tooltip title="Edit" key="edit">
             <div
               onClick={() => openForm(item)}
               style={{ display: "flex", justifyContent: "center" }}
@@ -185,12 +185,12 @@ const ExamList = () => {
               <Edit size={16} />
             </div>
           </Tooltip>,
-          <Tooltip title='Hapus' key='delete'>
+          <Tooltip title="Hapus" key="delete">
             <Popconfirm
-              title='Hapus Jadwal Ujian?'
+              title="Hapus Jadwal Ujian?"
               onConfirm={() => handleDelete(item.id)}
-              okText='Ya'
-              cancelText='Batal'
+              okText="Ya"
+              cancelText="Batal"
               okButtonProps={{ danger: true }}
             >
               <div style={{ display: "flex", justifyContent: "center" }}>
@@ -200,7 +200,7 @@ const ExamList = () => {
           </Tooltip>,
         ]}
       >
-        <Flex gap='middle' align='start' style={{ marginBottom: 12 }}>
+        <Flex gap="middle" align="start" style={{ marginBottom: 12 }}>
           <div
             style={{
               background: token.colorPrimaryBg,
@@ -223,7 +223,7 @@ const ExamList = () => {
                 {item.name}
               </Title>
             </Tooltip>
-            <Text type='secondary' style={{ fontSize: 12 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
               {item.bank_title} - {item.subject_name || "Mapel Umum"}
             </Text>
           </div>
@@ -256,7 +256,7 @@ const ExamList = () => {
           </Text>
         </Flex>
 
-        <Flex align='center' gap={8} style={{ marginTop: "auto" }}>
+        <Flex align="center" gap={8} style={{ marginTop: "auto" }}>
           <Avatar
             size={22}
             style={{
@@ -327,7 +327,9 @@ const ExamList = () => {
   ];
 
   if (view === "report") {
-    return <Report exam_id={exam_id} exam_name={exam_name} token={token_exam} />;
+    return (
+      <Report exam_id={exam_id} exam_name={exam_name} token={token_exam} />
+    );
   }
 
   if (view === "student_answers") {
@@ -336,162 +338,111 @@ const ExamList = () => {
 
   return (
     <Suspense fallback={<LoadApp />}>
-      <Layout
-        style={{
-          minHeight: "100vh",
-          background:
-            "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
-        }}
-      >
-        <Content style={{ padding: screens.md ? "24px" : "12px" }}>
-          <Card
-            bordered={false}
-            style={{
-              marginBottom: 20,
-              borderRadius: 24,
-              overflow: "hidden",
-              background:
-                "linear-gradient(135deg, #0f172a 0%, #0f766e 52%, #38bdf8 100%)",
-            }}
-            styles={{ body: { padding: screens.md ? 28 : 20 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={screens.md ? "center" : "start"}
-              vertical={!screens.md}
-              gap={20}
+      <>
+        <Flex gap={16} wrap="wrap" style={{ marginBottom: 20 }}>
+          {summaryCards.map((item) => (
+            <Card
+              key={item.key}
+              style={{
+                flex: screens.xl
+                  ? "1 1 0"
+                  : screens.md
+                    ? "1 1 calc(50% - 8px)"
+                    : "1 1 100%",
+                minWidth: screens.md ? 0 : "100%",
+              }}
+              styles={{ body: { padding: "18px 20px" } }}
+              hoverable
             >
-              <div>
-                <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                  CBT / Jadwal Ujian
-                </Text>
-                <Title
-                  level={2}
-                  style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
-                >
-                  Direktori Ujian
-                </Title>
-                <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                  Kelola jadwal ujian, token, cakupan kelas, dan laporan hasil
-                  dari satu panel.
-                </Text>
-              </div>
-            </Flex>
-          </Card>
-
-          <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-            {summaryCards.map((item) => (
-              <Card
-                key={item.key}
-                bordered={false}
-                style={{
-                  flex: screens.xl
-                    ? "1 1 0"
-                    : screens.md
-                      ? "1 1 calc(50% - 8px)"
-                      : "1 1 100%",
-                  minWidth: screens.md ? 0 : "100%",
-                  borderRadius: 20,
-                  background: "rgba(255,255,255,0.88)",
-                  boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-                }}
-                styles={{ body: { padding: "18px 20px" } }}
-              >
-                <Flex justify='space-between' align='start'>
-                  <Statistic title={item.title} value={item.value} />
-                  <div
-                    style={{
-                      width: 42,
-                      height: 42,
-                      display: "grid",
-                      placeItems: "center",
-                      borderRadius: 14,
-                      background: item.bg,
-                      color: item.color,
-                    }}
-                  >
-                    {item.icon}
-                  </div>
-                </Flex>
-              </Card>
-            ))}
-          </Flex>
-
-          <Card
-            bordered={false}
-            style={{
-              marginBottom: 18,
-              borderRadius: 22,
-              background: "rgba(255,255,255,0.92)",
-              boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-            }}
-            styles={{ body: { padding: screens.md ? 20 : 16 } }}
-          >
-            <Flex
-              gap={16}
-              justify='space-between'
-              align={screens.md ? "center" : "stretch"}
-              vertical={!screens.md}
-            >
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  Filter dan Aksi
-                </Title>
-                <Text type='secondary'>
-                  Cari jadwal ujian dan lanjutkan membuat atau mengedit data.
-                </Text>
-              </div>
-
-              <Flex
-                gap={10}
-                vertical={!screens.md}
-                style={{ width: !screens.md ? "100%" : "auto" }}
-              >
-                <Input
-                  prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
-                  style={{ width: !screens.md ? "100%" : 320 }}
-                  placeholder={searchPlaceholder}
-                  allowClear
-                  size='large'
-                  onChange={(e) => {
-                    setTimeout(() => handleSearch(e.target.value), 500);
+              <Flex justify="space-between" align="start">
+                <Statistic title={item.title} value={item.value} />
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 14,
+                    background: item.bg,
+                    color: item.color,
                   }}
-                />
-
-                <Button
-                  icon={<Plus size={18} />}
-                  type='primary'
-                  onClick={() => openForm(null)}
-                  size='large'
                 >
-                  Jadwal Ujian
-                </Button>
+                  {item.icon}
+                </div>
               </Flex>
-            </Flex>
-          </Card>
+            </Card>
+          ))}
+        </Flex>
 
-          <InfiniteScrollList
-            data={allData}
-            loading={isFetching}
-            hasMore={data?.hasMore || false}
-            onLoadMore={handleLoadMore}
-            renderItem={renderItem}
-            emptyText='Belum ada jadwal ujian tersedia'
-            grid={{
-              gutter: [16, 16],
-              xs: 24,
-              sm: 12,
-              md: 8,
-              lg: 6,
-            }}
-            height='calc(100vh - 360px)'
-          />
-        </Content>
-      </Layout>
+        <Card
+          style={{ marginBottom: 18 }}
+          styles={{ body: { padding: screens.md ? 20 : 16 } }}
+          hoverable
+        >
+          <Flex
+            gap={16}
+            justify="space-between"
+            align={screens.md ? "center" : "stretch"}
+            vertical={!screens.md}
+          >
+            <div>
+              <Title level={4} style={{ margin: 0 }}>
+                Filter dan Aksi
+              </Title>
+              <Text type="secondary">
+                Cari jadwal ujian dan lanjutkan membuat atau mengedit data.
+              </Text>
+            </div>
+
+            <Flex
+              gap={10}
+              vertical={!screens.md}
+              style={{ width: !screens.md ? "100%" : "auto" }}
+            >
+              <Input
+                prefix={<Search size={16} color="rgba(0,0,0,.25)" />}
+                style={{ width: !screens.md ? "100%" : 320 }}
+                placeholder={searchPlaceholder}
+                allowClear
+                size="large"
+                onChange={(e) => {
+                  setTimeout(() => handleSearch(e.target.value), 500);
+                }}
+              />
+
+              <Button
+                icon={<Plus size={18} />}
+                type="primary"
+                onClick={() => openForm(null)}
+                size="large"
+              >
+                Jadwal Ujian
+              </Button>
+            </Flex>
+          </Flex>
+        </Card>
+
+        <InfiniteScrollList
+          data={allData}
+          loading={isFetching}
+          hasMore={data?.hasMore || false}
+          onLoadMore={handleLoadMore}
+          renderItem={renderItem}
+          emptyText="Belum ada jadwal ujian tersedia"
+          grid={{
+            gutter: [16, 16],
+            xs: 24,
+            sm: 12,
+            md: 8,
+            lg: 6,
+          }}
+          height="calc(100vh - 360px)"
+        />
+      </>
 
       <Modal
         title={
-          <Flex align='center' gap={8}>
+          <Flex align="center" gap={8}>
             <div
               style={{
                 background: token.colorPrimaryBg,

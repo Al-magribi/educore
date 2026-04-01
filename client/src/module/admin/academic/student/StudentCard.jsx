@@ -6,7 +6,6 @@ import {
   Tag,
   Button,
   Popconfirm,
-  Space,
   theme,
   Divider,
 } from "antd";
@@ -28,9 +27,8 @@ const StudentCard = ({ student, onEdit, onDelete, isDeleting }) => {
       hoverable
       style={{
         borderRadius: 12,
-        overflow: "hidden",
         border: `1px solid ${token.colorBorderSecondary}`,
-        boxShadow: token.boxShadowTertiary, // Shadow halus
+        boxShadow: token.boxShadowTertiary,
       }}
       styles={{ body: { padding: "20px" } }}
       actions={[
@@ -58,22 +56,18 @@ const StudentCard = ({ student, onEdit, onDelete, isDeleting }) => {
         </Popconfirm>,
       ]}
     >
-      {/* Header: Avatar, Nama, dan Status */}
       <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
-        {/* Avatar */}
         <Avatar
           size={64}
           icon={<User size={32} />}
           style={{
-            backgroundColor: student.gender === "P" ? "#ffd6e7" : "#bae7ff", // Warna pastel lebih lembut
+            backgroundColor: student.gender === "P" ? "#ffd6e7" : "#bae7ff",
             color: student.gender === "P" ? "#d4380d" : "#0050b3",
             flexShrink: 0,
             border: `2px solid ${token.colorBgContainer}`,
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
         />
-
-        {/* Info Utama */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
@@ -94,7 +88,6 @@ const StudentCard = ({ student, onEdit, onDelete, isDeleting }) => {
                 @{student.username}
               </Text>
             </div>
-            {/* Status Tag */}
             <Tag
               color={student.is_active ? "success" : "error"}
               style={{
@@ -111,17 +104,16 @@ const StudentCard = ({ student, onEdit, onDelete, isDeleting }) => {
         </div>
       </div>
 
-      {/* Detail Informasi (Card Abu-abu) */}
       <div
         style={{
-          backgroundColor: token.colorFillAlter,
-          padding: "12px 16px",
-          borderRadius: 8,
-          border: `1px solid ${token.colorBorderSecondary}`,
+          paddingTop: 12,
+          borderTop: `1px solid ${token.colorBorderSecondary}`,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
         }}
       >
-        {/* Baris 1: Kelas */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center" }}>
           <div
             style={{
               width: 24,
@@ -144,11 +136,9 @@ const StudentCard = ({ student, onEdit, onDelete, isDeleting }) => {
           </div>
         </div>
 
-        <Divider style={{ margin: "8px 0" }} />
+        <Divider style={{ margin: 0 }} />
 
-        {/* Baris 2: NIS & NISN (Grid 2 Kolom) */}
         <div style={{ display: "flex", gap: 12 }}>
-          {/* NIS */}
           <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
             <div
               style={{
@@ -168,7 +158,6 @@ const StudentCard = ({ student, onEdit, onDelete, isDeleting }) => {
             </div>
           </div>
 
-          {/* NISN */}
           <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
             <div
               style={{
