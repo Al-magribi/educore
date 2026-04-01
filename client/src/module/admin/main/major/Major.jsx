@@ -128,24 +128,24 @@ const Major = ({ screens }) => {
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
       styles={{ body: { flex: 1, padding: "16px" } }}
       actions={[
-        <Tooltip title='Edit Nama' key='edit'>
+        <Tooltip title="Edit Nama" key="edit">
           <Button
-            type='text'
-            icon={<Pencil size={14} color='#faad14' />}
+            type="text"
+            icon={<Pencil size={14} color="#faad14" />}
             onClick={() => handleOpenModal(item)}
           />
         </Tooltip>,
         <Popconfirm
-          key='delete'
-          title='Hapus Jurusan?'
-          description='Pastikan tidak ada kelas yang terhubung.'
+          key="delete"
+          title="Hapus Jurusan?"
+          description="Pastikan tidak ada kelas yang terhubung."
           onConfirm={() => handleDelete(item.id)}
-          okText='Ya, Hapus'
-          cancelText='Batal'
+          okText="Ya, Hapus"
+          cancelText="Batal"
           disabled={isDeleting}
         >
           <Button
-            type='text'
+            type="text"
             danger
             icon={<Trash2 size={14} />}
             loading={isDeleting}
@@ -165,7 +165,7 @@ const Major = ({ screens }) => {
             justifyContent: "center",
           }}
         >
-          <GitBranch size={24} color='#1890ff' />
+          <GitBranch size={24} color="#1890ff" />
         </div>
 
         <div>
@@ -173,7 +173,7 @@ const Major = ({ screens }) => {
             {item.name}
           </Title>
           <Text
-            type='secondary'
+            type="secondary"
             style={{
               fontSize: 12,
               display: "flex",
@@ -189,7 +189,7 @@ const Major = ({ screens }) => {
   );
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       {/* HEADER */}
       <div
         style={{
@@ -208,18 +208,18 @@ const Major = ({ screens }) => {
           gap={8}
           vertical={!!screens.xs}
           align={screens.xs ? "stretch" : "center"}
-          justify='flex-end'
+          justify="flex-end"
           style={{ width: screens.xs ? "100%" : "auto" }}
         >
           <Input
-            placeholder='Cari jurusan...'
-            prefix={<Search size={16} color='#bfbfbf' />}
+            placeholder="Cari jurusan..."
+            prefix={<Search size={16} color="#bfbfbf" />}
             allowClear
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: screens.xs ? "100%" : 260 }}
           />
           <Button
-            type='primary'
+            type="primary"
             icon={<Plus size={18} />}
             onClick={() => handleOpenModal(null)}
             style={{ width: screens.xs ? "100%" : "auto" }}
@@ -236,7 +236,7 @@ const Major = ({ screens }) => {
         hasMore={apiData?.hasMore}
         onLoadMore={handleLoadMore}
         renderItem={renderItem}
-        emptyText='Belum ada data jurusan'
+        emptyText="Belum ada data jurusan"
         grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 }}
       />
 
@@ -249,14 +249,14 @@ const Major = ({ screens }) => {
         confirmLoading={isAdding || isUpdating}
         destroyOnHidden
       >
-        <Form form={form} layout='vertical' onFinish={handleSubmit}>
+        <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item
-            name='name'
-            label='Nama Jurusan'
+            name="name"
+            label="Nama Jurusan"
             rules={[{ required: true, message: "Nama jurusan wajib diisi" }]}
-            help='Contoh: IPA, IPS, Teknik Komputer Jaringan'
+            help="Contoh: IPA, IPS, Teknik Komputer Jaringan"
           >
-            <Input placeholder='Masukkan nama jurusan...' />
+            <Input placeholder="Masukkan nama jurusan..." />
           </Form.Item>
         </Form>
       </Modal>

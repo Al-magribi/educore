@@ -8,7 +8,6 @@ import {
   Flex,
   Grid,
   Card,
-  Space,
   Statistic,
 } from "antd";
 import { UserPlus, Users, BookOpen, School } from "lucide-react";
@@ -173,62 +172,18 @@ const Teacher = () => {
   ];
 
   return (
-    <Layout
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
-      }}
-    >
+    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
       <Content style={{ padding: screens.md ? "24px" : "12px" }}>
-        <Card
-          bordered={false}
-          style={{
-            marginBottom: 20,
-            borderRadius: 24,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #38bdf8 100%)",
-          }}
-          styles={{ body: { padding: screens.md ? 28 : 20 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={screens.md ? "center" : "start"}
-            vertical={!screens.md}
-            gap={20}
-          >
-            <div>
-              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                Akademik / Guru
-              </Text>
-              <Title
-                level={2}
-                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
-              >
-                Data Guru
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                Kelola guru, wali kelas, dan distribusi alokasi mengajar dalam
-                satu panel.
-              </Text>
-            </div>
-          </Flex>
-        </Card>
-
         <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
           {summaryCards.map((item) => (
             <Card
               key={item.key}
-              bordered={false}
               style={{
                 flex: screens.md ? "1 1 0" : "1 1 100%",
                 minWidth: screens.md ? 0 : "100%",
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.88)",
-                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
               }}
               styles={{ body: { padding: "18px 20px" } }}
+              hoverable
             >
               <Flex justify='space-between' align='start'>
                 <Statistic title={item.title} value={item.value} />
@@ -251,14 +206,9 @@ const Teacher = () => {
         </Flex>
 
         <Card
-          bordered={false}
-          style={{
-            marginBottom: 18,
-            borderRadius: 22,
-            background: "rgba(255,255,255,0.92)",
-            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-          }}
+          style={{ marginBottom: 18 }}
           styles={{ body: { padding: screens.md ? 20 : 16 } }}
+          hoverable
         >
           <Flex
             justify='space-between'

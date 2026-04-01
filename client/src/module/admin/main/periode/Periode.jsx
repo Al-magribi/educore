@@ -15,6 +15,7 @@ import {
   Layout,
   Grid,
   Statistic,
+  Space,
 } from "antd";
 import {
   Plus,
@@ -188,19 +189,19 @@ const Periode = ({ screens }) => {
         styles={{ body: { flex: 1, padding: "16px" } }}
         actions={[
           <Popconfirm
-            key='activate'
-            title='Aktifkan periode ini?'
-            description='Periode lain dalam satu homebase akan dinonaktifkan.'
+            key="activate"
+            title="Aktifkan periode ini?"
+            description="Periode lain dalam satu homebase akan dinonaktifkan."
             onConfirm={() => handleSetActive(item.id)}
             disabled={item.is_active}
-            okText='Ya, Aktifkan'
-            cancelText='Batal'
+            okText="Ya, Aktifkan"
+            cancelText="Batal"
           >
             <Tooltip
               title={item.is_active ? "Sudah Aktif" : "Set sebagai Aktif"}
             >
               <Button
-                type='text'
+                type="text"
                 icon={
                   <CheckCircle
                     size={18}
@@ -211,24 +212,24 @@ const Periode = ({ screens }) => {
               />
             </Tooltip>
           </Popconfirm>,
-          <Tooltip title='Edit Nama' key='edit'>
+          <Tooltip title="Edit Nama" key="edit">
             <Button
-              type='text'
-              icon={<Pencil size={18} color='#faad14' />}
+              type="text"
+              icon={<Pencil size={18} color="#faad14" />}
               onClick={() => handleOpenModal(item)}
             />
           </Tooltip>,
           <Popconfirm
-            key='delete'
-            title='Hapus periode?'
-            description='Data tidak dapat dikembalikan.'
+            key="delete"
+            title="Hapus periode?"
+            description="Data tidak dapat dikembalikan."
             onConfirm={() => handleDelete(item.id)}
-            okText='Ya, Hapus'
-            cancelText='Batal'
+            okText="Ya, Hapus"
+            cancelText="Batal"
             disabled={item.is_active}
           >
             <Button
-              type='text'
+              type="text"
               danger
               icon={<Trash2 size={18} />}
               disabled={item.is_active}
@@ -238,20 +239,20 @@ const Periode = ({ screens }) => {
         ]}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <Calendar size={24} color='#1890ff' style={{ marginTop: 4 }} />
+          <Calendar size={24} color="#1890ff" style={{ marginTop: 4 }} />
 
           <div>
             <Title level={5} style={{ margin: 0 }}>
               {item.name}
             </Title>
-            <Text type='secondary' style={{ fontSize: 12 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
               Homebase: {item.homebase_name || "-"}
             </Text>
             <div style={{ marginTop: 8 }}>
               {item.is_active ? (
-                <Tag color='success'>Sedang Berlangsung</Tag>
+                <Tag color="success">Sedang Berlangsung</Tag>
               ) : (
-                <Tag color='default'>Arsip</Tag>
+                <Tag color="default">Arsip</Tag>
               )}
             </div>
           </div>
@@ -261,94 +262,42 @@ const Periode = ({ screens }) => {
   );
 
   return (
-    <Layout
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
-      }}
-    >
-      <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
-        <Card
-          bordered={false}
-          style={{
-            marginBottom: 20,
-            borderRadius: 24,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #7c3aed 52%, #c084fc 100%)",
-          }}
-          styles={{ body: { padding: activeScreens.md ? 28 : 20 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={activeScreens.md ? "center" : "start"}
-            vertical={!activeScreens.md}
-            gap={20}
+    <>
+      <Flex gap={16} wrap="wrap" style={{ marginBottom: 20 }}>
+        {summaryCards.map((item) => (
+          <Card
+            key={item.key}
+            style={{
+              flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+              minWidth: activeScreens.md ? 0 : "100%",
+            }}
+            styles={{ body: { padding: "18px 20px" } }}
+            hoverable
           >
-            <div>
-              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                Master Data / Periode
-              </Text>
-              <Title
-                level={2}
-                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+            <Flex justify="space-between" align="start">
+              <Statistic title={item.title} value={item.value} />
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
+                  color: "#7c3aed",
+                }}
               >
-                Daftar Periode
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                Atur periode akademik aktif dan arsip periode dalam satu panel.
-              </Text>
-            </div>
-          </Flex>
-        </Card>
+                {item.icon}
+              </div>
+            </Flex>
+          </Card>
+        ))}
+      </Flex>
 
-        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-          {summaryCards.map((item) => (
-            <Card
-              key={item.key}
-              bordered={false}
-              style={{
-                flex: activeScreens.md ? "1 1 0" : "1 1 100%",
-                minWidth: activeScreens.md ? 0 : "100%",
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.88)",
-                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-              }}
-              styles={{ body: { padding: "18px 20px" } }}
-            >
-              <Flex justify='space-between' align='start'>
-                <Statistic title={item.title} value={item.value} />
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 14,
-                    background: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
-                    color: "#7c3aed",
-                  }}
-                >
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
-          ))}
-        </Flex>
-
-        <Card
-          bordered={false}
-          style={{
-            marginBottom: 18,
-            borderRadius: 22,
-            background: "rgba(255,255,255,0.92)",
-            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-          }}
-          styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
-        >
+      <Flex vertical gap={"middle"}>
+        <Card hoverable>
           <Flex
-            justify='space-between'
+            justify="space-between"
             align={activeScreens.md ? "center" : "stretch"}
             vertical={!activeScreens.md}
             gap={16}
@@ -357,7 +306,7 @@ const Periode = ({ screens }) => {
               <Title level={4} style={{ margin: 0 }}>
                 Direktori Periode
               </Title>
-              <Text type='secondary'>
+              <Text type="secondary">
                 Cari periode lalu aktifkan, edit, atau tambahkan periode baru.
               </Text>
             </div>
@@ -367,18 +316,18 @@ const Periode = ({ screens }) => {
               style={{ width: !activeScreens.md ? "100%" : "auto" }}
             >
               <Input
-                placeholder='Cari periode...'
-                prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
+                placeholder="Cari periode..."
+                prefix={<Search size={16} color="rgba(0,0,0,.25)" />}
                 allowClear
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ width: !activeScreens.md ? "100%" : 280 }}
-                size='large'
+                size="large"
               />
               <Button
-                type='primary'
+                type="primary"
                 icon={<Plus size={18} />}
                 onClick={() => handleOpenModal(null)}
-                size='large'
+                size="large"
               >
                 Tambah Periode
               </Button>
@@ -392,31 +341,39 @@ const Periode = ({ screens }) => {
           hasMore={apiData?.hasMore}
           onLoadMore={handleLoadMore}
           renderItem={renderItem}
-          emptyText='Belum ada data periode'
-          grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 }}
+          emptyText="Belum ada data periode"
+          grid={{
+            gutter: [16, 16],
+            xs: 24,
+            sm: 12,
+            md: 8,
+            lg: 6,
+            xl: 6,
+            xxl: 4,
+          }}
         />
+      </Flex>
 
-        <Modal
-          title={editingItem ? "Edit Periode" : "Tambah Periode Baru"}
-          open={isModalOpen}
-          onCancel={() => setIsModalOpen(false)}
-          onOk={form.submit}
-          confirmLoading={isAdding || isUpdating}
-          destroyOnHidden
-        >
-          <Form form={form} layout='vertical' onFinish={handleSubmit}>
-            <Form.Item
-              name='name'
-              label='Nama Periode'
-              rules={[{ required: true, message: "Nama periode wajib diisi" }]}
-              help='Contoh: 2025/2026 Ganjil'
-            >
-              <Input placeholder='Masukkan nama periode...' />
-            </Form.Item>
-          </Form>
-        </Modal>
-      </Content>
-    </Layout>
+      <Modal
+        title={editingItem ? "Edit Periode" : "Tambah Periode Baru"}
+        open={isModalOpen}
+        onCancel={() => setIsModalOpen(false)}
+        onOk={form.submit}
+        confirmLoading={isAdding || isUpdating}
+        destroyOnHidden
+      >
+        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+          <Form.Item
+            name="name"
+            label="Nama Periode"
+            rules={[{ required: true, message: "Nama periode wajib diisi" }]}
+            help="Contoh: 2025/2026 Ganjil"
+          >
+            <Input placeholder="Masukkan nama periode..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   );
 };
 
