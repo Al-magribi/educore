@@ -154,6 +154,18 @@ const computeStudentScore = ({ questions, optionsByQuestion, answersByQuestion }
       return;
     }
 
+    if (question.q_type === 5) {
+      const selectedId = parseInt(answerValue, 10);
+      if (Number.isInteger(selectedId)) {
+        const correctOptions = (optionsByQuestion[question.id] || []).filter(
+          (opt) => opt.is_correct,
+        );
+        const isCorrect = correctOptions.some((opt) => opt.id === selectedId);
+        if (isCorrect) total += maxPoints;
+      }
+      return;
+    }
+
     if (question.q_type === 3 || question.q_type === 4 || question.q_type === 6) {
       total += toNumber(answerRow?.score_obtained);
     }
