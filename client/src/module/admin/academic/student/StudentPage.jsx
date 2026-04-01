@@ -165,62 +165,18 @@ const StudentPage = ({ screens }) => {
   ];
 
   return (
-    <Layout
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
-      }}
-    >
+    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
       <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
-        <Card
-          bordered={false}
-          style={{
-            marginBottom: 20,
-            borderRadius: 24,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #60a5fa 100%)",
-          }}
-          styles={{ body: { padding: activeScreens.md ? 28 : 20 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={activeScreens.md ? "center" : "start"}
-            vertical={!activeScreens.md}
-            gap={20}
-          >
-            <div>
-              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                Akademik / Siswa
-              </Text>
-              <Title
-                level={2}
-                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
-              >
-                Data Siswa
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                Kelola daftar siswa, pencarian cepat, dan pembaruan data dalam
-                satu panel.
-              </Text>
-            </div>
-          </Flex>
-        </Card>
-
         <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
           {summaryCards.map((item) => (
             <Card
               key={item.key}
-              bordered={false}
               style={{
                 flex: activeScreens.md ? "1 1 0" : "1 1 100%",
                 minWidth: activeScreens.md ? 0 : "100%",
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.88)",
-                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
               }}
               styles={{ body: { padding: "18px 20px" } }}
+              hoverable
             >
               <Flex justify='space-between' align='start'>
                 <Statistic title={item.title} value={item.value} />
@@ -243,14 +199,11 @@ const StudentPage = ({ screens }) => {
         </Flex>
 
         <Card
-          bordered={false}
           style={{
             marginBottom: 18,
-            borderRadius: 22,
-            background: "rgba(255,255,255,0.92)",
-            boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
           }}
           styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+          hoverable
         >
           <Flex
             justify='space-between'
