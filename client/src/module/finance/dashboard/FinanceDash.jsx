@@ -210,362 +210,349 @@ const FinanceDash = () => {
   ];
 
   return (
-    <div
-      style={{
-        minHeight: "100%",
-        borderRadius: 16,
-        padding: isMobile ? "4px 0 24px" : "10px 15px",
-        background:
-          "radial-gradient(circle at top left, rgba(37,99,235,.14), transparent 28%), radial-gradient(circle at top right, rgba(15,118,110,.12), transparent 24%), linear-gradient(180deg, #f8fbff 0%, #f5f7fb 45%, #eef4f8 100%)",
-      }}
-    >
-      <Space vertical size={18} style={{ width: "100%" }}>
-        <Card
-          variant='borderless'
-          style={{
-            ...cardBaseStyle,
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 48%, #0f766e 100%)",
-          }}
-          styles={{ body: { padding: isMobile ? 22 : 28 } }}
-        >
-          <Row gutter={[24, 24]}>
-            <Col xs={24} xl={15}>
-              <Space vertical size={14}>
-                <Tag color='cyan'>Dashboard Admin Keuangan</Tag>
-                <Title
-                  level={2}
-                  style={{ color: "#fff", margin: 0, lineHeight: 1.15 }}
-                >
-                  Ringkasan keuangan sekolah dalam satu tampilan.
-                </Title>
-                <Paragraph style={{ color: "rgba(255,255,255,.8)", margin: 0 }}>
-                  Periode aktif: {meta.active_periode?.name || "-"}. Pantau
-                  pemasukan SPP, pembayaran lainnya, tabungan siswa, dan kas
-                  kelas secara terpisah agar kondisi keuangan sekolah lebih
-                  jelas dan mudah dikendalikan.
-                </Paragraph>
-                <Flex wrap='wrap' gap={10}>
-                  <Tag color='gold'>
-                    Bulan berjalan: {meta.current_month_label || "-"}
-                  </Tag>
-                  <Tag color='lime'>
-                    Collection rate SPP:{" "}
-                    {spp.collection_rate_current_month || 0}%
-                  </Tag>
-                  <Tag color='geekblue'>
-                    Piutang pembayaran lain: {currency(others.total_remaining)}
-                  </Tag>
+    <Space vertical size={18} style={{ width: "100%" }}>
+      <Card
+        variant='borderless'
+        style={{
+          ...cardBaseStyle,
+          background:
+            "linear-gradient(135deg, #0f172a 0%, #1d4ed8 48%, #0f766e 100%)",
+        }}
+        styles={{ body: { padding: isMobile ? 22 : 28 } }}
+      >
+        <Row gutter={[24, 24]}>
+          <Col xs={24} xl={15}>
+            <Space vertical size={14}>
+              <Tag color='cyan'>Dashboard Admin Keuangan</Tag>
+              <Title
+                level={2}
+                style={{ color: "#fff", margin: 0, lineHeight: 1.15 }}
+              >
+                Ringkasan keuangan sekolah dalam satu tampilan.
+              </Title>
+              <Paragraph style={{ color: "rgba(255,255,255,.8)", margin: 0 }}>
+                Periode aktif: {meta.active_periode?.name || "-"}. Pantau
+                pemasukan SPP, pembayaran lainnya, tabungan siswa, dan kas kelas
+                secara terpisah agar kondisi keuangan sekolah lebih jelas dan
+                mudah dikendalikan.
+              </Paragraph>
+              <Flex wrap='wrap' gap={10}>
+                <Tag color='gold'>
+                  Bulan berjalan: {meta.current_month_label || "-"}
+                </Tag>
+                <Tag color='lime'>
+                  Collection rate SPP: {spp.collection_rate_current_month || 0}%
+                </Tag>
+                <Tag color='geekblue'>
+                  Piutang pembayaran lain: {currency(others.total_remaining)}
+                </Tag>
+              </Flex>
+            </Space>
+          </Col>
+          <Col xs={24} xl={9}>
+            <Card
+              variant='borderless'
+              style={{
+                borderRadius: 24,
+                background: "rgba(255,255,255,0.14)",
+              }}
+              styles={{ body: { padding: 20 } }}
+            >
+              <Space vertical size={14} style={{ width: "100%" }}>
+                <Statistic
+                  title={
+                    <span style={{ color: "rgba(255,255,255,.72)" }}>
+                      Pendapatan sekolah
+                    </span>
+                  }
+                  value={summary.school_revenue || 0}
+                  formatter={(value) => (
+                    <span style={{ color: "#fff" }}>{currency(value)}</span>
+                  )}
+                  prefix={<Landmark size={20} color='#fff' />}
+                />
+                <Flex justify='space-between'>
+                  <Text style={{ color: "#fff" }}>Dana terkelola</Text>
+                  <Text strong style={{ color: "#fff" }}>
+                    {currency(summary.managed_funds)}
+                  </Text>
+                </Flex>
+                <Flex justify='space-between'>
+                  <Text style={{ color: "#fff" }}>Outstanding aktif</Text>
+                  <Text strong style={{ color: "#fff" }}>
+                    {currency(
+                      Number(spp.outstanding_current_month || 0) +
+                        Number(others.total_remaining || 0),
+                    )}
+                  </Text>
                 </Flex>
               </Space>
-            </Col>
-            <Col xs={24} xl={9}>
-              <Card
-                variant='borderless'
-                style={{
-                  borderRadius: 24,
-                  background: "rgba(255,255,255,0.14)",
-                }}
-                styles={{ body: { padding: 20 } }}
-              >
+            </Card>
+          </Col>
+        </Row>
+      </Card>
+
+      <Row gutter={[16, 16]}>
+        {summaryCards.map((item) => {
+          const tone = summaryToneMap[item.key];
+          return (
+            <Col xs={24} sm={12} xl={12} xxl={6} key={item.key}>
+              <Card variant='borderless' style={cardBaseStyle}>
                 <Space vertical size={14} style={{ width: "100%" }}>
-                  <Statistic
-                    title={
-                      <span style={{ color: "rgba(255,255,255,.72)" }}>
-                        Pendapatan sekolah
-                      </span>
-                    }
-                    value={summary.school_revenue || 0}
-                    formatter={(value) => (
-                      <span style={{ color: "#fff" }}>{currency(value)}</span>
-                    )}
-                    prefix={<Landmark size={20} color='#fff' />}
-                  />
-                  <Flex justify='space-between'>
-                    <Text style={{ color: "#fff" }}>Dana terkelola</Text>
-                    <Text strong style={{ color: "#fff" }}>
-                      {currency(summary.managed_funds)}
-                    </Text>
+                  <Flex justify='space-between' align='start'>
+                    <div>
+                      <Text type='secondary'>{item.title}</Text>
+                      <div
+                        style={{
+                          marginTop: 10,
+                          fontSize: 28,
+                          fontWeight: 700,
+                          color: "#0f172a",
+                        }}
+                      >
+                        {currency(item.value)}
+                      </div>
+                    </div>
+                    <Flex
+                      align='center'
+                      justify='center'
+                      style={{
+                        width: 50,
+                        height: 50,
+                        borderRadius: 18,
+                        background: tone.bg,
+                        color: tone.color,
+                      }}
+                    >
+                      {summaryIconMap[item.key]}
+                    </Flex>
                   </Flex>
-                  <Flex justify='space-between'>
-                    <Text style={{ color: "#fff" }}>Outstanding aktif</Text>
-                    <Text strong style={{ color: "#fff" }}>
-                      {currency(
-                        Number(spp.outstanding_current_month || 0) +
-                          Number(others.total_remaining || 0),
-                      )}
-                    </Text>
-                  </Flex>
+                  <Text style={{ fontSize: 12, color: "#64748b" }}>
+                    {item.note}
+                  </Text>
                 </Space>
               </Card>
             </Col>
-          </Row>
-        </Card>
+          );
+        })}
+      </Row>
 
-        <Row gutter={[16, 16]}>
-          {summaryCards.map((item) => {
-            const tone = summaryToneMap[item.key];
-            return (
-              <Col xs={24} sm={12} xl={12} xxl={6} key={item.key}>
-                <Card variant='borderless' style={cardBaseStyle}>
-                  <Space vertical size={14} style={{ width: "100%" }}>
-                    <Flex justify='space-between' align='start'>
-                      <div>
-                        <Text type='secondary'>{item.title}</Text>
-                        <div
-                          style={{
-                            marginTop: 10,
-                            fontSize: 28,
-                            fontWeight: 700,
-                            color: "#0f172a",
-                          }}
-                        >
-                          {currency(item.value)}
-                        </div>
-                      </div>
-                      <Flex
-                        align='center'
-                        justify='center'
-                        style={{
-                          width: 50,
-                          height: 50,
-                          borderRadius: 18,
-                          background: tone.bg,
-                          color: tone.color,
-                        }}
-                      >
-                        {summaryIconMap[item.key]}
-                      </Flex>
-                    </Flex>
-                    <Text style={{ fontSize: 12, color: "#64748b" }}>
-                      {item.note}
-                    </Text>
-                  </Space>
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
-
-        <Row gutter={[16, 16]}>
-          <Col xs={24} xxl={16}>
-            <Card variant='borderless' style={cardBaseStyle}>
-              <Space vertical size={18} style={{ width: "100%" }}>
-                <Flex justify='space-between' align='center' wrap='wrap'>
-                  <div>
-                    <Title level={4} style={{ margin: 0 }}>
-                      Performa Kanal Keuangan
-                    </Title>
-                    <Text type='secondary'>
-                      Kanal diambil dari data real transaksi dan saldo.
-                    </Text>
-                  </div>
-                  <Tag color={isFetching ? "processing" : "success"}>
-                    {isFetching ? "Memuat ulang" : "Sinkron"}
-                  </Tag>
-                </Flex>
-                <Row gutter={[14, 14]}>
-                  {channels.map((item) => (
-                    <Col xs={24} md={12} key={item.key}>
-                      <Card
-                        size='small'
-                        variant='borderless'
-                        style={{
-                          borderRadius: 22,
-                          background: "#f8fafc",
-                          boxShadow: "inset 0 0 0 1px rgba(148,163,184,0.12)",
-                        }}
-                      >
-                        <Space vertical size={12} style={{ width: "100%" }}>
-                          <Flex justify='space-between' align='center'>
-                            <div>
-                              <Text strong>{item.label}</Text>
-                              <div
-                                style={{
-                                  fontSize: 22,
-                                  fontWeight: 700,
-                                  marginTop: 4,
-                                }}
-                              >
-                                {currency(item.amount)}
-                              </div>
-                            </div>
-                            <Tag
-                              color={item.progress >= 75 ? "green" : "orange"}
-                            >
-                              {item.progress || 0}%
-                            </Tag>
-                          </Flex>
-                          <Progress
-                            percent={item.progress || 0}
-                            strokeColor={percentColor(item.progress || 0)}
-                            showInfo={false}
-                          />
-                          <Text type='secondary' style={{ fontSize: 12 }}>
-                            {item.note}
-                          </Text>
-                        </Space>
-                      </Card>
-                    </Col>
-                  ))}
-                </Row>
-              </Space>
-            </Card>
-          </Col>
-
-          <Col xs={24} xxl={8}>
-            <Card variant='borderless' style={cardBaseStyle}>
-              <Space vertical size={14} style={{ width: "100%" }}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xxl={16}>
+          <Card variant='borderless' style={cardBaseStyle}>
+            <Space vertical size={18} style={{ width: "100%" }}>
+              <Flex justify='space-between' align='center' wrap='wrap'>
                 <div>
                   <Title level={4} style={{ margin: 0 }}>
-                    Cakupan Data
+                    Performa Kanal Keuangan
                   </Title>
                   <Text type='secondary'>
-                    Populasi aktif yang ikut dihitung di dashboard.
+                    Kanal diambil dari data real transaksi dan saldo.
                   </Text>
                 </div>
-                <Card
-                  variant='borderless'
-                  style={{ borderRadius: 22, background: "#f8fafc" }}
-                >
-                  <Space vertical size={10}>
-                    <Flex align='center' gap={10}>
-                      <Users size={18} color='#1d4ed8' />
-                      <Text strong>Siswa Aktif</Text>
-                    </Flex>
-                    <Title level={3} style={{ margin: 0 }}>
-                      {summary.total_students || 0}
-                    </Title>
-                    <Text type='secondary'>
-                      {summary.total_classes || 0} kelas,{" "}
-                      {summary.total_grades || 0} tingkat.
-                    </Text>
-                  </Space>
-                </Card>
-                <Card
-                  variant='borderless'
-                  style={{ borderRadius: 22, background: "#f8fafc" }}
-                >
-                  <Space vertical size={10}>
-                    <Flex align='center' gap={10}>
-                      <ReceiptText size={18} color='#15803d' />
-                      <Text strong>Master Aktif</Text>
-                    </Flex>
-                    <Text>Tarif SPP: {summary.active_spp_tariffs || 0}</Text>
-                    <Text>
-                      Jenis pembayaran lain: {summary.active_other_types || 0}
-                    </Text>
-                    <Text>
-                      SPP target {meta.current_month_label || "-"}:{" "}
-                      {currency(spp.expected_current_month)}
-                    </Text>
-                  </Space>
-                </Card>
-              </Space>
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]}>
-          <Col xs={24} xxl={15}>
-            <Card
-              variant='borderless'
-              style={cardBaseStyle}
-              title='Transaksi Terbaru'
-              extra={<Tag color='blue'>{recentTransactions.length} item</Tag>}
-              styles={{ body: { paddingTop: 8 } }}
-            >
-              <Table
-                dataSource={recentTransactions}
-                columns={transactionColumns}
-                pagination={false}
-                size='small'
-                scroll={{ x: 720 }}
-                locale={{
-                  emptyText: <Empty description='Belum ada transaksi' />,
-                }}
-              />
-            </Card>
-          </Col>
-
-          <Col xs={24} xxl={9}>
-            <Card variant='borderless' style={cardBaseStyle}>
-              <Space vertical size={18} style={{ width: "100%" }}>
-                <div>
-                  <Title level={4} style={{ margin: 0 }}>
-                    Prioritas Penagihan
-                  </Title>
-                  <Text type='secondary'>
-                    Ringkasan diambil dari SPP bulan berjalan dan sisa tagihan
-                    pembayaran lain.
-                  </Text>
-                </div>
-                <List
-                  dataSource={priorities}
-                  split={false}
-                  locale={{
-                    emptyText: <Empty description='Tidak ada prioritas' />,
-                  }}
-                  renderItem={(item) => (
-                    <List.Item style={{ padding: 0, border: "none" }}>
-                      <Card
-                        variant='borderless'
-                        style={{
-                          width: "100%",
-                          borderRadius: 20,
-                          background: "#f8fafc",
-                          boxShadow: "inset 0 0 0 1px rgba(148,163,184,0.12)",
-                        }}
-                      >
-                        <Flex justify='space-between' align='start' gap={16}>
+                <Tag color={isFetching ? "processing" : "success"}>
+                  {isFetching ? "Memuat ulang" : "Sinkron"}
+                </Tag>
+              </Flex>
+              <Row gutter={[14, 14]}>
+                {channels.map((item) => (
+                  <Col xs={24} md={12} key={item.key}>
+                    <Card
+                      size='small'
+                      variant='borderless'
+                      style={{
+                        borderRadius: 22,
+                        background: "#f8fafc",
+                        boxShadow: "inset 0 0 0 1px rgba(148,163,184,0.12)",
+                      }}
+                    >
+                      <Space vertical size={12} style={{ width: "100%" }}>
+                        <Flex justify='space-between' align='center'>
                           <div>
-                            <Text strong>{item.title}</Text>
+                            <Text strong>{item.label}</Text>
                             <div
                               style={{
-                                marginTop: 6,
-                                fontSize: 12,
-                                color: "#64748b",
-                              }}
-                            >
-                              {item.subject}
-                            </div>
-                            <div
-                              style={{
-                                marginTop: 8,
                                 fontSize: 22,
                                 fontWeight: 700,
+                                marginTop: 4,
                               }}
                             >
                               {currency(item.amount)}
                             </div>
-                            <div
-                              style={{
-                                marginTop: 6,
-                                fontSize: 12,
-                                color: "#64748b",
-                              }}
-                            >
-                              {item.note}
-                            </div>
                           </div>
-                          <Tag
-                            color={
-                              item.status === "Terkendali" ? "green" : "orange"
-                            }
-                          >
-                            {item.status}
+                          <Tag color={item.progress >= 75 ? "green" : "orange"}>
+                            {item.progress || 0}%
                           </Tag>
                         </Flex>
-                      </Card>
-                    </List.Item>
-                  )}
-                />
-              </Space>
-            </Card>
-          </Col>
-        </Row>
-      </Space>
-    </div>
+                        <Progress
+                          percent={item.progress || 0}
+                          strokeColor={percentColor(item.progress || 0)}
+                          showInfo={false}
+                        />
+                        <Text type='secondary' style={{ fontSize: 12 }}>
+                          {item.note}
+                        </Text>
+                      </Space>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </Space>
+          </Card>
+        </Col>
+
+        <Col xs={24} xxl={8}>
+          <Card variant='borderless' style={cardBaseStyle}>
+            <Space vertical size={14} style={{ width: "100%" }}>
+              <div>
+                <Title level={4} style={{ margin: 0 }}>
+                  Cakupan Data
+                </Title>
+                <Text type='secondary'>
+                  Populasi aktif yang ikut dihitung di dashboard.
+                </Text>
+              </div>
+              <Card
+                variant='borderless'
+                style={{ borderRadius: 22, background: "#f8fafc" }}
+              >
+                <Space vertical size={10}>
+                  <Flex align='center' gap={10}>
+                    <Users size={18} color='#1d4ed8' />
+                    <Text strong>Siswa Aktif</Text>
+                  </Flex>
+                  <Title level={3} style={{ margin: 0 }}>
+                    {summary.total_students || 0}
+                  </Title>
+                  <Text type='secondary'>
+                    {summary.total_classes || 0} kelas,{" "}
+                    {summary.total_grades || 0} tingkat.
+                  </Text>
+                </Space>
+              </Card>
+              <Card
+                variant='borderless'
+                style={{ borderRadius: 22, background: "#f8fafc" }}
+              >
+                <Space vertical size={10}>
+                  <Flex align='center' gap={10}>
+                    <ReceiptText size={18} color='#15803d' />
+                    <Text strong>Master Aktif</Text>
+                  </Flex>
+                  <Text>Tarif SPP: {summary.active_spp_tariffs || 0}</Text>
+                  <Text>
+                    Jenis pembayaran lain: {summary.active_other_types || 0}
+                  </Text>
+                  <Text>
+                    SPP target {meta.current_month_label || "-"}:{" "}
+                    {currency(spp.expected_current_month)}
+                  </Text>
+                </Space>
+              </Card>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xxl={15}>
+          <Card
+            variant='borderless'
+            style={cardBaseStyle}
+            title='Transaksi Terbaru'
+            extra={<Tag color='blue'>{recentTransactions.length} item</Tag>}
+            styles={{ body: { paddingTop: 8 } }}
+          >
+            <Table
+              dataSource={recentTransactions}
+              columns={transactionColumns}
+              pagination={false}
+              size='small'
+              scroll={{ x: 720 }}
+              locale={{
+                emptyText: <Empty description='Belum ada transaksi' />,
+              }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} xxl={9}>
+          <Card variant='borderless' style={cardBaseStyle}>
+            <Space vertical size={18} style={{ width: "100%" }}>
+              <div>
+                <Title level={4} style={{ margin: 0 }}>
+                  Prioritas Penagihan
+                </Title>
+                <Text type='secondary'>
+                  Ringkasan diambil dari SPP bulan berjalan dan sisa tagihan
+                  pembayaran lain.
+                </Text>
+              </div>
+              <List
+                dataSource={priorities}
+                split={false}
+                locale={{
+                  emptyText: <Empty description='Tidak ada prioritas' />,
+                }}
+                renderItem={(item) => (
+                  <List.Item style={{ padding: 0, border: "none" }}>
+                    <Card
+                      variant='borderless'
+                      style={{
+                        width: "100%",
+                        borderRadius: 20,
+                        background: "#f8fafc",
+                        boxShadow: "inset 0 0 0 1px rgba(148,163,184,0.12)",
+                      }}
+                    >
+                      <Flex justify='space-between' align='start' gap={16}>
+                        <div>
+                          <Text strong>{item.title}</Text>
+                          <div
+                            style={{
+                              marginTop: 6,
+                              fontSize: 12,
+                              color: "#64748b",
+                            }}
+                          >
+                            {item.subject}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 8,
+                              fontSize: 22,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {currency(item.amount)}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 6,
+                              fontSize: 12,
+                              color: "#64748b",
+                            }}
+                          >
+                            {item.note}
+                          </div>
+                        </div>
+                        <Tag
+                          color={
+                            item.status === "Terkendali" ? "green" : "orange"
+                          }
+                        >
+                          {item.status}
+                        </Tag>
+                      </Flex>
+                    </Card>
+                  </List.Item>
+                )}
+              />
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+    </Space>
   );
 };
 

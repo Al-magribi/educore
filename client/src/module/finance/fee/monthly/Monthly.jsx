@@ -11,8 +11,7 @@ import {
   useUpdateMonthlyTariffMutation,
 } from "../../../../service/finance/ApiMonthly";
 import { LoadApp } from "../../../../components";
-import { currentMonth, pageStyle } from "./constants";
-import MonthlyHeader from "./components/MonthlyHeader";
+import { currentMonth } from "./constants";
 import MonthlySummaryCards from "./components/MonthlySummaryCards";
 import MonthlyFilters from "./components/MonthlyFilters";
 import MonthlyPaymentTable from "./components/MonthlyPaymentTable";
@@ -38,19 +37,27 @@ const Monthly = ({ initialTab = "payments" }) => {
 
   const [tariffForm] = Form.useForm();
 
-  const { data: optionsResponse, isLoading: isLoadingOptions } = useGetMonthlyOptionsQuery();
-  const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } = useGetMonthlyOptionsQuery({
-    periode_id: filters.periode_id,
-    grade_id: filters.grade_id,
-    class_id: filters.class_id,
-  });
-  const { data: tariffResponse, isLoading: isLoadingTariffs, isFetching: isFetchingTariffs } =
-    useGetMonthlyTariffsQuery({
+  const { data: optionsResponse, isLoading: isLoadingOptions } =
+    useGetMonthlyOptionsQuery();
+  const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } =
+    useGetMonthlyOptionsQuery({
       periode_id: filters.periode_id,
       grade_id: filters.grade_id,
+      class_id: filters.class_id,
     });
-  const { data: paymentResponse, isLoading: isLoadingPayments, isFetching: isFetchingPayments } =
-    useGetMonthlyPaymentsQuery(filters);
+  const {
+    data: tariffResponse,
+    isLoading: isLoadingTariffs,
+    isFetching: isFetchingTariffs,
+  } = useGetMonthlyTariffsQuery({
+    periode_id: filters.periode_id,
+    grade_id: filters.grade_id,
+  });
+  const {
+    data: paymentResponse,
+    isLoading: isLoadingPayments,
+    isFetching: isFetchingPayments,
+  } = useGetMonthlyPaymentsQuery(filters);
 
   const [addMonthlyTariff, { isLoading: isAddingTariff }] =
     useAddMonthlyTariffMutation();
@@ -208,89 +215,81 @@ const Monthly = ({ initialTab = "payments" }) => {
   }
 
   return (
-    <div style={pageStyle}>
-      <div style={{ width: "100%" }}>
-        <Space vertical size={24} style={{ width: "100%" }}>
-          <div>
-            <MonthlyHeader
-              onOpenTariff={() => openTariffModal()}
-            />
-          </div>
+    <div style={{ width: "100%" }}>
+      <Space vertical size={24} style={{ width: "100%" }}>
+        <div>
+          <MonthlySummaryCards items={summaryCards} />
+        </div>
 
-          <div>
-            <MonthlySummaryCards items={summaryCards} />
-          </div>
+        <div>
+          <MonthlyFilters
+            filters={filters}
+            setFilters={setFilters}
+            periodes={periodes}
+            grades={grades}
+            classes={mainClasses}
+            students={mainStudents}
+            months={months}
+          />
+        </div>
 
-          <div>
-            <MonthlyFilters
-              filters={filters}
-              setFilters={setFilters}
-              periodes={periodes}
-              grades={grades}
-              classes={mainClasses}
-              students={mainStudents}
-              months={months}
-            />
-          </div>
+        <div>
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={[
+              {
+                key: "payments",
+                label: `Pembayaran SPP (${payments.length})`,
+                children: (
+                  <MonthlyPaymentTable
+                    payments={payments}
+                    loading={isFetchingPayments}
+                  />
+                ),
+              },
+              {
+                key: "tariffs",
+                label: `Tarif SPP (${tariffs.length})`,
+                children: (
+                  <MonthlyTariffTable
+                    tariffs={tariffs}
+                    loading={isFetchingTariffs}
+                    onEdit={openTariffModal}
+                    onDelete={handleDeleteTariff}
+                    isDeletingTariff={isDeletingTariff}
+                  />
+                ),
+              },
+              {
+                key: "report",
+                label: "Laporan SPP",
+                children: <MonthlyReportPanel payments={payments} />,
+              },
+            ]}
+          />
+        </div>
 
-          <div>
-            <Tabs
-              activeKey={activeTab}
-              onChange={setActiveTab}
-              items={[
-                {
-                  key: "payments",
-                  label: `Pembayaran SPP (${payments.length})`,
-                  children: (
-                    <MonthlyPaymentTable
-                      payments={payments}
-                      loading={isFetchingPayments}
-                    />
-                  ),
-                },
-                {
-                  key: "tariffs",
-                  label: `Tarif SPP (${tariffs.length})`,
-                  children: (
-                    <MonthlyTariffTable
-                      tariffs={tariffs}
-                      loading={isFetchingTariffs}
-                      onEdit={openTariffModal}
-                      onDelete={handleDeleteTariff}
-                      isDeletingTariff={isDeletingTariff}
-                    />
-                  ),
-                },
-                {
-                  key: "report",
-                  label: "Laporan SPP",
-                  children: <MonthlyReportPanel payments={payments} />,
-                },
-              ]}
-            />
-          </div>
+        <div style={{ marginTop: 12 }}>
+          <Text type='secondary'>
+            Satuan aktif: {user?.homebase_name || user?.homebase_id || "-"}.
+          </Text>
+        </div>
+      </Space>
 
-          <div style={{ marginTop: 12 }}>
-            <Text type='secondary'>
-              Satuan aktif: {user?.homebase_name || user?.homebase_id || "-"}.
-            </Text>
-          </div>
-        </Space>
-
-        <MonthlyTariffModal
-          open={tariffModalOpen}
-          editingTariff={editingTariff}
-          onCancel={() => {
-            setTariffModalOpen(false);
-            setEditingTariff(null);
-          }}
-          onSubmit={handleSubmitTariff}
-          form={tariffForm}
-          periodes={periodes}
-          grades={grades}
-          confirmLoading={isAddingTariff || isUpdatingTariff}
-        />
-      </div>
+      <MonthlyTariffModal
+        open={tariffModalOpen}
+        editingTariff={editingTariff}
+        onCancel={() => {
+          setTariffModalOpen(false);
+          setEditingTariff(null);
+        }}
+        onSubmit={handleSubmitTariff}
+        form={tariffForm}
+        periodes={periodes}
+        grades={grades}
+        confirmLoading={isAddingTariff || isUpdatingTariff}
+      />
     </div>
   );
 };

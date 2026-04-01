@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import dayjs from "dayjs";
-import { Button, Card, Form, Space, Typography, message } from "antd";
+import { Button, Card, Flex, Form, Space, Typography, message } from "antd";
 
 import { LoadApp } from "../../../../components";
 import {
@@ -52,13 +52,12 @@ const Transaction = () => {
     data: optionResponse,
     isLoading: isLoadingOptions,
     isFetching: isFetchingOptions,
-  } =
-    useGetTransactionOptionsQuery({
-      periode_id: periodeId,
-      grade_id: gradeId,
-      class_id: classId,
-      student_id: studentId,
-    });
+  } = useGetTransactionOptionsQuery({
+    periode_id: periodeId,
+    grade_id: gradeId,
+    class_id: classId,
+    student_id: studentId,
+  });
   const { data: transactionResponse, isLoading: isLoadingTransactions } =
     useGetTransactionsQuery(transactionFilters);
   const [createTransaction, { isLoading: isSubmitting }] =
@@ -101,7 +100,8 @@ const Transaction = () => {
     }
 
     if (!periodeId && periodes.length > 0) {
-      const activePeriode = periodes.find((item) => item.is_active) || periodes[0];
+      const activePeriode =
+        periodes.find((item) => item.is_active) || periodes[0];
       form.setFieldValue("periode_id", activePeriode?.id);
     }
   }, [form, modalRequestedOpen, periodeId, periodes]);
@@ -112,7 +112,10 @@ const Transaction = () => {
     }
 
     const currentClassId = form.getFieldValue("class_id");
-    if (currentClassId && !classes.some((item) => item.id === Number(currentClassId))) {
+    if (
+      currentClassId &&
+      !classes.some((item) => item.id === Number(currentClassId))
+    ) {
       form.setFieldsValue({
         class_id: undefined,
         student_id: undefined,
@@ -128,7 +131,10 @@ const Transaction = () => {
     }
 
     const currentStudentId = form.getFieldValue("student_id");
-    if (currentStudentId && !students.some((item) => item.id === Number(currentStudentId))) {
+    if (
+      currentStudentId &&
+      !students.some((item) => item.id === Number(currentStudentId))
+    ) {
       form.setFieldsValue({
         student_id: undefined,
         bill_months: [],
@@ -168,7 +174,8 @@ const Transaction = () => {
   const openCreateModal = () => {
     setEditingTransaction(null);
     resetForm();
-    const activePeriode = periodes.find((item) => item.is_active) || periodes[0];
+    const activePeriode =
+      periodes.find((item) => item.is_active) || periodes[0];
 
     form.setFieldsValue({
       periode_id: activePeriode?.id,
@@ -243,7 +250,9 @@ const Transaction = () => {
 
       closeModal();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan transaksi pembayaran");
+      message.error(
+        error?.data?.message || "Gagal menyimpan transaksi pembayaran",
+      );
     }
   };
 
@@ -294,7 +303,10 @@ const Transaction = () => {
       }).unwrap();
       message.success("Transaksi berhasil dihapus");
 
-      if (editingTransaction?.category === record.category && editingTransaction?.id === record.id) {
+      if (
+        editingTransaction?.category === record.category &&
+        editingTransaction?.id === record.id
+      ) {
         closeModal();
       }
     } catch (error) {
@@ -307,78 +319,67 @@ const Transaction = () => {
   }
 
   return (
-    <div style={pageStyle}>
-      <Space direction='vertical' size={24} style={{ width: "100%" }}>
-        <Card
-          style={{
-            ...cardStyle,
-            background: "linear-gradient(135deg, #111827 0%, #0f766e 45%, #22c55e 100%)",
-          }}
-          styles={{ body: { padding: 28 } }}
-        >
-          <Space
-            align='start'
-            style={{ width: "100%", justifyContent: "space-between" }}
-            wrap
-          >
-            <Space direction='vertical' size={6}>
-              <Text style={{ color: "rgba(255,255,255,0.78)" }}>
-                Finance / Transaksi Pembayaran
-              </Text>
-              <Title level={2} style={{ color: "#fff", margin: 0 }}>
-                Satu form untuk SPP dan pembayaran lainnya
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                Gunakan satu transaksi untuk mencatat pembayaran SPP multi-bulan
-                dan pembayaran non-SPP milik siswa yang sama pada waktu yang sama.
-              </Text>
-            </Space>
+    <Space vertical size={24} style={{ width: "100%" }}>
+      <Card style={cardStyle} styles={{ body: { padding: 20 } }}>
+        <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
+          <div>
+            <Text
+              type='secondary'
+              style={{
+                display: "block",
+                fontSize: 12,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+              }}
+            >
+              Finance / Transaksi Pembayaran
+            </Text>
+          </div>
 
-            <Button type='primary' size='large' onClick={openCreateModal}>
-              Buat Transaksi
-            </Button>
-          </Space>
-        </Card>
+          <Button type='primary' onClick={openCreateModal}>
+            Buat Transaksi
+          </Button>
+        </Flex>
+      </Card>
 
-        <TransactionList
-          user={user}
-          transactions={transactions}
-          transactionSummary={transactionSummary}
-          transactionFilters={transactionFilters}
-          setTransactionFilters={setTransactionFilters}
-          loading={isLoadingTransactions}
-          isDeletingTransaction={isDeletingTransaction}
-          onEdit={handleEditTransaction}
-          onDelete={handleDeleteCurrentTransaction}
-        />
+      <TransactionList
+        user={user}
+        transactions={transactions}
+        transactionSummary={transactionSummary}
+        transactionFilters={transactionFilters}
+        setTransactionFilters={setTransactionFilters}
+        loading={isLoadingTransactions}
+        isDeletingTransaction={isDeletingTransaction}
+        onEdit={handleEditTransaction}
+        onDelete={handleDeleteCurrentTransaction}
+      />
 
-        <TransactionFormModal
-          open={modalOpen}
-          loadingOpen={modalRequestedOpen && !modalOpen}
-          isStudentOptionsLoading={isFetchingStudentOptions}
-          form={form}
-          editingTransaction={editingTransaction}
-          onCancel={closeModal}
-          onSubmit={handleSubmit}
-          onReset={() => {
-            setEditingTransaction(null);
-            resetForm();
-          }}
-          confirmLoading={isSubmitting || isUpdatingTransaction}
-          periodes={periodes}
-          students={students}
-          student={student}
-          unpaidMonths={unpaidMonths}
-          tariffAmount={tariffAmount}
-          otherCharges={otherCharges}
-          otherPaymentSelections={otherPaymentSelections}
-          totalMonthlyAmount={totalMonthlyAmount}
-          selectedOtherTotal={selectedOtherTotal}
-          grandTotal={grandTotal}
-          onOtherPaymentAmountChange={handleOtherPaymentAmountChange}
-        />
-      </Space>
-    </div>
+      <TransactionFormModal
+        open={modalOpen}
+        loadingOpen={modalRequestedOpen && !modalOpen}
+        isStudentOptionsLoading={isFetchingStudentOptions}
+        form={form}
+        editingTransaction={editingTransaction}
+        onCancel={closeModal}
+        onSubmit={handleSubmit}
+        onReset={() => {
+          setEditingTransaction(null);
+          resetForm();
+        }}
+        confirmLoading={isSubmitting || isUpdatingTransaction}
+        periodes={periodes}
+        students={students}
+        student={student}
+        unpaidMonths={unpaidMonths}
+        tariffAmount={tariffAmount}
+        otherCharges={otherCharges}
+        otherPaymentSelections={otherPaymentSelections}
+        totalMonthlyAmount={totalMonthlyAmount}
+        selectedOtherTotal={selectedOtherTotal}
+        grandTotal={grandTotal}
+        onOtherPaymentAmountChange={handleOtherPaymentAmountChange}
+      />
+    </Space>
   );
 };
 
