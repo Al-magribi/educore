@@ -34,6 +34,14 @@ export const ApiClass = createApi({
       }),
       invalidatesTags: ["Class"],
     }),
+    updateClassStatus: builder.mutation({
+      query: ({ id, is_active }) => ({
+        url: `/update-class-status/${id}`,
+        method: "PUT",
+        body: { is_active },
+      }),
+      invalidatesTags: ["Class"],
+    }),
 
     deleteClass: builder.mutation({
       query: (id) => ({
@@ -80,6 +88,7 @@ export const {
   useGetClassesQuery,
   useAddClassMutation,
   useUpdateClassMutation,
+  useUpdateClassStatusMutation,
   useDeleteClassMutation,
   useGetStudentsQuery,
   useAddStudentMutation,

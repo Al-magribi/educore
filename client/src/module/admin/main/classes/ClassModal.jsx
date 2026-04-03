@@ -1,6 +1,9 @@
 import React, { useEffect } from "react";
 import { Modal, Form, Input, Select, message } from "antd";
-import { useAddClassMutation } from "../../../../service/main/ApiClass";
+import {
+  useAddClassMutation,
+  useUpdateClassMutation,
+} from "../../../../service/main/ApiClass";
 import {
   useGetGradesQuery,
   useGetMajorsQuery,
@@ -8,7 +11,8 @@ import {
 
 const ClassModal = ({ open, mode, initialData, onCancel, onSuccess }) => {
   const [form] = Form.useForm();
-  const [addClass, { isLoading }] = useAddClassMutation();
+  const [addClass, { isLoading: isAdding }] = useAddClassMutation();
+  const [updateClass, { isLoading: isUpdating }] = useUpdateClassMutation();
 
   const { data: grades } = useGetGradesQuery();
   const { data: majors } = useGetMajorsQuery();
@@ -30,7 +34,11 @@ const ClassModal = ({ open, mode, initialData, onCancel, onSuccess }) => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      await addClass(values).unwrap();
+      if (mode === "edit") {
+        await updateClass(values).unwrap();
+      } else {
+        await addClass(values).unwrap();
+      }
       message.success(
         mode === "add" ? "Kelas berhasil dibuat" : "Kelas berhasil diperbarui",
       );
@@ -58,7 +66,7 @@ const ClassModal = ({ open, mode, initialData, onCancel, onSuccess }) => {
       title={mode === "add" ? "Tambah Kelas Baru" : "Edit Kelas"}
       onCancel={onCancel}
       onOk={handleSubmit}
-      confirmLoading={isLoading}
+      confirmLoading={isAdding || isUpdating}
       okText='Simpan'
       cancelText='Batal'
     >

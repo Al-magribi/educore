@@ -404,7 +404,6 @@ const ExamList = () => {
                 style={{ width: !screens.md ? "100%" : 320 }}
                 placeholder={searchPlaceholder}
                 allowClear
-                size="large"
                 onChange={(e) => {
                   setTimeout(() => handleSearch(e.target.value), 500);
                 }}
@@ -414,9 +413,8 @@ const ExamList = () => {
                 icon={<Plus size={18} />}
                 type="primary"
                 onClick={() => openForm(null)}
-                size="large"
               >
-                Jadwal Ujian
+                Jadwal
               </Button>
             </Flex>
           </Flex>
