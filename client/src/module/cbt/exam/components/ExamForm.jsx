@@ -67,7 +67,10 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
   const previousTeacherRef = useRef(null);
 
   const classOptions = useMemo(
-    () => (classes || []).map((item) => ({ label: item.name, value: item.id })),
+    () =>
+      (classes || [])
+        .filter((item) => item.is_active)
+        .map((item) => ({ label: item.name, value: item.id })),
     [classes],
   );
 

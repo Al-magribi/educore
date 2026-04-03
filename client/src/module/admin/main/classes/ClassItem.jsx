@@ -5,17 +5,30 @@ import {
   Button,
   Badge,
   Popconfirm,
+  Tag,
   theme,
   message,
 } from "antd";
-import { Edit, Trash2, Users, GraduationCap } from "lucide-react";
-import { useDeleteClassMutation } from "../../../../service/main/ApiClass";
+import {
+  Edit,
+  Trash2,
+  Users,
+  GraduationCap,
+  Power,
+  PowerOff,
+} from "lucide-react";
+import {
+  useDeleteClassMutation,
+  useUpdateClassStatusMutation,
+} from "../../../../service/main/ApiClass";
 
 const { Text, Title } = Typography;
 
 const ClassItem = ({ item, onEdit, onManageStudents }) => {
   const { token } = theme.useToken();
   const [deleteClass, { isLoading: isDeleting }] = useDeleteClassMutation();
+  const [updateClassStatus, { isLoading: isUpdatingStatus }] =
+    useUpdateClassStatusMutation();
 
   const handleDelete = async () => {
     try {
@@ -23,6 +36,22 @@ const ClassItem = ({ item, onEdit, onManageStudents }) => {
       message.success("Kelas berhasil dihapus");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus kelas");
+    }
+  };
+
+  const handleToggleStatus = async () => {
+    try {
+      await updateClassStatus({
+        id: item.id,
+        is_active: !item.is_active,
+      }).unwrap();
+      message.success(
+        item.is_active
+          ? "Kelas berhasil dinonaktifkan"
+          : "Kelas berhasil diaktifkan",
+      );
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal mengubah status kelas");
     }
   };
 
@@ -38,10 +67,26 @@ const ClassItem = ({ item, onEdit, onManageStudents }) => {
             type="text"
             icon={<Users size={16} />}
             onClick={onManageStudents}
-          >
-            Siswa
-          </Button>,
+            disabled={!item.is_active}
+          />,
           <Button type="text" icon={<Edit size={16} />} onClick={onEdit} />,
+          <Popconfirm
+            title={item.is_active ? "Nonaktifkan kelas?" : "Aktifkan kelas?"}
+            description={
+              item.is_active
+                ? "Kelas nonaktif tidak bisa menerima siswa baru."
+                : "Kelas akan kembali bisa menerima siswa baru."
+            }
+            onConfirm={handleToggleStatus}
+            okButtonProps={{ loading: isUpdatingStatus }}
+          >
+            <Button
+              type="text"
+              icon={
+                item.is_active ? <PowerOff size={16} /> : <Power size={16} />
+              }
+            />
+          </Popconfirm>,
           <Popconfirm
             title="Hapus Kelas"
             description="Yakin ingin menghapus kelas ini? Data tidak dapat dikembalikan."
@@ -76,6 +121,11 @@ const ClassItem = ({ item, onEdit, onManageStudents }) => {
             <Text type="secondary" style={{ fontSize: "12px" }}>
               Grade: {item.grade_name || "-"}
             </Text>
+            <div style={{ marginTop: 8 }}>
+              <Tag color={item.is_active ? "success" : "red"}>
+                {item.is_active ? "AKTIF" : "NONAKTIF"}
+              </Tag>
+            </div>
           </div>
         </div>
 

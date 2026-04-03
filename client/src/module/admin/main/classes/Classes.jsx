@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  Input,
-  Button,
-  Flex,
-  Layout,
-  Card,
-  Grid,
-  Typography,
-  Statistic,
-} from "antd";
+import { Input, Button, Flex, Card, Grid, Typography, Statistic } from "antd";
 import {
   Search,
   Plus,
@@ -25,7 +16,6 @@ import ClassModal from "./ClassModal";
 import StudentDrawer from "./StudentDrawer";
 import UploadStudent from "./components/UploadStudent";
 
-const { Content } = Layout;
 const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
 
@@ -135,7 +125,7 @@ const Classes = ({ screens }) => {
     (sum, item) => sum + toNumber(item.students_count),
     0,
   );
-  const loadedClasses = listData.length;
+  const activeClasses = listData.filter((item) => item.is_active).length;
   const summaryCards = [
     {
       key: "classes",
@@ -150,9 +140,9 @@ const Classes = ({ screens }) => {
       icon: <Users size={18} />,
     },
     {
-      key: "loaded",
-      title: "Kelas Dimuat",
-      value: loadedClasses,
+      key: "active",
+      title: "Kelas Aktif",
+      value: activeClasses,
       icon: <GraduationCap size={18} />,
     },
   ];
@@ -190,86 +180,79 @@ const Classes = ({ screens }) => {
         ))}
       </Flex>
 
-      <Card
-        hoverable
-        style={{
-          marginBottom: 18,
-          borderRadius: 22,
-          background: "rgba(255,255,255,0.92)",
-          boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-        }}
-        styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
-      >
-        <Flex
-          justify="space-between"
-          align={activeScreens.md ? "center" : "stretch"}
-          vertical={!activeScreens.md}
-          gap={16}
-        >
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              Direktori Kelas
-            </Title>
-            <Text type="secondary">
-              Cari kelas, tambah kelas baru, atau lakukan upload siswa global.
-            </Text>
-          </div>
-
+      <Flex vertical gap={"middle"}>
+        <Card hoverable>
           <Flex
-            gap={10}
+            justify="space-between"
+            align={activeScreens.md ? "center" : "stretch"}
             vertical={!activeScreens.md}
-            style={{ width: !activeScreens.md ? "100%" : "auto" }}
+            gap={16}
           >
-            <Input
-              prefix={<Search size={16} color="rgba(0,0,0,.25)" />}
-              placeholder="Cari nama kelas..."
-              onChange={handleSearch}
-              style={{ width: !activeScreens.md ? "100%" : 300 }}
-              allowClear
-              size="large"
-            />
+            <div>
+              <Title level={4} style={{ margin: 0 }}>
+                Direktori Kelas
+              </Title>
+              <Text type="secondary">
+                Cari kelas, tambah kelas baru, atau lakukan upload siswa global.
+              </Text>
+            </div>
 
-            <Button
-              type="primary"
-              icon={<Plus size={16} />}
-              onClick={handleAddClass}
-              size="large"
+            <Flex
+              gap={10}
+              vertical={!activeScreens.md}
+              style={{ width: !activeScreens.md ? "100%" : "auto" }}
             >
-              Tambah Kelas
-            </Button>
+              <Input
+                prefix={<Search size={16} color="rgba(0,0,0,.25)" />}
+                placeholder="Cari nama kelas..."
+                onChange={handleSearch}
+                style={{ width: !activeScreens.md ? "100%" : 300 }}
+                allowClear
+                size="large"
+              />
 
-            <Button
-              icon={<UploadIcon size={16} />}
-              onClick={() => setIsUploadDrawerOpen(true)}
-              size="large"
-            >
-              Upload Siswa
-            </Button>
+              <Button
+                type="primary"
+                icon={<Plus size={16} />}
+                onClick={handleAddClass}
+                size="large"
+              >
+                Tambah Kelas
+              </Button>
+
+              <Button
+                icon={<UploadIcon size={16} />}
+                onClick={() => setIsUploadDrawerOpen(true)}
+                size="large"
+              >
+                Upload Siswa
+              </Button>
+            </Flex>
           </Flex>
-        </Flex>
-      </Card>
+        </Card>
 
-      <InfiniteScrollList
-        data={listData}
-        loading={isFetching}
-        hasMore={hasMore}
-        onLoadMore={handleLoadMore}
-        emptyText={search ? "Kelas tidak ditemukan" : "Belum ada data kelas"}
-        grid={{
-          gutter: [16, 16],
-          xs: 24,
-          sm: 12,
-          md: 8,
-          lg: 6,
-        }}
-        renderItem={(item) => (
-          <ClassItem
-            item={item}
-            onEdit={() => handleEditClass(item)}
-            onManageStudents={() => handleManageStudents(item)}
-          />
-        )}
-      />
+        <InfiniteScrollList
+          data={listData}
+          loading={isFetching}
+          hasMore={hasMore}
+          onLoadMore={handleLoadMore}
+          emptyText={search ? "Kelas tidak ditemukan" : "Belum ada data kelas"}
+          grid={{
+            gutter: [16, 16],
+            xs: 24,
+            sm: 12,
+            md: 8,
+            lg: 6,
+          }}
+          renderItem={(item) => (
+            <ClassItem
+              item={item}
+              onEdit={() => handleEditClass(item)}
+              onManageStudents={() => handleManageStudents(item)}
+            />
+          )}
+        />
+      </Flex>
 
       <ClassModal
         open={isModalOpen}
