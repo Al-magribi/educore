@@ -171,6 +171,49 @@ CREATE TABLE l_teacher_unavailability(
 );
 CREATE INDEX idx_teacher_unavailability_lookup ON lms.l_teacher_unavailability USING btree (teacher_id, periode_id, day_of_week, specific_date);
 
+CREATE TABLE l_schedule_activity(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    name text NOT NULL,
+    day_of_week smallint NOT NULL,
+    slot_start_id integer NOT NULL,
+    slot_count integer NOT NULL,
+    scope_type varchar(30) NOT NULL DEFAULT 'all_classes',
+    description text,
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_schedule_activity_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_schedule_activity_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_schedule_activity_slot_start_id_fkey FOREIGN KEY(slot_start_id) REFERENCES lms.l_time_slot(id),
+    CONSTRAINT l_schedule_activity_created_by_fkey FOREIGN KEY(created_by) REFERENCES public.u_users(id),
+    CONSTRAINT l_schedule_activity_day_of_week_check CHECK (((day_of_week >= 1) AND (day_of_week <= 7))),
+    CONSTRAINT l_schedule_activity_slot_count_check CHECK ((slot_count > 0)),
+    CONSTRAINT l_schedule_activity_scope_type_check CHECK (((scope_type)::text = ANY ((ARRAY['all_classes'::character varying, 'teaching_load'::character varying])::text[])))
+);
+CREATE INDEX idx_schedule_activity_lookup ON lms.l_schedule_activity USING btree (homebase_id, periode_id, day_of_week, is_active);
+
+CREATE TABLE l_schedule_activity_target(
+    id SERIAL NOT NULL,
+    activity_id integer NOT NULL,
+    teaching_load_id integer NOT NULL,
+    teacher_id integer NOT NULL,
+    subject_id integer NOT NULL,
+    class_id integer NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_schedule_activity_target_activity_id_fkey FOREIGN KEY(activity_id) REFERENCES lms.l_schedule_activity(id) ON DELETE CASCADE,
+    CONSTRAINT l_schedule_activity_target_teaching_load_id_fkey FOREIGN KEY(teaching_load_id) REFERENCES lms.l_teaching_load(id),
+    CONSTRAINT l_schedule_activity_target_teacher_id_fkey FOREIGN KEY(teacher_id) REFERENCES public.u_teachers(user_id),
+    CONSTRAINT l_schedule_activity_target_subject_id_fkey FOREIGN KEY(subject_id) REFERENCES public.a_subject(id),
+    CONSTRAINT l_schedule_activity_target_class_id_fkey FOREIGN KEY(class_id) REFERENCES public.a_class(id)
+);
+CREATE UNIQUE INDEX uq_schedule_activity_target_pair ON lms.l_schedule_activity_target USING btree (activity_id, teaching_load_id);
+CREATE INDEX idx_schedule_activity_target_lookup ON lms.l_schedule_activity_target USING btree (activity_id, class_id, teacher_id);
+
 CREATE TABLE l_teacher_journal(
     id SERIAL NOT NULL,
     homebase_id integer NOT NULL,

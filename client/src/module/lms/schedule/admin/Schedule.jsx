@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Button, Flex, Skeleton, Space, Tabs, message } from "antd";
 import {
+  Activity,
   CircleHelp,
   LayoutGrid,
   Settings2,
@@ -9,16 +10,19 @@ import {
 } from "lucide-react";
 import {
   useDeleteTeachingLoadMutation,
+  useDeleteScheduleActivityMutation,
   useDeleteUnavailabilityMutation,
   useGenerateScheduleMutation,
   useGetScheduleBootstrapQuery,
   useImportTeachingLoadMutation,
+  useSaveScheduleActivityMutation,
   useSaveScheduleConfigMutation,
   useSaveTeachingLoadMutation,
   useSaveUnavailabilityMutation,
   useUpdateScheduleEntryMutation,
 } from "../../../../service/lms/ApiSchedule";
 import ScheduleConfigCard from "./ScheduleConfigCard";
+import ScheduleActivity from "./ScheduleActivity";
 import ScheduleLoadCard from "./ScheduleLoadCard";
 import ScheduleUnavailabilityCard from "./ScheduleUnavailabilityCard";
 import ScheduleTimetableCard from "./ScheduleTimetableCard";
@@ -37,6 +41,10 @@ const Schedule = () => {
     useImportTeachingLoadMutation();
   const [deleteTeachingLoad, { isLoading: deletingLoad }] =
     useDeleteTeachingLoadMutation();
+  const [saveScheduleActivity, { isLoading: savingActivity }] =
+    useSaveScheduleActivityMutation();
+  const [deleteScheduleActivity, { isLoading: deletingActivity }] =
+    useDeleteScheduleActivityMutation();
   const [saveUnavailability, { isLoading: savingRule }] =
     useSaveUnavailabilityMutation();
   const [deleteUnavailability, { isLoading: deletingRule }] =
@@ -50,11 +58,14 @@ const Schedule = () => {
   const canManage = Boolean(payload.can_manage);
 
   const sessionShortages = useMemo(() => {
-    const allocatedByAssignment = (payload.entries || []).reduce((acc, item) => {
-      const key = [item.teacher_id, item.subject_id, item.class_id].join(":");
-      acc[key] = (acc[key] || 0) + Number(item.slot_count || 0);
-      return acc;
-    }, {});
+    const allocatedByAssignment = (payload.entries || []).reduce(
+      (acc, item) => {
+        const key = [item.teacher_id, item.subject_id, item.class_id].join(":");
+        acc[key] = (acc[key] || 0) + Number(item.slot_count || 0);
+        return acc;
+      },
+      {},
+    );
 
     return (payload.teacher_assignments || [])
       .map((item) => {
@@ -63,7 +74,10 @@ const Schedule = () => {
           allocatedByAssignment[
             [item.teacher_id, item.subject_id, item.class_id].join(":")
           ] || 0;
-        const missingSessions = Math.max(requiredSessions - allocatedSessions, 0);
+        const missingSessions = Math.max(
+          requiredSessions - allocatedSessions,
+          0,
+        );
 
         return {
           key: [item.teacher_id, item.subject_id, item.class_id].join(":"),
@@ -99,6 +113,28 @@ const Schedule = () => {
       });
   }, [payload.entries, payload.teacher_assignments]);
 
+  const scheduleCapacity = useMemo(() => {
+    const totalConfiguredSlots = (payload.slots || []).filter(
+      (item) => !item?.is_break,
+    ).length;
+    const totalClasses = (payload.classes || []).length;
+    const totalAvailableSessions = totalConfiguredSlots * totalClasses;
+    const totalDistributedSessions = (payload.teacher_assignments || []).reduce(
+      (acc, item) =>
+        acc +
+        (item?.teaching_load_id ? Number(item.weekly_sessions || 0) : 0),
+      0,
+    );
+
+    return {
+      total_configured_slots: totalConfiguredSlots,
+      total_classes: totalClasses,
+      total_available_sessions: totalAvailableSessions,
+      total_distributed_sessions: totalDistributedSessions,
+      remaining_sessions: totalAvailableSessions - totalDistributedSessions,
+    };
+  }, [payload.classes, payload.slots, payload.teacher_assignments]);
+
   const handleConfigSave = async (body) => {
     try {
       await saveScheduleConfig(body).unwrap();
@@ -123,6 +159,24 @@ const Schedule = () => {
       message.success("Beban ajar dihapus.");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus beban ajar.");
+    }
+  };
+
+  const handleActivitySave = async (body) => {
+    try {
+      await saveScheduleActivity(body).unwrap();
+      message.success("Kegiatan tersimpan.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menyimpan kegiatan.");
+    }
+  };
+
+  const handleActivityDelete = async (id) => {
+    try {
+      await deleteScheduleActivity(id).unwrap();
+      message.success("Kegiatan dihapus.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus kegiatan.");
     }
   };
 
@@ -191,7 +245,9 @@ const Schedule = () => {
           `Generate selesai. ${generatedCount} entri dibuat, ${failedCount} item belum bisa dijadwalkan.`,
         );
       } else {
-        message.success(`Generate jadwal berhasil. ${generatedCount} entri dibuat.`);
+        message.success(
+          `Generate jadwal berhasil. ${generatedCount} entri dibuat.`,
+        );
       }
       return response;
     } catch (error) {
@@ -215,7 +271,7 @@ const Schedule = () => {
 
   return (
     <Flex vertical gap={16}>
-      <Flex justify='space-between' align='center' wrap='wrap' gap={8}>
+      <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
         <Space>
           <Button
             icon={<CircleHelp size={14} />}
@@ -226,25 +282,15 @@ const Schedule = () => {
         </Space>
       </Flex>
 
-      <Alert
-        showIcon
-        type={canManage ? "info" : "warning"}
-        title={
-          canManage
-            ? "Atur slot dan generate jadwal, lalu sesuaikan manual bila perlu."
-            : "Mode lihat jadwal. Perubahan hanya dapat dilakukan admin satuan."
-        }
-      />
-
       <Tabs
-        defaultActiveKey='config'
+        defaultActiveKey="config"
         items={[
           {
             key: "config",
             label: (
               <Space size={6}>
                 <Settings2 size={14} />
-                Konfigurasi Slot
+                Penjadwalan
               </Space>
             ),
             children: (
@@ -253,6 +299,7 @@ const Schedule = () => {
                 config={payload.config}
                 dayTemplates={payload.day_templates || []}
                 breaks={payload.breaks || []}
+                scheduleCapacity={scheduleCapacity}
                 sessionShortages={sessionShortages}
                 loading={savingConfig || isFetching}
                 onSave={handleConfigSave}
@@ -275,11 +322,35 @@ const Schedule = () => {
                 subjects={payload.subjects || []}
                 teachers={payload.teachers || []}
                 teacherAssignments={payload.teacher_assignments || []}
+                scheduleCapacity={scheduleCapacity}
                 sessionShortages={sessionShortages}
-                loading={savingLoad || deletingLoad || importingLoad || isFetching}
+                loading={
+                  savingLoad || deletingLoad || importingLoad || isFetching
+                }
                 onSave={handleLoadSave}
                 onImport={handleImportLoad}
                 onDelete={handleDeleteLoad}
+              />
+            ),
+          },
+          {
+            key: "activity",
+            label: (
+              <Space size={6}>
+                <Activity size={14} />
+                Kegiatan
+              </Space>
+            ),
+            children: (
+              <ScheduleActivity
+                canManage={canManage}
+                activities={payload.activities || []}
+                activityTargets={payload.activity_targets || []}
+                slots={payload.slots || []}
+                teacherAssignments={payload.teacher_assignments || []}
+                loading={savingActivity || deletingActivity || isFetching}
+                onSave={handleActivitySave}
+                onDelete={handleActivityDelete}
               />
             ),
           },

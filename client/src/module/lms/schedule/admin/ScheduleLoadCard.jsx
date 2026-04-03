@@ -8,10 +8,14 @@ import {
   Alert,
   Button,
   Card,
+  Col,
+  Divider,
+  Flex,
   Form,
   Input,
   InputNumber,
   Modal,
+  Row,
   Select,
   Space,
   Table,
@@ -24,6 +28,7 @@ import * as XLSX from "xlsx";
 
 const TEMPLATE_SHEET = "Beban Ajar";
 const GUIDE_SHEET = "Panduan";
+const PAGE_SIZE = 20;
 
 const normalizeBoolean = (value, fallback) => {
   if (typeof value === "boolean") return value;
@@ -100,16 +105,20 @@ const ScheduleLoadCard = ({
   subjects,
   teachers,
   teacherAssignments,
+  scheduleCapacity,
   sessionShortages,
   loading,
   onSave,
   onImport,
 }) => {
   const [openModal, setOpenModal] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [editingLoadId, setEditingLoadId] = useState(null);
+  const [showGapRule, setShowGapRule] = useState(false);
   const [teacherKeyword, setTeacherKeyword] = useState("");
   const [selectedGradeId, setSelectedGradeId] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [form] = Form.useForm();
 
   const classOptions = useMemo(
@@ -169,6 +178,11 @@ const ScheduleLoadCard = ({
     });
   }, [sortedAssignments, teacherKeyword, selectedGradeId]);
 
+  const visibleAssignments = useMemo(
+    () => filteredAssignments.slice(0, visibleCount),
+    [filteredAssignments, visibleCount],
+  );
+
   const shortageMap = useMemo(
     () =>
       (sessionShortages || []).reduce((acc, item) => {
@@ -184,8 +198,20 @@ const ScheduleLoadCard = ({
         [item.teacher_id, item.subject_id, item.class_id].join(":"),
       ),
     );
-    return (sessionShortages || []).filter((item) => filteredKeys.has(item.key));
+    return (sessionShortages || []).filter((item) =>
+      filteredKeys.has(item.key),
+    );
   }, [filteredAssignments, sessionShortages]);
+
+  const handleTableScroll = (event) => {
+    const { scrollTop, clientHeight, scrollHeight } = event.currentTarget;
+    if (scrollTop + clientHeight >= scrollHeight - 24) {
+      setVisibleCount((prev) => {
+        if (prev >= filteredAssignments.length) return prev;
+        return prev + PAGE_SIZE;
+      });
+    }
+  };
 
   const handleDownloadTemplate = () => {
     const workbook = XLSX.utils.book_new();
@@ -272,11 +298,12 @@ const ScheduleLoadCard = ({
 
   const handleOpenCreate = () => {
     setEditingLoadId(null);
+    setShowGapRule(false);
     form.resetFields();
     form.setFieldsValue({
-      weekly_sessions: 2,
-      max_sessions_per_meeting: 2,
-      minimum_gap_slots: 4,
+      weekly_sessions: 0,
+      max_sessions_per_meeting: 0,
+      minimum_gap_slots: 0,
       require_different_days: true,
       allow_same_day_with_gap: true,
       is_active: true,
@@ -286,16 +313,21 @@ const ScheduleLoadCard = ({
 
   const handleOpenEdit = (record) => {
     setEditingLoadId(record.teaching_load_id || null);
+    setShowGapRule(false);
     form.setFieldsValue({
       id: record.teaching_load_id || undefined,
       class_id: record.class_id,
       subject_id: record.subject_id,
       teacher_id: record.teacher_id,
-      weekly_sessions: record.weekly_sessions || 2,
-      max_sessions_per_meeting: record.max_sessions_per_meeting || 2,
+      weekly_sessions: Number.isFinite(record.weekly_sessions)
+        ? record.weekly_sessions
+        : 0,
+      max_sessions_per_meeting: Number.isFinite(record.max_sessions_per_meeting)
+        ? record.max_sessions_per_meeting
+        : 0,
       minimum_gap_slots: Number.isFinite(record.minimum_gap_slots)
         ? record.minimum_gap_slots
-        : 4,
+        : 0,
       require_different_days: record.require_different_days ?? true,
       allow_same_day_with_gap: record.allow_same_day_with_gap ?? true,
       is_active: record.is_active ?? true,
@@ -310,6 +342,7 @@ const ScheduleLoadCard = ({
       id: editingLoadId || values.id,
     });
     setOpenModal(false);
+    setShowGapRule(false);
   };
 
   const assignmentColumns = [
@@ -339,9 +372,9 @@ const ScheduleLoadCard = ({
       width: 120,
       render: (value) =>
         value ? (
-          <Tag color='blue'>{value} sesi</Tag>
+          <Tag color="blue">{value} sesi</Tag>
         ) : (
-          <Tag color='default'>Belum diatur</Tag>
+          <Tag color="default">Belum diatur</Tag>
         ),
     },
     {
@@ -351,9 +384,9 @@ const ScheduleLoadCard = ({
       width: 140,
       render: (value) =>
         value ? (
-          <Tag color='green'>Sudah diatur</Tag>
+          <Tag color="green">Sudah diatur</Tag>
         ) : (
-          <Tag color='orange'>Belum diatur</Tag>
+          <Tag color="orange">Belum diatur</Tag>
         ),
     },
     {
@@ -361,24 +394,25 @@ const ScheduleLoadCard = ({
       key: "allocation_status",
       width: 220,
       render: (_, record) => {
-        const shortage = shortageMap[
-          [record.teacher_id, record.subject_id, record.class_id].join(":")
-        ];
+        const shortage =
+          shortageMap[
+            [record.teacher_id, record.subject_id, record.class_id].join(":")
+          ];
 
         if (!record.teaching_load_id) {
-          return <Tag color='default'>Belum ada target sesi</Tag>;
+          return <Tag color="default">Belum ada target sesi</Tag>;
         }
 
         if (!shortage) {
-          return <Tag color='green'>Sudah terpenuhi</Tag>;
+          return <Tag color="green">Sudah terpenuhi</Tag>;
         }
 
         return (
           <Space size={[4, 4]} wrap>
-            <Tag color='gold'>
+            <Tag color="gold">
               {shortage.allocated_sessions}/{shortage.required_sessions} sesi
             </Tag>
-            <Tag color='red'>Kurang {shortage.missing_sessions} sesi</Tag>
+            <Tag color="red">Kurang {shortage.missing_sessions} sesi</Tag>
           </Space>
         );
       },
@@ -390,7 +424,7 @@ const ScheduleLoadCard = ({
       render: (_, record) =>
         canManage ? (
           <Button
-            size='small'
+            size="small"
             icon={<Pencil size={12} />}
             onClick={() => handleOpenEdit(record)}
           >
@@ -413,6 +447,7 @@ const ScheduleLoadCard = ({
       extra={
         canManage ? (
           <Space wrap>
+            <Button onClick={() => setGuideOpen(true)}>Panduan Template</Button>
             <Button
               icon={<DownloadOutlined />}
               onClick={handleDownloadTemplate}
@@ -420,7 +455,7 @@ const ScheduleLoadCard = ({
               Download Template
             </Button>
             <Upload
-              accept='.xlsx,.xls'
+              accept=".xlsx,.xls"
               beforeUpload={handleImportExcel}
               showUploadList={false}
               disabled={loading || importing}
@@ -430,7 +465,7 @@ const ScheduleLoadCard = ({
               </Button>
             </Upload>
             <Button
-              type='primary'
+              type="primary"
               icon={<Plus size={14} />}
               onClick={handleOpenCreate}
             >
@@ -440,35 +475,35 @@ const ScheduleLoadCard = ({
         ) : null
       }
     >
-      <Alert
-        showIcon
-        type='info'
-        title='Panduan template beban ajar'
-        description={
-          <div>
-            1. Download template agar daftar guru, mapel, tingkat, dan kelas
-            terisi otomatis.
-            <br />
-            2. Ubah hanya kolom `beban_sesi` sesuai jumlah sesi per minggu.
-            <br />
-            3. Jangan ubah kolom `teacher_id`, `subject_id`, dan `class_id`.
-            <br />
-            4. `minimum_gap_slots = 0` berarti mapel yang sama tidak boleh
-            muncul lagi di hari yang sama.
-            <br />
-            5. Jika {"`minimum_gap_slots > 0`"}, sistem menganggap mapel yang
-            sama boleh muncul lagi di hari yang sama dengan jarak sesuai gap.
-            <br />
-            6. Simpan file `.xlsx`, lalu klik `Import Excel`.
-          </div>
-        }
-        style={{ marginBottom: 16 }}
-      />
+      <Card
+        size="small"
+        style={{ borderRadius: 12, marginBottom: 16 }}
+        title="Ringkasan Kapasitas Sesi"
+      >
+        <Space size={[8, 8]} wrap>
+          <Tag color="blue">
+            Sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
+          </Tag>
+          <Tag color="gold">
+            Beban terdistribusi:{" "}
+            {scheduleCapacity?.total_distributed_sessions || 0}
+          </Tag>
+          <Tag
+            color={
+              Number(scheduleCapacity?.remaining_sessions || 0) >= 0
+                ? "green"
+                : "red"
+            }
+          >
+            Sisa sesi: {scheduleCapacity?.remaining_sessions || 0}
+          </Tag>
+        </Space>
+      </Card>
 
       {(sessionShortages || []).length > 0 ? (
         <Alert
           showIcon
-          type='warning'
+          type="warning"
           style={{ marginBottom: 16 }}
           message={`Ada ${(sessionShortages || []).length} beban ajar yang sesi teralokasinya belum penuh`}
           description={
@@ -485,17 +520,11 @@ const ScheduleLoadCard = ({
         />
       ) : null}
 
-      <Table
-        rowKey={(record) =>
-          `${record.teacher_id}-${record.subject_id}-${record.class_id || "general"}`
-        }
-        size='small'
-        loading={loading}
-        columns={assignmentColumns}
-        dataSource={filteredAssignments}
-        scroll={{ x: 900 }}
-        pagination={{ pageSize: 8 }}
-        title={() => (
+      <Card
+        size="small"
+        style={{ borderRadius: 12 }}
+        styles={{ body: { padding: 0 } }}
+        title={
           <Space
             wrap
             style={{ width: "100%", justifyContent: "space-between" }}
@@ -503,26 +532,101 @@ const ScheduleLoadCard = ({
             <Space wrap>
               <Input
                 allowClear
-                placeholder='Filter nama guru'
+                placeholder="Filter nama guru"
                 value={teacherKeyword}
-                onChange={(event) => setTeacherKeyword(event.target.value)}
+                onChange={(event) => {
+                  setTeacherKeyword(event.target.value);
+                  setVisibleCount(PAGE_SIZE);
+                }}
                 style={{ width: 240 }}
               />
               <Select
                 allowClear
-                placeholder='Filter tingkat'
+                placeholder="Filter tingkat"
                 options={gradeOptions}
                 value={selectedGradeId}
-                onChange={(value) => setSelectedGradeId(value)}
+                onChange={(value) => {
+                  setSelectedGradeId(value);
+                  setVisibleCount(PAGE_SIZE);
+                }}
                 style={{ width: 180 }}
               />
             </Space>
-            <Tag icon={<InboxOutlined />} color='processing'>
+            <Tag icon={<InboxOutlined />} color="processing">
               Template mengikuti data pada tabel saat ini
             </Tag>
           </Space>
-        )}
-      />
+        }
+      >
+        <div
+          style={{ maxHeight: 560, overflowY: "auto" }}
+          onScroll={handleTableScroll}
+        >
+          <Table
+            rowKey={(record) =>
+              `${record.teacher_id}-${record.subject_id}-${record.class_id || "general"}`
+            }
+            size="small"
+            loading={loading}
+            columns={assignmentColumns}
+            dataSource={visibleAssignments}
+            scroll={{ x: 900 }}
+            pagination={false}
+          />
+          {visibleAssignments.length < filteredAssignments.length ? (
+            <div
+              style={{
+                textAlign: "center",
+                color: "#8c8c8c",
+                padding: "8px 0 12px",
+                fontSize: 12,
+              }}
+            >
+              Scroll ke bawah untuk memuat data guru berikutnya
+            </div>
+          ) : filteredAssignments.length > 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                color: "#8c8c8c",
+                padding: "8px 0 12px",
+                fontSize: 12,
+              }}
+            >
+              Semua data guru telah dimuat
+            </div>
+          ) : null}
+        </div>
+      </Card>
+
+      <Modal
+        open={guideOpen}
+        title="Panduan Template Beban Ajar"
+        onCancel={() => setGuideOpen(false)}
+        footer={
+          <Button type="primary" onClick={() => setGuideOpen(false)}>
+            Tutup
+          </Button>
+        }
+        centered
+      >
+        <div>
+          1. Download template agar daftar guru, mapel, tingkat, dan kelas
+          terisi otomatis.
+          <br />
+          2. Ubah hanya kolom `beban_sesi` sesuai jumlah sesi per minggu.
+          <br />
+          3. Jangan ubah kolom `teacher_id`, `subject_id`, dan `class_id`.
+          <br />
+          4. `minimum_gap_slots = 0` berarti mapel yang sama tidak boleh muncul
+          lagi di hari yang sama.
+          <br />
+          5. Jika {"`minimum_gap_slots > 0`"}, sistem menganggap mapel yang sama
+          boleh muncul lagi di hari yang sama dengan jarak sesuai gap.
+          <br />
+          6. Simpan file `.xlsx`, lalu klik `Import Excel`.
+        </div>
+      </Modal>
 
       <Modal
         open={openModal}
@@ -533,71 +637,161 @@ const ScheduleLoadCard = ({
         }
         onCancel={() => setOpenModal(false)}
         onOk={handleSubmit}
-        okText='Simpan'
+        okText="Simpan"
+        cancelText="Batal"
         confirmLoading={loading}
         centered
+        width={760}
+        styles={{
+          header: {
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            background: "#fff",
+            borderBottom: "1px solid #f0f0f0",
+            paddingBottom: 16,
+            marginBottom: 0,
+          },
+          body: {
+            paddingTop: 20,
+            paddingBottom: 20,
+          },
+          footer: {
+            position: "sticky",
+            bottom: 0,
+            zIndex: 2,
+            background: "#fff",
+            borderTop: "1px solid #f0f0f0",
+            paddingTop: 16,
+            marginTop: 0,
+          },
+        }}
       >
-        <Form form={form} layout='vertical'>
-          <Form.Item name='id' hidden>
+        <Form form={form} layout="vertical">
+          <Form.Item name="id" hidden>
             <InputNumber />
           </Form.Item>
           <Form.Item
-            name='teacher_id'
-            label='Guru'
+            name="teacher_id"
+            label="Guru"
             rules={[{ required: true }]}
           >
             <Select
               showSearch
-              optionFilterProp='label'
+              optionFilterProp="label"
               options={teacherOptions}
             />
           </Form.Item>
-          <Form.Item
-            name='subject_id'
-            label='Mata Pelajaran'
-            rules={[{ required: true }]}
-          >
-            <Select
-              showSearch
-              optionFilterProp='label'
-              options={subjectOptions}
-            />
-          </Form.Item>
-          <Form.Item name='class_id' label='Kelas' rules={[{ required: true }]}>
-            <Select
-              showSearch
-              optionFilterProp='label'
-              options={classOptions}
-            />
-          </Form.Item>
-          <Form.Item
-            name='weekly_sessions'
-            label='Beban sesi per minggu'
-            rules={[{ required: true }]}
-          >
-            <InputNumber min={1} max={12} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item
-            name='max_sessions_per_meeting'
-            label='Maks sesi per pertemuan'
-            rules={[{ required: true }]}
-          >
-            <InputNumber min={1} max={4} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item
-            name='minimum_gap_slots'
-            label='Minimal gap slot'
-            rules={[{ required: true }]}
-            extra='Isi 0 jika mapel yang sama tidak boleh muncul lagi di hari yang sama untuk kelas tersebut.'
-          >
-            <InputNumber min={0} max={10} style={{ width: "100%" }} />
-          </Form.Item>
-          <Alert
-            showIcon
-            type='info'
-            message='Aturan gap slot'
-            description='Cukup atur `minimum_gap_slots`. Nilai 0 berarti mapel yang sama tidak boleh muncul lagi di hari yang sama. Nilai lebih dari 0 berarti mapel yang sama boleh muncul lagi di hari yang sama dengan jarak minimal sesuai nilai gap.'
-          />
+          <Row gutter={12}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="subject_id"
+                label="Mata Pelajaran"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={subjectOptions}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="class_id"
+                label="Kelas"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={classOptions}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="weekly_sessions"
+                label="Beban sesi per minggu"
+                rules={[
+                  { required: true, message: "Beban sesi wajib diisi." },
+                  {
+                    validator: (_, value) =>
+                      Number(value) > 0
+                        ? Promise.resolve()
+                        : Promise.reject(
+                            new Error(
+                              "Beban sesi per minggu harus lebih dari 0.",
+                            ),
+                          ),
+                  },
+                ]}
+              >
+                <InputNumber min={0} max={12} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="max_sessions_per_meeting"
+                label="Maks sesi per pertemuan"
+                rules={[
+                  { required: true, message: "Maks sesi wajib diisi." },
+                  {
+                    validator: (_, value) =>
+                      Number(value) > 0
+                        ? Promise.resolve()
+                        : Promise.reject(
+                            new Error(
+                              "Maks sesi per pertemuan harus lebih dari 0.",
+                            ),
+                          ),
+                  },
+                ]}
+              >
+                <InputNumber min={0} max={4} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider style={{ margin: "8px 0 16px" }} />
+
+          <Flex vertical gap={12}>
+            <Form.Item
+              name="minimum_gap_slots"
+              label="Minimal gap slot"
+              rules={[{ required: true }]}
+              extra="Isi 0 jika mapel yang sama tidak boleh muncul lagi di hari yang sama untuk kelas tersebut."
+              style={{ marginBottom: 0 }}
+            >
+              <InputNumber min={0} max={10} style={{ width: "100%" }} />
+            </Form.Item>
+
+            <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+              <Space direction="vertical" size={0}>
+                <span style={{ fontWeight: 600 }}>Aturan gap slot</span>
+                <span style={{ color: "#8c8c8c", fontSize: 12 }}>
+                  Tampilkan atau sembunyikan pengaturan jeda mapel yang sama.
+                </span>
+              </Space>
+              <Button
+                type="dashed"
+                onClick={() => setShowGapRule((prev) => !prev)}
+              >
+                {showGapRule ? "Sembunyikan" : "Tampilkan"}
+              </Button>
+            </Flex>
+
+            {showGapRule ? (
+              <Alert
+                showIcon
+                type="info"
+                message="Aturan gap slot"
+                description="Cukup atur `minimum_gap_slots`. Nilai 0 berarti mapel yang sama tidak boleh muncul lagi di hari yang sama. Nilai lebih dari 0 berarti mapel yang sama boleh muncul lagi di hari yang sama dengan jarak minimal sesuai nilai gap."
+              />
+            ) : null}
+          </Flex>
         </Form>
       </Modal>
     </Card>

@@ -41,6 +41,21 @@ export const ApiSchedule = createApi({
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
+    saveScheduleActivity: builder.mutation({
+      query: (body) => ({
+        url: "/schedule/activity",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
+    deleteScheduleActivity: builder.mutation({
+      query: (id) => ({
+        url: `/schedule/activity/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
     saveUnavailability: builder.mutation({
       query: (body) => ({
         url: "/schedule/unavailability",
@@ -81,6 +96,8 @@ export const {
   useSaveTeachingLoadMutation,
   useImportTeachingLoadMutation,
   useDeleteTeachingLoadMutation,
+  useSaveScheduleActivityMutation,
+  useDeleteScheduleActivityMutation,
   useSaveUnavailabilityMutation,
   useDeleteUnavailabilityMutation,
   useGenerateScheduleMutation,

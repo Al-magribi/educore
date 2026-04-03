@@ -168,7 +168,8 @@ router.get(
           ])
         : [{ rows: [] }, { rows: [] }, { rows: [] }];
 
-    const [loadResult, unavailabilityResult] = await Promise.all([
+    const [loadResult, unavailabilityResult, activityResult, activityTargetResult] =
+      await Promise.all([
       pool.query(
         `SELECT
            l.*,
@@ -197,6 +198,48 @@ router.get(
              WHERE homebase_id = $2
            )
          ORDER BY ua.teacher_id, ua.day_of_week, ua.start_time`,
+        [periodeId, homebase_id],
+      ),
+      pool.query(
+        `SELECT
+           a.*,
+           slot_agg.start_time,
+           slot_agg.end_time,
+           slot_agg.slot_nos,
+           slot_agg.slot_ids
+         FROM lms.l_schedule_activity a
+         LEFT JOIN LATERAL (
+           SELECT
+             MIN(ts.start_time) AS start_time,
+             MAX(ts.end_time) AS end_time,
+             ARRAY_AGG(ts.slot_no ORDER BY ts.slot_no) AS slot_nos,
+             ARRAY_AGG(ts.id ORDER BY ts.slot_no) AS slot_ids
+           FROM lms.l_time_slot ts
+           JOIN lms.l_time_slot start_slot ON start_slot.id = a.slot_start_id
+           WHERE ts.config_id = start_slot.config_id
+             AND ts.day_of_week = a.day_of_week
+             AND ts.slot_no BETWEEN start_slot.slot_no AND start_slot.slot_no + a.slot_count - 1
+         ) slot_agg ON true
+         WHERE a.periode_id = $1
+           AND a.homebase_id = $2
+         ORDER BY a.day_of_week, slot_agg.start_time NULLS LAST, a.name`,
+        [periodeId, homebase_id],
+      ),
+      pool.query(
+        `SELECT
+           t.*,
+           a.name AS activity_name,
+           u.full_name AS teacher_name,
+           s.name AS subject_name,
+           c.name AS class_name
+         FROM lms.l_schedule_activity_target t
+         JOIN lms.l_schedule_activity a ON a.id = t.activity_id
+         JOIN public.u_users u ON u.id = t.teacher_id
+         JOIN public.a_subject s ON s.id = t.subject_id
+         JOIN public.a_class c ON c.id = t.class_id
+         WHERE a.periode_id = $1
+           AND a.homebase_id = $2
+         ORDER BY a.id, u.full_name, s.name, c.name`,
         [periodeId, homebase_id],
       ),
     ]);
@@ -336,6 +379,8 @@ router.get(
         loads: loadResult.rows,
         teacher_assignments: assignmentResult.rows,
         unavailability: unavailabilityResult.rows,
+        activities: activityResult.rows,
+        activity_targets: activityTargetResult.rows,
         entries: entryResult.rows,
         classes: classResult.rows,
         subjects: subjectResult.rows,
@@ -1114,6 +1159,243 @@ router.delete(
 );
 
 router.post(
+  "/schedule/activity",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, homebase_id } = req.user;
+    const {
+      id,
+      periode_id,
+      name,
+      day_of_week,
+      slot_start_id,
+      slot_count,
+      scope_type = "all_classes",
+      description = null,
+      is_active = true,
+      teaching_load_ids = [],
+    } = req.body || {};
+
+    const periodeId = await ensureActivePeriode(client, homebase_id, toInt(periode_id, null));
+    if (!periodeId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif tidak ditemukan.",
+      });
+    }
+
+    const normalizedName = String(name || "").trim();
+    if (!normalizedName) {
+      return res.status(400).json({
+        status: "error",
+        message: "Nama kegiatan wajib diisi.",
+      });
+    }
+
+    const scopeType = ["all_classes", "teaching_load"].includes(scope_type)
+      ? scope_type
+      : "all_classes";
+    const nextDay = toInt(day_of_week, null);
+    const nextSlotStartId = toInt(slot_start_id, null);
+    const nextSlotCount = toInt(slot_count, null);
+
+    if (!nextDay || !nextSlotStartId || !nextSlotCount) {
+      return res.status(400).json({
+        status: "error",
+        message: "Hari, slot mulai, dan jumlah slot wajib diisi.",
+      });
+    }
+
+    const startSlotResult = await client.query(
+      `SELECT ts.*, cfg.homebase_id, cfg.periode_id
+       FROM lms.l_time_slot ts
+       JOIN lms.l_schedule_config cfg ON cfg.id = ts.config_id
+       WHERE ts.id = $1
+       LIMIT 1`,
+      [nextSlotStartId],
+    );
+    if (startSlotResult.rowCount === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "slot_start_id tidak valid.",
+      });
+    }
+
+    const startSlot = startSlotResult.rows[0];
+    if (
+      Number(startSlot.homebase_id) !== Number(homebase_id) ||
+      Number(startSlot.periode_id) !== Number(periodeId)
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "Slot mulai tidak cocok dengan homebase/periode aktif.",
+      });
+    }
+
+    if (Number(startSlot.day_of_week) !== Number(nextDay)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Hari tidak sesuai dengan slot mulai yang dipilih.",
+      });
+    }
+
+    const startSlotNo = toInt(startSlot.slot_no, 0);
+    const segmentResult = await client.query(
+      `SELECT id, slot_no
+       FROM lms.l_time_slot
+       WHERE config_id = $1
+         AND day_of_week = $2
+         AND is_break = false
+         AND slot_no BETWEEN $3 AND $4
+       ORDER BY slot_no`,
+      [startSlot.config_id, nextDay, startSlotNo, startSlotNo + nextSlotCount - 1],
+    );
+    if (segmentResult.rowCount !== nextSlotCount) {
+      return res.status(400).json({
+        status: "error",
+        message: "Slot kegiatan harus berurutan dan tersedia sesuai jumlah slot.",
+      });
+    }
+
+    const normalizedTeachingLoadIds = [
+      ...new Set((teaching_load_ids || []).map((item) => toInt(item, null)).filter(Boolean)),
+    ];
+
+    let targetRows = [];
+    if (scopeType === "teaching_load") {
+      if (normalizedTeachingLoadIds.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "Minimal satu beban ajar wajib dipilih untuk kegiatan berbasis beban ajar.",
+        });
+      }
+
+      const loadResult = await client.query(
+        `SELECT id, teacher_id, subject_id, class_id
+         FROM lms.l_teaching_load
+         WHERE id = ANY($1::int[])
+           AND homebase_id = $2
+           AND periode_id = $3
+           AND is_active = true`,
+        [normalizedTeachingLoadIds, homebase_id, periodeId],
+      );
+      if (loadResult.rowCount !== normalizedTeachingLoadIds.length) {
+        return res.status(400).json({
+          status: "error",
+          message: "Salah satu beban ajar yang dipilih tidak valid atau tidak aktif.",
+        });
+      }
+      targetRows = loadResult.rows;
+    }
+
+    const params = [
+      homebase_id,
+      periodeId,
+      normalizedName,
+      nextDay,
+      nextSlotStartId,
+      nextSlotCount,
+      scopeType,
+      description,
+      Boolean(is_active),
+      userId,
+    ];
+
+    const isUpdate = Boolean(toInt(id, null));
+    const sql = isUpdate
+      ? `UPDATE lms.l_schedule_activity
+         SET name = $3,
+             day_of_week = $4,
+             slot_start_id = $5,
+             slot_count = $6,
+             scope_type = $7,
+             description = $8,
+             is_active = $9,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $11
+           AND homebase_id = $1
+           AND periode_id = $2
+         RETURNING *`
+      : `INSERT INTO lms.l_schedule_activity (
+           homebase_id,
+           periode_id,
+           name,
+           day_of_week,
+           slot_start_id,
+           slot_count,
+           scope_type,
+           description,
+           is_active,
+           created_by
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`;
+
+    const activityResult = await client.query(
+      sql,
+      isUpdate ? [...params, toInt(id, null)] : params,
+    );
+
+    if (isUpdate && activityResult.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Kegiatan tidak ditemukan.",
+      });
+    }
+
+    const activity = activityResult.rows[0];
+
+    await client.query(`DELETE FROM lms.l_schedule_activity_target WHERE activity_id = $1`, [
+      activity.id,
+    ]);
+
+    for (const target of targetRows) {
+      await client.query(
+        `INSERT INTO lms.l_schedule_activity_target (
+           activity_id,
+           teaching_load_id,
+           teacher_id,
+           subject_id,
+           class_id
+         )
+         VALUES ($1, $2, $3, $4, $5)`,
+        [activity.id, target.id, target.teacher_id, target.subject_id, target.class_id],
+      );
+    }
+
+    return res.json({
+      status: "success",
+      message: isUpdate ? "Kegiatan berhasil diperbarui." : "Kegiatan berhasil ditambahkan.",
+      data: {
+        ...activity,
+        teaching_load_ids: targetRows.map((item) => item.id),
+      },
+    });
+  }),
+);
+
+router.delete(
+  "/schedule/activity/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const id = toInt(req.params.id, null);
+    if (!id) {
+      return res.status(400).json({ status: "error", message: "ID kegiatan tidak valid." });
+    }
+
+    await client.query(
+      `DELETE FROM lms.l_schedule_activity
+       WHERE id = $1
+         AND homebase_id = $2`,
+      [id, homebase_id],
+    );
+
+    return res.json({ status: "success", message: "Kegiatan dihapus." });
+  }),
+);
+
+router.post(
   "/schedule/generate",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
@@ -1148,7 +1430,15 @@ router.post(
       });
     }
 
-    const [loadResult, slotResult, unavailabilityResult, existingEntrySummaryResult] =
+    const [
+      loadResult,
+      slotResult,
+      unavailabilityResult,
+      existingEntrySummaryResult,
+      classResult,
+      activityResult,
+      activityTargetResult,
+    ] =
       await Promise.all([
         client.query(
           `SELECT *
@@ -1195,6 +1485,41 @@ router.post(
            FROM lms.l_schedule_entry
            WHERE homebase_id = $1
              AND periode_id = $2`,
+          [homebase_id, periodeId],
+        ),
+        client.query(
+          `SELECT id
+           FROM public.a_class
+           WHERE homebase_id = $1`,
+          [homebase_id],
+        ),
+        client.query(
+          `SELECT
+             a.id,
+             a.scope_type,
+             a.day_of_week,
+             slot_agg.slot_ids
+           FROM lms.l_schedule_activity a
+           LEFT JOIN LATERAL (
+             SELECT ARRAY_AGG(ts.id ORDER BY ts.slot_no) AS slot_ids
+             FROM lms.l_time_slot ts
+             JOIN lms.l_time_slot start_slot ON start_slot.id = a.slot_start_id
+             WHERE ts.config_id = start_slot.config_id
+               AND ts.day_of_week = a.day_of_week
+               AND ts.slot_no BETWEEN start_slot.slot_no AND start_slot.slot_no + a.slot_count - 1
+           ) slot_agg ON true
+           WHERE a.homebase_id = $1
+             AND a.periode_id = $2
+             AND a.is_active = true`,
+          [homebase_id, periodeId],
+        ),
+        client.query(
+          `SELECT t.activity_id, t.class_id, t.teacher_id
+           FROM lms.l_schedule_activity_target t
+           JOIN lms.l_schedule_activity a ON a.id = t.activity_id
+           WHERE a.homebase_id = $1
+             AND a.periode_id = $2
+             AND a.is_active = true`,
           [homebase_id, periodeId],
         ),
       ]);
@@ -1245,6 +1570,42 @@ router.post(
     for (const item of preservedSlots.rows) {
       occupiedClassSlot.add(`${item.day_of_week}:${item.slot_id}:${item.class_id}`);
       occupiedTeacherSlot.add(`${item.day_of_week}:${item.slot_id}:${item.teacher_id}`);
+    }
+
+    const allClassIds = classResult.rows.map((item) => Number(item.id));
+    const activityTargetsByActivity = activityTargetResult.rows.reduce((acc, row) => {
+      const key = Number(row.activity_id);
+      if (!acc.has(key)) acc.set(key, []);
+      acc.get(key).push({
+        class_id: Number(row.class_id),
+        teacher_id: Number(row.teacher_id),
+      });
+      return acc;
+    }, new Map());
+
+    for (const activity of activityResult.rows) {
+      const slotIds = Array.isArray(activity.slot_ids)
+        ? activity.slot_ids.map((item) => Number(item))
+        : [];
+      const day = Number(activity.day_of_week);
+      if (!slotIds.length || !day) continue;
+
+      if (activity.scope_type === "all_classes") {
+        for (const classId of allClassIds) {
+          for (const slotId of slotIds) {
+            occupiedClassSlot.add(`${day}:${slotId}:${classId}`);
+          }
+        }
+        continue;
+      }
+
+      const targets = activityTargetsByActivity.get(Number(activity.id)) || [];
+      for (const target of targets) {
+        for (const slotId of slotIds) {
+          occupiedClassSlot.add(`${day}:${slotId}:${target.class_id}`);
+          occupiedTeacherSlot.add(`${day}:${slotId}:${target.teacher_id}`);
+        }
+      }
     }
 
     const slotByDay = slotResult.rows.reduce((acc, slot) => {
