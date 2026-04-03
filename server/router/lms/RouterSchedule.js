@@ -114,6 +114,157 @@ const aggregateFailureCodes = (failedItems = []) =>
     return acc;
   }, {});
 
+const resolveScheduleSegment = async ({
+  client,
+  homebaseId,
+  periodeId,
+  dayOfWeek,
+  slotStartId,
+  slotCount,
+}) => {
+  const startSlotResult = await client.query(
+    `SELECT ts.*, cfg.homebase_id, cfg.periode_id
+     FROM lms.l_time_slot ts
+     JOIN lms.l_schedule_config cfg ON cfg.id = ts.config_id
+     WHERE ts.id = $1
+     LIMIT 1`,
+    [slotStartId],
+  );
+  if (startSlotResult.rowCount === 0) {
+    return { error: "slot_start_id tidak valid." };
+  }
+
+  const startSlot = startSlotResult.rows[0];
+  if (
+    Number(startSlot.homebase_id) !== Number(homebaseId) ||
+    Number(startSlot.periode_id) !== Number(periodeId)
+  ) {
+    return { error: "Slot mulai tidak cocok dengan homebase/periode aktif." };
+  }
+
+  if (Number(startSlot.day_of_week) !== Number(dayOfWeek)) {
+    return { error: "Hari tidak sesuai dengan slot mulai yang dipilih." };
+  }
+
+  const startSlotNo = toInt(startSlot.slot_no, 0);
+  const segmentResult = await client.query(
+    `SELECT id, slot_no, start_time, end_time
+     FROM lms.l_time_slot
+     WHERE config_id = $1
+       AND day_of_week = $2
+       AND is_break = false
+       AND slot_no BETWEEN $3 AND $4
+     ORDER BY slot_no`,
+    [startSlot.config_id, dayOfWeek, startSlotNo, startSlotNo + slotCount - 1],
+  );
+  if (segmentResult.rowCount !== slotCount) {
+    return { error: "Slot berurutan tidak tersedia sesuai slot_count." };
+  }
+
+  return {
+    segmentRows: segmentResult.rows,
+    startSlotId: Number(segmentResult.rows[0].id),
+  };
+};
+
+const validateScheduleEntryPlacement = async ({
+  client,
+  entryId = null,
+  periodeId,
+  homebaseId,
+  teacherId,
+  classId,
+  dayOfWeek,
+  slotIds,
+  enforceTeacherUnavailability = true,
+}) => {
+  const conflictResult = await client.query(
+    `SELECT ess.id
+     FROM lms.l_schedule_entry_slot ess
+     JOIN lms.l_schedule_entry e ON e.id = ess.schedule_entry_id
+     WHERE e.periode_id = $1
+       AND ($2::int IS NULL OR e.id <> $2)
+       AND ess.day_of_week = $3
+       AND ess.slot_id = ANY($4::int[])
+       AND (ess.class_id = $5 OR ess.teacher_id = $6)
+     LIMIT 1`,
+    [periodeId, entryId, dayOfWeek, slotIds, classId, teacherId],
+  );
+  if (conflictResult.rowCount > 0) {
+    return { error: "Jadwal bentrok dengan jadwal kelas/guru lain.", status: 409 };
+  }
+
+  const activityConflictResult = await client.query(
+    `SELECT a.id, a.name
+     FROM lms.l_schedule_activity a
+     JOIN lms.l_time_slot start_slot ON start_slot.id = a.slot_start_id
+     JOIN lms.l_time_slot ts
+       ON ts.config_id = start_slot.config_id
+      AND ts.day_of_week = a.day_of_week
+      AND ts.is_break = false
+      AND ts.slot_no BETWEEN start_slot.slot_no AND start_slot.slot_no + a.slot_count - 1
+     LEFT JOIN lms.l_schedule_activity_target t ON t.activity_id = a.id
+     WHERE a.homebase_id = $1
+       AND a.periode_id = $2
+       AND a.is_active = true
+       AND a.day_of_week = $3
+       AND ts.id = ANY($4::int[])
+       AND (
+         a.scope_type = 'all_classes'
+         OR (a.scope_type = 'teaching_load' AND (t.class_id = $5 OR t.teacher_id = $6))
+       )
+     LIMIT 1`,
+    [homebaseId, periodeId, dayOfWeek, slotIds, classId, teacherId],
+  );
+  if (activityConflictResult.rowCount > 0) {
+    return {
+      error: `Jadwal bentrok dengan kegiatan ${activityConflictResult.rows[0].name}.`,
+      status: 409,
+    };
+  }
+
+  if (!enforceTeacherUnavailability) {
+    return { ok: true };
+  }
+
+  const teacherBlockResult = await client.query(
+    `SELECT day_of_week, start_time, end_time
+     FROM lms.l_teacher_unavailability
+     WHERE teacher_id = $1
+       AND periode_id = $2
+       AND is_active = true
+       AND specific_date IS NULL`,
+    [teacherId, periodeId],
+  );
+
+  const slotRows = await client.query(
+    `SELECT start_time, end_time
+     FROM lms.l_time_slot
+     WHERE id = ANY($1::int[])
+     ORDER BY slot_no`,
+    [slotIds],
+  );
+
+  const violating = slotRows.rows.some((slot) => {
+    const slotStart = parseMinute(slot.start_time);
+    const slotEnd = parseMinute(slot.end_time);
+    return teacherBlockResult.rows.some((block) => {
+      const blockDay = toInt(block.day_of_week, null);
+      if (blockDay && blockDay !== dayOfWeek) return false;
+      const blockStart = block.start_time ? parseMinute(block.start_time) : null;
+      const blockEnd = block.end_time ? parseMinute(block.end_time) : null;
+      if (blockStart === null || blockEnd === null) return true;
+      return overlapTime(slotStart, slotEnd, blockStart, blockEnd);
+    });
+  });
+
+  if (violating) {
+    return { error: "Perubahan melanggar ketentuan waktu guru.", status: 409 };
+  }
+
+  return { ok: true };
+};
+
 router.get(
   "/schedule/bootstrap",
   authorize("satuan", "teacher", "student"),
@@ -285,6 +436,7 @@ router.get(
         AND l.subject_id = b.subject_id
         AND l.teacher_id = b.teacher_id
        WHERE c.homebase_id = $1
+         AND COALESCE(c.is_active, true) = true
        ORDER BY u.full_name, s.name, g.name, c.name`,
       [homebase_id, periodeId],
     );
@@ -337,10 +489,11 @@ router.get(
 
     const [classResult, subjectResult, teacherResult, gradeResult] = await Promise.all([
       pool.query(
-        `SELECT c.id, c.name, c.grade_id, g.name AS grade_name
+        `SELECT c.id, c.name, c.grade_id, c.is_active, g.name AS grade_name
          FROM public.a_class c
          LEFT JOIN public.a_grade g ON g.id = c.grade_id
          WHERE c.homebase_id = $1
+           AND COALESCE(c.is_active, true) = true
          ORDER BY g.name ASC NULLS LAST, c.name ASC`,
         [homebase_id],
       ),
@@ -1288,19 +1441,6 @@ router.post(
       targetRows = loadResult.rows;
     }
 
-    const params = [
-      homebase_id,
-      periodeId,
-      normalizedName,
-      nextDay,
-      nextSlotStartId,
-      nextSlotCount,
-      scopeType,
-      description,
-      Boolean(is_active),
-      userId,
-    ];
-
     const isUpdate = Boolean(toInt(id, null));
     const sql = isUpdate
       ? `UPDATE lms.l_schedule_activity
@@ -1312,7 +1452,7 @@ router.post(
              description = $8,
              is_active = $9,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $11
+         WHERE id = $10
            AND homebase_id = $1
            AND periode_id = $2
          RETURNING *`
@@ -1331,10 +1471,33 @@ router.post(
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`;
 
-    const activityResult = await client.query(
-      sql,
-      isUpdate ? [...params, toInt(id, null)] : params,
-    );
+    const params = isUpdate
+      ? [
+          homebase_id,
+          periodeId,
+          normalizedName,
+          nextDay,
+          nextSlotStartId,
+          nextSlotCount,
+          scopeType,
+          description,
+          Boolean(is_active),
+          toInt(id, null),
+        ]
+      : [
+          homebase_id,
+          periodeId,
+          normalizedName,
+          nextDay,
+          nextSlotStartId,
+          nextSlotCount,
+          scopeType,
+          description,
+          Boolean(is_active),
+          userId,
+        ];
+
+    const activityResult = await client.query(sql, params);
 
     if (isUpdate && activityResult.rowCount === 0) {
       return res.status(404).json({
@@ -1490,7 +1653,8 @@ router.post(
         client.query(
           `SELECT id
            FROM public.a_class
-           WHERE homebase_id = $1`,
+           WHERE homebase_id = $1
+             AND COALESCE(is_active, true) = true`,
           [homebase_id],
         ),
         client.query(
@@ -1982,6 +2146,255 @@ router.post(
   }),
 );
 
+router.post(
+  "/schedule/entries/manual",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, homebase_id } = req.user;
+    const periodeId = await ensureActivePeriode(
+      client,
+      homebase_id,
+      toInt(req.body?.periode_id, null),
+    );
+
+    if (!periodeId) {
+      return res.status(400).json({ status: "error", message: "Periode aktif tidak ditemukan." });
+    }
+
+    const teachingLoadId = toInt(req.body?.teaching_load_id, null);
+    const nextDay = toInt(req.body?.day_of_week, null);
+    const nextSlotStartId = toInt(req.body?.slot_start_id, null);
+    const nextSlotCount = toInt(req.body?.slot_count, null);
+
+    if (!teachingLoadId || !nextDay || !nextSlotStartId || !nextSlotCount) {
+      return res.status(400).json({
+        status: "error",
+        message: "Beban ajar, hari, slot mulai, dan jumlah sesi wajib diisi.",
+      });
+    }
+
+    const loadResult = await client.query(
+      `SELECT *
+       FROM lms.l_teaching_load
+       WHERE id = $1
+         AND homebase_id = $2
+         AND periode_id = $3
+         AND is_active = true
+       LIMIT 1`,
+      [teachingLoadId, homebase_id, periodeId],
+    );
+    if (loadResult.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Beban ajar tidak ditemukan atau tidak aktif.",
+      });
+    }
+
+    const load = loadResult.rows[0];
+    const maxSessionsPerMeeting = Number(load.max_sessions_per_meeting || 1);
+    if (Number(nextSlotCount) > maxSessionsPerMeeting) {
+      return res.status(409).json({
+        status: "error",
+        message: "Jumlah sesi melebihi batas maksimal sesi per pertemuan pada beban ajar.",
+      });
+    }
+
+    const allocationResult = await client.query(
+      `SELECT COALESCE(SUM(slot_count), 0) AS allocated_sessions
+       FROM lms.l_schedule_entry
+       WHERE teaching_load_id = $1
+         AND status <> 'archived'`,
+      [teachingLoadId],
+    );
+    const allocatedSessions = Number(allocationResult.rows[0]?.allocated_sessions || 0);
+    const requestedSessions = Number(nextSlotCount || 0);
+
+    if (allocatedSessions + requestedSessions > Number(load.weekly_sessions || 0)) {
+      return res.status(409).json({
+        status: "error",
+        message: "Jumlah sesi manual melebihi target beban sesi per minggu.",
+      });
+    }
+
+    const resolvedSegment = await resolveScheduleSegment({
+      client,
+      homebaseId: homebase_id,
+      periodeId,
+      dayOfWeek: nextDay,
+      slotStartId: nextSlotStartId,
+      slotCount: nextSlotCount,
+    });
+    if (resolvedSegment.error) {
+      return res.status(400).json({ status: "error", message: resolvedSegment.error });
+    }
+
+    const segmentRows = resolvedSegment.segmentRows;
+    const slotIds = segmentRows.map((row) => Number(row.id));
+    const placementValidation = await validateScheduleEntryPlacement({
+      client,
+      periodeId,
+      homebaseId: homebase_id,
+      teacherId: Number(load.teacher_id),
+      classId: Number(load.class_id),
+      dayOfWeek: nextDay,
+      slotIds,
+    });
+    if (placementValidation.error) {
+      return res.status(placementValidation.status || 400).json({
+        status: "error",
+        message: placementValidation.error,
+      });
+    }
+
+    const meetingNoResult = await client.query(
+      `SELECT COALESCE(MAX(meeting_no), 0) + 1 AS next_meeting_no
+       FROM lms.l_schedule_entry
+       WHERE teaching_load_id = $1`,
+      [teachingLoadId],
+    );
+    const meetingNo = Number(meetingNoResult.rows[0]?.next_meeting_no || 1);
+
+    const entryResult = await client.query(
+      `INSERT INTO lms.l_schedule_entry (
+         homebase_id,
+         periode_id,
+         teaching_load_id,
+         class_id,
+         subject_id,
+         teacher_id,
+         day_of_week,
+         slot_start_id,
+         slot_count,
+         meeting_no,
+         source_type,
+         is_manual_override,
+         status,
+         created_by
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'manual', true, 'draft', $11)
+       RETURNING *`,
+      [
+        homebase_id,
+        periodeId,
+        teachingLoadId,
+        load.class_id,
+        load.subject_id,
+        load.teacher_id,
+        nextDay,
+        resolvedSegment.startSlotId,
+        nextSlotCount,
+        meetingNo,
+        userId,
+      ],
+    );
+
+    const entry = entryResult.rows[0];
+
+    for (const slot of segmentRows) {
+      await client.query(
+        `INSERT INTO lms.l_schedule_entry_slot (
+           schedule_entry_id,
+           periode_id,
+           day_of_week,
+           slot_id,
+           class_id,
+           teacher_id
+         )
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [entry.id, periodeId, nextDay, slot.id, load.class_id, load.teacher_id],
+      );
+    }
+
+    await client.query(
+      `INSERT INTO lms.l_schedule_entry_history (
+         schedule_entry_id,
+         action_type,
+         old_data,
+         new_data,
+         changed_by
+       )
+       VALUES ($1, 'create', NULL, $2::jsonb, $3)`,
+      [
+        entry.id,
+        JSON.stringify({
+          teaching_load_id: teachingLoadId,
+          day_of_week: nextDay,
+          slot_start_id: resolvedSegment.startSlotId,
+          slot_count: nextSlotCount,
+          meeting_no: meetingNo,
+          source_type: "manual",
+        }),
+        userId,
+      ],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Jadwal manual berhasil ditambahkan.",
+      data: entry,
+    });
+  }),
+);
+
+router.delete(
+  "/schedule/entries/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, homebase_id } = req.user;
+    const entryId = toInt(req.params.id, null);
+    if (!entryId) {
+      return res.status(400).json({ status: "error", message: "ID jadwal tidak valid." });
+    }
+
+    const existingResult = await client.query(
+      `SELECT *
+       FROM lms.l_schedule_entry
+       WHERE id = $1
+         AND homebase_id = $2
+       LIMIT 1`,
+      [entryId, homebase_id],
+    );
+    if (existingResult.rowCount === 0) {
+      return res.status(404).json({ status: "error", message: "Data jadwal tidak ditemukan." });
+    }
+
+    const existing = existingResult.rows[0];
+    const isManualEntry =
+      existing.source_type === "manual" || Boolean(existing.is_manual_override);
+
+    if (!isManualEntry) {
+      return res.status(409).json({
+        status: "error",
+        message: "Hanya jadwal manual yang dapat dihapus langsung.",
+      });
+    }
+
+    await client.query(`DELETE FROM lms.l_schedule_entry_slot WHERE schedule_entry_id = $1`, [
+      entryId,
+    ]);
+
+    await client.query(
+      `INSERT INTO lms.l_schedule_entry_history (
+         schedule_entry_id,
+         action_type,
+         old_data,
+         new_data,
+         changed_by
+       )
+       VALUES ($1, 'delete', $2::jsonb, NULL, $3)`,
+      [
+        entryId,
+        JSON.stringify(existing),
+        userId,
+      ],
+    );
+
+    await client.query(`DELETE FROM lms.l_schedule_entry WHERE id = $1`, [entryId]);
+
+    return res.json({ status: "success", message: "Jadwal manual dihapus." });
+  }),
+);
+
 router.patch(
   "/schedule/entries/:id",
   authorize("satuan"),
@@ -2010,91 +2423,69 @@ router.patch(
     const nextSlotStartId = toInt(req.body?.slot_start_id, existing.slot_start_id);
     const nextSlotCount = toInt(req.body?.slot_count, existing.slot_count);
 
-    const startSlotResult = await client.query(
-      `SELECT *
-       FROM lms.l_time_slot
+    const allocationResult = await client.query(
+      `SELECT COALESCE(SUM(slot_count), 0) AS allocated_sessions
+       FROM lms.l_schedule_entry
+       WHERE teaching_load_id = $1
+         AND status <> 'archived'
+         AND id <> $2`,
+      [existing.teaching_load_id, entryId],
+    );
+    const maxWeeklyResult = await client.query(
+      `SELECT weekly_sessions, max_sessions_per_meeting
+       FROM lms.l_teaching_load
        WHERE id = $1
        LIMIT 1`,
-      [nextSlotStartId],
+      [existing.teaching_load_id],
     );
-    if (startSlotResult.rowCount === 0) {
-      return res.status(400).json({ status: "error", message: "slot_start_id tidak valid." });
-    }
-
-    const startSlot = startSlotResult.rows[0];
-    const configId = startSlot.config_id;
-    const startSlotNo = toInt(startSlot.slot_no, 0);
-
-    const segmentResult = await client.query(
-      `SELECT id, slot_no, start_time, end_time
-       FROM lms.l_time_slot
-       WHERE config_id = $1
-         AND day_of_week = $2
-         AND is_break = false
-         AND slot_no BETWEEN $3 AND $4
-       ORDER BY slot_no`,
-      [configId, nextDay, startSlotNo, startSlotNo + nextSlotCount - 1],
+    const allocatedSessions = Number(allocationResult.rows[0]?.allocated_sessions || 0);
+    const maxWeeklySessions = Number(maxWeeklyResult.rows[0]?.weekly_sessions || 0);
+    const maxSessionsPerMeeting = Number(
+      maxWeeklyResult.rows[0]?.max_sessions_per_meeting || 1,
     );
-    if (segmentResult.rowCount !== nextSlotCount) {
-      return res.status(400).json({
-        status: "error",
-        message: "Slot berurutan tidak tersedia sesuai slot_count.",
-      });
-    }
 
-    const slotIds = segmentResult.rows.map((row) => Number(row.id));
-    const conflictResult = await client.query(
-      `SELECT ess.id
-       FROM lms.l_schedule_entry_slot ess
-       JOIN lms.l_schedule_entry e ON e.id = ess.schedule_entry_id
-       WHERE e.periode_id = $1
-         AND e.id <> $2
-         AND ess.day_of_week = $3
-         AND ess.slot_id = ANY($4::int[])
-         AND (ess.class_id = $5 OR ess.teacher_id = $6)
-       LIMIT 1`,
-      [
-        existing.periode_id,
-        entryId,
-        nextDay,
-        slotIds,
-        existing.class_id,
-        existing.teacher_id,
-      ],
-    );
-    if (conflictResult.rowCount > 0) {
+    if (Number(nextSlotCount) > maxSessionsPerMeeting) {
       return res.status(409).json({
         status: "error",
-        message: "Jadwal bentrok dengan jadwal kelas/guru lain.",
+        message: "Jumlah sesi melebihi batas maksimal sesi per pertemuan pada beban ajar.",
       });
     }
 
-    const teacherBlockResult = await client.query(
-      `SELECT day_of_week, start_time, end_time
-       FROM lms.l_teacher_unavailability
-       WHERE teacher_id = $1
-         AND periode_id = $2
-         AND is_active = true
-         AND specific_date IS NULL`,
-      [existing.teacher_id, existing.periode_id],
-    );
-
-    const violating = segmentResult.rows.some((slot) => {
-      const slotStart = parseMinute(slot.start_time);
-      const slotEnd = parseMinute(slot.end_time);
-      return teacherBlockResult.rows.some((block) => {
-        const blockDay = toInt(block.day_of_week, null);
-        if (blockDay && blockDay !== nextDay) return false;
-        const blockStart = block.start_time ? parseMinute(block.start_time) : null;
-        const blockEnd = block.end_time ? parseMinute(block.end_time) : null;
-        if (blockStart === null || blockEnd === null) return true;
-        return overlapTime(slotStart, slotEnd, blockStart, blockEnd);
+    if (allocatedSessions + Number(nextSlotCount || 0) > maxWeeklySessions) {
+      return res.status(409).json({
+        status: "error",
+        message: "Jumlah sesi melebihi target beban sesi per minggu.",
       });
+    }
+
+    const resolvedSegment = await resolveScheduleSegment({
+      client,
+      homebaseId: homebase_id,
+      periodeId: existing.periode_id,
+      dayOfWeek: nextDay,
+      slotStartId: nextSlotStartId,
+      slotCount: nextSlotCount,
     });
-    if (violating) {
-      return res.status(409).json({
+    if (resolvedSegment.error) {
+      return res.status(400).json({ status: "error", message: resolvedSegment.error });
+    }
+
+    const segmentRows = resolvedSegment.segmentRows;
+    const slotIds = segmentRows.map((row) => Number(row.id));
+    const placementValidation = await validateScheduleEntryPlacement({
+      client,
+      entryId,
+      periodeId: existing.periode_id,
+      homebaseId: homebase_id,
+      teacherId: Number(existing.teacher_id),
+      classId: Number(existing.class_id),
+      dayOfWeek: nextDay,
+      slotIds,
+    });
+    if (placementValidation.error) {
+      return res.status(placementValidation.status || 400).json({
         status: "error",
-        message: "Perubahan melanggar ketentuan waktu guru.",
+        message: placementValidation.error,
       });
     }
 
@@ -2107,14 +2498,14 @@ router.patch(
            is_manual_override = true,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
-      [entryId, nextDay, segmentResult.rows[0].id, nextSlotCount],
+      [entryId, nextDay, resolvedSegment.startSlotId, nextSlotCount],
     );
 
     await client.query(`DELETE FROM lms.l_schedule_entry_slot WHERE schedule_entry_id = $1`, [
       entryId,
     ]);
 
-    for (const slot of segmentResult.rows) {
+    for (const slot of segmentRows) {
       await client.query(
         `INSERT INTO lms.l_schedule_entry_slot (
            schedule_entry_id,
@@ -2154,7 +2545,7 @@ router.patch(
         }),
         JSON.stringify({
           day_of_week: nextDay,
-          slot_start_id: segmentResult.rows[0].id,
+          slot_start_id: resolvedSegment.startSlotId,
           slot_count: nextSlotCount,
         }),
         userId,

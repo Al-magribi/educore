@@ -11,7 +11,9 @@ import {
 import {
   useDeleteTeachingLoadMutation,
   useDeleteScheduleActivityMutation,
+  useDeleteScheduleEntryMutation,
   useDeleteUnavailabilityMutation,
+  useCreateManualScheduleEntryMutation,
   useGenerateScheduleMutation,
   useGetScheduleBootstrapQuery,
   useImportTeachingLoadMutation,
@@ -51,11 +53,24 @@ const Schedule = () => {
     useDeleteUnavailabilityMutation();
   const [generateSchedule, { isLoading: generating }] =
     useGenerateScheduleMutation();
+  const [createManualScheduleEntry, { isLoading: creatingEntry }] =
+    useCreateManualScheduleEntryMutation();
   const [updateScheduleEntry, { isLoading: updatingEntry }] =
     useUpdateScheduleEntryMutation();
+  const [deleteScheduleEntry, { isLoading: deletingEntry }] =
+    useDeleteScheduleEntryMutation();
 
   const payload = data?.data || {};
   const canManage = Boolean(payload.can_manage);
+  const activeClassIds = useMemo(
+    () =>
+      new Set(
+        (payload.classes || [])
+          .filter((item) => item?.is_active !== false)
+          .map((item) => Number(item.id)),
+      ),
+    [payload.classes],
+  );
 
   const sessionShortages = useMemo(() => {
     const allocatedByAssignment = (payload.entries || []).reduce(
@@ -68,6 +83,7 @@ const Schedule = () => {
     );
 
     return (payload.teacher_assignments || [])
+      .filter((item) => activeClassIds.has(Number(item.class_id)))
       .map((item) => {
         const requiredSessions = Number(item.weekly_sessions || 0);
         const allocatedSessions =
@@ -111,29 +127,91 @@ const Schedule = () => {
           String(right.class_name || ""),
         );
       });
-  }, [payload.entries, payload.teacher_assignments]);
+  }, [activeClassIds, payload.entries, payload.teacher_assignments]);
 
   const scheduleCapacity = useMemo(() => {
     const totalConfiguredSlots = (payload.slots || []).filter(
       (item) => !item?.is_break,
     ).length;
-    const totalClasses = (payload.classes || []).length;
-    const totalAvailableSessions = totalConfiguredSlots * totalClasses;
+    const activeClasses = (payload.classes || []).filter(
+      (item) => item?.is_active !== false,
+    );
+    const totalActiveClasses = activeClasses.length;
+    const totalAvailableSessions = totalConfiguredSlots * totalActiveClasses;
     const totalDistributedSessions = (payload.teacher_assignments || []).reduce(
-      (acc, item) =>
-        acc +
-        (item?.teaching_load_id ? Number(item.weekly_sessions || 0) : 0),
+      (acc, item) => {
+        if (!item?.teaching_load_id || item?.is_active === false) return acc;
+        if (!activeClassIds.has(Number(item.class_id))) return acc;
+        return acc + Number(item.weekly_sessions || 0);
+      },
       0,
     );
+    const activityTargetsById = (payload.activity_targets || []).reduce(
+      (acc, item) => {
+        const key = Number(item.activity_id);
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      },
+      {},
+    );
+    const blockedActivitySlots = new Set();
+
+    (payload.activities || []).forEach((activity) => {
+      if (activity?.is_active === false) return;
+
+      const dayOfWeek = Number(activity.day_of_week);
+      const slotIds = Array.isArray(activity.slot_ids)
+        ? activity.slot_ids.map((item) => Number(item)).filter(Boolean)
+        : [];
+
+      if (!dayOfWeek || !slotIds.length) return;
+
+      if (activity.scope_type === "all_classes") {
+        activeClasses.forEach((classItem) => {
+          slotIds.forEach((slotId) => {
+            blockedActivitySlots.add(
+              `${dayOfWeek}:${slotId}:${Number(classItem.id)}`,
+            );
+          });
+        });
+        return;
+      }
+
+      (activityTargetsById[Number(activity.id)] || []).forEach((target) => {
+        const classId = Number(target.class_id);
+        if (!activeClassIds.has(classId)) return;
+        slotIds.forEach((slotId) => {
+          blockedActivitySlots.add(`${dayOfWeek}:${slotId}:${classId}`);
+        });
+      });
+    });
+
+    const totalActivitySessions = blockedActivitySlots.size;
+    const remainingAfterDistribution =
+      totalAvailableSessions - totalDistributedSessions;
 
     return {
       total_configured_slots: totalConfiguredSlots,
-      total_classes: totalClasses,
+      total_classes: totalActiveClasses,
+      active_class_count: totalActiveClasses,
       total_available_sessions: totalAvailableSessions,
       total_distributed_sessions: totalDistributedSessions,
-      remaining_sessions: totalAvailableSessions - totalDistributedSessions,
+      total_activity_sessions: totalActivitySessions,
+      remaining_after_distribution: remainingAfterDistribution,
+      remaining_sessions:
+        totalAvailableSessions -
+        totalDistributedSessions -
+        totalActivitySessions,
     };
-  }, [payload.classes, payload.slots, payload.teacher_assignments]);
+  }, [
+    activeClassIds,
+    payload.activity_targets,
+    payload.activities,
+    payload.classes,
+    payload.slots,
+    payload.teacher_assignments,
+  ]);
 
   const handleConfigSave = async (body) => {
     try {
@@ -166,8 +244,10 @@ const Schedule = () => {
     try {
       await saveScheduleActivity(body).unwrap();
       message.success("Kegiatan tersimpan.");
+      return true;
     } catch (error) {
       message.error(error?.data?.message || "Gagal menyimpan kegiatan.");
+      throw error;
     }
   };
 
@@ -260,8 +340,30 @@ const Schedule = () => {
     try {
       await updateScheduleEntry(body).unwrap();
       message.success("Jadwal berhasil diperbarui.");
+      return true;
     } catch (error) {
       message.error(error?.data?.message || "Gagal memperbarui jadwal.");
+      throw error;
+    }
+  };
+
+  const handleCreateManualEntry = async (body) => {
+    try {
+      await createManualScheduleEntry(body).unwrap();
+      message.success("Jadwal manual berhasil ditambahkan.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menambahkan jadwal manual.");
+      throw error;
+    }
+  };
+
+  const handleDeleteEntry = async (id) => {
+    try {
+      await deleteScheduleEntry(id).unwrap();
+      message.success("Jadwal manual berhasil dihapus.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus jadwal manual.");
+      throw error;
     }
   };
 
@@ -348,6 +450,7 @@ const Schedule = () => {
                 activityTargets={payload.activity_targets || []}
                 slots={payload.slots || []}
                 teacherAssignments={payload.teacher_assignments || []}
+                scheduleCapacity={scheduleCapacity}
                 loading={savingActivity || deletingActivity || isFetching}
                 onSave={handleActivitySave}
                 onDelete={handleActivityDelete}
@@ -385,6 +488,8 @@ const Schedule = () => {
               <ScheduleTimetableCard
                 canManage={canManage}
                 entries={payload.entries || []}
+                activities={payload.activities || []}
+                activityTargets={payload.activity_targets || []}
                 slots={payload.slots || []}
                 breaks={payload.breaks || []}
                 classes={payload.classes || []}
@@ -392,10 +497,18 @@ const Schedule = () => {
                 teacherAssignments={payload.teacher_assignments || []}
                 teachers={payload.teachers || []}
                 sessionShortages={sessionShortages}
+                onCreateEntry={handleCreateManualEntry}
                 onGenerate={handleGenerate}
                 onRefresh={refetch}
+                onDeleteEntry={handleDeleteEntry}
                 onUpdateEntry={handleUpdateEntry}
-                loading={generating || updatingEntry || isFetching}
+                loading={
+                  generating ||
+                  creatingEntry ||
+                  updatingEntry ||
+                  deletingEntry ||
+                  isFetching
+                }
               />
             ),
           },

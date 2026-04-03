@@ -321,11 +321,24 @@ const ScheduleConfigCard = ({
               {scheduleCapacity?.total_configured_slots || 0}
             </Tag>
             <Tag color="geekblue">
-              Total kelas: {scheduleCapacity?.total_classes || 0}
+              Kelas aktif: {scheduleCapacity?.active_class_count || 0}
             </Tag>
             <Tag color="green">
               Total sesi tersedia:{" "}
               {scheduleCapacity?.total_available_sessions || 0}
+            </Tag>
+            <Tag color="gold">
+              Dipakai kegiatan:{" "}
+              {scheduleCapacity?.total_activity_sessions || 0}
+            </Tag>
+            <Tag
+              color={
+                Number(scheduleCapacity?.remaining_sessions || 0) >= 0
+                  ? "cyan"
+                  : "red"
+              }
+            >
+              Sisa sesi bersih: {scheduleCapacity?.remaining_sessions || 0}
             </Tag>
           </Space>
         </Card>
@@ -334,7 +347,7 @@ const ScheduleConfigCard = ({
           <Alert
             showIcon
             type="warning"
-            message={`Masih ada ${(sessionShortages || []).length} beban ajar yang kekurangan sesi`}
+            title={`Masih ada ${(sessionShortages || []).length} beban ajar yang kekurangan sesi`}
             description={`${sessionShortages
               .slice(0, 2)
               .map(

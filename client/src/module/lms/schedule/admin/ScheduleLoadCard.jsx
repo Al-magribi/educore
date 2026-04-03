@@ -481,12 +481,19 @@ const ScheduleLoadCard = ({
         title="Ringkasan Kapasitas Sesi"
       >
         <Space size={[8, 8]} wrap>
+          <Tag color="geekblue">
+            Kelas aktif: {scheduleCapacity?.active_class_count || 0}
+          </Tag>
           <Tag color="blue">
             Sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
           </Tag>
           <Tag color="gold">
             Beban terdistribusi:{" "}
             {scheduleCapacity?.total_distributed_sessions || 0}
+          </Tag>
+          <Tag color="purple">
+            Dipakai kegiatan:{" "}
+            {scheduleCapacity?.total_activity_sessions || 0}
           </Tag>
           <Tag
             color={

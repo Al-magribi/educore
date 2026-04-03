@@ -7,15 +7,19 @@ import {
   Form,
   InputNumber,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Switch,
   Table,
   Tag,
-  Tooltip,
+  Tabs,
   Typography,
 } from "antd";
 import { LayoutGrid, RefreshCcw, Sparkles } from "lucide-react";
+import ScheduleTeacherMapelTable from "./ScheduleTeacherMapelTable";
+import ScheduleTimetableBoard from "./ScheduleTimetableBoard";
+import { BORDER_COLOR, HEADER_BG, formatTime } from "./scheduleTimetableUtils";
 
 const { Text } = Typography;
 
@@ -38,7 +42,8 @@ const GENERATE_ACTION_OPTIONS = [
   {
     value: "regenerate_generated",
     label: "Regenerate Otomatis",
-    description: "Hapus hasil generate lama, pertahankan manual override dan lock.",
+    description:
+      "Hapus hasil generate lama, pertahankan manual override dan lock.",
   },
   {
     value: "reset_generated",
@@ -47,42 +52,11 @@ const GENERATE_ACTION_OPTIONS = [
   },
 ];
 
-const HEADER_BG = "#e7c1a3";
-const HEADER_SUB_BG = "#f3d8c2";
-const SLOT_BG = "#f8f1c7";
-const SURFACE_BG = "#fffdf8";
-const BORDER_COLOR = "#d9c7b8";
-
-const SUBJECT_COLOR_PALETTE = [
-  { bg: "#fde68a", text: "#7c2d12", border: "#f59e0b" },
-  { bg: "#bfdbfe", text: "#1e3a8a", border: "#60a5fa" },
-  { bg: "#fecaca", text: "#991b1b", border: "#f87171" },
-  { bg: "#c7f9cc", text: "#166534", border: "#4ade80" },
-  { bg: "#e9d5ff", text: "#6b21a8", border: "#c084fc" },
-  { bg: "#fed7aa", text: "#9a3412", border: "#fb923c" },
-  { bg: "#ddd6fe", text: "#5b21b6", border: "#8b5cf6" },
-  { bg: "#bae6fd", text: "#0c4a6e", border: "#38bdf8" },
-  { bg: "#fbcfe8", text: "#9d174d", border: "#f472b6" },
-  { bg: "#d9f99d", text: "#365314", border: "#84cc16" },
-];
-
-const formatTime = (value) => (value ? String(value).slice(0, 5) : "-");
-
-const getSubjectColor = (code) => {
-  const normalized = String(code || "-")
-    .trim()
-    .toUpperCase();
-  let hash = 0;
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash =
-      (hash * 31 + normalized.charCodeAt(index)) % SUBJECT_COLOR_PALETTE.length;
-  }
-  return SUBJECT_COLOR_PALETTE[hash];
-};
-
 const ScheduleTimetableCard = ({
   canManage,
   entries,
+  activities,
+  activityTargets,
   slots,
   breaks,
   classes,
@@ -91,6 +65,8 @@ const ScheduleTimetableCard = ({
   teacherAssignments,
   sessionShortages,
   loading,
+  onCreateEntry,
+  onDeleteEntry,
   onGenerate,
   onRefresh,
   onUpdateEntry,
@@ -98,9 +74,15 @@ const ScheduleTimetableCard = ({
   const [openModal, setOpenModal] = useState(false);
   const [openGenerateModal, setOpenGenerateModal] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [modalMode, setModalMode] = useState("edit");
   const [lastGenerateResult, setLastGenerateResult] = useState(null);
   const [form] = Form.useForm();
   const [generateForm] = Form.useForm();
+
+  const activeClasses = useMemo(
+    () => (classes || []).filter((item) => item.is_active === true),
+    [classes],
+  );
 
   const gradeGroups = useMemo(() => {
     const grouped = new Map();
@@ -112,7 +94,7 @@ const ScheduleTimetableCard = ({
       });
     });
 
-    (classes || []).forEach((item) => {
+    activeClasses.forEach((item) => {
       const gradeId = Number(item.grade_id);
       if (!grouped.has(gradeId)) {
         grouped.set(gradeId, {
@@ -135,7 +117,7 @@ const ScheduleTimetableCard = ({
       .sort((a, b) =>
         String(a.grade_name || "").localeCompare(String(b.grade_name || "")),
       );
-  }, [classes, grades]);
+  }, [activeClasses, grades]);
 
   const slotByDay = useMemo(() => {
     const map = new Map();
@@ -176,6 +158,61 @@ const ScheduleTimetableCard = ({
     return map;
   }, [expandedEntries]);
 
+  const activityMap = useMemo(() => {
+    const activeClassIdList = activeClasses.map((item) => Number(item.id));
+    const targetsByActivityId = (activityTargets || []).reduce((acc, item) => {
+      const key = Number(item.activity_id);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+    const map = new Map();
+
+    (activities || []).forEach((activity) => {
+      if (activity?.is_active === false) return;
+
+      const dayOfWeek = Number(activity.day_of_week);
+      const slotIds = Array.isArray(activity.slot_ids)
+        ? activity.slot_ids.map((item) => Number(item)).filter(Boolean)
+        : [];
+
+      if (!dayOfWeek || !slotIds.length) return;
+
+      if (activity.scope_type === "all_classes") {
+        activeClassIdList.forEach((classId) => {
+          slotIds.forEach((slotId) => {
+            const key = `${dayOfWeek}:${slotId}:${classId}`;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(activity);
+          });
+        });
+        return;
+      }
+
+      (targetsByActivityId[Number(activity.id)] || []).forEach((target) => {
+        const classId = Number(target.class_id);
+        if (!activeClassIdList.includes(classId)) return;
+        slotIds.forEach((slotId) => {
+          const key = `${dayOfWeek}:${slotId}:${classId}`;
+          if (!map.has(key)) map.set(key, []);
+          map.get(key).push(activity);
+        });
+      });
+    });
+
+    for (const [key, rows] of map.entries()) {
+      const uniqueRows = rows.filter(
+        (item, index, array) =>
+          array.findIndex(
+            (candidate) => Number(candidate.id) === Number(item.id),
+          ) === index,
+      );
+      map.set(key, uniqueRows);
+    }
+
+    return map;
+  }, [activeClasses, activities, activityTargets]);
+
   const timetableRows = useMemo(() => {
     const rows = [];
     DAY_OPTIONS.forEach((day) => {
@@ -201,9 +238,13 @@ const ScheduleTimetableCard = ({
         slot_no: Number(slot.slot_no),
         slot_id: Number(slot.id),
         time_label: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
-        cells: (classes || []).reduce((acc, item) => {
+        cells: activeClasses.reduce((acc, item) => {
           const entryKey = `${day.value}:${slot.slot_no}:${item.id}`;
-          acc[item.id] = entryMap.get(entryKey) || null;
+          const activityKey = `${day.value}:${slot.id}:${item.id}`;
+          acc[item.id] = {
+            entry: entryMap.get(entryKey) || null,
+            activities: activityMap.get(activityKey) || [],
+          };
           return acc;
         }, {}),
       }));
@@ -217,11 +258,12 @@ const ScheduleTimetableCard = ({
           ...item,
           show_day: index === 0,
           day_rowspan: mergedRows.length,
+          is_day_end: index === mergedRows.length - 1,
         });
       });
     });
     return rows;
-  }, [breaks, classes, entryMap, slotByDay]);
+  }, [activeClasses, activityMap, breaks, entryMap, slotByDay]);
 
   const teacherSummaryRows = useMemo(() => {
     const grouped = new Map(
@@ -283,24 +325,84 @@ const ScheduleTimetableCard = ({
 
     return {
       ...lastGenerateResult,
-      failed_items: (lastGenerateResult.failed_items || []).map((item, index) => {
-        const assignment =
-          assignmentMap.get(`${item.teacher_id}:${item.subject_id}:${item.class_id}`) || {};
-        return {
-          key: `${item.teacher_id}:${item.subject_id}:${item.class_id}:${item.meeting_no || index}`,
-          ...item,
-          teacher_name: assignment.teacher_name,
-          subject_name: assignment.subject_name,
-          class_name: assignment.class_name,
-        };
-      }),
+      failed_items: (lastGenerateResult.failed_items || []).map(
+        (item, index) => {
+          const assignment =
+            assignmentMap.get(
+              `${item.teacher_id}:${item.subject_id}:${item.class_id}`,
+            ) || {};
+          return {
+            key: `${item.teacher_id}:${item.subject_id}:${item.class_id}:${item.meeting_no || index}`,
+            ...item,
+            teacher_name: assignment.teacher_name,
+            subject_name: assignment.subject_name,
+            class_name: assignment.class_name,
+          };
+        },
+      ),
     };
   }, [lastGenerateResult, teacherAssignments]);
 
+  const teachingLoadMap = useMemo(
+    () =>
+      new Map(
+        (teacherAssignments || [])
+          .filter((item) => item.teaching_load_id)
+          .map((item) => [Number(item.teaching_load_id), item]),
+      ),
+    [teacherAssignments],
+  );
+
+  const manualEntryOptions = useMemo(() => {
+    const scheduledSessionsByLoad = (entries || []).reduce((acc, item) => {
+      const key = Number(item.teaching_load_id);
+      if (!key) return acc;
+      acc[key] = (acc[key] || 0) + Number(item.slot_count || 0);
+      return acc;
+    }, {});
+
+    const activityLoadIds = new Set(
+      (activityTargets || [])
+        .map((item) => Number(item.teaching_load_id))
+        .filter(Boolean),
+    );
+
+    return (teacherAssignments || [])
+      .filter((item) => {
+        const teachingLoadId = Number(item.teaching_load_id);
+        if (!teachingLoadId) return false;
+        if (activityLoadIds.has(teachingLoadId)) return false;
+
+        const allocatedSessions = Number(
+          scheduledSessionsByLoad[teachingLoadId] || 0,
+        );
+        const weeklySessions = Number(item.weekly_sessions || 0);
+        return allocatedSessions < weeklySessions;
+      })
+      .map((item) => {
+        const teachingLoadId = Number(item.teaching_load_id);
+        const allocatedSessions = Number(
+          scheduledSessionsByLoad[teachingLoadId] || 0,
+        );
+        const remainingSessions = Math.max(
+          Number(item.weekly_sessions || 0) - allocatedSessions,
+          0,
+        );
+
+        return {
+          value: teachingLoadId,
+          label: `${item.teacher_name} | ${item.subject_name} | ${item.class_name} | sisa ${remainingSessions} sesi`,
+        };
+      })
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [activityTargets, entries, teacherAssignments]);
+
   const openEditor = useCallback(
     (record) => {
+      setModalMode("edit");
       setEditing(record);
       form.setFieldsValue({
+        teaching_load_id: Number(record.teaching_load_id) || undefined,
         day_of_week: Number(record.day_of_week),
         slot_count: Number(record.slot_count) || 1,
         slot_start_id: Number(record.slot_start_id) || null,
@@ -310,18 +412,53 @@ const ScheduleTimetableCard = ({
     [form],
   );
 
+  const openCreateManualDialog = useCallback(() => {
+    setModalMode("create");
+    setEditing(null);
+    form.resetFields();
+    form.setFieldsValue({
+      teaching_load_id: undefined,
+      day_of_week: undefined,
+      slot_start_id: undefined,
+      slot_count: 1,
+    });
+    setOpenModal(true);
+  }, [form]);
+
+  const closeEntryModal = useCallback(() => {
+    setOpenModal(false);
+    setEditing(null);
+    setModalMode("edit");
+    form.resetFields();
+  }, [form]);
+
   const handleSubmit = async () => {
-    if (!editing) return;
     const values = await form.validateFields();
+    if (modalMode === "create") {
+      await onCreateEntry({
+        teaching_load_id: values.teaching_load_id,
+        day_of_week: values.day_of_week,
+        slot_start_id: values.slot_start_id,
+        slot_count: values.slot_count,
+      });
+      closeEntryModal();
+      return;
+    }
+    if (!editing) return;
     await onUpdateEntry({
       id: editing.id,
       day_of_week: values.day_of_week,
       slot_start_id: values.slot_start_id,
       slot_count: values.slot_count,
     });
-    setOpenModal(false);
-    setEditing(null);
+    closeEntryModal();
   };
+
+  const handleDeleteCurrentEntry = useCallback(async () => {
+    if (!editing?.id) return;
+    await onDeleteEntry(editing.id);
+    closeEntryModal();
+  }, [closeEntryModal, editing?.id, onDeleteEntry]);
 
   const openGenerateDialog = useCallback(() => {
     generateForm.setFieldsValue({
@@ -339,13 +476,173 @@ const ScheduleTimetableCard = ({
   }, [generateForm, onGenerate]);
 
   const currentDay = Form.useWatch("day_of_week", form);
+  const currentTeachingLoadId = Form.useWatch("teaching_load_id", form);
+  const currentSlotCount = Form.useWatch("slot_count", form);
+  const currentManualLoad = useMemo(() => {
+    if (modalMode === "create") {
+      return teachingLoadMap.get(Number(currentTeachingLoadId)) || null;
+    }
+    if (!editing?.teaching_load_id) return null;
+    return teachingLoadMap.get(Number(editing.teaching_load_id)) || null;
+  }, [currentTeachingLoadId, editing, modalMode, teachingLoadMap]);
+
+  const currentAllocatedSessions = useMemo(() => {
+    if (!currentManualLoad?.teaching_load_id) return 0;
+    return (entries || []).reduce((acc, item) => {
+      if (
+        Number(item.teaching_load_id) !==
+        Number(currentManualLoad.teaching_load_id)
+      ) {
+        return acc;
+      }
+      if (editing?.id && Number(item.id) === Number(editing.id)) {
+        return acc;
+      }
+      return acc + Number(item.slot_count || 0);
+    }, 0);
+  }, [currentManualLoad, editing, entries]);
+
+  const manualSlotCountLimit = useMemo(() => {
+    if (!currentManualLoad) return 1;
+    const weeklySessions = Number(currentManualLoad.weekly_sessions || 0);
+    const maxSessionsPerMeeting = Math.max(
+      1,
+      Number(currentManualLoad.max_sessions_per_meeting || 1),
+    );
+    const remainingSessions = Math.max(
+      weeklySessions - Number(currentAllocatedSessions || 0),
+      0,
+    );
+    return Math.max(1, Math.min(remainingSessions || 1, maxSessionsPerMeeting));
+  }, [currentAllocatedSessions, currentManualLoad]);
   const slotStartOptions = useMemo(() => {
     const rows = slotByDay.get(Number(currentDay)) || [];
-    return rows.map((slot) => ({
-      value: slot.id,
-      label: `Jam ${slot.slot_no} (${formatTime(slot.start_time)} - ${formatTime(slot.end_time)})`,
-    }));
-  }, [currentDay, slotByDay]);
+    const selectedSlotCount = Math.max(
+      1,
+      Math.min(Number(currentSlotCount || 1), manualSlotCountLimit),
+    );
+    const activeLoad =
+      modalMode === "create"
+        ? currentManualLoad
+        : editing
+          ? {
+              teacher_id: editing.teacher_id,
+              class_id: editing.class_id,
+            }
+          : null;
+
+    if (!rows.length || !activeLoad) {
+      return rows.map((slot) => ({
+        value: slot.id,
+        label: `Jam ${slot.slot_no} (${formatTime(slot.start_time)} - ${formatTime(slot.end_time)})`,
+      }));
+    }
+
+    const day = Number(currentDay);
+    const classId = Number(activeLoad.class_id);
+    const teacherId = Number(activeLoad.teacher_id);
+    const occupiedSlotNos = new Set();
+
+    expandedEntries.forEach((entry) => {
+      if (Number(entry.day_of_week) !== day) return;
+      if (editing?.id && Number(entry.id) === Number(editing.id)) return;
+      if (
+        Number(entry.class_id) === classId ||
+        Number(entry.teacher_id) === teacherId
+      ) {
+        occupiedSlotNos.add(Number(entry.slot_no));
+      }
+    });
+
+    (activities || []).forEach((activity) => {
+      if (activity?.is_active === false) return;
+      if (Number(activity.day_of_week) !== day) return;
+
+      const slotIds = Array.isArray(activity.slot_ids)
+        ? activity.slot_ids.map((item) => Number(item))
+        : [];
+      if (!slotIds.length) return;
+
+      let matchesTarget = activity.scope_type === "all_classes";
+      if (!matchesTarget) {
+        matchesTarget = (activityTargets || []).some(
+          (target) =>
+            Number(target.activity_id) === Number(activity.id) &&
+            (Number(target.class_id) === classId ||
+              Number(target.teacher_id) === teacherId),
+        );
+      }
+      if (!matchesTarget) return;
+
+      rows.forEach((slot) => {
+        if (slotIds.includes(Number(slot.id))) {
+          occupiedSlotNos.add(Number(slot.slot_no));
+        }
+      });
+    });
+
+    return rows
+      .map((slot, index) => {
+        const segment = rows.slice(index, index + selectedSlotCount);
+        const isEnough = segment.length === selectedSlotCount;
+        const isContiguous = segment.every((item, segmentIndex) =>
+          segmentIndex === 0
+            ? true
+            : Number(item.slot_no) ===
+              Number(segment[segmentIndex - 1].slot_no) + 1,
+        );
+        const hasConflict = segment.some((item) =>
+          occupiedSlotNos.has(Number(item.slot_no)),
+        );
+        return {
+          value: slot.id,
+          label: `Jam ${slot.slot_no} (${formatTime(slot.start_time)} - ${formatTime(slot.end_time)})`,
+          disabled: !isEnough || !isContiguous || hasConflict,
+        };
+      })
+      .filter(
+        (item) =>
+          !item.disabled ||
+          Number(item.value) === Number(form.getFieldValue("slot_start_id")),
+      );
+  }, [
+    activities,
+    activityTargets,
+    currentDay,
+    currentSlotCount,
+    currentTeachingLoadId,
+    editing,
+    expandedEntries,
+    form,
+    modalMode,
+    slotByDay,
+    teacherAssignments,
+    teachingLoadMap,
+    currentManualLoad,
+    manualSlotCountLimit,
+  ]);
+
+  const selectedLoadHelper = useMemo(() => {
+    if (!currentManualLoad) return null;
+    const weeklySessions = Number(currentManualLoad.weekly_sessions || 0);
+    const maxSessionsPerMeeting = Number(
+      currentManualLoad.max_sessions_per_meeting || 1,
+    );
+    const remainingSessions = Math.max(
+      weeklySessions - Number(currentAllocatedSessions || 0),
+      0,
+    );
+    return {
+      weeklySessions,
+      maxSessionsPerMeeting,
+      remainingSessions,
+    };
+  }, [currentAllocatedSessions, currentManualLoad]);
+
+  const isManualEditing = Boolean(
+    editing &&
+    (editing.source_type === "manual" || Boolean(editing.is_manual_override)),
+  );
 
   const flatClasses = useMemo(
     () =>
@@ -353,6 +650,8 @@ const ScheduleTimetableCard = ({
         group.classes.map((item, classIndex) => ({
           ...item,
           group_name: group.grade_name,
+          is_group_first: classIndex === 0,
+          is_group_last: classIndex === group.classes.length - 1,
           absolute_index:
             gradeGroups
               .slice(
@@ -370,337 +669,6 @@ const ScheduleTimetableCard = ({
     [gradeGroups],
   );
 
-  const timetableColumns = useMemo(() => {
-    const totalClassCount = (classes || []).length;
-    const renderEntryCell = (entry) => {
-      if (!entry) {
-        return <span style={{ color: "#bfbfbf" }}>-</span>;
-      }
-
-      const code = entry.subject_code || entry.subject_name || "-";
-      const color = getSubjectColor(code);
-      const content = (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minWidth: 44,
-            minHeight: 28,
-            padding: "2px 8px",
-            borderRadius: 999,
-            border: `1px solid ${color.border}`,
-            background: color.bg,
-            color: color.text,
-            fontWeight: 800,
-            fontSize: 12,
-            letterSpacing: 0.3,
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)",
-          }}
-        >
-          {code}
-        </span>
-      );
-
-      if (!canManage) {
-        return (
-          <Tooltip title={`${entry.subject_name} | ${entry.teacher_name}`}>
-            {content}
-          </Tooltip>
-        );
-      }
-
-      return (
-        <Tooltip title={`${entry.subject_name} | ${entry.teacher_name}`}>
-          <Button
-            type='text'
-            style={{
-              width: "100%",
-              height: "auto",
-              padding: 4,
-              textAlign: "center",
-              justifyContent: "center",
-              fontWeight: 700,
-              borderRadius: 10,
-            }}
-            onClick={() => openEditor(entry)}
-          >
-            {content}
-          </Button>
-        </Tooltip>
-      );
-    };
-
-    const fixedColumns = [
-      {
-        title: "Hari",
-        dataIndex: "day_name",
-        key: "day_name",
-        width: 72,
-        align: "center",
-        onCell: (record) => ({
-          rowSpan: record.show_day ? record.day_rowspan : 0,
-          style: {
-            background: SLOT_BG,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-          },
-        }),
-        onHeaderCell: () => ({
-          style: {
-            background: HEADER_BG,
-            textAlign: "center",
-            fontWeight: 700,
-            borderColor: BORDER_COLOR,
-          },
-        }),
-      },
-      {
-        title: "Alokasi Waktu",
-        children: [
-          {
-            title: "Jam ke",
-            dataIndex: "slot_no",
-            key: "slot_no",
-            width: 64,
-            align: "center",
-            render: (value, record) => (record.is_break ? "-" : value),
-            onCell: () => ({
-              style: {
-                background: SLOT_BG,
-                fontWeight: 700,
-                borderColor: BORDER_COLOR,
-              },
-            }),
-            onHeaderCell: () => ({
-              style: {
-                background: HEADER_SUB_BG,
-                textAlign: "center",
-                fontWeight: 700,
-                borderColor: BORDER_COLOR,
-              },
-            }),
-          },
-          {
-            title: "Waktu",
-            dataIndex: "time_label",
-            key: "time_label",
-            width: 120,
-            align: "center",
-            onCell: () => ({
-              style: {
-                background: SLOT_BG,
-                fontWeight: 700,
-                borderColor: BORDER_COLOR,
-              },
-            }),
-            onHeaderCell: () => ({
-              style: {
-                background: HEADER_SUB_BG,
-                textAlign: "center",
-                fontWeight: 700,
-                borderColor: BORDER_COLOR,
-              },
-            }),
-          },
-        ],
-        onHeaderCell: () => ({
-          style: {
-            background: HEADER_BG,
-            textAlign: "center",
-            fontWeight: 800,
-            borderColor: BORDER_COLOR,
-          },
-        }),
-      },
-    ];
-
-    const classColumns = gradeGroups.map((group) => {
-      return {
-        title: `Kelas ${group.grade_name}`,
-        children: group.classes.map((item) => {
-          const classMeta = flatClasses.find(
-            (candidate) => candidate.id === item.id,
-          );
-          const absoluteClassIndex = classMeta?.absolute_index || 0;
-          return {
-            title: item.name,
-            key: `class_${item.id}`,
-            width: 72,
-            align: "center",
-            render: (_, record) => {
-              if (record.is_break) {
-                if (absoluteClassIndex === 0) {
-                  return {
-                    children: (
-                      <span
-                        style={{
-                          display: "inline-block",
-                          width: "100%",
-                          fontWeight: 800,
-                          color: "#8a4b08",
-                          textTransform: "uppercase",
-                          letterSpacing: 0.8,
-                        }}
-                      >
-                        {record.break_label}
-                      </span>
-                    ),
-                    props: {
-                      colSpan: totalClassCount,
-                    },
-                  };
-                }
-                return { children: null, props: { colSpan: 0 } };
-              }
-
-              return renderEntryCell(record.cells[item.id]);
-            },
-            onCell: (_, record) => ({
-              style: {
-                textAlign: "center",
-                padding: 6,
-                background: record.is_break ? "#fff1bf" : SURFACE_BG,
-                borderColor: BORDER_COLOR,
-              },
-            }),
-            onHeaderCell: () => ({
-              style: {
-                background: HEADER_SUB_BG,
-                textAlign: "center",
-                fontWeight: 800,
-                borderColor: BORDER_COLOR,
-              },
-            }),
-          };
-        }),
-        onHeaderCell: () => ({
-          style: {
-            background: HEADER_BG,
-            textAlign: "center",
-            fontWeight: 800,
-            borderColor: BORDER_COLOR,
-          },
-        }),
-      };
-    });
-
-    return [...fixedColumns, ...classColumns];
-  }, [canManage, classes, flatClasses, gradeGroups, openEditor]);
-
-  const teacherColumns = [
-    {
-      title: "Nama Guru",
-      dataIndex: "teacher_name",
-      key: "teacher_name",
-      width: 220,
-      onHeaderCell: () => ({
-        style: {
-          background: HEADER_BG,
-          textAlign: "center",
-          fontWeight: 800,
-          borderColor: BORDER_COLOR,
-        },
-      }),
-      onCell: (_, index) => ({
-        style: {
-          padding: "10px 12px",
-          fontWeight: 700,
-          verticalAlign: "top",
-          background: index % 2 === 0 ? "#fffaf4" : "#ffffff",
-          borderColor: BORDER_COLOR,
-        },
-      }),
-    },
-    {
-      title: "Mata Pelajaran",
-      key: "subjects",
-      render: (_, record) =>
-        record.subject_names.length > 0 ? (
-          <Space size={[4, 6]} wrap>
-            {record.subject_names.map((subjectName) => {
-              const color = getSubjectColor(subjectName);
-              return (
-                <span
-                  key={`${record.key}-${subjectName}`}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    background: color.bg,
-                    color: color.text,
-                    border: `1px solid ${color.border}`,
-                    fontWeight: 700,
-                    fontSize: 12,
-                  }}
-                >
-                  {subjectName}
-                </span>
-              );
-            })}
-          </Space>
-        ) : (
-          "Belum ada mapel"
-        ),
-      onHeaderCell: () => ({
-        style: {
-          background: HEADER_BG,
-          textAlign: "center",
-          fontWeight: 800,
-          borderColor: BORDER_COLOR,
-        },
-      }),
-      onCell: (_, index) => ({
-        style: {
-          padding: "10px 12px",
-          verticalAlign: "top",
-          background: index % 2 === 0 ? "#fffaf4" : "#ffffff",
-          borderColor: BORDER_COLOR,
-        },
-      }),
-    },
-    {
-      title: "Catatan Alokasi",
-      key: "shortages",
-      width: 320,
-      render: (_, record) =>
-        record.shortages?.length ? (
-          <Space direction='vertical' size={4}>
-            {record.shortages.map((item) => (
-              <div key={item.key}>
-                <Text strong>{item.subject_name}</Text>{" "}
-                <Text type='secondary'>{item.class_name}</Text>{" "}
-                <Tag color='gold'>
-                  {item.allocated_sessions}/{item.required_sessions} sesi
-                </Tag>
-                <Tag color='red'>Kurang {item.missing_sessions}</Tag>
-              </div>
-            ))}
-          </Space>
-        ) : (
-          <Tag color='green'>Semua sesi terpenuhi</Tag>
-        ),
-      onHeaderCell: () => ({
-        style: {
-          background: HEADER_BG,
-          textAlign: "center",
-          fontWeight: 800,
-          borderColor: BORDER_COLOR,
-        },
-      }),
-      onCell: (_, index) => ({
-        style: {
-          padding: "10px 12px",
-          verticalAlign: "top",
-          background: index % 2 === 0 ? "#fffaf4" : "#ffffff",
-          borderColor: BORDER_COLOR,
-        },
-      }),
-    },
-  ];
-
   const generateAction = Form.useWatch("action", generateForm);
   const generatePreview = Form.useWatch("dry_run", generateForm);
 
@@ -708,10 +676,20 @@ const ScheduleTimetableCard = ({
     {
       title: "Guru / Mapel / Kelas",
       key: "assignment",
+      onHeaderCell: () => ({
+        style: {
+          background: HEADER_BG,
+          textAlign: "center",
+          fontWeight: 800,
+          borderColor: BORDER_COLOR,
+        },
+      }),
       render: (_, record) => (
-        <Space direction='vertical' size={0}>
-          <Text strong>{record.teacher_name || `Guru #${record.teacher_id}`}</Text>
-          <Text type='secondary'>
+        <Space orientation="vertical" size={0}>
+          <Text strong>
+            {record.teacher_name || `Guru #${record.teacher_id}`}
+          </Text>
+          <Text type="secondary">
             {record.subject_name || `Mapel #${record.subject_id}`} |{" "}
             {record.class_name || `Kelas #${record.class_id}`}
           </Text>
@@ -722,8 +700,16 @@ const ScheduleTimetableCard = ({
       title: "Pertemuan",
       key: "meeting",
       width: 120,
+      onHeaderCell: () => ({
+        style: {
+          background: HEADER_BG,
+          textAlign: "center",
+          fontWeight: 800,
+          borderColor: BORDER_COLOR,
+        },
+      }),
       render: (_, record) => (
-        <Tag color='gold'>
+        <Tag color="gold">
           #{record.meeting_no} / {record.chunk_size} sesi
         </Tag>
       ),
@@ -733,6 +719,14 @@ const ScheduleTimetableCard = ({
       dataIndex: "failure_reason",
       key: "failure_reason",
       width: 260,
+      onHeaderCell: () => ({
+        style: {
+          background: HEADER_BG,
+          textAlign: "center",
+          fontWeight: 800,
+          borderColor: BORDER_COLOR,
+        },
+      }),
     },
   ];
 
@@ -763,7 +757,7 @@ const ScheduleTimetableCard = ({
           </Button>
           {canManage ? (
             <Button
-              type='primary'
+              type="primary"
               icon={<Sparkles size={14} />}
               onClick={openGenerateDialog}
               loading={loading}
@@ -771,10 +765,15 @@ const ScheduleTimetableCard = ({
               Generate
             </Button>
           ) : null}
+          {canManage ? (
+            <Button onClick={openCreateManualDialog}>
+              Tambah Jadwal Manual
+            </Button>
+          ) : null}
         </Space>
       }
     >
-      {(sessionShortages || []).length > 0 ? (
+      {/* {(sessionShortages || []).length > 0 ? (
         <Alert
           showIcon
           type='warning'
@@ -782,7 +781,7 @@ const ScheduleTimetableCard = ({
             marginBottom: 20,
             borderRadius: 14,
           }}
-          message={`Ada ${(sessionShortages || []).length} beban ajar yang belum terpenuhi`}
+          title={`Ada ${(sessionShortages || []).length} beban ajar yang belum terpenuhi`}
           description={`${sessionShortages
             .slice(0, 4)
             .map(
@@ -791,20 +790,20 @@ const ScheduleTimetableCard = ({
             )
             .join(" | ")}${sessionShortages.length > 4 ? " | ..." : ""}`}
         />
-      ) : null}
+      ) : null} */}
 
       {displayGenerateResult ? (
         <Card
-          size='small'
+          size="small"
           style={{
             marginBottom: 20,
             borderRadius: 18,
             borderColor: "#ead9cc",
             background: "#fffaf4",
           }}
-          title='Ringkasan Generate Terakhir'
+          title="Ringkasan Generate Terakhir"
         >
-          <Space direction='vertical' size={12} style={{ width: "100%" }}>
+          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
             <Alert
               showIcon
               type={
@@ -814,7 +813,7 @@ const ScheduleTimetableCard = ({
                     ? "warning"
                     : "success"
               }
-              message={
+              title={
                 displayGenerateResult.dry_run
                   ? "Mode simulasi"
                   : displayGenerateResult.operation === "reset_generated"
@@ -825,21 +824,31 @@ const ScheduleTimetableCard = ({
             />
 
             <Space wrap>
-              <Tag color='blue'>Load: {displayGenerateResult.summary?.total_loads || 0}</Tag>
-              <Tag color='geekblue'>Slot: {displayGenerateResult.summary?.total_slots || 0}</Tag>
-              <Tag color='purple'>Rule guru: {displayGenerateResult.summary?.weekly_rules || 0}</Tag>
-              <Tag color='gold'>
-                Manual tersimpan: {displayGenerateResult.summary?.existing_entries?.manual_entries || 0}
+              <Tag color="blue">
+                Load: {displayGenerateResult.summary?.total_loads || 0}
               </Tag>
-              <Tag color='red'>
-                Locked tersimpan: {displayGenerateResult.summary?.existing_entries?.locked_entries || 0}
+              <Tag color="geekblue">
+                Slot: {displayGenerateResult.summary?.total_slots || 0}
+              </Tag>
+              <Tag color="purple">
+                Rule guru: {displayGenerateResult.summary?.weekly_rules || 0}
+              </Tag>
+              <Tag color="gold">
+                Manual tersimpan:{" "}
+                {displayGenerateResult.summary?.existing_entries
+                  ?.manual_entries || 0}
+              </Tag>
+              <Tag color="red">
+                Locked tersimpan:{" "}
+                {displayGenerateResult.summary?.existing_entries
+                  ?.locked_entries || 0}
               </Tag>
             </Space>
 
             {(displayGenerateResult.failed_summary || []).length > 0 ? (
               <Space wrap>
                 {displayGenerateResult.failed_summary.map((item) => (
-                  <Tag key={item.code} color='orange'>
+                  <Tag key={item.code} color="orange">
                     {item.label}: {item.count}
                   </Tag>
                 ))}
@@ -848,8 +857,8 @@ const ScheduleTimetableCard = ({
 
             {(displayGenerateResult.failed_items || []).length > 0 ? (
               <Table
-                rowKey='key'
-                size='small'
+                rowKey="key"
+                size="small"
                 columns={failedColumns}
                 dataSource={displayGenerateResult.failed_items.slice(0, 10)}
                 pagination={false}
@@ -861,85 +870,66 @@ const ScheduleTimetableCard = ({
       ) : null}
 
       {!timetableRows.length ? (
-        <Empty description='Belum ada jadwal untuk ditampilkan.' />
+        <Empty description="Belum ada jadwal untuk ditampilkan." />
       ) : (
-        <Space direction='vertical' size={20} style={{ width: "100%" }}>
-          <Card
-            size='small'
-            title='Tabel Jadwal'
-            style={{
-              borderRadius: 18,
-              borderColor: "#ead9cc",
-              boxShadow: "0 10px 24px rgba(110, 84, 54, 0.08)",
-            }}
-            styles={{
-              header: {
-                background: "#fff8f0",
-                borderBottom: "1px solid #efdfd0",
+        <Card
+          size="small"
+          style={{
+            borderRadius: 18,
+            borderColor: "#ead9cc",
+            boxShadow: "0 10px 24px rgba(110, 84, 54, 0.08)",
+          }}
+          styles={{
+            header: {
+              background: "#fff8f0",
+              borderBottom: "1px solid #efdfd0",
+            },
+            body: { padding: 0 },
+          }}
+        >
+          <Tabs
+            defaultActiveKey="timetable"
+            style={{ padding: "0 16px 16px" }}
+            items={[
+              {
+                key: "timetable",
+                label: "Jadwal",
+                children: (
+                  <ScheduleTimetableBoard
+                    canManage={canManage}
+                    flatClasses={flatClasses}
+                    gradeGroups={gradeGroups}
+                    loading={loading}
+                    onEditEntry={openEditor}
+                    rows={timetableRows}
+                  />
+                ),
               },
-              body: { padding: 0 },
-            }}
-          >
-            <Table
-              rowKey='key'
-              bordered
-              size='small'
-              loading={loading}
-              columns={timetableColumns}
-              dataSource={timetableRows}
-              pagination={false}
-              scroll={{ x: "max-content", y: 760 }}
-              locale={{ emptyText: "Belum ada data jadwal." }}
-              sticky
-            />
-          </Card>
-
-          <Card
-            size='small'
-            title='Guru dan Mapel'
-            style={{
-              borderRadius: 18,
-              borderColor: "#ead9cc",
-              boxShadow: "0 10px 24px rgba(110, 84, 54, 0.08)",
-            }}
-            styles={{
-              header: {
-                background: "#fff8f0",
-                borderBottom: "1px solid #efdfd0",
+              {
+                key: "teacher-subject",
+                label: "Guru dan Mapel",
+                children: (
+                  <ScheduleTeacherMapelTable
+                    loading={loading}
+                    rows={teacherSummaryRows}
+                  />
+                ),
               },
-              body: { padding: 0 },
-            }}
-          >
-            <Table
-              rowKey='key'
-              bordered
-              size='small'
-              loading={loading}
-              columns={teacherColumns}
-              dataSource={teacherSummaryRows}
-              pagination={false}
-              scroll={{ y: 520 }}
-              locale={{ emptyText: "Belum ada data guru." }}
-              sticky
-            />
-          </Card>
-        </Space>
+            ]}
+          />
+        </Card>
       )}
 
       <Modal
         open={openGenerateModal}
-        title='Generate Jadwal'
+        title="Generate Jadwal"
         onCancel={() => setOpenGenerateModal(false)}
         onOk={handleGenerateSubmit}
         okText={generatePreview ? "Jalankan Simulasi" : "Jalankan"}
         confirmLoading={loading}
       >
-        <Form form={generateForm} layout='vertical'>
-          <Form.Item
-            name='action'
-            label='Aksi'
-            rules={[{ required: true }]}
-          >
+        <Form form={generateForm} layout="vertical">
+          <Form.Item name="action" label="Aksi" rules={[{ required: true }]}>
             <Select
               options={GENERATE_ACTION_OPTIONS.map((item) => ({
                 value: item.value,
@@ -949,28 +939,34 @@ const ScheduleTimetableCard = ({
           </Form.Item>
           <Alert
             showIcon
-            type='info'
+            type="info"
             style={{ marginBottom: 16 }}
-            message={
-              GENERATE_ACTION_OPTIONS.find((item) => item.value === generateAction)
-                ?.label || "Generate"
+            title={
+              GENERATE_ACTION_OPTIONS.find(
+                (item) => item.value === generateAction,
+              )?.label || "Generate"
             }
             description={
-              GENERATE_ACTION_OPTIONS.find((item) => item.value === generateAction)
-                ?.description || "-"
+              GENERATE_ACTION_OPTIONS.find(
+                (item) => item.value === generateAction,
+              )?.description || "-"
             }
           />
           <Form.Item
-            name='dry_run'
-            label='Simulasi terlebih dahulu'
-            valuePropName='checked'
+            name="dry_run"
+            label="Simulasi terlebih dahulu"
+            valuePropName="checked"
           >
-            <Switch checkedChildren='Simulasi' unCheckedChildren='Eksekusi' />
+            <Switch checkedChildren="Simulasi" unCheckedChildren="Eksekusi" />
           </Form.Item>
           <Alert
             showIcon
             type={generatePreview ? "warning" : "success"}
-            message={generatePreview ? "Tidak ada data yang diubah" : "Perubahan akan diterapkan"}
+            title={
+              generatePreview
+                ? "Tidak ada data yang diubah"
+                : "Perubahan akan diterapkan"
+            }
             description={
               generatePreview
                 ? "Sistem hanya menghitung hasil, konflik, dan jumlah entri yang bisa dibuat."
@@ -984,40 +980,118 @@ const ScheduleTimetableCard = ({
 
       <Modal
         open={openModal}
-        title='Ubah Jadwal Manual'
-        onCancel={() => setOpenModal(false)}
+        title={
+          modalMode === "create" ? "Tambah Jadwal Manual" : "Ubah Jadwal Manual"
+        }
+        onCancel={closeEntryModal}
         onOk={handleSubmit}
-        okText='Simpan'
+        okText="Simpan"
         confirmLoading={loading}
+        footer={[
+          isManualEditing ? (
+            <Popconfirm
+              key="delete"
+              title="Hapus jadwal manual ini?"
+              onConfirm={handleDeleteCurrentEntry}
+            >
+              <Button danger>Hapus</Button>
+            </Popconfirm>
+          ) : null,
+          <Button key="cancel" onClick={closeEntryModal}>
+            Batal
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={loading}
+            onClick={handleSubmit}
+          >
+            Simpan
+          </Button>,
+        ]}
       >
-        <Form form={form} layout='vertical'>
+        <Form form={form} layout="vertical">
+          {modalMode === "create" ? (
+            <Form.Item
+              name="teaching_load_id"
+              label="Beban ajar"
+              rules={[{ required: true, message: "Beban ajar wajib dipilih." }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                options={manualEntryOptions}
+                placeholder="Pilih guru / mapel / kelas"
+              />
+            </Form.Item>
+          ) : null}
           <Form.Item
-            name='day_of_week'
-            label='Hari'
+            name="day_of_week"
+            label="Hari"
             rules={[{ required: true }]}
           >
             <Select options={DAY_OPTIONS} />
           </Form.Item>
           <Form.Item
-            name='slot_start_id'
-            label='Slot mulai'
+            name="slot_start_id"
+            label="Slot mulai"
             rules={[{ required: true }]}
           >
             <Select options={slotStartOptions} />
           </Form.Item>
           <Form.Item
-            name='slot_count'
-            label='Jumlah sesi'
-            rules={[{ required: true }]}
+            name="slot_count"
+            label="Jumlah sesi"
+            rules={[
+              { required: true, message: "Jumlah sesi wajib diisi." },
+              {
+                validator: (_, value) => {
+                  const numericValue = Number(value || 0);
+                  if (numericValue <= 0) {
+                    return Promise.reject(
+                      new Error("Jumlah sesi harus lebih dari 0."),
+                    );
+                  }
+                  if (numericValue > manualSlotCountLimit) {
+                    return Promise.reject(
+                      new Error(
+                        `Jumlah sesi maksimal ${manualSlotCountLimit} sesuai sisa beban dan batas per pertemuan.`,
+                      ),
+                    );
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
           >
-            <InputNumber min={1} max={4} style={{ width: "100%" }} />
+            <InputNumber
+              min={1}
+              max={manualSlotCountLimit}
+              style={{ width: "100%" }}
+            />
           </Form.Item>
+          {selectedLoadHelper ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              title="Batas sesi manual"
+              description={`Sisa beban: ${selectedLoadHelper.remainingSessions} sesi. Maks sesi per pertemuan: ${selectedLoadHelper.maxSessionsPerMeeting} sesi. Input yang diizinkan maksimal ${manualSlotCountLimit} sesi.`}
+            />
+          ) : null}
           {editing ? (
             <Alert
-              type='warning'
+              type="warning"
               showIcon
-              message={`${editing.class_name} | ${editing.subject_name}`}
-              description={`Guru: ${editing.teacher_name}. Hasil generate tetap bisa dipindah manual selama tidak bentrok.`}
+              title={`${editing.class_name} | ${editing.subject_name}`}
+              description={`Guru: ${editing.teacher_name}. Hasil generate tidak akan menimpa perubahan manual ini selama tidak bentrok.`}
+            />
+          ) : modalMode === "create" ? (
+            <Alert
+              type="info"
+              showIcon
+              title="Jadwal manual akan dipertahankan saat generate"
+              description="Pilih beban ajar yang valid, lalu tentukan hari, slot mulai, dan jumlah sesi."
             />
           ) : null}
         </Form>

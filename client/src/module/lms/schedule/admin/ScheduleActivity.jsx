@@ -41,6 +41,7 @@ const ScheduleActivity = ({
   activityTargets,
   slots,
   teacherAssignments,
+  scheduleCapacity,
   loading,
   onSave,
   onDelete,
@@ -98,6 +99,12 @@ const ScheduleActivity = ({
     setOpenModal(true);
   };
 
+  const closeModal = () => {
+    setOpenModal(false);
+    setEditing(null);
+    form.resetFields();
+  };
+
   const openEdit = (record) => {
     setEditing(record);
     form.setFieldsValue({
@@ -118,14 +125,14 @@ const ScheduleActivity = ({
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    await onSave({
+    const payload = {
       ...values,
       id: editing?.id || values.id,
       teaching_load_ids:
         values.scope_type === "teaching_load" ? values.teaching_load_ids || [] : [],
-    });
-    setOpenModal(false);
-    setEditing(null);
+    };
+    await onSave(payload);
+    closeModal();
   };
 
   const selectedDay = Form.useWatch("day_of_week", form);
@@ -245,6 +252,34 @@ const ScheduleActivity = ({
         description="Kegiatan umum memblok semua kelas pada slot yang dipilih. Kegiatan berbasis beban ajar memblok kelas dan guru dari beban ajar yang dipilih."
       />
 
+      <Card
+        size="small"
+        style={{ borderRadius: 12, marginBottom: 16 }}
+        title="Ringkasan Okupansi Kegiatan"
+      >
+        <Space size={[8, 8]} wrap>
+          <Tag color="geekblue">
+            Kelas aktif: {scheduleCapacity?.active_class_count || 0}
+          </Tag>
+          <Tag color="blue">
+            Sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
+          </Tag>
+          <Tag color="purple">
+            Dipakai kegiatan:{" "}
+            {scheduleCapacity?.total_activity_sessions || 0}
+          </Tag>
+          <Tag
+            color={
+              Number(scheduleCapacity?.remaining_sessions || 0) >= 0
+                ? "green"
+                : "red"
+            }
+          >
+            Sisa sesi bersih: {scheduleCapacity?.remaining_sessions || 0}
+          </Tag>
+        </Space>
+      </Card>
+
       <Table
         rowKey="key"
         size="small"
@@ -259,12 +294,13 @@ const ScheduleActivity = ({
       <Modal
         open={openModal}
         title={editing ? "Ubah Kegiatan" : "Tambah Kegiatan"}
-        onCancel={() => setOpenModal(false)}
+        onCancel={closeModal}
         onOk={handleSubmit}
         okText="Simpan"
         confirmLoading={loading}
         centered
         width={760}
+        destroyOnClose
       >
         <Form form={form} layout="vertical">
           <Form.Item name="id" hidden>
