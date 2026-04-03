@@ -2,6 +2,8 @@
    Digabungkan dengan fitur dari newtable.sql
 */
 
+SET search_path TO public, public;
+
 -- ================================================================
 -- SECTION 1: MASTER WILAYAH (Diambil dari newtable db_*)
 -- Penting untuk biodata siswa
@@ -187,9 +189,13 @@ CREATE TABLE a_class (
     grade_id integer REFERENCES a_grade(id),
     major_id integer REFERENCES a_major(id), -- Tambahan dari newtable
     name text NOT NULL, -- "X IPA 1"
+    is_active boolean DEFAULT true,
     homeroom_teacher_id integer REFERENCES u_teachers(user_id),
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE a_class
+ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
 
 -- KATEGORI MAPEL (Dari a_category newtable) - Muatan Nasional, Lokal, dsb
 CREATE TABLE a_subject_category (
