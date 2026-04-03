@@ -18,8 +18,24 @@ router.get(
 
     if (!page && !limit) {
       const data = await pool.query(
-        `SELECT id, name FROM a_class 
-         WHERE homebase_id = $1 ORDER BY name ASC`,
+        `SELECT id, name, is_active FROM a_class 
+         WHERE homebase_id = $1
+         ORDER BY 
+           is_active DESC,
+           COALESCE(NULLIF(SUBSTRING(name FROM '^\d+'), '')::int, 2147483647),
+           CASE
+             WHEN TRIM(REGEXP_REPLACE(name, '^\d+\s*', '')) ~ '^\d+(\D|$)' THEN 0
+             ELSE 1
+           END,
+           COALESCE(
+             NULLIF(
+               SUBSTRING(TRIM(REGEXP_REPLACE(name, '^\d+\s*', '')) FROM '^\d+'),
+               ''
+             )::int,
+             2147483647
+           ),
+           LOWER(TRIM(REGEXP_REPLACE(name, '^\d+\s*', ''))),
+           LOWER(name)`,
         [homebaseId],
       );
       return res.status(200).json(data.rows);
@@ -42,6 +58,7 @@ router.get(
             c.name, 
             c.grade_id,
             c.major_id,
+            c.is_active,
             g.name AS grade_name, 
             m.name AS major_name,
             (
@@ -56,7 +73,22 @@ router.get(
         LEFT JOIN a_grade g ON c.grade_id = g.id 
         LEFT JOIN a_major m ON c.major_id = m.id
         WHERE c.name ILIKE $1 AND c.homebase_id = $2
-        ORDER BY g.name::int ASC, regexp_replace(c.name, '^\\d+\\s*', '', 'g') ASC
+        ORDER BY
+            c.is_active DESC,
+            COALESCE(NULLIF(SUBSTRING(c.name FROM '^\\d+'), '')::int, 2147483647),
+            CASE
+                WHEN TRIM(REGEXP_REPLACE(c.name, '^\\d+\\s*', '')) ~ '^\\d+(\\D|$)' THEN 0
+                ELSE 1
+            END,
+            COALESCE(
+                NULLIF(
+                    SUBSTRING(TRIM(REGEXP_REPLACE(c.name, '^\\d+\\s*', '')) FROM '^\\d+'),
+                    ''
+                )::int,
+                2147483647
+            ),
+            LOWER(TRIM(REGEXP_REPLACE(c.name, '^\\d+\\s*', ''))),
+            LOWER(c.name)
         LIMIT $3 OFFSET $4
     `;
 
@@ -169,7 +201,42 @@ router.put(
 );
 
 // ============================================================================
-// 4. ADD STUDENT TO CLASS (ASSIGN) - Updated
+// 4. UPDATE CLASS STATUS (Aktif / Nonaktif)
+// ============================================================================
+router.put(
+  "/update-class-status/:id",
+  authorize("admin"),
+  withTransaction(async (req, res, client) => {
+    const { id } = req.params;
+    const { is_active } = req.body;
+    const homebaseId = req.user.homebase_id;
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({ message: "Status kelas tidak valid." });
+    }
+
+    const checkClass = await client.query(
+      `SELECT id, name, is_active FROM a_class WHERE id = $1 AND homebase_id = $2`,
+      [id, homebaseId],
+    );
+
+    if (checkClass.rowCount === 0) {
+      return res.status(404).json({ message: "Kelas tidak ditemukan." });
+    }
+
+    await client.query(`UPDATE a_class SET is_active = $1 WHERE id = $2`, [
+      is_active,
+      id,
+    ]);
+
+    res.status(200).json({
+      message: `Kelas berhasil ${is_active ? "diaktifkan" : "dinonaktifkan"}.`,
+    });
+  }),
+);
+
+// ============================================================================
+// 5. ADD STUDENT TO CLASS (ASSIGN) - Updated
 // ============================================================================
 router.post(
   "/add-student",
@@ -182,6 +249,21 @@ router.post(
     const periodeId = await getActivePeriode(client, homebaseId);
 
     // 2. Cari Siswa
+    const classRes = await client.query(
+      `SELECT id, name, is_active FROM a_class WHERE id = $1 AND homebase_id = $2`,
+      [classid, homebaseId],
+    );
+
+    if (classRes.rowCount === 0) {
+      return res.status(404).json({ message: "Kelas tidak ditemukan." });
+    }
+
+    if (!classRes.rows[0].is_active) {
+      return res
+        .status(400)
+        .json({ message: "Kelas nonaktif tidak dapat menerima siswa baru." });
+    }
+
     const studentRes = await client.query(
       `SELECT u.id as user_id, u.full_name 
        FROM u_users u
@@ -230,7 +312,7 @@ router.post(
 );
 
 // ============================================================================
-// 5. DELETE CLASS (Hapus Kelas)
+// 6. DELETE CLASS (Hapus Kelas)
 // ============================================================================
 router.delete(
   "/delete-class/:id",
@@ -270,7 +352,7 @@ router.delete(
 );
 
 // ============================================================================
-// 6. GET STUDENTS IN CLASS (Updated using u_class_enrollments)
+// 7. GET STUDENTS IN CLASS (Updated using u_class_enrollments)
 // ============================================================================
 router.get(
   "/get-students",
@@ -347,7 +429,7 @@ router.get(
 );
 
 // ============================================================================
-// 7. DELETE STUDENT FROM CLASS (Updated)
+// 8. DELETE STUDENT FROM CLASS (Updated)
 // ============================================================================
 router.delete(
   "/delete-student",
@@ -386,7 +468,7 @@ router.delete(
 );
 
 // ============================================================================
-// 8. UPLOAD STUDENTS (BULK) - Compatible with New Schema
+// 9. UPLOAD STUDENTS (BULK) - Compatible with New Schema
 // ============================================================================
 router.post(
   "/upload-students",
@@ -422,6 +504,21 @@ router.post(
       // 1. Validasi Data Dasar
       if (!nis || !name || !classId) {
         invalidData.push({ nis, name, reason: "Data tidak lengkap" });
+        continue;
+      }
+
+      const classRes = await client.query(
+        `SELECT id, is_active FROM a_class WHERE id = $1 AND homebase_id = $2`,
+        [classId, homebaseId],
+      );
+
+      if (classRes.rowCount === 0) {
+        invalidData.push({ nis, name, reason: "Kelas tidak ditemukan" });
+        continue;
+      }
+
+      if (!classRes.rows[0].is_active) {
+        invalidData.push({ nis, name, reason: "Kelas nonaktif" });
         continue;
       }
 
