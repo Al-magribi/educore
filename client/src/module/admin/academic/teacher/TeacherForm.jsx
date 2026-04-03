@@ -67,6 +67,7 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
     });
 
     return [...(classesData || [])]
+      .filter((classItem) => classItem.is_active)
       .sort((a, b) => {
         const left = parseClassName(a.name);
         const right = parseClassName(b.name);
