@@ -162,277 +162,257 @@ const AdminDash = () => {
 
   if (isLoading) {
     return (
-      <Layout
+      <div
         style={{
-          minHeight: "100vh",
-          background:
-            "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
+          display: "grid",
+          placeItems: "center",
+          minHeight: "60vh",
         }}
       >
-        <Content
-          style={{
-            display: "grid",
-            placeItems: "center",
-            minHeight: "60vh",
-          }}
-        >
-          <Spin size='large' />
-        </Content>
-      </Layout>
+        <Spin size='large' />
+      </div>
     );
   }
 
   if (isError) {
     return (
-      <Layout
-        style={{
-          minHeight: "100vh",
-          background:
-            "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
-        }}
-      >
-        <Content style={{ padding: screens.md ? "24px" : "12px" }}>
-          <Alert message='Gagal memuat data dashboard.' type='error' showIcon />
-        </Content>
-      </Layout>
+      <div style={{ padding: screens.md ? "24px" : "12px" }}>
+        <Alert title='Gagal memuat data dashboard.' type='error' showIcon />
+      </div>
     );
   }
 
   return (
-    <Layout
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f4f7fb 0%, #eef3f9 32%, #f8fafc 100%)",
-      }}
-    >
-      <Content style={{ padding: screens.md ? "24px" : "12px" }}>
-        <Card
-          bordered={false}
-          style={{
-            marginBottom: 20,
-            borderRadius: 24,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #14b8a6 100%)",
-          }}
-          styles={{ body: { padding: screens.md ? 28 : 20 } }}
+    <div>
+      <Card
+        bordered={false}
+        style={{
+          marginBottom: 20,
+          borderRadius: 24,
+          overflow: "hidden",
+          background:
+            "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #14b8a6 100%)",
+        }}
+        styles={{ body: { padding: screens.md ? 28 : 20 } }}
+      >
+        <Flex
+          justify='space-between'
+          align={screens.md ? "center" : "start"}
+          vertical={!screens.md}
+          gap={20}
         >
-          <Flex
-            justify='space-between'
-            align={screens.md ? "center" : "start"}
-            vertical={!screens.md}
-            gap={20}
+          <div>
+            <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+              Dashboard / Admin
+            </Text>
+            <Title
+              level={2}
+              style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
+            >
+              {data?.homebase?.name || "Dashboard Satuan"}
+            </Title>
+            <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
+              Ringkasan operasional homebase, statistik inti, dan aktivitas
+              sistem terbaru.
+            </Text>
+          </div>
+          <div
+            style={{
+              width: 68,
+              height: 68,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 20,
+              background: "rgba(255,255,255,0.14)",
+              color: "#fff",
+            }}
           >
-            <div>
-              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                Dashboard / Admin
-              </Text>
-              <Title
-                level={2}
-                style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
-              >
-                {data?.homebase?.name || "Dashboard Satuan"}
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                Ringkasan operasional homebase, statistik inti, dan aktivitas
-                sistem terbaru.
-              </Text>
-            </div>
-            <div
-              style={{
-                width: 68,
-                height: 68,
-                display: "grid",
-                placeItems: "center",
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.14)",
-                color: "#fff",
-              }}
-            >
-              <School size={28} />
-            </div>
-          </Flex>
-
-          <Flex gap={10} wrap='wrap' style={{ marginTop: 20 }}>
-            <Tag color='blue'>Level: {data?.homebase?.level || "Satuan"}</Tag>
-            <Tag color={data?.activePeriode ? "green" : "volcano"}>
-              {data?.activePeriode
-                ? `Periode Aktif: ${data.activePeriode.name}`
-                : "Belum ada periode aktif"}
-            </Tag>
-            <Tag color='geekblue'>Homebase ID: {data?.homebase?.id}</Tag>
-          </Flex>
-        </Card>
-
-        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-          {stats.map((item) => (
-            <Card
-              key={item.title}
-              bordered={false}
-              style={{
-                flex: screens.xl ? "1 1 0" : screens.md ? "1 1 calc(33.333% - 11px)" : "1 1 100%",
-                minWidth: screens.md ? 0 : "100%",
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.88)",
-                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-              }}
-              styles={{ body: { padding: "18px 20px" } }}
-            >
-              <Flex justify='space-between' align='start'>
-                <Statistic title={item.title} value={item.value} />
-                {summaryIconBox(item.bg, item.color, item.icon)}
-              </Flex>
-            </Card>
-          ))}
+            <School size={28} />
+          </div>
         </Flex>
 
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={9}>
-            <Card bordered={false} style={cardStyle}>
-              <Space direction='vertical' size={18} style={{ width: "100%" }}>
-                <div>
-                  <Title level={4} style={{ margin: 0 }}>
-                    Ringkasan Akademik
-                  </Title>
-                  <Text type='secondary'>
-                    Snapshot cepat operasional homebase saat ini.
-                  </Text>
-                </div>
+        <Flex gap={10} wrap='wrap' style={{ marginTop: 20 }}>
+          <Tag color='blue'>Level: {data?.homebase?.level || "Satuan"}</Tag>
+          <Tag color={data?.activePeriode ? "green" : "volcano"}>
+            {data?.activePeriode
+              ? `Periode Aktif: ${data.activePeriode.name}`
+              : "Belum ada periode aktif"}
+          </Tag>
+          <Tag color='geekblue'>Homebase ID: {data?.homebase?.id}</Tag>
+        </Flex>
+      </Card>
 
-                <Flex vertical gap={14}>
-                  {insightCards.map((item) => (
-                    <Card
-                      key={item.key}
-                      bordered={false}
-                      style={{
-                        borderRadius: 18,
-                        background: "#f8fafc",
-                        boxShadow: "inset 0 0 0 1px rgba(148, 163, 184, 0.12)",
-                      }}
-                      styles={{ body: { padding: "16px 18px" } }}
-                    >
-                      <Flex justify='space-between' align='center'>
-                        <div>
-                          <Text type='secondary'>{item.title}</Text>
-                          <div
-                            style={{
-                              fontSize: 28,
-                              fontWeight: 700,
-                              lineHeight: 1.15,
-                              marginTop: 4,
-                              color: "#0f172a",
-                            }}
-                          >
-                            {item.value}
-                          </div>
-                        </div>
-                        {summaryIconBox(item.bg, item.color, item.icon)}
-                      </Flex>
-                    </Card>
-                  ))}
-                </Flex>
+      <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+        {stats.map((item) => (
+          <Card
+            key={item.title}
+            bordered={false}
+            style={{
+              flex: screens.xl
+                ? "1 1 0"
+                : screens.md
+                  ? "1 1 calc(33.333% - 11px)"
+                  : "1 1 100%",
+              minWidth: screens.md ? 0 : "100%",
+              borderRadius: 20,
+              background: "rgba(255,255,255,0.88)",
+              boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+            }}
+            styles={{ body: { padding: "18px 20px" } }}
+          >
+            <Flex justify='space-between' align='start'>
+              <Statistic title={item.title} value={item.value} />
+              {summaryIconBox(item.bg, item.color, item.icon)}
+            </Flex>
+          </Card>
+        ))}
+      </Flex>
 
-                <Card
-                  bordered={false}
-                  style={{
-                    borderRadius: 18,
-                    background:
-                      "linear-gradient(180deg, rgba(219,234,254,.6) 0%, rgba(255,255,255,.9) 100%)",
-                  }}
-                  styles={{ body: { padding: "18px 18px 16px" } }}
-                >
-                  <Flex justify='space-between' align='center'>
-                    <div>
-                      <Text strong>Aktivitas Akademik</Text>
-                      <div>
-                        <Text type='secondary' style={{ fontSize: 13 }}>
-                          Indikator sederhana berdasarkan total mapel aktif.
-                        </Text>
-                      </div>
-                    </div>
-                    <Activity size={18} color='#1d4ed8' />
-                  </Flex>
-                  <Progress
-                    percent={
-                      data?.stats?.subjects
-                        ? Math.min(data.stats.subjects * 2, 100)
-                        : 0
-                    }
-                    strokeColor={{
-                      "0%": "#1d4ed8",
-                      "100%": "#14b8a6",
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={9}>
+          <Card bordered={false} style={cardStyle}>
+            <Space direction='vertical' size={18} style={{ width: "100%" }}>
+              <div>
+                <Title level={4} style={{ margin: 0 }}>
+                  Ringkasan Akademik
+                </Title>
+                <Text type='secondary'>
+                  Snapshot cepat operasional homebase saat ini.
+                </Text>
+              </div>
+
+              <Flex vertical gap={14}>
+                {insightCards.map((item) => (
+                  <Card
+                    key={item.key}
+                    bordered={false}
+                    style={{
+                      borderRadius: 18,
+                      background: "#f8fafc",
+                      boxShadow: "inset 0 0 0 1px rgba(148, 163, 184, 0.12)",
                     }}
-                    trailColor='rgba(148,163,184,0.18)'
-                    style={{ marginTop: 14, marginBottom: 6 }}
-                  />
-                </Card>
-              </Space>
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={15}>
-            <Card
-              bordered={false}
-              style={cardStyle}
-              title={
-                <Flex align='center' gap={8}>
-                  <ClipboardList size={18} color='#1d4ed8' />
-                  <span>Aktivitas Sistem Terakhir</span>
-                </Flex>
-              }
-              styles={{ body: { paddingTop: 8 } }}
-            >
-              {isMobile ? (
-                <List
-                  dataSource={data?.logs || []}
-                  locale={{ emptyText: "Belum ada aktivitas terbaru" }}
-                  renderItem={(item) => (
-                    <List.Item style={{ padding: "12px 4px" }}>
-                      <Space
-                        direction='vertical'
-                        size={4}
-                        style={{ width: "100%" }}
-                      >
-                        <Flex
-                          align='center'
-                          justify='space-between'
-                          gap={8}
-                          wrap='wrap'
+                    styles={{ body: { padding: "16px 18px" } }}
+                  >
+                    <Flex justify='space-between' align='center'>
+                      <div>
+                        <Text type='secondary'>{item.title}</Text>
+                        <div
+                          style={{
+                            fontSize: 28,
+                            fontWeight: 700,
+                            lineHeight: 1.15,
+                            marginTop: 4,
+                            color: "#0f172a",
+                          }}
                         >
-                          <Text strong style={{ fontSize: 13 }}>
-                            {item.full_name}
-                          </Text>
-                          <Tag
-                            color={actionTagColor(item.action)}
-                            style={{ marginInlineEnd: 0 }}
-                          >
-                            {item.action}
-                          </Tag>
-                        </Flex>
-                        <Text type='secondary' style={{ fontSize: 12 }}>
-                          {new Date(item.created_at).toLocaleString("id-ID")}
+                          {item.value}
+                        </div>
+                      </div>
+                      {summaryIconBox(item.bg, item.color, item.icon)}
+                    </Flex>
+                  </Card>
+                ))}
+              </Flex>
+
+              <Card
+                bordered={false}
+                style={{
+                  borderRadius: 18,
+                  background:
+                    "linear-gradient(180deg, rgba(219,234,254,.6) 0%, rgba(255,255,255,.9) 100%)",
+                }}
+                styles={{ body: { padding: "18px 18px 16px" } }}
+              >
+                <Flex justify='space-between' align='center'>
+                  <div>
+                    <Text strong>Aktivitas Akademik</Text>
+                    <div>
+                      <Text type='secondary' style={{ fontSize: 13 }}>
+                        Indikator sederhana berdasarkan total mapel aktif.
+                      </Text>
+                    </div>
+                  </div>
+                  <Activity size={18} color='#1d4ed8' />
+                </Flex>
+                <Progress
+                  percent={
+                    data?.stats?.subjects
+                      ? Math.min(data.stats.subjects * 2, 100)
+                      : 0
+                  }
+                  strokeColor={{
+                    "0%": "#1d4ed8",
+                    "100%": "#14b8a6",
+                  }}
+                  trailColor='rgba(148,163,184,0.18)'
+                  style={{ marginTop: 14, marginBottom: 6 }}
+                />
+              </Card>
+            </Space>
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={15}>
+          <Card
+            bordered={false}
+            style={cardStyle}
+            title={
+              <Flex align='center' gap={8}>
+                <ClipboardList size={18} color='#1d4ed8' />
+                <span>Aktivitas Sistem Terakhir</span>
+              </Flex>
+            }
+            styles={{ body: { paddingTop: 8 } }}
+          >
+            {isMobile ? (
+              <List
+                dataSource={data?.logs || []}
+                locale={{ emptyText: "Belum ada aktivitas terbaru" }}
+                renderItem={(item) => (
+                  <List.Item style={{ padding: "12px 4px" }}>
+                    <Space
+                      direction='vertical'
+                      size={4}
+                      style={{ width: "100%" }}
+                    >
+                      <Flex
+                        align='center'
+                        justify='space-between'
+                        gap={8}
+                        wrap='wrap'
+                      >
+                        <Text strong style={{ fontSize: 13 }}>
+                          {item.full_name}
                         </Text>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
-              ) : (
-                <Table
-                  dataSource={data?.logs || []}
-                  columns={logColumns}
-                  pagination={false}
-                  rowKey={(record) => `${record.created_at}-${record.full_name}`}
-                  size='small'
-                  locale={{ emptyText: "Belum ada aktivitas terbaru" }}
-                  scroll={{ x: 520 }}
-                />
-              )}
-            </Card>
-          </Col>
-        </Row>
-      </Content>
-    </Layout>
+                        <Tag
+                          color={actionTagColor(item.action)}
+                          style={{ marginInlineEnd: 0 }}
+                        >
+                          {item.action}
+                        </Tag>
+                      </Flex>
+                      <Text type='secondary' style={{ fontSize: 12 }}>
+                        {new Date(item.created_at).toLocaleString("id-ID")}
+                      </Text>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Table
+                dataSource={data?.logs || []}
+                columns={logColumns}
+                pagination={false}
+                rowKey={(record) => `${record.created_at}-${record.full_name}`}
+                size='small'
+                locale={{ emptyText: "Belum ada aktivitas terbaru" }}
+                scroll={{ x: 520 }}
+              />
+            )}
+          </Card>
+        </Col>
+      </Row>
+    </div>
   );
 };
 
