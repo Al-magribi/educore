@@ -376,6 +376,108 @@ const getTransactionScope = async (db, accessContext, transactionId) => {
 };
 
 router.get(
+  "/saving/me",
+  authorize("student"),
+  withQuery(async (req, res, db) => {
+    await ensureSavingsFinanceTables(db);
+
+    const { id: studentId, homebase_id: homebaseId } = req.user;
+    const activePeriode = await getActivePeriode(db, homebaseId);
+
+    if (!activePeriode || !activePeriode.is_active) {
+      return res.status(404).json({
+        message:
+          "Periode aktif untuk satuan ini belum tersedia. Hubungi admin sekolah.",
+      });
+    }
+
+    const studentScope = await db.query(
+      `
+        SELECT
+          s.user_id AS student_id,
+          u.full_name AS student_name,
+          s.nis,
+          c.id AS class_id,
+          c.name AS class_name,
+          g.id AS grade_id,
+          g.name AS grade_name
+        FROM u_class_enrollments e
+        JOIN u_students s ON s.user_id = e.student_id
+        JOIN u_users u ON u.id = s.user_id
+        JOIN a_class c ON c.id = e.class_id
+        LEFT JOIN a_grade g ON g.id = c.grade_id
+        WHERE e.homebase_id = $1
+          AND e.periode_id = $2
+          AND e.student_id = $3
+        LIMIT 1
+      `,
+      [homebaseId, activePeriode.id, studentId],
+    );
+
+    if (studentScope.rowCount === 0) {
+      return res.status(404).json({
+        message:
+          "Data kelas siswa pada periode aktif belum tersedia. Hubungi admin sekolah.",
+      });
+    }
+
+    const transactionResult = await db.query(
+      `
+        SELECT
+          st.transaction_id,
+          st.transaction_type,
+          st.amount,
+          st.transaction_date,
+          st.description,
+          st.created_at,
+          processor.full_name AS processed_by_name
+        FROM finance.savings_transactions st
+        LEFT JOIN u_users processor ON processor.id = st.processed_by
+        WHERE st.homebase_id = $1
+          AND st.periode_id = $2
+          AND st.student_id = $3
+        ORDER BY st.transaction_date DESC, st.transaction_id DESC
+      `,
+      [homebaseId, activePeriode.id, studentId],
+    );
+
+    const transactions = transactionResult.rows.map((item) => ({
+      ...item,
+      amount: Number(item.amount || 0),
+    }));
+
+    const totalDeposit = transactions
+      .filter((item) => item.transaction_type === "deposit")
+      .reduce((sum, item) => sum + item.amount, 0);
+    const totalWithdrawal = transactions
+      .filter((item) => item.transaction_type === "withdrawal")
+      .reduce((sum, item) => sum + item.amount, 0);
+
+    res.json({
+      status: "success",
+      data: {
+        active_periode: activePeriode,
+        student: studentScope.rows[0],
+        summary: {
+          balance: totalDeposit - totalWithdrawal,
+          total_deposit: totalDeposit,
+          total_withdrawal: totalWithdrawal,
+          transaction_count: transactions.length,
+          deposit_count: transactions.filter(
+            (item) => item.transaction_type === "deposit",
+          ).length,
+          withdrawal_count: transactions.filter(
+            (item) => item.transaction_type === "withdrawal",
+          ).length,
+          latest_transaction_date: transactions[0]?.transaction_date || null,
+        },
+        transactions,
+      },
+    });
+  }),
+);
+
+router.get(
   "/saving/options",
   authorize("teacher", "keuangan"),
   withQuery(async (req, res, db) => {

@@ -69,6 +69,8 @@ const routePreloaders = {
     import("../../module/finance/teacher/contribution/Contribution"),
   "/guru/tabungan": () =>
     import("../../module/finance/teacher/saving/Saving"),
+  "/siswa/laporan-tabungan": () =>
+    import("../../module/finance/student/saving/StudentSaving"),
   "/siswa/laporan-uang-kas": () =>
     import("../../module/finance/student/contribution/StudentContribution"),
   "/computer-based-test/bank": () =>

@@ -12,7 +12,7 @@ const ContributionHeader = ({
 }) => (
   <Card style={cardStyle} styles={{ body: { padding: 20 } }}>
     <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
-      <Space direction='vertical' size={4}>
+      <Space vertical size={4}>
         <Text
           type='secondary'
           style={{
@@ -24,7 +24,7 @@ const ContributionHeader = ({
           Finance / Kas Kelas
         </Text>
         <Title level={4} style={{ margin: 0 }}>
-          Kelola kas kelas pada periode aktif
+          Kelola Kas Kelas
         </Title>
         <Space wrap>
           <Tag color='green'>{activePeriode?.name || "Periode aktif"}</Tag>
@@ -36,7 +36,10 @@ const ContributionHeader = ({
 
       <Space wrap>
         <Button onClick={onOpenOfficerModal}>Atur Petugas</Button>
-        <Button type='primary' onClick={() => onOpenTransactionModal(null, "income")}>
+        <Button
+          type='primary'
+          onClick={() => onOpenTransactionModal(null, "income")}
+        >
           Catat Transaksi
         </Button>
       </Space>

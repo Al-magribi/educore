@@ -10,6 +10,9 @@ const TeacherDash = lazy(() => import("../../module/teacher/dashboard/TeacherDas
 const StudentExamList = lazy(
   () => import("../../module/cbt/student/view/StudentExamList"),
 );
+const StudentSaving = lazy(
+  () => import("../../module/finance/student/saving/StudentSaving"),
+);
 
 const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
   <>
@@ -34,6 +37,10 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
             <NotFoundRedirect />
           )
         }
+      />
+      <Route
+        path="/siswa/laporan-tabungan"
+        element={<LazyPage title="Tabungan Saya" Component={StudentSaving} />}
       />
     </Route>
 
