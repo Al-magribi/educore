@@ -54,6 +54,7 @@ const buildFinanceMenus = (user = {}) => {
         key: "/guru/keuangan-kelas",
         icon: <WalletOutlined />,
       },
+
       {
         label: "Tabungan",
         key: "/guru/tabungan",

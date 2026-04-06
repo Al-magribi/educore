@@ -20,50 +20,79 @@ const CashReport = lazy(
 const SavingReport = lazy(
   () => import("../../module/finance/report/SavingReport"),
 );
+const Saving = lazy(() => import("../../module/finance/teacher/saving/Saving"));
+const Contribution = lazy(
+  () => import("../../module/finance/teacher/contribution/Contribution"),
+);
+const StudentContribution = lazy(
+  () => import("../../module/finance/student/contribution/StudentContribution"),
+);
 
 const renderFinanceRoutes = ({ LazyPage }) => {
   const Page = LazyPage;
 
   return (
-    <Route
-      element={
-        <RouteProtection
-          allowedRoles={["admin"]}
-          allowedLevels={["finance", "keuangan"]}
-        />
-      }
-    >
+    <>
       <Route
-        path="/finance-dashboard"
-        element={<Page title="Dashboard Keuangan" Component={FinanceDash} />}
-      />
-      <Route
-        path="/finance/pembayaran-spp"
-        element={<Page title="Pembayaran SPP" Component={Monthly} />}
-      />
-      <Route
-        path="/finance/pembayaran-spp/laporan"
         element={
-          <Page title="Laporan Pembayaran SPP" Component={MonthlyReport} />
+          <RouteProtection
+            allowedRoles={["admin"]}
+            allowedLevels={["finance", "keuangan"]}
+          />
         }
-      />
-      <Route
-        path="/finance/pembayaran-lainnya"
-        element={<Page title="Pembayaran Lainnya" Component={Others} />}
-      />
-      <Route
-        path="/finance/transaksi"
-        element={<Page title="Transaksi Keuangan" Component={Transaction} />}
-      />
-      <Route
-        path="/finance/laporan-tabungan"
-        element={<Page title="Laporan Tabungan" Component={SavingReport} />}
-      />
-      <Route
-        path="/finance/laporan-kas-kelas"
-        element={<Page title="Laporan Kas Kelas" Component={CashReport} />}
-      />
-    </Route>
+      >
+        <Route
+          path="/finance-dashboard"
+          element={<Page title="Dashboard Keuangan" Component={FinanceDash} />}
+        />
+        <Route
+          path="/finance/pembayaran-spp"
+          element={<Page title="Pembayaran SPP" Component={Monthly} />}
+        />
+        <Route
+          path="/finance/pembayaran-spp/laporan"
+          element={
+            <Page title="Laporan Pembayaran SPP" Component={MonthlyReport} />
+          }
+        />
+        <Route
+          path="/finance/pembayaran-lainnya"
+          element={<Page title="Pembayaran Lainnya" Component={Others} />}
+        />
+        <Route
+          path="/finance/transaksi"
+          element={<Page title="Transaksi Keuangan" Component={Transaction} />}
+        />
+        <Route
+          path="/finance/laporan-tabungan"
+          element={<Page title="Laporan Tabungan" Component={SavingReport} />}
+        />
+        <Route
+          path="/finance/laporan-kas-kelas"
+          element={<Page title="Laporan Kas Kelas" Component={CashReport} />}
+        />
+      </Route>
+
+      <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
+        <Route
+          path="/guru/keuangan-kelas"
+          element={<Page title="Kas Kelas" Component={Contribution} />}
+        />
+        <Route
+          path="/guru/tabungan"
+          element={<Page title="Tabungan Siswa" Component={Saving} />}
+        />
+      </Route>
+
+      <Route element={<RouteProtection allowedRoles={["student"]} />}>
+        <Route
+          path="/siswa/laporan-uang-kas"
+          element={
+            <Page title="Laporan Uang Kas" Component={StudentContribution} />
+          }
+        />
+      </Route>
+    </>
   );
 };
 

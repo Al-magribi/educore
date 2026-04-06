@@ -76,30 +76,70 @@ CREATE INDEX idx_spp_payment_allocation_scope
 -- Saldo dihitung dari SUM(amount) berdasarkan tipe transaksi.
 CREATE TABLE finance.savings_transactions (
     transaction_id SERIAL PRIMARY KEY,
-    student_id INT NOT NULL, -- FK ke tabel master siswa (misal: public.students)
-    transaction_type VARCHAR(10) NOT NULL, -- 'deposit' atau 'withdrawal'
-    amount DECIMAL(12, 2) NOT NULL,
-    transaction_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    processed_by INT, -- FK ke user (admin/wali kelas)
-    description TEXT
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    class_id INT NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    transaction_type VARCHAR(10) NOT NULL CHECK (transaction_type IN ('deposit', 'withdrawal')),
+    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+    transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    processed_by INT REFERENCES public.u_users(id),
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_savings_transactions_scope
+    ON finance.savings_transactions(homebase_id, periode_id, class_id, student_id, transaction_date DESC);
 
 
 -- =================================================================================
 -- Fitur: Uang Kas Kelas (Class Petty Cash)
 -- =================================================================================
 
--- Satu tabel untuk mencatat semua transaksi kas kelas (pemasukan dan pengeluaran).
--- Saldo dihitung dari SUM(amount) berdasarkan tipe transaksi.
+-- Menentukan siswa petugas kas per kelas dan periode aktif.
+-- Role user tetap "student"; hak sebagai petugas ditentukan dari tabel ini.
+CREATE TABLE finance.class_cash_officers (
+    officer_id SERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    class_id INT NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    assigned_by INT NOT NULL REFERENCES public.u_users(id) ON DELETE RESTRICT,
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (periode_id, class_id, student_id)
+);
+
+CREATE INDEX idx_class_cash_officers_scope
+    ON finance.class_cash_officers(homebase_id, periode_id, class_id, is_active);
+
+-- Ledger transaksi kas kelas per periode.
+-- `student_id` diisi jika pemasukan berasal dari siswa tertentu,
+-- dan bernilai NULL untuk pengeluaran umum kas kelas.
 CREATE TABLE finance.class_cash_transactions (
     transaction_id SERIAL PRIMARY KEY,
-    class_id INT NOT NULL, -- FK ke tabel master kelas (misal: public.classes)
-    transaction_type VARCHAR(10) NOT NULL, -- 'income' atau 'expense'
-    amount DECIMAL(12, 2) NOT NULL,
-    transaction_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    processed_by INT, -- FK ke user (wali kelas)
-    description TEXT NOT NULL -- Untuk mencatat keperluan pengeluaran/sumber pemasukan
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    class_id INT NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    student_id INT REFERENCES public.u_students(user_id) ON DELETE SET NULL,
+    transaction_type VARCHAR(10) NOT NULL CHECK (transaction_type IN ('income', 'expense')),
+    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+    transaction_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_by INT NOT NULL REFERENCES public.u_users(id) ON DELETE RESTRICT,
+    description TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_class_cash_transactions_scope
+    ON finance.class_cash_transactions(homebase_id, periode_id, class_id, transaction_date DESC);
+
+CREATE INDEX idx_class_cash_transactions_student
+    ON finance.class_cash_transactions(periode_id, class_id, student_id, transaction_type);
 
 -- =================================================================================
 -- Revisi: Pembayaran Lainnya (Other Payments) multi-satuan dan cicilan
