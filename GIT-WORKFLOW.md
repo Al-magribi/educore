@@ -1,6 +1,6 @@
 # Git Workflow
 
-Panduan ini membedakan branch kerja dan branch produk. Jangan gunakan perintah yang sama untuk semua branch.
+Panduan ini membedakan branch kerja, branch integrasi, dan branch produk. Jangan gunakan perintah yang sama untuk semua branch.
 
 ## Jenis Branch
 
@@ -8,8 +8,10 @@ Panduan ini membedakan branch kerja dan branch produk. Jangan gunakan perintah y
   Sumber utama pengembangan dan branch basis semua fitur.
 - `feature/*`
   Branch kerja fitur seperti `feature/db`, `feature/lms`, `feature/tahfiz`, `feature/finance`.
+- `release/*`
+  Branch integrasi otomatis untuk menggabungkan beberapa branch sumber sebelum dipublish menjadi branch produk.
 - `product/*`
-  Branch hasil publish otomatis dari GitHub Actions. Contoh: `product/cbt`.
+  Branch hasil publish otomatis dari GitHub Actions. Contoh: `product/cbt`, `product/cbt-db-lms-finance`.
 
 ## Aturan Umum
 
@@ -87,9 +89,55 @@ git rebase origin/main
 git push --force-with-lease origin feature/lms
 ```
 
+`feature/*` tetap branch kerja manual. Workflow `sync-main-to-features.yml` akan membantu memasukkan perubahan dari `main` ke semua branch fitur saat `main` berubah.
+
+## Branch `release/*`
+
+`release/*` bukan branch kerja manual. Branch ini dibentuk ulang oleh GitHub Actions sebagai branch integrasi.
+
+Branch integrasi yang dipakai untuk produk gabungan adalah:
+
+- `release/cbt-db-lms-finance`
+
+Workflow `publish-cbt-db-lms-finance.yml` menyusun branch ini dengan urutan tetap:
+
+1. `main`
+2. `feature/db`
+3. `feature/lms`
+4. `feature/finance`
+
+Target hasil akhirnya adalah:
+
+```text
+main + feature/db + feature/lms + feature/finance
+```
+
+Jika ada konflik merge pada file yang sama, workflow akan memilih isi dari branch yang sedang di-merge. Dengan urutan di atas, prioritas konflik menjadi:
+
+1. `feature/finance`
+2. `feature/lms`
+3. `feature/db`
+4. `main`
+
+Jangan jalankan:
+
+```bash
+git pull
+git push
+```
+
+ke branch `release/*` secara manual.
+
 ## Branch `product/*`
 
 `product/*` bukan branch kerja manual. Branch ini diperbarui otomatis oleh workflow publish produk dan bisa mengalami `force push`.
+
+Branch produk yang digunakan:
+
+- `product/cbt`
+  Hasil publish otomatis dari `main`.
+- `product/cbt-db-lms-finance`
+  Hasil build otomatis dari `release/cbt-db-lms-finance`.
 
 Jangan jalankan:
 
@@ -103,6 +151,14 @@ Gunakan pola deploy ini:
 git checkout product/cbt
 git fetch origin
 git reset --hard origin/product/cbt
+```
+
+Untuk produk gabungan:
+
+```bash
+git checkout product/cbt-db-lms-finance
+git fetch origin
+git reset --hard origin/product/cbt-db-lms-finance
 ```
 
 Setelah itu restart service aplikasi:
@@ -140,9 +196,41 @@ Clone branch produk:
 git clone -b product/cbt https://github.com/Al-magribi/educore .
 ```
 
+Clone branch produk gabungan:
+
+```bash
+git clone -b product/cbt-db-lms-finance https://github.com/Al-magribi/educore .
+```
+
+## Workflow Otomatis
+
+Workflow yang aktif:
+
+- `sync-main-to-features.yml`
+  Saat `main` berubah, workflow ini merge `main` ke `feature/db`, `feature/lms`, `feature/tahfiz`, dan `feature/finance`.
+- `build-main.yml`
+  Saat `main` berubah, workflow ini build dan publish `product/cbt`.
+- `publish-cbt-db-lms-finance.yml`
+  Workflow ini akan:
+  - jalan saat `feature/db`, `feature/lms`, atau `feature/finance` berubah
+  - jalan setelah `sync-main-to-features.yml` selesai dengan status sukses
+  - menyusun `release/cbt-db-lms-finance`
+  - build hasil gabungan
+  - publish ke `product/cbt-db-lms-finance`
+
+Alur produknya:
+
+```text
+main
+  -> sync ke feature/db, feature/lms, feature/finance
+  -> compose release/cbt-db-lms-finance
+  -> publish product/cbt-db-lms-finance
+```
+
 ## Larangan
 
 - Jangan `git pull` biasa di `product/*`.
+- Jangan `git pull` atau `git push` manual di `release/*`.
 - Jangan `git push` manual ke `product/*`.
 - Jangan `git push --force` ke branch kerja kecuali benar-benar perlu.
 - Jika perlu force push setelah rebase, gunakan `--force-with-lease`.

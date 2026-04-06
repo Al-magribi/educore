@@ -1,0 +1,118 @@
+name: Publish Product CBT + DB + LMS + Finance
+
+on:
+  push:
+    branches:
+      - feature/db
+      - feature/lms
+      - feature/finance
+  workflow_run:
+    workflows:
+      - Sync Main To Feature Branches
+    types:
+      - completed
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  COMPOSE_BRANCH: release/cbt-db-lms-finance
+  PRODUCT_BRANCH: product/cbt-db-lms-finance
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-cbt-db-lms-finance
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    if: |
+      (github.event_name != 'push' || github.actor != 'github-actions[bot]') &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compose integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          merge_branch() {
+            local source_branch="$1"
+            local merge_message="chore(compose): merge ${source_branch} into ${COMPOSE_BRANCH}"
+
+            if git merge "origin/${source_branch}" --no-ff -X theirs -m "${merge_message}"; then
+              echo "Merged ${source_branch} into ${COMPOSE_BRANCH}"
+            else
+              echo "Conflict detected while merging ${source_branch}; preferring incoming branch content"
+              git checkout --theirs .
+              git add -A
+              git commit -m "${merge_message} (auto-resolved)"
+            fi
+          }
+
+          git fetch origin
+          git checkout -B "${COMPOSE_BRANCH}" origin/main
+
+          merge_branch "feature/db"
+          merge_branch "feature/lms"
+          merge_branch "feature/finance"
+
+          git push origin "${COMPOSE_BRANCH}" --force
+
+  publish:
+    needs: compose
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout composed branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: release/cbt-db-lms-finance
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Build client
+        run: npm run build
+        working-directory: client
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish branch product/cbt-db-lms-finance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin
+          git checkout -B "${PRODUCT_BRANCH}"
+          git add -A -f client/dist
+          git commit -m "build(${PRODUCT_BRANCH}): publish from ${GITHUB_SHA::7}"
+          git push origin "${PRODUCT_BRANCH}" --force
