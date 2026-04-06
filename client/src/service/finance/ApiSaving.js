@@ -15,8 +15,13 @@ const buildQueryString = (params = {}) => {
 export const ApiSaving = createApi({
   reducerPath: "ApiSaving",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/finance" }),
-  tagTypes: ["SavingOption", "SavingStudent", "SavingTransaction"],
+  tagTypes: ["SavingOption", "SavingStudent", "SavingTransaction", "MySaving"],
   endpoints: (builder) => ({
+    getMySavingOverview: builder.query({
+      query: () => "/saving/me",
+      providesTags: ["MySaving"],
+    }),
+
     getSavingOptions: builder.query({
       query: (params) => `/saving/options?${buildQueryString(params)}`,
       providesTags: ["SavingOption"],
@@ -92,6 +97,7 @@ export const ApiSaving = createApi({
 });
 
 export const {
+  useGetMySavingOverviewQuery,
   useGetSavingOptionsQuery,
   useGetSavingStudentsQuery,
   useGetSavingTransactionsQuery,

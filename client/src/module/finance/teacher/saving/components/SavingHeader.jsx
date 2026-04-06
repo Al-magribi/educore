@@ -8,7 +8,7 @@ const { Text, Title } = Typography;
 const SavingHeader = ({ access, activePeriode, onCreate }) => (
   <Card style={cardStyle} styles={{ body: { padding: 20 } }}>
     <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
-      <Space direction='vertical' size={4}>
+      <Space vertical size={4}>
         <Text
           type='secondary'
           style={{
@@ -20,7 +20,7 @@ const SavingHeader = ({ access, activePeriode, onCreate }) => (
           Finance / Tabungan Siswa
         </Text>
         <Title level={4} style={{ margin: 0 }}>
-          Kelola tabungan siswa pada periode aktif
+          Kelola Tabungan Siswa
         </Title>
         <Space wrap>
           <Tag color='green'>{activePeriode?.name || "Periode aktif"}</Tag>
