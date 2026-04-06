@@ -172,130 +172,124 @@ const Teacher = () => {
   ];
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
-      <Content style={{ padding: screens.md ? "24px" : "12px" }}>
-        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-          {summaryCards.map((item) => (
-            <Card
-              key={item.key}
-              style={{
-                flex: screens.md ? "1 1 0" : "1 1 100%",
-                minWidth: screens.md ? 0 : "100%",
-              }}
-              styles={{ body: { padding: "18px 20px" } }}
-              hoverable
-            >
-              <Flex justify='space-between' align='start'>
-                <Statistic title={item.title} value={item.value} />
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 14,
-                    background: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-                    color: "#1d4ed8",
-                  }}
-                >
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
-          ))}
-        </Flex>
-
-        <Card
-          style={{ marginBottom: 18 }}
-          styles={{ body: { padding: screens.md ? 20 : 16 } }}
-          hoverable
-        >
-          <Flex
-            justify='space-between'
-            align={screens.md ? "center" : "stretch"}
-            vertical={!screens.md}
-            gap={16}
+    <>
+      <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+        {summaryCards.map((item) => (
+          <Card
+            key={item.key}
+            style={{
+              flex: screens.md ? "1 1 0" : "1 1 100%",
+              minWidth: screens.md ? 0 : "100%",
+            }}
+            styles={{ body: { padding: "18px 20px" } }}
+            hoverable
           >
-            <div>
-              <Title level={4} style={{ margin: 0 }}>
-                Direktori Guru
-              </Title>
-              <Text type='secondary'>
-                Cari cepat berdasarkan nama atau NIP, lalu lanjutkan edit,
-                import, atau tambah guru baru.
-              </Text>
-            </div>
-
-            <Flex
-              gap={10}
-              vertical={!screens.md}
-              style={{ width: !screens.md ? "100%" : "auto" }}
-            >
-              <Input
-                placeholder='Cari Nama / NIP...'
-                prefix={<SearchOutlined style={{ color: "rgba(0,0,0,.25)" }} />}
-                onChange={(e) => setSearchText(e.target.value)}
-                style={{ width: !screens.md ? "100%" : 280 }}
-                size='large'
-                allowClear
-              />
-              <Button
-                icon={<DownloadOutlined />}
-                onClick={handleDownloadTemplate}
-                size='large'
-                style={{ minWidth: 170 }}
+            <Flex justify='space-between' align='start'>
+              <Statistic title={item.title} value={item.value} />
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
+                  color: "#1d4ed8",
+                }}
               >
-                Download Template
-              </Button>
-              <Button
-                icon={<UploadOutlined />}
-                onClick={showUpload}
-                size='large'
-              >
-                Import Guru
-              </Button>
-              <Button
-                type='primary'
-                icon={<UserPlus size={16} />}
-                onClick={showModal}
-                size='large'
-              >
-                Tambah Guru
-              </Button>
+                {item.icon}
+              </div>
             </Flex>
+          </Card>
+        ))}
+      </Flex>
+
+      <Card
+        style={{ marginBottom: 18 }}
+        styles={{ body: { padding: screens.md ? 20 : 16 } }}
+        hoverable
+      >
+        <Flex
+          justify='space-between'
+          align={screens.md ? "center" : "stretch"}
+          vertical={!screens.md}
+          gap={16}
+        >
+          <div>
+            <Title level={4} style={{ margin: 0 }}>
+              Direktori Guru
+            </Title>
+            <Text type='secondary'>
+              Cari cepat berdasarkan nama atau NIP, lalu lanjutkan edit, import,
+              atau tambah guru baru.
+            </Text>
+          </div>
+
+          <Flex
+            gap={10}
+            vertical={!screens.md}
+            style={{ width: !screens.md ? "100%" : "auto" }}
+          >
+            <Input
+              placeholder='Cari Nama / NIP...'
+              prefix={<SearchOutlined style={{ color: "rgba(0,0,0,.25)" }} />}
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{ width: !screens.md ? "100%" : 280 }}
+              size='large'
+              allowClear
+            />
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadTemplate}
+              size='large'
+              style={{ minWidth: 170 }}
+            >
+              Download Template
+            </Button>
+            <Button icon={<UploadOutlined />} onClick={showUpload} size='large'>
+              Import Guru
+            </Button>
+            <Button
+              type='primary'
+              icon={<UserPlus size={16} />}
+              onClick={showModal}
+              size='large'
+            >
+              Tambah Guru
+            </Button>
           </Flex>
-        </Card>
+        </Flex>
+      </Card>
 
-        <TeacherList
-          data={teacherItems}
-          loading={isLoading || isFetching}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          pagination={{
-            ...pagination,
-            total: teachersData?.total ?? teachersData?.totalItems ?? 0,
-          }}
-          onPageChange={handleTableChange}
-        />
+      <TeacherList
+        data={teacherItems}
+        loading={isLoading || isFetching}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        pagination={{
+          ...pagination,
+          total: teachersData?.total ?? teachersData?.totalItems ?? 0,
+        }}
+        onPageChange={handleTableChange}
+      />
 
-        <TeacherForm
-          open={isModalOpen}
-          onCancel={closeModal}
-          onSubmit={handleSubmit}
-          initialValues={editingTeacher}
-          loading={isAdding || isUpdating}
-        />
+      <TeacherForm
+        open={isModalOpen}
+        onCancel={closeModal}
+        onSubmit={handleSubmit}
+        initialValues={editingTeacher}
+        loading={isAdding || isUpdating}
+      />
 
-        <UploadTeacher
-          open={isUploadOpen}
-          onClose={closeUpload}
-          onFinish={() => {
-            closeUpload();
-            refetch();
-          }}
-        />
-      </Content>
-    </Layout>
+      <UploadTeacher
+        open={isUploadOpen}
+        onClose={closeUpload}
+        onFinish={() => {
+          closeUpload();
+          refetch();
+        }}
+      />
+    </>
   );
 };
 
