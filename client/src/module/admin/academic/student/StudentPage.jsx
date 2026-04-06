@@ -10,7 +10,13 @@ import {
   Grid,
   Statistic,
 } from "antd";
-import { Search as SearchIcon, Plus, Users, UserCheck, Layers3 } from "lucide-react";
+import {
+  Search as SearchIcon,
+  Plus,
+  Users,
+  UserCheck,
+  Layers3,
+} from "lucide-react";
 import { InfiniteScrollList } from "../../../../components";
 import {
   useGetStudentsQuery,
@@ -141,7 +147,9 @@ const StudentPage = ({ screens }) => {
   };
 
   const totalStudents = apiData?.totalData || 0;
-  const activeStudents = accumulatedData.filter((item) => item.is_active).length;
+  const activeStudents = accumulatedData.filter(
+    (item) => item.is_active,
+  ).length;
   const loadedStudents = accumulatedData.length;
   const summaryCards = [
     {
@@ -165,115 +173,113 @@ const StudentPage = ({ screens }) => {
   ];
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
-      <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
-        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-          {summaryCards.map((item) => (
-            <Card
-              key={item.key}
-              style={{
-                flex: activeScreens.md ? "1 1 0" : "1 1 100%",
-                minWidth: activeScreens.md ? 0 : "100%",
-              }}
-              styles={{ body: { padding: "18px 20px" } }}
-              hoverable
-            >
-              <Flex justify='space-between' align='start'>
-                <Statistic title={item.title} value={item.value} />
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 14,
-                    background: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-                    color: "#1d4ed8",
-                  }}
-                >
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
-          ))}
-        </Flex>
-
-        <Card
-          style={{
-            marginBottom: 18,
-          }}
-          styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
-          hoverable
-        >
-          <Flex
-            justify='space-between'
-            align={activeScreens.md ? "center" : "stretch"}
-            vertical={!activeScreens.md}
-            gap={16}
+    <>
+      <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+        {summaryCards.map((item) => (
+          <Card
+            key={item.key}
+            style={{
+              flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+              minWidth: activeScreens.md ? 0 : "100%",
+            }}
+            styles={{ body: { padding: "18px 20px" } }}
+            hoverable
           >
-            <div>
-              <Title level={4} style={{ margin: 0 }}>
-                Direktori Siswa
-              </Title>
-              <Text type='secondary'>
-                Temukan siswa dengan cepat lalu lanjutkan tambah atau edit data.
-              </Text>
-            </div>
-
-            <Flex
-              gap={10}
-              vertical={!activeScreens.md}
-              style={{ width: !activeScreens.md ? "100%" : "auto" }}
-            >
-              <Input
-                placeholder='Cari siswa...'
-                prefix={
-                  <SearchIcon size={16} color='rgba(0,0,0,.25)' />
-                }
-                onChange={handleSearch}
-                style={{ width: !activeScreens.md ? "100%" : 280 }}
-                size='large'
-                allowClear
-              />
-              <Button
-                type='primary'
-                icon={<Plus size={18} />}
-                onClick={() => handleOpenDrawer(null)}
-                size='large'
+            <Flex justify='space-between' align='start'>
+              <Statistic title={item.title} value={item.value} />
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
+                  color: "#1d4ed8",
+                }}
               >
-                Tambah Siswa
-              </Button>
+                {item.icon}
+              </div>
             </Flex>
-          </Flex>
-        </Card>
+          </Card>
+        ))}
+      </Flex>
 
-        <InfiniteScrollList
-          data={accumulatedData}
-          loading={isFetching}
-          hasMore={hasMore}
-          onLoadMore={handleLoadMore}
-          height={activeScreens.md ? "calc(100vh - 360px)" : "calc(100vh - 320px)"}
-          emptyText='Tidak ada siswa ditemukan'
-          grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6 }}
-          renderItem={(item) => (
-            <StudentCard
-              student={item}
-              onEdit={handleOpenDrawer}
-              onDelete={handleDelete}
-              isDeleting={isDeleting}
+      <Card
+        style={{
+          marginBottom: 18,
+        }}
+        styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+        hoverable
+      >
+        <Flex
+          justify='space-between'
+          align={activeScreens.md ? "center" : "stretch"}
+          vertical={!activeScreens.md}
+          gap={16}
+        >
+          <div>
+            <Title level={4} style={{ margin: 0 }}>
+              Direktori Siswa
+            </Title>
+            <Text type='secondary'>
+              Temukan siswa dengan cepat lalu lanjutkan tambah atau edit data.
+            </Text>
+          </div>
+
+          <Flex
+            gap={10}
+            vertical={!activeScreens.md}
+            style={{ width: !activeScreens.md ? "100%" : "auto" }}
+          >
+            <Input
+              placeholder='Cari siswa...'
+              prefix={<SearchIcon size={16} color='rgba(0,0,0,.25)' />}
+              onChange={handleSearch}
+              style={{ width: !activeScreens.md ? "100%" : 280 }}
+              size='large'
+              allowClear
             />
-          )}
-        />
+            <Button
+              type='primary'
+              icon={<Plus size={18} />}
+              onClick={() => handleOpenDrawer(null)}
+              size='large'
+            >
+              Tambah Siswa
+            </Button>
+          </Flex>
+        </Flex>
+      </Card>
 
-        <StudentForm
-          open={isDrawerOpen}
-          onClose={() => setIsDrawerOpen(false)}
-          onSubmit={handleSubmit}
-          initialValues={editingItem}
-          isLoading={isAdding || isUpdating}
-        />
-      </Content>
-    </Layout>
+      <InfiniteScrollList
+        data={accumulatedData}
+        loading={isFetching}
+        hasMore={hasMore}
+        onLoadMore={handleLoadMore}
+        height={
+          activeScreens.md ? "calc(100vh - 360px)" : "calc(100vh - 320px)"
+        }
+        emptyText='Tidak ada siswa ditemukan'
+        grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6 }}
+        renderItem={(item) => (
+          <StudentCard
+            student={item}
+            onEdit={handleOpenDrawer}
+            onDelete={handleDelete}
+            isDeleting={isDeleting}
+          />
+        )}
+      />
+
+      <StudentForm
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onSubmit={handleSubmit}
+        initialValues={editingItem}
+        isLoading={isAdding || isUpdating}
+      />
+    </>
   );
 };
 

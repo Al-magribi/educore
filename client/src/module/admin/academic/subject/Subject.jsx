@@ -1,13 +1,5 @@
 import React from "react";
-import {
-  Typography,
-  Tabs,
-  Layout,
-  Card,
-  Flex,
-  Grid,
-  Statistic,
-} from "antd";
+import { Typography, Tabs, Layout, Card, Flex, Grid, Statistic } from "antd";
 import { BookOpen, GitBranch, Layers } from "lucide-react";
 import CategoryPanel from "./CategoryPanel";
 import BranchPanel from "./BranchPanel";
@@ -91,53 +83,54 @@ const Subject = ({ screens }) => {
   ];
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
-      <Content style={{ padding: activeScreens.md ? "24px" : "12px" }}>
-        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-          {summaryCards.map((item) => (
-            <Card
-              key={item.key}
-              style={{
-                flex: activeScreens.md ? "1 1 0" : "1 1 100%",
-                minWidth: activeScreens.md ? 0 : "100%",
-              }}
-              styles={{ body: { padding: "18px 20px" } }}
-              hoverable
-            >
-              <Flex justify='space-between' align='start'>
-                <Statistic title={item.title} value={item.value} />
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 14,
-                    background: "linear-gradient(135deg, #ccfbf1, #dbeafe)",
-                    color: "#0f766e",
-                  }}
-                >
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
-          ))}
-        </Flex>
+    <div>
+      <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
+        {summaryCards.map((item) => (
+          <Card
+            key={item.key}
+            style={{
+              flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+              minWidth: activeScreens.md ? 0 : "100%",
+            }}
+            styles={{ body: { padding: "18px 20px" } }}
+            hoverable
+          >
+            <Flex justify='space-between' align='start'>
+              <Statistic title={item.title} value={item.value} />
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, #ccfbf1, #dbeafe)",
+                  color: "#0f766e",
+                }}
+              >
+                {item.icon}
+              </div>
+            </Flex>
+          </Card>
+        ))}
+      </Flex>
 
-        <Card styles={{ body: { padding: activeScreens.md ? 20 : 16 } }} hoverable>
-          <div style={{ marginBottom: 18 }}>
-            <Title level={4} style={{ margin: 0 }}>
-              Direktori Kurikulum
-            </Title>
-            <Text type='secondary'>
-              Gunakan tab untuk berpindah antara kategori, cabang, dan daftar
-              mata pelajaran.
-            </Text>
-          </div>
-          <Tabs defaultActiveKey='1' items={items} />
-        </Card>
-      </Content>
-    </Layout>
+      <Card
+        styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+        hoverable
+      >
+        <div style={{ marginBottom: 18 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            Direktori Kurikulum
+          </Title>
+          <Text type='secondary'>
+            Gunakan tab untuk berpindah antara kategori, cabang, dan daftar mata
+            pelajaran.
+          </Text>
+        </div>
+        <Tabs defaultActiveKey='1' items={items} />
+      </Card>
+    </div>
   );
 };
 
