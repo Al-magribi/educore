@@ -260,7 +260,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
         trigger={null}
         collapsible
         collapsed={collapsed}
-        breakpoint="lg"
+        breakpoint='lg'
         collapsedWidth={isMobile ? 0 : 80} // Mobile/tablet jadi drawer (0), desktop jadi icon (80px)
         width={240}
         onBreakpoint={(broken) => {
@@ -317,8 +317,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
         </div>
 
         <Menu
-          theme="dark"
-          mode="inline"
+          theme='dark'
+          mode='inline'
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={handleMenuClick}
@@ -365,7 +365,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
             }}
           >
             <Button
-              type="text"
+              type='text'
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed(!collapsed)}
               style={{
@@ -406,7 +406,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
                 maxWidth: screens.xs ? "60px" : "auto",
                 justifyContent: "flex-end",
               }}
-              className="user-dropdown-trigger"
+              className='user-dropdown-trigger'
             >
               {/* Avatar Selalu Muncul */}
               <Avatar
@@ -422,7 +422,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
                   <Text strong style={{ display: "block" }}>
                     {user?.full_name || "User"}
                   </Text>
-                  <Text type="secondary" style={{ fontSize: "11px" }}>
+                  <Text type='secondary' style={{ fontSize: "11px" }}>
                     {user?.role?.toUpperCase()}
                     {user?.level ? ` - ${user.level.toUpperCase()}` : ""}
                   </Text>
@@ -431,7 +431,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
               {/* Icon Panah: Hanya muncul di Desktop */}
               {!screens.xs && (
-                <Button type="text" size="small" icon={<CaretDownOutlined />} />
+                <Button type='text' size='small' icon={<CaretDownOutlined />} />
               )}
             </div>
           </Dropdown>
@@ -446,9 +446,11 @@ const AppLayout = ({ children, title, asShell = false }) => {
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
             overflowX: "hidden", // Mencegah scroll horizontal jika tabel lebar
+            background:
+              "radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 24%), linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
           }}
         >
-          {asShell ? (isRouteTransitioning ? <LoadApp /> : <Outlet />) : children}
+          {asShell ? isRouteTransitioning ? <LoadApp /> : <Outlet /> : children}
         </Content>
 
         {/* Footer */}

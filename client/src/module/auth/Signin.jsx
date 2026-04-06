@@ -20,13 +20,7 @@ import { useSelector } from "react-redux";
 const { Title, Text } = Typography;
 const roleOptions = ["Admin", "Finance", "Guru", "Siswa", "Wali"];
 
-const getSigninPayloadRole = (role) => {
-  if (role === "Finance") {
-    return "admin";
-  }
-
-  return role.toLowerCase();
-};
+const getSigninPayloadRole = (role) => role.toLowerCase();
 
 const Signin = () => {
   const { publicConfig } = useSelector((state) => state.app);
