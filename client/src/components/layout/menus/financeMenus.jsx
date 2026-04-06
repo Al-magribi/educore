@@ -7,6 +7,7 @@ import {
   ReadOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
+import { Landmark } from "lucide-react";
 
 const buildFinanceMenus = (user = {}) => {
   const financeMenus = [
@@ -26,7 +27,7 @@ const buildFinanceMenus = (user = {}) => {
       icon: <WalletOutlined />,
     },
     {
-      label: "Laporan Tabungan",
+      label: "Tabungan Siswa",
       key: "/finance/laporan-tabungan",
       icon: <BookOutlined />,
     },
@@ -44,18 +45,14 @@ const buildFinanceMenus = (user = {}) => {
     children: [
       {
         label: "Kas Kelas",
-        key: "/guru/keuangan-kelas/kas",
+        key: "/guru/keuangan-kelas",
         icon: <WalletOutlined />,
       },
+
       {
-        label: "Status Pembayaran",
-        key: "/guru/keuangan-kelas/status-pembayaran",
-        icon: <AuditOutlined />,
-      },
-      {
-        label: "Pemasukan & Pengeluaran",
-        key: "/guru/keuangan-kelas/transaksi",
-        icon: <MoneyCollectOutlined />,
+        label: "Tabungan",
+        key: "/guru/tabungan",
+        icon: <Landmark size={14} />,
       },
     ],
   };

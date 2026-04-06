@@ -62,9 +62,15 @@ const routePreloaders = {
   "/finance/transaksi": () =>
     import("../../module/finance/fee/transaction/Transaction"),
   "/finance/laporan-tabungan": () =>
-    import("../../module/finance/report/SavingReport"),
+    import("../../module/finance/teacher/saving/Saving"),
   "/finance/laporan-kas-kelas": () =>
     import("../../module/finance/report/CashReport"),
+  "/guru/keuangan-kelas": () =>
+    import("../../module/finance/teacher/contribution/Contribution"),
+  "/guru/tabungan": () =>
+    import("../../module/finance/teacher/saving/Saving"),
+  "/siswa/laporan-uang-kas": () =>
+    import("../../module/finance/student/contribution/StudentContribution"),
   "/computer-based-test/bank": () =>
     import("../../module/cbt/bank/view/BankList"),
   "/computer-based-test/jadwal-ujian": () =>
