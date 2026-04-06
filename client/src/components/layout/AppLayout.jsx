@@ -459,14 +459,22 @@ const AppLayout = ({ children, title, asShell = false }) => {
             margin: screens.xs ? "16px 8px" : "24px 16px", // Margin content lebih rapat di HP
             padding: screens.xs ? 12 : 24, // Padding dalam lebih rapat di HP
             minHeight: 280,
-            background: colorBgContainer,
+            backgroundColor: colorBgContainer,
             borderRadius: borderRadiusLG,
             overflowX: "hidden", // Mencegah scroll horizontal jika tabel lebar
             background:
               "radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 24%), linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
           }}
         >
-          {asShell ? isRouteTransitioning ? <LoadApp /> : <Outlet /> : children}
+          {asShell ? (
+            isRouteTransitioning ? (
+              <LoadApp />
+            ) : (
+              <Outlet />
+            )
+          ) : (
+            children
+          )}
         </Content>
 
         {/* Footer */}
