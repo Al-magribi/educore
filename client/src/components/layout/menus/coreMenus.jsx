@@ -34,8 +34,12 @@ const buildCoreMenus = () => ({
       icon: <WindowsOutlined />,
     },
   ],
-  teacher: [{ label: "Dashboard", key: "/guru-dashboard", icon: <WindowsOutlined /> }],
-  student: [{ label: "Dashboard", key: "/siswa-dashboard", icon: <WindowsOutlined /> }],
+  teacher: [
+    { label: "Dashboard", key: "/guru-dashboard", icon: <WindowsOutlined /> },
+  ],
+  student: [
+    { label: "Dashboard", key: "/siswa-dashboard", icon: <WindowsOutlined /> },
+  ],
   parent: [
     {
       label: "Dashboard",

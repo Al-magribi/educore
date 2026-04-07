@@ -3,7 +3,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 export const ApiStudentDatabase = createApi({
   reducerPath: "ApiStudentDatabase",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/database" }),
-  tagTypes: ["StudentDatabase"],
+  tagTypes: ["StudentDatabase", "ParentAccount"],
   endpoints: (builder) => ({
     getStudentDatabase: builder.query({
       query: (params = {}) => {
@@ -66,6 +66,60 @@ export const ApiStudentDatabase = createApi({
       }),
       invalidatesTags: ["StudentDatabase"],
     }),
+    getParentAccounts: builder.query({
+      query: (params = {}) => {
+        const queryParams = new URLSearchParams();
+        const { page = 1, limit = 10, search = "", scope = "all" } = params;
+
+        queryParams.set("page", String(page));
+        queryParams.set("limit", String(limit));
+        queryParams.set("search", search);
+        queryParams.set("scope", String(scope));
+
+        return `/parents?${queryParams.toString()}`;
+      },
+      providesTags: ["ParentAccount"],
+    }),
+    getParentReferenceStudents: builder.query({
+      query: (params = {}) => ({
+        url: "/parents/reference/students",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["ParentAccount"],
+    }),
+    createParentAccount: builder.mutation({
+      query: (body) => ({
+        url: "/parents",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["ParentAccount"],
+    }),
+    updateParentAccount: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/parents/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["ParentAccount"],
+    }),
+    deleteParentAccount: builder.mutation({
+      query: ({ id, scope = "all" }) => ({
+        url: `/parents/${id}`,
+        method: "DELETE",
+        params: { scope },
+      }),
+      invalidatesTags: ["ParentAccount"],
+    }),
+    importParentAccounts: builder.mutation({
+      query: (body) => ({
+        url: "/parents/import",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["ParentAccount"],
+    }),
   }),
 });
 
@@ -76,4 +130,10 @@ export const {
   useUpdateMyStudentProfileMutation,
   useGetParentStudentsQuery,
   useUpdateParentStudentMutation,
+  useGetParentAccountsQuery,
+  useGetParentReferenceStudentsQuery,
+  useCreateParentAccountMutation,
+  useUpdateParentAccountMutation,
+  useDeleteParentAccountMutation,
+  useImportParentAccountsMutation,
 } = ApiStudentDatabase;

@@ -29,6 +29,8 @@ const DbForm = ({ open, onCancel, onSubmit, loading, student }) => {
   const formId = "db-student-form";
 
   useEffect(() => {
+    if (!open) return;
+
     if (!student) {
       form.resetFields();
       return;
@@ -64,7 +66,7 @@ const DbForm = ({ open, onCancel, onSubmit, loading, student }) => {
         birth_date: normalizeDateInput(item.birth_date),
       })),
     });
-  }, [form, student]);
+  }, [form, open, student]);
 
   const handleFinish = (values) => {
     onSubmit({
@@ -94,6 +96,7 @@ const DbForm = ({ open, onCancel, onSubmit, loading, student }) => {
         </Button>,
       ]}
       destroyOnHidden
+      forceRender
       centered
       styles={{
         body: {

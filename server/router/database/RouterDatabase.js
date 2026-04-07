@@ -1,4 +1,5 @@
 import { Router } from "express";
+import bcrypt from "bcrypt";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 
@@ -37,6 +38,408 @@ const calculateCompletion = (student) => {
     completionPercent,
     isComplete: completionPercent === 100,
   };
+};
+
+const normalizeText = (value) => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const normalizeSearch = (value) => `%${normalizeText(value).toLowerCase()}%`;
+
+const normalizeStudentIds = (studentIds) => {
+  if (!Array.isArray(studentIds)) return [];
+
+  return [...new Set(studentIds.map((item) => parseInt(item, 10)).filter(Number.isInteger))];
+};
+
+const getParentTableMetadata = async (client) => {
+  const result = await client.query(
+    `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'u_parents'
+    `,
+  );
+
+  const columns = new Set(result.rows.map((item) => item.column_name));
+
+  return {
+    hasId: columns.has("id"),
+    hasUserId: columns.has("user_id"),
+    hasStudentId: columns.has("student_id"),
+    hasPhone: columns.has("phone"),
+    hasEmail: columns.has("email"),
+  };
+};
+
+const syncParentIdSequenceIfNeeded = async (client, metadata) => {
+  if (!metadata?.hasId) return;
+
+  await client.query(
+    `
+      SELECT setval(
+        pg_get_serial_sequence('public.u_parents', 'id'),
+        COALESCE((SELECT MAX(id) FROM public.u_parents), 0) + 1,
+        false
+      )
+    `,
+  );
+};
+
+const getParentAccessScope = async ({ db, user, scope = "all" }) => {
+  const homebaseId = user.homebase_id;
+  const userRole = user.role;
+
+  const activePeriodeResult = await db.query(
+    `
+      SELECT id
+      FROM a_periode
+      WHERE is_active = true
+        AND homebase_id = $1
+      LIMIT 1
+    `,
+    [homebaseId],
+  );
+
+  if (activePeriodeResult.rows.length === 0) {
+    throw new Error("Tidak ada periode aktif untuk satuan ini.");
+  }
+
+  if (userRole !== "teacher" || scope !== "homeroom") {
+    return {
+      homebaseId,
+      classIds: [],
+      activePeriodeId: activePeriodeResult.rows[0].id,
+      restrictToHomeroom: false,
+    };
+  }
+
+  const classResult = await db.query(
+    `
+      SELECT id
+      FROM a_class
+      WHERE homebase_id = $1
+        AND homeroom_teacher_id = $2
+      ORDER BY name
+    `,
+    [homebaseId, user.id],
+  );
+
+  const classIds = classResult.rows.map((item) => item.id);
+
+  if (classIds.length === 0) {
+    throw new Error("Akses tab orang tua hanya untuk guru yang menjadi wali kelas aktif.");
+  }
+
+  return {
+    homebaseId,
+    classIds,
+    activePeriodeId: activePeriodeResult.rows[0].id,
+    restrictToHomeroom: true,
+  };
+};
+
+const ensureParentStudentIds = async ({
+  client,
+  homebaseId,
+  studentIds,
+  parentUserId = null,
+  classIds = [],
+  activePeriodeId = null,
+  restrictToHomeroom = false,
+}) => {
+  const normalizedStudentIds = normalizeStudentIds(studentIds);
+
+  if (normalizedStudentIds.length === 0) {
+    throw new Error("Pilih minimal satu siswa.");
+  }
+
+  const studentResult = await client.query(
+    `
+      SELECT
+        u.id AS student_id,
+        u.full_name,
+        s.nis,
+        cl.name AS class_name,
+        gr.name AS grade_name
+      FROM u_users u
+      JOIN u_students s ON s.user_id = u.id
+      JOIN u_class_enrollments ce
+        ON ce.student_id = u.id
+       AND ($4::int IS NULL OR ce.periode_id = $4)
+      LEFT JOIN a_class cl ON cl.id = ce.class_id
+      LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+      WHERE u.role = 'student'
+        AND s.homebase_id = $1
+        AND u.id = ANY($2::int[])
+        AND ($3::boolean = false OR ce.class_id = ANY($5::int[]))
+    `,
+    [
+      homebaseId,
+      normalizedStudentIds,
+      restrictToHomeroom,
+      activePeriodeId,
+      classIds,
+    ],
+  );
+
+  if (studentResult.rows.length !== normalizedStudentIds.length) {
+    throw new Error("Beberapa siswa tidak ditemukan di satuan aktif.");
+  }
+
+  const linkedStudentsResult = await client.query(
+    `
+      SELECT
+        p.student_id,
+        u.full_name AS parent_name,
+        su.full_name AS student_name,
+        s.nis
+      FROM u_parents p
+      JOIN u_users u ON u.id = p.user_id
+      JOIN u_students s ON s.user_id = p.student_id
+      JOIN u_users su ON su.id = s.user_id
+      JOIN u_class_enrollments ce
+        ON ce.student_id = s.user_id
+       AND ($4::int IS NULL OR ce.periode_id = $4)
+      WHERE p.student_id = ANY($1::int[])
+        AND ($2::int IS NULL OR p.user_id <> $2)
+        AND s.homebase_id = $5
+        AND ($3::boolean = false OR ce.class_id = ANY($6::int[]))
+    `,
+    [
+      normalizedStudentIds,
+      parentUserId,
+      restrictToHomeroom,
+      activePeriodeId,
+      homebaseId,
+      classIds,
+    ],
+  );
+
+  if (linkedStudentsResult.rows.length > 0) {
+    const linkedNames = linkedStudentsResult.rows
+      .map(
+        (item) =>
+          `${item.student_name || "Siswa"} (${item.nis || "-"}) sudah terhubung ke ${item.parent_name || "akun lain"}`,
+      )
+      .join(", ");
+
+    throw new Error(`Siswa sudah terhubung dengan orang tua lain: ${linkedNames}.`);
+  }
+
+  return studentResult.rows;
+};
+
+const syncParentAccount = async ({
+  client,
+  homebaseId,
+  parentUserId,
+  username,
+  password,
+  fullName,
+  phone,
+  email,
+  isActive = true,
+  studentIds,
+  classIds = [],
+  activePeriodeId = null,
+  restrictToHomeroom = false,
+}) => {
+  const parentTableMetadata = await getParentTableMetadata(client);
+
+  const normalizedUsername = normalizeText(username);
+  const normalizedFullName = normalizeText(fullName);
+  const normalizedPhone = normalizeText(phone) || null;
+  const normalizedEmail = normalizeText(email) || null;
+  const validStudents = await ensureParentStudentIds({
+    client,
+    homebaseId,
+    studentIds,
+    parentUserId,
+    classIds,
+    activePeriodeId,
+    restrictToHomeroom,
+  });
+
+  if (!normalizedUsername) {
+    throw new Error("Username wajib diisi.");
+  }
+
+  if (!normalizedFullName) {
+    throw new Error("Nama lengkap wajib diisi.");
+  }
+
+  let targetUserId = parentUserId;
+  const existingUser = await client.query(
+    `
+      SELECT id, role
+      FROM u_users
+      WHERE username = $1
+        AND ($2::int IS NULL OR id <> $2)
+      LIMIT 1
+    `,
+    [normalizedUsername, parentUserId || null],
+  );
+
+  if (existingUser.rows.length > 0) {
+    throw new Error("Username sudah digunakan akun lain.");
+  }
+
+  if (!parentUserId) {
+    if (!normalizeText(password)) {
+      throw new Error("Password wajib diisi.");
+    }
+
+    const hashedPassword = await bcrypt.hash(normalizeText(password), 10);
+    const insertUser = await client.query(
+      `
+        INSERT INTO u_users (username, password, full_name, role, is_active)
+        VALUES ($1, $2, $3, 'parent', $4)
+        RETURNING id
+      `,
+      [normalizedUsername, hashedPassword, normalizedFullName, Boolean(isActive)],
+    );
+
+    targetUserId = insertUser.rows[0].id;
+  } else {
+    const parentUser = await client.query(
+      `
+        SELECT u.id
+        FROM u_users u
+        WHERE u.id = $1
+          AND u.role = 'parent'
+          AND EXISTS (
+            SELECT 1
+            FROM u_parents p
+            JOIN u_students s ON s.user_id = p.student_id
+            WHERE p.user_id = u.id
+              AND s.homebase_id = $2
+          )
+      `,
+      [parentUserId, homebaseId],
+    );
+
+    if (parentUser.rows.length === 0) {
+      throw new Error("Akun orang tua tidak ditemukan di satuan ini.");
+    }
+
+    const passwordValue = normalizeText(password);
+    if (passwordValue) {
+      const hashedPassword = await bcrypt.hash(passwordValue, 10);
+      await client.query(
+        `
+          UPDATE u_users
+          SET username = $1,
+              full_name = $2,
+              is_active = $3,
+              password = $4
+          WHERE id = $5
+        `,
+        [
+          normalizedUsername,
+          normalizedFullName,
+          Boolean(isActive),
+          hashedPassword,
+          parentUserId,
+        ],
+      );
+    } else {
+      await client.query(
+        `
+          UPDATE u_users
+          SET username = $1,
+              full_name = $2,
+              is_active = $3
+          WHERE id = $4
+        `,
+        [normalizedUsername, normalizedFullName, Boolean(isActive), parentUserId],
+      );
+    }
+
+    await client.query(
+      `
+        DELETE FROM u_parents
+        WHERE user_id = $1
+          AND student_id <> ALL($2::int[])
+      `,
+      [parentUserId, validStudents.map((item) => item.student_id)],
+    );
+  }
+
+  await client.query(`DELETE FROM u_parents WHERE user_id = $1 AND student_id IS NULL`, [
+    targetUserId,
+  ]);
+
+  for (const student of validStudents) {
+    const existingRelation = await client.query(
+      `
+        SELECT user_id, student_id
+        FROM u_parents
+        WHERE user_id = $1
+          AND student_id = $2
+        LIMIT 1
+      `,
+      [targetUserId, student.student_id],
+    );
+
+    if (existingRelation.rows.length > 0) {
+      await client.query(
+        `
+          UPDATE u_parents
+          SET phone = $1,
+              email = $2
+          WHERE user_id = $3
+            AND student_id = $4
+        `,
+        [
+          normalizedPhone,
+          normalizedEmail,
+          existingRelation.rows[0].user_id,
+          existingRelation.rows[0].student_id,
+        ],
+      );
+    } else {
+      await syncParentIdSequenceIfNeeded(client, parentTableMetadata);
+
+      if (parentTableMetadata.hasId) {
+        await client.query(
+          `
+            INSERT INTO u_parents (id, user_id, student_id, phone, email)
+            VALUES (
+              (SELECT COALESCE(MAX(id), 0) + 1 FROM u_parents),
+              $1,
+              $2,
+              $3,
+              $4
+            )
+          `,
+          [targetUserId, student.student_id, normalizedPhone, normalizedEmail],
+        );
+      } else {
+        await client.query(
+          `
+            INSERT INTO u_parents (user_id, student_id, phone, email)
+            VALUES ($1, $2, $3, $4)
+          `,
+          [targetUserId, student.student_id, normalizedPhone, normalizedEmail],
+        );
+      }
+    }
+  }
+
+  await client.query(
+    `
+      UPDATE u_parents
+      SET phone = $1,
+          email = $2
+      WHERE user_id = $3
+    `,
+    [normalizedPhone, normalizedEmail, targetUserId],
+  );
+
+  return { userId: targetUserId, students: validStudents };
 };
 
 const updateStudentProfileData = async (client, studentId, payload) => {
@@ -853,6 +1256,499 @@ router.put(
 
     await updateStudentProfileData(client, studentId, req.body);
     res.status(200).json({ message: "Profil siswa berhasil diperbarui." });
+  }),
+);
+
+router.get(
+  "/parents/reference/students",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    try {
+      const accessScope = await getParentAccessScope({
+        db: pool,
+        user: req.user,
+        scope: req.query.scope || "all",
+      });
+
+      const result = await pool.query(
+        `
+          SELECT DISTINCT
+            u.id AS student_id,
+            u.full_name,
+            s.nis,
+            cl.name AS class_name,
+            gr.name AS grade_name
+          FROM u_users u
+          JOIN u_students s ON s.user_id = u.id
+          JOIN u_class_enrollments ce
+            ON ce.student_id = u.id
+           AND ce.periode_id = $3
+          LEFT JOIN a_class cl ON cl.id = ce.class_id
+          LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+          LEFT JOIN u_parents p ON p.student_id = u.id
+          WHERE u.role = 'student'
+            AND s.homebase_id = $1
+            AND ($2::boolean = false OR ce.class_id = ANY($4::int[]))
+            AND p.user_id IS NULL
+          ORDER BY u.full_name ASC
+        `,
+        [
+          accessScope.homebaseId,
+          accessScope.restrictToHomeroom,
+          accessScope.activePeriodeId,
+          accessScope.classIds,
+        ],
+      );
+
+      res.status(200).json({ data: result.rows });
+    } catch (error) {
+      res.status(403).json({ message: error.message || "Akses ditolak." });
+    }
+  }),
+);
+
+router.get(
+  "/parents",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    try {
+      const accessScope = await getParentAccessScope({
+        db: pool,
+        user: req.user,
+        scope: req.query.scope || "all",
+      });
+      const homebaseId = accessScope.homebaseId;
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.max(parseInt(req.query.limit, 10) || 10, 1);
+      const offset = (page - 1) * limit;
+      const search = normalizeText(req.query.search);
+      const searchValue = normalizeSearch(search);
+
+      const countResult = await pool.query(
+        `
+          SELECT COUNT(*) AS total
+          FROM u_users u
+          WHERE u.role = 'parent'
+            AND EXISTS (
+              SELECT 1
+              FROM u_parents p
+              JOIN u_students s ON s.user_id = p.student_id
+              LEFT JOIN u_class_enrollments ce
+                ON ce.student_id = s.user_id
+               AND ($4::boolean = false OR ce.periode_id = $5)
+              WHERE p.user_id = u.id
+                AND s.homebase_id = $1
+                AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
+            )
+            AND (
+              $2 = ''
+              OR LOWER(u.full_name) LIKE $3
+              OR LOWER(u.username) LIKE $3
+              OR EXISTS (
+                SELECT 1
+                FROM u_parents p2
+                WHERE p2.user_id = u.id
+                  AND (
+                    LOWER(COALESCE(p2.email, '')) LIKE $3
+                    OR LOWER(COALESCE(p2.phone, '')) LIKE $3
+                  )
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM u_parents p3
+                JOIN u_students s3 ON s3.user_id = p3.student_id
+                JOIN u_users su3 ON su3.id = s3.user_id
+                LEFT JOIN u_class_enrollments ce3
+                  ON ce3.student_id = s3.user_id
+                 AND ($4::boolean = false OR ce3.periode_id = $5)
+                WHERE p3.user_id = u.id
+                  AND s3.homebase_id = $1
+                  AND ($4::boolean = false OR ce3.class_id = ANY($6::int[]))
+                  AND (
+                    LOWER(su3.full_name) LIKE $3
+                    OR LOWER(COALESCE(s3.nis, '')) LIKE $3
+                  )
+              )
+            )
+        `,
+        [
+          homebaseId,
+          search,
+          searchValue,
+          accessScope.restrictToHomeroom,
+          accessScope.activePeriodeId,
+          accessScope.classIds,
+        ],
+      );
+
+      const summaryResult = await pool.query(
+        `
+          SELECT
+            COUNT(*) AS total_parents,
+            COUNT(*) FILTER (WHERE u.is_active = true) AS active_parents,
+            COALESCE(SUM(link_count.total_students), 0) AS total_student_links,
+            COUNT(*) FILTER (WHERE link_count.total_students > 1) AS parents_with_multiple_students
+          FROM u_users u
+          JOIN LATERAL (
+            SELECT COUNT(*) AS total_students
+            FROM u_parents p
+            JOIN u_students s ON s.user_id = p.student_id
+            LEFT JOIN u_class_enrollments ce
+              ON ce.student_id = s.user_id
+             AND ($2::boolean = false OR ce.periode_id = $3)
+            WHERE p.user_id = u.id
+              AND s.homebase_id = $1
+              AND ($2::boolean = false OR ce.class_id = ANY($4::int[]))
+          ) link_count ON true
+          WHERE u.role = 'parent'
+            AND link_count.total_students > 0
+        `,
+        [
+          homebaseId,
+          accessScope.restrictToHomeroom,
+          accessScope.activePeriodeId,
+          accessScope.classIds,
+        ],
+      );
+
+      const result = await pool.query(
+        `
+        SELECT
+          u.id AS parent_user_id,
+          u.username,
+          u.full_name,
+          u.is_active,
+          contact.phone,
+          contact.email,
+          students.total_students,
+          students.items AS students
+        FROM u_users u
+        JOIN LATERAL (
+          SELECT
+            MAX(p.phone) AS phone,
+            MAX(p.email) AS email
+          FROM u_parents p
+          JOIN u_students s ON s.user_id = p.student_id
+          LEFT JOIN u_class_enrollments ce
+            ON ce.student_id = s.user_id
+           AND ($4::boolean = false OR ce.periode_id = $5)
+          WHERE p.user_id = u.id
+            AND s.homebase_id = $1
+            AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
+        ) contact ON true
+        JOIN LATERAL (
+          SELECT
+            COUNT(*) AS total_students,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'student_id', su.id,
+                  'full_name', su.full_name,
+                  'nis', s.nis,
+                  'class_name', cl.name,
+                  'grade_name', gr.name
+                )
+                ORDER BY su.full_name ASC
+              ),
+              '[]'::json
+            ) AS items
+          FROM u_parents p
+          JOIN u_students s ON s.user_id = p.student_id
+          JOIN u_users su ON su.id = s.user_id
+          LEFT JOIN u_class_enrollments ce
+            ON ce.student_id = s.user_id
+           AND ($4::boolean = false OR ce.periode_id = $5)
+          LEFT JOIN a_class cl ON cl.id = COALESCE(ce.class_id, s.current_class_id)
+          LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+          WHERE p.user_id = u.id
+            AND s.homebase_id = $1
+            AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
+        ) students ON true
+        WHERE u.role = 'parent'
+          AND students.total_students > 0
+          AND (
+            $2 = ''
+            OR LOWER(u.full_name) LIKE $3
+            OR LOWER(u.username) LIKE $3
+            OR LOWER(COALESCE(contact.email, '')) LIKE $3
+            OR LOWER(COALESCE(contact.phone, '')) LIKE $3
+            OR EXISTS (
+              SELECT 1
+              FROM u_parents p3
+              JOIN u_students s3 ON s3.user_id = p3.student_id
+              JOIN u_users su3 ON su3.id = s3.user_id
+              LEFT JOIN u_class_enrollments ce3
+                ON ce3.student_id = s3.user_id
+               AND ($4::boolean = false OR ce3.periode_id = $5)
+              WHERE p3.user_id = u.id
+                AND s3.homebase_id = $1
+                AND ($4::boolean = false OR ce3.class_id = ANY($6::int[]))
+                AND (
+                  LOWER(su3.full_name) LIKE $3
+                  OR LOWER(COALESCE(s3.nis, '')) LIKE $3
+                )
+            )
+          )
+        ORDER BY u.full_name ASC
+        LIMIT $7 OFFSET $8
+      `,
+        [
+          homebaseId,
+          search,
+          searchValue,
+          accessScope.restrictToHomeroom,
+          accessScope.activePeriodeId,
+          accessScope.classIds,
+          limit,
+          offset,
+        ],
+      );
+
+      res.status(200).json({
+        data: result.rows,
+        summary: {
+          total_parents: parseInt(summaryResult.rows[0]?.total_parents || "0", 10),
+          active_parents: parseInt(summaryResult.rows[0]?.active_parents || "0", 10),
+          total_student_links: parseInt(
+            summaryResult.rows[0]?.total_student_links || "0",
+            10,
+          ),
+          parents_with_multiple_students: parseInt(
+            summaryResult.rows[0]?.parents_with_multiple_students || "0",
+            10,
+          ),
+        },
+        meta: {
+          page,
+          limit,
+          total_data: parseInt(countResult.rows[0]?.total || "0", 10),
+        },
+      });
+    } catch (error) {
+      res.status(403).json({ message: error.message || "Akses ditolak." });
+    }
+  }),
+);
+
+router.post(
+  "/parents",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    try {
+      const accessScope = await getParentAccessScope({
+        db: client,
+        user: req.user,
+        scope: req.body.scope || "all",
+      });
+
+      const result = await syncParentAccount({
+        client,
+        homebaseId: accessScope.homebaseId,
+        username: req.body.username,
+        password: req.body.password,
+        fullName: req.body.full_name,
+        phone: req.body.phone,
+        email: req.body.email,
+        isActive: req.body.is_active ?? true,
+        studentIds: req.body.student_ids,
+        classIds: accessScope.classIds,
+        activePeriodeId: accessScope.activePeriodeId,
+        restrictToHomeroom: accessScope.restrictToHomeroom,
+      });
+
+      res.status(201).json({
+        message: "Akun orang tua berhasil dibuat.",
+        data: result,
+      });
+    } catch (error) {
+      res.status(400).json({ message: error.message || "Data tidak valid." });
+    }
+  }),
+);
+
+router.put(
+  "/parents/:id",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const parentUserId = parseInt(req.params.id, 10);
+
+    if (!Number.isInteger(parentUserId)) {
+      return res.status(400).json({ message: "ID akun orang tua tidak valid." });
+    }
+
+    try {
+      const accessScope = await getParentAccessScope({
+        db: client,
+        user: req.user,
+        scope: req.body.scope || "all",
+      });
+
+      await syncParentAccount({
+        client,
+        homebaseId: accessScope.homebaseId,
+        parentUserId,
+        username: req.body.username,
+        password: req.body.password,
+        fullName: req.body.full_name,
+        phone: req.body.phone,
+        email: req.body.email,
+        isActive: req.body.is_active ?? true,
+        studentIds: req.body.student_ids,
+        classIds: accessScope.classIds,
+        activePeriodeId: accessScope.activePeriodeId,
+        restrictToHomeroom: accessScope.restrictToHomeroom,
+      });
+
+      res.status(200).json({ message: "Akun orang tua berhasil diperbarui." });
+    } catch (error) {
+      res.status(400).json({ message: error.message || "Data tidak valid." });
+    }
+  }),
+);
+
+router.delete(
+  "/parents/:id",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const parentUserId = parseInt(req.params.id, 10);
+
+    if (!Number.isInteger(parentUserId)) {
+      return res.status(400).json({ message: "ID akun orang tua tidak valid." });
+    }
+
+    const accessScope = await getParentAccessScope({
+      db: client,
+      user: req.user,
+      scope: req.body?.scope || req.query?.scope || "all",
+    });
+
+    const existingParent = await client.query(
+      `
+        SELECT u.id
+        FROM u_users u
+        WHERE u.id = $1
+          AND u.role = 'parent'
+          AND EXISTS (
+            SELECT 1
+            FROM u_parents p
+            JOIN u_students s ON s.user_id = p.student_id
+            LEFT JOIN u_class_enrollments ce
+              ON ce.student_id = s.user_id
+             AND ($3::boolean = false OR ce.periode_id = $4)
+            WHERE p.user_id = u.id
+              AND s.homebase_id = $2
+              AND ($3::boolean = false OR ce.class_id = ANY($5::int[]))
+          )
+      `,
+      [
+        parentUserId,
+        accessScope.homebaseId,
+        accessScope.restrictToHomeroom,
+        accessScope.activePeriodeId,
+        accessScope.classIds,
+      ],
+    );
+
+    if (existingParent.rows.length === 0) {
+      return res.status(404).json({ message: "Akun orang tua tidak ditemukan." });
+    }
+
+    const deletedLinks = await client.query(
+      `
+        DELETE FROM u_parents
+        WHERE user_id = $1
+        RETURNING student_id
+      `,
+      [parentUserId],
+    );
+
+    await client.query(`DELETE FROM u_users WHERE id = $1`, [parentUserId]);
+
+    res.status(200).json({
+      message: "Akun orang tua berhasil dihapus.",
+      data: {
+        released_student_ids: deletedLinks.rows.map((item) => item.student_id),
+      },
+    });
+  }),
+);
+
+router.post(
+  "/parents/import",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const parents = Array.isArray(req.body?.parents) ? req.body.parents : [];
+
+    if (parents.length === 0) {
+      return res.status(400).json({ message: "Data import orang tua kosong." });
+    }
+
+    const created = [];
+    const updated = [];
+    const failed = [];
+    const accessScope = await getParentAccessScope({
+      db: client,
+      user: req.user,
+      scope: req.body.scope || "all",
+    });
+
+    for (const [index, item] of parents.entries()) {
+      try {
+        const existingUser = await client.query(
+          `
+            SELECT id
+            FROM u_users
+            WHERE username = $1
+              AND role = 'parent'
+            LIMIT 1
+          `,
+          [normalizeText(item.username)],
+        );
+
+        const result = await syncParentAccount({
+          client,
+          homebaseId: accessScope.homebaseId,
+          parentUserId: existingUser.rows[0]?.id || null,
+          username: item.username,
+          password: item.password,
+          fullName: item.full_name,
+          phone: item.phone,
+          email: item.email,
+          isActive: item.is_active ?? true,
+          studentIds: item.student_ids,
+          classIds: accessScope.classIds,
+          activePeriodeId: accessScope.activePeriodeId,
+          restrictToHomeroom: accessScope.restrictToHomeroom,
+        });
+
+        if (existingUser.rows.length > 0) {
+          updated.push({
+            row: index + 1,
+            username: normalizeText(item.username),
+            student_count: result.students.length,
+          });
+        } else {
+          created.push({
+            row: index + 1,
+            username: normalizeText(item.username),
+            student_count: result.students.length,
+          });
+        }
+      } catch (error) {
+        failed.push({
+          row: index + 1,
+          username: normalizeText(item.username),
+          message: error.message || "Data gagal diproses.",
+        });
+      }
+    }
+
+    const messageText = `Import selesai. ${created.length} dibuat, ${updated.length} diperbarui, ${failed.length} gagal.`;
+
+    res.status(200).json({
+      message: messageText,
+      data: { created, updated, failed },
+    });
   }),
 );
 
