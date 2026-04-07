@@ -730,6 +730,48 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           });
         }
 
+        const [existingActivityUsageResult, existingGroupEntryUsageResult] =
+          await Promise.all([
+            client.query(
+              `SELECT COUNT(*)::int AS total
+               FROM lms.l_schedule_activity a
+               JOIN lms.l_time_slot ts ON ts.id = a.slot_start_id
+               WHERE a.homebase_id = $1
+                 AND a.periode_id = $2
+                 AND ts.config_group_id = $3`,
+              [homebase_id, periodeId, configGroup.id],
+            ),
+            client.query(
+              `SELECT COUNT(*)::int AS total
+               FROM lms.l_schedule_entry e
+               JOIN lms.l_time_slot ts ON ts.id = e.slot_start_id
+               WHERE e.homebase_id = $1
+                 AND e.periode_id = $2
+                 AND e.status <> 'archived'
+                 AND ts.config_group_id = $3`,
+              [homebase_id, periodeId, configGroup.id],
+            ),
+          ]);
+
+        const activityUsageCount = Number(
+          existingActivityUsageResult.rows[0]?.total || 0,
+        );
+        const entryUsageCount = Number(
+          existingGroupEntryUsageResult.rows[0]?.total || 0,
+        );
+
+        if (activityUsageCount > 0 || entryUsageCount > 0) {
+          return res.status(409).json({
+            status: "error",
+            message:
+              activityUsageCount > 0 && entryUsageCount > 0
+                ? "Jadwal hari pada group ini belum bisa diubah karena masih dipakai oleh kegiatan jadwal dan jadwal final/manual. Hapus atau sesuaikan data tersebut terlebih dahulu."
+                : activityUsageCount > 0
+                  ? "Jadwal hari pada group ini belum bisa diubah karena masih dipakai oleh kegiatan jadwal. Hapus atau sesuaikan kegiatan yang memakai group ini terlebih dahulu."
+                  : "Jadwal hari pada group ini belum bisa diubah karena masih dipakai oleh jadwal final/manual. Kosongkan atau arsipkan jadwal pada group ini terlebih dahulu.",
+          });
+        }
+
         await client.query(
           `DELETE FROM lms.l_schedule_break
            WHERE day_template_id IN (
@@ -974,6 +1016,98 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
     }),
   );
 
+  router.delete(
+    "/schedule/config/:id",
+    authorize("satuan"),
+    withTransaction(async (req, res, client) => {
+      const { homebase_id } = req.user;
+      const configId = toInt(req.params.id, null);
+      const periodeId = await ensureActivePeriode(
+        client,
+        homebase_id,
+        toInt(req.query?.periode_id ?? req.body?.periode_id, null),
+      );
+
+      if (!configId || !periodeId) {
+        return res.status(400).json({
+          status: "error",
+          message: "Konfigurasi atau periode tidak valid.",
+        });
+      }
+
+      const configResult = await client.query(
+        `SELECT *
+         FROM lms.l_schedule_config
+         WHERE id = $1
+           AND homebase_id = $2
+           AND periode_id = $3
+         LIMIT 1`,
+        [configId, homebase_id, periodeId],
+      );
+      const config = configResult.rows[0] || null;
+      if (!config) {
+        return res.status(404).json({
+          status: "error",
+          message: "Konfigurasi jadwal tidak ditemukan.",
+        });
+      }
+
+      if (config.is_active === true) {
+        return res.status(409).json({
+          status: "error",
+          message:
+            "Jadwal aktif tidak dapat dihapus. Aktifkan jadwal lain terlebih dahulu.",
+        });
+      }
+
+      const [activityUsageResult, entryUsageResult, runUsageResult] =
+        await Promise.all([
+          client.query(
+            `SELECT COUNT(*)::int AS total
+             FROM lms.l_schedule_activity
+             WHERE config_id = $1`,
+            [configId],
+          ),
+          client.query(
+            `SELECT COUNT(*)::int AS total
+             FROM lms.l_schedule_entry
+             WHERE config_id = $1
+               AND status <> 'archived'`,
+            [configId],
+          ),
+          client.query(
+            `SELECT COUNT(*)::int AS total
+             FROM lms.l_schedule_generation_run
+             WHERE config_id = $1`,
+            [configId],
+          ),
+        ]);
+
+      const activityUsage = Number(activityUsageResult.rows[0]?.total || 0);
+      const entryUsage = Number(entryUsageResult.rows[0]?.total || 0);
+      const runUsage = Number(runUsageResult.rows[0]?.total || 0);
+
+      if (activityUsage > 0 || entryUsage > 0 || runUsage > 0) {
+        return res.status(409).json({
+          status: "error",
+          message:
+            "Master jadwal ini belum bisa dihapus karena masih memiliki kegiatan, jadwal final/manual, atau riwayat generate.",
+        });
+      }
+
+      await client.query(
+        `DELETE FROM lms.l_schedule_config
+         WHERE id = $1`,
+        [configId],
+      );
+
+      return res.json({
+        status: "success",
+        message: "Master jadwal berhasil dihapus.",
+      });
+    }),
+  );
+
   router.post(
     "/schedule/config-group",
     authorize("satuan"),
@@ -1130,6 +1264,125 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         status: "success",
         message: currentGroup ? "Group jadwal diperbarui." : "Group jadwal ditambahkan.",
         data: group,
+      });
+    }),
+  );
+
+  router.delete(
+    "/schedule/config-group/:id",
+    authorize("satuan"),
+    withTransaction(async (req, res, client) => {
+      const { homebase_id } = req.user;
+      const groupId = toInt(req.params.id, null);
+
+      if (!groupId) {
+        return res.status(400).json({
+          status: "error",
+          message: "Group jadwal tidak valid.",
+        });
+      }
+
+      const groupResult = await client.query(
+        `SELECT
+           g.*,
+           cfg.homebase_id,
+           cfg.periode_id
+         FROM lms.l_schedule_config_group g
+         JOIN lms.l_schedule_config cfg ON cfg.id = g.config_id
+         WHERE g.id = $1
+           AND cfg.homebase_id = $2
+         LIMIT 1`,
+        [groupId, homebase_id],
+      );
+      const group = groupResult.rows[0] || null;
+      if (!group) {
+        return res.status(404).json({
+          status: "error",
+          message: "Group jadwal tidak ditemukan.",
+        });
+      }
+
+      if (group.is_default === true) {
+        return res.status(409).json({
+          status: "error",
+          message: "Group default tidak dapat dihapus.",
+        });
+      }
+
+      const [activityUsageResult, entryUsageResult, defaultGroupResult, classMembershipResult] =
+        await Promise.all([
+          client.query(
+            `SELECT COUNT(*)::int AS total
+             FROM lms.l_schedule_activity a
+             JOIN lms.l_time_slot ts ON ts.id = a.slot_start_id
+             WHERE ts.config_group_id = $1`,
+            [groupId],
+          ),
+          client.query(
+            `SELECT COUNT(*)::int AS total
+             FROM lms.l_schedule_entry e
+             JOIN lms.l_time_slot ts ON ts.id = e.slot_start_id
+             WHERE ts.config_group_id = $1
+               AND e.status <> 'archived'`,
+            [groupId],
+          ),
+          client.query(
+            `SELECT id
+             FROM lms.l_schedule_config_group
+             WHERE config_id = $1
+               AND is_default = true
+             LIMIT 1`,
+            [group.config_id],
+          ),
+          client.query(
+            `SELECT class_id
+             FROM lms.l_schedule_config_group_class
+             WHERE config_group_id = $1`,
+            [groupId],
+          ),
+        ]);
+
+      const activityUsage = Number(activityUsageResult.rows[0]?.total || 0);
+      const entryUsage = Number(entryUsageResult.rows[0]?.total || 0);
+      const defaultGroupId = toInt(defaultGroupResult.rows[0]?.id, null);
+
+      if (activityUsage > 0 || entryUsage > 0) {
+        return res.status(409).json({
+          status: "error",
+          message:
+            "Group waktu ini belum bisa dihapus karena masih dipakai oleh kegiatan atau jadwal final/manual.",
+        });
+      }
+
+      if (!defaultGroupId) {
+        return res.status(409).json({
+          status: "error",
+          message:
+            "Group default tidak ditemukan. Hapus group dibatalkan untuk mencegah kelas kehilangan mapping.",
+        });
+      }
+
+      for (const row of classMembershipResult.rows) {
+        await client.query(
+          `INSERT INTO lms.l_schedule_config_group_class (config_group_id, class_id)
+           VALUES ($1, $2)
+           ON CONFLICT (config_group_id, class_id) DO NOTHING`,
+          [defaultGroupId, row.class_id],
+        );
+      }
+
+      await client.query(
+        `DELETE FROM lms.l_schedule_config_group
+         WHERE id = $1`,
+        [groupId],
+      );
+
+      return res.json({
+        status: "success",
+        message: "Group jadwal berhasil dihapus.",
+        data: {
+          fallback_group_id: defaultGroupId,
+        },
       });
     }),
   );

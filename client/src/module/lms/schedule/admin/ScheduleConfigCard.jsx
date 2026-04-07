@@ -10,6 +10,7 @@ import {
   Form,
   Input,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -31,10 +32,12 @@ const DAY_OPTIONS = [
   { value: 7, label: "Minggu" },
 ];
 
-const SESSION_DURATION_OPTIONS = [30, 35, 40, 45, 50, 60].map((value) => ({
-  value,
-  label: `${value} menit`,
-}));
+const SESSION_DURATION_OPTIONS = [20, 25, 30, 35, 40, 45, 50, 60].map(
+  (value) => ({
+    value,
+    label: `${value} menit`,
+  }),
+);
 
 const DEFAULT_CONFIG_RULES = {
   max_sessions_per_meeting: 2,
@@ -70,7 +73,9 @@ const normalizeDayRows = (dayTemplates, breaks, config) =>
       start_time: toDayjsTime(dayItem.start_time),
       end_time: toDayjsTime(dayItem.end_time),
       session_minutes:
-        Number(dayItem.session_minutes) || Number(config?.session_minutes) || 40,
+        Number(dayItem.session_minutes) ||
+        Number(config?.session_minutes) ||
+        40,
       breaks: (breaks || [])
         .filter(
           (item) => Number(item.day_of_week) === Number(dayItem.day_of_week),
@@ -103,6 +108,7 @@ const ScheduleConfigCard = ({
   sessionShortages,
   onSave,
   onSaveGroup,
+  onDeleteGroup,
   onSelectGroup,
   loading,
 }) => {
@@ -127,7 +133,9 @@ const ScheduleConfigCard = ({
     () =>
       (classes || []).map((item) => ({
         value: Number(item.id),
-        label: item.grade_name ? `${item.grade_name} - ${item.name}` : item.name,
+        label: item.grade_name
+          ? `${item.grade_name} - ${item.name}`
+          : item.name,
       })),
     [classes],
   );
@@ -221,7 +229,9 @@ const ScheduleConfigCard = ({
     groupForm.setFieldsValue({
       name: selectedGroup.name,
       description: selectedGroup.description || "",
-      class_ids: (selectedGroupClasses || []).map((item) => Number(item.class_id)),
+      class_ids: (selectedGroupClasses || []).map((item) =>
+        Number(item.class_id),
+      ),
     });
     setGroupModalOpen(true);
   };
@@ -322,14 +332,14 @@ const ScheduleConfigCard = ({
         record.breaks?.length ? (
           <Space size={[6, 6]} wrap>
             {record.breaks.map((item, index) => (
-              <Tag key={`${record.day_of_week}-${index}`} color="gold">
+              <Tag key={`${record.day_of_week}-${index}`} color='gold'>
                 {(item.label || "Istirahat").trim()}:{" "}
                 {formatTime(item.break_start)} - {formatTime(item.break_end)}
               </Tag>
             ))}
           </Space>
         ) : (
-          <Text type="secondary">Tidak ada</Text>
+          <Text type='secondary'>Tidak ada</Text>
         ),
     },
     {
@@ -340,12 +350,12 @@ const ScheduleConfigCard = ({
         canManage ? (
           <Space>
             <Button
-              type="text"
+              type='text'
               icon={<Pencil size={14} />}
               onClick={() => openEditDay(record, index)}
             />
             <Button
-              type="text"
+              type='text'
               danger
               loading={loading}
               disabled={dayRows.length <= 1}
@@ -369,24 +379,47 @@ const ScheduleConfigCard = ({
       }
     >
       <Flex vertical gap={16}>
-        <Text type="secondary">
+        <Text type='secondary'>
           Setiap jadwal dapat memiliki beberapa group kelas. Setiap group
           mempunyai pola hari, jam belajar, durasi sesi, dan istirahat yang
           berbeda.
         </Text>
 
         <Card
-          size="small"
-          title="Group Waktu"
+          size='small'
+          title='Group Waktu'
           extra={
             canManage ? (
               <Space>
-                <Button icon={<Pencil size={14} />} onClick={openEditGroup} disabled={!selectedGroup}>
+                <Button
+                  icon={<Pencil size={14} />}
+                  onClick={openEditGroup}
+                  disabled={!selectedGroup}
+                >
                   Ubah Group
                 </Button>
-                <Button type="primary" icon={<Plus size={14} />} onClick={openCreateGroup}>
+                <Button
+                  type='primary'
+                  icon={<Plus size={14} />}
+                  onClick={openCreateGroup}
+                >
                   Tambah Group
                 </Button>
+                <Popconfirm
+                  title='Hapus group ini?'
+                  description='Kelas di group ini akan dipindah ke group default bila penghapusan diizinkan.'
+                  onConfirm={() => onDeleteGroup?.(selectedGroup?.id)}
+                  okText='Hapus'
+                  cancelText='Batal'
+                >
+                  <Button
+                    danger
+                    icon={<Trash2 size={14} />}
+                    disabled={!selectedGroup || selectedGroup.is_default === true}
+                  >
+                    Hapus Group
+                  </Button>
+                </Popconfirm>
               </Space>
             ) : null
           }
@@ -394,7 +427,7 @@ const ScheduleConfigCard = ({
         >
           <Flex vertical gap={12}>
             <Select
-              placeholder="Pilih group jadwal"
+              placeholder='Pilih group jadwal'
               options={groupOptions}
               value={selectedGroup ? Number(selectedGroup.id) : undefined}
               onChange={onSelectGroup}
@@ -406,53 +439,59 @@ const ScheduleConfigCard = ({
                   <Tag color={selectedGroup.is_default ? "blue" : "purple"}>
                     {selectedGroup.is_default ? "Default" : "Custom"}
                   </Tag>
-                  <Tag color="geekblue">
-                    {selectedGroup.class_count || selectedGroupClasses.length || 0} kelas
+                  <Tag color='geekblue'>
+                    {selectedGroup.class_count ||
+                      selectedGroupClasses.length ||
+                      0}{" "}
+                    kelas
                   </Tag>
                 </Space>
                 <Text strong>{selectedGroup.name}</Text>
-                <Text type="secondary">
+                <Text type='secondary'>
                   {selectedGroup.description || "Belum ada deskripsi group."}
                 </Text>
                 {(selectedGroupClasses || []).length > 0 ? (
                   <Space size={[8, 8]} wrap>
                     {selectedGroupClasses.map((item) => (
                       <Tag key={item.class_id} icon={<UsersRound size={12} />}>
-                        {item.grade_name ? `${item.grade_name} - ${item.class_name}` : item.class_name}
+                        {item.grade_name
+                          ? `${item.grade_name} - ${item.class_name}`
+                          : item.class_name}
                       </Tag>
                     ))}
                   </Space>
                 ) : (
                   <Alert
                     showIcon
-                    type="warning"
-                    message="Belum ada kelas di group ini"
-                    description="Tambahkan kelas ke group agar nantinya bisa dipakai pada generator group-aware."
+                    type='warning'
+                    title='Belum ada kelas di group ini'
+                    description='Tambahkan kelas ke group agar nantinya bisa dipakai pada generator group-aware.'
                   />
                 )}
               </Flex>
             ) : (
-              <Empty description="Belum ada group jadwal." />
+              <Empty description='Belum ada group jadwal.' />
             )}
           </Flex>
         </Card>
 
         <Card
-          size="small"
-          title="Ringkasan Sesi Tersedia"
+          size='small'
+          title='Ringkasan Sesi Tersedia'
           style={{ borderRadius: 12 }}
         >
           <Space size={[8, 8]} wrap>
-            <Tag color="blue">
+            <Tag color='blue'>
               Slot group ini: {scheduleCapacity?.total_configured_slots || 0}
             </Tag>
-            <Tag color="geekblue">
+            <Tag color='geekblue'>
               Kelas aktif: {scheduleCapacity?.active_class_count || 0}
             </Tag>
-            <Tag color="green">
-              Total sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
+            <Tag color='green'>
+              Total sesi tersedia:{" "}
+              {scheduleCapacity?.total_available_sessions || 0}
             </Tag>
-            <Tag color="gold">
+            <Tag color='gold'>
               Dipakai kegiatan: {scheduleCapacity?.total_activity_sessions || 0}
             </Tag>
             <Tag
@@ -470,7 +509,7 @@ const ScheduleConfigCard = ({
         {(sessionShortages || []).length > 0 ? (
           <Alert
             showIcon
-            type="warning"
+            type='warning'
             title={`Masih ada ${(sessionShortages || []).length} beban ajar yang kekurangan sesi`}
             description={`${sessionShortages
               .slice(0, 2)
@@ -487,17 +526,18 @@ const ScheduleConfigCard = ({
         ) : null}
 
         <Card
-          size="small"
+          size='small'
           title={`Jadwal Per Hari${selectedGroup ? ` - ${selectedGroup.name}` : ""}`}
           extra={
             canManage ? (
               <Button
-                type="primary"
+                type='primary'
                 icon={<Plus size={14} />}
                 onClick={openCreateDay}
                 disabled={!selectedGroup}
+                size='small'
               >
-                Tambah Hari
+                Hari
               </Button>
             ) : null
           }
@@ -507,22 +547,22 @@ const ScheduleConfigCard = ({
             dayRows.length > 0 ? (
               <Table
                 rowKey={(record) => String(record.day_of_week)}
-                size="small"
+                size='small'
                 columns={columns}
                 dataSource={dayRows}
                 pagination={false}
                 scroll={{ x: 760 }}
               />
             ) : (
-              <Empty description="Belum ada hari yang dikonfigurasi untuk group ini." />
+              <Empty description='Belum ada hari yang dikonfigurasi untuk group ini.' />
             )
           ) : (
-            <Empty description="Pilih group jadwal terlebih dahulu." />
+            <Empty description='Pilih group jadwal terlebih dahulu.' />
           )}
         </Card>
 
         {!canManage ? (
-          <Text type="secondary">
+          <Text type='secondary'>
             Anda hanya dapat melihat konfigurasi. Hubungi admin satuan untuk
             perubahan.
           </Text>
@@ -538,34 +578,36 @@ const ScheduleConfigCard = ({
           groupForm.resetFields();
         }}
         onOk={handleSaveGroup}
-        okText="Simpan"
+        okText='Simpan'
         confirmLoading={loading}
         width={720}
       >
-        <Form form={groupForm} layout="vertical">
+        <Form form={groupForm} layout='vertical'>
           <Form.Item
-            name="name"
-            label="Nama Group"
+            name='name'
+            label='Nama Group'
             rules={[{ required: true, message: "Nama group wajib diisi." }]}
           >
-            <Input placeholder="Contoh: Shift Pagi Kelas 7-8" />
+            <Input placeholder='Contoh: Shift Pagi Kelas 7-8' />
           </Form.Item>
-          <Form.Item name="description" label="Deskripsi">
+          <Form.Item name='description' label='Deskripsi'>
             <Input.TextArea
               rows={3}
-              placeholder="Contoh: Senin-Rabu pagi, Kamis-Sabtu siang."
+              placeholder='Contoh: Senin-Rabu pagi, Kamis-Sabtu siang.'
             />
           </Form.Item>
           <Form.Item
-            name="class_ids"
-            label="Kelas dalam Group"
+            name='class_ids'
+            label='Kelas dalam Group'
             rules={[{ required: true, message: "Pilih minimal satu kelas." }]}
           >
             <Select
-              mode="multiple"
+              mode='multiple'
               options={classOptions}
-              placeholder="Pilih kelas untuk group ini"
-              optionFilterProp="label"
+              placeholder='Pilih kelas untuk group ini'
+              showSearch={{ optionFilterProp: "label" }}
+              allowClear
+              virtual={false}
             />
           </Form.Item>
         </Form>
@@ -578,31 +620,31 @@ const ScheduleConfigCard = ({
         }
         onCancel={closeDayModal}
         onOk={handleSaveDay}
-        okText="Simpan"
+        okText='Simpan'
         confirmLoading={loading}
         width={760}
       >
-        <Form form={dayForm} layout="vertical">
-          <Flex gap={12} wrap="wrap">
+        <Form form={dayForm} layout='vertical'>
+          <Flex gap={12} wrap='wrap'>
             <Form.Item
-              name="day_of_week"
-              label="Hari"
+              name='day_of_week'
+              label='Hari'
               rules={[{ required: true, message: "Hari wajib diisi." }]}
               style={{ flex: "1 1 180px" }}
             >
               <Select options={DAY_OPTIONS} />
             </Form.Item>
             <Form.Item
-              name="start_time"
-              label="Jam mulai"
+              name='start_time'
+              label='Jam mulai'
               rules={[{ required: true, message: "Jam mulai wajib diisi." }]}
               style={{ flex: "1 1 180px" }}
             >
-              <TimePicker format="HH:mm" style={{ width: "100%" }} />
+              <TimePicker format='HH:mm' style={{ width: "100%" }} />
             </Form.Item>
             <Form.Item
-              name="end_time"
-              label="Jam selesai"
+              name='end_time'
+              label='Jam selesai'
               rules={[
                 { required: true, message: "Jam selesai wajib diisi." },
                 ({ getFieldValue }) => ({
@@ -612,34 +654,36 @@ const ScheduleConfigCard = ({
                       return Promise.resolve();
                     }
                     return Promise.reject(
-                      new Error("Jam selesai harus lebih besar dari jam mulai."),
+                      new Error(
+                        "Jam selesai harus lebih besar dari jam mulai.",
+                      ),
                     );
                   },
                 }),
               ]}
               style={{ flex: "1 1 180px" }}
             >
-              <TimePicker format="HH:mm" style={{ width: "100%" }} />
+              <TimePicker format='HH:mm' style={{ width: "100%" }} />
             </Form.Item>
             <Form.Item
-              name="session_minutes"
-              label="Durasi per sesi (menit)"
+              name='session_minutes'
+              label='Durasi per sesi (menit)'
               rules={[{ required: true, message: "Durasi sesi wajib diisi." }]}
               style={{ flex: "1 1 180px" }}
             >
-              <Select options={SESSION_DURATION_OPTIONS} />
+              <Select options={SESSION_DURATION_OPTIONS} virtual={false} />
             </Form.Item>
           </Flex>
 
           <Divider style={{ margin: "8px 0 16px" }} />
 
-          <Form.List name="breaks">
+          <Form.List name='breaks'>
             {(fields, { add, remove }) => (
               <Flex vertical gap={10}>
-                <Flex justify="space-between" align="center">
+                <Flex justify='space-between' align='center'>
                   <Text strong>Waktu Istirahat</Text>
                   <Button
-                    type="dashed"
+                    type='dashed'
                     icon={<Plus size={14} />}
                     onClick={() => add({ label: "Istirahat" })}
                   >
@@ -651,20 +695,20 @@ const ScheduleConfigCard = ({
                   fields.map((field) => (
                     <Card
                       key={field.key}
-                      size="small"
+                      size='small'
                       style={{ borderRadius: 10 }}
                     >
-                      <Flex gap={8} wrap="wrap" align="end">
+                      <Flex gap={8} wrap='wrap' align='end'>
                         <Form.Item
                           name={[field.name, "label"]}
-                          label="Label"
+                          label='Label'
                           style={{ flex: "1 1 180px", marginBottom: 0 }}
                         >
-                          <Input placeholder="Contoh: Istirahat 1" />
+                          <Input placeholder='Contoh: Istirahat 1' />
                         </Form.Item>
                         <Form.Item
                           name={[field.name, "break_start"]}
-                          label="Mulai"
+                          label='Mulai'
                           dependencies={[["breaks", field.name, "break_end"]]}
                           rules={[
                             ({ getFieldValue }) => ({
@@ -674,10 +718,13 @@ const ScheduleConfigCard = ({
                                   field.name,
                                   "break_end",
                                 ]);
-                                if (!value && !endValue) return Promise.resolve();
+                                if (!value && !endValue)
+                                  return Promise.resolve();
                                 if (!value || !endValue) {
                                   return Promise.reject(
-                                    new Error("Jam istirahat harus diisi berpasangan."),
+                                    new Error(
+                                      "Jam istirahat harus diisi berpasangan.",
+                                    ),
                                   );
                                 }
                                 return Promise.resolve();
@@ -686,11 +733,14 @@ const ScheduleConfigCard = ({
                           ]}
                           style={{ flex: "1 1 150px", marginBottom: 0 }}
                         >
-                          <TimePicker format="HH:mm" style={{ width: "100%" }} />
+                          <TimePicker
+                            format='HH:mm'
+                            style={{ width: "100%" }}
+                          />
                         </Form.Item>
                         <Form.Item
                           name={[field.name, "break_end"]}
-                          label="Selesai"
+                          label='Selesai'
                           dependencies={[["breaks", field.name, "break_start"]]}
                           rules={[
                             ({ getFieldValue }) => ({
@@ -700,10 +750,13 @@ const ScheduleConfigCard = ({
                                   field.name,
                                   "break_start",
                                 ]);
-                                if (!value && !startValue) return Promise.resolve();
+                                if (!value && !startValue)
+                                  return Promise.resolve();
                                 if (!value || !startValue) {
                                   return Promise.reject(
-                                    new Error("Jam istirahat harus diisi berpasangan."),
+                                    new Error(
+                                      "Jam istirahat harus diisi berpasangan.",
+                                    ),
                                   );
                                 }
                                 if (!value.isAfter(startValue)) {
@@ -719,10 +772,13 @@ const ScheduleConfigCard = ({
                           ]}
                           style={{ flex: "1 1 150px", marginBottom: 0 }}
                         >
-                          <TimePicker format="HH:mm" style={{ width: "100%" }} />
+                          <TimePicker
+                            format='HH:mm'
+                            style={{ width: "100%" }}
+                          />
                         </Form.Item>
                         <Button
-                          type="text"
+                          type='text'
                           danger
                           icon={<Trash2 size={14} />}
                           onClick={() => remove(field.name)}
@@ -731,7 +787,7 @@ const ScheduleConfigCard = ({
                     </Card>
                   ))
                 ) : (
-                  <Text type="secondary">Belum ada waktu istirahat.</Text>
+                  <Text type='secondary'>Belum ada waktu istirahat.</Text>
                 )}
               </Flex>
             )}

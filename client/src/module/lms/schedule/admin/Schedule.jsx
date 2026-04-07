@@ -2,25 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
   Flex,
-  Form,
-  Input,
-  Modal,
-  Select,
   Skeleton,
   Space,
   Tabs,
-  Tag,
-  Typography,
   message,
 } from "antd";
 import {
   Activity,
   CircleHelp,
   LayoutGrid,
-  Pencil,
-  Plus,
   Settings2,
   SlidersHorizontal,
   UserRoundCog,
@@ -28,6 +19,8 @@ import {
 } from "lucide-react";
 import {
   useActivateScheduleConfigMutation,
+  useDeleteScheduleConfigMutation,
+  useDeleteScheduleConfigGroupMutation,
   useDeleteTeachingLoadMutation,
   useDeleteScheduleActivityMutation,
   useDeleteScheduleEntryMutation,
@@ -46,31 +39,32 @@ import {
 import ScheduleConfigCard from "./ScheduleConfigCard";
 import ScheduleActivity from "./ScheduleActivity";
 import ScheduleLoadCard from "./ScheduleLoadCard";
+import ScheduleMasterCard from "./ScheduleMasterCard";
 import ScheduleUnavailabilityCard from "./ScheduleUnavailabilityCard";
 import ScheduleTimetableCard from "./ScheduleTimetableCard";
 import ScheduleGuideModal from "./ScheduleGuideModal";
-
-const { Text } = Typography;
 
 const Schedule = () => {
   const [guideOpen, setGuideOpen] = useState(false);
   const [selectedConfigId, setSelectedConfigId] = useState(null);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
-  const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [editingConfig, setEditingConfig] = useState(null);
-  const [configForm] = Form.useForm();
 
-  const { data, isLoading, isFetching, refetch } =
-    useGetScheduleBootstrapQuery({
+  const { data, isLoading, isFetching, refetch } = useGetScheduleBootstrapQuery(
+    {
       configId: selectedConfigId || undefined,
       groupId: selectedGroupId || undefined,
-    });
+    },
+  );
   const [saveScheduleConfig, { isLoading: savingConfig }] =
     useSaveScheduleConfigMutation();
   const [activateScheduleConfig, { isLoading: activatingConfig }] =
     useActivateScheduleConfigMutation();
+  const [deleteScheduleConfig, { isLoading: deletingConfig }] =
+    useDeleteScheduleConfigMutation();
   const [saveScheduleConfigGroup, { isLoading: savingConfigGroup }] =
     useSaveScheduleConfigGroupMutation();
+  const [deleteScheduleConfigGroup, { isLoading: deletingConfigGroup }] =
+    useDeleteScheduleConfigGroupMutation();
   const [saveTeachingLoad, { isLoading: savingLoad }] =
     useSaveTeachingLoadMutation();
   const [importTeachingLoad, { isLoading: importingLoad }] =
@@ -117,7 +111,9 @@ const Schedule = () => {
       (item) => Number(item.id) === Number(selectedConfigId),
     );
     if (!hasSelectedConfig) {
-      const fallbackId = Number(payload.selected_config_id || scheduleConfigs[0]?.id);
+      const fallbackId = Number(
+        payload.selected_config_id || scheduleConfigs[0]?.id,
+      );
       if (fallbackId && fallbackId !== Number(selectedConfigId)) {
         setSelectedConfigId(fallbackId);
       }
@@ -178,7 +174,8 @@ const Schedule = () => {
     );
   }, [payload.classes, selectedGroupClassIds]);
   const scopedTeacherAssignments = useMemo(() => {
-    if (selectedGroupClassIds.size === 0) return payload.teacher_assignments || [];
+    if (selectedGroupClassIds.size === 0)
+      return payload.teacher_assignments || [];
     return (payload.teacher_assignments || []).filter((item) =>
       selectedGroupClassIds.has(Number(item.class_id)),
     );
@@ -271,7 +268,10 @@ const Schedule = () => {
         if (!item?.teaching_load_id || item?.is_active === false) return acc;
         const classId = Number(item.class_id);
         if (!activeClassIds.has(classId)) return acc;
-        if (selectedGroupClassIds.size > 0 && !selectedGroupClassIds.has(classId)) {
+        if (
+          selectedGroupClassIds.size > 0 &&
+          !selectedGroupClassIds.has(classId)
+        ) {
           return acc;
         }
         return acc + Number(item.weekly_sessions || 0);
@@ -313,7 +313,10 @@ const Schedule = () => {
       (activityTargetsById[Number(activity.id)] || []).forEach((target) => {
         const classId = Number(target.class_id);
         if (!activeClassIds.has(classId)) return;
-        if (selectedGroupClassIds.size > 0 && !selectedGroupClassIds.has(classId)) {
+        if (
+          selectedGroupClassIds.size > 0 &&
+          !selectedGroupClassIds.has(classId)
+        ) {
           return;
         }
         slotIds.forEach((slotId) => {
@@ -370,50 +373,26 @@ const Schedule = () => {
     }
   };
 
-  const openCreateConfig = () => {
-    setEditingConfig(null);
-    configForm.setFieldsValue({
-      name: "",
-      description: "",
-      is_active: scheduleConfigs.length === 0,
-    });
-    setConfigModalOpen(true);
-  };
-
-  const openEditConfig = () => {
-    if (!selectedConfig) return;
-    setEditingConfig(selectedConfig);
-    configForm.setFieldsValue({
-      name: selectedConfig.name,
-      description: selectedConfig.description || "",
-      is_active: selectedConfig.is_active === true,
-    });
-    setConfigModalOpen(true);
-  };
-
-  const handleSaveConfigMeta = async () => {
+  const handleSaveConfigMeta = async (values) => {
     try {
-      const values = await configForm.validateFields();
       const response = await saveScheduleConfig({
-        id: editingConfig?.id,
+        id: values.id,
         periode_id: payload.periode_id,
         name: values.name,
         description: values.description || null,
         is_active: values.is_active,
       }).unwrap();
-      const nextConfigId = Number(response?.data?.id || editingConfig?.id || 0);
+      const nextConfigId = Number(response?.data?.id || values.id || 0);
       if (nextConfigId) {
         setSelectedConfigId(nextConfigId);
       }
-      setConfigModalOpen(false);
-      setEditingConfig(null);
       message.success(
-        editingConfig ? "Master jadwal diperbarui." : "Master jadwal ditambahkan.",
+        values.id ? "Master jadwal diperbarui." : "Master jadwal ditambahkan.",
       );
+      return true;
     } catch (error) {
-      if (!error?.errorFields) {
-        message.error(error?.data?.message || "Gagal menyimpan master jadwal.");
-      }
+      message.error(error?.data?.message || "Gagal menyimpan master jadwal.");
+      throw error;
     }
   };
 
@@ -427,6 +406,21 @@ const Schedule = () => {
       message.success("Jadwal aktif diperbarui.");
     } catch (error) {
       message.error(error?.data?.message || "Gagal mengaktifkan jadwal.");
+    }
+  };
+
+  const handleDeleteConfig = async () => {
+    if (!selectedConfig?.id) return;
+    try {
+      await deleteScheduleConfig({
+        id: selectedConfig.id,
+        periode_id: payload.periode_id,
+      }).unwrap();
+      setSelectedConfigId(null);
+      setSelectedGroupId(null);
+      message.success("Master jadwal dihapus.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus master jadwal.");
     }
   };
 
@@ -450,6 +444,18 @@ const Schedule = () => {
     } catch (error) {
       message.error(error?.data?.message || "Gagal menyimpan group jadwal.");
       throw error;
+    }
+  };
+
+  const handleDeleteGroup = async (groupId) => {
+    if (!groupId) return;
+    try {
+      const response = await deleteScheduleConfigGroup(groupId).unwrap();
+      const fallbackGroupId = Number(response?.data?.fallback_group_id || 0);
+      setSelectedGroupId(fallbackGroupId || null);
+      message.success("Group jadwal dihapus.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus group jadwal.");
     }
   };
 
@@ -606,123 +612,25 @@ const Schedule = () => {
     !selectedConfig ? (
       <Alert
         showIcon
-        type="warning"
-        message="Belum ada master jadwal"
-        description="Buat dan pilih jadwal terlebih dahulu sebelum mengakses tab ini."
+        type='warning'
+        title='Belum ada master jadwal'
+        description='Buat dan pilih jadwal terlebih dahulu sebelum mengakses tab ini.'
       />
     ) : !isSelectedConfigActive ? (
       <Alert
         showIcon
-        type="info"
-        message="Jadwal yang dipilih masih nonaktif"
+        type='info'
+        title='Jadwal yang dipilih masih nonaktif'
         description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada beban ajar, kegiatan, generator, dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
-          scheduleConfigs.find((item) => Number(item.id) === activeConfigId)?.name ||
-          "belum ditentukan"
+          scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
+            ?.name || "belum ditentukan"
         }.`}
       />
     ) : null;
 
-  const masterScheduleTab = (
-    <Card
-      style={{ borderRadius: 16 }}
-      styles={{ body: { padding: 20 } }}
-      title="Master Jadwal"
-    >
-      <Flex vertical gap={12}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-          <Space wrap>
-            <Select
-              style={{ minWidth: 260 }}
-              placeholder="Pilih jadwal"
-              options={configOptions}
-              value={selectedConfig ? Number(selectedConfig.id) : undefined}
-              onChange={setSelectedConfigId}
-            />
-            {canManage ? (
-              <Button
-                type="primary"
-                icon={<Plus size={14} />}
-                onClick={openCreateConfig}
-              >
-                Tambah Jadwal
-              </Button>
-            ) : null}
-            {canManage ? (
-              <Button
-                icon={<Pencil size={14} />}
-                disabled={!selectedConfig}
-                onClick={openEditConfig}
-              >
-                Ubah Info
-              </Button>
-            ) : null}
-            {canManage ? (
-              <Button
-                disabled={!selectedConfig || selectedConfig.is_active === true}
-                loading={activatingConfig}
-                onClick={handleActivateConfig}
-              >
-                Jadikan Aktif
-              </Button>
-            ) : null}
-          </Space>
-
-          {selectedConfig ? (
-            <Space wrap>
-              <Tag color={selectedConfig.is_active ? "green" : "default"}>
-                {selectedConfig.is_active ? "Aktif" : "Nonaktif"}
-              </Tag>
-              <Tag color="blue">
-                {selectedConfig.name || `Jadwal ${selectedConfig.id}`}
-              </Tag>
-            </Space>
-          ) : null}
-        </Flex>
-
-        {selectedConfig ? (
-          <Flex vertical gap={4}>
-            <Text strong>{selectedConfig.name}</Text>
-            <Text type="secondary">
-              {selectedConfig.description || "Belum ada deskripsi jadwal."}
-            </Text>
-          </Flex>
-        ) : (
-          <Alert
-            showIcon
-            type="warning"
-            message="Belum ada master jadwal"
-            description="Buat minimal satu jadwal sebelum mengatur template harian."
-          />
-        )}
-
-        {renderInactiveConfigAlert()}
-
-        {selectedConfig ? (
-          unmappedGroupClasses.length > 0 ? (
-            <Alert
-              showIcon
-              type="warning"
-              message="Masih ada kelas aktif yang belum masuk group jadwal"
-              description={`Generator akan ditolak sampai mapping group lengkap. Kelas yang belum dipetakan: ${unmappedGroupClasses
-                .map((item) => item.name)
-                .join(", ")}.`}
-            />
-          ) : configGroups.length > 0 ? (
-            <Alert
-              showIcon
-              type="success"
-              message="Mapping group kelas lengkap"
-              description="Semua kelas aktif pada satuan ini sudah memiliki group jadwal pada master yang sedang dipilih."
-            />
-          ) : null
-        ) : null}
-      </Flex>
-    </Card>
-  );
-
   return (
     <Flex vertical gap={16}>
-      <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+      <Flex justify='space-between' align='center' wrap='wrap' gap={8}>
         <Space>
           <Button
             icon={<CircleHelp size={14} />}
@@ -734,7 +642,7 @@ const Schedule = () => {
       </Flex>
 
       <Tabs
-        defaultActiveKey="master"
+        defaultActiveKey='master'
         items={[
           {
             key: "master",
@@ -744,7 +652,23 @@ const Schedule = () => {
                 Master Jadwal
               </Space>
             ),
-            children: masterScheduleTab,
+            children: (
+              <ScheduleMasterCard
+                canManage={canManage}
+                scheduleConfigs={scheduleConfigs}
+                selectedConfig={selectedConfig}
+                configOptions={configOptions}
+                configGroups={configGroups}
+                unmappedGroupClasses={unmappedGroupClasses}
+                activeConfigId={activeConfigId}
+                loading={savingConfig || deletingConfig}
+                activatingConfig={activatingConfig}
+                onSelectConfig={setSelectedConfigId}
+                onSaveConfig={handleSaveConfigMeta}
+                onActivateConfig={handleActivateConfig}
+                onDeleteConfig={handleDeleteConfig}
+              />
+            ),
           },
           {
             key: "config",
@@ -754,37 +678,37 @@ const Schedule = () => {
                 Konfigurasi Jadwal
               </Space>
             ),
-            children: (
-              selectedConfig ? (
-                <ScheduleConfigCard
-                  canManage={canManage}
-                  config={selectedConfig}
-                  groups={configGroups}
-                  selectedGroup={selectedGroup}
-                  selectedGroupClasses={payload.selected_group_classes || []}
-                  classes={payload.classes || []}
-                  dayTemplates={payload.day_templates || []}
-                  breaks={payload.breaks || []}
-                  scheduleCapacity={scheduleCapacity}
-                  sessionShortages={sessionShortages}
-                  loading={
-                    savingConfig ||
-                    savingConfigGroup ||
-                    activatingConfig ||
-                    isFetching
-                  }
-                  onSelectGroup={setSelectedGroupId}
-                  onSave={handleConfigSave}
-                  onSaveGroup={handleGroupSave}
-                />
-              ) : (
-                <Alert
-                  showIcon
-                  type="warning"
-                  message="Belum ada master jadwal"
-                  description="Buat master jadwal terlebih dahulu untuk mulai mengatur hari, jam belajar, dan durasi sesi."
-                />
-              )
+            children: selectedConfig ? (
+              <ScheduleConfigCard
+                canManage={canManage}
+                config={selectedConfig}
+                groups={configGroups}
+                selectedGroup={selectedGroup}
+                selectedGroupClasses={payload.selected_group_classes || []}
+                classes={payload.classes || []}
+                dayTemplates={payload.day_templates || []}
+                breaks={payload.breaks || []}
+                scheduleCapacity={scheduleCapacity}
+                sessionShortages={sessionShortages}
+                loading={
+                  savingConfig ||
+                  savingConfigGroup ||
+                  deletingConfigGroup ||
+                  activatingConfig ||
+                  isFetching
+                }
+                onSelectGroup={setSelectedGroupId}
+                onSave={handleConfigSave}
+                onSaveGroup={handleGroupSave}
+                onDeleteGroup={handleDeleteGroup}
+              />
+            ) : (
+              <Alert
+                showIcon
+                type='warning'
+                message='Belum ada master jadwal'
+                description='Buat master jadwal terlebih dahulu untuk mulai mengatur hari, jam belajar, dan durasi sesi.'
+              />
             ),
           },
           {
@@ -910,46 +834,6 @@ const Schedule = () => {
           },
         ]}
       />
-
-      <Modal
-        open={configModalOpen}
-        title={editingConfig ? "Ubah Master Jadwal" : "Tambah Master Jadwal"}
-        onCancel={() => {
-          setConfigModalOpen(false);
-          setEditingConfig(null);
-        }}
-        onOk={handleSaveConfigMeta}
-        okText="Simpan"
-        confirmLoading={savingConfig}
-      >
-        <Form form={configForm} layout="vertical">
-          <Form.Item
-            name="name"
-            label="Nama Jadwal"
-            rules={[{ required: true, message: "Nama jadwal wajib diisi." }]}
-          >
-            <Input placeholder="Contoh: Jadwal Reguler" />
-          </Form.Item>
-          <Form.Item name="description" label="Deskripsi">
-            <Input.TextArea
-              rows={3}
-              placeholder="Contoh: Jadwal operasional reguler semester genap."
-            />
-          </Form.Item>
-          <Form.Item
-            name="is_active"
-            label="Status"
-            rules={[{ required: true, message: "Status wajib dipilih." }]}
-          >
-            <Select
-              options={[
-                { value: true, label: "Aktif" },
-                { value: false, label: "Nonaktif" },
-              ]}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
 
       <ScheduleGuideModal
         open={guideOpen}

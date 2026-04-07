@@ -32,11 +32,25 @@ export const ApiSchedule = createApi({
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
+    deleteScheduleConfig: builder.mutation({
+      query: ({ id, periode_id }) => ({
+        url: `/schedule/config/${id}?${new URLSearchParams({ periode_id }).toString()}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
     saveScheduleConfigGroup: builder.mutation({
       query: (body) => ({
         url: "/schedule/config-group",
         method: "POST",
         body,
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
+    deleteScheduleConfigGroup: builder.mutation({
+      query: (id) => ({
+        url: `/schedule/config-group/${id}`,
+        method: "DELETE",
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
@@ -131,7 +145,9 @@ export const {
   useGetScheduleBootstrapQuery,
   useSaveScheduleConfigMutation,
   useActivateScheduleConfigMutation,
+  useDeleteScheduleConfigMutation,
   useSaveScheduleConfigGroupMutation,
+  useDeleteScheduleConfigGroupMutation,
   useSaveTeachingLoadMutation,
   useImportTeachingLoadMutation,
   useDeleteTeachingLoadMutation,
