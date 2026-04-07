@@ -5,13 +5,7 @@ const buildTahfizMenus = () => ({
   admin: [],
   teacher: [],
   student: [],
-  parent: [
-    {
-      label: "Laporan Tahfiz",
-      key: "/orangtua-laporan-tahfiz",
-      icon: <AuditOutlined />,
-    },
-  ],
+  parent: [],
   tahfiz: [],
 });
 
