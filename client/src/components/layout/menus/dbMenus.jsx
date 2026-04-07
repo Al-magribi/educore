@@ -11,13 +11,7 @@ const buildDbMenus = () => ({
   admin: [],
   teacher: [],
   student: [],
-  parent: [
-    {
-      label: "Data Siswa",
-      key: "/orangtua-database-siswa",
-      icon: <DatabaseOutlined />,
-    },
-  ],
+  parent: [],
   tahfiz: [],
 });
 
