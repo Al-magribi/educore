@@ -34,20 +34,18 @@ const buildCoreMenus = () => ({
       icon: <WindowsOutlined />,
     },
   ],
-  teacher: [{ label: "Dashboard", key: "/guru-dashboard", icon: <WindowsOutlined /> }],
-  student: [{ label: "Dashboard", key: "/siswa-dashboard", icon: <WindowsOutlined /> }],
+  teacher: [
+    { label: "Dashboard", key: "/guru-dashboard", icon: <WindowsOutlined /> },
+  ],
+  student: [
+    { label: "Dashboard", key: "/siswa-dashboard", icon: <WindowsOutlined /> },
+  ],
   parent: [
     {
       label: "Dashboard",
       key: "/orangtua-dashboard",
       icon: <WindowsOutlined />,
     },
-    {
-      label: "Laporan Akademik",
-      key: "/orangtua-laporan-akademik",
-      icon: <AreaChartOutlined />,
-    },
-    { label: "Logout", key: "logout", icon: <LogoutOutlined />, danger: true },
   ],
   tahfiz: [
     { label: "Dashboard", key: "/tahfiz-dashboard", icon: <WindowsOutlined /> },
