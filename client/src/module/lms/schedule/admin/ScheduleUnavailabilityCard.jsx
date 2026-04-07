@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
-import dayjs from "dayjs";
 import {
+  Alert,
   Button,
   Card,
   Flex,
@@ -13,7 +13,6 @@ import {
   Switch,
   Table,
   Tag,
-  TimePicker,
 } from "antd";
 import { Ban, Pencil, Plus, Trash2 } from "lucide-react";
 
@@ -24,26 +23,157 @@ const DAY_OPTIONS = [
   { value: 4, label: "Kamis" },
   { value: 5, label: "Jumat" },
   { value: 6, label: "Sabtu" },
+  { value: 7, label: "Minggu" },
 ];
 
-const toDayjsTime = (value) => {
-  if (!value) return null;
-  const raw = String(value).slice(0, 5);
-  return dayjs(`2000-01-01 ${raw}`);
-};
+const formatTime = (value) => (value ? String(value).slice(0, 5) : "-");
 
 const buildEmptyEntry = () => ({
   day_of_week: undefined,
-  start_time: null,
-  end_time: null,
+  start_slot_no: undefined,
+  end_slot_no: undefined,
   reason: null,
   is_active: true,
 });
+
+const getMatchedSlots = (daySlots, startTime, endTime) =>
+  (daySlots || []).filter((slot) => {
+    if (!startTime || !endTime) return false;
+    const slotStart = formatTime(slot.start_time);
+    const slotEnd = formatTime(slot.end_time);
+    return slotStart >= formatTime(startTime) && slotEnd <= formatTime(endTime);
+  });
+
+const UnavailabilityEntryFields = ({
+  field,
+  index,
+  fieldsLength,
+  form,
+  remove,
+  slotByDay,
+  availableDayOptions,
+}) => {
+  const selectedDay = Form.useWatch(
+    ["entries", field.name, "day_of_week"],
+    form,
+  );
+  const selectedStartSlot = Form.useWatch(
+    ["entries", field.name, "start_slot_no"],
+    form,
+  );
+  const daySlots = slotByDay.get(Number(selectedDay)) || [];
+  const slotOptions = daySlots.map((slot) => ({
+    value: Number(slot.slot_no),
+    label: `Jam ${slot.slot_no} (${formatTime(slot.start_time)} - ${formatTime(slot.end_time)})`,
+  }));
+
+  return (
+    <Card
+      key={field.key}
+      size='small'
+      title={`Hari ${index + 1}`}
+      extra={
+        fieldsLength > 1 ? (
+          <Button
+            type='text'
+            danger
+            icon={<Trash2 size={14} />}
+            onClick={() => remove(field.name)}
+          />
+        ) : null
+      }
+    >
+      <Form.Item name={[field.name, "id"]} hidden>
+        <Input />
+      </Form.Item>
+      <Form.Item
+        name={[field.name, "day_of_week"]}
+        label='Hari'
+        rules={[{ required: true, message: "Hari wajib diisi." }]}
+      >
+        <Select
+          options={availableDayOptions}
+          placeholder='Pilih hari yang sudah dikonfigurasi'
+        />
+      </Form.Item>
+      <Flex gap='middle'>
+        <Form.Item
+          name={[field.name, "start_slot_no"]}
+          label='Mulai jam ke'
+          style={{ width: "50%" }}
+        >
+          <Select placeholder='Pilih jam mulai' options={slotOptions} />
+        </Form.Item>
+        <Form.Item
+          name={[field.name, "end_slot_no"]}
+          label='Selesai jam ke'
+          dependencies={[
+            ["entries", field.name, "day_of_week"],
+            ["entries", field.name, "start_slot_no"],
+          ]}
+          rules={[
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                const startValue = getFieldValue([
+                  "entries",
+                  field.name,
+                  "start_slot_no",
+                ]);
+
+                if (!startValue && !value) {
+                  return Promise.resolve();
+                }
+
+                if (!startValue || !value) {
+                  return Promise.reject(
+                    new Error("Jam mulai dan selesai harus diisi berpasangan."),
+                  );
+                }
+
+                if (Number(value) < Number(startValue)) {
+                  return Promise.reject(
+                    new Error("Jam selesai harus sama atau setelah jam mulai."),
+                  );
+                }
+
+                return Promise.resolve();
+              },
+            }),
+          ]}
+          style={{ width: "50%" }}
+        >
+          <Select
+            placeholder='Pilih jam selesai'
+            options={slotOptions.map((slot) => ({
+              ...slot,
+              disabled:
+                Number(selectedStartSlot) > 0 &&
+                Number(slot.value) < Number(selectedStartSlot),
+            }))}
+          />
+        </Form.Item>
+      </Flex>
+      <Form.Item name={[field.name, "reason"]} label='Alasan'>
+        <Input placeholder='Contoh: pembinaan / rapat / dll' />
+      </Form.Item>
+      <Form.Item
+        name={[field.name, "is_active"]}
+        valuePropName='checked'
+        initialValue={true}
+      >
+        <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
+      </Form.Item>
+    </Card>
+  );
+};
 
 const ScheduleUnavailabilityCard = ({
   canManage,
   teachers,
   rules,
+  slots,
+  selectedConfig,
+  selectedGroup,
   loading,
   onSave,
   onDelete,
@@ -68,6 +198,34 @@ const ScheduleUnavailabilityCard = ({
         return acc;
       }, {}),
     [],
+  );
+
+  const slotByDay = useMemo(() => {
+    const grouped = new Map();
+    (slots || [])
+      .filter((item) => !item?.is_break)
+      .forEach((slot) => {
+        const day = Number(slot.day_of_week);
+        if (!grouped.has(day)) grouped.set(day, []);
+        grouped.get(day).push({
+          ...slot,
+          slot_no: Number(slot.slot_no),
+        });
+      });
+
+    for (const rows of grouped.values()) {
+      rows.sort((left, right) => Number(left.slot_no) - Number(right.slot_no));
+    }
+
+    return grouped;
+  }, [slots]);
+
+  const availableDayOptions = useMemo(
+    () =>
+      DAY_OPTIONS.filter(
+        (item) => (slotByDay.get(item.value) || []).length > 0,
+      ),
+    [slotByDay],
   );
 
   const teacherRuleMap = useMemo(() => {
@@ -111,14 +269,36 @@ const ScheduleUnavailabilityCard = ({
     });
     form.setFieldsValue({
       teacher_id: record.teacher_id,
-      entries: teacherRules.map((item) => ({
-        id: item.id,
-        day_of_week: item.day_of_week,
-        start_time: toDayjsTime(item.start_time),
-        end_time: toDayjsTime(item.end_time),
-        reason: item.reason,
-        is_active: item.is_active,
-      })),
+      entries: teacherRules.map((item) => {
+        const daySlots = slotByDay.get(Number(item.day_of_week)) || [];
+        const matchedSlots = getMatchedSlots(
+          daySlots,
+          item.start_time,
+          item.end_time,
+        );
+
+        const fallbackStartSlot = daySlots.find(
+          (slot) => formatTime(slot.start_time) === formatTime(item.start_time),
+        );
+        const fallbackEndSlot = [...daySlots]
+          .reverse()
+          .find(
+            (slot) => formatTime(slot.end_time) === formatTime(item.end_time),
+          );
+
+        return {
+          id: item.id,
+          day_of_week: item.day_of_week,
+          start_slot_no:
+            matchedSlots[0]?.slot_no ?? fallbackStartSlot?.slot_no ?? undefined,
+          end_slot_no:
+            matchedSlots[matchedSlots.length - 1]?.slot_no ??
+            fallbackEndSlot?.slot_no ??
+            undefined,
+          reason: item.reason,
+          is_active: item.is_active,
+        };
+      }),
     });
     setOpenModal(true);
   };
@@ -128,14 +308,24 @@ const ScheduleUnavailabilityCard = ({
     await onSave({
       teacher_id: values.teacher_id,
       replace_ids: editing?.replace_ids || [],
-      entries: (values.entries || []).map((item) => ({
-        id: item.id,
-        day_of_week: item.day_of_week,
-        start_time: item.start_time ? item.start_time.format("HH:mm") : null,
-        end_time: item.end_time ? item.end_time.format("HH:mm") : null,
-        reason: item.reason || null,
-        is_active: item.is_active ?? true,
-      })),
+      entries: (values.entries || []).map((item) => {
+        const daySlots = slotByDay.get(Number(item.day_of_week)) || [];
+        const startSlot = daySlots.find(
+          (slot) => Number(slot.slot_no) === Number(item.start_slot_no),
+        );
+        const endSlot = daySlots.find(
+          (slot) => Number(slot.slot_no) === Number(item.end_slot_no),
+        );
+
+        return {
+          id: item.id,
+          day_of_week: item.day_of_week,
+          start_time: startSlot ? formatTime(startSlot.start_time) : null,
+          end_time: endSlot ? formatTime(endSlot.end_time) : null,
+          reason: item.reason || null,
+          is_active: item.is_active ?? true,
+        };
+      }),
     });
     setOpenModal(false);
   };
@@ -149,13 +339,38 @@ const ScheduleUnavailabilityCard = ({
       render: (value) => dayNameMap[value] || "-",
     },
     {
+      title: "Jam Ke",
+      key: "slot_range",
+      width: 220,
+      render: (_, record) => {
+        const daySlots = slotByDay.get(Number(record.day_of_week)) || [];
+        const matchedSlots = getMatchedSlots(
+          daySlots,
+          record.start_time,
+          record.end_time,
+        );
+
+        if (!record.start_time || !record.end_time) {
+          return "Semua slot";
+        }
+
+        if (matchedSlots.length > 0) {
+          const startNo = matchedSlots[0].slot_no;
+          const endNo = matchedSlots[matchedSlots.length - 1].slot_no;
+          return `Jam ${startNo}${startNo !== endNo ? ` - ${endNo}` : ""}`;
+        }
+
+        return `${formatTime(record.start_time)} - ${formatTime(record.end_time)}`;
+      },
+    },
+    {
       title: "Waktu",
       key: "time",
-      width: 140,
+      width: 160,
       render: (_, record) =>
         record.start_time && record.end_time
-          ? `${String(record.start_time).slice(0, 5)} - ${String(record.end_time).slice(0, 5)}`
-          : "Seharian",
+          ? `${formatTime(record.start_time)} - ${formatTime(record.end_time)}`
+          : "Semua waktu",
     },
     { title: "Alasan", dataIndex: "reason" },
     {
@@ -198,7 +413,7 @@ const ScheduleUnavailabilityCard = ({
       title={
         <Space>
           <Ban size={18} />
-          <span>Ketentuan Guru Tidak Tersedia</span>
+          <span>Ketidak Tersedian Guru</span>
         </Space>
       }
       extra={
@@ -213,6 +428,14 @@ const ScheduleUnavailabilityCard = ({
         ) : null
       }
     >
+      <Alert
+        showIcon
+        type='info'
+        style={{ marginBottom: 16 }}
+        message='Ketentuan guru berlaku global per periode'
+        description={`Aturan di tab ini tidak dibatasi ke group tertentu. Walau Anda sedang melihat ${selectedConfig?.name || "jadwal aktif"}${selectedGroup?.name ? ` / ${selectedGroup.name}` : ""}, ketidaktersediaan guru tetap dipakai oleh generator untuk semua group pada periode yang sama.`}
+      />
+
       <Table
         rowKey='id'
         size='small'
@@ -295,98 +518,16 @@ const ScheduleUnavailabilityCard = ({
                 style={{ width: "100%" }}
               >
                 {fields.map((field, index) => (
-                  <Card
+                  <UnavailabilityEntryFields
                     key={field.key}
-                    size='small'
-                    title={`Hari ${index + 1}`}
-                    extra={
-                      fields.length > 1 ? (
-                        <Button
-                          type='text'
-                          danger
-                          icon={<Trash2 size={14} />}
-                          onClick={() => remove(field.name)}
-                        />
-                      ) : null
-                    }
-                  >
-                    <Form.Item name={[field.name, "id"]} hidden>
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
-                      name={[field.name, "day_of_week"]}
-                      label='Hari'
-                      rules={[{ required: true, message: "Hari wajib diisi." }]}
-                    >
-                      <Select options={DAY_OPTIONS} />
-                    </Form.Item>
-                    <Flex gap='middle'>
-                      <Form.Item
-                        name={[field.name, "start_time"]}
-                        label='Mulai'
-                        style={{ width: "50%" }}
-                      >
-                        <TimePicker format='HH:mm' style={{ width: "100%" }} />
-                      </Form.Item>
-                      <Form.Item
-                        name={[field.name, "end_time"]}
-                        label='Selesai'
-                        dependencies={[[field.name, "start_time"]]}
-                        rules={[
-                          ({ getFieldValue }) => ({
-                            validator(_, value) {
-                              const startValue = getFieldValue([
-                                "entries",
-                                field.name,
-                                "start_time",
-                              ]);
-
-                              if (!startValue && !value) {
-                                return Promise.resolve();
-                              }
-
-                              if (!startValue || !value) {
-                                return Promise.reject(
-                                  new Error(
-                                    "Jam mulai dan selesai harus diisi berpasangan.",
-                                  ),
-                                );
-                              }
-
-                              if (
-                                value.isSame(startValue) ||
-                                value.isBefore(startValue)
-                              ) {
-                                return Promise.reject(
-                                  new Error(
-                                    "Jam selesai harus lebih besar dari jam mulai.",
-                                  ),
-                                );
-                              }
-
-                              return Promise.resolve();
-                            },
-                          }),
-                        ]}
-                        style={{ width: "50%" }}
-                      >
-                        <TimePicker format='HH:mm' style={{ width: "100%" }} />
-                      </Form.Item>
-                    </Flex>
-                    <Form.Item name={[field.name, "reason"]} label='Alasan'>
-                      <Input placeholder='Contoh: pembinaan / rapat / dll' />
-                    </Form.Item>
-                    <Form.Item
-                      name={[field.name, "is_active"]}
-                      valuePropName='checked'
-                      initialValue={true}
-                    >
-                      <Switch
-                        checkedChildren='Aktif'
-                        unCheckedChildren='Nonaktif'
-                      />
-                    </Form.Item>
-                  </Card>
+                    field={field}
+                    index={index}
+                    fieldsLength={fields.length}
+                    form={form}
+                    remove={remove}
+                    slotByDay={slotByDay}
+                    availableDayOptions={availableDayOptions}
+                  />
                 ))}
 
                 <Button

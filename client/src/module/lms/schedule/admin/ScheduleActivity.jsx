@@ -42,6 +42,9 @@ const ScheduleActivity = ({
   slots,
   teacherAssignments,
   scheduleCapacity,
+  selectedConfig,
+  selectedGroup,
+  groupCount = 0,
   loading,
   onSave,
   onDelete,
@@ -248,8 +251,12 @@ const ScheduleActivity = ({
         showIcon
         type="info"
         style={{ marginBottom: 16 }}
-        message="Kegiatan akan memblok slot untuk generator"
-        description="Kegiatan umum memblok semua kelas pada slot yang dipilih. Kegiatan berbasis beban ajar memblok kelas dan guru dari beban ajar yang dipilih."
+        message={`Kegiatan mengikuti ${selectedConfig?.name || "jadwal aktif"}${selectedGroup?.name ? ` / ${selectedGroup.name}` : ""}`}
+        description={
+          groupCount > 1
+            ? "Daftar kegiatan di tab ini hanya untuk group yang sedang dipilih. Kegiatan umum memblok semua kelas di group ini pada slot yang dipilih, sedangkan kegiatan berbasis beban ajar memblok kelas dan guru dari beban ajar yang dipilih."
+            : "Kegiatan umum memblok semua kelas pada slot yang dipilih. Kegiatan berbasis beban ajar memblok kelas dan guru dari beban ajar yang dipilih."
+        }
       />
 
       <Card

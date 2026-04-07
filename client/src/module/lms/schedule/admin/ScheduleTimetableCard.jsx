@@ -64,6 +64,9 @@ const ScheduleTimetableCard = ({
   teachers,
   teacherAssignments,
   sessionShortages,
+  selectedConfig,
+  selectedGroup,
+  groupCount = 0,
   loading,
   onCreateEntry,
   onDeleteEntry,
@@ -773,6 +776,18 @@ const ScheduleTimetableCard = ({
         </Space>
       }
     >
+      <Alert
+        showIcon
+        type={groupCount > 1 ? "info" : "success"}
+        style={{ marginBottom: 20, borderRadius: 14 }}
+        message={`Tampilan jadwal: ${selectedConfig?.name || "jadwal aktif"}${selectedGroup?.name ? ` / ${selectedGroup.name}` : ""}`}
+        description={
+          groupCount > 1
+            ? "Tabel dan entri manual di tab ini hanya menampilkan kelas pada group yang dipilih. Saat menjalankan generate, sistem tetap menyusun seluruh kelas pada jadwal aktif dan memakai slot sesuai group masing-masing."
+            : "Tab ini menampilkan hasil akhir jadwal aktif dan mendukung generate maupun penyesuaian manual."
+        }
+      />
+
       {/* {(sessionShortages || []).length > 0 ? (
         <Alert
           showIcon

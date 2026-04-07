@@ -9,7 +9,6 @@ import {
   Flex,
   Form,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
@@ -18,7 +17,7 @@ import {
   TimePicker,
   Typography,
 } from "antd";
-import { CalendarClock, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { CalendarClock, Pencil, Plus, Trash2, UsersRound } from "lucide-react";
 
 const { Text } = Typography;
 
@@ -32,6 +31,11 @@ const DAY_OPTIONS = [
   { value: 7, label: "Minggu" },
 ];
 
+const SESSION_DURATION_OPTIONS = [30, 35, 40, 45, 50, 60].map((value) => ({
+  value,
+  label: `${value} menit`,
+}));
+
 const DEFAULT_CONFIG_RULES = {
   max_sessions_per_meeting: 2,
   require_different_days_if_over_max: true,
@@ -43,6 +47,7 @@ const buildDefaultDay = () => ({
   day_of_week: undefined,
   start_time: dayjs("2000-01-01 07:00"),
   end_time: dayjs("2000-01-01 15:00"),
+  session_minutes: 40,
   breaks: [
     {
       label: "Istirahat 1",
@@ -58,12 +63,14 @@ const toDayjsTime = (value) => {
   return dayjs(`2000-01-01 ${raw}`);
 };
 
-const normalizeDayRows = (dayTemplates, breaks) =>
+const normalizeDayRows = (dayTemplates, breaks, config) =>
   (dayTemplates || [])
     .map((dayItem) => ({
       day_of_week: Number(dayItem.day_of_week),
       start_time: toDayjsTime(dayItem.start_time),
       end_time: toDayjsTime(dayItem.end_time),
+      session_minutes:
+        Number(dayItem.session_minutes) || Number(config?.session_minutes) || 40,
       breaks: (breaks || [])
         .filter(
           (item) => Number(item.day_of_week) === Number(dayItem.day_of_week),
@@ -86,30 +93,84 @@ const dayLabelMap = DAY_OPTIONS.reduce((acc, item) => {
 const ScheduleConfigCard = ({
   canManage,
   config,
+  groups,
+  selectedGroup,
+  selectedGroupClasses,
+  classes,
   dayTemplates,
   breaks,
   scheduleCapacity,
   sessionShortages,
   onSave,
+  onSaveGroup,
+  onSelectGroup,
   loading,
 }) => {
-  const [sessionForm] = Form.useForm();
   const [dayForm] = Form.useForm();
+  const [groupForm] = Form.useForm();
   const [dayRows, setDayRows] = useState([]);
   const [dayModalOpen, setDayModalOpen] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [editingDayIndex, setEditingDayIndex] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
 
   const normalizedDays = useMemo(
-    () => normalizeDayRows(dayTemplates, breaks),
-    [dayTemplates, breaks],
+    () => normalizeDayRows(dayTemplates, breaks, config),
+    [breaks, config, dayTemplates],
   );
 
   useEffect(() => {
-    sessionForm.setFieldsValue({
-      session_minutes: config?.session_minutes || 40,
-    });
     setDayRows(normalizedDays);
-  }, [config?.session_minutes, normalizedDays, sessionForm]);
+  }, [normalizedDays]);
+
+  const classOptions = useMemo(
+    () =>
+      (classes || []).map((item) => ({
+        value: Number(item.id),
+        label: item.grade_name ? `${item.grade_name} - ${item.name}` : item.name,
+      })),
+    [classes],
+  );
+
+  const groupOptions = useMemo(
+    () =>
+      (groups || []).map((item) => ({
+        value: Number(item.id),
+        label: item.name,
+      })),
+    [groups],
+  );
+
+  const buildPayload = (rows) => ({
+    config_group_id: selectedGroup?.id,
+    session_minutes:
+      Number(rows?.[0]?.session_minutes) ||
+      Number(config?.session_minutes) ||
+      40,
+    max_sessions_per_meeting:
+      config?.max_sessions_per_meeting ??
+      DEFAULT_CONFIG_RULES.max_sessions_per_meeting,
+    require_different_days_if_over_max:
+      config?.require_different_days_if_over_max ??
+      DEFAULT_CONFIG_RULES.require_different_days_if_over_max,
+    allow_same_day_multiple_meetings:
+      config?.allow_same_day_multiple_meetings ??
+      DEFAULT_CONFIG_RULES.allow_same_day_multiple_meetings,
+    minimum_gap_slots:
+      config?.minimum_gap_slots ?? DEFAULT_CONFIG_RULES.minimum_gap_slots,
+    days: rows.map((item) => ({
+      day_of_week: item.day_of_week,
+      is_school_day: true,
+      start_time: item.start_time?.format("HH:mm"),
+      end_time: item.end_time?.format("HH:mm"),
+      session_minutes: Number(item.session_minutes) || 40,
+      breaks: (item.breaks || []).map((rest) => ({
+        label: rest.label || "Istirahat",
+        break_start: rest.break_start?.format("HH:mm"),
+        break_end: rest.break_end?.format("HH:mm"),
+      })),
+    })),
+  });
 
   const openCreateDay = () => {
     setEditingDayIndex(null);
@@ -123,6 +184,7 @@ const ScheduleConfigCard = ({
       day_of_week: record.day_of_week,
       start_time: record.start_time,
       end_time: record.end_time,
+      session_minutes: record.session_minutes || 40,
       breaks:
         record.breaks?.length > 0
           ? record.breaks
@@ -143,12 +205,49 @@ const ScheduleConfigCard = ({
     dayForm.resetFields();
   };
 
+  const openCreateGroup = () => {
+    setEditingGroup(null);
+    groupForm.setFieldsValue({
+      name: "",
+      description: "",
+      class_ids: [],
+    });
+    setGroupModalOpen(true);
+  };
+
+  const openEditGroup = () => {
+    if (!selectedGroup) return;
+    setEditingGroup(selectedGroup);
+    groupForm.setFieldsValue({
+      name: selectedGroup.name,
+      description: selectedGroup.description || "",
+      class_ids: (selectedGroupClasses || []).map((item) => Number(item.class_id)),
+    });
+    setGroupModalOpen(true);
+  };
+
+  const handleSaveGroup = async () => {
+    const values = await groupForm.validateFields();
+    const success = await onSaveGroup({
+      id: editingGroup?.id,
+      name: values.name,
+      description: values.description || null,
+      class_ids: values.class_ids || [],
+    });
+    if (success) {
+      setGroupModalOpen(false);
+      setEditingGroup(null);
+      groupForm.resetFields();
+    }
+  };
+
   const handleSaveDay = async () => {
     const values = await dayForm.validateFields();
     const normalizedRow = {
       day_of_week: values.day_of_week,
       start_time: values.start_time,
       end_time: values.end_time,
+      session_minutes: Number(values.session_minutes) || 40,
       breaks: (values.breaks || [])
         .filter((item) => item?.break_start && item?.break_end)
         .map((item) => ({
@@ -162,64 +261,36 @@ const ScheduleConfigCard = ({
         ),
     };
 
-    setDayRows((prev) => {
-      const nextRows = [...prev];
-      const duplicateIndex = nextRows.findIndex(
-        (item, index) =>
-          item.day_of_week === normalizedRow.day_of_week &&
-          index !== editingDayIndex,
-      );
-      if (duplicateIndex >= 0) {
-        nextRows.splice(duplicateIndex, 1);
-      }
+    const nextRows = [...dayRows];
+    const duplicateIndex = nextRows.findIndex(
+      (item, index) =>
+        item.day_of_week === normalizedRow.day_of_week &&
+        index !== editingDayIndex,
+    );
 
-      if (editingDayIndex !== null) {
-        nextRows[editingDayIndex] = normalizedRow;
-      } else {
-        nextRows.push(normalizedRow);
-      }
+    if (duplicateIndex >= 0) {
+      nextRows.splice(duplicateIndex, 1);
+    }
 
-      return nextRows.sort(
-        (left, right) => left.day_of_week - right.day_of_week,
-      );
-    });
+    if (editingDayIndex !== null) {
+      nextRows[editingDayIndex] = normalizedRow;
+    } else {
+      nextRows.push(normalizedRow);
+    }
 
+    const sortedRows = nextRows.sort(
+      (left, right) => left.day_of_week - right.day_of_week,
+    );
+
+    await onSave(buildPayload(sortedRows));
+    setDayRows(sortedRows);
     closeDayModal();
   };
 
-  const handleDeleteDay = (index) => {
-    setDayRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
-  };
-
-  const handleSubmit = async () => {
-    if (!canManage) return;
-    const values = await sessionForm.validateFields();
-    const payload = {
-      session_minutes: values.session_minutes,
-      max_sessions_per_meeting:
-        config?.max_sessions_per_meeting ??
-        DEFAULT_CONFIG_RULES.max_sessions_per_meeting,
-      require_different_days_if_over_max:
-        config?.require_different_days_if_over_max ??
-        DEFAULT_CONFIG_RULES.require_different_days_if_over_max,
-      allow_same_day_multiple_meetings:
-        config?.allow_same_day_multiple_meetings ??
-        DEFAULT_CONFIG_RULES.allow_same_day_multiple_meetings,
-      minimum_gap_slots:
-        config?.minimum_gap_slots ?? DEFAULT_CONFIG_RULES.minimum_gap_slots,
-      days: dayRows.map((item) => ({
-        day_of_week: item.day_of_week,
-        is_school_day: true,
-        start_time: item.start_time?.format("HH:mm"),
-        end_time: item.end_time?.format("HH:mm"),
-        breaks: (item.breaks || []).map((rest) => ({
-          label: rest.label || "Istirahat",
-          break_start: rest.break_start?.format("HH:mm"),
-          break_end: rest.break_end?.format("HH:mm"),
-        })),
-      })),
-    };
-    await onSave(payload);
+  const handleDeleteDay = async (index) => {
+    const nextRows = dayRows.filter((_, rowIndex) => rowIndex !== index);
+    await onSave(buildPayload(nextRows));
+    setDayRows(nextRows);
   };
 
   const columns = [
@@ -229,6 +300,13 @@ const ScheduleConfigCard = ({
       key: "day_of_week",
       width: 120,
       render: (value) => <Text strong>{dayLabelMap[value] || "-"}</Text>,
+    },
+    {
+      title: "Durasi Sesi",
+      dataIndex: "session_minutes",
+      key: "session_minutes",
+      width: 130,
+      render: (value) => `${value || 0} menit`,
     },
     {
       title: "Jam Belajar",
@@ -269,6 +347,8 @@ const ScheduleConfigCard = ({
             <Button
               type="text"
               danger
+              loading={loading}
+              disabled={dayRows.length <= 1}
               icon={<Trash2 size={14} />}
               onClick={() => handleDeleteDay(index)}
             />
@@ -287,28 +367,75 @@ const ScheduleConfigCard = ({
           <span>Konfigurasi Jadwal</span>
         </Space>
       }
-      extra={
-        <Tag color="blue">
-          Durasi sesi: {config?.session_minutes || 40} menit
-        </Tag>
-      }
     >
       <Flex vertical gap={16}>
-        <Form form={sessionForm} layout="vertical">
-          <Form.Item
-            label="Durasi sesi (menit)"
-            name="session_minutes"
-            rules={[{ required: true, message: "Durasi sesi wajib diisi." }]}
-            style={{ maxWidth: 260, marginBottom: 0 }}
-          >
-            <InputNumber min={20} max={120} style={{ width: "100%" }} />
-          </Form.Item>
-        </Form>
-
         <Text type="secondary">
-          Buat jadwal per hari. Setiap hari dapat memiliki jam mulai, jam
-          selesai, dan beberapa waktu istirahat.
+          Setiap jadwal dapat memiliki beberapa group kelas. Setiap group
+          mempunyai pola hari, jam belajar, durasi sesi, dan istirahat yang
+          berbeda.
         </Text>
+
+        <Card
+          size="small"
+          title="Group Waktu"
+          extra={
+            canManage ? (
+              <Space>
+                <Button icon={<Pencil size={14} />} onClick={openEditGroup} disabled={!selectedGroup}>
+                  Ubah Group
+                </Button>
+                <Button type="primary" icon={<Plus size={14} />} onClick={openCreateGroup}>
+                  Tambah Group
+                </Button>
+              </Space>
+            ) : null
+          }
+          style={{ borderRadius: 12 }}
+        >
+          <Flex vertical gap={12}>
+            <Select
+              placeholder="Pilih group jadwal"
+              options={groupOptions}
+              value={selectedGroup ? Number(selectedGroup.id) : undefined}
+              onChange={onSelectGroup}
+            />
+
+            {selectedGroup ? (
+              <Flex vertical gap={8}>
+                <Space wrap>
+                  <Tag color={selectedGroup.is_default ? "blue" : "purple"}>
+                    {selectedGroup.is_default ? "Default" : "Custom"}
+                  </Tag>
+                  <Tag color="geekblue">
+                    {selectedGroup.class_count || selectedGroupClasses.length || 0} kelas
+                  </Tag>
+                </Space>
+                <Text strong>{selectedGroup.name}</Text>
+                <Text type="secondary">
+                  {selectedGroup.description || "Belum ada deskripsi group."}
+                </Text>
+                {(selectedGroupClasses || []).length > 0 ? (
+                  <Space size={[8, 8]} wrap>
+                    {selectedGroupClasses.map((item) => (
+                      <Tag key={item.class_id} icon={<UsersRound size={12} />}>
+                        {item.grade_name ? `${item.grade_name} - ${item.class_name}` : item.class_name}
+                      </Tag>
+                    ))}
+                  </Space>
+                ) : (
+                  <Alert
+                    showIcon
+                    type="warning"
+                    message="Belum ada kelas di group ini"
+                    description="Tambahkan kelas ke group agar nantinya bisa dipakai pada generator group-aware."
+                  />
+                )}
+              </Flex>
+            ) : (
+              <Empty description="Belum ada group jadwal." />
+            )}
+          </Flex>
+        </Card>
 
         <Card
           size="small"
@@ -317,19 +444,16 @@ const ScheduleConfigCard = ({
         >
           <Space size={[8, 8]} wrap>
             <Tag color="blue">
-              Slot aktif per minggu:{" "}
-              {scheduleCapacity?.total_configured_slots || 0}
+              Slot group ini: {scheduleCapacity?.total_configured_slots || 0}
             </Tag>
             <Tag color="geekblue">
               Kelas aktif: {scheduleCapacity?.active_class_count || 0}
             </Tag>
             <Tag color="green">
-              Total sesi tersedia:{" "}
-              {scheduleCapacity?.total_available_sessions || 0}
+              Total sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
             </Tag>
             <Tag color="gold">
-              Dipakai kegiatan:{" "}
-              {scheduleCapacity?.total_activity_sessions || 0}
+              Dipakai kegiatan: {scheduleCapacity?.total_activity_sessions || 0}
             </Tag>
             <Tag
               color={
@@ -364,13 +488,14 @@ const ScheduleConfigCard = ({
 
         <Card
           size="small"
-          title="Jadwal Per Hari"
+          title={`Jadwal Per Hari${selectedGroup ? ` - ${selectedGroup.name}` : ""}`}
           extra={
             canManage ? (
               <Button
                 type="primary"
                 icon={<Plus size={14} />}
                 onClick={openCreateDay}
+                disabled={!selectedGroup}
               >
                 Tambah Hari
               </Button>
@@ -378,17 +503,21 @@ const ScheduleConfigCard = ({
           }
           style={{ borderRadius: 12 }}
         >
-          {dayRows.length > 0 ? (
-            <Table
-              rowKey={(record) => String(record.day_of_week)}
-              size="small"
-              columns={columns}
-              dataSource={dayRows}
-              pagination={false}
-              scroll={{ x: 720 }}
-            />
+          {selectedGroup ? (
+            dayRows.length > 0 ? (
+              <Table
+                rowKey={(record) => String(record.day_of_week)}
+                size="small"
+                columns={columns}
+                dataSource={dayRows}
+                pagination={false}
+                scroll={{ x: 760 }}
+              />
+            ) : (
+              <Empty description="Belum ada hari yang dikonfigurasi untuk group ini." />
+            )
           ) : (
-            <Empty description="Belum ada hari yang dikonfigurasi." />
+            <Empty description="Pilih group jadwal terlebih dahulu." />
           )}
         </Card>
 
@@ -397,18 +526,50 @@ const ScheduleConfigCard = ({
             Anda hanya dapat melihat konfigurasi. Hubungi admin satuan untuk
             perubahan.
           </Text>
-        ) : (
-          <Button
-            type="primary"
-            loading={loading}
-            icon={<Save size={14} />}
-            onClick={handleSubmit}
-            disabled={dayRows.length === 0}
-          >
-            Simpan Konfigurasi
-          </Button>
-        )}
+        ) : null}
       </Flex>
+
+      <Modal
+        open={groupModalOpen}
+        title={editingGroup ? "Ubah Group Jadwal" : "Tambah Group Jadwal"}
+        onCancel={() => {
+          setGroupModalOpen(false);
+          setEditingGroup(null);
+          groupForm.resetFields();
+        }}
+        onOk={handleSaveGroup}
+        okText="Simpan"
+        confirmLoading={loading}
+        width={720}
+      >
+        <Form form={groupForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label="Nama Group"
+            rules={[{ required: true, message: "Nama group wajib diisi." }]}
+          >
+            <Input placeholder="Contoh: Shift Pagi Kelas 7-8" />
+          </Form.Item>
+          <Form.Item name="description" label="Deskripsi">
+            <Input.TextArea
+              rows={3}
+              placeholder="Contoh: Senin-Rabu pagi, Kamis-Sabtu siang."
+            />
+          </Form.Item>
+          <Form.Item
+            name="class_ids"
+            label="Kelas dalam Group"
+            rules={[{ required: true, message: "Pilih minimal satu kelas." }]}
+          >
+            <Select
+              mode="multiple"
+              options={classOptions}
+              placeholder="Pilih kelas untuk group ini"
+              optionFilterProp="label"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal
         open={dayModalOpen}
@@ -451,9 +612,7 @@ const ScheduleConfigCard = ({
                       return Promise.resolve();
                     }
                     return Promise.reject(
-                      new Error(
-                        "Jam selesai harus lebih besar dari jam mulai.",
-                      ),
+                      new Error("Jam selesai harus lebih besar dari jam mulai."),
                     );
                   },
                 }),
@@ -461,6 +620,14 @@ const ScheduleConfigCard = ({
               style={{ flex: "1 1 180px" }}
             >
               <TimePicker format="HH:mm" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item
+              name="session_minutes"
+              label="Durasi per sesi (menit)"
+              rules={[{ required: true, message: "Durasi sesi wajib diisi." }]}
+              style={{ flex: "1 1 180px" }}
+            >
+              <Select options={SESSION_DURATION_OPTIONS} />
             </Form.Item>
           </Flex>
 
@@ -507,13 +674,10 @@ const ScheduleConfigCard = ({
                                   field.name,
                                   "break_end",
                                 ]);
-                                if (!value && !endValue)
-                                  return Promise.resolve();
+                                if (!value && !endValue) return Promise.resolve();
                                 if (!value || !endValue) {
                                   return Promise.reject(
-                                    new Error(
-                                      "Jam istirahat harus diisi berpasangan.",
-                                    ),
+                                    new Error("Jam istirahat harus diisi berpasangan."),
                                   );
                                 }
                                 return Promise.resolve();
@@ -522,10 +686,7 @@ const ScheduleConfigCard = ({
                           ]}
                           style={{ flex: "1 1 150px", marginBottom: 0 }}
                         >
-                          <TimePicker
-                            format="HH:mm"
-                            style={{ width: "100%" }}
-                          />
+                          <TimePicker format="HH:mm" style={{ width: "100%" }} />
                         </Form.Item>
                         <Form.Item
                           name={[field.name, "break_end"]}
@@ -539,13 +700,10 @@ const ScheduleConfigCard = ({
                                   field.name,
                                   "break_start",
                                 ]);
-                                if (!value && !startValue)
-                                  return Promise.resolve();
+                                if (!value && !startValue) return Promise.resolve();
                                 if (!value || !startValue) {
                                   return Promise.reject(
-                                    new Error(
-                                      "Jam istirahat harus diisi berpasangan.",
-                                    ),
+                                    new Error("Jam istirahat harus diisi berpasangan."),
                                   );
                                 }
                                 if (!value.isAfter(startValue)) {
@@ -561,10 +719,7 @@ const ScheduleConfigCard = ({
                           ]}
                           style={{ flex: "1 1 150px", marginBottom: 0 }}
                         >
-                          <TimePicker
-                            format="HH:mm"
-                            style={{ width: "100%" }}
-                          />
+                          <TimePicker format="HH:mm" style={{ width: "100%" }} />
                         </Form.Item>
                         <Button
                           type="text"

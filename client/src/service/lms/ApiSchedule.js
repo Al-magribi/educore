@@ -6,14 +6,36 @@ export const ApiSchedule = createApi({
   tagTypes: ["ScheduleBootstrap"],
   endpoints: (builder) => ({
     getScheduleBootstrap: builder.query({
-      query: (periodeId) =>
-        `/schedule/bootstrap${periodeId ? `?periode_id=${periodeId}` : ""}`,
+      query: (args = {}) => {
+        const params = new URLSearchParams();
+        if (args?.periodeId) params.set("periode_id", args.periodeId);
+        if (args?.configId) params.set("config_id", args.configId);
+        if (args?.groupId) params.set("group_id", args.groupId);
+        const queryString = params.toString();
+        return `/schedule/bootstrap${queryString ? `?${queryString}` : ""}`;
+      },
       providesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
     saveScheduleConfig: builder.mutation({
       query: (body) => ({
         url: "/schedule/config",
         method: "PUT",
+        body,
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
+    activateScheduleConfig: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/schedule/config/${id}/activate`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
+    saveScheduleConfigGroup: builder.mutation({
+      query: (body) => ({
+        url: "/schedule/config-group",
+        method: "POST",
         body,
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
@@ -108,6 +130,8 @@ export const ApiSchedule = createApi({
 export const {
   useGetScheduleBootstrapQuery,
   useSaveScheduleConfigMutation,
+  useActivateScheduleConfigMutation,
+  useSaveScheduleConfigGroupMutation,
   useSaveTeachingLoadMutation,
   useImportTeachingLoadMutation,
   useDeleteTeachingLoadMutation,
