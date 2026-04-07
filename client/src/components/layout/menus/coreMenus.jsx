@@ -46,12 +46,6 @@ const buildCoreMenus = () => ({
       key: "/orangtua-dashboard",
       icon: <WindowsOutlined />,
     },
-    {
-      label: "Laporan Akademik",
-      key: "/orangtua-laporan-akademik",
-      icon: <AreaChartOutlined />,
-    },
-    { label: "Logout", key: "logout", icon: <LogoutOutlined />, danger: true },
   ],
   tahfiz: [
     { label: "Dashboard", key: "/tahfiz-dashboard", icon: <WindowsOutlined /> },
