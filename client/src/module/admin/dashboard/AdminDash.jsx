@@ -185,7 +185,7 @@ const AdminDash = () => {
   return (
     <div>
       <Card
-        bordered={false}
+        variant='borderless'
         style={{
           marginBottom: 20,
           borderRadius: 24,
@@ -246,7 +246,7 @@ const AdminDash = () => {
         {stats.map((item) => (
           <Card
             key={item.title}
-            bordered={false}
+            variant='borderless'
             style={{
               flex: screens.xl
                 ? "1 1 0"
@@ -270,8 +270,8 @@ const AdminDash = () => {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={9}>
-          <Card bordered={false} style={cardStyle}>
-            <Space direction='vertical' size={18} style={{ width: "100%" }}>
+          <Card variant='borderless' style={cardStyle}>
+            <Space orientation='vertical' size={18} style={{ width: "100%" }}>
               <div>
                 <Title level={4} style={{ margin: 0 }}>
                   Ringkasan Akademik
@@ -285,7 +285,7 @@ const AdminDash = () => {
                 {insightCards.map((item) => (
                   <Card
                     key={item.key}
-                    bordered={false}
+                    variant='borderless'
                     style={{
                       borderRadius: 18,
                       background: "#f8fafc",
@@ -315,7 +315,7 @@ const AdminDash = () => {
               </Flex>
 
               <Card
-                bordered={false}
+                variant='borderless'
                 style={{
                   borderRadius: 18,
                   background:
@@ -344,7 +344,7 @@ const AdminDash = () => {
                     "0%": "#1d4ed8",
                     "100%": "#14b8a6",
                   }}
-                  trailColor='rgba(148,163,184,0.18)'
+                  railColor='rgba(148,163,184,0.18)'
                   style={{ marginTop: 14, marginBottom: 6 }}
                 />
               </Card>
@@ -354,7 +354,7 @@ const AdminDash = () => {
 
         <Col xs={24} lg={15}>
           <Card
-            bordered={false}
+            variant='borderless'
             style={cardStyle}
             title={
               <Flex align='center' gap={8}>
@@ -371,7 +371,7 @@ const AdminDash = () => {
                 renderItem={(item) => (
                   <List.Item style={{ padding: "12px 4px" }}>
                     <Space
-                      direction='vertical'
+                      orientation='vertical'
                       size={4}
                       style={{ width: "100%" }}
                     >
