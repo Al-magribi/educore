@@ -60,7 +60,7 @@ const routePreloaders = {
   "/finance/transaksi": () =>
     import("../../module/finance/fee/transaction/Transaction"),
   "/finance/laporan-tabungan": () =>
-    import("../../module/finance/teacher/saving/Saving"),
+    import("../../module/finance/report/SavingReport"),
   "/finance/laporan-kas-kelas": () =>
     import("../../module/finance/report/CashReport"),
   "/guru/keuangan-kelas": () =>
