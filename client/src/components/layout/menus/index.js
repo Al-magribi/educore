@@ -1,13 +1,20 @@
 import { FEATURES, hasFeature } from "../../../config/productFeatures";
 
 import buildCoreMenus from "./coreMenus";
-import buildCbtMenus from "./cbtMenus";
 import buildDbMenus from "./dbMenus";
-import buildFinanceMenus from "./financeMenus";
-import buildTahfizMenus from "./tahfizMenus";
+import buildCbtMenus from "./cbtMenus";
 import buildLmsMenus from "./lmsMenus";
+import buildTahfizMenus from "./tahfizMenus";
 
-const roleKeys = ["center", "admin", "finance", "teacher", "student", "parent", "tahfiz"];
+const roleKeys = [
+  "center",
+  "admin",
+  "finance",
+  "teacher",
+  "student",
+  "parent",
+  "tahfiz",
+];
 
 const buildEmptyMenus = () =>
   roleKeys.reduce((accumulator, role) => {
@@ -61,5 +68,6 @@ export const FinanceMenus = combinedMenus.finance;
 export const TeacherMenus = combinedMenus.teacher;
 export const StudentMenus = combinedMenus.student;
 export const ParentMenus = combinedMenus.parent;
-export const TahfizMenus = hasFeature(FEATURES.TAHFIZ) ? combinedMenus.tahfiz : [];
-export { getCombinedMenus };
+export const TahfizMenus = hasFeature(FEATURES.TAHFIZ)
+  ? combinedMenus.tahfiz
+  : [];
