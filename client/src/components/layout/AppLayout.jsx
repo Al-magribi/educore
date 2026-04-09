@@ -29,9 +29,7 @@ import {
 } from "@ant-design/icons";
 
 // Import Menu Data (Sesuaikan path import Anda)
-import {
-  getCombinedMenus,
-} from "./Menus";
+import { getCombinedMenus } from "./menus/index.js";
 import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
 import LoadApp from "../loader/LoadApp";
 

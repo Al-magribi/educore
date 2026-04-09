@@ -14,33 +14,45 @@ const StudentSaving = lazy(
   () => import("../../module/finance/student/saving/StudentSaving"),
 );
 
-const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
+const renderRoleRoutes = (routeHelpers) => (
   <>
     <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
       <Route
         path="/guru-dashboard"
-        element={<LazyPage title="Dashboard Guru" Component={TeacherDash} />}
+        element={
+          <routeHelpers.LazyPage title="Dashboard Guru" Component={TeacherDash} />
+        }
       />
     </Route>
 
     <Route element={<RouteProtection allowedRoles={["student"]} />}>
       <Route
         path="/siswa-dashboard"
-        element={<LazyPage title="Dashboard" Component={StudentDash} />}
+        element={
+          <routeHelpers.LazyPage title="Dashboard" Component={StudentDash} />
+        }
       />
       <Route
         path="/siswa/jadwal-ujian"
         element={
-          isCbtEnabled ? (
-            <LazyPage title="Jadwal Ujian" Component={StudentExamList} />
+          routeHelpers.isCbtEnabled ? (
+            <routeHelpers.LazyPage
+              title="Jadwal Ujian"
+              Component={StudentExamList}
+            />
           ) : (
-            <NotFoundRedirect />
+            <routeHelpers.NotFoundRedirect />
           )
         }
       />
       <Route
         path="/siswa/laporan-tabungan"
-        element={<LazyPage title="Tabungan Saya" Component={StudentSaving} />}
+        element={
+          <routeHelpers.LazyPage
+            title="Tabungan Saya"
+            Component={StudentSaving}
+          />
+        }
       />
     </Route>
 
@@ -65,7 +77,9 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
     >
       <Route
         path="/profile"
-        element={<LazyPage title="Profile Saya" Component={Profile} />}
+        element={
+          <routeHelpers.LazyPage title="Profile Saya" Component={Profile} />
+        }
       />
     </Route>
   </>

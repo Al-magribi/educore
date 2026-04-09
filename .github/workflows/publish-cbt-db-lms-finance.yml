@@ -69,6 +69,31 @@ jobs:
           merge_branch "feature/lms"
           merge_branch "feature/finance"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Build composed branch
+        run: npm run build
+        working-directory: client
+
+      - name: Push validated release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
           git push origin "${COMPOSE_BRANCH}" --force
 
   publish:
@@ -114,5 +139,9 @@ jobs:
           git fetch origin
           git checkout -B "${PRODUCT_BRANCH}"
           git add -A -f client/dist
+          if git diff --cached --quiet; then
+            echo "No client/dist changes to publish"
+            exit 0
+          fi
           git commit -m "build(${PRODUCT_BRANCH}): publish from ${GITHUB_SHA::7}"
           git push origin "${PRODUCT_BRANCH}" --force

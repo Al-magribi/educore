@@ -3,6 +3,7 @@ import { FEATURES, hasFeature } from "../../../config/productFeatures";
 import buildCoreMenus from "./coreMenus";
 import buildDbMenus from "./dbMenus";
 import buildCbtMenus from "./cbtMenus";
+import buildFinanceMenus from "./financeMenus";
 import buildLmsMenus from "./lmsMenus";
 import buildTahfizMenus from "./tahfizMenus";
 
@@ -62,6 +63,7 @@ const getCombinedMenus = (user = {}) => {
 
 const combinedMenus = getCombinedMenus();
 
+export { getCombinedMenus };
 export const CenterMenus = combinedMenus.center;
 export const AdminMenus = combinedMenus.admin;
 export const FinanceMenus = combinedMenus.finance;
