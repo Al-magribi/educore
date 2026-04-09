@@ -51,6 +51,18 @@ git push origin main
 
 Contoh di bawah memakai `feature/lms`. Ganti nama branch sesuai kebutuhan.
 
+Pastikan branch lokal sudah terhubung ke upstream yang benar:
+
+```bash
+git branch -vv
+```
+
+Jika `feature/lms` belum menunjuk ke `origin/feature/lms`, set sekali:
+
+```bash
+git branch --set-upstream-to=origin/feature/lms feature/lms
+```
+
 Ambil update branch yang sama dari remote:
 
 ```bash
@@ -60,6 +72,18 @@ git rebase origin/feature/lms
 ```
 
 Push perubahan:
+
+```bash
+git push origin feature/lms
+```
+
+Jika upstream branch sudah benar, perintah ini juga boleh:
+
+```bash
+git push
+```
+
+Tetapi untuk menghindari salah target, tetap disarankan memakai bentuk eksplisit:
 
 ```bash
 git push origin feature/lms
@@ -112,6 +136,8 @@ Target hasil akhirnya adalah:
 main + feature/db + feature/lms + feature/finance
 ```
 
+Setelah ada push ke `feature/db`, `feature/lms`, atau `feature/finance`, perubahan tidak langsung muncul di branch produk lokal Anda. Perubahan akan masuk dulu ke `release/cbt-db-lms-finance`, lalu dibuild ulang ke `product/cbt-db-lms-finance` oleh GitHub Actions.
+
 Jika ada konflik merge pada file yang sama, workflow akan memilih isi dari branch yang sedang di-merge. Dengan urutan di atas, prioritas konflik menjadi:
 
 1. `feature/finance`
@@ -158,6 +184,15 @@ Untuk produk gabungan:
 ```bash
 git checkout product/cbt-db-lms-finance
 git fetch origin
+git reset --hard origin/product/cbt-db-lms-finance
+```
+
+Jika `git fetch` gagal karena branch `release/*` atau `product/*` di-`force push` oleh workflow, hapus ref remote-tracking yang bentrok lalu fetch ulang:
+
+```bash
+git update-ref -d refs/remotes/origin/product/cbt-db-lms-finance
+git update-ref -d refs/remotes/origin/release/cbt-db-lms-finance
+git fetch origin --prune
 git reset --hard origin/product/cbt-db-lms-finance
 ```
 
@@ -226,6 +261,26 @@ main
   -> compose release/cbt-db-lms-finance
   -> publish product/cbt-db-lms-finance
 ```
+
+## Jika Perubahan Feature Belum Masuk Ke Product
+
+Urutan cek yang benar:
+
+1. Pastikan commit sudah masuk ke remote feature:
+   ```bash
+   git checkout feature/lms
+   git fetch origin
+   git log --oneline origin/feature/lms -n 5
+   ```
+2. Pastikan workflow `Publish Product CBT + DB + LMS + Finance` di GitHub Actions sukses.
+3. Refresh branch produk lokal:
+   ```bash
+   git checkout product/cbt-db-lms-finance
+   git fetch origin --prune
+   git reset --hard origin/product/cbt-db-lms-finance
+   ```
+
+Jika setelah langkah di atas perubahan masih belum muncul, periksa apakah konflik merge otomatis memilih isi branch lain pada file yang sama.
 
 ## Larangan
 
