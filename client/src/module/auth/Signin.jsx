@@ -18,7 +18,7 @@ import { useDoSigninMutation } from "../../service/auth/ApiAuth";
 import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
-const roleOptions = ["Admin", "Finance", "Guru", "Siswa", "Wali"];
+const roleOptions = ["Admin", "Guru", "Siswa", "Wali"];
 
 const getSigninPayloadRole = (role) => role.toLowerCase();
 
