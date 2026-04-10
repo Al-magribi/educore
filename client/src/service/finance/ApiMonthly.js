@@ -91,7 +91,11 @@ export const ApiMonthly = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: [{ type: "MonthlyPayment", id: "LIST" }],
+      invalidatesTags: [
+        { type: "MonthlyPayment", id: "LIST" },
+        "MonthlyStudent",
+        "MonthlyOption",
+      ],
     }),
 
     updateMonthlyPayment: builder.mutation({
@@ -103,6 +107,8 @@ export const ApiMonthly = createApi({
       invalidatesTags: (result, error, { id }) => [
         { type: "MonthlyPayment", id },
         { type: "MonthlyPayment", id: "LIST" },
+        "MonthlyStudent",
+        "MonthlyOption",
       ],
     }),
 
@@ -111,7 +117,11 @@ export const ApiMonthly = createApi({
         url: `/monthly/payments/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "MonthlyPayment", id: "LIST" }],
+      invalidatesTags: [
+        { type: "MonthlyPayment", id: "LIST" },
+        "MonthlyStudent",
+        "MonthlyOption",
+      ],
     }),
   }),
 });

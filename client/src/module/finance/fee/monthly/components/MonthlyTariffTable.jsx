@@ -1,4 +1,4 @@
-import { Button, Popconfirm, Space, Table, Tag } from "antd";
+import { Button, Flex, Popconfirm, Space, Table, Tag, Typography } from "antd";
 
 import { currencyFormatter } from "../constants";
 
@@ -8,7 +8,9 @@ const MonthlyTariffTable = ({
   onEdit,
   onDelete,
   isDeletingTariff,
+  onCreate,
 }) => {
+  const { Text } = Typography;
   const columns = [
     { title: "Periode", dataIndex: "periode_name", key: "periode_name" },
     { title: "Tingkat", dataIndex: "grade_name", key: "grade_name" },
@@ -51,14 +53,24 @@ const MonthlyTariffTable = ({
   ];
 
   return (
-    <Table
-      rowKey='id'
-      columns={columns}
-      dataSource={tariffs}
-      loading={loading}
-      scroll={{ x: 900 }}
-      pagination={{ pageSize: 10 }}
-    />
+    <div>
+      <Flex justify='space-between' align='center' wrap='wrap' gap={12} style={{ marginBottom: 16 }}>
+        <Text type='secondary'>
+          Tarif berlaku per satuan, periode, dan tingkat.
+        </Text>
+        <Button type='primary' onClick={onCreate}>
+          Tambah Tarif SPP
+        </Button>
+      </Flex>
+      <Table
+        rowKey='id'
+        columns={columns}
+        dataSource={tariffs}
+        loading={loading}
+        scroll={{ x: 900 }}
+        pagination={{ pageSize: 10 }}
+      />
+    </div>
   );
 };
 

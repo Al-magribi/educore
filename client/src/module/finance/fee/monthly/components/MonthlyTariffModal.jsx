@@ -1,4 +1,4 @@
-import { Form, Input, InputNumber, Modal, Select, Switch } from "antd";
+import { Form, Input, InputNumber, Modal, Select, Switch, Tag } from "antd";
 
 const rupiahInputProps = {
   min: 0,
@@ -11,12 +11,30 @@ const rupiahInputProps = {
   parser: (value) => value?.replace(/[^\d]/g, "") || "",
 };
 
+const renderPeriodeOption = (option) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    }}
+  >
+    <span>{option.data.label}</span>
+    <Tag color={option.data.is_active ? "green" : "default"}>
+      {option.data.is_active ? "Aktif" : "Nonaktif"}
+    </Tag>
+  </div>
+);
+
 const MonthlyTariffModal = ({
   open,
   editingTariff,
   onCancel,
   onSubmit,
+  onHomebaseChange,
   form,
+  homebases,
   periodes,
   grades,
   confirmLoading,
@@ -32,6 +50,22 @@ const MonthlyTariffModal = ({
   >
     <Form form={form} layout='vertical' onFinish={onSubmit}>
       <Form.Item
+        name='homebase_id'
+        label='Satuan'
+        rules={[{ required: true, message: "Satuan wajib dipilih" }]}
+      >
+        <Select
+          options={homebases.map((item) => ({
+            value: item.id,
+            label: item.name,
+          }))}
+          onChange={onHomebaseChange}
+          placeholder='Pilih satuan'
+          virtual={false}
+          disabled={homebases.length <= 1}
+        />
+      </Form.Item>
+      <Form.Item
         name='periode_id'
         label='Periode'
         rules={[{ required: true, message: "Periode wajib dipilih" }]}
@@ -39,8 +73,12 @@ const MonthlyTariffModal = ({
         <Select
           options={periodes.map((item) => ({
             value: item.id,
-            label: item.is_active ? `${item.name} (Aktif)` : item.name,
+            label: item.name,
+            is_active: item.is_active,
           }))}
+          placeholder='Pilih periode'
+          virtual={false}
+          optionRender={renderPeriodeOption}
         />
       </Form.Item>
       <Form.Item

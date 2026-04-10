@@ -4,14 +4,19 @@ import { Form, Space, Tabs, Typography, message } from "antd";
 
 import {
   useAddMonthlyTariffMutation,
+  useAddMonthlyPaymentMutation,
+  useDeleteMonthlyPaymentMutation,
   useDeleteMonthlyTariffMutation,
   useGetMonthlyOptionsQuery,
   useGetMonthlyPaymentsQuery,
   useGetMonthlyTariffsQuery,
+  useUpdateMonthlyPaymentMutation,
   useUpdateMonthlyTariffMutation,
 } from "../../../../service/finance/ApiMonthly";
 import { LoadApp } from "../../../../components";
 import { currentMonth } from "./constants";
+import MonthlyHeader from "./components/MonthlyHeader";
+import MonthlyPaymentModal from "./components/MonthlyPaymentModal";
 import MonthlySummaryCards from "./components/MonthlySummaryCards";
 import MonthlyFilters from "./components/MonthlyFilters";
 import MonthlyPaymentTable from "./components/MonthlyPaymentTable";
@@ -34,11 +39,21 @@ const Monthly = ({ initialTab = "payments" }) => {
   });
   const [tariffModalOpen, setTariffModalOpen] = useState(false);
   const [editingTariff, setEditingTariff] = useState(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
 
   const [tariffForm] = Form.useForm();
+  const [paymentForm] = Form.useForm();
+  const selectedTariffHomebaseId = Form.useWatch("homebase_id", tariffForm);
+  const selectedPaymentStudentId = Form.useWatch("student_id", paymentForm);
+  const selectedPaymentPeriodeId = Form.useWatch("periode_id", paymentForm);
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetMonthlyOptionsQuery();
+  const { data: tariffOptionResponse } = useGetMonthlyOptionsQuery(
+    { homebase_id: selectedTariffHomebaseId },
+    { skip: !selectedTariffHomebaseId },
+  );
   const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } =
     useGetMonthlyOptionsQuery({
       periode_id: filters.periode_id,
@@ -65,9 +80,17 @@ const Monthly = ({ initialTab = "payments" }) => {
     useUpdateMonthlyTariffMutation();
   const [deleteMonthlyTariff, { isLoading: isDeletingTariff }] =
     useDeleteMonthlyTariffMutation();
+  const [addMonthlyPayment, { isLoading: isAddingPayment }] =
+    useAddMonthlyPaymentMutation();
+  const [updateMonthlyPayment, { isLoading: isUpdatingPayment }] =
+    useUpdateMonthlyPaymentMutation();
+  const [deleteMonthlyPayment, { isLoading: isDeletingPayment }] =
+    useDeleteMonthlyPaymentMutation();
 
   const options = optionsResponse?.data || {};
+  const tariffOptions = tariffOptionResponse?.data || options;
   const filterOptions = filterOptionsResponse?.data || {};
+  const homebases = options.homebases || [];
   const periodes = options.periodes || [];
   const grades = options.grades || [];
   const months = options.months || [];
@@ -76,6 +99,11 @@ const Monthly = ({ initialTab = "payments" }) => {
   const tariffs = tariffResponse?.data || [];
   const payments = paymentResponse?.data || [];
   const paymentSummary = paymentResponse?.summary || {};
+  const paymentStudents = [...mainStudents].sort((left, right) =>
+    String(left.full_name || "").localeCompare(String(right.full_name || ""), "id", {
+      sensitivity: "base",
+    }),
+  );
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -117,6 +145,36 @@ const Monthly = ({ initialTab = "payments" }) => {
     }
   }, [filters.student_id, mainStudents]);
 
+  useEffect(() => {
+    if (!tariffModalOpen || !selectedTariffHomebaseId) {
+      return;
+    }
+
+    const currentPeriodeId = tariffForm.getFieldValue("periode_id");
+    const currentGradeId = tariffForm.getFieldValue("grade_id");
+    const scopedPeriodes = tariffOptions.periodes || [];
+    const scopedGrades = tariffOptions.grades || [];
+
+    if (!currentPeriodeId && scopedPeriodes.length > 0) {
+      const activePeriode =
+        scopedPeriodes.find((item) => item.is_active) || scopedPeriodes[0];
+      tariffForm.setFieldValue("periode_id", activePeriode?.id);
+    }
+
+    if (
+      currentGradeId &&
+      !scopedGrades.some((item) => Number(item.id) === Number(currentGradeId))
+    ) {
+      tariffForm.setFieldValue("grade_id", undefined);
+    }
+  }, [
+    selectedTariffHomebaseId,
+    tariffForm,
+    tariffModalOpen,
+    tariffOptions.grades,
+    tariffOptions.periodes,
+  ]);
+
   const summaryCards = [
     {
       key: "total",
@@ -153,6 +211,7 @@ const Monthly = ({ initialTab = "payments" }) => {
 
     if (record) {
       tariffForm.setFieldsValue({
+        homebase_id: record.homebase_id,
         periode_id: record.periode_id,
         grade_id: record.grade_id,
         amount: Number(record.amount),
@@ -161,14 +220,89 @@ const Monthly = ({ initialTab = "payments" }) => {
       });
     } else {
       tariffForm.resetFields();
+      const defaultHomebaseId =
+        options.selected_homebase_id || homebases[0]?.id || user?.homebase_id;
+      const defaultPeriode =
+        tariffOptions.periodes?.find((item) => item.is_active) ||
+        tariffOptions.periodes?.[0] ||
+        periodes.find((item) => item.is_active) ||
+        periodes[0];
       tariffForm.setFieldsValue({
-        periode_id: filters.periode_id,
+        homebase_id: defaultHomebaseId,
+        periode_id: filters.periode_id || defaultPeriode?.id,
         grade_id: filters.grade_id,
         is_active: true,
       });
     }
 
     setTariffModalOpen(true);
+  };
+
+  const closePaymentModal = () => {
+    setPaymentModalOpen(false);
+    setEditingPayment(null);
+    paymentForm.resetFields();
+  };
+
+  const getStudentPaymentContext = (studentId, periodeId = filters.periode_id) => {
+    if (!studentId) {
+      return {
+        student: null,
+        paidMonths: [],
+        currentTransactionMonths: [],
+      };
+    }
+
+    const student = paymentStudents.find((item) => item.id === studentId) || null;
+    const paymentRows = payments.filter(
+      (item) =>
+        Number(item.student_id) === Number(studentId) &&
+        Number(item.periode_id) === Number(periodeId),
+    );
+    const paidMonths = [
+      ...new Set(paymentRows.flatMap((item) => item.paid_months || [])),
+    ].sort((left, right) => left - right);
+
+    return {
+      student,
+      paidMonths,
+      currentTransactionMonths: [],
+    };
+  };
+
+  const openCreatePaymentModal = (record = null) => {
+    const targetStudentId = record?.student_id || filters.student_id;
+    const targetPeriodeId = record?.periode_id || filters.periode_id;
+    const { student } = getStudentPaymentContext(targetStudentId, targetPeriodeId);
+
+    paymentForm.resetFields();
+    paymentForm.setFieldsValue({
+      periode_id: targetPeriodeId,
+      student_id: targetStudentId,
+      grade_id: student?.grade_id || record?.grade_id,
+      payment_method: undefined,
+      notes: undefined,
+      bill_months: record?.bill_month ? [record.bill_month] : [],
+    });
+
+    setEditingPayment(null);
+    setPaymentModalOpen(true);
+  };
+
+  const openEditPaymentModal = (record) => {
+    const { student } = getStudentPaymentContext(record.student_id, record.periode_id);
+    paymentForm.resetFields();
+    paymentForm.setFieldsValue({
+      periode_id: record.periode_id,
+      student_id: record.student_id,
+      grade_id: student?.grade_id || record.grade_id,
+      payment_method: record.payment_method,
+      notes: record.notes,
+      bill_months: record.bill_months || [record.bill_month].filter(Boolean),
+    });
+
+    setEditingPayment(record);
+    setPaymentModalOpen(true);
   };
 
   const handleDeleteTariff = async (id) => {
@@ -201,6 +335,76 @@ const Monthly = ({ initialTab = "payments" }) => {
     }
   };
 
+  const handleDeletePayment = async (id) => {
+    try {
+      await deleteMonthlyPayment(id).unwrap();
+      message.success("Pembayaran SPP berhasil dihapus");
+
+      if (editingPayment?.id === id) {
+        closePaymentModal();
+      }
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus pembayaran SPP");
+    }
+  };
+
+  const handleSubmitPayment = async (values) => {
+    const selectedStudent = paymentStudents.find(
+      (item) => Number(item.id) === Number(values.student_id),
+    );
+
+    const payload = {
+      periode_id: values.periode_id,
+      student_id: values.student_id,
+      grade_id: selectedStudent?.grade_id || values.grade_id,
+      payment_method: values.payment_method,
+      notes: values.notes,
+      bill_months: values.bill_months || [],
+    };
+
+    if (!payload.grade_id) {
+      message.error("Tingkat siswa belum terdeteksi. Pilih siswa yang valid.");
+      return;
+    }
+
+    try {
+      if (editingPayment?.id) {
+        await updateMonthlyPayment({
+          id: editingPayment.id,
+          ...payload,
+        }).unwrap();
+        message.success("Pembayaran SPP berhasil diperbarui");
+      } else {
+        await addMonthlyPayment(payload).unwrap();
+        message.success("Pembayaran SPP berhasil ditambahkan");
+      }
+
+      closePaymentModal();
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menyimpan pembayaran SPP");
+    }
+  };
+
+  const paymentStudentContext = getStudentPaymentContext(
+    selectedPaymentStudentId || editingPayment?.student_id,
+    selectedPaymentPeriodeId || editingPayment?.periode_id || filters.periode_id,
+  );
+  const paymentTariffAmount =
+    payments.find(
+      (item) =>
+        Number(item.student_id) ===
+          Number(selectedPaymentStudentId || editingPayment?.student_id) &&
+        Number(item.periode_id) === Number(
+          selectedPaymentPeriodeId || filters.periode_id,
+        ),
+    )?.amount || 0;
+  const blockedMonths = new Set(paymentStudentContext.paidMonths);
+  const editingMonths = editingPayment?.bill_months || [];
+  editingMonths.forEach((month) => blockedMonths.delete(month));
+  const availableMonths = months
+    .map((item) => item.value)
+    .filter((month) => !blockedMonths.has(month));
+
   const isPageBootstrapping =
     isLoadingOptions ||
     (!optionsResponse && !periodes.length) ||
@@ -217,6 +421,13 @@ const Monthly = ({ initialTab = "payments" }) => {
   return (
     <div style={{ width: "100%" }}>
       <Space vertical size={24} style={{ width: "100%" }}>
+        <MonthlyHeader
+          onOpenTariff={() => {
+            setActiveTab("tariffs");
+            openTariffModal();
+          }}
+        />
+
         <div>
           <MonthlySummaryCards items={summaryCards} />
         </div>
@@ -245,6 +456,10 @@ const Monthly = ({ initialTab = "payments" }) => {
                   <MonthlyPaymentTable
                     payments={payments}
                     loading={isFetchingPayments}
+                    onCreatePayment={openCreatePaymentModal}
+                    onEditPayment={openEditPaymentModal}
+                    onDeletePayment={handleDeletePayment}
+                    isDeletingPayment={isDeletingPayment}
                   />
                 ),
               },
@@ -258,6 +473,7 @@ const Monthly = ({ initialTab = "payments" }) => {
                     onEdit={openTariffModal}
                     onDelete={handleDeleteTariff}
                     isDeletingTariff={isDeletingTariff}
+                    onCreate={() => openTariffModal()}
                   />
                 ),
               },
@@ -285,10 +501,38 @@ const Monthly = ({ initialTab = "payments" }) => {
           setEditingTariff(null);
         }}
         onSubmit={handleSubmitTariff}
+        onHomebaseChange={() => {
+          tariffForm.setFieldsValue({
+            periode_id: undefined,
+            grade_id: undefined,
+          });
+        }}
         form={tariffForm}
-        periodes={periodes}
-        grades={grades}
+        homebases={homebases}
+        periodes={tariffOptions.periodes || []}
+        grades={tariffOptions.grades || []}
         confirmLoading={isAddingTariff || isUpdatingTariff}
+      />
+
+      <MonthlyPaymentModal
+        open={paymentModalOpen}
+        editingPayment={editingPayment}
+        onCancel={closePaymentModal}
+        onSubmit={handleSubmitPayment}
+        onStudentChange={(value) => {
+          const selectedStudent = paymentStudents.find(
+            (item) => Number(item.id) === Number(value),
+          );
+
+          paymentForm.setFieldValue("grade_id", selectedStudent?.grade_id);
+        }}
+        form={paymentForm}
+        periodes={periodes}
+        students={paymentStudents}
+        months={months}
+        tariffAmount={paymentTariffAmount}
+        availableMonths={availableMonths}
+        confirmLoading={isAddingPayment || isUpdatingPayment}
       />
     </div>
   );
