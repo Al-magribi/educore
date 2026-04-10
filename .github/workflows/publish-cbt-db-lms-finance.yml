@@ -48,6 +48,8 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Compose always starts from `main`, then layers feature branches
+          # in a fixed order so the release branch stays reproducible.
           merge_branch() {
             local source_branch="$1"
             local merge_message="chore(compose): merge ${source_branch} into ${COMPOSE_BRANCH}"
@@ -94,6 +96,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Fail early if the merged release branch produces an invalid router file.
           node --check server/router/registerApiRoutes.js
           
           git push origin "${COMPOSE_BRANCH}" --force
@@ -141,6 +144,7 @@ jobs:
           git fetch origin
           git checkout -B "${PRODUCT_BRANCH}"
           git add -A -f client/dist
+          # Skip empty publish commits when the built output is unchanged.
           if git diff --cached --quiet; then
             echo "No client/dist changes to publish"
             exit 0

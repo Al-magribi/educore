@@ -58,8 +58,9 @@ jobs:
             git add -A
           fi
 
-          # Keep workflow files from the target branch so the bot does not need
-          # the extra `workflows` permission when syncing `main` into features.
+          # Keep workflow files from the target branch.
+          # This sync job only carries regular app changes from `main`.
+          # Workflow updates remain managed from `main` as the source of truth.
           if [ -d "${WORKFLOW_DIR}" ]; then
             git checkout HEAD -- "${WORKFLOW_DIR}"
             git add "${WORKFLOW_DIR}"
