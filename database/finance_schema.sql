@@ -4,6 +4,177 @@ CREATE SCHEMA finance;
 SET search_path TO finance, public;
 
 -- =================================================================================
+-- Fitur: Komponen & Billing Finance
+-- =================================================================================
+
+CREATE TABLE IF NOT EXISTS finance.fee_component (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    charge_type VARCHAR(20) NOT NULL CHECK (charge_type IN ('monthly', 'once', 'custom')),
+    is_savings BOOLEAN NOT NULL DEFAULT false,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (homebase_id, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fee_component_homebase
+    ON finance.fee_component(homebase_id);
+
+CREATE TABLE IF NOT EXISTS finance.fee_rule (
+    id BIGSERIAL PRIMARY KEY,
+    component_id BIGINT NOT NULL REFERENCES finance.fee_component(id) ON DELETE CASCADE,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    grade_id INT REFERENCES public.a_grade(id) ON DELETE SET NULL,
+    periode_id INT REFERENCES public.a_periode(id) ON DELETE SET NULL,
+    billing_cycle VARCHAR(20) NOT NULL CHECK (billing_cycle IN ('monthly', 'once', 'custom')),
+    amount NUMERIC(14, 2) NOT NULL CHECK (amount >= 0),
+    valid_from DATE,
+    valid_to DATE,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fee_rule_lookup
+    ON finance.fee_rule(homebase_id, grade_id, periode_id, component_id, is_active);
+
+CREATE TABLE IF NOT EXISTS finance.fee_rule_month (
+    id BIGSERIAL PRIMARY KEY,
+    fee_rule_id BIGINT NOT NULL REFERENCES finance.fee_rule(id) ON DELETE CASCADE,
+    month_num SMALLINT NOT NULL CHECK (month_num BETWEEN 1 AND 12),
+    UNIQUE (fee_rule_id, month_num)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fee_rule_month_rule
+    ON finance.fee_rule_month(fee_rule_id);
+
+CREATE TABLE IF NOT EXISTS finance.invoice (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id),
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    periode_id INT REFERENCES public.a_periode(id),
+    invoice_no VARCHAR(60) NOT NULL UNIQUE,
+    issue_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    due_date DATE,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft'
+      CHECK (status IN ('draft', 'issued', 'partial', 'paid', 'cancelled')),
+    notes TEXT,
+    created_by INT NOT NULL REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_student
+    ON finance.invoice(student_id, status);
+
+CREATE TABLE IF NOT EXISTS finance.invoice_item (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL REFERENCES finance.invoice(id) ON DELETE CASCADE,
+    component_id BIGINT NOT NULL REFERENCES finance.fee_component(id),
+    fee_rule_id BIGINT REFERENCES finance.fee_rule(id),
+    bill_year SMALLINT,
+    bill_month SMALLINT CHECK (bill_month BETWEEN 1 AND 12),
+    description TEXT,
+    qty NUMERIC(12, 2) NOT NULL DEFAULT 1 CHECK (qty > 0),
+    unit_amount NUMERIC(14, 2) NOT NULL CHECK (unit_amount >= 0),
+    amount NUMERIC(14, 2) GENERATED ALWAYS AS (qty * unit_amount) STORED
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_item_invoice
+    ON finance.invoice_item(invoice_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_item_monthly
+    ON finance.invoice_item(component_id, fee_rule_id, bill_year, bill_month, invoice_id)
+    WHERE bill_month IS NOT NULL AND bill_year IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS finance.payment_method (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    method_type VARCHAR(20) NOT NULL CHECK (method_type IN ('manual_bank', 'midtrans')),
+    name VARCHAR(100) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS finance.bank_account (
+    id BIGSERIAL PRIMARY KEY,
+    payment_method_id BIGINT NOT NULL REFERENCES finance.payment_method(id) ON DELETE CASCADE,
+    bank_name VARCHAR(100) NOT NULL,
+    account_name VARCHAR(120) NOT NULL,
+    account_number VARCHAR(60) NOT NULL,
+    branch VARCHAR(100),
+    is_active BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS finance.payment (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id),
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    payer_user_id INT NOT NULL REFERENCES public.u_users(id),
+    method_id BIGINT NOT NULL REFERENCES finance.payment_method(id),
+    bank_account_id BIGINT REFERENCES finance.bank_account(id),
+    payment_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+    status VARCHAR(20) NOT NULL
+      CHECK (status IN ('pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded')),
+    reference_no VARCHAR(120),
+    proof_url TEXT,
+    notes TEXT,
+    created_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_student
+    ON finance.payment(student_id, status, payment_date DESC);
+
+CREATE TABLE IF NOT EXISTS finance.payment_allocation (
+    id BIGSERIAL PRIMARY KEY,
+    payment_id BIGINT NOT NULL REFERENCES finance.payment(id) ON DELETE CASCADE,
+    invoice_item_id BIGINT NOT NULL REFERENCES finance.invoice_item(id) ON DELETE CASCADE,
+    allocated_amount NUMERIC(14, 2) NOT NULL CHECK (allocated_amount > 0),
+    UNIQUE (payment_id, invoice_item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_alloc_item
+    ON finance.payment_allocation(invoice_item_id);
+
+CREATE TABLE IF NOT EXISTS finance.gateway_transaction (
+    id BIGSERIAL PRIMARY KEY,
+    payment_id BIGINT NOT NULL UNIQUE REFERENCES finance.payment(id) ON DELETE CASCADE,
+    provider VARCHAR(30) NOT NULL DEFAULT 'midtrans',
+    order_id VARCHAR(120) NOT NULL UNIQUE,
+    transaction_id VARCHAR(120),
+    transaction_status VARCHAR(40),
+    snap_token TEXT,
+    snap_redirect_url TEXT,
+    gross_amount NUMERIC(14, 2),
+    raw_response JSONB,
+    webhook_payload JSONB,
+    last_synced_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS finance.savings_ledger (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id),
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    component_id BIGINT NOT NULL REFERENCES finance.fee_component(id),
+    trx_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    direction VARCHAR(10) NOT NULL CHECK (direction IN ('in', 'out')),
+    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+    note TEXT,
+    recorded_by INT NOT NULL REFERENCES public.u_users(id),
+    approved_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_savings_student
+    ON finance.savings_ledger(student_id, trx_date DESC);
+
+-- =================================================================================
 -- Fitur: SPP (Tution Fee)
 -- =================================================================================
 

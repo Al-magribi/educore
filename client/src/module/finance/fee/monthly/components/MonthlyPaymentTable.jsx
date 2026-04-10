@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Space, Table, Tabs, Tag, Typography } from "antd";
+import { Button, Popconfirm, Space, Table, Tabs, Tag, Typography } from "antd";
 
 import {
   currencyFormatter,
@@ -52,7 +52,14 @@ const comparePaymentsByClass = (left, right) => {
   );
 };
 
-const MonthlyPaymentTable = ({ payments, loading }) => {
+const MonthlyPaymentTable = ({
+  payments,
+  loading,
+  onCreatePayment,
+  onEditPayment,
+  onDeletePayment,
+  isDeletingPayment,
+}) => {
   const [activeStatusTab, setActiveStatusTab] = useState("unpaid");
   const sortedPayments = [...payments].sort(comparePaymentsByClass);
   const paidPayments = sortedPayments.filter((item) => item.status === "paid");
@@ -105,6 +112,33 @@ const MonthlyPaymentTable = ({ payments, loading }) => {
       render: (value) => (
         <Tag color={statusColorMap[value]}>{statusLabelMap[value]}</Tag>
       ),
+    },
+    {
+      title: "Aksi",
+      key: "action",
+      width: 190,
+      render: (_, record) =>
+        record.status === "paid" ? (
+          <Space>
+            <Button type='link' onClick={() => onEditPayment(record)}>
+              Edit
+            </Button>
+            <Popconfirm
+              title='Hapus pembayaran SPP ini?'
+              onConfirm={() => onDeletePayment(record.id)}
+              okText='Hapus'
+              cancelText='Batal'
+            >
+              <Button type='link' danger loading={isDeletingPayment}>
+                Hapus
+              </Button>
+            </Popconfirm>
+          </Space>
+        ) : (
+          <Button type='link' onClick={() => onCreatePayment(record)}>
+            Input Pembayaran
+          </Button>
+        ),
     },
   ];
 

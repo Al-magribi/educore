@@ -28,6 +28,27 @@ const parseOptionalInt = (value) => {
   return Number.isNaN(parsedValue) ? null : parsedValue;
 };
 
+const resolveScopedHomebaseId = async (db, user, requestedHomebaseId) => {
+  if (user.homebase_id) {
+    return Number(user.homebase_id);
+  }
+
+  const result = requestedHomebaseId
+    ? await db.query(`SELECT id FROM a_homebase WHERE id = $1 LIMIT 1`, [
+        requestedHomebaseId,
+      ])
+    : await db.query(
+        `
+          SELECT id
+          FROM a_homebase
+          ORDER BY name ASC, id ASC
+          LIMIT 1
+        `,
+      );
+
+  return result.rowCount > 0 ? Number(result.rows[0].id) : null;
+};
+
 const parseMonthArray = (value) => {
   if (Array.isArray(value)) {
     return value.map((item) => parseOptionalInt(item)).filter(Boolean);
@@ -217,11 +238,23 @@ router.get(
   "/monthly/options",
   authorize("satuan", "keuangan"),
   withQuery(async (req, res, db) => {
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const search = (req.query.search || "").trim();
+
+    if (!homebaseId) {
+      return res.status(400).json({
+        message: "Satuan belum dipilih atau tidak valid",
+      });
+    }
+
     const enrollmentScope = buildEnrollmentWhereClause({
       homebaseId,
       periodeId,
@@ -230,8 +263,26 @@ router.get(
       search,
     });
 
-    const [periodeResult, gradeResult, classResult, studentResult] = await Promise.all([
-      db.query(
+    const [homebaseResult, periodeResult, gradeResult, classResult, studentResult] =
+      await Promise.all([
+        req.user.homebase_id
+          ? db.query(
+              `
+                SELECT id, name
+                FROM a_homebase
+                WHERE id = $1
+                ORDER BY name ASC
+              `,
+              [homebaseId],
+            )
+          : db.query(
+              `
+                SELECT id, name
+                FROM a_homebase
+                ORDER BY name ASC
+              `,
+            ),
+        db.query(
         `
           SELECT id, name, is_active
           FROM a_periode
@@ -296,11 +347,13 @@ router.get(
         `,
         enrollmentScope.params,
       ),
-    ]);
+      ]);
 
     res.json({
       status: "success",
       data: {
+        homebases: homebaseResult.rows,
+        selected_homebase_id: homebaseId,
         periodes: periodeResult.rows.map((item) => ({
           ...item,
           is_default: item.is_active,
@@ -372,9 +425,20 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureMonthlyFinanceTables(db);
 
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
+
+    if (!homebaseId) {
+      return res.status(400).json({
+        message: "Satuan belum dipilih atau tidak valid",
+      });
+    }
 
     const params = [homebaseId];
     let whereClause = `WHERE st.homebase_id = $1`;
@@ -394,6 +458,7 @@ router.get(
         SELECT
           st.id,
           st.homebase_id,
+          hb.name AS homebase_name,
           st.periode_id,
           st.grade_id,
           st.amount,
@@ -404,6 +469,7 @@ router.get(
           p.name AS periode_name,
           g.name AS grade_name
         FROM finance.spp_tariff st
+        JOIN a_homebase hb ON hb.id = st.homebase_id
         JOIN a_periode p ON p.id = st.periode_id
         JOIN a_grade g ON g.id = st.grade_id
         ${whereClause}
@@ -425,16 +491,22 @@ router.post(
   withTransaction(async (req, res, client) => {
     await ensureMonthlyFinanceTables(client);
 
-    const { homebase_id: homebaseId, id: userId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const { id: userId } = req.user;
     const periodeId = parseOptionalInt(req.body.periode_id);
     const gradeId = parseOptionalInt(req.body.grade_id);
     const amount = Number(req.body.amount);
     const description = (req.body.description || "").trim() || null;
     const isActive = req.body.is_active !== false;
 
-    if (!periodeId || !gradeId || Number.isNaN(amount)) {
+    if (!homebaseId || !periodeId || !gradeId || Number.isNaN(amount)) {
       return res.status(400).json({
-        message: "Periode, tingkat, dan nominal tarif wajib diisi",
+        message: "Satuan, periode, tingkat, dan nominal tarif wajib diisi",
       });
     }
 
@@ -495,14 +567,19 @@ router.put(
     await ensureMonthlyFinanceTables(client);
 
     const tariffId = parseOptionalInt(req.params.id);
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
     const periodeId = parseOptionalInt(req.body.periode_id);
     const gradeId = parseOptionalInt(req.body.grade_id);
     const amount = Number(req.body.amount);
     const description = (req.body.description || "").trim() || null;
     const isActive = req.body.is_active !== false;
 
-    if (!tariffId || !periodeId || !gradeId || Number.isNaN(amount)) {
+    if (!tariffId || !homebaseId || !periodeId || !gradeId || Number.isNaN(amount)) {
       return res.status(400).json({ message: "Data tarif tidak lengkap" });
     }
 
@@ -613,6 +690,22 @@ router.get(
     const selectedMonth = billMonth || 1;
     const result = await db.query(
       `
+        WITH paid_history AS (
+          SELECT
+            homebase_id,
+            periode_id,
+            student_id,
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT bill_month ORDER BY bill_month), NULL) AS paid_months
+          FROM finance.spp_payment_allocation
+          GROUP BY homebase_id, periode_id, student_id
+        ),
+        transaction_months AS (
+          SELECT
+            transaction_id,
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT bill_month ORDER BY bill_month), NULL) AS bill_months
+          FROM finance.spp_payment_allocation
+          GROUP BY transaction_id
+        )
         SELECT
           s.user_id AS student_id,
           u.full_name AS student_name,
@@ -630,7 +723,8 @@ router.get(
           tx.notes,
           tx.paid_at,
           alloc.bill_month,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT alloc_all.bill_month), NULL) AS paid_months
+          COALESCE(ph.paid_months, '{}') AS paid_months,
+          COALESCE(tm.bill_months, '{}') AS transaction_months
         FROM u_class_enrollments e
         JOIN u_students s ON s.user_id = e.student_id
         JOIN u_users u ON u.id = s.user_id
@@ -649,13 +743,17 @@ router.get(
           AND alloc.bill_month = $${scope.params.length + 1}
         LEFT JOIN finance.spp_payment_transaction tx
           ON tx.id = alloc.transaction_id
-        LEFT JOIN finance.spp_payment_allocation alloc_all
-          ON alloc_all.transaction_id = tx.id
+        LEFT JOIN paid_history ph
+          ON ph.homebase_id = e.homebase_id
+          AND ph.periode_id = e.periode_id
+          AND ph.student_id = s.user_id
+        LEFT JOIN transaction_months tm ON tm.transaction_id = tx.id
         ${scope.whereClause}
         GROUP BY
           s.user_id, u.full_name, s.nis, e.periode_id, p.name,
           c.id, c.name, g.id, g.name, t.id, t.amount,
-          tx.id, tx.payment_method, tx.notes, tx.paid_at, alloc.bill_month
+          tx.id, tx.payment_method, tx.notes, tx.paid_at, alloc.bill_month,
+          ph.paid_months, tm.bill_months
         ORDER BY u.full_name ASC
       `,
       [...scope.params, selectedMonth],
@@ -680,6 +778,7 @@ router.get(
       notes: item.notes,
       paid_at: item.paid_at,
       paid_months: (item.paid_months || []).sort((a, b) => a - b),
+      bill_months: (item.transaction_months || []).sort((a, b) => a - b),
     }));
 
     const paidCount = data.filter((item) => item.status === "paid").length;
