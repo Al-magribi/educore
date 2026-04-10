@@ -115,6 +115,11 @@ git push --force-with-lease origin feature/lms
 
 `feature/*` tetap branch kerja manual. Workflow `sync-main-to-features.yml` akan membantu memasukkan perubahan dari `main` ke semua branch fitur saat `main` berubah.
 
+Catatan penting:
+
+- Sinkronisasi otomatis dari `main` ke `feature/*` sengaja tidak ikut menyalin perubahan di `.github/workflows/*`.
+- Alasan utamanya: bot GitHub Actions yang dipakai untuk sync tidak memiliki izin `workflows`, sehingga perubahan workflow harus tetap dilakukan dari branch yang memang punya kredensial yang sesuai, biasanya `main`.
+
 ## Branch `release/*`
 
 `release/*` bukan branch kerja manual. Branch ini dibentuk ulang oleh GitHub Actions sebagai branch integrasi.
