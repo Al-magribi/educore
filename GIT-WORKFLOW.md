@@ -2,6 +2,32 @@
 
 Panduan ini membedakan branch kerja, branch integrasi, dan branch produk. Jangan gunakan perintah yang sama untuk semua branch.
 
+## Ringkasan Cepat
+
+Gunakan aturan sederhana ini agar tidak salah branch:
+
+- Kerja fitur harian di `feature/*`.
+- Perubahan dasar bersama dan perubahan workflow di `main`.
+- Jangan kerja manual di `release/*`.
+- Jangan kerja manual di `product/*`.
+
+Alur normal tim:
+
+```text
+developer commit ke main
+  -> sync-main-to-features.yml merge main ke feature/*
+  -> publish-cbt-db-lms-finance.yml compose release/cbt-db-lms-finance
+  -> publish-cbt-db-lms-finance.yml build dan publish product/cbt-db-lms-finance
+```
+
+Alur saat developer kerja di feature:
+
+```text
+developer commit ke feature/db | feature/lms | feature/finance
+  -> publish-cbt-db-lms-finance.yml compose release/cbt-db-lms-finance
+  -> publish-cbt-db-lms-finance.yml build dan publish product/cbt-db-lms-finance
+```
+
 ## Jenis Branch
 
 - `main`
@@ -12,6 +38,17 @@ Panduan ini membedakan branch kerja, branch integrasi, dan branch produk. Jangan
   Branch integrasi otomatis untuk menggabungkan beberapa branch sumber sebelum dipublish menjadi branch produk.
 - `product/*`
   Branch hasil publish otomatis dari GitHub Actions. Contoh: `product/cbt`, `product/cbt-db-lms-finance`.
+
+## Siapa Mengerjakan Apa
+
+- `main`
+  Dipakai untuk perubahan dasar yang harus dimiliki semua branch, termasuk perubahan di `.github/workflows/*`.
+- `feature/*`
+  Dipakai untuk kerja fitur manual per domain.
+- `release/*`
+  Dipakai bot GitHub Actions untuk hasil compose beberapa branch sumber.
+- `product/*`
+  Dipakai bot GitHub Actions untuk hasil build yang siap dipakai deploy.
 
 ## Aturan Umum
 
@@ -29,6 +66,18 @@ Panduan ini membedakan branch kerja, branch integrasi, dan branch produk. Jangan
   ```
 
 ## Branch `main`
+
+Yang sebaiknya masuk lewat `main`:
+
+- perubahan shared code yang harus ikut ke semua `feature/*`
+- perubahan dokumentasi alur Git
+- perubahan `.github/workflows/*`
+
+Catatan penting:
+
+- Workflow `sync-main-to-features.yml` memang jalan saat `main` berubah.
+- Tetapi workflow itu sengaja mempertahankan isi `.github/workflows/*` dari branch target.
+- Jadi perubahan workflow tetap harus dianggap perubahan yang sumber kebenarannya ada di `main`.
 
 Ambil update:
 
@@ -119,6 +168,8 @@ Catatan penting:
 
 - Sinkronisasi otomatis dari `main` ke `feature/*` sengaja tidak ikut menyalin perubahan di `.github/workflows/*`.
 - Alasan utamanya: bot GitHub Actions yang dipakai untuk sync tidak memiliki izin `workflows`, sehingga perubahan workflow harus tetap dilakukan dari branch yang memang punya kredensial yang sesuai, biasanya `main`.
+- Kalau ada perubahan workflow di `main`, branch feature lokal Anda tidak otomatis berubah file workflow-nya. Itu normal.
+- Untuk pekerjaan harian, fokus saja pada kode fitur. Jangan mengedit workflow dari branch feature kecuali memang sedang memperbaiki alur CI dan tahu konsekuensinya.
 
 ## Branch `release/*`
 
@@ -142,6 +193,16 @@ main + feature/db + feature/lms + feature/finance
 ```
 
 Setelah ada push ke `feature/db`, `feature/lms`, atau `feature/finance`, perubahan tidak langsung muncul di branch produk lokal Anda. Perubahan akan masuk dulu ke `release/cbt-db-lms-finance`, lalu dibuild ulang ke `product/cbt-db-lms-finance` oleh GitHub Actions.
+
+Yang dilakukan workflow publish:
+
+1. checkout `origin/main` sebagai basis
+2. merge `feature/db`
+3. merge `feature/lms`
+4. merge `feature/finance`
+5. build hasil compose
+6. validasi file router API
+7. force-push hasilnya ke `release/cbt-db-lms-finance`
 
 Jika ada konflik merge pada file yang sama, workflow akan memilih isi dari branch yang sedang di-merge. Dengan urutan di atas, prioritas konflik menjadi:
 
@@ -191,6 +252,12 @@ git checkout product/cbt-db-lms-finance
 git fetch origin
 git reset --hard origin/product/cbt-db-lms-finance
 ```
+
+Catatan penting:
+
+- `product/cbt-db-lms-finance` selalu mengikuti hasil build terbaru dari `release/cbt-db-lms-finance`.
+- Jika branch produk lokal tampak "aneh", jangan diperbaiki manual. Refresh dari `origin/product/...`.
+- Branch produk bisa berubah lewat `force push`, jadi wajar kalau histori lokalnya kadang divergen.
 
 Jika `git fetch` gagal karena branch `release/*` atau `product/*` di-`force push` oleh workflow, hapus ref remote-tracking yang bentrok lalu fetch ulang:
 
@@ -247,7 +314,7 @@ git clone -b product/cbt-db-lms-finance https://github.com/Al-magribi/educore .
 Workflow yang aktif:
 
 - `sync-main-to-features.yml`
-  Saat `main` berubah, workflow ini merge `main` ke `feature/db`, `feature/lms`, `feature/tahfiz`, dan `feature/finance`.
+  Saat `main` berubah, workflow ini merge `main` ke `feature/db`, `feature/lms`, `feature/tahfiz`, dan `feature/finance`, tetapi tetap mempertahankan isi `.github/workflows/*` milik branch target.
 - `build-main.yml`
   Saat `main` berubah, workflow ini build dan publish `product/cbt`.
 - `publish-cbt-db-lms-finance.yml`
@@ -266,6 +333,12 @@ main
   -> compose release/cbt-db-lms-finance
   -> publish product/cbt-db-lms-finance
 ```
+
+Versi pendeknya:
+
+- mau perubahan dasar tersebar ke semua feature: push ke `main`
+- mau produk gabungan ikut update dari feature: push ke `feature/db`, `feature/lms`, atau `feature/finance`
+- mau deploy produk gabungan: refresh dari `origin/product/cbt-db-lms-finance`
 
 ## Jika Perubahan Feature Belum Masuk Ke Product
 
@@ -286,6 +359,13 @@ Urutan cek yang benar:
    ```
 
 Jika setelah langkah di atas perubahan masih belum muncul, periksa apakah konflik merge otomatis memilih isi branch lain pada file yang sama.
+
+Urutan diagnosis yang paling aman:
+
+1. cek commit sudah ada di remote branch sumber
+2. cek `release/cbt-db-lms-finance` sudah bergerak
+3. cek `product/cbt-db-lms-finance` sudah build ulang
+4. baru refresh branch produk lokal
 
 ## Larangan
 
