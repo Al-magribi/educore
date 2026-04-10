@@ -89,11 +89,13 @@ jobs:
         run: npm run build
         working-directory: client
 
-      - name: Push validated release branch
+      - name: Validate composed API route registry
         shell: bash
         run: |
           set -euo pipefail
 
+          node --check server/router/registerApiRoutes.js
+          
           git push origin "${COMPOSE_BRANCH}" --force
 
   publish:
