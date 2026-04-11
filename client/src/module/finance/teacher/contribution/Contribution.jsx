@@ -124,7 +124,6 @@ const Contribution = () => {
       transaction_type: values.transaction_type,
       amount: Number(values.amount || 0),
       transaction_date: dayjs(values.transaction_date).format(),
-      description: values.description,
     };
 
     try {

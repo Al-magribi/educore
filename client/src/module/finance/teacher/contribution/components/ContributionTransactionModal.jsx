@@ -1,8 +1,6 @@
-import { Alert, DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
+import { Alert, DatePicker, Form, InputNumber, Modal, Select } from "antd";
 
 import { rupiahInputProps, transactionTypeOptions } from "../constants";
-
-const { TextArea } = Input;
 
 const ContributionTransactionModal = ({
   open,
@@ -91,17 +89,6 @@ const ContributionTransactionModal = ({
           showTime
           format='DD MMM YYYY HH:mm'
           style={{ width: "100%" }}
-        />
-      </Form.Item>
-
-      <Form.Item
-        name='description'
-        label='Keterangan'
-        rules={[{ required: true, message: "Keterangan wajib diisi" }]}
-      >
-        <TextArea
-          rows={3}
-          placeholder='Contoh: Kas mingguan siswa, pembelian alat kebersihan, konsumsi kegiatan, dsb.'
         />
       </Form.Item>
     </Form>

@@ -47,12 +47,6 @@ const ContributionTransactionsTab = ({
         ),
     },
     {
-      title: "Keterangan",
-      dataIndex: "description",
-      key: "description",
-      ellipsis: true,
-    },
-    {
       title: "Petugas Input",
       dataIndex: "processed_by_name",
       key: "processed_by_name",
@@ -105,7 +99,7 @@ const ContributionTransactionsTab = ({
         <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
           <Space wrap>
             <Input.Search
-              placeholder='Cari siswa atau keterangan'
+              placeholder='Cari siswa atau NIS'
               allowClear
               style={{ width: 280 }}
               onSearch={(value) =>
@@ -170,7 +164,7 @@ const ContributionTransactionsTab = ({
           dataSource={transactions}
           loading={loading}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 1120 }}
+          scroll={{ x: 980 }}
         />
       </Space>
     </Card>

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, Col, Row, Statistic, Typography } from "antd";
 import { PiggyBank, Users, WalletCards } from "lucide-react";
 
@@ -65,4 +66,4 @@ const SavingSummaryCards = ({ summary }) => (
   </Row>
 );
 
-export default SavingSummaryCards;
+export default memo(SavingSummaryCards);

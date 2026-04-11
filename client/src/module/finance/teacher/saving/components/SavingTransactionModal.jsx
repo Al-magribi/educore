@@ -1,4 +1,4 @@
-import dayjs from "dayjs";
+import { memo, useMemo } from "react";
 import {
   Alert,
   DatePicker,
@@ -22,21 +22,56 @@ const { Text } = Typography;
 const SavingTransactionModal = ({
   open,
   form,
+  access,
+  classOptions,
   editingTransaction,
   students,
+  studentOptions,
   selectedStudent,
   onCancel,
   onSubmit,
   confirmLoading,
 }) => {
+  const watchedClassId = Form.useWatch("class_id", form);
   const watchedStudentId = Form.useWatch("student_id", form);
   const watchedType = Form.useWatch("transaction_type", form);
+  const isTeacherScope = access?.role_scope === "teacher";
+  const transactionTypeOptions = useMemo(
+    () =>
+      Object.entries(transactionTypeMeta).map(([value, meta]) => ({
+        value,
+        label: meta.label,
+      })),
+    [],
+  );
+  const filteredStudentOptions = useMemo(() => {
+    if (isTeacherScope) {
+      return studentOptions;
+    }
+
+    if (!watchedClassId) {
+      return [];
+    }
+
+    return students
+      .filter((item) => item.class_id === watchedClassId)
+      .map((item) => ({
+        value: item.id,
+        label: `${item.full_name}${item.nis ? ` (${item.nis})` : ""} - ${
+          item.class_name || "-"
+        }`,
+      }));
+  }, [isTeacherScope, studentOptions, students, watchedClassId]);
   const activeStudent =
     students.find((item) => item.id === watchedStudentId) || selectedStudent;
 
   return (
     <Modal
-      title={editingTransaction ? "Edit Transaksi Tabungan" : "Catat Transaksi Tabungan"}
+      title={
+        editingTransaction
+          ? "Edit Transaksi Tabungan"
+          : "Catat Transaksi Tabungan"
+      }
       open={open}
       onCancel={onCancel}
       onOk={form.submit}
@@ -50,12 +85,30 @@ const SavingTransactionModal = ({
           showIcon
           type={watchedType === "withdrawal" ? "warning" : "success"}
           style={{ marginBottom: 16, borderRadius: 14 }}
-          message={
+          title={
             watchedType === "withdrawal"
               ? "Pastikan nominal penarikan tidak melebihi saldo siswa."
               : "Setoran akan langsung menambah saldo tabungan siswa."
           }
         />
+
+        {!isTeacherScope ? (
+          <Form.Item
+            name='class_id'
+            label='Kelas'
+            rules={[{ required: true, message: "Kelas wajib dipilih" }]}
+          >
+            <Select
+              options={classOptions}
+              placeholder='Pilih kelas'
+              onChange={() => {
+                form.setFieldValue("student_id", undefined);
+              }}
+              showSearch={{ optionFilterProp: "label" }}
+              virtual={false}
+            />
+          </Form.Item>
+        ) : null}
 
         <Form.Item
           name='student_id'
@@ -63,20 +116,23 @@ const SavingTransactionModal = ({
           rules={[{ required: true, message: "Siswa wajib dipilih" }]}
         >
           <Select
-            showSearch
-            optionFilterProp='label'
-            options={students.map((item) => ({
-              value: item.id,
-              label: `${item.full_name}${item.nis ? ` (${item.nis})` : ""} - ${item.class_name || "-"}`,
-            }))}
-            placeholder='Pilih siswa'
+            showSearch={{ optionFilterProp: "label" }}
+            options={filteredStudentOptions}
+            placeholder={
+              isTeacherScope
+                ? "Pilih siswa"
+                : watchedClassId
+                  ? "Pilih siswa"
+                  : "Pilih kelas terlebih dahulu"
+            }
+            disabled={!isTeacherScope && !watchedClassId}
             virtual={false}
           />
         </Form.Item>
 
         {activeStudent ? (
           <Space
-            direction='vertical'
+            vertical
             size={2}
             style={{
               width: "100%",
@@ -86,13 +142,16 @@ const SavingTransactionModal = ({
               background: "#f8fafc",
             }}
           >
-            <Text strong>{activeStudent.full_name || activeStudent.student_name}</Text>
+            <Text strong>
+              {activeStudent.full_name || activeStudent.student_name}
+            </Text>
             <Text type='secondary'>
               {activeStudent.nis || "-"} | {activeStudent.class_name || "-"}
             </Text>
             {"balance" in activeStudent ? (
               <Text type='secondary'>
-                Saldo saat ini {currencyFormatter.format(Number(activeStudent.balance || 0))}
+                Saldo saat ini{" "}
+                {currencyFormatter.format(Number(activeStudent.balance || 0))}
               </Text>
             ) : null}
           </Space>
@@ -104,12 +163,8 @@ const SavingTransactionModal = ({
           rules={[{ required: true, message: "Jenis transaksi wajib dipilih" }]}
         >
           <Select
-            options={Object.entries(transactionTypeMeta).map(([value, meta]) => ({
-              value,
-              label: meta.label,
-            }))}
+            options={transactionTypeOptions}
             placeholder='Pilih jenis transaksi'
-            virtual={false}
           />
         </Form.Item>
 
@@ -140,14 +195,4 @@ const SavingTransactionModal = ({
   );
 };
 
-export const mapSavingFormValues = (record) => ({
-  student_id: record?.student_id,
-  transaction_type: record?.transaction_type || "deposit",
-  amount: Number(record?.amount || 0) || undefined,
-  transaction_date: record?.transaction_date
-    ? dayjs(record.transaction_date)
-    : dayjs(),
-  description: record?.description || undefined,
-});
-
-export default SavingTransactionModal;
+export default memo(SavingTransactionModal);

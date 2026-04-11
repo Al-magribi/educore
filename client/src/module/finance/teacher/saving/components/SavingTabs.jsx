@@ -1,3 +1,4 @@
+import { memo, useMemo, useState } from "react";
 import { Card, Tabs } from "antd";
 
 import { cardStyle } from "../constants";
@@ -14,38 +15,59 @@ const SavingTabs = ({
   onEditTransaction,
   onDeleteTransaction,
   deletingId,
-}) => (
-  <Card style={cardStyle} styles={{ body: { paddingTop: 12 } }}>
-    <Tabs
-      items={[
-        {
-          key: "students",
-          label: `Daftar Siswa (${students.length})`,
-          children: (
-            <SavingStudentsList
-              students={students}
-              loading={studentsLoading}
-              onCreate={onCreate}
-            />
-          ),
-        },
-        {
-          key: "transactions",
-          label: `Riwayat Transaksi (${transactions.length})`,
-          children: (
-            <SavingTransactionTable
-              transactions={transactions}
-              summary={transactionSummary}
-              loading={transactionsLoading}
-              onEdit={onEditTransaction}
-              onDelete={onDeleteTransaction}
-              deletingId={deletingId}
-            />
-          ),
-        },
-      ]}
-    />
-  </Card>
-);
+}) => {
+  const [activeKey, setActiveKey] = useState("students");
+  const items = useMemo(
+    () => [
+      {
+        key: "students",
+        label: `Daftar Siswa (${students.length})`,
+        children: (
+          <SavingStudentsList
+            students={students}
+            loading={studentsLoading}
+            onCreate={onCreate}
+          />
+        ),
+      },
+      {
+        key: "transactions",
+        label: `Riwayat Transaksi (${transactions.length})`,
+        children: (
+          <SavingTransactionTable
+            transactions={transactions}
+            summary={transactionSummary}
+            loading={transactionsLoading}
+            onEdit={onEditTransaction}
+            onDelete={onDeleteTransaction}
+            deletingId={deletingId}
+          />
+        ),
+      },
+    ],
+    [
+      deletingId,
+      onCreate,
+      onDeleteTransaction,
+      onEditTransaction,
+      students,
+      studentsLoading,
+      transactionSummary,
+      transactions,
+      transactionsLoading,
+    ],
+  );
 
-export default SavingTabs;
+  return (
+    <Card style={cardStyle} styles={{ body: { paddingTop: 12 } }}>
+      <Tabs
+        activeKey={activeKey}
+        destroyInactiveTabPane
+        items={items}
+        onChange={setActiveKey}
+      />
+    </Card>
+  );
+};
+
+export default memo(SavingTabs);

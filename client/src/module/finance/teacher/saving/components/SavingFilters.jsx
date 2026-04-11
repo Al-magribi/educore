@@ -1,11 +1,18 @@
-import { Card, Col, Input, Row, Select, Tag, Typography } from "antd";
+import { memo } from "react";
+import { Card, Col, Input, Row, Select, Typography } from "antd";
 import { Search } from "lucide-react";
 
 import { cardStyle } from "../constants";
 
 const { Text } = Typography;
 
-const SavingFilters = ({ filters, setFilters, access, classes, students }) => (
+const SavingFilters = ({
+  filters,
+  setFilters,
+  access,
+  classOptions,
+  studentOptions,
+}) => (
   <Card style={cardStyle}>
     <Row gutter={[12, 12]}>
       <Col xs={24} md={12} xl={6}>
@@ -19,10 +26,7 @@ const SavingFilters = ({ filters, setFilters, access, classes, students }) => (
               student_id: undefined,
             }))
           }
-          options={classes.map((item) => ({
-            value: item.id,
-            label: `${item.name}${item.grade_name ? ` (${item.grade_name})` : ""}`,
-          }))}
+          options={classOptions}
           placeholder='Semua kelas'
           style={{ width: "100%", marginTop: 8 }}
           disabled={!access?.can_manage_all_classes}
@@ -40,10 +44,7 @@ const SavingFilters = ({ filters, setFilters, access, classes, students }) => (
               student_id: value,
             }))
           }
-          options={students.map((item) => ({
-            value: item.id,
-            label: `${item.full_name}${item.nis ? ` (${item.nis})` : ""}`,
-          }))}
+          options={studentOptions}
           placeholder='Semua siswa'
           style={{ width: "100%", marginTop: 8 }}
           allowClear
@@ -93,4 +94,4 @@ const SavingFilters = ({ filters, setFilters, access, classes, students }) => (
   </Card>
 );
 
-export default SavingFilters;
+export default memo(SavingFilters);

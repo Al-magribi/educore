@@ -23,6 +23,14 @@ const resolveContributionTimestamp = (value) => value || new Date().toISOString(
 const buildStudentIncomeDescription = (studentEnrollment) =>
   `Pembayaran kas kelas oleh ${studentEnrollment.student_name}`;
 
+const buildContributionTransactionDescription = (
+  transactionType,
+  studentEnrollment = null,
+) =>
+  transactionType === "income" && studentEnrollment
+    ? buildStudentIncomeDescription(studentEnrollment)
+    : "Pengeluaran kas kelas";
+
 const ensureContributionFinanceTables = async (db) => {
   await db.query(`CREATE SCHEMA IF NOT EXISTS finance`);
 
@@ -791,8 +799,6 @@ router.post(
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
     const transactionDate = resolveContributionTimestamp(req.body.transaction_date);
-    const rawDescription = (req.body.description || "").trim();
-
     if (!transactionType || amount === null) {
       return res.status(400).json({ message: "Data transaksi kas kelas belum lengkap." });
     }
@@ -832,6 +838,11 @@ router.post(
         });
       }
     }
+
+    const description = buildContributionTransactionDescription(
+      transactionType,
+      studentEnrollment,
+    );
 
     const result = await client.query(
       `
@@ -886,8 +897,6 @@ router.put(
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
     const transactionDate = resolveContributionTimestamp(req.body.transaction_date);
-    const rawDescription = (req.body.description || "").trim();
-
     if (!transactionId || !transactionType || amount === null) {
       return res.status(400).json({ message: "Data transaksi kas kelas belum lengkap." });
     }
@@ -944,6 +953,11 @@ router.put(
         });
       }
     }
+
+    const description = buildContributionTransactionDescription(
+      transactionType,
+      studentEnrollment,
+    );
 
     await client.query(
       `

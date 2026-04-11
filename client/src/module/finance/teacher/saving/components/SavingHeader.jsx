@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Button, Card, Flex, Space, Tag, Typography } from "antd";
 import { Landmark, Plus } from "lucide-react";
 
@@ -62,4 +63,4 @@ const SavingHeader = ({ access, activePeriode, onCreate }) => (
   </Card>
 );
 
-export default SavingHeader;
+export default memo(SavingHeader);
