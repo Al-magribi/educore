@@ -31,12 +31,10 @@ const MonthlyHeader = ({ onOpenTariff }) => (
           Pembayaran SPP Bulanan
         </Title>
         <Text type='secondary'>
-          Kelola tarif per periode dan tingkat, lalu pantau status pembayaran siswa.
+          Kelola tarif per periode dan tingkat, lalu pantau status pembayaran
+          siswa.
         </Text>
       </Space>
-      <Button type='primary' onClick={onOpenTariff}>
-        Atur Tarif
-      </Button>
     </Flex>
   </Card>
 );

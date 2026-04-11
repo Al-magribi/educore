@@ -46,5 +46,4 @@ export const mapTransactionFormValues = (record) => ({
   transaction_date: record?.transaction_date
     ? dayjs(record.transaction_date)
     : dayjs(),
-  description: record?.description || undefined,
 });

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import dayjs from "dayjs";
 import { Form, Space, Typography, message } from "antd";
+import { skipToken } from "@reduxjs/toolkit/query";
 
 import { LoadApp } from "../../../../components";
 import {
@@ -12,16 +13,16 @@ import {
   useGetSavingTransactionsQuery,
   useUpdateSavingTransactionMutation,
 } from "../../../../service/finance/ApiSaving";
-import { pageStyle } from "./constants";
 import SavingFilters from "./components/SavingFilters";
 import SavingHeader from "./components/SavingHeader";
 import SavingSummaryCards from "./components/SavingSummaryCards";
 import SavingTabs from "./components/SavingTabs";
-import SavingTransactionModal, {
-  mapSavingFormValues,
-} from "./components/SavingTransactionModal";
+import SavingTransactionModal from "./components/SavingTransactionModal";
+import { mapSavingFormValues } from "./formHelpers";
 
 const { Text } = Typography;
+const EMPTY_ARRAY = [];
+const EMPTY_OBJECT = {};
 
 const Saving = () => {
   const { user } = useSelector((state) => state.auth);
@@ -41,24 +42,34 @@ const Saving = () => {
     useGetSavingOptionsQuery({
       class_id: filters.class_id,
     });
+  const options = optionsResponse?.data || {};
+  const access = options.access || {};
+  const isTeacherScope =
+    user?.role === "teacher" || access?.role_scope === "teacher";
+  const effectiveClassId = access?.homeroom_class?.id || filters.class_id;
+  const baseListParams =
+    isTeacherScope && !effectiveClassId
+      ? skipToken
+      : {
+          class_id: effectiveClassId,
+          search: filters.search,
+        };
   const {
     data: studentsResponse,
-    isLoading: isLoadingStudents,
     isFetching: isFetchingStudents,
-  } = useGetSavingStudentsQuery({
-    class_id: filters.class_id,
-    search: filters.search,
-  });
+  } = useGetSavingStudentsQuery(baseListParams);
   const {
     data: transactionsResponse,
-    isLoading: isLoadingTransactions,
     isFetching: isFetchingTransactions,
-  } = useGetSavingTransactionsQuery({
-    class_id: filters.class_id,
-    student_id: filters.student_id,
-    transaction_type: filters.transaction_type,
-    search: filters.search,
-  });
+  } = useGetSavingTransactionsQuery(
+    baseListParams === skipToken
+      ? skipToken
+      : {
+          ...baseListParams,
+          student_id: filters.student_id,
+          transaction_type: filters.transaction_type,
+        },
+  );
 
   const [addSavingTransaction, { isLoading: isAddingTransaction }] =
     useAddSavingTransactionMutation();
@@ -66,15 +77,31 @@ const Saving = () => {
     useUpdateSavingTransactionMutation();
   const [deleteSavingTransaction] = useDeleteSavingTransactionMutation();
 
-  const options = optionsResponse?.data || {};
-  const access = options.access || {};
-  const classes = options.classes || [];
-  const selectableStudents = options.students || [];
+  const classes = options.classes ?? EMPTY_ARRAY;
+  const selectableStudents = options.students ?? EMPTY_ARRAY;
   const activePeriode = options.active_periode || null;
-  const students = studentsResponse?.data || [];
-  const studentSummary = studentsResponse?.summary || {};
-  const transactions = transactionsResponse?.data || [];
-  const transactionSummary = transactionsResponse?.summary || {};
+  const students = studentsResponse?.data ?? EMPTY_ARRAY;
+  const studentSummary = studentsResponse?.summary ?? EMPTY_OBJECT;
+  const transactions = transactionsResponse?.data ?? EMPTY_ARRAY;
+  const transactionSummary = transactionsResponse?.summary ?? EMPTY_OBJECT;
+  const classOptions = useMemo(
+    () =>
+      classes.map((item) => ({
+        value: item.id,
+        label: `${item.name}${item.grade_name ? ` (${item.grade_name})` : ""}`,
+      })),
+    [classes],
+  );
+  const studentOptions = useMemo(
+    () =>
+      selectableStudents.map((item) => ({
+        value: item.id,
+        label: `${item.full_name}${item.nis ? ` (${item.nis})` : ""} - ${
+          item.class_name || "-"
+        }`,
+      })),
+    [selectableStudents],
+  );
 
   useEffect(() => {
     if (
@@ -88,6 +115,50 @@ const Saving = () => {
     }
   }, [access?.homeroom_class?.id, filters.class_id]);
 
+  const openCreateModal = useCallback(
+    (student = null, type = "deposit") => {
+      setEditingTransaction(null);
+      setSelectedStudent(student);
+      form.setFieldsValue(
+        mapSavingFormValues({
+          class_id: student?.class_id,
+          student_id: student?.student_id || student?.id,
+          transaction_type: type,
+          transaction_date: dayjs(),
+        }),
+      );
+      setModalOpen(true);
+    },
+    [form],
+  );
+
+  const handleEditTransaction = useCallback(
+    (record) => {
+      const recordStudent =
+        students.find((item) => item.student_id === record.student_id) ||
+        selectableStudents.find((item) => item.id === record.student_id) ||
+        null;
+
+      setEditingTransaction(record);
+      setSelectedStudent(recordStudent);
+      form.setFieldsValue(
+        mapSavingFormValues({
+          ...record,
+          class_id: recordStudent?.class_id,
+        }),
+      );
+      setModalOpen(true);
+    },
+    [form, selectableStudents, students],
+  );
+
+  const handleCloseModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingTransaction(null);
+    setSelectedStudent(null);
+    form.resetFields();
+  }, [form]);
+
   useEffect(() => {
     if (
       filters.student_id &&
@@ -100,39 +171,7 @@ const Saving = () => {
     }
   }, [filters.student_id, selectableStudents]);
 
-  const openCreateModal = (student = null, type = "deposit") => {
-    setEditingTransaction(null);
-    setSelectedStudent(student);
-    form.setFieldsValue(
-      mapSavingFormValues({
-        student_id: student?.student_id || student?.id,
-        transaction_type: type,
-        transaction_date: dayjs(),
-      }),
-    );
-    setModalOpen(true);
-  };
-
-  const handleEditTransaction = (record) => {
-    const recordStudent =
-      students.find((item) => item.student_id === record.student_id) ||
-      selectableStudents.find((item) => item.id === record.student_id) ||
-      null;
-
-    setEditingTransaction(record);
-    setSelectedStudent(recordStudent);
-    form.setFieldsValue(mapSavingFormValues(record));
-    setModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setModalOpen(false);
-    setEditingTransaction(null);
-    setSelectedStudent(null);
-    form.resetFields();
-  };
-
-  const handleSubmit = async (values) => {
+  const handleSubmit = useCallback(async (values) => {
     const payload = {
       student_id: values.student_id,
       transaction_type: values.transaction_type,
@@ -159,9 +198,14 @@ const Saving = () => {
         error?.data?.message || "Gagal menyimpan transaksi tabungan",
       );
     }
-  };
+  }, [
+    addSavingTransaction,
+    editingTransaction,
+    handleCloseModal,
+    updateSavingTransaction,
+  ]);
 
-  const handleDelete = async (record) => {
+  const handleDelete = useCallback(async (record) => {
     setDeletingId(record.transaction_id);
     try {
       await deleteSavingTransaction(record.transaction_id).unwrap();
@@ -173,12 +217,9 @@ const Saving = () => {
     } finally {
       setDeletingId(null);
     }
-  };
+  }, [deleteSavingTransaction]);
 
-  const isBootstrapping =
-    isLoadingOptions ||
-    (isLoadingStudents && !studentsResponse) ||
-    (isLoadingTransactions && !transactionsResponse);
+  const isBootstrapping = isLoadingOptions;
 
   if (isBootstrapping) {
     return <LoadApp />;
@@ -199,8 +240,8 @@ const Saving = () => {
           filters={filters}
           setFilters={setFilters}
           access={access}
-          classes={classes}
-          students={selectableStudents}
+          classOptions={classOptions}
+          studentOptions={studentOptions}
         />
 
         <SavingTabs
@@ -225,8 +266,11 @@ const Saving = () => {
       <SavingTransactionModal
         open={modalOpen}
         form={form}
+        access={access}
+        classOptions={classOptions}
         editingTransaction={editingTransaction}
         students={selectableStudents}
+        studentOptions={studentOptions}
         selectedStudent={selectedStudent}
         onCancel={handleCloseModal}
         onSubmit={handleSubmit}
