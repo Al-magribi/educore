@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import {
-  Button,
   Card,
   Flex,
   Form,
@@ -217,10 +216,6 @@ const Others = () => {
                   Pengelolaan Tagihan Non-SPP
                 </Title>
               </div>
-
-              <Button type='primary' onClick={() => openTypeModal()}>
-                Atur Jenis Biaya
-              </Button>
             </Flex>
           </Card>
         </div>
@@ -252,6 +247,7 @@ const Others = () => {
                     <OthersTypesTable
                       types={types}
                       loading={isFetchingTypes}
+                      onAddType={() => openTypeModal()}
                       onEditType={openTypeModal}
                       onDeleteType={handleDeleteType}
                       isDeletingType={isDeletingType}

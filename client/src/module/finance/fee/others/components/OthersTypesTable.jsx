@@ -1,4 +1,4 @@
-import { Dropdown, Modal, Space, Table, Tag, Typography } from "antd";
+import { Button, Dropdown, Flex, Modal, Space, Table, Tag, Typography } from "antd";
 import { MoreOutlined } from "@ant-design/icons";
 
 import { currencyFormatter } from "../constants";
@@ -8,6 +8,7 @@ const { Text } = Typography;
 const OthersTypesTable = ({
   types,
   loading,
+  onAddType,
   onEditType,
   onDeleteType,
   isDeletingType,
@@ -115,15 +116,23 @@ const OthersTypesTable = ({
   ];
 
   return (
-    <Table
-      rowKey='type_id'
-      columns={columns}
-      dataSource={types}
-      loading={loading}
-      pagination={{ pageSize: 8 }}
-      scroll={{ x: 760 }}
-      locale={{ emptyText: "Belum ada jenis biaya tambahan." }}
-    />
+    <Space direction='vertical' size={16} style={{ width: "100%" }}>
+      <Flex justify='flex-end'>
+        <Button type='primary' onClick={onAddType}>
+          Atur Jenis Biaya
+        </Button>
+      </Flex>
+
+      <Table
+        rowKey='type_id'
+        columns={columns}
+        dataSource={types}
+        loading={loading}
+        pagination={{ pageSize: 8 }}
+        scroll={{ x: 760 }}
+        locale={{ emptyText: "Belum ada jenis biaya tambahan." }}
+      />
+    </Space>
   );
 };
 

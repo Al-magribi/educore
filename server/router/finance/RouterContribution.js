@@ -1342,9 +1342,9 @@ router.post(
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
     const transactionDate = req.body.transaction_date || null;
-    const description = (req.body.description || "").trim();
+    const rawDescription = (req.body.description || "").trim();
 
-    if (!transactionType || amount === null || !transactionDate || !description) {
+    if (!transactionType || amount === null || !transactionDate || !rawDescription) {
       return res.status(400).json({ message: "Data transaksi kas kelas belum lengkap." });
     }
 
@@ -1492,14 +1492,14 @@ router.put(
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
     const transactionDate = req.body.transaction_date || null;
-    const description = (req.body.description || "").trim();
+    const rawDescription = (req.body.description || "").trim();
 
     if (
       !transactionId ||
       !transactionType ||
       amount === null ||
       !transactionDate ||
-      !description
+      !rawDescription
     ) {
       return res.status(400).json({ message: "Data transaksi kas kelas belum lengkap." });
     }

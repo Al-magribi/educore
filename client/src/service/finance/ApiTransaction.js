@@ -24,10 +24,22 @@ export const ApiTransaction = createApi({
 
     getTransactions: builder.query({
       query: (params) => `/transactions?${buildQueryString(params)}`,
+      transformResponse: (response) => ({
+        ...response,
+        data: Array.isArray(response?.data)
+          ? response.data.map((item) => ({
+              ...item,
+              key: item.id,
+            }))
+          : [],
+      }),
       providesTags: (result) =>
         result?.data
           ? [
-              ...result.data.map(({ key }) => ({ type: "FinanceTransaction", id: key })),
+              ...result.data.map(({ id }) => ({
+                type: "FinanceTransaction",
+                id,
+              })),
               { type: "FinanceTransaction", id: "LIST" },
             ]
           : [{ type: "FinanceTransaction", id: "LIST" }],

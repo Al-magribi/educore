@@ -1,10 +1,11 @@
 -- Membuat skema baru untuk memisahkan semua tabel keuangan
-CREATE SCHEMA finance;
+CREATE SCHEMA IF NOT EXISTS finance;
 
 SET search_path TO finance, public;
 
 -- =================================================================================
--- Fitur: Komponen & Billing Finance
+-- TABEL AKTIF: Billing & Pembayaran Final
+-- Dipakai untuk SPP, pembayaran lainnya, pembayaran manual, dan Midtrans.
 -- =================================================================================
 
 CREATE TABLE IF NOT EXISTS finance.fee_component (
@@ -12,10 +13,13 @@ CREATE TABLE IF NOT EXISTS finance.fee_component (
     homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(120) NOT NULL,
+    category VARCHAR(20) NOT NULL CHECK (category IN ('spp', 'other', 'savings')),
     charge_type VARCHAR(20) NOT NULL CHECK (charge_type IN ('monthly', 'once', 'custom')),
     is_savings BOOLEAN NOT NULL DEFAULT false,
     is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     UNIQUE (homebase_id, code)
 );
 
@@ -35,6 +39,7 @@ CREATE TABLE IF NOT EXISTS finance.fee_rule (
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_by INT REFERENCES public.u_users(id),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)
 );
 
@@ -59,11 +64,14 @@ CREATE TABLE IF NOT EXISTS finance.invoice (
     invoice_no VARCHAR(60) NOT NULL UNIQUE,
     issue_date DATE NOT NULL DEFAULT CURRENT_DATE,
     due_date DATE,
-    status VARCHAR(20) NOT NULL DEFAULT 'draft'
-      CHECK (status IN ('draft', 'issued', 'partial', 'paid', 'cancelled')),
+    status VARCHAR(20) NOT NULL DEFAULT 'issued'
+      CHECK (status IN ('draft', 'issued', 'partial', 'paid', 'cancelled', 'expired')),
+    source_type VARCHAR(20) NOT NULL
+      CHECK (source_type IN ('spp', 'other', 'mixed')),
     notes TEXT,
     created_by INT NOT NULL REFERENCES public.u_users(id),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoice_student
@@ -79,7 +87,10 @@ CREATE TABLE IF NOT EXISTS finance.invoice_item (
     description TEXT,
     qty NUMERIC(12, 2) NOT NULL DEFAULT 1 CHECK (qty > 0),
     unit_amount NUMERIC(14, 2) NOT NULL CHECK (unit_amount >= 0),
-    amount NUMERIC(14, 2) GENERATED ALWAYS AS (qty * unit_amount) STORED
+    amount NUMERIC(14, 2) GENERATED ALWAYS AS (qty * unit_amount) STORED,
+    item_type VARCHAR(20) NOT NULL CHECK (item_type IN ('spp', 'other')),
+    reference_type VARCHAR(30),
+    reference_id BIGINT
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoice_item_invoice
@@ -92,20 +103,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_item_monthly
 CREATE TABLE IF NOT EXISTS finance.payment_method (
     id BIGSERIAL PRIMARY KEY,
     homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    method_type VARCHAR(20) NOT NULL CHECK (method_type IN ('manual_bank', 'midtrans')),
+    method_type VARCHAR(20) NOT NULL CHECK (method_type IN ('manual_cash', 'manual_bank', 'midtrans')),
     name VARCHAR(100) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS finance.bank_account (
     id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
     payment_method_id BIGINT NOT NULL REFERENCES finance.payment_method(id) ON DELETE CASCADE,
     bank_name VARCHAR(100) NOT NULL,
     account_name VARCHAR(120) NOT NULL,
     account_number VARCHAR(60) NOT NULL,
     branch VARCHAR(100),
-    is_active BOOLEAN NOT NULL DEFAULT true
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS finance.payment (
@@ -115,6 +131,9 @@ CREATE TABLE IF NOT EXISTS finance.payment (
     payer_user_id INT NOT NULL REFERENCES public.u_users(id),
     method_id BIGINT NOT NULL REFERENCES finance.payment_method(id),
     bank_account_id BIGINT REFERENCES finance.bank_account(id),
+    payment_channel VARCHAR(50),
+    payment_source VARCHAR(20) NOT NULL
+      CHECK (payment_source IN ('parent_manual', 'admin_manual', 'midtrans')),
     payment_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
     status VARCHAR(20) NOT NULL
@@ -123,7 +142,10 @@ CREATE TABLE IF NOT EXISTS finance.payment (
     proof_url TEXT,
     notes TEXT,
     created_by INT REFERENCES public.u_users(id),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    verified_by INT REFERENCES public.u_users(id),
+    verified_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_payment_student
@@ -134,6 +156,7 @@ CREATE TABLE IF NOT EXISTS finance.payment_allocation (
     payment_id BIGINT NOT NULL REFERENCES finance.payment(id) ON DELETE CASCADE,
     invoice_item_id BIGINT NOT NULL REFERENCES finance.invoice_item(id) ON DELETE CASCADE,
     allocated_amount NUMERIC(14, 2) NOT NULL CHECK (allocated_amount > 0),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     UNIQUE (payment_id, invoice_item_id)
 );
 
@@ -147,9 +170,13 @@ CREATE TABLE IF NOT EXISTS finance.gateway_transaction (
     order_id VARCHAR(120) NOT NULL UNIQUE,
     transaction_id VARCHAR(120),
     transaction_status VARCHAR(40),
+    fraud_status VARCHAR(40),
+    payment_type VARCHAR(50),
     snap_token TEXT,
     snap_redirect_url TEXT,
     gross_amount NUMERIC(14, 2),
+    currency VARCHAR(10) DEFAULT 'IDR',
+    expiry_time TIMESTAMP WITH TIME ZONE,
     raw_response JSONB,
     webhook_payload JSONB,
     last_synced_at TIMESTAMP WITH TIME ZONE,
@@ -157,90 +184,42 @@ CREATE TABLE IF NOT EXISTS finance.gateway_transaction (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS finance.savings_ledger (
+CREATE TABLE IF NOT EXISTS finance.payment_gateway_config (
     id BIGSERIAL PRIMARY KEY,
-    homebase_id INT NOT NULL REFERENCES public.a_homebase(id),
-    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
-    component_id BIGINT NOT NULL REFERENCES finance.fee_component(id),
-    trx_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    direction VARCHAR(10) NOT NULL CHECK (direction IN ('in', 'out')),
-    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
-    note TEXT,
-    recorded_by INT NOT NULL REFERENCES public.u_users(id),
-    approved_by INT REFERENCES public.u_users(id),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_savings_student
-    ON finance.savings_ledger(student_id, trx_date DESC);
-
--- =================================================================================
--- Fitur: SPP (Tution Fee)
--- =================================================================================
-
--- Tarif SPP disusun per satuan, periode, dan tingkat agar nominal bisa berbeda
--- antar sekolah, tahun ajaran, dan level kelas.
-CREATE TABLE finance.spp_tariff (
-    id SERIAL PRIMARY KEY,
     homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
-    grade_id INT NOT NULL REFERENCES public.a_grade(id) ON DELETE CASCADE,
-    amount NUMERIC(14, 2) NOT NULL CHECK (amount >= 0),
-    description TEXT,
+    provider VARCHAR(30) NOT NULL DEFAULT 'midtrans',
+    merchant_id VARCHAR(120) NOT NULL,
+    client_key TEXT NOT NULL,
+    server_key_encrypted TEXT NOT NULL,
+    is_production BOOLEAN NOT NULL DEFAULT false,
     is_active BOOLEAN NOT NULL DEFAULT true,
+    snap_enabled BOOLEAN NOT NULL DEFAULT true,
+    va_fee_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
     created_by INT REFERENCES public.u_users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (homebase_id, periode_id, grade_id)
+    updated_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (homebase_id, provider)
 );
 
--- Header transaksi pembayaran SPP.
-CREATE TABLE finance.spp_payment_transaction (
-    id SERIAL PRIMARY KEY,
+ALTER TABLE finance.payment_gateway_config
+    ADD COLUMN IF NOT EXISTS va_fee_amount NUMERIC(14, 2) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS finance.finance_setting (
+    id BIGSERIAL PRIMARY KEY,
     homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
-    grade_id INT NOT NULL REFERENCES public.a_grade(id) ON DELETE CASCADE,
-    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
-    total_amount NUMERIC(14, 2) NOT NULL CHECK (total_amount >= 0),
-    payment_method VARCHAR(50),
-    notes TEXT,
-    paid_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    processed_by INT REFERENCES public.u_users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    officer_name VARCHAR(150),
+    officer_signature_url TEXT,
+    created_by INT REFERENCES public.u_users(id),
+    updated_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (homebase_id)
 );
 
--- Alokasi bulan yang dilunasi oleh satu transaksi.
-CREATE TABLE finance.spp_payment_allocation (
-    id SERIAL PRIMARY KEY,
-    transaction_id INT NOT NULL REFERENCES finance.spp_payment_transaction(id) ON DELETE CASCADE,
-    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
-    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
-    bill_month SMALLINT NOT NULL CHECK (bill_month BETWEEN 1 AND 12),
-    amount NUMERIC(14, 2) NOT NULL CHECK (amount >= 0),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (student_id, periode_id, bill_month)
-);
-
-CREATE INDEX idx_spp_tariff_scope
-    ON finance.spp_tariff(homebase_id, periode_id, grade_id, is_active);
-
-CREATE INDEX idx_spp_payment_transaction_scope
-    ON finance.spp_payment_transaction(homebase_id, periode_id, grade_id, student_id, paid_at DESC);
-
-CREATE INDEX idx_spp_payment_allocation_scope
-    ON finance.spp_payment_allocation(homebase_id, periode_id, bill_month, student_id);
-
 
 -- =================================================================================
--- Fitur: Pembayaran Lainnya (Other Payments)
--- =================================================================================
-
-
--- =================================================================================
--- Fitur: Tabungan Siswa (Student Savings)
+-- Fitur Aktif Non-Gateway: Tabungan Siswa
 -- =================================================================================
 
 -- Satu tabel untuk mencatat semua transaksi tabungan (setoran dan penarikan).
@@ -311,57 +290,3 @@ CREATE INDEX idx_class_cash_transactions_scope
 
 CREATE INDEX idx_class_cash_transactions_student
     ON finance.class_cash_transactions(periode_id, class_id, student_id, transaction_type);
-
--- =================================================================================
--- Revisi: Pembayaran Lainnya (Other Payments) multi-satuan dan cicilan
--- =================================================================================
-
-CREATE TABLE finance.other_payment_types (
-    type_id SERIAL PRIMARY KEY,
-    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
-    grade_ids INT[] NOT NULL DEFAULT '{}',
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_by INT REFERENCES public.u_users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE UNIQUE INDEX uq_other_payment_types_homebase_name
-    ON finance.other_payment_types(homebase_id, LOWER(name));
-
-CREATE TABLE finance.other_payment_charges (
-    charge_id SERIAL PRIMARY KEY,
-    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
-    type_id INT NOT NULL REFERENCES finance.other_payment_types(type_id) ON DELETE RESTRICT,
-    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
-    amount_due NUMERIC(14, 2) NOT NULL CHECK (amount_due > 0),
-    notes TEXT,
-    status VARCHAR(20) NOT NULL DEFAULT 'unpaid'
-      CHECK (status IN ('unpaid', 'partial', 'paid')),
-    created_by INT REFERENCES public.u_users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_other_payment_charges_scope
-    ON finance.other_payment_charges(homebase_id, periode_id, student_id, type_id, status);
-
-CREATE TABLE finance.other_payment_installments (
-    installment_id SERIAL PRIMARY KEY,
-    charge_id INT NOT NULL REFERENCES finance.other_payment_charges(charge_id) ON DELETE CASCADE,
-    installment_number INT NOT NULL DEFAULT 1,
-    amount_paid NUMERIC(14, 2) NOT NULL CHECK (amount_paid > 0),
-    payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    payment_method VARCHAR(50),
-    processed_by INT REFERENCES public.u_users(id),
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_other_payment_installments_charge
-    ON finance.other_payment_installments(charge_id, payment_date DESC, installment_id DESC);
