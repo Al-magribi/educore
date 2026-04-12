@@ -12,6 +12,10 @@ const buildQueryString = (params = {}) => {
   return searchParams.toString();
 };
 
+const buildMonthlyPaymentTagId = (item) =>
+  item?.id ??
+  `student-${item?.student_id ?? "unknown"}-periode-${item?.periode_id ?? "unknown"}-month-${item?.bill_month ?? "unknown"}`;
+
 export const ApiMonthly = createApi({
   reducerPath: "ApiMonthly",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/finance" }),
@@ -79,7 +83,10 @@ export const ApiMonthly = createApi({
       providesTags: (result) =>
         result?.data
           ? [
-              ...result.data.map(({ id }) => ({ type: "MonthlyPayment", id })),
+              ...result.data.map((item) => ({
+                type: "MonthlyPayment",
+                id: buildMonthlyPaymentTagId(item),
+              })),
               { type: "MonthlyPayment", id: "LIST" },
             ]
           : [{ type: "MonthlyPayment", id: "LIST" }],

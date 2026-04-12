@@ -5,6 +5,7 @@ import transaction from "./RouterTransaction.js";
 import dashboard from "./RouterDash.js";
 import saving from "./RouterSaving.js";
 import contribution from "./RouterContribution.js";
+import setting from "./RouterSetting.js";
 
 const RouterFinance = Router();
 
@@ -14,5 +15,6 @@ RouterFinance.use(others);
 RouterFinance.use(transaction);
 RouterFinance.use(saving);
 RouterFinance.use(contribution);
+RouterFinance.use(setting);
 
 export default RouterFinance;

@@ -27,6 +27,7 @@ const Contribution = lazy(
 const StudentContribution = lazy(
   () => import("../../module/finance/student/contribution/StudentContribution"),
 );
+const Setting = lazy(() => import("../../module/finance/setting/Setting"));
 
 const renderFinanceRoutes = ({ LazyPage }) => {
   const Page = LazyPage;
@@ -70,6 +71,10 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         <Route
           path="/finance/laporan-kas-kelas"
           element={<Page title="Laporan Kas Kelas" Component={CashReport} />}
+        />
+        <Route
+          path="/finance/pengaturan"
+          element={<Page title="Pengaturan Keuangan" Component={Setting} />}
         />
       </Route>
 

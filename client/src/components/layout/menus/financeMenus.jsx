@@ -32,9 +32,9 @@ const buildFinanceMenus = (user = {}) => {
       icon: <BookOutlined />,
     },
     {
-      label: "Laporan Kas Kelas",
-      key: "/finance/laporan-kas-kelas",
-      icon: <FundOutlined />,
+      label: "Pengaturan",
+      key: "/finance/pengaturan",
+      icon: <SettingFilled />,
     },
     {
       label: "Pengaturan",

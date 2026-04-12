@@ -23,7 +23,7 @@ export const ApiDash = createApi({
         return queryString ? `/dashboard?${queryString}` : "/dashboard";
       },
       providesTags: ["FinanceDashboard"],
-      transformResponse: (response) => response.data,
+      transformResponse: (response) => response?.data || {},
     }),
   }),
 });

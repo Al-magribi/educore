@@ -26,7 +26,7 @@ import MonthlyTariffModal from "./components/MonthlyTariffModal";
 
 const { Text } = Typography;
 
-const Monthly = ({ initialTab = "payments" }) => {
+const Monthly = ({ initialTab = "tariffs" }) => {
   const { user } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -100,9 +100,13 @@ const Monthly = ({ initialTab = "payments" }) => {
   const payments = paymentResponse?.data || [];
   const paymentSummary = paymentResponse?.summary || {};
   const paymentStudents = [...mainStudents].sort((left, right) =>
-    String(left.full_name || "").localeCompare(String(right.full_name || ""), "id", {
-      sensitivity: "base",
-    }),
+    String(left.full_name || "").localeCompare(
+      String(right.full_name || ""),
+      "id",
+      {
+        sensitivity: "base",
+      },
+    ),
   );
 
   useEffect(() => {
@@ -244,7 +248,10 @@ const Monthly = ({ initialTab = "payments" }) => {
     paymentForm.resetFields();
   };
 
-  const getStudentPaymentContext = (studentId, periodeId = filters.periode_id) => {
+  const getStudentPaymentContext = (
+    studentId,
+    periodeId = filters.periode_id,
+  ) => {
     if (!studentId) {
       return {
         student: null,
@@ -253,7 +260,8 @@ const Monthly = ({ initialTab = "payments" }) => {
       };
     }
 
-    const student = paymentStudents.find((item) => item.id === studentId) || null;
+    const student =
+      paymentStudents.find((item) => item.id === studentId) || null;
     const paymentRows = payments.filter(
       (item) =>
         Number(item.student_id) === Number(studentId) &&
@@ -273,7 +281,10 @@ const Monthly = ({ initialTab = "payments" }) => {
   const openCreatePaymentModal = (record = null) => {
     const targetStudentId = record?.student_id || filters.student_id;
     const targetPeriodeId = record?.periode_id || filters.periode_id;
-    const { student } = getStudentPaymentContext(targetStudentId, targetPeriodeId);
+    const { student } = getStudentPaymentContext(
+      targetStudentId,
+      targetPeriodeId,
+    );
 
     paymentForm.resetFields();
     paymentForm.setFieldsValue({
@@ -290,7 +301,10 @@ const Monthly = ({ initialTab = "payments" }) => {
   };
 
   const openEditPaymentModal = (record) => {
-    const { student } = getStudentPaymentContext(record.student_id, record.periode_id);
+    const { student } = getStudentPaymentContext(
+      record.student_id,
+      record.periode_id,
+    );
     paymentForm.resetFields();
     paymentForm.setFieldsValue({
       periode_id: record.periode_id,
@@ -387,16 +401,17 @@ const Monthly = ({ initialTab = "payments" }) => {
 
   const paymentStudentContext = getStudentPaymentContext(
     selectedPaymentStudentId || editingPayment?.student_id,
-    selectedPaymentPeriodeId || editingPayment?.periode_id || filters.periode_id,
+    selectedPaymentPeriodeId ||
+      editingPayment?.periode_id ||
+      filters.periode_id,
   );
   const paymentTariffAmount =
     payments.find(
       (item) =>
         Number(item.student_id) ===
           Number(selectedPaymentStudentId || editingPayment?.student_id) &&
-        Number(item.periode_id) === Number(
-          selectedPaymentPeriodeId || filters.periode_id,
-        ),
+        Number(item.periode_id) ===
+          Number(selectedPaymentPeriodeId || filters.periode_id),
     )?.amount || 0;
   const blockedMonths = new Set(paymentStudentContext.paidMonths);
   const editingMonths = editingPayment?.bill_months || [];
@@ -450,20 +465,6 @@ const Monthly = ({ initialTab = "payments" }) => {
             onChange={setActiveTab}
             items={[
               {
-                key: "payments",
-                label: `Pembayaran SPP (${payments.length})`,
-                children: (
-                  <MonthlyPaymentTable
-                    payments={payments}
-                    loading={isFetchingPayments}
-                    onCreatePayment={openCreatePaymentModal}
-                    onEditPayment={openEditPaymentModal}
-                    onDeletePayment={handleDeletePayment}
-                    isDeletingPayment={isDeletingPayment}
-                  />
-                ),
-              },
-              {
                 key: "tariffs",
                 label: `Tarif SPP (${tariffs.length})`,
                 children: (
@@ -477,6 +478,21 @@ const Monthly = ({ initialTab = "payments" }) => {
                   />
                 ),
               },
+              {
+                key: "payments",
+                label: `Pembayaran SPP (${payments.length})`,
+                children: (
+                  <MonthlyPaymentTable
+                    payments={payments}
+                    loading={isFetchingPayments}
+                    onCreatePayment={openCreatePaymentModal}
+                    onEditPayment={openEditPaymentModal}
+                    onDeletePayment={handleDeletePayment}
+                    isDeletingPayment={isDeletingPayment}
+                  />
+                ),
+              },
+
               {
                 key: "report",
                 label: "Laporan SPP",

@@ -12,6 +12,10 @@ const buildQueryString = (params = {}) => {
   return searchParams.toString();
 };
 
+const buildOtherChargeTagId = (item) =>
+  item?.charge_id ??
+  `student-${item?.student_id ?? "unknown"}-periode-${item?.periode_id ?? "unknown"}-type-${item?.type_id ?? "unknown"}`;
+
 export const ApiOthers = createApi({
   reducerPath: "ApiOthers",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/finance" }),
@@ -75,7 +79,10 @@ export const ApiOthers = createApi({
       providesTags: (result) =>
         result?.data
           ? [
-              ...result.data.map(({ charge_id: id }) => ({ type: "OtherCharge", id })),
+              ...result.data.map((item) => ({
+                type: "OtherCharge",
+                id: buildOtherChargeTagId(item),
+              })),
               { type: "OtherCharge", id: "LIST" },
             ]
           : [{ type: "OtherCharge", id: "LIST" }],
@@ -103,6 +110,7 @@ export const ApiOthers = createApi({
         { type: "OtherCharge", id },
         { type: "OtherCharge", id: "LIST" },
         { type: "OtherPaymentType", id: "LIST" },
+        "OtherOption",
       ],
     }),
 
@@ -114,6 +122,7 @@ export const ApiOthers = createApi({
       invalidatesTags: [
         { type: "OtherCharge", id: "LIST" },
         { type: "OtherPaymentType", id: "LIST" },
+        "OtherOption",
       ],
     }),
 
@@ -123,7 +132,7 @@ export const ApiOthers = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: [{ type: "OtherCharge", id: "LIST" }],
+      invalidatesTags: [{ type: "OtherCharge", id: "LIST" }, "OtherOption"],
     }),
 
     updateOtherInstallment: builder.mutation({
@@ -132,7 +141,7 @@ export const ApiOthers = createApi({
         method: "PUT",
         body,
       }),
-      invalidatesTags: [{ type: "OtherCharge", id: "LIST" }],
+      invalidatesTags: [{ type: "OtherCharge", id: "LIST" }, "OtherOption"],
     }),
 
     deleteOtherInstallment: builder.mutation({
@@ -140,7 +149,7 @@ export const ApiOthers = createApi({
         url: `/others/installments/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "OtherCharge", id: "LIST" }],
+      invalidatesTags: [{ type: "OtherCharge", id: "LIST" }, "OtherOption"],
     }),
   }),
 });
