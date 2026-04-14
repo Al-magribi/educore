@@ -789,7 +789,21 @@ router.get(
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.component_id ORDER BY ii.component_id), NULL) AS component_ids,
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.bill_month ORDER BY ii.bill_month), NULL) AS bill_months,
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT fc.name ORDER BY fc.name), NULL) AS item_names,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.item_type ORDER BY ii.item_type), NULL) AS item_types
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.item_type ORDER BY ii.item_type), NULL) AS item_types,
+          COALESCE(
+            JSONB_AGG(
+              DISTINCT JSONB_BUILD_OBJECT(
+                'charge_id', ii.id,
+                'type_id', ii.component_id,
+                'type_name', fc.name,
+                'item_type', ii.item_type,
+                'bill_month', ii.bill_month,
+                'amount_due', ii.amount,
+                'amount_paid', pa.allocated_amount
+              )
+            ) FILTER (WHERE ii.id IS NOT NULL),
+            '[]'::jsonb
+          ) AS payment_items
         FROM finance.payment p
         JOIN a_homebase hb ON hb.id = p.homebase_id
         JOIN u_students s ON s.user_id = p.student_id
@@ -866,6 +880,17 @@ router.get(
         description,
         bill_months: billMonths,
         item_names: itemNames,
+        payment_items: Array.isArray(item.payment_items)
+          ? item.payment_items.map((paymentItem) => ({
+              charge_id: Number(paymentItem?.charge_id || 0) || null,
+              type_id: Number(paymentItem?.type_id || 0) || null,
+              type_name: paymentItem?.type_name || null,
+              item_type: paymentItem?.item_type || null,
+              bill_month: Number(paymentItem?.bill_month || 0) || null,
+              amount_due: Number(paymentItem?.amount_due || 0),
+              amount_paid: Number(paymentItem?.amount_paid || 0),
+            }))
+          : [],
       };
     });
 

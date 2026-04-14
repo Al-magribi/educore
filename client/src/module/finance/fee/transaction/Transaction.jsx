@@ -34,6 +34,9 @@ const formatStudentSearchLabel = (item) => {
   return `${fullName}${nis}`.trim();
 };
 
+const getEditableOtherPaymentItems = (transaction) =>
+  (transaction?.payment_items || []).filter((item) => item.item_type === "other");
+
 const Transaction = () => {
   const { user } = useSelector((state) => state.auth);
   const [form] = Form.useForm();
@@ -171,7 +174,7 @@ const Transaction = () => {
   }, [studentSearch]);
 
   const wizardUnpaidMonths = useMemo(() => {
-    if (editingTransaction?.category !== "spp") {
+    if (!editingTransaction?.bill_months?.length) {
       return unpaidMonths;
     }
 
@@ -191,29 +194,48 @@ const Transaction = () => {
   }, [editingTransaction, unpaidMonths]);
 
   const wizardOtherCharges = useMemo(() => {
-    if (editingTransaction?.category !== "other") {
+    const editingOtherItems = getEditableOtherPaymentItems(editingTransaction);
+
+    if (editingOtherItems.length === 0) {
       return otherCharges;
     }
 
-    const selectionKey = getOtherPaymentSelectionKey(editingTransaction);
     const chargeMap = new Map(
       otherCharges.map((item) => [getOtherPaymentSelectionKey(item), item]),
     );
 
-    if (!chargeMap.has(selectionKey)) {
+    editingOtherItems.forEach((paymentItem) => {
+      const selectionKey = getOtherPaymentSelectionKey(paymentItem);
+      const existingCharge = chargeMap.get(selectionKey);
+      const currentPaidAmount = Number(paymentItem.amount_paid || 0);
+
       chargeMap.set(selectionKey, {
-        charge_id: editingTransaction.charge_id,
-        type_id: editingTransaction.type_id,
+        ...existingCharge,
+        charge_id: paymentItem.charge_id,
+        type_id: paymentItem.type_id,
         type_name:
-          editingTransaction.item_names?.[0] || editingTransaction.description,
-        amount_due: Number(editingTransaction.amount || 0),
-        paid_amount: 0,
-        remaining_amount: Number(editingTransaction.amount || 0),
-        description: editingTransaction.description,
-        is_existing_charge: Boolean(editingTransaction.charge_id),
-        status: "unpaid",
+          existingCharge?.type_name ||
+          paymentItem.type_name ||
+          editingTransaction?.item_names?.[0] ||
+          editingTransaction?.description,
+        amount_due: Number(
+          existingCharge?.amount_due || paymentItem.amount_due || 0,
+        ),
+        paid_amount: Math.max(
+          Number(existingCharge?.paid_amount || 0) - currentPaidAmount,
+          0,
+        ),
+        remaining_amount: Math.max(
+          Number(existingCharge?.remaining_amount || 0) + currentPaidAmount,
+          currentPaidAmount,
+        ),
+        description:
+          existingCharge?.description || editingTransaction?.description || null,
+        is_existing_charge:
+          existingCharge?.is_existing_charge ?? Boolean(paymentItem.charge_id),
+        status: existingCharge?.status || "unpaid",
       });
-    }
+    });
 
     return Array.from(chargeMap.values());
   }, [editingTransaction, otherCharges]);
@@ -368,7 +390,16 @@ const Transaction = () => {
   };
 
   const handleEditTransaction = (record) => {
-    const selectionKey = getOtherPaymentSelectionKey(record);
+    const editingOtherItems = getEditableOtherPaymentItems(record);
+    const initialOtherPayments = editingOtherItems.reduce((accumulator, item) => {
+      const selectionKey = getOtherPaymentSelectionKey(item);
+
+      accumulator[selectionKey] = buildOtherPaymentValue(item, {}, {
+        amount_paid: Number(item.amount_paid || 0),
+      });
+
+      return accumulator;
+    }, {});
 
     setEditingTransaction(record);
     setSelectedStudentOption({
@@ -392,25 +423,10 @@ const Transaction = () => {
       grade_id: record.grade_id,
       class_id: record.class_id,
       student_id: record.student_id,
-      bill_months: record.category === "spp" ? record.bill_months || [] : [],
-      other_payments:
-        record.category === "other"
-          ? {
-              [selectionKey]: buildOtherPaymentValue(record, {}, {
-                amount_paid: Number(record.amount || 0),
-              }),
-            }
-          : {},
+      bill_months: record.bill_months || [],
+      other_payments: initialOtherPayments,
     });
-    setOtherPaymentSelectionsState(
-      record.category === "other"
-        ? {
-            [selectionKey]: buildOtherPaymentValue(record, {}, {
-              amount_paid: Number(record.amount || 0),
-            }),
-          }
-        : {},
-    );
+    setOtherPaymentSelectionsState(initialOtherPayments);
 
     setModalRequestedOpen(true);
   };

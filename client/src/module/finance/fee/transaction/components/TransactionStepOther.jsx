@@ -43,6 +43,10 @@ const TransactionStepOther = ({
       {otherCharges.map((charge) => {
         const selectionKey = getOtherPaymentSelectionKey(charge);
         const selection = selections?.[selectionKey];
+        const editableMaxAmount = Math.max(
+          Number(charge.remaining_amount || 0),
+          Number(selection?.amount_paid || 0),
+        );
 
         return (
           <Card
@@ -100,7 +104,7 @@ const TransactionStepOther = ({
               <InputNumber
                 size='large'
                 min={0}
-                max={charge.remaining_amount}
+                max={editableMaxAmount}
                 value={selection?.amount_paid}
                 placeholder='Input nominal bayar'
                 style={{ width: "100%" }}
