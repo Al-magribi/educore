@@ -4,7 +4,11 @@ import { cardBaseStyle, currency } from "./constants";
 
 const { Text } = Typography;
 
-const FinanceDashboardUnitsTab = ({ meta, homebases }) => {
+const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
+  const selectedHomebase = homebases[0];
+  const isFilteredSingleUnit =
+    Boolean(meta?.selected_homebase_id) && homebases.length === 1;
+
   const columns = [
     {
       title: "Satuan",
@@ -69,7 +73,11 @@ const FinanceDashboardUnitsTab = ({ meta, homebases }) => {
         type='info'
         showIcon
         message='Data per satuan'
-        description={`Dashboard menghitung ${homebases.length || 0} satuan berdasarkan periode yang aktif pada masing-masing satuan.`}
+        description={
+          isFilteredSingleUnit
+            ? `Dashboard sedang difilter ke satuan ${selectedHomebase?.homebase_name || "-"} dengan periode aktif ${selectedHomebase?.periode_name || "-"}.`
+            : `Dashboard menghitung ${homebases.length || 0} dari ${availableHomebases?.length || homebases.length || 0} satuan berdasarkan periode yang aktif pada masing-masing satuan.`
+        }
       />
 
       <Card variant='borderless' style={cardBaseStyle}>

@@ -16,6 +16,7 @@ const MonthlyPaymentModal = ({
   months,
   tariffAmount,
   availableMonths,
+  activeHomebaseName,
   confirmLoading,
 }) => (
   <Modal
@@ -29,6 +30,10 @@ const MonthlyPaymentModal = ({
     width={640}
   >
     <Form form={form} layout='vertical' onFinish={onSubmit}>
+      <Form.Item name='homebase_id' hidden>
+        <Input />
+      </Form.Item>
+
       <Form.Item name='grade_id' hidden>
         <Input />
       </Form.Item>
@@ -44,6 +49,7 @@ const MonthlyPaymentModal = ({
             label: item.is_active ? `${item.name} (Aktif)` : item.name,
           }))}
           virtual={false}
+          disabled
         />
       </Form.Item>
 
@@ -62,8 +68,15 @@ const MonthlyPaymentModal = ({
           }))}
           onChange={onStudentChange}
           virtual={false}
+          disabled={students.length <= 1}
         />
       </Form.Item>
+
+      {activeHomebaseName ? (
+        <Text type='secondary' style={{ display: "block", marginBottom: 12 }}>
+          Satuan aktif: {activeHomebaseName}
+        </Text>
+      ) : null}
 
       <Alert
         type={tariffAmount > 0 ? "info" : "warning"}

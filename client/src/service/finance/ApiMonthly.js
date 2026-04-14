@@ -79,7 +79,16 @@ export const ApiMonthly = createApi({
     }),
 
     getMonthlyPayments: builder.query({
-      query: (params) => `/monthly/payments?${buildQueryString(params)}`,
+      query: (params) => {
+        const normalizedParams = { ...(params || {}) };
+
+        if (normalizedParams.student_search !== undefined) {
+          normalizedParams.search = normalizedParams.student_search;
+          delete normalizedParams.student_search;
+        }
+
+        return `/monthly/payments?${buildQueryString(normalizedParams)}`;
+      },
       providesTags: (result) =>
         result?.data
           ? [

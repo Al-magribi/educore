@@ -31,10 +31,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [filters, setFilters] = useState({
+    homebase_id: undefined,
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,
     student_id: undefined,
+    student_search: "",
     bill_month: currentMonth,
   });
   const [tariffModalOpen, setTariffModalOpen] = useState(false);
@@ -49,22 +51,27 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const selectedPaymentPeriodeId = Form.useWatch("periode_id", paymentForm);
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
-    useGetMonthlyOptionsQuery();
+    useGetMonthlyOptionsQuery(
+      filters.homebase_id ? { homebase_id: filters.homebase_id } : undefined,
+    );
   const { data: tariffOptionResponse } = useGetMonthlyOptionsQuery(
     { homebase_id: selectedTariffHomebaseId },
     { skip: !selectedTariffHomebaseId },
   );
   const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } =
     useGetMonthlyOptionsQuery({
+      homebase_id: filters.homebase_id,
       periode_id: filters.periode_id,
       grade_id: filters.grade_id,
       class_id: filters.class_id,
+      search: filters.student_search,
     });
   const {
     data: tariffResponse,
     isLoading: isLoadingTariffs,
     isFetching: isFetchingTariffs,
   } = useGetMonthlyTariffsQuery({
+    homebase_id: filters.homebase_id,
     periode_id: filters.periode_id,
     grade_id: filters.grade_id,
   });
@@ -112,6 +119,15 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (!filters.homebase_id && options.selected_homebase_id) {
+      setFilters((previous) => ({
+        ...previous,
+        homebase_id: options.selected_homebase_id,
+      }));
+    }
+  }, [filters.homebase_id, options.selected_homebase_id]);
 
   useEffect(() => {
     if (!filters.periode_id && periodes.length > 0) {
@@ -225,7 +241,10 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     } else {
       tariffForm.resetFields();
       const defaultHomebaseId =
-        options.selected_homebase_id || homebases[0]?.id || user?.homebase_id;
+        filters.homebase_id ||
+        options.selected_homebase_id ||
+        homebases[0]?.id ||
+        user?.homebase_id;
       const defaultPeriode =
         tariffOptions.periodes?.find((item) => item.is_active) ||
         tariffOptions.periodes?.[0] ||
@@ -288,6 +307,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
 
     paymentForm.resetFields();
     paymentForm.setFieldsValue({
+      homebase_id: filters.homebase_id,
       periode_id: targetPeriodeId,
       student_id: targetStudentId,
       grade_id: student?.grade_id || record?.grade_id,
@@ -307,6 +327,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     );
     paymentForm.resetFields();
     paymentForm.setFieldsValue({
+      homebase_id: filters.homebase_id,
       periode_id: record.periode_id,
       student_id: record.student_id,
       grade_id: student?.grade_id || record.grade_id,
@@ -366,18 +387,31 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     const selectedStudent = paymentStudents.find(
       (item) => Number(item.id) === Number(values.student_id),
     );
+    const effectiveHomebaseId = Number(
+      values.homebase_id || filters.homebase_id || user?.homebase_id,
+    );
+    const effectivePeriodeId = Number(
+      values.periode_id || selectedStudent?.periode_id || filters.periode_id,
+    );
+    const effectiveStudentId = Number(values.student_id);
+    const effectiveGradeId = Number(
+      selectedStudent?.grade_id || values.grade_id,
+    );
 
     const payload = {
-      periode_id: values.periode_id,
-      student_id: values.student_id,
-      grade_id: selectedStudent?.grade_id || values.grade_id,
+      homebase_id: effectiveHomebaseId,
+      periode_id: effectivePeriodeId,
+      student_id: effectiveStudentId,
+      grade_id: effectiveGradeId,
       payment_method: values.payment_method,
       notes: values.notes,
       bill_months: values.bill_months || [],
     };
 
-    if (!payload.grade_id) {
-      message.error("Tingkat siswa belum terdeteksi. Pilih siswa yang valid.");
+    if (!payload.homebase_id || !payload.periode_id || !payload.student_id || !payload.grade_id) {
+      message.error(
+        "Satuan, periode aktif, siswa, atau tingkat belum sinkron. Pilih siswa dari data yang tampil lalu coba lagi.",
+      );
       return;
     }
 
@@ -414,7 +448,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
           Number(selectedPaymentPeriodeId || filters.periode_id),
     )?.amount || 0;
   const blockedMonths = new Set(paymentStudentContext.paidMonths);
-  const editingMonths = editingPayment?.bill_months || [];
+  const editingMonths = (
+    editingPayment?.bill_months || [editingPayment?.bill_month].filter(Boolean)
+  ).map(Number);
   editingMonths.forEach((month) => blockedMonths.delete(month));
   const availableMonths = months
     .map((item) => item.value)
@@ -451,10 +487,10 @@ const Monthly = ({ initialTab = "tariffs" }) => {
           <MonthlyFilters
             filters={filters}
             setFilters={setFilters}
+            homebases={homebases}
             periodes={periodes}
             grades={grades}
             classes={mainClasses}
-            students={mainStudents}
             months={months}
           />
         </div>
@@ -485,6 +521,14 @@ const Monthly = ({ initialTab = "tariffs" }) => {
                   <MonthlyPaymentTable
                     payments={payments}
                     loading={isFetchingPayments}
+                    selectedMonth={months.find(
+                      (item) => Number(item.value) === Number(filters.bill_month),
+                    )?.label}
+                    homebaseName={
+                      homebases.find(
+                        (item) => Number(item.id) === Number(filters.homebase_id),
+                      )?.name || user?.homebase_name
+                    }
                     onCreatePayment={openCreatePaymentModal}
                     onEditPayment={openEditPaymentModal}
                     onDeletePayment={handleDeletePayment}
@@ -504,7 +548,14 @@ const Monthly = ({ initialTab = "tariffs" }) => {
 
         <div style={{ marginTop: 12 }}>
           <Text type='secondary'>
-            Satuan aktif: {user?.homebase_name || user?.homebase_id || "-"}.
+            Satuan aktif:{" "}
+            {homebases.find(
+              (item) => Number(item.id) === Number(filters.homebase_id),
+            )?.name ||
+              user?.homebase_name ||
+              user?.homebase_id ||
+              "-"}
+            .
           </Text>
         </div>
       </Space>
@@ -540,7 +591,11 @@ const Monthly = ({ initialTab = "tariffs" }) => {
             (item) => Number(item.id) === Number(value),
           );
 
-          paymentForm.setFieldValue("grade_id", selectedStudent?.grade_id);
+          paymentForm.setFieldsValue({
+            grade_id: selectedStudent?.grade_id,
+            periode_id: selectedStudent?.periode_id || filters.periode_id,
+            homebase_id: filters.homebase_id,
+          });
         }}
         form={paymentForm}
         periodes={periodes}
@@ -548,6 +603,11 @@ const Monthly = ({ initialTab = "tariffs" }) => {
         months={months}
         tariffAmount={paymentTariffAmount}
         availableMonths={availableMonths}
+        activeHomebaseName={
+          homebases.find(
+            (item) => Number(item.id) === Number(filters.homebase_id),
+          )?.name || user?.homebase_name
+        }
         confirmLoading={isAddingPayment || isUpdatingPayment}
       />
     </div>

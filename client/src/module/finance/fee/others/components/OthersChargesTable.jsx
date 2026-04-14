@@ -1,5 +1,6 @@
 import { Button, Dropdown, Modal, Space, Table, Tag, Typography } from "antd";
 import { MoreOutlined } from "@ant-design/icons";
+import * as XLSX from "xlsx";
 
 import {
   chargeStatusColorMap,
@@ -10,12 +11,74 @@ import OthersInstallmentHistory from "./OthersInstallmentHistory";
 
 const { Text } = Typography;
 
+const normalizeSortValue = (value = "") =>
+  String(value || "").trim().toLowerCase();
+
 const OthersChargesTable = ({
   charges,
   loading,
   onDeleteCharge,
   isDeletingCharge,
 }) => {
+  const sortedCharges = [...charges].sort((left, right) => {
+    const gradeComparison = normalizeSortValue(left.grade_name).localeCompare(
+      normalizeSortValue(right.grade_name),
+      "id",
+      { numeric: true, sensitivity: "base" },
+    );
+
+    if (gradeComparison !== 0) {
+      return gradeComparison;
+    }
+
+    const classComparison = normalizeSortValue(left.class_name).localeCompare(
+      normalizeSortValue(right.class_name),
+      "id",
+      { numeric: true, sensitivity: "base" },
+    );
+
+    if (classComparison !== 0) {
+      return classComparison;
+    }
+
+    const studentComparison = normalizeSortValue(left.student_name).localeCompare(
+      normalizeSortValue(right.student_name),
+      "id",
+      { numeric: true, sensitivity: "base" },
+    );
+
+    if (studentComparison !== 0) {
+      return studentComparison;
+    }
+
+    return normalizeSortValue(left.type_name).localeCompare(
+      normalizeSortValue(right.type_name),
+      "id",
+      { numeric: true, sensitivity: "base" },
+    );
+  });
+
+  const handleExportExcel = () => {
+    const exportRows = sortedCharges.map((item, index) => ({
+      No: index + 1,
+      Tingkat: item.grade_name || "-",
+      Kelas: item.class_name || "-",
+      Nama: item.student_name || "-",
+      NIS: item.nis || "-",
+      Periode: item.periode_name || "-",
+      "Jenis Biaya": item.type_name || "-",
+      Tagihan: Number(item.amount_due || 0),
+      Dibayar: Number(item.paid_amount || 0),
+      Sisa: Number(item.remaining_amount || 0),
+      Status: chargeStatusLabelMap[item.status] || item.status || "-",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pembayaran Lainnya");
+    XLSX.writeFile(workbook, "pembayaran-lainnya.xlsx");
+  };
+
   const columns = [
     {
       title: "Siswa",
@@ -100,7 +163,7 @@ const OthersChargesTable = ({
               okText: "Hapus",
               cancelText: "Batal",
               okButtonProps: { danger: true },
-              onOk: () => onDeleteCharge(record.charge_id),
+              onOk: () => onDeleteCharge(record),
             });
           }
         };
@@ -134,8 +197,14 @@ const OthersChargesTable = ({
         `${record.periode_id}-${record.student_id}-${record.type_id}`
       }
       columns={columns}
-      dataSource={charges}
+      dataSource={sortedCharges}
       loading={loading}
+      title={() => (
+        <Space style={{ width: "100%", justifyContent: "space-between" }} wrap>
+          <Text strong>Data pembayaran lain terurut berdasarkan tingkat, kelas, nama, dan jenis biaya.</Text>
+          <Button onClick={handleExportExcel}>Download Excel</Button>
+        </Space>
+      )}
       pagination={{ pageSize: 10 }}
       scroll={{ x: 1280 }}
       expandable={{

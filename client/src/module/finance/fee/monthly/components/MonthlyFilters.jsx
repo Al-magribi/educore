@@ -1,4 +1,4 @@
-import { Card, Col, Row, Select, Tag, Typography } from "antd";
+import { Card, Col, Input, Row, Select, Tag, Typography } from "antd";
 
 import { cardStyle } from "../constants";
 
@@ -23,14 +23,41 @@ const renderPeriodeOption = (option) => (
 const MonthlyFilters = ({
   filters,
   setFilters,
+  homebases,
   periodes,
   grades,
   classes,
-  students,
   months,
 }) => (
   <Card style={cardStyle}>
     <Row gutter={[12, 12]}>
+      {homebases.length > 1 ? (
+        <Col xs={24} md={12} xl={6}>
+          <Text type='secondary'>Satuan</Text>
+          <Select
+            value={filters.homebase_id}
+            onChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                homebase_id: value,
+                periode_id: undefined,
+                grade_id: undefined,
+                class_id: undefined,
+                student_id: undefined,
+                student_search: "",
+              }))
+            }
+            options={homebases.map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+            placeholder='Pilih satuan'
+            style={{ width: "100%", marginTop: 8 }}
+            showSearch={{ optionFilterProp: "label" }}
+            virtual={false}
+          />
+        </Col>
+      ) : null}
       <Col xs={24} md={12} xl={6}>
         <Text type='secondary'>Periode</Text>
         <Select
@@ -42,6 +69,7 @@ const MonthlyFilters = ({
               grade_id: undefined,
               class_id: undefined,
               student_id: undefined,
+              student_search: "",
             }))
           }
           options={periodes.map((item) => ({
@@ -51,8 +79,7 @@ const MonthlyFilters = ({
           }))}
           placeholder='Pilih periode'
           style={{ width: "100%", marginTop: 8 }}
-          showSearch
-          optionFilterProp='label'
+          showSearch={{ optionFilterProp: "label" }}
           virtual={false}
           optionRender={renderPeriodeOption}
         />
@@ -67,6 +94,7 @@ const MonthlyFilters = ({
               grade_id: value,
               class_id: undefined,
               student_id: undefined,
+              student_search: "",
             }))
           }
           options={grades.map((item) => ({
@@ -76,8 +104,7 @@ const MonthlyFilters = ({
           placeholder='Semua tingkat'
           style={{ width: "100%", marginTop: 8 }}
           allowClear
-          showSearch
-          optionFilterProp='label'
+          showSearch={{ optionFilterProp: "label" }}
           virtual={false}
         />
       </Col>
@@ -90,6 +117,7 @@ const MonthlyFilters = ({
               ...previous,
               class_id: value,
               student_id: undefined,
+              student_search: "",
             }))
           }
           options={classes.map((item) => ({
@@ -99,8 +127,7 @@ const MonthlyFilters = ({
           placeholder='Semua kelas'
           style={{ width: "100%", marginTop: 8 }}
           allowClear
-          showSearch
-          optionFilterProp='label'
+          showSearch={{ optionFilterProp: "label" }}
           virtual={false}
         />
       </Col>
@@ -120,31 +147,31 @@ const MonthlyFilters = ({
           }))}
           placeholder='Pilih bulan'
           style={{ width: "100%", marginTop: 8 }}
-          showSearch
-          optionFilterProp='label'
+          showSearch={{ optionFilterProp: "label" }}
           virtual={false}
         />
       </Col>
-      <Col xs={24}>
+      <Col xs={24} md={12} xl={18}>
         <Text type='secondary'>Siswa</Text>
-        <Select
-          value={filters.student_id}
-          onChange={(value) =>
+        <Input.Search
+          value={filters.student_search}
+          onChange={(event) =>
             setFilters((previous) => ({
               ...previous,
-              student_id: value,
+              student_id: undefined,
+              student_search: event.target.value,
             }))
           }
-          options={students.map((item) => ({
-            value: item.id,
-            label: `${item.full_name}${item.nis ? ` (${item.nis})` : ""}`,
-          }))}
-          placeholder='Semua siswa'
+          onSearch={(value) =>
+            setFilters((previous) => ({
+              ...previous,
+              student_id: undefined,
+              student_search: value,
+            }))
+          }
+          placeholder='Cari berdasarkan nama atau NIS'
           style={{ width: "100%", marginTop: 8 }}
           allowClear
-          showSearch
-          optionFilterProp='label'
-          virtual={false}
         />
       </Col>
     </Row>

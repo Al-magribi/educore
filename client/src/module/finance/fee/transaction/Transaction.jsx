@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import dayjs from "dayjs";
-import { Button, Card, Flex, Form, Space, Typography, message } from "antd";
+import { Form, Space, message } from "antd";
 
 import { LoadApp } from "../../../../components";
 import {
@@ -11,55 +11,84 @@ import {
   useGetTransactionsQuery,
   useUpdateTransactionMutation,
 } from "../../../../service/finance/ApiTransaction";
-import { cardStyle, pageStyle } from "../others/constants";
 import TransactionFormModal from "./components/TransactionFormModal";
 import TransactionList from "./components/TransactionList";
+import {
+  buildOtherPaymentValue,
+  getOtherPaymentSelectionKey,
+} from "./components/transactionFormShared.jsx";
 
-const { Title, Text } = Typography;
+const resetStudentContextValue = {
+  student_search: "",
+  grade_id: undefined,
+  class_id: undefined,
+  student_id: undefined,
+  bill_months: [],
+  other_payments: {},
+};
 
-const getOtherPaymentSelectionKey = (charge) =>
-  charge?.charge_id ? `charge-${charge.charge_id}` : `type-${charge?.type_id}`;
+const formatStudentSearchLabel = (item) => {
+  const fullName = item?.full_name || item?.student_name || "";
+  const nis = item?.nis ? ` - ${item.nis}` : "";
 
-const buildOtherPaymentValue = (charge, currentValue = {}, overrides = {}) => ({
-  charge_id: charge.charge_id || null,
-  type_id: charge.type_id || null,
-  amount_paid:
-    overrides.amount_paid !== undefined
-      ? overrides.amount_paid
-      : currentValue.amount_paid,
-});
+  return `${fullName}${nis}`.trim();
+};
 
 const Transaction = () => {
   const { user } = useSelector((state) => state.auth);
   const [form] = Form.useForm();
   const [modalRequestedOpen, setModalRequestedOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState("");
+  const [selectedStudentOption, setSelectedStudentOption] = useState(null);
+  const [otherPaymentSelectionsState, setOtherPaymentSelectionsState] =
+    useState({});
+  const pendingSelectedStudentSearchRef = useRef(null);
   const [transactionFilters, setTransactionFilters] = useState({
+    homebase_id: undefined,
     page: 1,
     limit: 10,
     search: "",
     category: undefined,
   });
 
+  const formHomebaseId = Form.useWatch("homebase_id", form);
   const periodeId = Form.useWatch("periode_id", form);
-  const gradeId = Form.useWatch("grade_id", form);
-  const classId = Form.useWatch("class_id", form);
   const studentId = Form.useWatch("student_id", form);
+  const studentSearch = Form.useWatch("student_search", form);
   const monthlySelection = Form.useWatch("bill_months", form) || [];
-  const otherPaymentSelections = Form.useWatch("other_payments", form) || {};
+  const otherPaymentSelections = otherPaymentSelectionsState || {};
+
+  const effectiveTransactionFilters = useMemo(
+    () => ({
+      ...transactionFilters,
+      homebase_id: transactionFilters.homebase_id,
+    }),
+    [transactionFilters],
+  );
+
+  const effectiveOptionHomebaseId =
+    formHomebaseId || transactionFilters.homebase_id;
 
   const {
     data: optionResponse,
     isLoading: isLoadingOptions,
     isFetching: isFetchingOptions,
-  } = useGetTransactionOptionsQuery({
-    periode_id: periodeId,
-    grade_id: gradeId,
-    class_id: classId,
-    student_id: studentId,
-  });
+    refetch: refetchTransactionOptions,
+  } = useGetTransactionOptionsQuery(
+    {
+      homebase_id: effectiveOptionHomebaseId,
+      periode_id: periodeId,
+      student_id: studentId,
+      search: debouncedStudentSearch,
+    },
+    {
+      refetchOnMountOrArgChange: true,
+    },
+  );
+
   const { data: transactionResponse, isLoading: isLoadingTransactions } =
-    useGetTransactionsQuery(transactionFilters);
+    useGetTransactionsQuery(effectiveTransactionFilters);
   const [createTransaction, { isLoading: isSubmitting }] =
     useCreateTransactionMutation();
   const [updateTransaction, { isLoading: isUpdatingTransaction }] =
@@ -68,101 +97,194 @@ const Transaction = () => {
     useDeleteTransactionMutation();
 
   const options = optionResponse?.data || {};
-  const periodes = options.periodes || [];
-  const classes = options.classes || [];
-  const students = options.students || [];
+  const homebases = useMemo(() => options.homebases || [], [options.homebases]);
+  const selectedHomebaseId =
+    effectiveTransactionFilters.homebase_id ||
+    optionResponse?.data?.selected_homebase_id;
+  const periodes = useMemo(() => options.periodes || [], [options.periodes]);
+  const students = useMemo(() => options.students || [], [options.students]);
   const student = options.student || null;
-  const unpaidMonths = options.spp?.unpaid_months || [];
+  const unpaidMonths = useMemo(
+    () => options.spp?.unpaid_months || [],
+    [options.spp?.unpaid_months],
+  );
   const tariffAmount = Number(options.spp?.tariff_amount || 0);
-  const otherCharges = options.other_charges || [];
+  const otherCharges = useMemo(
+    () => options.other_charges || [],
+    [options.other_charges],
+  );
   const transactions = transactionResponse?.data || [];
   const transactionSummary = transactionResponse?.summary || {};
+  const hasStudentKeyword = Boolean(String(studentSearch || "").trim());
+
   const isFetchingStudentOptions =
     modalRequestedOpen &&
     Boolean(periodeId) &&
-    isFetchingOptions &&
-    students.length === 0;
-  const modalOpen = modalRequestedOpen && !isFetchingStudentOptions;
+    hasStudentKeyword &&
+    !studentId &&
+    isFetchingOptions;
+  const isResolvingStudentContext =
+    modalRequestedOpen &&
+    Boolean(periodeId) &&
+    Boolean(studentId) &&
+    isFetchingOptions;
+  const isSelectedStudentContextReady =
+    !studentId ||
+    (!isFetchingOptions &&
+      Number(student?.student_id || student?.id) === Number(studentId));
+  const modalOpen = modalRequestedOpen;
 
   useEffect(() => {
-    if (!modalRequestedOpen) {
+    if (!student) {
       return;
     }
 
-    if (!form.getFieldValue("payment_date")) {
-      form.setFieldValue("payment_date", dayjs());
-    }
-  }, [form, modalRequestedOpen]);
+    form.setFieldsValue({
+      grade_id: student.grade_id,
+      class_id: student.class_id,
+    });
+  }, [form, student]);
 
   useEffect(() => {
-    if (!modalRequestedOpen) {
+    if (!modalRequestedOpen || !effectiveOptionHomebaseId) {
       return;
     }
 
-    if (!periodeId && periodes.length > 0) {
-      const activePeriode =
-        periodes.find((item) => item.is_active) || periodes[0];
-      form.setFieldValue("periode_id", activePeriode?.id);
-    }
-  }, [form, modalRequestedOpen, periodeId, periodes]);
+    refetchTransactionOptions();
+  }, [
+    modalRequestedOpen,
+    effectiveOptionHomebaseId,
+    periodeId,
+    studentId,
+    debouncedStudentSearch,
+    refetchTransactionOptions,
+  ]);
 
   useEffect(() => {
-    if (!modalRequestedOpen) {
-      return;
+    const trimmedKeyword = String(studentSearch || "").trim();
+
+    const timer = setTimeout(() => {
+      setDebouncedStudentSearch(trimmedKeyword);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [studentSearch]);
+
+  const wizardUnpaidMonths = useMemo(() => {
+    if (editingTransaction?.category !== "spp") {
+      return unpaidMonths;
     }
 
-    const currentClassId = form.getFieldValue("class_id");
-    if (
-      currentClassId &&
-      !classes.some((item) => item.id === Number(currentClassId))
-    ) {
-      form.setFieldsValue({
-        class_id: undefined,
-        student_id: undefined,
-        bill_months: [],
-        other_payments: {},
+    const monthMap = new Map(unpaidMonths.map((item) => [item.value, item]));
+    (editingTransaction.bill_months || []).forEach((month) => {
+      if (!monthMap.has(month)) {
+        monthMap.set(month, {
+          value: month,
+          label: dayjs().month(month - 1).format("MMMM"),
+        });
+      }
+    });
+
+    return Array.from(monthMap.values()).sort(
+      (left, right) => left.value - right.value,
+    );
+  }, [editingTransaction, unpaidMonths]);
+
+  const wizardOtherCharges = useMemo(() => {
+    if (editingTransaction?.category !== "other") {
+      return otherCharges;
+    }
+
+    const selectionKey = getOtherPaymentSelectionKey(editingTransaction);
+    const chargeMap = new Map(
+      otherCharges.map((item) => [getOtherPaymentSelectionKey(item), item]),
+    );
+
+    if (!chargeMap.has(selectionKey)) {
+      chargeMap.set(selectionKey, {
+        charge_id: editingTransaction.charge_id,
+        type_id: editingTransaction.type_id,
+        type_name:
+          editingTransaction.item_names?.[0] || editingTransaction.description,
+        amount_due: Number(editingTransaction.amount || 0),
+        paid_amount: 0,
+        remaining_amount: Number(editingTransaction.amount || 0),
+        description: editingTransaction.description,
+        is_existing_charge: Boolean(editingTransaction.charge_id),
+        status: "unpaid",
       });
     }
-  }, [classes, form, modalRequestedOpen]);
 
-  useEffect(() => {
-    if (!modalRequestedOpen) {
-      return;
-    }
+    return Array.from(chargeMap.values());
+  }, [editingTransaction, otherCharges]);
 
-    const currentStudentId = form.getFieldValue("student_id");
-    if (
-      currentStudentId &&
-      !students.some((item) => item.id === Number(currentStudentId))
-    ) {
-      form.setFieldsValue({
-        student_id: undefined,
-        bill_months: [],
-        other_payments: {},
-      });
-    }
-  }, [form, modalRequestedOpen, students]);
+  const selectedOtherPayments = useMemo(
+    () =>
+      wizardOtherCharges
+        .map((charge) => {
+          const selectionKey = getOtherPaymentSelectionKey(charge);
+          const selection = otherPaymentSelections?.[selectionKey];
+          const amountPaid = Number(selection?.amount_paid || 0);
+
+          if (amountPaid <= 0) {
+            return null;
+          }
+
+          return {
+            ...charge,
+            amount_paid: amountPaid,
+          };
+        })
+        .filter(Boolean),
+    [otherPaymentSelections, wizardOtherCharges],
+  );
 
   const totalMonthlyAmount = tariffAmount * monthlySelection.length;
-  const selectedOtherTotal = otherCharges.reduce((sum, charge) => {
-    const selectionKey = getOtherPaymentSelectionKey(charge);
-    const selection = otherPaymentSelections?.[selectionKey];
-    return sum + Number(selection?.amount_paid || 0);
-  }, 0);
+  const selectedOtherTotal = selectedOtherPayments.reduce(
+    (sum, item) => sum + Number(item.amount_paid || 0),
+    0,
+  );
   const grandTotal = totalMonthlyAmount + selectedOtherTotal;
+  const resolvedStudent = useMemo(() => {
+    if (student) {
+      return student;
+    }
+
+    if (selectedStudentOption) {
+      return {
+        student_id: selectedStudentOption.id,
+        student_name: selectedStudentOption.full_name,
+        nis: selectedStudentOption.nis,
+        grade_name: selectedStudentOption.grade_name,
+        class_name: selectedStudentOption.class_name,
+        periode_name: selectedStudentOption.periode_name,
+      };
+    }
+
+    if (editingTransaction) {
+      return {
+        student_id: editingTransaction.student_id,
+        student_name: editingTransaction.student_name,
+        nis: editingTransaction.nis,
+        grade_name: editingTransaction.grade_name,
+        class_name: editingTransaction.class_name,
+        periode_name: editingTransaction.periode_name,
+      };
+    }
+
+    return null;
+  }, [editingTransaction, selectedStudentOption, student]);
 
   const resetForm = () => {
     form.setFieldsValue({
+      homebase_id: undefined,
       periode_id: undefined,
-      grade_id: undefined,
-      class_id: undefined,
-      student_id: undefined,
-      bill_months: [],
-      other_payments: {},
-      payment_method: undefined,
-      notes: undefined,
-      payment_date: dayjs(),
+      ...resetStudentContextValue,
     });
+    pendingSelectedStudentSearchRef.current = null;
+    setOtherPaymentSelectionsState({});
+    setDebouncedStudentSearch("");
+    setSelectedStudentOption(null);
   };
 
   const closeModal = () => {
@@ -174,30 +296,34 @@ const Transaction = () => {
   const openCreateModal = () => {
     setEditingTransaction(null);
     resetForm();
-    const activePeriode =
-      periodes.find((item) => item.is_active) || periodes[0];
-
-    form.setFieldsValue({
-      periode_id: activePeriode?.id,
-      payment_date: dayjs(),
-    });
     setModalRequestedOpen(true);
   };
 
   const handleOtherPaymentAmountChange = (charge, value) => {
     const selectionKey = getOtherPaymentSelectionKey(charge);
     const numericValue = Number(value || 0);
-
-    form.setFieldValue(
-      ["other_payments", selectionKey],
-      buildOtherPaymentValue(charge, otherPaymentSelections?.[selectionKey], {
+    const nextValue = buildOtherPaymentValue(
+      charge,
+      otherPaymentSelectionsState?.[selectionKey],
+      {
         amount_paid: numericValue > 0 ? numericValue : undefined,
-      }),
+      },
     );
+
+    setOtherPaymentSelectionsState((previous) => ({
+      ...previous,
+      [selectionKey]: nextValue,
+    }));
+    form.setFieldValue(["other_payments", selectionKey], nextValue);
   };
 
   const handleSubmit = async (values) => {
-    const rawOtherPayments = values.other_payments || {};
+    const currentFormValues = form.getFieldsValue(true);
+    const rawOtherPayments =
+      currentFormValues.other_payments ||
+      values.other_payments ||
+      otherPaymentSelections ||
+      {};
     const otherPayments = Object.values(rawOtherPayments)
       .filter((item) => Number(item?.amount_paid) > 0)
       .map((item) => ({
@@ -205,44 +331,29 @@ const Transaction = () => {
         type_id: item.type_id ? Number(item.type_id) : null,
         amount_paid: Number(item.amount_paid),
       }));
+
     const commonPayload = {
-      periode_id: values.periode_id,
-      grade_id: values.grade_id,
-      student_id: values.student_id,
-      payment_date: dayjs(values.payment_date).format("YYYY-MM-DD"),
-      payment_method: values.payment_method,
-      notes: values.notes,
+      homebase_id:
+        currentFormValues.homebase_id || values.homebase_id || selectedHomebaseId,
+      periode_id: currentFormValues.periode_id || values.periode_id,
+      grade_id: currentFormValues.grade_id || values.grade_id,
+      student_id: currentFormValues.student_id || values.student_id,
     };
 
     try {
-      if (editingTransaction?.category === "spp") {
+      if (editingTransaction) {
         await updateTransaction({
-          category: "spp",
+          category: editingTransaction.category,
           id: editingTransaction.id,
           ...commonPayload,
-          bill_months: values.bill_months || [],
+          bill_months: currentFormValues.bill_months || values.bill_months || [],
+          other_payments: otherPayments,
         }).unwrap();
-        message.success("Transaksi SPP berhasil diperbarui");
-      } else if (editingTransaction?.category === "other") {
-        const currentOtherPayment = otherPayments[0];
-        if (!currentOtherPayment) {
-          message.error("Nominal pembayaran lainnya wajib diisi");
-          return;
-        }
-
-        await updateTransaction({
-          category: "other",
-          id: editingTransaction.id,
-          amount_paid: currentOtherPayment.amount_paid,
-          payment_date: commonPayload.payment_date,
-          payment_method: commonPayload.payment_method,
-          notes: commonPayload.notes,
-        }).unwrap();
-        message.success("Transaksi pembayaran lainnya berhasil diperbarui");
+        message.success("Transaksi pembayaran berhasil diperbarui");
       } else {
         await createTransaction({
           ...commonPayload,
-          bill_months: values.bill_months || [],
+          bill_months: currentFormValues.bill_months || values.bill_months || [],
           other_payments: otherPayments,
         }).unwrap();
         message.success("Transaksi pembayaran berhasil disimpan");
@@ -257,40 +368,49 @@ const Transaction = () => {
   };
 
   const handleEditTransaction = (record) => {
-    setEditingTransaction(record);
+    const selectionKey = getOtherPaymentSelectionKey(record);
 
-    if (record.category === "spp") {
-      form.setFieldsValue({
-        periode_id: record.periode_id,
-        grade_id: record.grade_id,
-        class_id: record.class_id,
-        student_id: record.student_id,
-        payment_date: record.paid_at ? dayjs(record.paid_at) : dayjs(),
-        payment_method: record.payment_method,
-        notes: record.notes,
-        bill_months: record.bill_months || [],
-        other_payments: {},
-      });
-    } else {
-      const selectionKey = getOtherPaymentSelectionKey(record);
-      form.setFieldsValue({
-        periode_id: record.periode_id,
-        grade_id: record.grade_id,
-        class_id: record.class_id,
-        student_id: record.student_id,
-        payment_date: record.paid_at ? dayjs(record.paid_at) : dayjs(),
-        payment_method: record.payment_method,
-        notes: record.notes,
-        bill_months: [],
-        other_payments: {
-          [selectionKey]: {
-            charge_id: record.charge_id,
-            type_id: record.type_id,
-            amount_paid: Number(record.amount || 0),
-          },
-        },
-      });
-    }
+    setEditingTransaction(record);
+    setSelectedStudentOption({
+      id: record.student_id,
+      full_name: record.student_name,
+      nis: record.nis,
+      grade_name: record.grade_name,
+      class_name: record.class_name,
+      periode_name: record.periode_name,
+      grade_id: record.grade_id,
+      class_id: record.class_id,
+    });
+    setTransactionFilters((previous) => ({
+      ...previous,
+      homebase_id: record.homebase_id || previous.homebase_id,
+    }));
+    form.setFieldsValue({
+      homebase_id: record.homebase_id,
+      periode_id: record.periode_id,
+      student_search: "",
+      grade_id: record.grade_id,
+      class_id: record.class_id,
+      student_id: record.student_id,
+      bill_months: record.category === "spp" ? record.bill_months || [] : [],
+      other_payments:
+        record.category === "other"
+          ? {
+              [selectionKey]: buildOtherPaymentValue(record, {}, {
+                amount_paid: Number(record.amount || 0),
+              }),
+            }
+          : {},
+    });
+    setOtherPaymentSelectionsState(
+      record.category === "other"
+        ? {
+            [selectionKey]: buildOtherPaymentValue(record, {}, {
+              amount_paid: Number(record.amount || 0),
+            }),
+          }
+        : {},
+    );
 
     setModalRequestedOpen(true);
   };
@@ -300,6 +420,7 @@ const Transaction = () => {
       await deleteTransaction({
         category: record.category,
         id: record.id,
+        homebase_id: record.homebase_id,
       }).unwrap();
       message.success("Transaksi berhasil dihapus");
 
@@ -320,44 +441,26 @@ const Transaction = () => {
 
   return (
     <Space vertical size={24} style={{ width: "100%" }}>
-      <Card style={cardStyle} styles={{ body: { padding: 20 } }}>
-        <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
-          <div>
-            <Text
-              type='secondary'
-              style={{
-                display: "block",
-                fontSize: 12,
-                letterSpacing: 0.4,
-                textTransform: "uppercase",
-              }}
-            >
-              Finance / Transaksi Pembayaran
-            </Text>
-          </div>
-
-          <Button type='primary' onClick={openCreateModal}>
-            Buat Transaksi
-          </Button>
-        </Flex>
-      </Card>
-
       <TransactionList
         user={user}
+        homebases={homebases}
         transactions={transactions}
         transactionSummary={transactionSummary}
-        transactionFilters={transactionFilters}
+        transactionFilters={effectiveTransactionFilters}
         setTransactionFilters={setTransactionFilters}
         loading={isLoadingTransactions}
         isDeletingTransaction={isDeletingTransaction}
         onEdit={handleEditTransaction}
         onDelete={handleDeleteCurrentTransaction}
+        onCreate={openCreateModal}
       />
 
       <TransactionFormModal
         open={modalOpen}
-        loadingOpen={modalRequestedOpen && !modalOpen}
+        loadingOpen={modalRequestedOpen && isLoadingOptions && !optionResponse}
         isStudentOptionsLoading={isFetchingStudentOptions}
+        isStudentContextLoading={isResolvingStudentContext}
+        isStudentContextReady={isSelectedStudentContextReady}
         form={form}
         editingTransaction={editingTransaction}
         onCancel={closeModal}
@@ -367,12 +470,67 @@ const Transaction = () => {
           resetForm();
         }}
         confirmLoading={isSubmitting || isUpdatingTransaction}
+        homebases={homebases}
         periodes={periodes}
         students={students}
-        student={student}
-        unpaidMonths={unpaidMonths}
+        student={resolvedStudent}
+        onStudentSelect={(item) => {
+          pendingSelectedStudentSearchRef.current = item
+            ? formatStudentSearchLabel(item)
+            : null;
+          setSelectedStudentOption(item);
+        }}
+        onHomebaseChange={(value) => {
+          pendingSelectedStudentSearchRef.current = null;
+          setOtherPaymentSelectionsState({});
+          setSelectedStudentOption(null);
+          form.setFieldsValue({
+            homebase_id: value,
+            periode_id: undefined,
+            ...resetStudentContextValue,
+          });
+        }}
+        onPeriodeChange={(value) => {
+          pendingSelectedStudentSearchRef.current = null;
+          setOtherPaymentSelectionsState({});
+          setSelectedStudentOption(null);
+          form.setFieldsValue({
+            periode_id: value,
+            ...resetStudentContextValue,
+          });
+        }}
+        onStudentSearchChange={(value) => {
+          const keyword = String(value || "");
+          const activeStudentId = form.getFieldValue("student_id");
+
+          form.setFieldValue("student_search", keyword);
+
+          if (pendingSelectedStudentSearchRef.current !== null) {
+            const pendingKeyword = pendingSelectedStudentSearchRef.current;
+            pendingSelectedStudentSearchRef.current = null;
+
+            if (keyword === pendingKeyword || keyword === "") {
+              return;
+            }
+          }
+
+          if (activeStudentId) {
+            setSelectedStudentOption(null);
+            setOtherPaymentSelectionsState({});
+            form.setFieldsValue({
+              student_id: undefined,
+              grade_id: undefined,
+              class_id: undefined,
+              bill_months: [],
+              other_payments: {},
+            });
+          }
+        }}
+        currentStudentSearch={studentSearch}
+        unpaidMonths={wizardUnpaidMonths}
         tariffAmount={tariffAmount}
-        otherCharges={otherCharges}
+        otherCharges={wizardOtherCharges}
+        selectedOtherPayments={selectedOtherPayments}
         otherPaymentSelections={otherPaymentSelections}
         totalMonthlyAmount={totalMonthlyAmount}
         selectedOtherTotal={selectedOtherTotal}

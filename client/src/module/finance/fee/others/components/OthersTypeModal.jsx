@@ -9,6 +9,7 @@ const OthersTypeModal = ({
   onSubmit,
   form,
   confirmLoading,
+  homebases,
   grades,
 }) => (
   <Modal
@@ -22,6 +23,22 @@ const OthersTypeModal = ({
     centered
   >
     <Form form={form} layout='vertical' onFinish={onSubmit}>
+      {homebases.length > 1 ? (
+        <Form.Item
+          name='homebase_id'
+          label='Satuan'
+          rules={[{ required: true, message: "Satuan wajib dipilih" }]}
+        >
+          <Select
+            placeholder='Pilih satuan'
+            options={homebases.map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+            virtual={false}
+          />
+        </Form.Item>
+      ) : null}
       <Form.Item
         name='name'
         label='Nama Jenis Biaya'

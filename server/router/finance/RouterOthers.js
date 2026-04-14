@@ -5,6 +5,7 @@ import {
   parseOptionalInt,
   parseIntArray,
   parseAmount,
+  resolveScopedHomebaseId,
   buildEnrollmentWhereClause,
   ensureGradeAndPeriode,
   ensureStudentScope,
@@ -169,11 +170,21 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const search = (req.query.search || "").trim();
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    }
+
     const enrollmentScope = buildEnrollmentWhereClause({
       homebaseId,
       periodeId,
@@ -191,8 +202,11 @@ router.get(
       search: "",
     });
 
-    const [periodeResult, gradeResult, classResult, studentResult, typeResult] =
+    const [homebaseResult, periodeResult, gradeResult, classResult, studentResult, typeResult] =
       await Promise.all([
+        req.user.homebase_id
+          ? db.query(`SELECT id, name FROM a_homebase WHERE id = $1`, [homebaseId])
+          : db.query(`SELECT id, name FROM a_homebase ORDER BY name ASC`),
         db.query(
           `
             SELECT id, name, is_active
@@ -269,6 +283,8 @@ router.get(
     res.json({
       status: "success",
       data: {
+        homebases: homebaseResult.rows,
+        selected_homebase_id: homebaseId,
         periodes: periodeResult.rows.map((item) => ({
           ...item,
           is_default: item.is_active,
@@ -288,12 +304,23 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    }
+
     const result = await db.query(
       `
         SELECT
           fc.id AS type_id,
           fc.homebase_id,
+          hb.name AS homebase_name,
           fc.name,
           fc.code,
           fc.is_active,
@@ -307,9 +334,10 @@ router.get(
         LEFT JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
         LEFT JOIN a_grade g ON g.id = fr.grade_id
         LEFT JOIN finance.invoice_item ii ON ii.component_id = fc.id AND ii.item_type = 'other'
+        JOIN a_homebase hb ON hb.id = fc.homebase_id
         WHERE fc.homebase_id = $1
           AND fc.category = 'other'
-        GROUP BY fc.id
+        GROUP BY fc.id, hb.id
         ORDER BY fc.is_active DESC, fc.name ASC
       `,
       [homebaseId],
@@ -325,7 +353,13 @@ router.post(
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
-    const { homebase_id: homebaseId, id: userId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const { id: userId } = req.user;
     const name = (req.body.name || "").trim();
     const amount = Number(req.body.amount);
     const gradeIds = parseIntArray(req.body.grade_ids).sort((left, right) => left - right);
@@ -398,7 +432,12 @@ router.put(
     await ensureFinalFinanceTables(client);
 
     const typeId = parseOptionalInt(req.params.id);
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
     const name = (req.body.name || "").trim();
     const amount = Number(req.body.amount);
     const gradeIds = parseIntArray(req.body.grade_ids).sort((left, right) => left - right);
@@ -455,7 +494,12 @@ router.delete(
     await ensureFinalFinanceTables(client);
 
     const typeId = parseOptionalInt(req.params.id);
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
 
     const itemCheck = await client.query(
       `SELECT id FROM finance.invoice_item WHERE component_id = $1 LIMIT 1`,
@@ -491,13 +535,22 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const studentId = parseOptionalInt(req.query.student_id);
     const status = (req.query.status || "").trim();
     const search = (req.query.search || "").trim();
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    }
 
     const scope = buildEnrollmentWhereClause({
       homebaseId,
@@ -559,6 +612,7 @@ router.get(
         )
         SELECT
           item.charge_id,
+          $1::int AS homebase_id,
           es.periode_id,
           ts.type_id,
           es.student_id,
@@ -578,7 +632,7 @@ router.get(
           ON item.student_id = es.student_id
           AND item.periode_id = es.periode_id
           AND item.component_id = ts.type_id
-        ORDER BY ts.type_name ASC, es.student_name ASC
+        ORDER BY es.grade_name ASC, es.class_name ASC, es.student_name ASC, ts.type_name ASC
       `,
       scope.params,
     );
@@ -822,7 +876,12 @@ router.delete(
     await ensureFinalFinanceTables(client);
 
     const chargeId = parseOptionalInt(req.params.id);
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
 
     const chargeScope = await client.query(
       `

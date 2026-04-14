@@ -19,6 +19,7 @@ export const ApiTransaction = createApi({
   endpoints: (builder) => ({
     getTransactionOptions: builder.query({
       query: (params) => `/transactions/options?${buildQueryString(params)}`,
+      keepUnusedDataFor: 0,
       providesTags: ["FinanceTransactionOption"],
     }),
 
@@ -58,10 +59,15 @@ export const ApiTransaction = createApi({
     }),
 
     updateTransaction: builder.mutation({
-      query: ({ category, id, ...body }) => ({
-        url: `/transactions/${category}/${id}`,
+      query: ({ category, id, homebase_id, ...body }) => ({
+        url: homebase_id
+          ? `/transactions/${category}/${id}?${buildQueryString({ homebase_id })}`
+          : `/transactions/${category}/${id}`,
         method: "PUT",
-        body,
+        body: {
+          ...body,
+          homebase_id,
+        },
       }),
       invalidatesTags: (result, error, { id }) => [
         "FinanceTransactionOption",
@@ -71,8 +77,10 @@ export const ApiTransaction = createApi({
     }),
 
     deleteTransaction: builder.mutation({
-      query: ({ category, id }) => ({
-        url: `/transactions/${category}/${id}`,
+      query: ({ category, id, homebase_id }) => ({
+        url: homebase_id
+          ? `/transactions/${category}/${id}?${buildQueryString({ homebase_id })}`
+          : `/transactions/${category}/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: (result, error, { id }) => [
