@@ -81,7 +81,7 @@ const TransactionList = ({
       key: "paid_at",
       width: 140,
       render: (value) => (
-        <Space direction='vertical' size={0}>
+        <Space vertical size={0}>
           <Text strong style={{ color: "#0f172a" }}>
             {value ? dayjs(value).format("DD MMM YYYY") : "-"}
           </Text>
@@ -108,7 +108,7 @@ const TransactionList = ({
           >
             {(record.student_name || "?").slice(0, 1).toUpperCase()}
           </Avatar>
-          <Space direction='vertical' size={1}>
+          <Space vertical size={1}>
             <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
               {record.student_name}
             </Text>
@@ -122,24 +122,7 @@ const TransactionList = ({
         </Space>
       ),
     },
-    {
-      title: "Jenis",
-      dataIndex: "category",
-      key: "category",
-      width: 110,
-      render: (value) => (
-        <Tag
-          color={statusColors[value] || "default"}
-          style={{
-            borderRadius: 999,
-            paddingInline: 10,
-            fontWeight: 600,
-          }}
-        >
-          {value === "spp" ? "SPP" : value === "other" ? "Lainnya" : "Gabungan"}
-        </Tag>
-      ),
-    },
+
     {
       title: "Keterangan",
       dataIndex: "description",
@@ -150,7 +133,7 @@ const TransactionList = ({
       key: "amount",
       width: 180,
       render: (_, record) => (
-        <Space direction='vertical' size={1}>
+        <Space vertical size={1}>
           <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
             {currencyFormatter.format(Number(record.amount || 0))}
           </Text>
@@ -166,15 +149,11 @@ const TransactionList = ({
       width: 150,
       render: (_, record) => {
         const items = [
-          ...(record.category !== "mixed"
-            ? [
-                {
-                  key: "edit",
-                  label: "Edit",
-                  icon: <Pencil size={14} />,
-                },
-              ]
-            : []),
+          {
+            key: "edit",
+            label: "Edit",
+            icon: <Pencil size={14} />,
+          },
           {
             key: "delete",
             label: "Hapus",
@@ -204,9 +183,7 @@ const TransactionList = ({
             icon={<ChevronDown size={16} />}
             loading={isDeletingTransaction}
             onClick={() => {
-              if (record.category !== "mixed") {
-                onEdit(record);
-              }
+              onEdit(record);
             }}
             style={{ borderRadius: 12 }}
           >
@@ -313,7 +290,7 @@ const TransactionList = ({
           }}
         >
           <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-            <Space direction='vertical' size={2}>
+            <Space vertical size={2}>
               <Text strong style={{ color: "#0f172a" }}>
                 Filter Transaksi
               </Text>
