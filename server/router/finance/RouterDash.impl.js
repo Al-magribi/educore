@@ -101,14 +101,22 @@ const buildActiveScopeQuery = ({ includeAllUnits, homebaseId, targetHomebaseId }
   };
 };
 
-const buildEmptyPayload = ({ now, currentMonth, currentMonthLabel, scopeType }) => ({
+const buildEmptyPayload = ({
+  now,
+  currentMonth,
+  currentMonthLabel,
+  scopeType,
+  selectedHomebaseId = null,
+}) => ({
   meta: {
     generated_at: now.toISOString(),
     current_month: currentMonth,
     current_month_label: currentMonthLabel,
     scope_type: scopeType,
+    selected_homebase_id: selectedHomebaseId,
     active_periode: null,
     active_scope: [],
+    available_homebases: [],
   },
   summary: {
     school_revenue: 0,
@@ -170,23 +178,38 @@ router.get(
     const targetHomebaseId = parseOptionalInt(req.query.homebase_id);
     const includeAllUnits =
       role === "admin" && (adminLevel === "pusat" || !userHomebaseId);
+    const selectedHomebaseId = includeAllUnits
+      ? targetHomebaseId || null
+      : Number(userHomebaseId || 0) || null;
 
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentMonthLabel = formatMonthLabel(currentMonth);
-    const scopeType = includeAllUnits ? "all_units" : "single_unit";
+    const scopeType = includeAllUnits && !targetHomebaseId ? "all_units" : "single_unit";
     const basePayload = buildEmptyPayload({
       now,
       currentMonth,
       currentMonthLabel,
       scopeType,
+      selectedHomebaseId,
     });
 
+    const availableScopeQuery = buildActiveScopeQuery({
+      includeAllUnits,
+      homebaseId: userHomebaseId,
+      targetHomebaseId: null,
+    });
     const activeScopeQuery = buildActiveScopeQuery({
       includeAllUnits,
       homebaseId: userHomebaseId,
       targetHomebaseId,
     });
+
+    const availableScopeResult = await db.query(
+      availableScopeQuery.text,
+      availableScopeQuery.params,
+    );
+    const availableScopes = availableScopeResult.rows;
 
     const activeScopeResult = await db.query(
       activeScopeQuery.text,
@@ -195,7 +218,21 @@ router.get(
     const activeScopes = activeScopeResult.rows;
 
     if (!activeScopes.length) {
-      return res.json({ status: "success", data: basePayload });
+      return res.json({
+        status: "success",
+        data: {
+          ...basePayload,
+          meta: {
+            ...basePayload.meta,
+            available_homebases: availableScopes.map((item) => ({
+              homebase_id: Number(item.homebase_id),
+              homebase_name: item.homebase_name,
+              periode_id: Number(item.periode_id),
+              periode_name: item.periode_name,
+            })),
+          },
+        },
+      });
     }
 
     const activeScopeSql = activeScopeQuery.text.trim();
@@ -805,8 +842,15 @@ router.get(
           current_month: currentMonth,
           current_month_label: currentMonthLabel,
           scope_type: scopeType,
+          selected_homebase_id: selectedHomebaseId,
           active_periode: activePeriode,
           active_scope: activeScopes,
+          available_homebases: availableScopes.map((item) => ({
+            homebase_id: Number(item.homebase_id),
+            homebase_name: item.homebase_name,
+            periode_id: Number(item.periode_id),
+            periode_name: item.periode_name,
+          })),
         },
         summary: {
           school_revenue: paidSppCurrentMonth + otherCollected,

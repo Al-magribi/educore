@@ -93,7 +93,7 @@ const OthersTypesTable = ({
               okText: "Hapus",
               cancelText: "Batal",
               okButtonProps: { danger: true, loading: isDeletingType },
-              onOk: () => onDeleteType(record.type_id),
+              onOk: () => onDeleteType(record),
             });
           }
         };

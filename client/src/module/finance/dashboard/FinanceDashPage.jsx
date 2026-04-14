@@ -1,4 +1,5 @@
-import { Alert, Button, Grid, Space, Tabs, Typography } from "antd";
+import { Alert, Button, Grid, Select, Space, Tabs, Typography } from "antd";
+import { useMemo, useState } from "react";
 
 import { LoadApp } from "../../../components";
 import { useGetFinanceDashboardQuery } from "../../../service/finance/ApiDash";
@@ -13,7 +14,13 @@ const { Text } = Typography;
 const FinanceDashPage = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const { data, isLoading, error, refetch } = useGetFinanceDashboardQuery();
+  const [selectedHomebaseId, setSelectedHomebaseId] = useState();
+  const queryParams = useMemo(
+    () =>
+      selectedHomebaseId ? { homebase_id: selectedHomebaseId } : undefined,
+    [selectedHomebaseId],
+  );
+  const { data, isLoading, error, refetch } = useGetFinanceDashboardQuery(queryParams);
 
   if (isLoading && !data) {
     return <LoadApp />;
@@ -45,6 +52,8 @@ const FinanceDashPage = () => {
   const priorities = data?.priorities || [];
   const recentTransactions = data?.recent_transactions || [];
   const homebases = data?.homebases || [];
+  const availableHomebases = meta?.available_homebases || homebases;
+  const showHomebaseFilter = availableHomebases.length > 1;
 
   const summaryCards = [
     {
@@ -83,6 +92,30 @@ const FinanceDashPage = () => {
         isMobile={isMobile}
       />
 
+      {showHomebaseFilter ? (
+        <Space
+          wrap
+          align='center'
+          size={12}
+          style={{ width: "100%", justifyContent: "space-between" }}
+        >
+          <Text type='secondary'>
+            Filter dashboard berdasarkan satuan aktif.
+          </Text>
+          <Select
+            allowClear
+            placeholder='Semua satuan'
+            style={{ width: isMobile ? "100%" : 280 }}
+            value={selectedHomebaseId}
+            onChange={setSelectedHomebaseId}
+            options={availableHomebases.map((item) => ({
+              value: item.homebase_id,
+              label: item.homebase_name,
+            }))}
+          />
+        </Space>
+      ) : null}
+
       <Tabs
         size={isMobile ? "small" : "middle"}
         tabBarGutter={isMobile ? 16 : 24}
@@ -103,7 +136,11 @@ const FinanceDashPage = () => {
             key: "units",
             label: `Satuan (${homebases.length})`,
             children: (
-              <FinanceDashboardUnitsTab meta={meta} homebases={homebases} />
+              <FinanceDashboardUnitsTab
+                meta={meta}
+                homebases={homebases}
+                availableHomebases={availableHomebases}
+              />
             ),
           },
           {

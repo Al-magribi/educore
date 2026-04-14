@@ -27,7 +27,7 @@ export const ApiOthers = createApi({
     }),
 
     getOtherPaymentTypes: builder.query({
-      query: () => "/others/types",
+      query: (params) => `/others/types?${buildQueryString(params)}`,
       providesTags: (result) =>
         result?.data
           ? [
@@ -64,10 +64,18 @@ export const ApiOthers = createApi({
     }),
 
     deleteOtherPaymentType: builder.mutation({
-      query: (id) => ({
-        url: `/others/types/${id}`,
-        method: "DELETE",
-      }),
+      query: (payload) => {
+        const id = typeof payload === "object" ? payload.id : payload;
+        const homebaseId =
+          typeof payload === "object" ? payload.homebase_id : undefined;
+
+        return {
+          url: homebaseId
+            ? `/others/types/${id}?${buildQueryString({ homebase_id: homebaseId })}`
+            : `/others/types/${id}`,
+          method: "DELETE",
+        };
+      },
       invalidatesTags: [
         { type: "OtherPaymentType", id: "LIST" },
         "OtherOption",
@@ -75,7 +83,16 @@ export const ApiOthers = createApi({
     }),
 
     getOtherCharges: builder.query({
-      query: (params) => `/others/charges?${buildQueryString(params)}`,
+      query: (params) => {
+        const normalizedParams = { ...(params || {}) };
+
+        if (normalizedParams.student_search !== undefined) {
+          normalizedParams.search = normalizedParams.student_search;
+          delete normalizedParams.student_search;
+        }
+
+        return `/others/charges?${buildQueryString(normalizedParams)}`;
+      },
       providesTags: (result) =>
         result?.data
           ? [
@@ -115,10 +132,18 @@ export const ApiOthers = createApi({
     }),
 
     deleteOtherCharge: builder.mutation({
-      query: (id) => ({
-        url: `/others/charges/${id}`,
-        method: "DELETE",
-      }),
+      query: (payload) => {
+        const id = typeof payload === "object" ? payload.id : payload;
+        const homebaseId =
+          typeof payload === "object" ? payload.homebase_id : undefined;
+
+        return {
+          url: homebaseId
+            ? `/others/charges/${id}?${buildQueryString({ homebase_id: homebaseId })}`
+            : `/others/charges/${id}`,
+          method: "DELETE",
+        };
+      },
       invalidatesTags: [
         { type: "OtherCharge", id: "LIST" },
         { type: "OtherPaymentType", id: "LIST" },

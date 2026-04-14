@@ -1,46 +1,55 @@
-import { useState } from "react";
-import { Button, Popconfirm, Space, Table, Tabs, Tag, Typography } from "antd";
+import { cloneElement, useState } from "react";
+import {
+  Button,
+  Dropdown,
+  Modal,
+  Space,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
+import * as XLSX from "xlsx";
+import { ChevronDown, Pencil, Trash2 } from "lucide-react";
 
 import {
   currencyFormatter,
-  statusColorMap,
   statusLabelMap,
+  statusColorMap,
 } from "../constants";
 
 const { Text } = Typography;
 
-const parseClassName = (className = "") => {
-  const normalizedClassName = String(className).trim().toLowerCase();
-  const match = normalizedClassName.match(/^(\d+)\s*([a-z]*)/i);
+const normalizeSortValue = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
 
-  if (!match) {
-    return {
-      grade: Number.MAX_SAFE_INTEGER,
-      suffix: normalizedClassName,
-    };
+const comparePayments = (left, right) => {
+  const gradeComparison = normalizeSortValue(left.grade_name).localeCompare(
+    normalizeSortValue(right.grade_name),
+    "id",
+    {
+      numeric: true,
+      sensitivity: "base",
+    },
+  );
+
+  if (gradeComparison !== 0) {
+    return gradeComparison;
   }
 
-  return {
-    grade: Number(match[1]),
-    suffix: match[2] || "",
-  };
-};
+  const classComparison = normalizeSortValue(left.class_name).localeCompare(
+    normalizeSortValue(right.class_name),
+    "id",
+    {
+      numeric: true,
+      sensitivity: "base",
+    },
+  );
 
-const comparePaymentsByClass = (left, right) => {
-  const leftClass = parseClassName(left.class_name);
-  const rightClass = parseClassName(right.class_name);
-
-  if (leftClass.grade !== rightClass.grade) {
-    return leftClass.grade - rightClass.grade;
-  }
-
-  const suffixComparison = leftClass.suffix.localeCompare(rightClass.suffix, "id", {
-    numeric: true,
-    sensitivity: "base",
-  });
-
-  if (suffixComparison !== 0) {
-    return suffixComparison;
+  if (classComparison !== 0) {
+    return classComparison;
   }
 
   return String(left.student_name || "").localeCompare(
@@ -48,22 +57,66 @@ const comparePaymentsByClass = (left, right) => {
     "id",
     {
       sensitivity: "base",
-    }
+    },
   );
 };
 
 const MonthlyPaymentTable = ({
   payments,
   loading,
+  selectedMonth,
+  homebaseName,
   onCreatePayment,
   onEditPayment,
   onDeletePayment,
   isDeletingPayment,
 }) => {
   const [activeStatusTab, setActiveStatusTab] = useState("unpaid");
-  const sortedPayments = [...payments].sort(comparePaymentsByClass);
+  const sortedPayments = [...payments].sort(comparePayments);
   const paidPayments = sortedPayments.filter((item) => item.status === "paid");
-  const unpaidPayments = sortedPayments.filter((item) => item.status === "unpaid");
+  const unpaidPayments = sortedPayments.filter(
+    (item) => item.status !== "paid",
+  );
+
+  const handleExportExcel = () => {
+    const exportRows = sortedPayments.map((item, index) => ({
+      No: index + 1,
+      Satuan: homebaseName || "-",
+      Tingkat: item.grade_name || "-",
+      Kelas: item.class_name || "-",
+      Nama: item.student_name || "-",
+      NIS: item.nis || "-",
+      Periode: item.periode_name || "-",
+      Bulan: item.billing_period_label || selectedMonth || "-",
+      Nominal: Number(item.amount || 0),
+      "Sudah Dibayar": Number(item.paid_amount || 0),
+      Status: statusLabelMap[item.status] || item.status || "-",
+      "Riwayat Lunas": (item.paid_months || []).join(", ") || "-",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pembayaran SPP");
+    XLSX.writeFile(
+      workbook,
+      `pembayaran-spp-${String(selectedMonth || "semua")
+        .replace(/\s+/g, "-")
+        .toLowerCase()}.xlsx`,
+    );
+  };
+
+  const handleDeletePayment = (paymentId) => {
+    Modal.confirm({
+      title: "Hapus pembayaran SPP ini?",
+      okText: "Hapus",
+      cancelText: "Batal",
+      okButtonProps: {
+        danger: true,
+        loading: isDeletingPayment,
+      },
+      onOk: () => onDeletePayment(paymentId),
+    });
+  };
 
   const columns = [
     {
@@ -90,15 +143,7 @@ const MonthlyPaymentTable = ({
       key: "billing_period_label",
       ellipsis: true,
     },
-    {
-      title: "Riwayat Lunas",
-      key: "paid_months",
-      ellipsis: true,
-      render: (_, record) =>
-        (record.paid_months || []).length > 0
-          ? record.paid_months.join(", ")
-          : "-",
-    },
+
     {
       title: "Nominal",
       dataIndex: "amount",
@@ -119,21 +164,44 @@ const MonthlyPaymentTable = ({
       width: 190,
       render: (_, record) =>
         record.status === "paid" ? (
-          <Space>
-            <Button type='link' onClick={() => onEditPayment(record)}>
-              Edit
-            </Button>
-            <Popconfirm
-              title='Hapus pembayaran SPP ini?'
-              onConfirm={() => onDeletePayment(record.id)}
-              okText='Hapus'
-              cancelText='Batal'
-            >
-              <Button type='link' danger loading={isDeletingPayment}>
-                Hapus
-              </Button>
-            </Popconfirm>
-          </Space>
+          <Dropdown.Button
+            trigger={["click"]}
+            menu={{
+              items: [
+                {
+                  key: "edit",
+                  label: "Edit",
+                  icon: <Pencil size={16} />,
+                },
+                {
+                  key: "delete",
+                  label: "Hapus",
+                  icon: <Trash2 size={16} />,
+                  danger: true,
+                },
+              ],
+              onClick: ({ key }) => {
+                if (key === "edit") {
+                  onEditPayment(record);
+                  return;
+                }
+
+                if (key === "delete") {
+                  handleDeletePayment(record.id);
+                }
+              },
+            }}
+            buttonsRender={([leftButton, rightButton]) => [
+              cloneElement(leftButton, {
+                onClick: () => undefined,
+              }),
+              cloneElement(rightButton, {
+                icon: <ChevronDown size={16} />,
+              }),
+            ]}
+          >
+            Pilih aksi
+          </Dropdown.Button>
         ) : (
           <Button type='link' onClick={() => onCreatePayment(record)}>
             Input Pembayaran
@@ -162,6 +230,18 @@ const MonthlyPaymentTable = ({
               columns={columns}
               dataSource={currentData}
               loading={loading}
+              title={() => (
+                <Space
+                  style={{ width: "100%", justifyContent: "space-between" }}
+                  wrap
+                >
+                  <Text strong>
+                    Data pembayaran SPP terurut berdasarkan tingkat, kelas, dan
+                    nama.
+                  </Text>
+                  <Button onClick={handleExportExcel}>Download Excel</Button>
+                </Space>
+              )}
               pagination={{ pageSize: 10 }}
               locale={{
                 emptyText:
@@ -182,6 +262,18 @@ const MonthlyPaymentTable = ({
               columns={columns}
               dataSource={currentData}
               loading={loading}
+              title={() => (
+                <Space
+                  style={{ width: "100%", justifyContent: "space-between" }}
+                  wrap
+                >
+                  <Text strong>
+                    Data pembayaran SPP terurut berdasarkan tingkat, kelas, dan
+                    nama.
+                  </Text>
+                  <Button onClick={handleExportExcel}>Download Excel</Button>
+                </Space>
+              )}
               pagination={{ pageSize: 10 }}
               locale={{
                 emptyText:

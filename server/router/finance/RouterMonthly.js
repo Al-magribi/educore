@@ -254,11 +254,21 @@ router.get(
   "/monthly/students",
   authorize("satuan", "keuangan"),
   withQuery(async (req, res, db) => {
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const search = (req.query.search || "").trim();
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    }
+
     const scope = buildEnrollmentWhereClause({
       homebaseId,
       periodeId,
@@ -521,13 +531,22 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const studentId = parseOptionalInt(req.query.student_id);
     const billMonth = parseOptionalInt(req.query.bill_month) || 1;
     const search = (req.query.search || "").trim();
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    }
 
     const scope = buildEnrollmentWhereClause({
       homebaseId,
@@ -612,7 +631,7 @@ router.get(
           ON ph.student_id = s.user_id
           AND ph.periode_id = e.periode_id
         ${scope.whereClause}
-        ORDER BY u.full_name ASC
+        ORDER BY g.name ASC, c.name ASC, u.full_name ASC
       `,
       [...scope.params, billMonth],
     );
@@ -667,7 +686,13 @@ router.post(
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
-    const { homebase_id: homebaseId, id: userId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const { id: userId } = req.user;
     const periodeId = parseOptionalInt(req.body.periode_id);
     const gradeId = parseOptionalInt(req.body.grade_id);
     const studentId = parseOptionalInt(req.body.student_id);
@@ -764,7 +789,13 @@ router.put(
     await ensureFinalFinanceTables(client);
 
     const paymentId = parseOptionalInt(req.params.id);
-    const { homebase_id: homebaseId, id: userId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const { id: userId } = req.user;
     const periodeId = parseOptionalInt(req.body.periode_id);
     const gradeId = parseOptionalInt(req.body.grade_id);
     const studentId = parseOptionalInt(req.body.student_id);

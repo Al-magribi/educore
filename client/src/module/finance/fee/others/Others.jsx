@@ -34,10 +34,12 @@ const Others = () => {
   const { user } = useSelector((state) => state.auth);
 
   const [filters, setFilters] = useState({
+    homebase_id: undefined,
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,
     student_id: undefined,
+    student_search: "",
     type_id: undefined,
     status: undefined,
   });
@@ -47,18 +49,24 @@ const Others = () => {
   const [typeForm] = Form.useForm();
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
-    useGetOtherOptionsQuery();
+    useGetOtherOptionsQuery(
+      filters.homebase_id ? { homebase_id: filters.homebase_id } : undefined,
+    );
   const { data: scopedOptionsResponse, isLoading: isLoadingScopedOptions } =
     useGetOtherOptionsQuery({
+      homebase_id: filters.homebase_id,
       periode_id: filters.periode_id,
       grade_id: filters.grade_id,
       class_id: filters.class_id,
+      search: filters.student_search,
     });
   const {
     data: typeResponse,
     isLoading: isLoadingTypes,
     isFetching: isFetchingTypes,
-  } = useGetOtherPaymentTypesQuery();
+  } = useGetOtherPaymentTypesQuery({
+    homebase_id: filters.homebase_id,
+  });
   const {
     data: chargeResponse,
     isLoading: isLoadingCharges,
@@ -76,15 +84,24 @@ const Others = () => {
 
   const options = optionsResponse?.data || {};
   const scopedOptions = scopedOptionsResponse?.data || {};
+  const homebases = options.homebases || [];
   const periodes = options.periodes || [];
   const grades = options.grades || [];
   const classes = scopedOptions.classes || [];
-  const students = scopedOptions.students || [];
   const types = typeResponse?.data || [];
   const charges = chargeResponse?.data || [];
   const summary = chargeResponse?.summary || {};
   const paidCharges = charges.filter((item) => item.status === "paid");
   const unpaidCharges = charges.filter((item) => item.status !== "paid");
+
+  useEffect(() => {
+    if (!filters.homebase_id && options.selected_homebase_id) {
+      setFilters((previous) => ({
+        ...previous,
+        homebase_id: options.selected_homebase_id,
+      }));
+    }
+  }, [filters.homebase_id, options.selected_homebase_id]);
 
   useEffect(() => {
     if (!filters.periode_id && periodes.length > 0) {
@@ -106,27 +123,23 @@ const Others = () => {
         ...previous,
         class_id: undefined,
         student_id: undefined,
+        student_search: "",
       }));
     }
   }, [classes, filters.class_id]);
 
   useEffect(() => {
-    if (
-      filters.student_id &&
-      !students.some((item) => item.id === filters.student_id)
-    ) {
-      setFilters((previous) => ({
-        ...previous,
-        student_id: undefined,
-      }));
+    if (typeModalOpen && homebases.length === 1 && !typeForm.getFieldValue("homebase_id")) {
+      typeForm.setFieldValue("homebase_id", homebases[0]?.id);
     }
-  }, [filters.student_id, students]);
+  }, [homebases, typeForm, typeModalOpen]);
 
   const openTypeModal = (record = null) => {
     setEditingType(record);
 
     if (record) {
       typeForm.setFieldsValue({
+        homebase_id: record.homebase_id,
         name: record.name,
         description: record.description,
         amount: Number(record.amount || 0),
@@ -135,24 +148,35 @@ const Others = () => {
       });
     } else {
       typeForm.resetFields();
-      typeForm.setFieldsValue({ is_active: true, grade_ids: [] });
+      typeForm.setFieldsValue({
+        homebase_id:
+          filters.homebase_id || options.selected_homebase_id || homebases[0]?.id,
+        is_active: true,
+        grade_ids: [],
+      });
     }
 
     setTypeModalOpen(true);
   };
 
-  const handleDeleteType = async (id) => {
+  const handleDeleteType = async (record) => {
     try {
-      await deleteOtherPaymentType(id).unwrap();
+      await deleteOtherPaymentType({
+        id: record.type_id,
+        homebase_id: record.homebase_id || filters.homebase_id,
+      }).unwrap();
       message.success("Jenis biaya berhasil dihapus");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus jenis biaya");
     }
   };
 
-  const handleDeleteCharge = async (id) => {
+  const handleDeleteCharge = async (record) => {
     try {
-      await deleteOtherCharge(id).unwrap();
+      await deleteOtherCharge({
+        id: record.charge_id,
+        homebase_id: record.homebase_id || filters.homebase_id,
+      }).unwrap();
       message.success("Tagihan berhasil dihapus");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus tagihan");
@@ -164,11 +188,16 @@ const Others = () => {
       if (editingType) {
         await updateOtherPaymentType({
           id: editingType.type_id,
+          homebase_id:
+            values.homebase_id || editingType.homebase_id || filters.homebase_id,
           ...values,
         }).unwrap();
         message.success("Jenis biaya berhasil diperbarui");
       } else {
-        await addOtherPaymentType(values).unwrap();
+        await addOtherPaymentType({
+          ...values,
+          homebase_id: values.homebase_id || filters.homebase_id,
+        }).unwrap();
         message.success("Jenis biaya berhasil ditambahkan");
       }
 
@@ -228,10 +257,10 @@ const Others = () => {
           <OthersFilters
             filters={filters}
             setFilters={setFilters}
+            homebases={homebases}
             periodes={periodes}
             grades={grades}
             classes={classes}
-            students={students}
             types={types}
           />
         </div>
@@ -290,7 +319,14 @@ const Others = () => {
 
         <div style={{ marginTop: 12 }}>
           <Text type='secondary'>
-            Satuan aktif: {user?.homebase_name || user?.homebase_id || "-"}.
+            Satuan aktif:{" "}
+            {homebases.find(
+              (item) => Number(item.id) === Number(filters.homebase_id),
+            )?.name ||
+              user?.homebase_name ||
+              user?.homebase_id ||
+              "-"}
+            .
           </Text>
         </div>
       </Space>
@@ -305,6 +341,7 @@ const Others = () => {
         onSubmit={handleSubmitType}
         form={typeForm}
         confirmLoading={isAddingType || isUpdatingType}
+        homebases={homebases}
         grades={grades}
       />
     </div>
