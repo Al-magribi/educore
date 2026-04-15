@@ -1,15 +1,19 @@
 import { memo, useMemo } from "react";
 import {
   Alert,
-  DatePicker,
+  Avatar,
+  Card,
+  Flex,
   Form,
   Input,
   InputNumber,
   Modal,
   Select,
   Space,
+  Tag,
   Typography,
 } from "antd";
+import { Search } from "lucide-react";
 
 import {
   currencyFormatter,
@@ -23,19 +27,21 @@ const SavingTransactionModal = ({
   open,
   form,
   access,
-  classOptions,
+  homebaseName,
   editingTransaction,
   students,
-  studentOptions,
   selectedStudent,
+  isStudentOptionsLoading,
+  currentStudentSearch,
+  onStudentSelect,
+  onStudentSearchChange,
   onCancel,
   onSubmit,
   confirmLoading,
 }) => {
-  const watchedClassId = Form.useWatch("class_id", form);
   const watchedStudentId = Form.useWatch("student_id", form);
   const watchedType = Form.useWatch("transaction_type", form);
-  const isTeacherScope = access?.role_scope === "teacher";
+  const watchedStudentSearch = Form.useWatch("student_search", form) || "";
   const transactionTypeOptions = useMemo(
     () =>
       Object.entries(transactionTypeMeta).map(([value, meta]) => ({
@@ -44,26 +50,57 @@ const SavingTransactionModal = ({
       })),
     [],
   );
-  const filteredStudentOptions = useMemo(() => {
-    if (isTeacherScope) {
-      return studentOptions;
-    }
+  const studentSearchValue = currentStudentSearch ?? watchedStudentSearch;
+  const normalizedStudents = useMemo(
+    () =>
+      students.map((item) => ({
+        ...item,
+        optionValue: item.id || item.student_id,
+        displayName: item.full_name || item.student_name,
+      })),
+    [students],
+  );
+  const studentOptions = useMemo(
+    () =>
+      normalizedStudents.map((item) => ({
+        value: item.optionValue,
+        plainLabel: `${item.displayName}${item.nis ? ` - ${item.nis}` : ""}`,
+        studentData: item,
+        label: (
+          <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
+            <Space vertical size={1}>
+              <Text strong style={{ color: "#0f172a" }}>
+                {item.displayName}
+              </Text>
+              <Text type='secondary'>
+                {`NIS ${item.nis || "-"} | ${item.homebase_name || homebaseName || "-"} | ${item.periode_name || access?.active_periode_name || "-"}`}
+              </Text>
+            </Space>
+            <Tag color='blue' style={{ borderRadius: 999 }}>
+              {`${item.grade_name || "-"} | ${item.class_name || "-"}`}
+            </Tag>
+          </Flex>
+        ),
+      })),
+    [access?.active_periode_name, homebaseName, normalizedStudents],
+  );
+  const activeStudent = useMemo(() => {
+    const selectedId = Number(watchedStudentId);
 
-    if (!watchedClassId) {
-      return [];
-    }
-
-    return students
-      .filter((item) => item.class_id === watchedClassId)
-      .map((item) => ({
-        value: item.id,
-        label: `${item.full_name}${item.nis ? ` (${item.nis})` : ""} - ${
-          item.class_name || "-"
-        }`,
-      }));
-  }, [isTeacherScope, studentOptions, students, watchedClassId]);
-  const activeStudent =
-    students.find((item) => item.id === watchedStudentId) || selectedStudent;
+    return (
+      normalizedStudents.find(
+        (item) => Number(item.optionValue) === selectedId,
+      ) ||
+      (selectedStudent
+        ? {
+            ...selectedStudent,
+            optionValue: selectedStudent.id || selectedStudent.student_id,
+            displayName:
+              selectedStudent.full_name || selectedStudent.student_name,
+          }
+        : null)
+    );
+  }, [normalizedStudents, selectedStudent, watchedStudentId]);
 
   return (
     <Modal
@@ -81,6 +118,23 @@ const SavingTransactionModal = ({
       centered
     >
       <Form form={form} layout='vertical' onFinish={onSubmit}>
+        <Form.Item
+          name='student_id'
+          hidden
+          rules={[{ required: true, message: "Siswa wajib dipilih" }]}
+        >
+          <Select />
+        </Form.Item>
+        <Form.Item name='class_id' hidden>
+          <Select />
+        </Form.Item>
+        <Form.Item name='grade_id' hidden>
+          <Select />
+        </Form.Item>
+        <Form.Item name='student_search' hidden>
+          <Input />
+        </Form.Item>
+
         <Alert
           showIcon
           type={watchedType === "withdrawal" ? "warning" : "success"}
@@ -92,69 +146,114 @@ const SavingTransactionModal = ({
           }
         />
 
-        {!isTeacherScope ? (
-          <Form.Item
-            name='class_id'
-            label='Kelas'
-            rules={[{ required: true, message: "Kelas wajib dipilih" }]}
-          >
-            <Select
-              options={classOptions}
-              placeholder='Pilih kelas'
-              onChange={() => {
-                form.setFieldValue("student_id", undefined);
-              }}
-              showSearch={{ optionFilterProp: "label" }}
-              virtual={false}
-            />
-          </Form.Item>
-        ) : null}
-
         <Form.Item
-          name='student_id'
-          label='Siswa'
-          rules={[{ required: true, message: "Siswa wajib dipilih" }]}
+          label='Cari Siswa'
+          extra='Ketik nama siswa atau NIS. Data siswa akan dimuat saat pencarian dan konteks satuan, periode, tingkat, serta kelas akan tampil setelah siswa dipilih.'
         >
           <Select
-            showSearch={{ optionFilterProp: "label" }}
-            options={filteredStudentOptions}
-            placeholder={
-              isTeacherScope
-                ? "Pilih siswa"
-                : watchedClassId
-                  ? "Pilih siswa"
-                  : "Pilih kelas terlebih dahulu"
+            size='large'
+            allowClear
+            showSearch={{
+              optionFilterProp: "label",
+              onSearch: onStudentSearchChange,
+            }}
+            value={watchedStudentId}
+            placeholder='Contoh: Budi / 23001'
+            filterOption={false}
+            searchValue={studentSearchValue}
+            optionLabelProp='plainLabel'
+            suffixIcon={<Search size={16} color='#94a3b8' />}
+            notFoundContent={
+              !studentSearchValue.trim()
+                ? "Mulai ketik nama siswa atau NIS"
+                : isStudentOptionsLoading
+                  ? "Mencari siswa..."
+                  : "Siswa tidak ditemukan"
             }
-            disabled={!isTeacherScope && !watchedClassId}
+            options={studentOptions}
+            loading={isStudentOptionsLoading}
+            defaultActiveFirstOption={false}
+            onBlur={() => {
+              if (!activeStudent) {
+                form.setFieldValue("student_search", studentSearchValue);
+              }
+            }}
+            onChange={(value, option) => {
+              const selected = Array.isArray(option)
+                ? option[0]?.studentData
+                : option?.studentData;
+
+              if (!value || !selected) {
+                onStudentSelect(null);
+                onStudentSearchChange("");
+                form.setFieldsValue({
+                  student_search: "",
+                  student_id: undefined,
+                  grade_id: undefined,
+                  class_id: undefined,
+                });
+                return;
+              }
+
+              onStudentSelect(selected);
+              form.setFieldsValue({
+                student_search: `${selected.displayName}${selected.nis ? ` - ${selected.nis}` : ""}`,
+                student_id: selected.optionValue,
+                grade_id: selected.grade_id,
+                class_id: selected.class_id,
+              });
+            }}
             virtual={false}
           />
         </Form.Item>
 
         {activeStudent ? (
-          <Space
-            vertical
-            size={2}
+          <Card
+            bordered={false}
             style={{
-              width: "100%",
               marginBottom: 16,
-              padding: 14,
-              borderRadius: 16,
-              background: "#f8fafc",
+              borderRadius: 20,
+              background:
+                "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
             }}
+            styles={{ body: { padding: 20 } }}
           >
-            <Text strong>
-              {activeStudent.full_name || activeStudent.student_name}
-            </Text>
-            <Text type='secondary'>
-              {activeStudent.nis || "-"} | {activeStudent.class_name || "-"}
-            </Text>
-            {"balance" in activeStudent ? (
-              <Text type='secondary'>
-                Saldo saat ini{" "}
-                {currencyFormatter.format(Number(activeStudent.balance || 0))}
-              </Text>
-            ) : null}
-          </Space>
+            <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
+              <Space size={14} align='start'>
+                <Avatar
+                  size={52}
+                  style={{ background: "#2563eb", fontWeight: 700 }}
+                >
+                  {(activeStudent.displayName || "?").slice(0, 1).toUpperCase()}
+                </Avatar>
+                <Space vertical size={2}>
+                  <Text strong style={{ color: "#ffffff", fontSize: 16 }}>
+                    {activeStudent.displayName}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                    NIS {activeStudent.nis || "-"}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                    {`Satuan ${activeStudent.homebase_name || homebaseName || "-"} | ${activeStudent.periode_name || access?.active_periode_name || "-"}`}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                    {`Tingkat ${activeStudent.grade_name || "-"} | Kelas ${activeStudent.class_name || "-"}`}
+                  </Text>
+                  {"balance" in activeStudent ? (
+                    <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                      {`Saldo saat ini ${currencyFormatter.format(Number(activeStudent.balance || 0))}`}
+                    </Text>
+                  ) : null}
+                </Space>
+              </Space>
+              <Tag
+                color='blue'
+                style={{ borderRadius: 999, paddingInline: 12 }}
+              >
+                Siswa Terpilih
+              </Tag>
+            </Flex>
+          </Card>
         ) : null}
 
         <Form.Item
@@ -174,21 +273,6 @@ const SavingTransactionModal = ({
           rules={[{ required: true, message: "Nominal wajib diisi" }]}
         >
           <InputNumber {...rupiahInputProps} placeholder='Rp 0' />
-        </Form.Item>
-
-        <Form.Item
-          name='transaction_date'
-          label='Tanggal Transaksi'
-          rules={[{ required: true, message: "Tanggal transaksi wajib diisi" }]}
-        >
-          <DatePicker style={{ width: "100%" }} format='DD MMM YYYY' />
-        </Form.Item>
-
-        <Form.Item name='description' label='Keterangan'>
-          <Input.TextArea
-            rows={3}
-            placeholder='Contoh: Setoran harian, penarikan untuk kebutuhan buku, dsb.'
-          />
         </Form.Item>
       </Form>
     </Modal>
