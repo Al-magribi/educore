@@ -147,9 +147,11 @@ const getTeacherHomeroomClass = async (db, homebaseId, teacherId) => {
 
 const getSavingsAccessContext = async (db, user) => {
   const homebaseId = user.homebase_id;
-  const activePeriode = await getActivePeriode(db, homebaseId);
+  const activePeriode = homebaseId
+    ? await getActivePeriode(db, homebaseId)
+    : null;
 
-  if (!activePeriode || !activePeriode.is_active) {
+  if (user.role === "teacher" && (!activePeriode || !activePeriode.is_active)) {
     return {
       error:
         "Periode aktif untuk satuan ini belum tersedia. Aktifkan periode terlebih dahulu.",
@@ -157,7 +159,11 @@ const getSavingsAccessContext = async (db, user) => {
   }
 
   if (user.role === "teacher") {
-    const homeroomClass = await getTeacherHomeroomClass(db, homebaseId, user.id);
+    const homeroomClass = await getTeacherHomeroomClass(
+      db,
+      homebaseId,
+      user.id,
+    );
 
     if (!homeroomClass) {
       return {
@@ -175,13 +181,17 @@ const getSavingsAccessContext = async (db, user) => {
     };
   }
 
-  if (user.role === "admin" && user.admin_level === "keuangan") {
+  if (
+    user.role === "admin" &&
+    ["keuangan", "satuan"].includes(user.admin_level)
+  ) {
     return {
       homebaseId,
       activePeriode,
       roleScope: "admin",
       homeroomClass: null,
       isFinanceAdmin: true,
+      isGlobalFinanceAdmin: !homebaseId,
     };
   }
 
@@ -224,13 +234,117 @@ const buildSavingsEnrollmentScope = ({
   return { params, whereClause };
 };
 
+const buildSavingsStudentScopeQuery = ({
+  accessContext,
+  classId,
+  studentId,
+  search,
+}) => {
+  const isGlobalFinanceAdmin = Boolean(accessContext.isGlobalFinanceAdmin);
+  const params = isGlobalFinanceAdmin
+    ? []
+    : [accessContext.homebaseId, accessContext.activePeriode.id];
+  const whereClauses = [`u.role = 'student'`, `u.is_active = true`];
+
+  if (accessContext.homeroomClass) {
+    params.push(accessContext.homeroomClass.id);
+    whereClauses.push(`e.class_id = $${params.length}`);
+  } else if (classId) {
+    params.push(classId);
+    whereClauses.push(`e.class_id = $${params.length}`);
+  }
+
+  if (studentId) {
+    params.push(studentId);
+    whereClauses.push(`s.user_id = $${params.length}`);
+  }
+
+  if (search) {
+    params.push(`%${search}%`);
+    whereClauses.push(`(
+      u.full_name ILIKE $${params.length}
+      OR COALESCE(s.nis, '') ILIKE $${params.length}
+    )`);
+  }
+
+  return {
+    params,
+    cte: `
+      WITH student_scope AS (
+        SELECT
+          s.user_id AS id,
+          s.user_id AS student_id,
+          u.full_name,
+          u.full_name AS student_name,
+          s.nis,
+          hb.id AS homebase_id,
+          hb.name AS homebase_name,
+          per.id AS periode_id,
+          per.name AS periode_name,
+          e.class_id AS class_id,
+          c.name AS class_name,
+          g.id AS grade_id,
+          g.name AS grade_name
+        FROM u_students s
+        JOIN u_users u ON u.id = s.user_id
+        JOIN u_class_enrollments e
+          ON e.student_id = s.user_id
+        JOIN a_homebase hb ON hb.id = e.homebase_id
+        JOIN a_periode per ON per.id = e.periode_id
+        JOIN a_class c ON c.id = e.class_id
+        LEFT JOIN a_grade g ON g.id = c.grade_id
+        WHERE ${
+          isGlobalFinanceAdmin
+            ? "per.is_active = true"
+            : "e.homebase_id = $1 AND e.periode_id = $2 AND c.homebase_id = $1"
+        }
+          AND ${whereClauses.join("\n          AND ")}
+      ),
+      ranked_student_scope AS (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY student_id
+            ORDER BY class_name ASC, student_name ASC
+          ) AS row_num
+        FROM student_scope
+      )
+    `,
+  };
+};
+
 const ensureClassScope = async (db, accessContext, classId) => {
   if (!classId) {
     return { data: accessContext.homeroomClass || null };
   }
 
-  if (accessContext.homeroomClass && classId !== accessContext.homeroomClass.id) {
-    return { error: "Guru hanya dapat mengakses siswa dari kelas wali yang ditugaskan." };
+  if (
+    accessContext.homeroomClass &&
+    classId !== accessContext.homeroomClass.id
+  ) {
+    return {
+      error:
+        "Guru hanya dapat mengakses siswa dari kelas wali yang ditugaskan.",
+    };
+  }
+
+  if (accessContext.isGlobalFinanceAdmin) {
+    const result = await db.query(
+      `
+        SELECT id, name, grade_id, homebase_id
+        FROM a_class
+        WHERE id = $1
+          AND is_active = true
+        LIMIT 1
+      `,
+      [classId],
+    );
+
+    if (result.rowCount === 0) {
+      return { error: "Kelas tidak ditemukan pada satuan aktif." };
+    }
+
+    return { data: result.rows[0] };
   }
 
   const result = await db.query(
@@ -253,41 +367,33 @@ const ensureClassScope = async (db, accessContext, classId) => {
 };
 
 const getStudentEnrollment = async (db, accessContext, studentId) => {
-  const params = [
-    accessContext.homebaseId,
-    accessContext.activePeriode.id,
+  const scope = buildSavingsStudentScopeQuery({
+    accessContext,
+    classId: null,
     studentId,
-  ];
-  let whereClause = `
-    WHERE e.homebase_id = $1
-      AND e.periode_id = $2
-      AND s.user_id = $3
-  `;
-
-  if (accessContext.homeroomClass) {
-    params.push(accessContext.homeroomClass.id);
-    whereClause += ` AND e.class_id = $${params.length}`;
-  }
+    search: "",
+  });
 
   const result = await db.query(
     `
+      ${scope.cte}
       SELECT
-        s.user_id AS student_id,
-        s.nis,
-        u.full_name AS student_name,
-        c.id AS class_id,
-        c.name AS class_name,
-        g.id AS grade_id,
-        g.name AS grade_name
-      FROM u_class_enrollments e
-      JOIN u_students s ON s.user_id = e.student_id
-      JOIN u_users u ON u.id = s.user_id
-      JOIN a_class c ON c.id = e.class_id
-      LEFT JOIN a_grade g ON g.id = c.grade_id
-      ${whereClause}
+        student_id,
+        nis,
+        student_name,
+        homebase_id,
+        homebase_name,
+        periode_id,
+        periode_name,
+        class_id,
+        class_name,
+        grade_id,
+        grade_name
+      FROM ranked_student_scope
+      WHERE row_num = 1
       LIMIT 1
     `,
-    params,
+    scope.params,
   );
 
   return result.rowCount > 0 ? result.rows[0] : null;
@@ -295,11 +401,11 @@ const getStudentEnrollment = async (db, accessContext, studentId) => {
 
 const getStudentBalance = async (
   db,
-  accessContext,
+  scopeContext,
   studentId,
   excludeTransactionId = null,
 ) => {
-  const params = [accessContext.homebaseId, accessContext.activePeriode.id, studentId];
+  const params = [scopeContext.homebaseId, scopeContext.periodeId, studentId];
   let exclusionClause = "";
 
   if (excludeTransactionId) {
@@ -332,6 +438,14 @@ const getStudentBalance = async (
 };
 
 const getTransactionScope = async (db, accessContext, transactionId) => {
+  const params = [transactionId];
+  let whereClause = `WHERE st.transaction_id = $1`;
+
+  if (!accessContext.isGlobalFinanceAdmin) {
+    params.push(accessContext.homebaseId, accessContext.activePeriode.id);
+    whereClause += ` AND st.homebase_id = $2 AND st.periode_id = $3`;
+  }
+
   const result = await db.query(
     `
       SELECT
@@ -351,12 +465,10 @@ const getTransactionScope = async (db, accessContext, transactionId) => {
       JOIN u_students s ON s.user_id = st.student_id
       JOIN u_users u ON u.id = s.user_id
       LEFT JOIN a_class c ON c.id = st.class_id
-      WHERE st.transaction_id = $1
-        AND st.homebase_id = $2
-        AND st.periode_id = $3
+      ${whereClause}
       LIMIT 1
     `,
-    [transactionId, accessContext.homebaseId, accessContext.activePeriode.id],
+    params,
   );
 
   if (result.rowCount === 0) {
@@ -479,7 +591,7 @@ router.get(
 
 router.get(
   "/saving/options",
-  authorize("teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -494,57 +606,46 @@ router.get(
       return res.status(400).json({ message: classScope.error });
     }
 
-    const classParams = [
-      accessContext.homebaseId,
-      accessContext.activePeriode.id,
-    ];
-    let classWhereClause = `WHERE e.homebase_id = $1 AND e.periode_id = $2`;
-
-    if (accessContext.homeroomClass) {
-      classParams.push(accessContext.homeroomClass.id);
-      classWhereClause += ` AND e.class_id = $${classParams.length}`;
-    }
-
-    const classesResult = await db.query(
-      `
-        SELECT DISTINCT
-          c.id,
-          c.name,
-          g.id AS grade_id,
-          g.name AS grade_name
-        FROM u_class_enrollments e
-        JOIN a_class c ON c.id = e.class_id
-        LEFT JOIN a_grade g ON g.id = c.grade_id
-        ${classWhereClause}
-        ORDER BY g.name ASC NULLS LAST, c.name ASC
-      `,
-      classParams,
-    );
-
-    const studentScope = buildSavingsEnrollmentScope({
+    const studentScope = buildSavingsStudentScopeQuery({
       accessContext,
       classId: classScope.data?.id || null,
       studentId: null,
       search: "",
     });
 
+    const classesResult = await db.query(
+      `
+        ${studentScope.cte}
+        SELECT DISTINCT
+          class_id AS id,
+          class_name AS name,
+          grade_id,
+          grade_name
+        FROM ranked_student_scope
+        WHERE row_num = 1
+        ORDER BY grade_name ASC NULLS LAST, name ASC
+      `,
+      studentScope.params,
+    );
+
     const studentsResult = await db.query(
       `
+        ${studentScope.cte}
         SELECT
-          s.user_id AS id,
-          u.full_name,
-          s.nis,
-          c.id AS class_id,
-          c.name AS class_name,
-          g.id AS grade_id,
-          g.name AS grade_name
-        FROM u_class_enrollments e
-        JOIN u_students s ON s.user_id = e.student_id
-        JOIN u_users u ON u.id = s.user_id
-        JOIN a_class c ON c.id = e.class_id
-        LEFT JOIN a_grade g ON g.id = c.grade_id
-        ${studentScope.whereClause}
-        ORDER BY c.name ASC, u.full_name ASC
+          id,
+          full_name,
+          nis,
+          homebase_id,
+          homebase_name,
+          periode_id,
+          periode_name,
+          class_id,
+          class_name,
+          grade_id,
+          grade_name
+        FROM ranked_student_scope
+        WHERE row_num = 1
+        ORDER BY class_name ASC, full_name ASC
       `,
       studentScope.params,
     );
@@ -567,7 +668,7 @@ router.get(
 
 router.get(
   "/saving/students",
-  authorize("teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -583,34 +684,24 @@ router.get(
       return res.status(400).json({ message: classScope.error });
     }
 
-    const scope = buildSavingsEnrollmentScope({
+    const scope = buildSavingsStudentScopeQuery({
       accessContext,
       classId: classScope.data?.id || null,
+      studentId: null,
       search,
     });
 
     const result = await db.query(
       `
-        WITH student_scope AS (
-          SELECT
-            s.user_id AS student_id,
-            u.full_name AS student_name,
-            s.nis,
-            c.id AS class_id,
-            c.name AS class_name,
-            g.id AS grade_id,
-            g.name AS grade_name
-          FROM u_class_enrollments e
-          JOIN u_students s ON s.user_id = e.student_id
-          JOIN u_users u ON u.id = s.user_id
-          JOIN a_class c ON c.id = e.class_id
-          LEFT JOIN a_grade g ON g.id = c.grade_id
-          ${scope.whereClause}
-        )
+        ${scope.cte}
         SELECT
           ss.student_id,
           ss.student_name,
           ss.nis,
+          ss.homebase_id,
+          ss.homebase_name,
+          ss.periode_id,
+          ss.periode_name,
           ss.class_id,
           ss.class_name,
           ss.grade_id,
@@ -635,15 +726,20 @@ router.get(
             0
           ) AS balance,
           MAX(st.transaction_date) AS last_transaction_date
-        FROM student_scope ss
+        FROM ranked_student_scope ss
         LEFT JOIN finance.savings_transactions st
-          ON st.homebase_id = $1
-          AND st.periode_id = $2
+          ON st.homebase_id = ss.homebase_id
+          AND st.periode_id = ss.periode_id
           AND st.student_id = ss.student_id
+        WHERE ss.row_num = 1
         GROUP BY
           ss.student_id,
           ss.student_name,
           ss.nis,
+          ss.homebase_id,
+          ss.homebase_name,
+          ss.periode_id,
+          ss.periode_name,
           ss.class_id,
           ss.class_name,
           ss.grade_id,
@@ -666,7 +762,8 @@ router.get(
       data,
       summary: {
         total_students: data.length,
-        active_students: data.filter((item) => item.transaction_count > 0).length,
+        active_students: data.filter((item) => item.transaction_count > 0)
+          .length,
         total_balance: data.reduce((sum, item) => sum + item.balance, 0),
         total_deposit: data.reduce((sum, item) => sum + item.deposit_total, 0),
         total_withdrawal: data.reduce(
@@ -680,7 +777,7 @@ router.get(
 
 router.get(
   "/saving/transactions",
-  authorize("teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -694,7 +791,10 @@ router.get(
     const transactionType = (req.query.transaction_type || "").trim() || null;
     const search = (req.query.search || "").trim();
 
-    if (transactionType && !["deposit", "withdrawal"].includes(transactionType)) {
+    if (
+      transactionType &&
+      !["deposit", "withdrawal"].includes(transactionType)
+    ) {
       return res.status(400).json({ message: "Jenis transaksi tidak valid." });
     }
 
@@ -703,15 +803,17 @@ router.get(
       return res.status(400).json({ message: classScope.error });
     }
 
-    const scope = buildSavingsEnrollmentScope({
+    const studentScope = buildSavingsStudentScopeQuery({
       accessContext,
       classId: classScope.data?.id || null,
       studentId,
       search,
     });
 
-    const params = [...scope.params];
-    let transactionFilterClause = `WHERE st.homebase_id = $1 AND st.periode_id = $2`;
+    const params = [...studentScope.params];
+    let transactionFilterClause = accessContext.isGlobalFinanceAdmin
+      ? `WHERE 1=1`
+      : `WHERE st.homebase_id = $1 AND st.periode_id = $2`;
 
     if (transactionType) {
       params.push(transactionType);
@@ -720,15 +822,7 @@ router.get(
 
     const result = await db.query(
       `
-        WITH student_scope AS (
-          SELECT
-            s.user_id AS student_id
-          FROM u_class_enrollments e
-          JOIN u_students s ON s.user_id = e.student_id
-          JOIN u_users u ON u.id = s.user_id
-          JOIN a_class c ON c.id = e.class_id
-          ${scope.whereClause}
-        )
+        ${studentScope.cte}
         SELECT
           st.transaction_id,
           st.student_id,
@@ -744,7 +838,9 @@ router.get(
           c.name AS class_name,
           processor.full_name AS processed_by_name
         FROM finance.savings_transactions st
-        JOIN student_scope ss ON ss.student_id = st.student_id
+        JOIN ranked_student_scope ss
+          ON ss.student_id = st.student_id
+         AND ss.row_num = 1
         JOIN u_students s ON s.user_id = st.student_id
         JOIN u_users student ON student.id = s.user_id
         LEFT JOIN a_class c ON c.id = st.class_id
@@ -778,7 +874,7 @@ router.get(
 
 router.post(
   "/saving/transactions",
-  authorize("teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
@@ -790,11 +886,11 @@ router.post(
     const studentId = parseOptionalInt(req.body.student_id);
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
-    const transactionDate = req.body.transaction_date || null;
-    const description = (req.body.description || "").trim() || null;
 
-    if (!studentId || !transactionDate || !transactionType || amount === null) {
-      return res.status(400).json({ message: "Data transaksi tabungan belum lengkap." });
+    if (!studentId || !transactionType || amount === null) {
+      return res
+        .status(400)
+        .json({ message: "Data transaksi tabungan belum lengkap." });
     }
 
     if (!["deposit", "withdrawal"].includes(transactionType)) {
@@ -802,7 +898,9 @@ router.post(
     }
 
     if (amount <= 0) {
-      return res.status(400).json({ message: "Nominal transaksi harus lebih dari 0." });
+      return res
+        .status(400)
+        .json({ message: "Nominal transaksi harus lebih dari 0." });
     }
 
     const studentEnrollment = await getStudentEnrollment(
@@ -813,14 +911,23 @@ router.post(
 
     if (!studentEnrollment) {
       return res.status(404).json({
-        message: "Siswa tidak ditemukan pada periode aktif atau di luar akses pengguna.",
+        message:
+          "Siswa tidak ditemukan pada periode aktif atau di luar akses pengguna.",
       });
     }
 
-    const currentBalance = await getStudentBalance(client, accessContext, studentId);
+    const currentBalance = await getStudentBalance(
+      client,
+      {
+        homebaseId: studentEnrollment.homebase_id,
+        periodeId: studentEnrollment.periode_id,
+      },
+      studentId,
+    );
     if (transactionType === "withdrawal" && amount > currentBalance) {
       return res.status(400).json({
-        message: "Nominal penarikan melebihi saldo tabungan siswa pada periode aktif.",
+        message:
+          "Nominal penarikan melebihi saldo tabungan siswa pada periode aktif.",
       });
     }
 
@@ -837,19 +944,17 @@ router.post(
           processed_by,
           description
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, $7, NULL)
         RETURNING transaction_id
       `,
       [
-        accessContext.homebaseId,
-        accessContext.activePeriode.id,
+        studentEnrollment.homebase_id,
+        studentEnrollment.periode_id,
         studentEnrollment.class_id,
         studentId,
         transactionType,
         amount,
-        transactionDate,
         req.user.id,
-        description,
       ],
     );
 
@@ -863,7 +968,7 @@ router.post(
 
 router.put(
   "/saving/transactions/:id",
-  authorize("teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
@@ -876,11 +981,11 @@ router.put(
     const studentId = parseOptionalInt(req.body.student_id);
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
-    const transactionDate = req.body.transaction_date || null;
-    const description = (req.body.description || "").trim() || null;
 
-    if (!transactionId || !studentId || !transactionDate || !transactionType || amount === null) {
-      return res.status(400).json({ message: "Data transaksi tabungan belum lengkap." });
+    if (!transactionId || !studentId || !transactionType || amount === null) {
+      return res
+        .status(400)
+        .json({ message: "Data transaksi tabungan belum lengkap." });
     }
 
     if (!["deposit", "withdrawal"].includes(transactionType)) {
@@ -888,7 +993,9 @@ router.put(
     }
 
     if (amount <= 0) {
-      return res.status(400).json({ message: "Nominal transaksi harus lebih dari 0." });
+      return res
+        .status(400)
+        .json({ message: "Nominal transaksi harus lebih dari 0." });
     }
 
     const existingTransaction = await getTransactionScope(
@@ -899,7 +1006,8 @@ router.put(
 
     if (!existingTransaction) {
       return res.status(404).json({
-        message: "Transaksi tabungan tidak ditemukan pada akses pengguna saat ini.",
+        message:
+          "Transaksi tabungan tidak ditemukan pada akses pengguna saat ini.",
       });
     }
 
@@ -911,13 +1019,17 @@ router.put(
 
     if (!studentEnrollment) {
       return res.status(404).json({
-        message: "Siswa tidak ditemukan pada periode aktif atau di luar akses pengguna.",
+        message:
+          "Siswa tidak ditemukan pada periode aktif atau di luar akses pengguna.",
       });
     }
 
     const currentBalance = await getStudentBalance(
       client,
-      accessContext,
+      {
+        homebaseId: studentEnrollment.homebase_id,
+        periodeId: studentEnrollment.periode_id,
+      },
       studentId,
       transactionId,
     );
@@ -933,24 +1045,24 @@ router.put(
       `
         UPDATE finance.savings_transactions
         SET
-          class_id = $1,
-          student_id = $2,
-          transaction_type = $3,
-          amount = $4,
-          transaction_date = $5,
-          processed_by = $6,
-          description = $7,
+          homebase_id = $1,
+          periode_id = $2,
+          class_id = $3,
+          student_id = $4,
+          transaction_type = $5,
+          amount = $6,
+          processed_by = $7,
           updated_at = CURRENT_TIMESTAMP
         WHERE transaction_id = $8
       `,
       [
+        studentEnrollment.homebase_id,
+        studentEnrollment.periode_id,
         studentEnrollment.class_id,
         studentId,
         transactionType,
         amount,
-        transactionDate,
         req.user.id,
-        description,
         transactionId,
       ],
     );
@@ -964,7 +1076,7 @@ router.put(
 
 router.delete(
   "/saving/transactions/:id",
-  authorize("teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
@@ -986,7 +1098,8 @@ router.delete(
 
     if (!transactionScope) {
       return res.status(404).json({
-        message: "Transaksi tabungan tidak ditemukan pada akses pengguna saat ini.",
+        message:
+          "Transaksi tabungan tidak ditemukan pada akses pengguna saat ini.",
       });
     }
 

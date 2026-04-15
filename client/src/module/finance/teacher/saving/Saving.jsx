@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import dayjs from "dayjs";
 import { Form, Space, Typography, message } from "antd";
 import { skipToken } from "@reduxjs/toolkit/query";
 
@@ -23,6 +22,19 @@ import { mapSavingFormValues } from "./formHelpers";
 const { Text } = Typography;
 const EMPTY_ARRAY = [];
 const EMPTY_OBJECT = {};
+const resetStudentContextValue = {
+  student_search: "",
+  grade_id: undefined,
+  class_id: undefined,
+  student_id: undefined,
+};
+
+const formatStudentSearchLabel = (item) => {
+  const fullName = item?.full_name || item?.student_name || "";
+  const nis = item?.nis ? ` - ${item.nis}` : "";
+
+  return `${fullName}${nis}`.trim();
+};
 
 const Saving = () => {
   const { user } = useSelector((state) => state.auth);
@@ -36,7 +48,10 @@ const Saving = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const pendingSelectedStudentSearchRef = useRef(null);
+  const currentStudentSearch = Form.useWatch("student_search", form) || "";
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetSavingOptionsQuery({
@@ -58,6 +73,20 @@ const Saving = () => {
     data: studentsResponse,
     isFetching: isFetchingStudents,
   } = useGetSavingStudentsQuery(baseListParams);
+  const hasModalStudentKeyword = Boolean(
+    String(debouncedStudentSearch || "").trim(),
+  );
+  const modalStudentParams =
+    modalOpen && hasModalStudentKeyword
+      ? {
+          class_id: effectiveClassId,
+          search: debouncedStudentSearch,
+        }
+      : skipToken;
+  const {
+    data: modalStudentsResponse,
+    isFetching: isFetchingModalStudents,
+  } = useGetSavingStudentsQuery(modalStudentParams);
   const {
     data: transactionsResponse,
     isFetching: isFetchingTransactions,
@@ -81,6 +110,7 @@ const Saving = () => {
   const selectableStudents = options.students ?? EMPTY_ARRAY;
   const activePeriode = options.active_periode || null;
   const students = studentsResponse?.data ?? EMPTY_ARRAY;
+  const modalStudents = modalStudentsResponse?.data ?? EMPTY_ARRAY;
   const studentSummary = studentsResponse?.summary ?? EMPTY_OBJECT;
   const transactions = transactionsResponse?.data ?? EMPTY_ARRAY;
   const transactionSummary = transactionsResponse?.summary ?? EMPTY_OBJECT;
@@ -102,6 +132,15 @@ const Saving = () => {
       })),
     [selectableStudents],
   );
+  const modalStudentOptions = useMemo(() => {
+    const keyword = String(currentStudentSearch || "").trim();
+
+    if (!keyword) {
+      return [];
+    }
+
+    return modalStudents;
+  }, [currentStudentSearch, modalStudents]);
 
   useEffect(() => {
     if (
@@ -115,6 +154,16 @@ const Saving = () => {
     }
   }, [access?.homeroom_class?.id, filters.class_id]);
 
+  useEffect(() => {
+    const trimmedKeyword = String(currentStudentSearch || "").trim();
+
+    const timer = setTimeout(() => {
+      setDebouncedStudentSearch(trimmedKeyword);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [currentStudentSearch]);
+
   const openCreateModal = useCallback(
     (student = null, type = "deposit") => {
       setEditingTransaction(null);
@@ -124,9 +173,14 @@ const Saving = () => {
           class_id: student?.class_id,
           student_id: student?.student_id || student?.id,
           transaction_type: type,
-          transaction_date: dayjs(),
+          grade_id: student?.grade_id,
+          student_search: student ? formatStudentSearchLabel(student) : "",
         }),
       );
+      pendingSelectedStudentSearchRef.current = student
+        ? formatStudentSearchLabel(student)
+        : null;
+      setDebouncedStudentSearch("");
       setModalOpen(true);
     },
     [form],
@@ -145,8 +199,16 @@ const Saving = () => {
         mapSavingFormValues({
           ...record,
           class_id: recordStudent?.class_id,
+          grade_id: recordStudent?.grade_id,
+          student_search: recordStudent
+            ? formatStudentSearchLabel(recordStudent)
+            : "",
         }),
       );
+      pendingSelectedStudentSearchRef.current = recordStudent
+        ? formatStudentSearchLabel(recordStudent)
+        : null;
+      setDebouncedStudentSearch("");
       setModalOpen(true);
     },
     [form, selectableStudents, students],
@@ -156,6 +218,8 @@ const Saving = () => {
     setModalOpen(false);
     setEditingTransaction(null);
     setSelectedStudent(null);
+    pendingSelectedStudentSearchRef.current = null;
+    setDebouncedStudentSearch("");
     form.resetFields();
   }, [form]);
 
@@ -176,8 +240,6 @@ const Saving = () => {
       student_id: values.student_id,
       transaction_type: values.transaction_type,
       amount: Number(values.amount || 0),
-      transaction_date: dayjs(values.transaction_date).format("YYYY-MM-DD"),
-      description: values.description,
     };
 
     try {
@@ -218,6 +280,23 @@ const Saving = () => {
       setDeletingId(null);
     }
   }, [deleteSavingTransaction]);
+
+  const resolvedSelectedStudent = useMemo(() => {
+    if (selectedStudent) {
+      return selectedStudent;
+    }
+
+    if (editingTransaction) {
+      return {
+        student_id: editingTransaction.student_id,
+        student_name: editingTransaction.student_name,
+        nis: editingTransaction.nis,
+        class_name: editingTransaction.class_name,
+      };
+    }
+
+    return null;
+  }, [editingTransaction, selectedStudent]);
 
   const isBootstrapping = isLoadingOptions;
 
@@ -266,12 +345,42 @@ const Saving = () => {
       <SavingTransactionModal
         open={modalOpen}
         form={form}
-        access={access}
-        classOptions={classOptions}
+        access={{
+          ...access,
+          active_periode_name: activePeriode?.name,
+        }}
+        homebaseName={user?.homebase_name || user?.homebase_id}
         editingTransaction={editingTransaction}
-        students={selectableStudents}
-        studentOptions={studentOptions}
-        selectedStudent={selectedStudent}
+        students={modalStudentOptions}
+        selectedStudent={resolvedSelectedStudent}
+        isStudentOptionsLoading={isFetchingModalStudents}
+        currentStudentSearch={currentStudentSearch}
+        onStudentSelect={(item) => {
+          pendingSelectedStudentSearchRef.current = item
+            ? formatStudentSearchLabel(item)
+            : null;
+          setSelectedStudent(item);
+        }}
+        onStudentSearchChange={(value) => {
+          const keyword = String(value || "");
+          const activeStudentId = form.getFieldValue("student_id");
+
+          form.setFieldValue("student_search", keyword);
+
+          if (pendingSelectedStudentSearchRef.current !== null) {
+            const pendingKeyword = pendingSelectedStudentSearchRef.current;
+            pendingSelectedStudentSearchRef.current = null;
+
+            if (keyword === pendingKeyword || keyword === "") {
+              return;
+            }
+          }
+
+          if (activeStudentId) {
+            setSelectedStudent(null);
+            form.setFieldsValue(resetStudentContextValue);
+          }
+        }}
         onCancel={handleCloseModal}
         onSubmit={handleSubmit}
         confirmLoading={isAddingTransaction || isUpdatingTransaction}
