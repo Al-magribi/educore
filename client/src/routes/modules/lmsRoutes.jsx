@@ -11,12 +11,13 @@ const TeacherSchedule = lazy(
   () => import("../../module/lms/schedule/teacher/TeacherSchedule"),
 );
 const Duty = lazy(() => import("../../module/lms/duty/Duty"));
+const SubjectList = lazy(() => import("../../module/lms/student/SubjectList"));
 
 const renderLmsRoutes = ({ LazyRoute }) => (
   <Route
     element={
       <RouteProtection
-        allowedRoles={["admin", "teacher", "student"]}
+        allowedRoles={["admin", "teacher"]}
         allowedLevels={["satuan"]}
       />
     }
@@ -55,4 +56,16 @@ const renderLmsRoutes = ({ LazyRoute }) => (
   </Route>
 );
 
-export default renderLmsRoutes;
+const renderStudentLmsRoutes = ({ LazyRoute }) => (
+  <Route element={<RouteProtection allowedRoles={["student"]} />}>
+    <Route
+      path='/mata-pelajaran'
+      element={createElement(LazyRoute, {
+        title: "Mata Pelajaran",
+        Component: SubjectList,
+      })}
+    />
+  </Route>
+);
+
+export { renderLmsRoutes, renderStudentLmsRoutes };

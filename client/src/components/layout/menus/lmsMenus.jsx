@@ -52,6 +52,7 @@ const TeacherLmsMenu = ({ includeDuty = false } = {}) => ({
 const StudentLmsMenu = () => ({
   label: "Mata Pelajaran",
   key: "/mata-pelajaran",
+  icon: <BookOpenText size={14} />,
 });
 
 const buildLmsMenus = () => ({
