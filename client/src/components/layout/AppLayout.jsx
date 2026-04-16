@@ -47,8 +47,10 @@ const ROUTE_PRELOADERS = {
   "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
   "/admin-data-akademik": () =>
     import("../../module/admin/academic/AdminAcademinc"),
-  "/finance-dashboard": () => import("../../module/finance/dashboard/FinanceDash"),
-  "/computer-based-test/bank": () => import("../../module/cbt/bank/view/BankList"),
+  "/finance-dashboard": () =>
+    import("../../module/finance/dashboard/FinanceDash"),
+  "/computer-based-test/bank": () =>
+    import("../../module/cbt/bank/view/BankList"),
   "/computer-based-test/jadwal-ujian": () =>
     import("../../module/cbt/exam/view/ExamList"),
   "/siswa-dashboard": () => import("../../module/student/dashboard/StudentDash"),
