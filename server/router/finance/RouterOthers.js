@@ -567,6 +567,7 @@ router.get(
           SELECT
             e.student_id,
             e.periode_id,
+            p.name AS periode_name,
             u.full_name AS student_name,
             s.nis,
             c.id AS class_id,
@@ -576,6 +577,7 @@ router.get(
           FROM u_class_enrollments e
           JOIN u_students s ON s.user_id = e.student_id
           JOIN u_users u ON u.id = s.user_id
+          JOIN a_periode p ON p.id = e.periode_id
           JOIN a_class c ON c.id = e.class_id
           JOIN a_grade g ON g.id = c.grade_id
           ${scope.whereClause}
@@ -614,6 +616,7 @@ router.get(
           item.charge_id,
           $1::int AS homebase_id,
           es.periode_id,
+          es.periode_name,
           ts.type_id,
           es.student_id,
           COALESCE(item.amount_due, ts.amount) AS amount_due,

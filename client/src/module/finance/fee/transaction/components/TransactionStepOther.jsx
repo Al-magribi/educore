@@ -43,10 +43,24 @@ const TransactionStepOther = ({
       {otherCharges.map((charge) => {
         const selectionKey = getOtherPaymentSelectionKey(charge);
         const selection = selections?.[selectionKey];
+        const amountDue = Number(charge.amount_due || 0);
+        const selectedAmount = Number(selection?.amount_paid || 0);
+        const paidAmount = Math.max(Number(charge.paid_amount || 0), 0);
+        const displayPaidAmount = Math.min(amountDue, paidAmount + selectedAmount);
+        const displayRemainingAmount = Math.max(
+          amountDue - displayPaidAmount,
+          0,
+        );
         const editableMaxAmount = Math.max(
           Number(charge.remaining_amount || 0),
-          Number(selection?.amount_paid || 0),
+          selectedAmount,
         );
+        const status =
+          displayRemainingAmount <= 0
+            ? "paid"
+            : displayPaidAmount > 0
+              ? "partial"
+              : charge.status;
 
         return (
           <Card
@@ -69,10 +83,10 @@ const TransactionStepOther = ({
                       : "Tarif aktif sesuai tingkat siswa"}
                   </Text>
                 </Space>
-                <Tag color={getChargeStatusColor(charge.status)}>
-                  {charge.status === "partial"
+                <Tag color={getChargeStatusColor(status)}>
+                  {status === "partial"
                     ? "Cicilan"
-                    : charge.status === "paid"
+                    : status === "paid"
                       ? "Lunas"
                       : "Belum Bayar"}
                 </Tag>
@@ -87,16 +101,18 @@ const TransactionStepOther = ({
               >
                 <Space direction='vertical' size={1}>
                   <Text type='secondary'>Tagihan</Text>
-                  <Text strong>{currencyFormatter.format(charge.amount_due)}</Text>
+                  <Text strong>{currencyFormatter.format(amountDue)}</Text>
                 </Space>
                 <Space direction='vertical' size={1}>
                   <Text type='secondary'>Terbayar</Text>
-                  <Text strong>{currencyFormatter.format(charge.paid_amount)}</Text>
+                  <Text strong>
+                    {currencyFormatter.format(displayPaidAmount)}
+                  </Text>
                 </Space>
                 <Space direction='vertical' size={1}>
                   <Text type='secondary'>Sisa</Text>
                   <Text strong>
-                    {currencyFormatter.format(charge.remaining_amount)}
+                    {currencyFormatter.format(displayRemainingAmount)}
                   </Text>
                 </Space>
               </div>

@@ -1,4 +1,5 @@
-import { Card, Col, Input, Row, Select, Tag, Typography } from "antd";
+import { Button, Card, Col, Flex, Input, Row, Select, Tag, Typography } from "antd";
+import { FilterOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 
 import { cardStyle } from "../constants";
 
@@ -27,14 +28,57 @@ const OthersFilters = ({
   periodes,
   grades,
   classes,
+  students,
   types,
-}) => (
-  <Card style={cardStyle}>
-    <Row gutter={[12, 12]}>
+}) => {
+  const fieldStyle = { width: "100%", marginTop: 8 };
+
+  return (
+    <Card
+      style={cardStyle}
+      styles={{
+        body: {
+          padding: 20,
+        },
+      }}
+    >
+      <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
+        <Flex align='center' gap={10}>
+          <FilterOutlined style={{ color: "#2563eb" }} />
+          <div>
+            <Text strong style={{ color: "#0f172a", display: "block" }}>
+              Filter Pembayaran Lainnya
+            </Text>
+            <Text type='secondary' style={{ fontSize: 13 }}>
+              Saring data tagihan berdasarkan satuan, periode, siswa, jenis biaya, dan status.
+            </Text>
+          </div>
+        </Flex>
+
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() =>
+            setFilters((previous) => ({
+              ...previous,
+              grade_id: undefined,
+              class_id: undefined,
+              student_id: undefined,
+              student_search: "",
+              type_id: undefined,
+              status: undefined,
+            }))
+          }
+        >
+          Reset Filter
+        </Button>
+      </Flex>
+
+      <Row gutter={[16, 16]} style={{ marginTop: 18 }}>
       {homebases.length > 1 ? (
         <Col xs={24} md={12} xl={6}>
           <Text type='secondary'>Satuan</Text>
           <Select
+            size='large'
             value={filters.homebase_id}
             onChange={(value) =>
               setFilters((previous) => ({
@@ -54,7 +98,7 @@ const OthersFilters = ({
               label: item.name,
             }))}
             placeholder='Pilih satuan'
-            style={{ width: "100%", marginTop: 8 }}
+            style={fieldStyle}
             showSearch
             optionFilterProp='label'
             virtual={false}
@@ -64,6 +108,7 @@ const OthersFilters = ({
       <Col xs={24} md={12} xl={6}>
         <Text type='secondary'>Periode</Text>
         <Select
+          size='large'
           value={filters.periode_id}
           onChange={(value) =>
             setFilters((previous) => ({
@@ -81,7 +126,7 @@ const OthersFilters = ({
             is_active: item.is_active,
           }))}
           placeholder='Pilih periode'
-          style={{ width: "100%", marginTop: 8 }}
+          style={fieldStyle}
           optionRender={renderPeriodeOption}
           showSearch
           optionFilterProp='label'
@@ -91,6 +136,7 @@ const OthersFilters = ({
       <Col xs={24} md={12} xl={6}>
         <Text type='secondary'>Tingkat</Text>
         <Select
+          size='large'
           value={filters.grade_id}
           onChange={(value) =>
             setFilters((previous) => ({
@@ -106,7 +152,7 @@ const OthersFilters = ({
             label: item.name,
           }))}
           placeholder='Semua tingkat'
-          style={{ width: "100%", marginTop: 8 }}
+          style={fieldStyle}
           allowClear
           showSearch
           optionFilterProp='label'
@@ -116,6 +162,7 @@ const OthersFilters = ({
       <Col xs={24} md={12} xl={6}>
         <Text type='secondary'>Kelas</Text>
         <Select
+          size='large'
           value={filters.class_id}
           onChange={(value) =>
             setFilters((previous) => ({
@@ -130,8 +177,9 @@ const OthersFilters = ({
             label: `${item.name} (${item.grade_name})`,
           }))}
           placeholder='Semua kelas'
-          style={{ width: "100%", marginTop: 8 }}
+          style={fieldStyle}
           allowClear
+          disabled={classes.length === 0}
           showSearch
           optionFilterProp='label'
           virtual={false}
@@ -140,6 +188,7 @@ const OthersFilters = ({
       <Col xs={24} md={12} xl={6}>
         <Text type='secondary'>Jenis Biaya</Text>
         <Select
+          size='large'
           value={filters.type_id}
           onChange={(value) =>
             setFilters((previous) => ({
@@ -152,59 +201,88 @@ const OthersFilters = ({
             label: item.name,
           }))}
           placeholder='Semua jenis biaya'
-          style={{ width: "100%", marginTop: 8 }}
+          style={fieldStyle}
           allowClear
           showSearch
           optionFilterProp='label'
           virtual={false}
         />
       </Col>
-      <Col xs={24} md={12}>
+      <Col xs={24} md={12} xl={6}>
         <Text type='secondary'>Siswa</Text>
-        <Input.Search
-          value={filters.student_search}
-          onChange={(event) =>
-            setFilters((previous) => ({
-              ...previous,
-              student_id: undefined,
-              student_search: event.target.value,
-            }))
-          }
-          onSearch={(value) =>
-            setFilters((previous) => ({
-              ...previous,
-              student_id: undefined,
-              student_search: value,
-            }))
-          }
-          placeholder='Cari berdasarkan nama atau NIS'
-          style={{ width: "100%", marginTop: 8 }}
-          allowClear
-        />
-      </Col>
-      <Col xs={24} md={12}>
-        <Text type='secondary'>Status</Text>
         <Select
-          value={filters.status}
+          size='large'
+          value={filters.student_id}
           onChange={(value) =>
             setFilters((previous) => ({
               ...previous,
-              status: value,
+              student_id: value,
+              student_search: "",
             }))
           }
-          options={[
-            { value: "unpaid", label: "Belum Bayar" },
-            { value: "partial", label: "Cicilan" },
-            { value: "paid", label: "Lunas" },
-          ]}
-          placeholder='Semua status'
-          style={{ width: "100%", marginTop: 8 }}
+          options={students.map((item) => ({
+            value: item.id,
+            label: `${item.full_name} (${item.nis || "-"}) - ${item.class_name || "-"}`,
+          }))}
+          placeholder='Semua siswa'
+          style={fieldStyle}
           allowClear
+          disabled={students.length === 0}
+          showSearch
+          optionFilterProp='label'
           virtual={false}
         />
       </Col>
-    </Row>
-  </Card>
-);
+        <Col xs={24} md={12} xl={6}>
+          <Text type='secondary'>Pencarian Cepat</Text>
+          <Input.Search
+            size='large'
+            value={filters.student_search}
+            onChange={(event) =>
+              setFilters((previous) => ({
+                ...previous,
+                student_id: undefined,
+                student_search: event.target.value,
+              }))
+            }
+            onSearch={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                student_id: undefined,
+                student_search: value,
+              }))
+            }
+            placeholder='Cari berdasarkan nama atau NIS'
+            style={fieldStyle}
+            allowClear
+            prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
+          />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <Text type='secondary'>Status</Text>
+          <Select
+            size='large'
+            value={filters.status}
+            onChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                status: value,
+              }))
+            }
+            options={[
+              { value: "unpaid", label: "Belum Bayar" },
+              { value: "partial", label: "Cicilan" },
+              { value: "paid", label: "Lunas" },
+            ]}
+            placeholder='Semua status'
+            style={fieldStyle}
+            allowClear
+            virtual={false}
+          />
+        </Col>
+      </Row>
+    </Card>
+  );
+};
 
 export default OthersFilters;

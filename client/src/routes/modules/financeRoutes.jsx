@@ -7,27 +7,30 @@ const FinanceDash = lazy(
   () => import("../../module/finance/dashboard/FinanceDash"),
 );
 const Monthly = lazy(() => import("../../module/finance/fee/monthly/Monthly"));
-const MonthlyReport = lazy(
-  () => import("../../module/finance/fee/monthly/Report"),
-);
 const Others = lazy(() => import("../../module/finance/fee/others/Others"));
 const Transaction = lazy(
   () => import("../../module/finance/fee/transaction/Transaction"),
 );
-const CashReport = lazy(
-  () => import("../../module/finance/report/CashReport"),
-);
 const SavingReport = lazy(
   () => import("../../module/finance/report/SavingReport"),
 );
-const Saving = lazy(() => import("../../module/finance/teacher/saving/Saving"));
-const Contribution = lazy(
+const CashReport = lazy(() => import("../../module/finance/report/CashReport"));
+const Setting = lazy(() => import("../../module/finance/setting/Setting"));
+const TeacherContribution = lazy(
   () => import("../../module/finance/teacher/contribution/Contribution"),
+);
+const TeacherSaving = lazy(
+  () => import("../../module/finance/teacher/saving/Saving"),
 );
 const StudentContribution = lazy(
   () => import("../../module/finance/student/contribution/StudentContribution"),
 );
-const Setting = lazy(() => import("../../module/finance/setting/Setting"));
+const ParentPayment = lazy(
+  () => import("../../module/finance/fee/transaction/Transaction"),
+);
+const ParentSavingReport = lazy(
+  () => import("../../module/finance/report/SavingReport"),
+);
 
 const renderFinanceRoutes = ({ LazyPage }) => {
   const Page = LazyPage;
@@ -49,12 +52,6 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         <Route
           path="/finance/pembayaran-spp"
           element={<Page title="Pembayaran SPP" Component={Monthly} />}
-        />
-        <Route
-          path="/finance/pembayaran-spp/laporan"
-          element={
-            <Page title="Laporan Pembayaran SPP" Component={MonthlyReport} />
-          }
         />
         <Route
           path="/finance/pembayaran-lainnya"
@@ -81,11 +78,13 @@ const renderFinanceRoutes = ({ LazyPage }) => {
       <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
         <Route
           path="/guru/keuangan-kelas"
-          element={<Page title="Kas Kelas" Component={Contribution} />}
+          element={
+            <Page title="Keuangan Kelas" Component={TeacherContribution} />
+          }
         />
         <Route
           path="/guru/tabungan"
-          element={<Page title="Tabungan Siswa" Component={Saving} />}
+          element={<Page title="Tabungan Kelas" Component={TeacherSaving} />}
         />
       </Route>
 
@@ -94,6 +93,22 @@ const renderFinanceRoutes = ({ LazyPage }) => {
           path="/siswa/laporan-uang-kas"
           element={
             <Page title="Laporan Uang Kas" Component={StudentContribution} />
+          }
+        />
+      </Route>
+
+      <Route element={<RouteProtection allowedRoles={["parent"]} />}>
+        <Route
+          path="/orangtua/pembayaran"
+          element={<Page title="Pembayaran" Component={ParentPayment} />}
+        />
+        <Route
+          path="/orangtua/laporan-tabungan"
+          element={
+            <Page
+              title="Laporan Tabungan"
+              Component={ParentSavingReport}
+            />
           }
         />
       </Route>

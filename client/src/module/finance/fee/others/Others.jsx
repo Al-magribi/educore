@@ -88,11 +88,10 @@ const Others = () => {
   const periodes = options.periodes || [];
   const grades = options.grades || [];
   const classes = scopedOptions.classes || [];
+  const students = scopedOptions.students || [];
   const types = typeResponse?.data || [];
   const charges = chargeResponse?.data || [];
   const summary = chargeResponse?.summary || {};
-  const paidCharges = charges.filter((item) => item.status === "paid");
-  const unpaidCharges = charges.filter((item) => item.status !== "paid");
 
   useEffect(() => {
     if (!filters.homebase_id && options.selected_homebase_id) {
@@ -127,6 +126,18 @@ const Others = () => {
       }));
     }
   }, [classes, filters.class_id]);
+
+  useEffect(() => {
+    if (
+      filters.student_id &&
+      !students.some((item) => Number(item.id) === Number(filters.student_id))
+    ) {
+      setFilters((previous) => ({
+        ...previous,
+        student_id: undefined,
+      }));
+    }
+  }, [filters.student_id, students]);
 
   useEffect(() => {
     if (typeModalOpen && homebases.length === 1 && !typeForm.getFieldValue("homebase_id")) {
@@ -261,6 +272,7 @@ const Others = () => {
             periodes={periodes}
             grades={grades}
             classes={classes}
+            students={students}
             types={types}
           />
         </div>
@@ -284,33 +296,31 @@ const Others = () => {
                   ),
                 },
                 {
-                  key: "paid",
-                  label: `Lunas (${paidCharges.length})`,
-                  children: (
-                    <OthersChargesTable
-                      charges={paidCharges}
-                      loading={isFetchingCharges}
-                      onDeleteCharge={handleDeleteCharge}
-                      isDeletingCharge={isDeletingCharge}
-                    />
-                  ),
-                },
-                {
-                  key: "unpaid",
-                  label: `Belum Lunas (${unpaidCharges.length})`,
-                  children: (
-                    <OthersChargesTable
-                      charges={unpaidCharges}
-                      loading={isFetchingCharges}
-                      onDeleteCharge={handleDeleteCharge}
-                      isDeletingCharge={isDeletingCharge}
-                    />
-                  ),
-                },
-                {
                   key: "report",
                   label: "Laporan Pembayaran",
-                  children: <OthersReportPanel charges={charges} />,
+                  children: (
+                    <Tabs
+                      items={[
+                        {
+                          key: "summary",
+                          label: "Rangkuman",
+                          children: <OthersReportPanel charges={charges} />,
+                        },
+                        {
+                          key: "payments",
+                          label: `Daftar Pembayaran (${charges.length})`,
+                          children: (
+                            <OthersChargesTable
+                              charges={charges}
+                              loading={isFetchingCharges}
+                              onDeleteCharge={handleDeleteCharge}
+                              isDeletingCharge={isDeletingCharge}
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                  ),
                 },
               ]}
             />

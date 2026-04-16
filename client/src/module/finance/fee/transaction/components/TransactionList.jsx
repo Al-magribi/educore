@@ -131,7 +131,7 @@ const TransactionList = ({
     {
       title: "Nominal",
       key: "amount",
-      width: 180,
+      width: 220,
       render: (_, record) => (
         <Space vertical size={1}>
           <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
@@ -175,6 +175,7 @@ const TransactionList = ({
 
         return (
           <Dropdown.Button
+            type='primary'
             menu={{
               items,
               onClick: handleMenuClick,
@@ -229,7 +230,7 @@ const TransactionList = ({
           }}
         >
           <Card
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: 18,
               background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
@@ -243,7 +244,7 @@ const TransactionList = ({
             />
           </Card>
           <Card
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: 18,
               background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)",
@@ -260,7 +261,7 @@ const TransactionList = ({
             />
           </Card>
           <Card
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: 18,
               background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
@@ -270,7 +271,7 @@ const TransactionList = ({
             <Statistic title='Transaksi SPP' value={sppCount} />
           </Card>
           <Card
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: 18,
               background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
@@ -386,7 +387,6 @@ const TransactionList = ({
                 limit: nextPageSize,
               })),
           }}
-          scroll={{ x: 1100 }}
           locale={{
             emptyText: "Belum ada transaksi pada filter saat ini.",
           }}
