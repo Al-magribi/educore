@@ -89,11 +89,6 @@ const buildFinanceMenus = (user = {}) => {
         key: "/orangtua/laporan-tabungan",
         icon: <BookOutlined />,
       },
-      {
-        label: "Laporan Uang Kas",
-        key: "/orangtua/laporan-uang-kas",
-        icon: <ReadOutlined />,
-      },
     ],
   };
 

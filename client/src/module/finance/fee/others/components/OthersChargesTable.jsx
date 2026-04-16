@@ -12,7 +12,17 @@ import OthersInstallmentHistory from "./OthersInstallmentHistory";
 const { Text } = Typography;
 
 const normalizeSortValue = (value = "") =>
-  String(value || "").trim().toLowerCase();
+  String(value || "")
+    .trim()
+    .toLowerCase();
+
+const getPeriodeName = (record = {}) =>
+  record.periode_name ||
+  record.periode?.periode_name ||
+  record.periode?.name ||
+  record.academic_year ||
+  record.school_year ||
+  "-";
 
 const OthersChargesTable = ({
   charges,
@@ -41,11 +51,12 @@ const OthersChargesTable = ({
       return classComparison;
     }
 
-    const studentComparison = normalizeSortValue(left.student_name).localeCompare(
-      normalizeSortValue(right.student_name),
-      "id",
-      { numeric: true, sensitivity: "base" },
-    );
+    const studentComparison = normalizeSortValue(
+      left.student_name,
+    ).localeCompare(normalizeSortValue(right.student_name), "id", {
+      numeric: true,
+      sensitivity: "base",
+    });
 
     if (studentComparison !== 0) {
       return studentComparison;
@@ -86,13 +97,13 @@ const OthersChargesTable = ({
       key: "student_name",
       width: 220,
       render: (_, record) => (
-        <Space direction='vertical' size={0}>
+        <Space vertical size={0}>
           <Text strong>{record.student_name}</Text>
           <Text
             type='secondary'
             style={{ whiteSpace: "normal", wordBreak: "break-word" }}
           >
-            {`${record.nis || "-"} | ${record.class_name || "-"} | ${record.periode_name || "-"}`}
+            {`${record.nis || "-"} | ${record.grade_name || "-"} | ${record.class_name || "-"} | ${getPeriodeName(record) || "-"}`}
           </Text>
         </Space>
       ),
@@ -102,7 +113,7 @@ const OthersChargesTable = ({
       key: "type_name",
       width: 220,
       render: (_, record) => (
-        <Space direction='vertical' size={0}>
+        <Space vertical size={0}>
           <Text strong>{record.type_name || "-"}</Text>
           <Text type='secondary'>
             {currencyFormatter.format(Number(record.amount_due || 0))}
@@ -111,34 +122,39 @@ const OthersChargesTable = ({
       ),
     },
     {
-      title: "Dibayar",
-      dataIndex: "paid_amount",
-      key: "paid_amount",
-      width: 140,
-      render: (value) => currencyFormatter.format(Number(value || 0)),
-    },
-    {
-      title: "Sisa",
-      dataIndex: "remaining_amount",
-      key: "remaining_amount",
-      width: 140,
-      render: (value) => currencyFormatter.format(Number(value || 0)),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 120,
-      render: (value) => (
-        <Tag color={chargeStatusColorMap[value]}>{chargeStatusLabelMap[value]}</Tag>
+      title: "Pembayaran",
+      key: "payment_summary",
+      width: 200,
+      render: (_, record) => (
+        <Space vertical size={0}>
+          <Text strong>
+            {currencyFormatter.format(Number(record.paid_amount || 0))}
+          </Text>
+          <Text type='secondary'>
+            Sisa{" "}
+            {currencyFormatter.format(Number(record.remaining_amount || 0))}
+          </Text>
+        </Space>
       ),
     },
     {
-      title: "Cicilan",
-      dataIndex: "installment_count",
-      key: "installment_count",
+      title: "Ket",
+      key: "status_summary",
       width: 120,
-      render: (value) => (Number(value || 0) > 0 ? `Ke-${value}` : "-"),
+      render: (_, record) => {
+        const installmentCount = Number(record.installment_count || 0);
+
+        return (
+          <Space vertical size={4}>
+            <Tag color={chargeStatusColorMap[record.status]}>
+              {chargeStatusLabelMap[record.status]}
+            </Tag>
+            <Text type='secondary'>
+              {installmentCount > 0 ? `Cicilan Ke-${installmentCount}` : "-"}
+            </Text>
+          </Space>
+        );
+      },
     },
     {
       title: "Aksi",
@@ -201,12 +217,14 @@ const OthersChargesTable = ({
       loading={loading}
       title={() => (
         <Space style={{ width: "100%", justifyContent: "space-between" }} wrap>
-          <Text strong>Data pembayaran lain terurut berdasarkan tingkat, kelas, nama, dan jenis biaya.</Text>
+          <Text strong>
+            Data pembayaran lain terurut berdasarkan tingkat, kelas, nama, dan
+            jenis biaya.
+          </Text>
           <Button onClick={handleExportExcel}>Download Excel</Button>
         </Space>
       )}
       pagination={{ pageSize: 10 }}
-      scroll={{ x: 1280 }}
       expandable={{
         expandedRowRender: (record) => (
           <OthersInstallmentHistory charge={record} />

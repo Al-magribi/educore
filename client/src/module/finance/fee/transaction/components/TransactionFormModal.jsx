@@ -133,9 +133,9 @@ const TransactionFormModal = ({
     >
       <Spin spinning={loadingOpen}>
         <Form form={form} layout='vertical' preserve>
-          <Space direction='vertical' size={20} style={{ width: "100%" }}>
+          <Space vertical size={20} style={{ width: "100%" }}>
             <Card
-              bordered={false}
+              variant='borderless'
               style={{
                 borderRadius: 20,
                 background:
@@ -143,7 +143,7 @@ const TransactionFormModal = ({
               }}
             >
               <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-                <Space direction='vertical' size={2}>
+                <Space vertical size={2}>
                   <Text strong style={{ fontSize: 18, color: "#0f172a" }}>
                     {modalTitle}
                   </Text>
@@ -176,7 +176,7 @@ const TransactionFormModal = ({
 
             {currentStep > 0 && student ? (
               <Card
-                bordered={false}
+                variant='borderless'
                 style={{
                   borderRadius: 18,
                   background:
@@ -184,7 +184,12 @@ const TransactionFormModal = ({
                 }}
                 styles={{ body: { padding: 18 } }}
               >
-                <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
+                <Flex
+                  justify='space-between'
+                  align='center'
+                  wrap='wrap'
+                  gap={16}
+                >
                   <Space size={14} align='start'>
                     <Avatar
                       size={48}
@@ -194,7 +199,7 @@ const TransactionFormModal = ({
                         .slice(0, 1)
                         .toUpperCase()}
                     </Avatar>
-                    <Space direction='vertical' size={2}>
+                    <Space vertical size={2}>
                       <Text strong style={{ color: "#ffffff", fontSize: 16 }}>
                         {student.student_name || student.full_name}
                       </Text>
