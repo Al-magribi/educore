@@ -14,18 +14,20 @@ const Others = lazy(() => import("../../module/finance/fee/others/Others"));
 const Transaction = lazy(
   () => import("../../module/finance/fee/transaction/Transaction"),
 );
-const CashReport = lazy(() => import("../../module/finance/report/CashReport"));
 const Saving = lazy(() => import("../../module/finance/teacher/saving/Saving"));
 const Contribution = lazy(
   () => import("../../module/finance/teacher/contribution/Contribution"),
+);
+const StudentSaving = lazy(
+  () => import("../../module/finance/student/saving/StudentSaving"),
 );
 const StudentContribution = lazy(
   () => import("../../module/finance/student/contribution/StudentContribution"),
 );
 const Setting = lazy(() => import("../../module/finance/setting/Setting"));
 
-const renderFinanceRoutes = (props) => {
-  const LazyPageComponent = props.LazyPage;
+const renderFinanceRoutes = ({ LazyPage }) => {
+  const Page = LazyPage;
 
   return (
     <>
@@ -33,82 +35,63 @@ const renderFinanceRoutes = (props) => {
         element={
           <RouteProtection
             allowedRoles={["admin"]}
-            allowedLevels={["keuangan"]}
+            allowedLevels={["finance", "keuangan"]}
           />
         }
       >
         <Route
-          path='/finance-dashboard'
+          path="/finance-dashboard"
+          element={<Page title="Dashboard Keuangan" Component={FinanceDash} />}
+        />
+        <Route
+          path="/finance/pembayaran-spp"
+          element={<Page title="Pembayaran SPP" Component={Monthly} />}
+        />
+        <Route
+          path="/finance/pembayaran-spp/laporan"
           element={
-            <LazyPageComponent
-              title='Dashboard Keuangan'
-              Component={FinanceDash}
-            />
+            <Page title="Laporan Pembayaran SPP" Component={MonthlyReport} />
           }
         />
         <Route
-          path='/finance/pembayaran-spp'
-          element={
-            <LazyPageComponent title='Pembayaran SPP' Component={Monthly} />
-          }
+          path="/finance/pembayaran-lainnya"
+          element={<Page title="Pembayaran Lainnya" Component={Others} />}
         />
         <Route
-          path='/finance/pembayaran-spp/laporan'
-          element={
-            <LazyPageComponent
-              title='Laporan Pembayaran SPP'
-              Component={MonthlyReport}
-            />
-          }
+          path="/finance/transaksi"
+          element={<Page title="Transaksi Keuangan" Component={Transaction} />}
         />
         <Route
-          path='/finance/pembayaran-lainnya'
-          element={
-            <LazyPageComponent title='Pembayaran Lainnya' Component={Others} />
-          }
+          path="/finance/laporan-tabungan"
+          element={<Page title="Tabungan Siswa" Component={Saving} />}
         />
         <Route
-          path='/finance/transaksi'
-          element={
-            <LazyPageComponent
-              title='Transaksi Keuangan'
-              Component={Transaction}
-            />
-          }
-        />
-        <Route
-          path='/finance/laporan-tabungan'
-          element={
-            <LazyPageComponent title='Tabungan Siswa' Component={Saving} />
-          }
-        />
-        <Route
-          path='/finance/pengaturan'
-          element={<LazyPageComponent title='Pengaturan' Component={Setting} />}
+          path="/finance/pengaturan"
+          element={<Page title="Pengaturan" Component={Setting} />}
         />
       </Route>
 
       <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
         <Route
-          path='/guru/keuangan-kelas'
-          element={
-            <LazyPageComponent title='Kas Kelas' Component={Contribution} />
-          }
+          path="/guru/keuangan-kelas"
+          element={<Page title="Kas Kelas" Component={Contribution} />}
         />
         <Route
-          path='/guru/tabungan'
-          element={
-            <LazyPageComponent title='Tabungan Siswa' Component={Saving} />
-          }
+          path="/guru/tabungan"
+          element={<Page title="Tabungan Siswa" Component={Saving} />}
         />
       </Route>
 
       <Route element={<RouteProtection allowedRoles={["student"]} />}>
         <Route
-          path='/siswa/laporan-uang-kas'
+          path="/siswa/laporan-tabungan"
+          element={<Page title="Tabungan Saya" Component={StudentSaving} />}
+        />
+        <Route
+          path="/siswa/laporan-uang-kas"
           element={
-            <LazyPageComponent
-              title='Laporan Uang Kas'
+            <Page
+              title="Laporan Uang Kas"
               Component={StudentContribution}
             />
           }

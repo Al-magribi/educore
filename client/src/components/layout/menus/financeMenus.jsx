@@ -1,8 +1,6 @@
 import {
-  AuditOutlined,
   BookOutlined,
   CreditCardOutlined,
-  FundOutlined,
   MoneyCollectOutlined,
   ReadOutlined,
   SettingFilled,
@@ -43,13 +41,13 @@ const buildFinanceMenus = (user = {}) => {
     label: "Keuangan Kelas",
     key: "/guru/keuangan-kelas",
     icon: <WalletOutlined />,
+    requiresHomeroom: true,
     children: [
       {
         label: "Kas Kelas",
         key: "/guru/keuangan-kelas",
         icon: <WalletOutlined />,
       },
-
       {
         label: "Tabungan",
         key: "/guru/tabungan",

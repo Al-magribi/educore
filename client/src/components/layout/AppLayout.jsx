@@ -16,7 +16,7 @@ import {
   theme,
   Typography,
   Grid,
-  Space, // Import Grid
+  Space,
 } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -28,14 +28,13 @@ import {
   CaretDownOutlined,
 } from "@ant-design/icons";
 
-// Import Menu Data (Sesuaikan path import Anda)
 import { getCombinedMenus } from "./menus/index.js";
 import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
 import LoadApp from "../loader/LoadApp";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
-const { useBreakpoint } = Grid; // Destructure hook
+const { useBreakpoint } = Grid;
 const LayoutShellContext = createContext(null);
 const routePreloaders = {
   "/profile": () => import("../profile/Profile"),
@@ -63,6 +62,7 @@ const routePreloaders = {
     import("../../module/finance/teacher/saving/Saving"),
   "/finance/laporan-kas-kelas": () =>
     import("../../module/finance/report/CashReport"),
+  "/finance/pengaturan": () => import("../../module/finance/setting/Setting"),
   "/guru/keuangan-kelas": () =>
     import("../../module/finance/teacher/contribution/Contribution"),
   "/guru/tabungan": () =>
@@ -85,20 +85,20 @@ const routePreloaders = {
     import("../../module/teacher/dashboard/TeacherDash"),
 };
 
+const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
+
 const AppLayout = ({ children, title, asShell = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const screens = useBreakpoint(); // Hook untuk deteksi ukuran layar (xs, sm, md, lg, xl, xxl)
+  const screens = useBreakpoint();
   const shellContext = useContext(LayoutShellContext);
 
   const { publicConfig } = useSelector((state) => state.app);
 
   const [doLogout] = useDoLogoutMutation();
 
-  // 1. Ambil Data User dari Redux
   const { user } = useSelector((state) => state.auth);
 
-  // State UI
   const [collapsed, setCollapsed] = useState(false);
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
@@ -118,13 +118,65 @@ const AppLayout = ({ children, title, asShell = false }) => {
       preloadedRoutes.current.delete(key);
     });
   }, []);
+  const filterMenuItemsByUser = (items, currentUser) => {
+    return items
+      .map((item) => {
+        if (item.requiresHomeroom && !currentUser?.is_homeroom) {
+          return null;
+        }
 
-  // Ant Design Token
+        if (
+          currentUser?.role === "teacher" &&
+          item.key === "/manajemen-piket" &&
+          !currentUser?.has_duty_today
+        ) {
+          return null;
+        }
+
+        if (Array.isArray(item.children)) {
+          const nextChildren = filterMenuItemsByUser(item.children, currentUser);
+          if (nextChildren.length === 0) {
+            return null;
+          }
+          return {
+            ...item,
+            children: nextChildren,
+          };
+        }
+
+        return item;
+      })
+      .filter(Boolean);
+  };
+
+  const enhanceMenuItems = (items) =>
+    items.map((item) => {
+      const nextItem = { ...item };
+      const key = item.key;
+
+      if (typeof item.label === "string") {
+        nextItem.label = (
+          <span
+            onMouseEnter={() => preloadRouteByKey(key)}
+            onFocus={() => preloadRouteByKey(key)}
+          >
+            {item.label}
+          </span>
+        );
+      }
+
+      if (Array.isArray(item.children)) {
+        nextItem.children = enhanceMenuItems(item.children);
+      }
+
+      return nextItem;
+    });
+
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  const menuItems = useMemo(() => {
+  const menuItems = (() => {
     const combinedMenus = getCombinedMenus(user);
     let items = [];
     switch (user?.role) {
@@ -145,7 +197,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
           items = combinedMenus.center;
         } else if (user.level === "tahfiz") {
           items = combinedMenus.tahfiz;
-        } else if (user.level === "keuangan") {
+        } else if (isFinanceLevel(user.level)) {
           items = combinedMenus.finance;
         } else {
           items = combinedMenus.admin;
@@ -154,31 +206,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
       default:
         items = [];
     }
-    const enhanceMenuItems = (sourceItems) =>
-      sourceItems.map((item) => {
-        const nextItem = { ...item };
-        const key = item.key;
-
-        if (typeof item.label === "string") {
-          nextItem.label = (
-            <span
-              onMouseEnter={() => preloadRouteByKey(key)}
-              onFocus={() => preloadRouteByKey(key)}
-            >
-              {item.label}
-            </span>
-          );
-        }
-
-        if (Array.isArray(item.children)) {
-          nextItem.children = enhanceMenuItems(item.children);
-        }
-
-        return nextItem;
-      });
-
-    return enhanceMenuItems(items);
-  }, [preloadRouteByKey, user]);
+    return enhanceMenuItems(filterMenuItemsByUser(items, user));
+  })();
 
   useEffect(() => {
     if (effectiveTitle) {

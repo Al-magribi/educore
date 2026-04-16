@@ -6,6 +6,7 @@ import { FEATURES, hasFeature } from "../config/productFeatures";
 
 const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
 const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
+const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
 
 const RouterPublic = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
@@ -38,7 +39,7 @@ const RouterPublic = () => {
               replace
             />
           );
-        } else if (user.level === "keuangan") {
+        } else if (isFinanceLevel(user.level)) {
           return (
             <Navigate
               to={isFinanceEnabled ? "/finance-dashboard" : "/admin-dashboard"}

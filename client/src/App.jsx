@@ -25,6 +25,7 @@ const isDbEnabled = hasFeature(FEATURES.DB);
 const isLmsEnabled = hasFeature(FEATURES.LMS);
 const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
 const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
+const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
 
 const NotFoundRedirect = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
@@ -55,7 +56,7 @@ const NotFoundRedirect = () => {
         }
         return <Navigate to='/tahfiz-dashboard' replace />;
       }
-      if (user.level === "keuangan") {
+      if (isFinanceLevel(user.level)) {
         if (!isFinanceEnabled) {
           return <Navigate to='/admin-dashboard' replace />;
         }
@@ -98,7 +99,7 @@ const App = () => {
           element={
             <RouteProtection
               allowedRoles={["admin", "teacher", "student", "parent"]}
-              allowedLevels={["pusat", "satuan", "tahfiz", "keuangan"]}
+              allowedLevels={["pusat", "satuan", "tahfiz", "finance", "keuangan"]}
             />
           }
         >
