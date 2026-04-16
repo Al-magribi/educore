@@ -14,6 +14,19 @@ const PRODUCT_PROFILES = {
   "educore-cbt-db": [FEATURES.CBT, FEATURES.DB],
   "educore-cbt-tahfiz": [FEATURES.CBT, FEATURES.TAHFIZ],
   "educore-cbt-finance": [FEATURES.CBT, FEATURES.FINANCE],
+  "educore-cbt-db-lms-finance": [
+    FEATURES.CBT,
+    FEATURES.DB,
+    FEATURES.LMS,
+    FEATURES.FINANCE,
+  ],
+  "educore-cbt-db-lms-finance-tahfiz": [
+    FEATURES.CBT,
+    FEATURES.DB,
+    FEATURES.LMS,
+    FEATURES.FINANCE,
+    FEATURES.TAHFIZ,
+  ],
   "educore-cbt-lms-raport-attendance": [
     FEATURES.CBT,
     FEATURES.LMS,
@@ -46,5 +59,13 @@ const profileFeatures =
 const enabledFeatures = new Set(profileFeatures);
 
 const hasFeature = (featureKey) => enabledFeatures.has(featureKey);
+const isProductProfile = (...profileNames) => profileNames.includes(PRODUCT_PROFILE);
 
-export { FEATURES, PRODUCT_PROFILE, PRODUCT_PROFILES, enabledFeatures, hasFeature };
+export {
+  FEATURES,
+  PRODUCT_PROFILE,
+  PRODUCT_PROFILES,
+  enabledFeatures,
+  hasFeature,
+  isProductProfile,
+};
