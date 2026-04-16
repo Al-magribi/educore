@@ -25,6 +25,7 @@ const isDbEnabled = hasFeature(FEATURES.DB);
 const isLmsEnabled = hasFeature(FEATURES.LMS);
 const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
 const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
+const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
 
 const NotFoundRedirect = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
@@ -55,7 +56,7 @@ const NotFoundRedirect = () => {
         }
         return <Navigate to='/tahfiz-dashboard' replace />;
       }
-      if (user.level === "finance") {
+      if (isFinanceLevel(user.level)) {
         if (!isFinanceEnabled) {
           return <Navigate to='/admin-dashboard' replace />;
         }
@@ -67,11 +68,15 @@ const NotFoundRedirect = () => {
   }
 };
 
-const LazyRoute = ({ Component }) => (
-  <Suspense fallback={<LoadApp />}>
-    <Component />
-  </Suspense>
-);
+const LazyRoute = ({ Component }) => {
+  const RouteComponent = Component;
+
+  return (
+    <Suspense fallback={<LoadApp />}>
+      <RouteComponent />
+    </Suspense>
+  );
+};
 
 const LazyPage = ({ title, Component }) => (
   <AppLayout title={title}>
@@ -92,7 +97,7 @@ const App = () => {
           element={
             <RouteProtection
               allowedRoles={["admin", "teacher", "student", "parent"]}
-              allowedLevels={["pusat", "satuan", "tahfiz"]}
+              allowedLevels={["pusat", "satuan", "tahfiz", "finance", "keuangan"]}
             />
           }
         >
