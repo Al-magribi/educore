@@ -51,13 +51,6 @@ const routePreloaders = {
     import("../../module/admin/academic/AdminAcademinc"),
   "/finance-dashboard": () =>
     import("../../module/finance/dashboard/FinanceDash"),
-  "/manajemen-mata-pelajaran": () =>
-    import("../../module/lms/manager/LmsManagement"),
-  "/manajemen-jadwal": () =>
-    import("../../module/lms/schedule/admin/Schedule"),
-  "/jadwal-guru": () =>
-    import("../../module/lms/schedule/teacher/TeacherSchedule"),
-  "/manajemen-piket": () => import("../../module/lms/duty/Duty"),
   "/computer-based-test/bank": () =>
     import("../../module/cbt/bank/view/BankList"),
   "/computer-based-test/jadwal-ujian": () =>
