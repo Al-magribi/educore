@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -15,7 +16,7 @@ import {
   theme,
   Typography,
   Grid,
-  Space, // Import Grid
+  Space,
 } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -27,40 +28,85 @@ import {
   CaretDownOutlined,
 } from "@ant-design/icons";
 
-// Import Menu Data (Sesuaikan path import Anda)
-import {
-  CenterMenus,
-  AdminMenus,
-  FinanceMenus,
-  TeacherMenus,
-  StudentMenus,
-  ParentMenus,
-  TahfizMenus,
-} from "./Menus";
+import { getCombinedMenus } from "./menus/index.js";
 import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
 import LoadApp from "../loader/LoadApp";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
-const { useBreakpoint } = Grid; // Destructure hook
+const { useBreakpoint } = Grid;
 const LayoutShellContext = createContext(null);
+
+const routePreloaders = {
+  "/profile": () => import("../profile/Profile"),
+  "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
+  "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
+  "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
+  "/center-teacher": () => import("../../module/center/teacher/CenterTeacher"),
+  "/center-market": () => import("../../module/center/market/CenterMarket"),
+  "/center-config": () => import("../../module/center/config/CenterConfig"),
+  "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
+  "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
+  "/admin-data-akademik": () =>
+    import("../../module/admin/academic/AdminAcademinc"),
+  "/admin-database": () =>
+    import("../../module/database/manager/DatabaseManager"),
+  "/finance-dashboard": () =>
+    import("../../module/finance/dashboard/FinanceDash"),
+  "/finance/pembayaran-spp": () =>
+    import("../../module/finance/fee/monthly/Monthly"),
+  "/finance/pembayaran-spp/laporan": () =>
+    import("../../module/finance/fee/monthly/Report"),
+  "/finance/pembayaran-lainnya": () =>
+    import("../../module/finance/fee/others/Others"),
+  "/finance/transaksi": () =>
+    import("../../module/finance/fee/transaction/Transaction"),
+  "/finance/laporan-tabungan": () =>
+    import("../../module/finance/teacher/saving/Saving"),
+  "/finance/pengaturan": () => import("../../module/finance/setting/Setting"),
+  "/guru/keuangan-kelas": () =>
+    import("../../module/finance/teacher/contribution/Contribution"),
+  "/guru/tabungan": () =>
+    import("../../module/finance/teacher/saving/Saving"),
+  "/siswa/laporan-tabungan": () =>
+    import("../../module/finance/student/saving/StudentSaving"),
+  "/siswa/laporan-uang-kas": () =>
+    import("../../module/finance/student/contribution/StudentContribution"),
+  "/computer-based-test/bank": () =>
+    import("../../module/cbt/bank/view/BankList"),
+  "/computer-based-test/jadwal-ujian": () =>
+    import("../../module/cbt/exam/view/ExamList"),
+  "/siswa-dashboard": () =>
+    import("../../module/student/dashboard/StudentDash"),
+  "/siswa/jadwal-ujian": () =>
+    import("../../module/cbt/student/view/StudentExamList"),
+  "/siswa-database": () =>
+    import("../../module/database/view/StudentDatabase"),
+  "/orangtua-database-siswa": () =>
+    import("../../module/database/view/ParentStudentDatabase"),
+  "/computer-based-test/start": () =>
+    import("../../module/cbt/student/view/ExamInterface"),
+  "/guru-dashboard": () =>
+    import("../../module/teacher/dashboard/TeacherDash"),
+  "/guru-database-kelas": () =>
+    import("../../module/database/manager/ClassDbManager"),
+};
+
+const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
 
 const AppLayout = ({ children, title, asShell = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const screens = useBreakpoint(); // Hook untuk deteksi ukuran layar (xs, sm, md, lg, xl, xxl)
+  const screens = useBreakpoint();
   const shellContext = useContext(LayoutShellContext);
 
   const { publicConfig } = useSelector((state) => state.app);
 
   const [doLogout] = useDoLogoutMutation();
 
-  // 1. Ambil Data User dari Redux
   const { user } = useSelector((state) => state.auth);
 
-  // State UI
   const [collapsed, setCollapsed] = useState(false);
-  const [menuItems, setMenuItems] = useState([]);
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
@@ -71,65 +117,44 @@ const AppLayout = ({ children, title, asShell = false }) => {
     path?.startsWith("/computer-based-test") ||
     path?.startsWith("/siswa/jadwal-ujian");
 
-  const routePreloaders = {
-    "/profile": () => import("../profile/Profile"),
-    "/center-dashboard": () =>
-      import("../../module/center/dashboard/CenterDash"),
-    "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
-    "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
-    "/center-teacher": () =>
-      import("../../module/center/teacher/CenterTeacher"),
-    "/center-market": () => import("../../module/center/market/CenterMarket"),
-    "/center-config": () => import("../../module/center/config/CenterConfig"),
-    "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
-    "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
-    "/admin-data-akademik": () =>
-      import("../../module/admin/academic/AdminAcademinc"),
-    "/finance-dashboard": () =>
-      import("../../module/finance/dashboard/FinanceDash"),
-    "/computer-based-test/bank": () =>
-      import("../../module/cbt/bank/view/BankList"),
-    "/computer-based-test/jadwal-ujian": () =>
-      import("../../module/cbt/exam/view/ExamList"),
-    "/siswa-dashboard": () =>
-      import("../../module/student/dashboard/StudentDash"),
-    "/siswa/jadwal-ujian": () =>
-      import("../../module/cbt/student/view/StudentExamList"),
-    "/siswa-database": () =>
-      import("../../module/database/view/StudentDatabase"),
-    "/orangtua-database-siswa": () =>
-      import("../../module/database/view/ParentStudentDatabase"),
-    "/computer-based-test/start": () =>
-      import("../../module/cbt/student/view/ExamInterface"),
-    "/guru-dashboard": () =>
-      import("../../module/teacher/dashboard/TeacherDash"),
-    "/guru-database-kelas": () =>
-      import("../../module/database/manager/ClassDbManager"),
-  };
-
-  const filterMenuByAccess = (items, currentUser) =>
-    items
-      .filter((item) => {
-        if (item.requiresHomeroom) {
-          return Boolean(currentUser?.is_homeroom);
-        }
-        return true;
-      })
-      .map((item) => {
-        if (!Array.isArray(item.children)) return item;
-        return {
-          ...item,
-          children: filterMenuByAccess(item.children, currentUser),
-        };
-      });
-
-  const preloadRouteByKey = (key) => {
+  const preloadRouteByKey = useCallback((key) => {
     const preloader = routePreloaders[key];
     if (!preloader || preloadedRoutes.current.has(key)) return;
     preloadedRoutes.current.add(key);
     preloader().catch(() => {
       preloadedRoutes.current.delete(key);
     });
+  }, []);
+
+  const filterMenuItemsByUser = (items, currentUser) => {
+    return items
+      .map((item) => {
+        if (item.requiresHomeroom && !currentUser?.is_homeroom) {
+          return null;
+        }
+
+        if (
+          currentUser?.role === "teacher" &&
+          item.key === "/manajemen-piket" &&
+          !currentUser?.has_duty_today
+        ) {
+          return null;
+        }
+
+        if (Array.isArray(item.children)) {
+          const nextChildren = filterMenuItemsByUser(item.children, currentUser);
+          if (nextChildren.length === 0) {
+            return null;
+          }
+          return {
+            ...item,
+            children: nextChildren,
+          };
+        }
+
+        return item;
+      })
+      .filter(Boolean);
   };
 
   const enhanceMenuItems = (items) =>
@@ -155,46 +180,42 @@ const AppLayout = ({ children, title, asShell = false }) => {
       return nextItem;
     });
 
-  // Ant Design Token
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  // 2. Tentukan Menu Berdasarkan Role & Level
-  useEffect(() => {
-    if (!user) return;
-
+  const menuItems = (() => {
+    const combinedMenus = getCombinedMenus(user);
     let items = [];
-    switch (user.role) {
+    switch (user?.role) {
       case "student":
-        items = StudentMenus;
+        items = combinedMenus.student;
         break;
       case "teacher":
-        items = TeacherMenus;
+        items = combinedMenus.teacher;
         break;
       case "parent":
-        items = ParentMenus;
+        items = combinedMenus.parent;
         break;
       case "center":
-        items = CenterMenus;
+        items = combinedMenus.center;
         break;
       case "admin":
         if (user.level === "pusat") {
-          items = CenterMenus;
+          items = combinedMenus.center;
         } else if (user.level === "tahfiz") {
-          items = TahfizMenus;
-        } else if (user.level === "finance") {
-          items = FinanceMenus;
+          items = combinedMenus.tahfiz;
+        } else if (isFinanceLevel(user.level)) {
+          items = combinedMenus.finance;
         } else {
-          items = AdminMenus;
+          items = combinedMenus.admin;
         }
         break;
       default:
         items = [];
     }
-    const filteredItems = filterMenuByAccess(items, user);
-    setMenuItems(enhanceMenuItems(filteredItems));
-  }, [user]);
+    return enhanceMenuItems(filterMenuItemsByUser(items, user));
+  })();
 
   useEffect(() => {
     if (effectiveTitle) {
