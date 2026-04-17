@@ -1,6 +1,6 @@
 import { authorize } from "../../../middleware/authorize.js";
 import { withTransaction } from "../../../utils/wrapper.js";
-import { ensureActivePeriode, toInt } from "./shared.js";
+import { ensureActivePeriode, getColumnPresence, toInt } from "./shared.js";
 
 export const registerScheduleResourceRoutes = (router) => {
   router.post(
@@ -690,6 +690,9 @@ export const registerScheduleResourceRoutes = (router) => {
         targetRows = loadResult.rows;
       }
 
+      const activityColumns = await getColumnPresence(client, "l_schedule_activity", ["config_id"]);
+      const hasActivityConfigId = Boolean(activityColumns.config_id);
+
       const isUpdate = Boolean(toInt(id, null));
       const sql = isUpdate
         ? `UPDATE lms.l_schedule_activity
@@ -704,12 +707,12 @@ export const registerScheduleResourceRoutes = (router) => {
            WHERE id = $10
              AND homebase_id = $1
              AND periode_id = $2
-             AND config_id = $11
+             ${hasActivityConfigId ? "AND config_id = $11" : ""}
            RETURNING *`
         : `INSERT INTO lms.l_schedule_activity (
              homebase_id,
              periode_id,
-             config_id,
+             ${hasActivityConfigId ? "config_id," : ""}
              name,
              day_of_week,
              slot_start_id,
@@ -719,7 +722,9 @@ export const registerScheduleResourceRoutes = (router) => {
              is_active,
              created_by
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           VALUES ($1, $2, ${hasActivityConfigId ? "$3, " : ""}${
+             hasActivityConfigId ? "$4, $5, $6, $7, $8, $9, $10, $11" : "$3, $4, $5, $6, $7, $8, $9, $10"
+           })
            RETURNING *`;
 
       const params = isUpdate
@@ -734,12 +739,12 @@ export const registerScheduleResourceRoutes = (router) => {
             description,
             Boolean(is_active),
             toInt(id, null),
-            startSlot.config_id,
+            ...(hasActivityConfigId ? [startSlot.config_id] : []),
           ]
         : [
             homebase_id,
             periodeId,
-            startSlot.config_id,
+            ...(hasActivityConfigId ? [startSlot.config_id] : []),
             normalizedName,
             nextDay,
             nextSlotStartId,
