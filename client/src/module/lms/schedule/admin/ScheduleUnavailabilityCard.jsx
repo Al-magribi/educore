@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -172,14 +172,19 @@ const ScheduleUnavailabilityCard = ({
   teachers,
   rules,
   slots,
+  allSlots,
   selectedConfig,
+  groups,
   selectedGroup,
+  groupCount = 0,
   loading,
   onSave,
   onDelete,
+  onSelectGroup,
 }) => {
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [shiftFilter, setShiftFilter] = useState("all");
   const [form] = Form.useForm();
 
   const teacherOptions = useMemo(
@@ -189,6 +194,15 @@ const ScheduleUnavailabilityCard = ({
         label: item.full_name,
       })),
     [teachers],
+  );
+
+  const shiftOptions = useMemo(
+    () =>
+      (groups || []).map((item) => ({
+        value: Number(item.id),
+        label: item.name,
+      })),
+    [groups],
   );
 
   const dayNameMap = useMemo(
@@ -220,6 +234,29 @@ const ScheduleUnavailabilityCard = ({
     return grouped;
   }, [slots]);
 
+  const slotByGroupDay = useMemo(() => {
+    const grouped = new Map();
+    (allSlots || [])
+      .filter((item) => !item?.is_break)
+      .forEach((slot) => {
+        const groupId = Number(slot.config_group_id);
+        const day = Number(slot.day_of_week);
+        const key = `${groupId}:${day}`;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push({
+          ...slot,
+          config_group_id: groupId,
+          slot_no: Number(slot.slot_no),
+        });
+      });
+
+    for (const rows of grouped.values()) {
+      rows.sort((left, right) => Number(left.slot_no) - Number(right.slot_no));
+    }
+
+    return grouped;
+  }, [allSlots]);
+
   const availableDayOptions = useMemo(
     () =>
       DAY_OPTIONS.filter(
@@ -240,10 +277,86 @@ const ScheduleUnavailabilityCard = ({
     }, {});
   }, [rules]);
 
+  const tableData = useMemo(
+    () =>
+      (rules || []).map((item) => {
+        const matchedGroupIds = Array.isArray(item.matched_group_ids)
+          ? item.matched_group_ids.map((value) => Number(value)).filter(Boolean)
+          : [];
+        const matchedGroupNames = Array.isArray(item.matched_group_names)
+          ? item.matched_group_names.filter(Boolean)
+          : [];
+
+        return {
+          ...item,
+          matched_group_ids: matchedGroupIds,
+          matched_group_names: matchedGroupNames,
+          shift_label: matchedGroupNames.length
+            ? matchedGroupNames.join(", ")
+            : "Tidak terpetakan",
+        };
+      }),
+    [rules],
+  );
+
+  const shiftFilterOptions = useMemo(() => {
+    const fromGroups = (groups || []).map((item) => ({
+      value: String(item.id),
+      label: item.name,
+    }));
+    const extra = [];
+    const knownValues = new Set(fromGroups.map((item) => item.value));
+
+    for (const row of tableData) {
+      row.matched_group_ids.forEach((groupId, index) => {
+        const value = String(groupId);
+        if (knownValues.has(value)) return;
+        extra.push({
+          value,
+          label: row.matched_group_names[index] || `Shift ${groupId}`,
+        });
+        knownValues.add(value);
+      });
+    }
+
+    return [{ value: "all", label: "Semua shift" }, ...fromGroups, ...extra];
+  }, [groups, tableData]);
+
+  const filteredTableData = useMemo(() => {
+    if (shiftFilter === "all") return tableData;
+    return tableData.filter((item) =>
+      item.matched_group_ids.includes(Number(shiftFilter)),
+    );
+  }, [shiftFilter, tableData]);
+
+  const resolveRecordSlotLabel = (record) => {
+    const candidateGroupIds = Array.isArray(record.matched_group_ids)
+      ? record.matched_group_ids
+      : [];
+
+    for (const groupId of candidateGroupIds) {
+      const daySlots = slotByGroupDay.get(`${Number(groupId)}:${Number(record.day_of_week)}`) || [];
+      const matchedSlots = getMatchedSlots(
+        daySlots,
+        record.start_time,
+        record.end_time,
+      );
+
+      if (matchedSlots.length > 0) {
+        const startNo = matchedSlots[0].slot_no;
+        const endNo = matchedSlots[matchedSlots.length - 1].slot_no;
+        return `Jam ${startNo}${startNo !== endNo ? ` - ${endNo}` : ""}`;
+      }
+    }
+
+    return "-";
+  };
+
   const handleOpenCreate = () => {
     setEditing(null);
     form.resetFields();
     form.setFieldsValue({
+      config_group_id: selectedGroup ? Number(selectedGroup.id) : undefined,
       entries: [buildEmptyEntry()],
     });
     setOpenModal(true);
@@ -268,6 +381,7 @@ const ScheduleUnavailabilityCard = ({
       replace_ids: teacherRules.map((item) => item.id),
     });
     form.setFieldsValue({
+      config_group_id: Number(selectedGroup?.id || 0) || undefined,
       teacher_id: record.teacher_id,
       entries: teacherRules.map((item) => {
         const daySlots = slotByDay.get(Number(item.day_of_week)) || [];
@@ -303,6 +417,29 @@ const ScheduleUnavailabilityCard = ({
     setOpenModal(true);
   };
 
+  const selectedShiftId = Form.useWatch("config_group_id", form);
+
+  useEffect(() => {
+    if (
+      !openModal ||
+      !selectedShiftId ||
+      Number(selectedShiftId) === Number(selectedGroup?.id)
+    ) {
+      return;
+    }
+
+    onSelectGroup?.(Number(selectedShiftId));
+    form.setFieldsValue({
+      entries: [buildEmptyEntry()],
+    });
+  }, [form, onSelectGroup, openModal, selectedGroup?.id, selectedShiftId]);
+
+  const shiftLabel =
+    shiftOptions.find((item) => Number(item.value) === Number(selectedShiftId))
+      ?.label ||
+    selectedGroup?.name ||
+    "Shift aktif";
+
   const handleSubmit = async () => {
     const values = await form.validateFields();
     await onSave({
@@ -333,6 +470,26 @@ const ScheduleUnavailabilityCard = ({
   const columns = [
     { title: "Guru", dataIndex: "teacher_name", width: 220 },
     {
+      title: "Shift",
+      dataIndex: "shift_label",
+      width: 180,
+      render: (_, record) => {
+        if (!record.matched_group_names?.length) {
+          return <Tag>Tidak terpetakan</Tag>;
+        }
+
+        return (
+          <Space size={[4, 4]} wrap>
+            {record.matched_group_names.map((name) => (
+              <Tag key={`${record.id}-${name}`} color='blue'>
+                {name}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
+    },
+    {
       title: "Hari",
       dataIndex: "day_of_week",
       width: 110,
@@ -342,26 +499,10 @@ const ScheduleUnavailabilityCard = ({
       title: "Jam Ke",
       key: "slot_range",
       width: 220,
-      render: (_, record) => {
-        const daySlots = slotByDay.get(Number(record.day_of_week)) || [];
-        const matchedSlots = getMatchedSlots(
-          daySlots,
-          record.start_time,
-          record.end_time,
-        );
-
-        if (!record.start_time || !record.end_time) {
-          return "Semua slot";
-        }
-
-        if (matchedSlots.length > 0) {
-          const startNo = matchedSlots[0].slot_no;
-          const endNo = matchedSlots[matchedSlots.length - 1].slot_no;
-          return `Jam ${startNo}${startNo !== endNo ? ` - ${endNo}` : ""}`;
-        }
-
-        return `${formatTime(record.start_time)} - ${formatTime(record.end_time)}`;
-      },
+      render: (_, record) =>
+        record.start_time && record.end_time
+          ? resolveRecordSlotLabel(record)
+          : "Semua slot",
     },
     {
       title: "Waktu",
@@ -417,32 +558,34 @@ const ScheduleUnavailabilityCard = ({
         </Space>
       }
       extra={
-        canManage ? (
-          <Button
-            type='primary'
-            icon={<Plus size={14} />}
-            onClick={handleOpenCreate}
-          >
-            Tambah
-          </Button>
-        ) : null
+        <Space>
+          {canManage ? (
+            <Button
+              type='primary'
+              icon={<Plus size={14} />}
+              onClick={handleOpenCreate}
+            >
+              Tambah
+            </Button>
+          ) : null}
+
+          <Select
+            value={shiftFilter}
+            onChange={setShiftFilter}
+            options={shiftFilterOptions}
+            style={{ width: 220 }}
+            placeholder='Filter shift'
+          />
+        </Space>
       }
     >
-      <Alert
-        showIcon
-        type='info'
-        style={{ marginBottom: 16 }}
-        message='Ketentuan guru berlaku global per periode'
-        description={`Aturan di tab ini tidak dibatasi ke group tertentu. Walau Anda sedang melihat ${selectedConfig?.name || "jadwal aktif"}${selectedGroup?.name ? ` / ${selectedGroup.name}` : ""}, ketidaktersediaan guru tetap dipakai oleh generator untuk semua group pada periode yang sama.`}
-      />
-
       <Table
         rowKey='id'
         size='small'
         loading={loading}
         columns={columns}
-        dataSource={rules || []}
-        scroll={{ x: 840 }}
+        dataSource={filteredTableData}
+        scroll={{ x: 1020 }}
         pagination={{ pageSize: 6 }}
       />
 
@@ -483,6 +626,27 @@ const ScheduleUnavailabilityCard = ({
         }}
       >
         <Form form={form} layout='vertical'>
+          {groupCount > 1 ? (
+            <Alert
+              showIcon
+              type='info'
+              style={{ marginBottom: 16 }}
+              message={`Form ketentuan guru untuk ${shiftLabel}`}
+              description='Pilih shift terlebih dahulu agar opsi hari dan jam mengikuti slot pada shift tersebut.'
+            />
+          ) : null}
+          {groupCount > 1 ? (
+            <Form.Item
+              name='config_group_id'
+              label='Shift'
+              rules={[{ required: true, message: "Shift wajib dipilih." }]}
+            >
+              <Select
+                options={shiftOptions}
+                placeholder='Pilih shift untuk mengisi jam'
+              />
+            </Form.Item>
+          ) : null}
           <Form.Item
             name='teacher_id'
             label='Guru'

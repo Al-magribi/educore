@@ -489,8 +489,8 @@ WHERE cfg.id = missing_active.activate_id;
 INSERT INTO lms.l_schedule_config_group (config_id, name, description, sort_order, is_default)
 SELECT
     cfg.id,
-    'Semua Kelas',
-    'Group default hasil migrasi tahap 5.',
+    'Shift Pagi',
+    'Shift belajar pagi hasil migrasi tahap 6.',
     1,
     true
 FROM lms.l_schedule_config cfg
@@ -499,6 +499,34 @@ WHERE NOT EXISTS (
     FROM lms.l_schedule_config_group grp
     WHERE grp.config_id = cfg.id
       AND grp.is_default = true
+);
+
+UPDATE lms.l_schedule_config_group
+SET name = 'Shift Pagi',
+    description = COALESCE(NULLIF(description, ''), 'Shift belajar pagi hasil migrasi tahap 6.'),
+    sort_order = 1,
+    is_default = true,
+    updated_at = CURRENT_TIMESTAMP
+WHERE is_default = true
+  AND (
+    COALESCE(btrim(name), '') = ''
+    OR lower(btrim(name)) = 'semua kelas'
+    OR lower(btrim(name)) = 'shift pagi'
+  );
+
+INSERT INTO lms.l_schedule_config_group (config_id, name, description, sort_order, is_default)
+SELECT
+    cfg.id,
+    'Shift Siang',
+    'Shift belajar siang hasil migrasi tahap 6.',
+    2,
+    false
+FROM lms.l_schedule_config cfg
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM lms.l_schedule_config_group grp
+    WHERE grp.config_id = cfg.id
+      AND lower(btrim(grp.name)) = 'shift siang'
 );
 
 UPDATE lms.l_schedule_day_template dt

@@ -13,6 +13,411 @@ import {
   toTimeString,
 } from "./shared.js";
 
+const SHIFT_MORNING_NAME = "Shift Pagi";
+const SHIFT_AFTERNOON_NAME = "Shift Siang";
+
+const normalizeShiftName = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const isMorningShift = (value) =>
+  normalizeShiftName(value) === normalizeShiftName(SHIFT_MORNING_NAME);
+
+const isAfternoonShift = (value) =>
+  normalizeShiftName(value) === normalizeShiftName(SHIFT_AFTERNOON_NAME);
+
+const ensureTimeSlotGroupIndexes = async (client) => {
+  const indexResult = await client.query(
+    `SELECT indexname, indexdef
+     FROM pg_indexes
+     WHERE schemaname = 'lms'
+       AND indexname IN ('uq_time_slot_slot_no', 'uq_time_slot_range', 'idx_time_slot_config_day')`,
+  );
+
+  const indexMap = indexResult.rows.reduce((acc, row) => {
+    acc[row.indexname] = String(row.indexdef || "");
+    return acc;
+  }, {});
+
+  const usesConfigGroup =
+    indexMap.uq_time_slot_slot_no?.includes("(config_group_id, day_of_week, slot_no)") &&
+    indexMap.uq_time_slot_range?.includes("(config_group_id, day_of_week, start_time, end_time)") &&
+    indexMap.idx_time_slot_config_day?.includes("(config_id, config_group_id, day_of_week, slot_no)");
+
+  if (usesConfigGroup) return;
+
+  await client.query("DROP INDEX IF EXISTS lms.uq_time_slot_slot_no");
+  await client.query("DROP INDEX IF EXISTS lms.uq_time_slot_range");
+  await client.query("DROP INDEX IF EXISTS lms.idx_time_slot_config_day");
+  await client.query(
+    "CREATE UNIQUE INDEX uq_time_slot_slot_no ON lms.l_time_slot USING btree (config_group_id, day_of_week, slot_no)",
+  );
+  await client.query(
+    "CREATE UNIQUE INDEX uq_time_slot_range ON lms.l_time_slot USING btree (config_group_id, day_of_week, start_time, end_time)",
+  );
+  await client.query(
+    "CREATE INDEX idx_time_slot_config_day ON lms.l_time_slot USING btree (config_id, config_group_id, day_of_week, slot_no)",
+  );
+};
+
+const ensureScheduleShiftGroups = async ({
+  client,
+  configId,
+  homebaseId,
+}) => {
+  if (!configId) return [];
+
+  const existingResult = await client.query(
+    `SELECT *
+     FROM lms.l_schedule_config_group
+     WHERE config_id = $1
+     ORDER BY sort_order ASC, id ASC`,
+    [configId],
+  );
+
+  let groups = existingResult.rows;
+  if (!groups.length) {
+    const insertResult = await client.query(
+      `INSERT INTO lms.l_schedule_config_group (
+         config_id,
+         name,
+         description,
+         sort_order,
+         is_default
+       )
+       VALUES
+         ($1, $2, $3, 1, true),
+         ($1, $4, $5, 2, false)
+       RETURNING *`,
+      [
+        configId,
+        SHIFT_MORNING_NAME,
+        "Shift belajar pagi.",
+        SHIFT_AFTERNOON_NAME,
+        "Shift belajar siang.",
+      ],
+    );
+    groups = insertResult.rows;
+  }
+
+  let morningGroup =
+    groups.find((item) => item.is_default === true) ||
+    groups.find((item) => isMorningShift(item.name)) ||
+    groups[0] ||
+    null;
+
+  if (
+    morningGroup &&
+    !isMorningShift(morningGroup.name) &&
+    groups.length <= 2 &&
+    normalizeShiftName(morningGroup.name) === normalizeShiftName("Semua Kelas")
+  ) {
+    const renameResult = await client.query(
+      `UPDATE lms.l_schedule_config_group
+       SET name = $1,
+           description = COALESCE(NULLIF(description, ''), $2),
+           sort_order = 1,
+           is_default = true,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3
+       RETURNING *`,
+      [SHIFT_MORNING_NAME, "Shift belajar pagi.", morningGroup.id],
+    );
+    morningGroup = renameResult.rows[0];
+  }
+
+  if (!morningGroup) {
+    const insertMorningResult = await client.query(
+      `INSERT INTO lms.l_schedule_config_group (
+         config_id,
+         name,
+         description,
+         sort_order,
+         is_default
+       )
+       VALUES ($1, $2, $3, 1, true)
+       RETURNING *`,
+      [configId, SHIFT_MORNING_NAME, "Shift belajar pagi."],
+    );
+    morningGroup = insertMorningResult.rows[0];
+  } else {
+    const normalizedSortOrder = Number(morningGroup.sort_order || 0) === 1;
+    const shouldRenameMorning =
+      !isMorningShift(morningGroup.name) &&
+      normalizeShiftName(morningGroup.name) === normalizeShiftName("Semua Kelas");
+    if (!normalizedSortOrder || shouldRenameMorning || morningGroup.is_default !== true) {
+      const updateMorningResult = await client.query(
+        `UPDATE lms.l_schedule_config_group
+         SET name = CASE WHEN $1 THEN $2 ELSE name END,
+             sort_order = 1,
+             is_default = true,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [shouldRenameMorning, SHIFT_MORNING_NAME, morningGroup.id],
+      );
+      morningGroup = updateMorningResult.rows[0];
+    }
+  }
+
+  let afternoonGroup =
+    groups.find(
+      (item) =>
+        Number(item.id) !== Number(morningGroup.id) &&
+        isAfternoonShift(item.name),
+    ) ||
+    groups.find(
+      (item) =>
+        Number(item.id) !== Number(morningGroup.id) &&
+        Number(item.sort_order || 0) === 2,
+    ) ||
+    null;
+
+  if (
+    afternoonGroup &&
+    !isAfternoonShift(afternoonGroup.name) ||
+    (afternoonGroup && Number(afternoonGroup.sort_order || 0) !== 2) ||
+    (afternoonGroup && afternoonGroup.is_default === true)
+  ) {
+    const updateAfternoonResult = await client.query(
+      `UPDATE lms.l_schedule_config_group
+       SET name = $1,
+           sort_order = 2,
+           is_default = false,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [SHIFT_AFTERNOON_NAME, afternoonGroup.id],
+    );
+    afternoonGroup = updateAfternoonResult.rows[0];
+  }
+
+  if (afternoonGroup) {
+    await client.query(
+      `UPDATE lms.l_schedule_config_group
+       SET is_default = CASE WHEN id = $2 THEN true ELSE false END,
+           sort_order = CASE
+             WHEN id = $2 THEN 1
+             WHEN id = $3 THEN 2
+             ELSE GREATEST(3, sort_order)
+           END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE config_id = $1`,
+      [configId, morningGroup.id, afternoonGroup.id],
+    );
+  } else {
+    await client.query(
+      `UPDATE lms.l_schedule_config_group
+       SET is_default = CASE WHEN id = $2 THEN true ELSE false END,
+           sort_order = CASE
+             WHEN id = $2 THEN 1
+             ELSE GREATEST(2, sort_order)
+           END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE config_id = $1`,
+      [configId, morningGroup.id],
+    );
+  }
+
+  await client.query(
+    `INSERT INTO lms.l_schedule_config_group_class (config_group_id, class_id)
+     SELECT $1, c.id
+     FROM public.a_class c
+     WHERE c.homebase_id = $2
+       AND COALESCE(c.is_active, true) = true
+       AND NOT EXISTS (
+         SELECT 1
+         FROM lms.l_schedule_config_group_class gcc
+         JOIN lms.l_schedule_config_group g ON g.id = gcc.config_group_id
+         WHERE g.config_id = $3
+           AND gcc.class_id = c.id
+       )`,
+    [morningGroup.id, homebaseId, configId],
+  );
+
+  const refreshedResult = await client.query(
+    `SELECT *
+     FROM lms.l_schedule_config_group
+     WHERE config_id = $1
+     ORDER BY sort_order ASC, id ASC`,
+    [configId],
+  );
+
+  return refreshedResult.rows;
+};
+
+const buildActivitySlotLookup = (slots) => {
+  const slotsByDay = new Map();
+  for (const slot of slots || []) {
+    const day = Number(slot.day_of_week);
+    if (!slotsByDay.has(day)) slotsByDay.set(day, []);
+    slotsByDay.get(day).push({
+      ...slot,
+      day_of_week: day,
+      slot_no: Number(slot.slot_no),
+      id: Number(slot.id),
+    });
+  }
+
+  for (const daySlots of slotsByDay.values()) {
+    daySlots.sort((a, b) => a.slot_no - b.slot_no);
+  }
+
+  return slotsByDay;
+};
+
+const getContiguousLength = (slotMap, startSlotNo) => {
+  let length = 0;
+  let cursor = Number(startSlotNo);
+  while (slotMap.has(cursor)) {
+    length += 1;
+    cursor += 1;
+  }
+  return length;
+};
+
+const resolveActivitySlotPlacement = (activity, slotsByDay) => {
+  const preferredDay = Number(activity.day_of_week);
+  const preferredSlotNo = Number(activity.slot_no);
+  const preferredCount = Math.max(1, Number(activity.slot_count || 1));
+
+  const availableDays = [...slotsByDay.keys()].sort((a, b) => {
+    if (a === preferredDay) return -1;
+    if (b === preferredDay) return 1;
+    return Math.abs(a - preferredDay) - Math.abs(b - preferredDay) || a - b;
+  });
+
+  for (const day of availableDays) {
+    const daySlots = slotsByDay.get(day) || [];
+    const slotMap = new Map(daySlots.map((slot) => [slot.slot_no, slot]));
+    const candidateSlotNos = daySlots
+      .map((slot) => slot.slot_no)
+      .sort((a, b) =>
+        Math.abs(a - preferredSlotNo) - Math.abs(b - preferredSlotNo) || a - b,
+      );
+
+    for (const slotNo of candidateSlotNos) {
+      if (getContiguousLength(slotMap, slotNo) >= preferredCount) {
+        return {
+          day_of_week: day,
+          slot_start_id: slotMap.get(slotNo).id,
+          slot_count: preferredCount,
+        };
+      }
+    }
+  }
+
+  let bestPartial = null;
+  for (const day of availableDays) {
+    const daySlots = slotsByDay.get(day) || [];
+    const slotMap = new Map(daySlots.map((slot) => [slot.slot_no, slot]));
+    for (const slot of daySlots) {
+      const contiguousLength = getContiguousLength(slotMap, slot.slot_no);
+      if (contiguousLength <= 0) continue;
+      const candidate = {
+        day_of_week: day,
+        slot_start_id: slot.id,
+        slot_count: Math.min(preferredCount, contiguousLength),
+        score: [
+          Math.min(preferredCount, contiguousLength),
+          day === preferredDay ? 1 : 0,
+          -Math.abs(slot.slot_no - preferredSlotNo),
+          -day,
+        ],
+      };
+      if (
+        !bestPartial ||
+        candidate.score[0] > bestPartial.score[0] ||
+        (candidate.score[0] === bestPartial.score[0] &&
+          candidate.score[1] > bestPartial.score[1]) ||
+        (candidate.score[0] === bestPartial.score[0] &&
+          candidate.score[1] === bestPartial.score[1] &&
+          candidate.score[2] > bestPartial.score[2]) ||
+        (candidate.score[0] === bestPartial.score[0] &&
+          candidate.score[1] === bestPartial.score[1] &&
+          candidate.score[2] === bestPartial.score[2] &&
+          candidate.score[3] > bestPartial.score[3])
+      ) {
+        bestPartial = candidate;
+      }
+    }
+  }
+
+  if (!bestPartial) return null;
+
+  return {
+    day_of_week: bestPartial.day_of_week,
+    slot_start_id: bestPartial.slot_start_id,
+    slot_count: bestPartial.slot_count,
+  };
+};
+
+const createTemporaryActivityHoldingSlots = async ({
+  client,
+  configId,
+  activities,
+}) => {
+  const tempGroupResult = await client.query(
+    `INSERT INTO lms.l_schedule_config_group (
+       config_id,
+       name,
+       description,
+       sort_order,
+       is_default
+     )
+     VALUES ($1, $2, $3, $4, false)
+     RETURNING id`,
+    [
+      configId,
+      "__TEMP_ACTIVITY_HOLD__",
+      "Temporary holding group for activity remap.",
+      999999,
+    ],
+  );
+  const tempGroupId = Number(tempGroupResult.rows[0].id);
+  const tempSlots = [];
+
+  for (let index = 0; index < activities.length; index += 1) {
+    const activity = activities[index];
+    const dayOfWeek = (index % 7) + 1;
+    const minuteOffset = Math.floor(index / 7) + 1;
+    const startMinute = minuteOffset;
+    const endMinute = Math.min(startMinute + 1, 1439);
+    const insertResult = await client.query(
+      `INSERT INTO lms.l_time_slot (
+         config_id,
+         config_group_id,
+         day_of_week,
+         slot_no,
+         start_time,
+         end_time,
+         is_break
+       )
+       VALUES ($1, $2, $3, $4, $5::time, $6::time, false)
+       RETURNING id`,
+      [
+        configId,
+        tempGroupId,
+        dayOfWeek,
+        100000 + index,
+        toTimeString(startMinute),
+        toTimeString(endMinute),
+      ],
+    );
+    tempSlots.push({
+      activity_id: Number(activity.id),
+      temp_slot_id: Number(insertResult.rows[0].id),
+    });
+  }
+
+  return {
+    tempGroupId,
+    tempSlots,
+  };
+};
+
 export const registerScheduleBootstrapConfigRoutes = (router) => {
   router.get(
     "/schedule/bootstrap",
@@ -22,6 +427,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
       const requestedPeriodeId = toInt(req.query.periode_id, null);
       const requestedConfigId = toInt(req.query.config_id, null);
       const requestedGroupId = toInt(req.query.group_id, null);
+      await ensureTimeSlotGroupIndexes(pool);
       const periodeId = await ensureActivePeriode(pool, homebase_id, requestedPeriodeId);
 
       if (!periodeId) {
@@ -42,6 +448,13 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         requestedConfigId,
       });
       const configId = config?.id || null;
+      if (configId) {
+        await ensureScheduleShiftGroups({
+          client: pool,
+          configId,
+          homebaseId: homebase_id,
+        });
+      }
       const {
         groups: configGroups,
         selectedGroup,
@@ -98,7 +511,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
             ? [periodeId, homebase_id, configId, selectedGroupId]
             : [periodeId, homebase_id, selectedGroupId];
 
-      const [groupClassResult, dayTemplateResult, breakResult, slotResult] =
+      const [groupClassResult, dayTemplateResult, breakResult, slotResult, allSlotResult] =
         selectedGroupId
           ? await Promise.all([
               pool.query(
@@ -138,8 +551,17 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
                  ORDER BY day_of_week, slot_no`,
                 [selectedGroupId],
               ),
+              configId
+                ? pool.query(
+                    `SELECT *
+                     FROM lms.l_time_slot
+                     WHERE config_id = $1
+                     ORDER BY config_group_id, day_of_week, slot_no`,
+                    [configId],
+                  )
+                : { rows: [] },
             ])
-          : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }];
+          : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }];
 
       const unmappedGroupClassResult = configId
         ? await pool.query(
@@ -164,7 +586,14 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           )
         : { rows: [] };
 
-      const [loadResult, unavailabilityResult, activityResult, activityTargetResult] =
+      const [
+        loadResult,
+        unavailabilityResult,
+        activityResult,
+        activityTargetResult,
+        allActivityResult,
+        allActivityTargetResult,
+      ] =
         await Promise.all([
           pool.query(
             `SELECT
@@ -184,9 +613,30 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           pool.query(
             `SELECT
                ua.*,
-               u.full_name AS teacher_name
+               u.full_name AS teacher_name,
+               COALESCE(shift_match.matched_group_ids, ARRAY[]::integer[]) AS matched_group_ids,
+               COALESCE(shift_match.matched_group_names, ARRAY[]::text[]) AS matched_group_names
              FROM lms.l_teacher_unavailability ua
              JOIN public.u_users u ON u.id = ua.teacher_id
+             LEFT JOIN LATERAL (
+               SELECT
+                 ARRAY_AGG(match_row.id ORDER BY match_row.sort_order, match_row.id) AS matched_group_ids,
+                 ARRAY_AGG(match_row.name ORDER BY match_row.sort_order, match_row.id) AS matched_group_names
+               FROM (
+                 SELECT DISTINCT scg.id, scg.name, COALESCE(scg.sort_order, 9999) AS sort_order
+                 FROM lms.l_time_slot ts
+                 JOIN lms.l_schedule_config_group scg ON scg.id = ts.config_group_id
+                 WHERE ts.config_id = $3
+                   AND ts.day_of_week = ua.day_of_week
+                   AND ts.is_break = false
+                   AND (
+                     ua.start_time IS NULL OR ua.end_time IS NULL OR (
+                       ts.start_time >= ua.start_time
+                       AND ts.end_time <= ua.end_time
+                     )
+                   )
+               ) match_row
+             ) shift_match ON true
              WHERE ua.periode_id = $1
                AND u.id IN (
                  SELECT user_id
@@ -194,7 +644,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
                  WHERE homebase_id = $2
                )
              ORDER BY ua.teacher_id, ua.day_of_week, ua.start_time`,
-            [periodeId, homebase_id],
+            [periodeId, homebase_id, configId],
           ),
           pool.query(
             `SELECT
@@ -243,6 +693,56 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
                ${activityTargetGroupFilter}
              ORDER BY a.id, u.full_name, s.name, c.name`,
             activityParams,
+          ),
+          pool.query(
+            `SELECT
+               a.*,
+               ${activityGroupSelect}
+               slot_agg.start_time,
+               slot_agg.end_time,
+               slot_agg.slot_nos,
+               slot_agg.slot_ids
+             FROM lms.l_schedule_activity a
+             JOIN lms.l_time_slot start_slot ON start_slot.id = a.slot_start_id
+             LEFT JOIN LATERAL (
+               SELECT
+                 MIN(ts.start_time) AS start_time,
+                 MAX(ts.end_time) AS end_time,
+                 ARRAY_AGG(ts.slot_no ORDER BY ts.slot_no) AS slot_nos,
+                 ARRAY_AGG(ts.id ORDER BY ts.slot_no) AS slot_ids
+               FROM lms.l_time_slot ts
+               WHERE ${activitySlotAggregateConfigFilter}
+                 AND ts.day_of_week = a.day_of_week
+                 AND ts.slot_no BETWEEN start_slot.slot_no AND start_slot.slot_no + a.slot_count - 1
+             ) slot_agg ON true
+             WHERE a.periode_id = $1
+               AND a.homebase_id = $2
+               ${activityConfigFilter}
+             ORDER BY a.day_of_week, slot_agg.start_time NULLS LAST, a.name`,
+            hasActivityConfigId
+              ? [periodeId, homebase_id, configId]
+              : [periodeId, homebase_id],
+          ),
+          pool.query(
+            `SELECT
+               t.*,
+               a.name AS activity_name,
+               u.full_name AS teacher_name,
+               s.name AS subject_name,
+               c.name AS class_name
+             FROM lms.l_schedule_activity_target t
+             JOIN lms.l_schedule_activity a ON a.id = t.activity_id
+             JOIN public.u_users u ON u.id = t.teacher_id
+             JOIN public.a_subject s ON s.id = t.subject_id
+             JOIN public.a_class c ON c.id = t.class_id
+             JOIN lms.l_time_slot start_slot ON start_slot.id = a.slot_start_id
+             WHERE a.periode_id = $1
+               AND a.homebase_id = $2
+               ${activityTargetConfigFilter}
+             ORDER BY a.id, u.full_name, s.name, c.name`,
+            hasActivityConfigId
+              ? [periodeId, homebase_id, configId]
+              : [periodeId, homebase_id],
           ),
         ]);
 
@@ -392,11 +892,14 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           day_templates: dayTemplateResult.rows,
           breaks: breakResult.rows,
           slots: slotResult.rows,
+          all_slots: allSlotResult.rows,
           loads: loadResult.rows,
           teacher_assignments: assignmentResult.rows,
           unavailability: unavailabilityResult.rows,
           activities: activityResult.rows,
           activity_targets: activityTargetResult.rows,
+          all_activities: allActivityResult.rows,
+          all_activity_targets: allActivityTargetResult.rows,
           entries: entryResult.rows,
           classes: classResult.rows,
           subjects: subjectResult.rows,
@@ -413,6 +916,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
     authorize("satuan"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
+      await ensureTimeSlotGroupIndexes(client);
       const {
         id,
         periode_id,
@@ -646,14 +1150,15 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
          LIMIT 1`,
         [config.id],
       );
-      if (defaultGroupResult.rowCount === 0) {
-        defaultGroupResult = await client.query(
-          `INSERT INTO lms.l_schedule_config_group (config_id, name, description, sort_order, is_default)
-           VALUES ($1, $2, $3, 1, true)
-           RETURNING id`,
-          [config.id, "Semua Kelas", "Group default hasil migrasi tahap 1."],
-        );
-      }
+      const ensuredGroups = await ensureScheduleShiftGroups({
+        client,
+        configId: config.id,
+        homebaseId: homebase_id,
+      });
+      defaultGroupResult = {
+        rowCount: ensuredGroups.length ? 1 : 0,
+        rows: [{ id: ensuredGroups.find((item) => item.is_default === true)?.id }],
+      };
 
       const resolvedConfigGroupId =
         configGroupId || toInt(defaultGroupResult.rows[0]?.id, null);
@@ -730,7 +1235,11 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           });
         }
 
-        const [existingActivityUsageResult, existingGroupEntryUsageResult] =
+        const [
+          existingActivityUsageResult,
+          existingGroupEntryUsageResult,
+          existingActivityResult,
+        ] =
           await Promise.all([
             client.query(
               `SELECT COUNT(*)::int AS total
@@ -751,6 +1260,16 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
                  AND ts.config_group_id = $3`,
               [homebase_id, periodeId, configGroup.id],
             ),
+            client.query(
+              `SELECT a.id, a.day_of_week, a.slot_count, ts.slot_no
+               FROM lms.l_schedule_activity a
+               JOIN lms.l_time_slot ts ON ts.id = a.slot_start_id
+               WHERE a.homebase_id = $1
+                 AND a.periode_id = $2
+                 AND ts.config_group_id = $3
+               ORDER BY a.id ASC`,
+              [homebase_id, periodeId, configGroup.id],
+            ),
           ]);
 
         const activityUsageCount = Number(
@@ -759,17 +1278,36 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         const entryUsageCount = Number(
           existingGroupEntryUsageResult.rows[0]?.total || 0,
         );
+        const impactedActivities = existingActivityResult.rows;
 
-        if (activityUsageCount > 0 || entryUsageCount > 0) {
+        if (entryUsageCount > 0) {
           return res.status(409).json({
             status: "error",
             message:
-              activityUsageCount > 0 && entryUsageCount > 0
-                ? "Jadwal hari pada group ini belum bisa diubah karena masih dipakai oleh kegiatan jadwal dan jadwal final/manual. Hapus atau sesuaikan data tersebut terlebih dahulu."
-                : activityUsageCount > 0
-                  ? "Jadwal hari pada group ini belum bisa diubah karena masih dipakai oleh kegiatan jadwal. Hapus atau sesuaikan kegiatan yang memakai group ini terlebih dahulu."
-                  : "Jadwal hari pada group ini belum bisa diubah karena masih dipakai oleh jadwal final/manual. Kosongkan atau arsipkan jadwal pada group ini terlebih dahulu.",
+              "Jadwal hari pada shift ini belum bisa diubah karena masih dipakai oleh jadwal final/manual. Kosongkan atau arsipkan jadwal pada shift ini terlebih dahulu.",
           });
+        }
+
+        let temporaryActivityGroupId = null;
+        let temporaryActivitySlots = [];
+        if (activityUsageCount > 0) {
+          const temporaryActivityHolding = await createTemporaryActivityHoldingSlots({
+            client,
+            configId: config.id,
+            activities: impactedActivities,
+          });
+          temporaryActivityGroupId = temporaryActivityHolding.tempGroupId;
+          temporaryActivitySlots = temporaryActivityHolding.tempSlots;
+
+          for (const tempSlot of temporaryActivitySlots) {
+            await client.query(
+              `UPDATE lms.l_schedule_activity
+               SET slot_start_id = $1,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [tempSlot.temp_slot_id, tempSlot.activity_id],
+            );
+          }
         }
 
         await client.query(
@@ -905,12 +1443,109 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
             cursorMinute = nextMinute;
           }
         }
+
+        let adjustedActivityCount = 0;
+        let reducedActivityCount = 0;
+        let removedActivityCount = 0;
+
+        if (activityUsageCount > 0) {
+          const temporarySlotIds = temporaryActivitySlots.map((item) => item.temp_slot_id);
+          const refreshedSlotResult = await client.query(
+            `SELECT id, day_of_week, slot_no
+             FROM lms.l_time_slot
+             WHERE config_group_id = $1
+               AND is_break = false
+             ORDER BY day_of_week ASC, slot_no ASC`,
+            [configGroup.id],
+          );
+          const slotsByDay = buildActivitySlotLookup(
+            refreshedSlotResult.rows.filter(
+              (slot) => !temporarySlotIds.includes(Number(slot.id)),
+            ),
+          );
+
+          for (const activity of impactedActivities) {
+            const placement = resolveActivitySlotPlacement(activity, slotsByDay);
+            if (!placement) {
+              await client.query(
+                `DELETE FROM lms.l_schedule_activity
+                 WHERE id = $1`,
+                [activity.id],
+              );
+              removedActivityCount += 1;
+              continue;
+            }
+
+            await client.query(
+              `UPDATE lms.l_schedule_activity
+               SET day_of_week = $1,
+                   slot_start_id = $2,
+                   slot_count = $3,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $4`,
+              [
+                placement.day_of_week,
+                placement.slot_start_id,
+                placement.slot_count,
+                activity.id,
+              ],
+            );
+
+            adjustedActivityCount += 1;
+            if (Number(placement.slot_count) < Number(activity.slot_count)) {
+              reducedActivityCount += 1;
+            }
+          }
+
+          if (temporaryActivitySlots.length > 0) {
+            await client.query(
+              `DELETE FROM lms.l_time_slot
+               WHERE id = ANY($1::int[])`,
+              [temporarySlotIds],
+            );
+          }
+
+          if (temporaryActivityGroupId) {
+            await client.query(
+              `DELETE FROM lms.l_schedule_config_group
+               WHERE id = $1`,
+              [temporaryActivityGroupId],
+            );
+          }
+        }
+
+        res.locals.scheduleConfigAdjustmentSummary = {
+          activityUsageCount,
+          adjustedActivityCount,
+          reducedActivityCount,
+          removedActivityCount,
+        };
       }
 
       return res.json({
         status: "success",
         message: hasDaysPayload
-          ? "Konfigurasi jadwal berhasil disimpan."
+          ? (() => {
+              const summary = res.locals.scheduleConfigAdjustmentSummary;
+              if (!summary?.activityUsageCount) {
+                return "Konfigurasi jadwal berhasil disimpan.";
+              }
+
+              const notes = [];
+              if (summary.adjustedActivityCount > 0) {
+                notes.push(`${summary.adjustedActivityCount} kegiatan disesuaikan`);
+              }
+              if (summary.reducedActivityCount > 0) {
+                notes.push(`${summary.reducedActivityCount} kegiatan dipendekkan`);
+              }
+              if (summary.removedActivityCount > 0) {
+                notes.push(`${summary.removedActivityCount} kegiatan dihapus`);
+              }
+
+              return notes.length
+                ? `Konfigurasi jadwal berhasil disimpan. ${notes.join(", ")} otomatis mengikuti slot baru.`
+                : "Konfigurasi jadwal berhasil disimpan.";
+            })()
           : "Master jadwal berhasil disimpan.",
         data: {
           ...config,
@@ -1302,14 +1937,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         });
       }
 
-      if (group.is_default === true) {
-        return res.status(409).json({
-          status: "error",
-          message: "Group default tidak dapat dihapus.",
-        });
-      }
-
-      const [activityUsageResult, entryUsageResult, defaultGroupResult, classMembershipResult] =
+      const [activityUsageResult, entryUsageResult, fallbackGroupResult, classMembershipResult] =
         await Promise.all([
           client.query(
             `SELECT COUNT(*)::int AS total
@@ -1330,9 +1958,10 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
             `SELECT id
              FROM lms.l_schedule_config_group
              WHERE config_id = $1
-               AND is_default = true
+               AND id <> $2
+             ORDER BY is_default DESC, sort_order ASC, id ASC
              LIMIT 1`,
-            [group.config_id],
+            [group.config_id, groupId],
           ),
           client.query(
             `SELECT class_id
@@ -1344,30 +1973,23 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
 
       const activityUsage = Number(activityUsageResult.rows[0]?.total || 0);
       const entryUsage = Number(entryUsageResult.rows[0]?.total || 0);
-      const defaultGroupId = toInt(defaultGroupResult.rows[0]?.id, null);
+      const fallbackGroupId = toInt(fallbackGroupResult.rows[0]?.id, null);
 
       if (activityUsage > 0 || entryUsage > 0) {
         return res.status(409).json({
           status: "error",
           message:
-            "Group waktu ini belum bisa dihapus karena masih dipakai oleh kegiatan atau jadwal final/manual.",
-        });
-      }
-
-      if (!defaultGroupId) {
-        return res.status(409).json({
-          status: "error",
-          message:
-            "Group default tidak ditemukan. Hapus group dibatalkan untuk mencegah kelas kehilangan mapping.",
+            "Shift ini belum bisa dihapus karena masih dipakai oleh kegiatan atau jadwal final/manual.",
         });
       }
 
       for (const row of classMembershipResult.rows) {
+        if (!fallbackGroupId) continue;
         await client.query(
           `INSERT INTO lms.l_schedule_config_group_class (config_group_id, class_id)
            VALUES ($1, $2)
            ON CONFLICT (config_group_id, class_id) DO NOTHING`,
-          [defaultGroupId, row.class_id],
+          [fallbackGroupId, row.class_id],
         );
       }
 
@@ -1377,11 +1999,22 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         [groupId],
       );
 
+      if (fallbackGroupId && group.is_default === true) {
+        await client.query(
+          `UPDATE lms.l_schedule_config_group
+           SET is_default = true,
+               sort_order = 1,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [fallbackGroupId],
+        );
+      }
+
       return res.json({
         status: "success",
-        message: "Group jadwal berhasil dihapus.",
+        message: "Shift jadwal berhasil dihapus.",
         data: {
-          fallback_group_id: defaultGroupId,
+          fallback_group_id: fallbackGroupId,
         },
       });
     }),

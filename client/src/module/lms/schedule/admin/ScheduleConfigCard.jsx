@@ -216,7 +216,12 @@ const ScheduleConfigCard = ({
   const openCreateGroup = () => {
     setEditingGroup(null);
     groupForm.setFieldsValue({
-      name: "",
+      name:
+        (groups || []).length === 0
+          ? "Shift Pagi"
+          : (groups || []).length === 1
+            ? "Shift Siang"
+            : "",
       description: "",
       class_ids: [],
     });
@@ -379,35 +384,29 @@ const ScheduleConfigCard = ({
       }
     >
       <Flex vertical gap={16}>
-        <Text type='secondary'>
-          Setiap jadwal dapat memiliki beberapa group kelas. Setiap group
-          mempunyai pola hari, jam belajar, durasi sesi, dan istirahat yang
-          berbeda.
-        </Text>
-
         <Card
           size='small'
-          title='Group Waktu'
+          title='Shift Sekolah'
           extra={
             canManage ? (
               <Space>
-                <Button
-                  icon={<Pencil size={14} />}
-                  onClick={openEditGroup}
-                  disabled={!selectedGroup}
-                >
-                  Ubah Group
-                </Button>
                 <Button
                   type='primary'
                   icon={<Plus size={14} />}
                   onClick={openCreateGroup}
                 >
-                  Tambah Group
+                  Tambah Shift
+                </Button>
+                <Button
+                  icon={<Pencil size={14} />}
+                  onClick={openEditGroup}
+                  disabled={!selectedGroup}
+                >
+                  Ubah Shift
                 </Button>
                 <Popconfirm
-                  title='Hapus group ini?'
-                  description='Kelas di group ini akan dipindah ke group default bila penghapusan diizinkan.'
+                  title='Hapus shift ini?'
+                  description='Kelas pada shift ini akan dipindah ke shift lain jika masih ada.'
                   onConfirm={() => onDeleteGroup?.(selectedGroup?.id)}
                   okText='Hapus'
                   cancelText='Batal'
@@ -415,9 +414,9 @@ const ScheduleConfigCard = ({
                   <Button
                     danger
                     icon={<Trash2 size={14} />}
-                    disabled={!selectedGroup || selectedGroup.is_default === true}
+                    disabled={!selectedGroup}
                   >
-                    Hapus Group
+                    Hapus Shift
                   </Button>
                 </Popconfirm>
               </Space>
@@ -427,7 +426,7 @@ const ScheduleConfigCard = ({
         >
           <Flex vertical gap={12}>
             <Select
-              placeholder='Pilih group jadwal'
+              placeholder='Pilih shift jadwal'
               options={groupOptions}
               value={selectedGroup ? Number(selectedGroup.id) : undefined}
               onChange={onSelectGroup}
@@ -436,8 +435,8 @@ const ScheduleConfigCard = ({
             {selectedGroup ? (
               <Flex vertical gap={8}>
                 <Space wrap>
-                  <Tag color={selectedGroup.is_default ? "blue" : "purple"}>
-                    {selectedGroup.is_default ? "Default" : "Custom"}
+                  <Tag color={selectedGroup.is_default ? "blue" : "orange"}>
+                    {selectedGroup.is_default ? "Utama" : "Tambahan"}
                   </Tag>
                   <Tag color='geekblue'>
                     {selectedGroup.class_count ||
@@ -448,7 +447,7 @@ const ScheduleConfigCard = ({
                 </Space>
                 <Text strong>{selectedGroup.name}</Text>
                 <Text type='secondary'>
-                  {selectedGroup.description || "Belum ada deskripsi group."}
+                  {selectedGroup.description || "Belum ada deskripsi shift."}
                 </Text>
                 {(selectedGroupClasses || []).length > 0 ? (
                   <Space size={[8, 8]} wrap>
@@ -464,13 +463,13 @@ const ScheduleConfigCard = ({
                   <Alert
                     showIcon
                     type='warning'
-                    title='Belum ada kelas di group ini'
-                    description='Tambahkan kelas ke group agar nantinya bisa dipakai pada generator group-aware.'
+                    title='Belum ada kelas di shift ini'
+                    description='Tambahkan kelas ke Shift Pagi atau Shift Siang agar generator jadwal dapat menempatkan kelas ke shift yang benar.'
                   />
                 )}
               </Flex>
             ) : (
-              <Empty description='Belum ada group jadwal.' />
+              <Empty description='Belum ada shift jadwal.' />
             )}
           </Flex>
         </Card>
@@ -554,10 +553,10 @@ const ScheduleConfigCard = ({
                 scroll={{ x: 760 }}
               />
             ) : (
-              <Empty description='Belum ada hari yang dikonfigurasi untuk group ini.' />
+              <Empty description='Belum ada hari yang dikonfigurasi untuk shift ini.' />
             )
           ) : (
-            <Empty description='Pilih group jadwal terlebih dahulu.' />
+            <Empty description='Pilih shift jadwal terlebih dahulu.' />
           )}
         </Card>
 
@@ -571,7 +570,7 @@ const ScheduleConfigCard = ({
 
       <Modal
         open={groupModalOpen}
-        title={editingGroup ? "Ubah Group Jadwal" : "Tambah Group Jadwal"}
+        title={editingGroup ? "Ubah Shift Jadwal" : "Tambah Shift Jadwal"}
         onCancel={() => {
           setGroupModalOpen(false);
           setEditingGroup(null);
@@ -585,26 +584,26 @@ const ScheduleConfigCard = ({
         <Form form={groupForm} layout='vertical'>
           <Form.Item
             name='name'
-            label='Nama Group'
-            rules={[{ required: true, message: "Nama group wajib diisi." }]}
+            label='Nama Shift'
+            rules={[{ required: true, message: "Nama shift wajib diisi." }]}
           >
-            <Input placeholder='Contoh: Shift Pagi Kelas 7-8' />
+            <Input placeholder='Contoh: Shift Pagi' />
           </Form.Item>
           <Form.Item name='description' label='Deskripsi'>
             <Input.TextArea
               rows={3}
-              placeholder='Contoh: Senin-Rabu pagi, Kamis-Sabtu siang.'
+              placeholder='Contoh: Kelas yang belajar pada sesi pagi.'
             />
           </Form.Item>
           <Form.Item
             name='class_ids'
-            label='Kelas dalam Group'
+            label='Kelas dalam Shift'
             rules={[{ required: true, message: "Pilih minimal satu kelas." }]}
           >
             <Select
               mode='multiple'
               options={classOptions}
-              placeholder='Pilih kelas untuk group ini'
+              placeholder='Pilih kelas untuk shift ini'
               showSearch={{ optionFilterProp: "label" }}
               allowClear
               virtual={false}

@@ -54,6 +54,8 @@ const GENERATE_ACTION_OPTIONS = [
 
 const ScheduleTimetableCard = ({
   canManage,
+  configs,
+  groups,
   entries,
   activities,
   activityTargets,
@@ -68,6 +70,8 @@ const ScheduleTimetableCard = ({
   selectedGroup,
   groupCount = 0,
   loading,
+  onSelectConfig,
+  onSelectGroup,
   onCreateEntry,
   onDeleteEntry,
   onGenerate,
@@ -81,6 +85,23 @@ const ScheduleTimetableCard = ({
   const [lastGenerateResult, setLastGenerateResult] = useState(null);
   const [form] = Form.useForm();
   const [generateForm] = Form.useForm();
+
+  const configOptions = useMemo(
+    () =>
+      (configs || []).map((item) => ({
+        value: Number(item.id),
+        label: item.name,
+      })),
+    [configs],
+  );
+  const groupOptions = useMemo(
+    () =>
+      (groups || []).map((item) => ({
+        value: Number(item.id),
+        label: item.name,
+      })),
+    [groups],
+  );
 
   const activeClasses = useMemo(
     () => (classes || []).filter((item) => item.is_active === true),
@@ -688,11 +709,11 @@ const ScheduleTimetableCard = ({
         },
       }),
       render: (_, record) => (
-        <Space orientation="vertical" size={0}>
+        <Space orientation='vertical' size={0}>
           <Text strong>
             {record.teacher_name || `Guru #${record.teacher_id}`}
           </Text>
-          <Text type="secondary">
+          <Text type='secondary'>
             {record.subject_name || `Mapel #${record.subject_id}`} |{" "}
             {record.class_name || `Kelas #${record.class_id}`}
           </Text>
@@ -712,7 +733,7 @@ const ScheduleTimetableCard = ({
         },
       }),
       render: (_, record) => (
-        <Tag color="gold">
+        <Tag color='gold'>
           #{record.meeting_no} / {record.chunk_size} sesi
         </Tag>
       ),
@@ -751,6 +772,26 @@ const ScheduleTimetableCard = ({
       }
       extra={
         <Space>
+          {(configs || []).length > 1 ? (
+            <Select
+              value={selectedConfig ? Number(selectedConfig.id) : undefined}
+              onChange={onSelectConfig}
+              options={configOptions}
+              placeholder='Pilih konfigurasi jadwal'
+              style={{ width: 240 }}
+              loading={loading}
+            />
+          ) : null}
+          {groupCount > 1 ? (
+            <Select
+              value={selectedGroup ? Number(selectedGroup.id) : undefined}
+              onChange={onSelectGroup}
+              options={groupOptions}
+              placeholder='Pilih shift jadwal'
+              style={{ width: 200 }}
+              loading={loading}
+            />
+          ) : null}
           <Button
             icon={<RefreshCcw size={14} />}
             onClick={onRefresh}
@@ -760,7 +801,7 @@ const ScheduleTimetableCard = ({
           </Button>
           {canManage ? (
             <Button
-              type="primary"
+              type='primary'
               icon={<Sparkles size={14} />}
               onClick={openGenerateDialog}
               loading={loading}
@@ -776,49 +817,18 @@ const ScheduleTimetableCard = ({
         </Space>
       }
     >
-      <Alert
-        showIcon
-        type={groupCount > 1 ? "info" : "success"}
-        style={{ marginBottom: 20, borderRadius: 14 }}
-        message={`Tampilan jadwal: ${selectedConfig?.name || "jadwal aktif"}${selectedGroup?.name ? ` / ${selectedGroup.name}` : ""}`}
-        description={
-          groupCount > 1
-            ? "Tabel dan entri manual di tab ini hanya menampilkan kelas pada group yang dipilih. Saat menjalankan generate, sistem tetap menyusun seluruh kelas pada jadwal aktif dan memakai slot sesuai group masing-masing."
-            : "Tab ini menampilkan hasil akhir jadwal aktif dan mendukung generate maupun penyesuaian manual."
-        }
-      />
-
-      {/* {(sessionShortages || []).length > 0 ? (
-        <Alert
-          showIcon
-          type='warning'
-          style={{
-            marginBottom: 20,
-            borderRadius: 14,
-          }}
-          title={`Ada ${(sessionShortages || []).length} beban ajar yang belum terpenuhi`}
-          description={`${sessionShortages
-            .slice(0, 4)
-            .map(
-              (item) =>
-                `${item.teacher_name} - ${item.subject_name} ${item.class_name}: ${item.allocated_sessions}/${item.required_sessions} sesi`,
-            )
-            .join(" | ")}${sessionShortages.length > 4 ? " | ..." : ""}`}
-        />
-      ) : null} */}
-
       {displayGenerateResult ? (
         <Card
-          size="small"
+          size='small'
           style={{
             marginBottom: 20,
             borderRadius: 18,
             borderColor: "#ead9cc",
             background: "#fffaf4",
           }}
-          title="Ringkasan Generate Terakhir"
+          title='Ringkasan Generate Terakhir'
         >
-          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
+          <Space orientation='vertical' size={12} style={{ width: "100%" }}>
             <Alert
               showIcon
               type={
@@ -839,21 +849,21 @@ const ScheduleTimetableCard = ({
             />
 
             <Space wrap>
-              <Tag color="blue">
+              <Tag color='blue'>
                 Load: {displayGenerateResult.summary?.total_loads || 0}
               </Tag>
-              <Tag color="geekblue">
+              <Tag color='geekblue'>
                 Slot: {displayGenerateResult.summary?.total_slots || 0}
               </Tag>
-              <Tag color="purple">
+              <Tag color='purple'>
                 Rule guru: {displayGenerateResult.summary?.weekly_rules || 0}
               </Tag>
-              <Tag color="gold">
+              <Tag color='gold'>
                 Manual tersimpan:{" "}
                 {displayGenerateResult.summary?.existing_entries
                   ?.manual_entries || 0}
               </Tag>
-              <Tag color="red">
+              <Tag color='red'>
                 Locked tersimpan:{" "}
                 {displayGenerateResult.summary?.existing_entries
                   ?.locked_entries || 0}
@@ -863,7 +873,7 @@ const ScheduleTimetableCard = ({
             {(displayGenerateResult.failed_summary || []).length > 0 ? (
               <Space wrap>
                 {displayGenerateResult.failed_summary.map((item) => (
-                  <Tag key={item.code} color="orange">
+                  <Tag key={item.code} color='orange'>
                     {item.label}: {item.count}
                   </Tag>
                 ))}
@@ -872,8 +882,8 @@ const ScheduleTimetableCard = ({
 
             {(displayGenerateResult.failed_items || []).length > 0 ? (
               <Table
-                rowKey="key"
-                size="small"
+                rowKey='key'
+                size='small'
                 columns={failedColumns}
                 dataSource={displayGenerateResult.failed_items.slice(0, 10)}
                 pagination={false}
@@ -885,10 +895,10 @@ const ScheduleTimetableCard = ({
       ) : null}
 
       {!timetableRows.length ? (
-        <Empty description="Belum ada jadwal untuk ditampilkan." />
+        <Empty description='Belum ada jadwal untuk ditampilkan.' />
       ) : (
         <Card
-          size="small"
+          size='small'
           style={{
             borderRadius: 18,
             borderColor: "#ead9cc",
@@ -903,7 +913,7 @@ const ScheduleTimetableCard = ({
           }}
         >
           <Tabs
-            defaultActiveKey="timetable"
+            defaultActiveKey='timetable'
             style={{ padding: "0 16px 16px" }}
             items={[
               {
@@ -937,14 +947,14 @@ const ScheduleTimetableCard = ({
 
       <Modal
         open={openGenerateModal}
-        title="Generate Jadwal"
+        title='Generate Jadwal'
         onCancel={() => setOpenGenerateModal(false)}
         onOk={handleGenerateSubmit}
         okText={generatePreview ? "Jalankan Simulasi" : "Jalankan"}
         confirmLoading={loading}
       >
-        <Form form={generateForm} layout="vertical">
-          <Form.Item name="action" label="Aksi" rules={[{ required: true }]}>
+        <Form form={generateForm} layout='vertical'>
+          <Form.Item name='action' label='Aksi' rules={[{ required: true }]}>
             <Select
               options={GENERATE_ACTION_OPTIONS.map((item) => ({
                 value: item.value,
@@ -954,7 +964,7 @@ const ScheduleTimetableCard = ({
           </Form.Item>
           <Alert
             showIcon
-            type="info"
+            type='info'
             style={{ marginBottom: 16 }}
             title={
               GENERATE_ACTION_OPTIONS.find(
@@ -968,11 +978,11 @@ const ScheduleTimetableCard = ({
             }
           />
           <Form.Item
-            name="dry_run"
-            label="Simulasi terlebih dahulu"
-            valuePropName="checked"
+            name='dry_run'
+            label='Simulasi terlebih dahulu'
+            valuePropName='checked'
           >
-            <Switch checkedChildren="Simulasi" unCheckedChildren="Eksekusi" />
+            <Switch checkedChildren='Simulasi' unCheckedChildren='Eksekusi' />
           </Form.Item>
           <Alert
             showIcon
@@ -1000,24 +1010,24 @@ const ScheduleTimetableCard = ({
         }
         onCancel={closeEntryModal}
         onOk={handleSubmit}
-        okText="Simpan"
+        okText='Simpan'
         confirmLoading={loading}
         footer={[
           isManualEditing ? (
             <Popconfirm
-              key="delete"
-              title="Hapus jadwal manual ini?"
+              key='delete'
+              title='Hapus jadwal manual ini?'
               onConfirm={handleDeleteCurrentEntry}
             >
               <Button danger>Hapus</Button>
             </Popconfirm>
           ) : null,
-          <Button key="cancel" onClick={closeEntryModal}>
+          <Button key='cancel' onClick={closeEntryModal}>
             Batal
           </Button>,
           <Button
-            key="submit"
-            type="primary"
+            key='submit'
+            type='primary'
             loading={loading}
             onClick={handleSubmit}
           >
@@ -1025,38 +1035,38 @@ const ScheduleTimetableCard = ({
           </Button>,
         ]}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout='vertical'>
           {modalMode === "create" ? (
             <Form.Item
-              name="teaching_load_id"
-              label="Beban ajar"
+              name='teaching_load_id'
+              label='Beban ajar'
               rules={[{ required: true, message: "Beban ajar wajib dipilih." }]}
             >
               <Select
                 showSearch
-                optionFilterProp="label"
+                optionFilterProp='label'
                 options={manualEntryOptions}
-                placeholder="Pilih guru / mapel / kelas"
+                placeholder='Pilih guru / mapel / kelas'
               />
             </Form.Item>
           ) : null}
           <Form.Item
-            name="day_of_week"
-            label="Hari"
+            name='day_of_week'
+            label='Hari'
             rules={[{ required: true }]}
           >
             <Select options={DAY_OPTIONS} />
           </Form.Item>
           <Form.Item
-            name="slot_start_id"
-            label="Slot mulai"
+            name='slot_start_id'
+            label='Slot mulai'
             rules={[{ required: true }]}
           >
             <Select options={slotStartOptions} />
           </Form.Item>
           <Form.Item
-            name="slot_count"
-            label="Jumlah sesi"
+            name='slot_count'
+            label='Jumlah sesi'
             rules={[
               { required: true, message: "Jumlah sesi wajib diisi." },
               {
@@ -1087,26 +1097,26 @@ const ScheduleTimetableCard = ({
           </Form.Item>
           {selectedLoadHelper ? (
             <Alert
-              type="info"
+              type='info'
               showIcon
               style={{ marginBottom: 16 }}
-              title="Batas sesi manual"
+              title='Batas sesi manual'
               description={`Sisa beban: ${selectedLoadHelper.remainingSessions} sesi. Maks sesi per pertemuan: ${selectedLoadHelper.maxSessionsPerMeeting} sesi. Input yang diizinkan maksimal ${manualSlotCountLimit} sesi.`}
             />
           ) : null}
           {editing ? (
             <Alert
-              type="warning"
+              type='warning'
               showIcon
               title={`${editing.class_name} | ${editing.subject_name}`}
               description={`Guru: ${editing.teacher_name}. Hasil generate tidak akan menimpa perubahan manual ini selama tidak bentrok.`}
             />
           ) : modalMode === "create" ? (
             <Alert
-              type="info"
+              type='info'
               showIcon
-              title="Jadwal manual akan dipertahankan saat generate"
-              description="Pilih beban ajar yang valid, lalu tentukan hari, slot mulai, dan jumlah sesi."
+              title='Jadwal manual akan dipertahankan saat generate'
+              description='Pilih beban ajar yang valid, lalu tentukan hari, slot mulai, dan jumlah sesi.'
             />
           ) : null}
         </Form>

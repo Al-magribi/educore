@@ -417,7 +417,7 @@ export const registerScheduleResourceRoutes = (router) => {
             });
           }
 
-          const params = [
+          const insertParams = [
             teacherId,
             periodeId,
             entry.day_of_week,
@@ -427,6 +427,17 @@ export const registerScheduleResourceRoutes = (router) => {
             entry.reason,
             Boolean(entry.is_active),
             userId,
+          ];
+          const updateParams = [
+            teacherId,
+            periodeId,
+            entry.day_of_week,
+            entry.specific_date,
+            entry.start_time,
+            entry.end_time,
+            entry.reason,
+            Boolean(entry.is_active),
+            entry.id,
           ];
 
           const isBatchUpdate = Boolean(entry.id);
@@ -441,7 +452,7 @@ export const registerScheduleResourceRoutes = (router) => {
                    reason = $7,
                    is_active = $8,
                    updated_at = CURRENT_TIMESTAMP
-               WHERE id = $10
+               WHERE id = $9
                  AND teacher_id = $1
                  AND periode_id = $2
                RETURNING *`
@@ -461,7 +472,7 @@ export const registerScheduleResourceRoutes = (router) => {
 
           const result = await client.query(
             sql,
-            isBatchUpdate ? [...params, entry.id] : params,
+            isBatchUpdate ? updateParams : insertParams,
           );
 
           if (isBatchUpdate && result.rowCount === 0) {
@@ -496,7 +507,7 @@ export const registerScheduleResourceRoutes = (router) => {
         });
       }
 
-      const params = [
+      const insertParams = [
         teacherId,
         periodeId,
         toInt(day_of_week, null),
@@ -506,6 +517,17 @@ export const registerScheduleResourceRoutes = (router) => {
         reason,
         Boolean(is_active),
         userId,
+      ];
+      const updateParams = [
+        teacherId,
+        periodeId,
+        toInt(day_of_week, null),
+        specific_date,
+        start_time || null,
+        end_time || null,
+        reason,
+        Boolean(is_active),
+        toInt(id, null),
       ];
 
       const isUpdate = Boolean(toInt(id, null));
@@ -520,7 +542,7 @@ export const registerScheduleResourceRoutes = (router) => {
                reason = $7,
                is_active = $8,
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $10
+           WHERE id = $9
              AND teacher_id = $1
              AND periode_id = $2
            RETURNING *`
@@ -538,7 +560,7 @@ export const registerScheduleResourceRoutes = (router) => {
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING *`;
 
-      const result = await client.query(sql, isUpdate ? [...params, toInt(id, null)] : params);
+      const result = await client.query(sql, isUpdate ? updateParams : insertParams);
       return res.json({
         status: "success",
         message: isUpdate ? "Ketentuan guru diperbarui." : "Ketentuan guru ditambahkan.",
@@ -568,6 +590,7 @@ export const registerScheduleResourceRoutes = (router) => {
       const {
         id,
         periode_id,
+        config_group_id,
         name,
         day_of_week,
         slot_start_id,
@@ -597,6 +620,7 @@ export const registerScheduleResourceRoutes = (router) => {
       const scopeType = ["all_classes", "teaching_load"].includes(scope_type)
         ? scope_type
         : "all_classes";
+      const nextConfigGroupId = toInt(config_group_id, null);
       const nextDay = toInt(day_of_week, null);
       const nextSlotStartId = toInt(slot_start_id, null);
       const nextSlotCount = toInt(slot_count, null);
@@ -641,6 +665,16 @@ export const registerScheduleResourceRoutes = (router) => {
         });
       }
 
+      if (
+        nextConfigGroupId &&
+        Number(startSlot.config_group_id) !== Number(nextConfigGroupId)
+      ) {
+        return res.status(400).json({
+          status: "error",
+          message: "Slot mulai tidak sesuai dengan shift jadwal yang sedang dipilih.",
+        });
+      }
+
       const startSlotNo = toInt(startSlot.slot_no, 0);
       const segmentResult = await client.query(
         `SELECT id, slot_no
@@ -673,18 +707,23 @@ export const registerScheduleResourceRoutes = (router) => {
         }
 
         const loadResult = await client.query(
-          `SELECT id, teacher_id, subject_id, class_id
-           FROM lms.l_teaching_load
-           WHERE id = ANY($1::int[])
-             AND homebase_id = $2
-             AND periode_id = $3
-             AND is_active = true`,
-          [normalizedTeachingLoadIds, homebase_id, periodeId],
+          `SELECT l.id, l.teacher_id, l.subject_id, l.class_id
+           FROM lms.l_teaching_load l
+           ${nextConfigGroupId ? "JOIN lms.l_schedule_config_group_class gcc ON gcc.class_id = l.class_id" : ""}
+           WHERE l.id = ANY($1::int[])
+             AND l.homebase_id = $2
+             AND l.periode_id = $3
+             AND l.is_active = true
+             ${nextConfigGroupId ? "AND gcc.config_group_id = $4" : ""}`,
+          nextConfigGroupId
+            ? [normalizedTeachingLoadIds, homebase_id, periodeId, nextConfigGroupId]
+            : [normalizedTeachingLoadIds, homebase_id, periodeId],
         );
         if (loadResult.rowCount !== normalizedTeachingLoadIds.length) {
           return res.status(400).json({
             status: "error",
-            message: "Salah satu beban ajar yang dipilih tidak valid atau tidak aktif.",
+            message:
+              "Salah satu beban ajar yang dipilih tidak valid, tidak aktif, atau tidak termasuk shift yang sedang dipilih.",
           });
         }
         targetRows = loadResult.rows;

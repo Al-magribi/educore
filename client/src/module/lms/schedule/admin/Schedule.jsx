@@ -439,10 +439,10 @@ const Schedule = () => {
       if (nextGroupId) {
         setSelectedGroupId(nextGroupId);
       }
-      message.success("Group jadwal tersimpan.");
+      message.success("Shift jadwal tersimpan.");
       return true;
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan group jadwal.");
+      message.error(error?.data?.message || "Gagal menyimpan shift jadwal.");
       throw error;
     }
   };
@@ -453,9 +453,9 @@ const Schedule = () => {
       const response = await deleteScheduleConfigGroup(groupId).unwrap();
       const fallbackGroupId = Number(response?.data?.fallback_group_id || 0);
       setSelectedGroupId(fallbackGroupId || null);
-      message.success("Group jadwal dihapus.");
+      message.success("Shift jadwal dihapus.");
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus group jadwal.");
+      message.error(error?.data?.message || "Gagal menghapus shift jadwal.");
     }
   };
 
@@ -751,17 +751,21 @@ const Schedule = () => {
             children: isConfigOperational ? (
               <ScheduleActivity
                 canManage={canManage}
-                activities={payload.activities || []}
-                activityTargets={payload.activity_targets || []}
+                activities={payload.all_activities || payload.activities || []}
+                activityTargets={
+                  payload.all_activity_targets || payload.activity_targets || []
+                }
                 slots={payload.slots || []}
                 teacherAssignments={scopedTeacherAssignments}
                 scheduleCapacity={scheduleCapacity}
                 selectedConfig={selectedConfig}
+                groups={configGroups}
                 selectedGroup={selectedGroup}
                 groupCount={configGroups.length}
                 loading={savingActivity || deletingActivity || isFetching}
                 onSave={handleActivitySave}
                 onDelete={handleActivityDelete}
+                onSelectGroup={setSelectedGroupId}
               />
             ) : (
               renderInactiveConfigAlert()
@@ -781,11 +785,15 @@ const Schedule = () => {
                 teachers={payload.teachers || []}
                 rules={payload.unavailability || []}
                 slots={payload.slots || []}
+                allSlots={payload.all_slots || payload.slots || []}
                 selectedConfig={selectedConfig}
+                groups={configGroups}
                 selectedGroup={selectedGroup}
+                groupCount={configGroups.length}
                 loading={savingRule || deletingRule || isFetching}
                 onSave={handleRuleSave}
                 onDelete={handleDeleteRule}
+                onSelectGroup={setSelectedGroupId}
               />
             ) : (
               renderInactiveConfigAlert()
@@ -802,6 +810,8 @@ const Schedule = () => {
             children: isConfigOperational ? (
               <ScheduleTimetableCard
                 canManage={canManage}
+                configs={scheduleConfigs}
+                groups={configGroups}
                 entries={payload.entries || []}
                 activities={payload.activities || []}
                 activityTargets={payload.activity_targets || []}
@@ -815,6 +825,8 @@ const Schedule = () => {
                 selectedConfig={selectedConfig}
                 selectedGroup={selectedGroup}
                 groupCount={configGroups.length}
+                onSelectConfig={setSelectedConfigId}
+                onSelectGroup={setSelectedGroupId}
                 onCreateEntry={handleCreateManualEntry}
                 onGenerate={handleGenerate}
                 onRefresh={refetch}
