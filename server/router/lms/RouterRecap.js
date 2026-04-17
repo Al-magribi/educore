@@ -315,7 +315,13 @@ router.get(
        WHERE a.student_id = $1
          AND a.subject_id = $2
          AND a.class_id = $3
-         AND a.periode_id = $4
+         AND EXISTS (
+           SELECT 1
+           FROM u_class_enrollments e
+           WHERE e.student_id = a.student_id
+             AND e.class_id = a.class_id
+             AND e.periode_id = $4
+         )
          AND a.date >= $5::date
          AND a.date < $6::date
          AND EXTRACT(MONTH FROM a.date) = $7
@@ -1178,7 +1184,13 @@ router.get(
          AND a.subject_id = $2
          AND a.date >= $3::date
          AND a.date < $4::date
-         AND a.periode_id = $5
+         AND EXISTS (
+           SELECT 1
+           FROM u_class_enrollments e
+           WHERE e.student_id = a.student_id
+             AND e.class_id = a.class_id
+             AND e.periode_id = $5
+         )
          ${attendanceTeacherFilter}
        ORDER BY a.date ASC`,
       [
