@@ -1,5 +1,6 @@
 ﻿import React from "react";
 import { Card, InputNumber, Space, Table, Typography } from "antd";
+import LoadApp from "../../../../../../components/loader/LoadApp";
 
 const { Text } = Typography;
 
@@ -7,6 +8,7 @@ const StudentGradingTableScore = ({
   students,
   isMobile,
   isFilterReady,
+  isLoading,
   onStudentChange,
   typeKey,
 }) => {
@@ -90,6 +92,10 @@ const StudentGradingTableScore = ({
       </Space>
     </Card>
   );
+
+  if (isFilterReady && isLoading) {
+    return <LoadApp />;
+  }
 
   return isMobile ? (
     <Space orientation="vertical" size={12} style={{ width: "100%" }}>

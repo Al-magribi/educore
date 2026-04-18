@@ -1,5 +1,15 @@
 import React, { useMemo } from "react";
-import { Card, InputNumber, Space, Table, Typography } from "antd";
+import {
+  Button,
+  Card,
+  InputNumber,
+  Popconfirm,
+  Space,
+  Table,
+  Typography,
+} from "antd";
+import { Trash2 } from "lucide-react";
+import LoadApp from "../../../../../../components/loader/LoadApp";
 
 const { Text } = Typography;
 
@@ -17,24 +27,46 @@ export const buildFormatifSubchapters = ({
   activeChapterId,
   activeChapter,
   chaptersWithContents = [],
+  slots = [],
 }) => {
   if (isFormativeFilterActive) {
     if (!activeChapterId) return [];
-    const subIds = new Set();
-    students.forEach((student) => {
-      (student.scores || []).forEach((score) => {
-        const subId = extractSubIdFromType(score?.type);
-        if (subId == null) return;
-        subIds.add(subId);
+    const slotMap = new Map();
+    (slots || []).forEach((slot, index) => {
+      const slotKey = String(slot?.slot_key ?? slot?.type ?? "");
+      if (!slotKey) return;
+      slotMap.set(slotKey, {
+        id: slotKey,
+        scoreKey: slotKey,
+        slotKey,
+        subchapterId: Number(slot?.subchapter_id) || null,
+        labelIndex: Number(slot?.label_index) || index + 1,
+        title: `Nilai ${Number(slot?.label_index) || index + 1}`,
       });
     });
-    const sorted = Array.from(subIds).sort((a, b) => Number(a) - Number(b));
-    return sorted.map((subId, index) => ({
-      id: subId,
-      title: `Nilai ${index + 1}`,
-      labelIndex: index + 1,
-      scoreKey: subId,
-    }));
+    students.forEach((student) => {
+      (student.scores || []).forEach((score) => {
+        const slotKey = String(score?.slot_key ?? score?.type ?? "");
+        if (!slotKey || slotMap.has(slotKey)) return;
+        slotMap.set(slotKey, {
+          id: slotKey,
+          scoreKey: slotKey,
+          slotKey,
+          subchapterId: Number(score?.subchapter_id) || null,
+          labelIndex: slotMap.size + 1,
+          title: `Nilai ${slotMap.size + 1}`,
+        });
+      });
+    });
+    return Array.from(slotMap.values()).map((slot, index) => {
+      const labelIndex = slot.labelIndex || index + 1;
+      return {
+        ...slot,
+        labelIndex,
+        title: `Nilai ${labelIndex}`,
+        scoreKey: slot.scoreKey || slot.slotKey || slot.id,
+      };
+    });
   }
 
   const chapterTitleMap = new Map(
@@ -58,7 +90,11 @@ export const buildFormatifSubchapters = ({
       const chapterId = score.chapter_id ?? "0";
       const monthValue = score.month || "M00";
       const groupKey = `${monthValue}::${chapterId}`;
-      const subId = extractSubIdFromType(score.type);
+      const explicitSubId = Number(score?.subchapter_id);
+      const subId =
+        Number.isFinite(explicitSubId) && explicitSubId > 0
+          ? explicitSubId
+          : extractSubIdFromType(score.type);
       if (!groupSubIds.has(groupKey)) {
         groupSubIds.set(groupKey, new Set());
       }
@@ -81,6 +117,7 @@ export const buildFormatifSubchapters = ({
     (student.scores || []).forEach((score) => {
       if (!score) return;
       const scoreKey =
+        score.slot_key ||
         score.type ||
         `${score.month || "M00"}-B${score.chapter_id ?? "0"}-S${
           extractSubIdFromType(score.type) ?? "0"
@@ -91,7 +128,11 @@ export const buildFormatifSubchapters = ({
         `Bab ${score.chapter_id ?? "-"}`;
       const monthLabel = score.month || "-";
       const groupKey = `${score.month || "M00"}::${score.chapter_id ?? "0"}`;
-      const subId = extractSubIdFromType(score.type);
+      const explicitSubId = Number(score?.subchapter_id);
+      const subId =
+        Number.isFinite(explicitSubId) && explicitSubId > 0
+          ? explicitSubId
+          : extractSubIdFromType(score.type);
       const derivedIndex =
         subId != null ? groupIndexMap.get(groupKey)?.get(subId) : null;
       const baseIndex =
@@ -114,7 +155,9 @@ const StudentGradingTableFormatif = ({
   students,
   isMobile,
   isFilterReady,
+  isLoading,
   onFormativeChange,
+  onDeleteColumn,
   subchapters = [],
 }) => {
   const normalizedSubchapters = useMemo(() => {
@@ -172,6 +215,32 @@ const StudentGradingTableFormatif = ({
 
   const getSubTitle = (sub) =>
     sub?.title || `Nilai ${sub?.labelIndex ?? sub?.id ?? "-"}`;
+  const renderSubHeader = (sub) => {
+    const scoreKey = getScoreKey(sub);
+    const title = getSubTitle(sub);
+    const canDelete = isFilterReady && scoreKey && scoreKey !== "__new";
+    return (
+      <Space align='center' size={6}>
+        <Text>{title}</Text>
+        {canDelete && (
+          <Popconfirm
+            title={`Hapus ${title}?`}
+            description='Kolom ini akan langsung dihapus dari data formatif.'
+            okText='Hapus'
+            cancelText='Batal'
+            onConfirm={() => onDeleteColumn?.(scoreKey)}
+          >
+            <Button
+              type='text'
+              size='small'
+              danger
+              icon={<Trash2 size={14} />}
+            />
+          </Popconfirm>
+        )}
+      </Space>
+    );
+  };
 
   const renderScoreInput = (record, index, subchapter) => {
     const scoreKey = getScoreKey(subchapter);
@@ -223,7 +292,7 @@ const StudentGradingTableFormatif = ({
     ...normalizedSubchapters.map((sub) => {
       const scoreKey = getScoreKey(sub);
       return {
-        title: getSubTitle(sub),
+        title: renderSubHeader(sub),
         key: `sub_${scoreKey}`,
         width: "16%",
         render: (_, record, index) => renderScoreInput(record, index, sub),
@@ -263,7 +332,7 @@ const StudentGradingTableFormatif = ({
         <div style={{ display: "grid", gap: 8 }}>
           {normalizedSubchapters.map((sub) => (
             <div key={`sub_mobile_${getScoreKey(sub)}`}>
-              <Text type="secondary">{getSubTitle(sub)}</Text>
+              <div style={{ marginBottom: 4 }}>{renderSubHeader(sub)}</div>
               {renderScoreInput(student, index, sub)}
             </div>
           ))}
@@ -277,6 +346,10 @@ const StudentGradingTableFormatif = ({
       </Space>
     </Card>
   );
+
+  if (isFilterReady && isLoading) {
+    return <LoadApp />;
+  }
 
   return isMobile ? (
     <Space orientation="vertical" size={12} style={{ width: "100%" }}>

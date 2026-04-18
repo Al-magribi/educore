@@ -1,5 +1,6 @@
-import React, { Suspense, lazy, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Card, Grid, Skeleton, Tabs } from "antd";
+import dayjs from "dayjs";
 import { useGetClassesQuery } from "../../../../service/lms/ApiLms";
 import { useGetGradingMetaQuery } from "../../../../service/lms/ApiGrading";
 import { useGetRecapTeachersQuery } from "../../../../service/lms/ApiRecap";
@@ -29,9 +30,57 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
   const activePeriode = metaRes?.data?.activePeriode || null;
 
   const [activeTab, setActiveTab] = useState("attendance");
-  const [semester, setSemester] = useState(1);
+  const [semester, setSemester] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [teacherId, setTeacherId] = useState(null);
+
+  const derivedSemester = useMemo(() => {
+    const periodStartMonth = activePeriode?.start
+      ? dayjs(activePeriode.start).startOf("month")
+      : null;
+    const periodEndMonth = activePeriode?.end
+      ? dayjs(activePeriode.end).endOf("month")
+      : null;
+    const currentMonth = dayjs().startOf("month");
+
+    if (
+      periodStartMonth &&
+      currentMonth.isValid() &&
+      !currentMonth.isBefore(periodStartMonth, "month")
+    ) {
+      const startYear = periodStartMonth.year();
+      const startMonth = periodStartMonth.month() + 1;
+      if (
+        currentMonth.year() === startYear &&
+        currentMonth.month() + 1 >= startMonth
+      ) {
+        return 1;
+      }
+    }
+
+    if (
+      periodEndMonth &&
+      currentMonth.isValid() &&
+      !currentMonth.isAfter(periodEndMonth, "month")
+    ) {
+      const endYear = periodEndMonth.year();
+      const endMonth = periodEndMonth.month() + 1;
+      if (
+        currentMonth.year() === endYear &&
+        currentMonth.month() + 1 <= endMonth
+      ) {
+        return 2;
+      }
+    }
+
+    return currentMonth.month() + 1 >= 7 ? 1 : 2;
+  }, [activePeriode?.end, activePeriode?.start]);
+
+  useEffect(() => {
+    if (derivedSemester) {
+      setSemester((prev) => prev ?? derivedSemester);
+    }
+  }, [derivedSemester]);
 
   const { data: classRes, isLoading: classLoading } = useGetClassesQuery(
     { subjectId, gradeId: null },

@@ -19,6 +19,21 @@ const MONTH_NAMES = [
   "Desember",
 ];
 
+const MONTH_NAMES_EN = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
 const SEMESTER_MONTHS = {
   1: [7, 8, 9, 10, 11, 12],
   2: [1, 2, 3, 4, 5, 6],
@@ -26,11 +41,31 @@ const SEMESTER_MONTHS = {
 
 const monthNameToNumber = (monthName) => {
   if (!monthName) return null;
-  const normalized = String(monthName).trim().toLowerCase();
+  const normalized = String(monthName).trim();
+  const typeMatch = normalized.match(/M(\d{2})/i);
+  if (typeMatch) {
+    return Number(typeMatch[1]);
+  }
+  const yyyyMmMatch = normalized.match(/^(\d{4})-(\d{2})$/);
+  if (yyyyMmMatch) {
+    return Number(yyyyMmMatch[2]);
+  }
+  const dateMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateMatch) {
+    return Number(dateMatch[2]);
+  }
+  const numericMatch = normalized.match(/^(\d{1,2})$/);
+  if (numericMatch) {
+    return Number(numericMatch[1]);
+  }
+  const namePart = normalized.split(" ")[0]?.toLowerCase();
   const index = MONTH_NAMES.findIndex(
-    (item) => item.toLowerCase() === normalized,
+    (item) => item.toLowerCase() === namePart,
   );
-  return index >= 0 ? index + 1 : null;
+  if (index >= 0) return index + 1;
+  const englishIndex = MONTH_NAMES_EN.indexOf(namePart);
+  if (englishIndex >= 0) return englishIndex + 1;
+  return null;
 };
 
 const normalizeStatus = (status) => {
@@ -1417,7 +1452,7 @@ router.get(
     );
 
     const teacherFilterQuery =
-      role === "teacher" || effectiveTeacherId ? "AND teacher_id = $5" : "";
+      role === "teacher" || effectiveTeacherId ? "AND teacher_id = $4" : "";
     const teacherFilterParams =
       role === "teacher" || effectiveTeacherId ? [effectiveTeacherId] : [];
 
@@ -1435,14 +1470,12 @@ router.get(
        WHERE f.subject_id = $1
          AND f.class_id = $2
          AND f.periode_id = $3
-         AND f.semester = $4
          ${teacherFilterQuery}
        ORDER BY f.student_id ASC, f.chapter_id ASC, f.type ASC, f.id ASC`,
       [
         subject_id,
         class_id,
         activePeriode.id,
-        semesterValue,
         ...teacherFilterParams,
       ],
     );
@@ -1471,7 +1504,7 @@ router.get(
     for (const row of formativeResult.rows) {
       const student = studentsMap.get(String(row.student_id));
       if (!student) continue;
-      const monthNumber = monthNameToNumber(row.month);
+      const monthNumber = monthNameToNumber(row.month) ?? monthNameToNumber(row.type);
       if (!semesterMonths.includes(monthNumber)) continue;
 
       const slotKey =
@@ -1727,7 +1760,7 @@ router.get(
     );
 
     const teacherFilterQuery =
-      role === "teacher" || effectiveTeacherId ? "AND teacher_id = $5" : "";
+      role === "teacher" || effectiveTeacherId ? "AND teacher_id = $4" : "";
     const teacherFilterParams =
       role === "teacher" || effectiveTeacherId ? [effectiveTeacherId] : [];
 
@@ -1747,14 +1780,12 @@ router.get(
        WHERE s.subject_id = $1
          AND s.class_id = $2
          AND s.periode_id = $3
-         AND s.semester = $4
          ${teacherFilterQuery}
        ORDER BY s.student_id ASC, s.chapter_id ASC, s.type ASC, s.id ASC`,
       [
         subject_id,
         class_id,
         activePeriode.id,
-        semesterValue,
         ...teacherFilterParams,
       ],
     );
@@ -1783,7 +1814,7 @@ router.get(
     for (const row of summativeResult.rows) {
       const student = studentsMap.get(String(row.student_id));
       if (!student) continue;
-      const monthNumber = monthNameToNumber(row.month);
+      const monthNumber = monthNameToNumber(row.month) ?? monthNameToNumber(row.type);
       if (!semesterMonths.includes(monthNumber)) continue;
 
       const slotKey =
@@ -1834,6 +1865,13 @@ router.get(
       for (const monthNumber of semesterMonths) {
         const monthData = student.month_scores[monthNumber];
         for (const scoreItem of monthData.summative) {
+          if (
+            scoreItem.final_score !== null &&
+            scoreItem.final_score !== undefined
+          ) {
+            combinedScores.push(Number(scoreItem.final_score));
+            continue;
+          }
           if (scoreItem.score_written !== null && scoreItem.score_written !== undefined) {
             combinedScores.push(Number(scoreItem.score_written));
           }
@@ -2264,7 +2302,7 @@ router.get(
     );
 
     const teacherFilterSummativeQuery =
-      role === "teacher" || effectiveTeacherId ? "AND s.teacher_id = $5" : "";
+      role === "teacher" || effectiveTeacherId ? "AND s.teacher_id = $4" : "";
     const teacherFilterFinalQuery =
       role === "teacher" || effectiveTeacherId ? "AND f.teacher_id = $5" : "";
     const teacherFilterParams =
@@ -2273,20 +2311,19 @@ router.get(
     const summativeResult = await pool.query(
       `SELECT
          s.student_id,
+         s.final_score,
          s.score_written,
          s.score_skill
        FROM l_score_summative s
        WHERE s.subject_id = $1
          AND s.class_id = $2
          AND s.periode_id = $3
-         AND s.semester = $4
          ${teacherFilterSummativeQuery}
        ORDER BY s.student_id ASC, s.id ASC`,
       [
         subject_id,
         class_id,
         activePeriode.id,
-        semesterValue,
         ...teacherFilterParams,
       ],
     );
@@ -2316,6 +2353,10 @@ router.get(
       const key = String(row.student_id);
       if (!summativeScoresByStudent.has(key)) {
         summativeScoresByStudent.set(key, []);
+      }
+      if (row.final_score !== null && row.final_score !== undefined) {
+        summativeScoresByStudent.get(key).push(Number(row.final_score));
+        continue;
       }
       if (row.score_written !== null && row.score_written !== undefined) {
         summativeScoresByStudent.get(key).push(Number(row.score_written));
