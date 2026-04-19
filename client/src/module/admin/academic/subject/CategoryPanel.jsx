@@ -78,10 +78,10 @@ const CategoryPanel = () => {
       {/* --- HEADER BUTTON --- */}
       <div style={styles.header}>
         <Button
-          type="primary"
+          type='primary'
           icon={<Plus size={18} />}
           onClick={() => setIsModalOpen(true)}
-          style={{ borderRadius: 8 }}
+          style={{ borderRadius: 8, width: "100%" }}
         >
           Tambah Kategori
         </Button>
@@ -92,8 +92,8 @@ const CategoryPanel = () => {
         data={data?.data || []}
         loading={isLoading}
         hasMore={false} // Data kategori dimuat sekaligus
-        height="70vh" // Tinggi area scroll
-        emptyText="Belum ada kategori"
+        height='70vh' // Tinggi area scroll
+        emptyText='Belum ada kategori'
         grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 4 }} // Responsif Grid
         renderItem={(item) => (
           <Card
@@ -101,15 +101,15 @@ const CategoryPanel = () => {
             styles={{ body: { padding: "24px 16px" } }}
             actions={[
               <Popconfirm
-                title="Hapus kategori?"
-                description="Semua data di dalamnya akan hilang!"
+                title='Hapus kategori?'
+                description='Semua data di dalamnya akan hilang!'
                 onConfirm={() => handleDelete(item.id)}
-                okText="Ya, Hapus"
-                cancelText="Batal"
+                okText='Ya, Hapus'
+                cancelText='Batal'
                 okButtonProps={{ danger: true }}
               >
-                <Tooltip title="Hapus Permanen">
-                  <Button type="text" danger icon={<Trash2 size={16} />}>
+                <Tooltip title='Hapus Permanen'>
+                  <Button type='text' danger icon={<Trash2 size={16} />}>
                     Hapus
                   </Button>
                 </Tooltip>
@@ -132,7 +132,7 @@ const CategoryPanel = () => {
       {/* --- MODAL --- */}
       <Modal
         title={
-          <Flex align="center" gap={8}>
+          <Flex align='center' gap={8}>
             <Plus size={20} /> <span>Tambah Kategori</span>
           </Flex>
         }
@@ -146,17 +146,17 @@ const CategoryPanel = () => {
         <Form
           form={form}
           onFinish={handleAdd}
-          layout="vertical"
+          layout='vertical'
           style={{ marginTop: 20 }}
         >
           <Form.Item
-            name="name"
-            label="Nama Kategori"
+            name='name'
+            label='Nama Kategori'
             rules={[{ required: true, message: "Wajib diisi" }]}
           >
             <Input
-              placeholder="Contoh: Diniyah, Umum"
-              size="large"
+              placeholder='Contoh: Diniyah, Umum'
+              size='large'
               prefix={
                 <Layers
                   size={16}
