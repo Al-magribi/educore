@@ -215,15 +215,9 @@ const Teacher = () => {
           vertical={!screens.md}
           gap={16}
         >
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              Direktori Guru
-            </Title>
-            <Text type='secondary'>
-              Cari cepat berdasarkan nama atau NIP, lalu lanjutkan edit, import,
-              atau tambah guru baru.
-            </Text>
-          </div>
+          <Title level={4} style={{ margin: 0 }}>
+            Direktori Guru
+          </Title>
 
           <Flex
             gap={10}
