@@ -342,13 +342,30 @@ router.delete(
       "db_village",
     ];
     const safeTables = tables.filter((t) => !forbiddenTables.includes(t));
+    const schemaMappedTables = safeTables.map((tableName) => {
+      if (
+        [
+          "u_student_families",
+          "u_student_siblings",
+          "u_student_documents",
+          "db_province",
+          "db_city",
+          "db_district",
+          "db_village",
+        ].includes(tableName)
+      ) {
+        return `"database".${tableName}`;
+      }
+
+      return tableName;
+    });
 
     if (safeTables.length === 0)
       return res.status(400).json({ message: "Tabel tidak valid" });
 
     // Handle User: Jangan hapus Admin
     const cleanUsers = safeTables.includes("u_users");
-    const tablesToTruncate = safeTables.filter((t) => t !== "u_users");
+    const tablesToTruncate = schemaMappedTables.filter((t) => t !== "u_users");
 
     try {
       if (tablesToTruncate.length > 0) {

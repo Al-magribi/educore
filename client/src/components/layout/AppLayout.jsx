@@ -49,6 +49,8 @@ const routePreloaders = {
   "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
   "/admin-data-akademik": () =>
     import("../../module/admin/academic/AdminAcademinc"),
+  "/admin-database": () =>
+    import("../../module/database/manager/DatabaseManager"),
   "/finance-dashboard": () =>
     import("../../module/finance/dashboard/FinanceDash"),
   "/computer-based-test/bank": () =>
@@ -59,10 +61,16 @@ const routePreloaders = {
     import("../../module/student/dashboard/StudentDash"),
   "/siswa/jadwal-ujian": () =>
     import("../../module/cbt/student/view/StudentExamList"),
+  "/siswa-database": () =>
+    import("../../module/database/view/StudentDatabase"),
+  "/orangtua-database-siswa": () =>
+    import("../../module/database/view/ParentStudentDatabase"),
   "/computer-based-test/start": () =>
     import("../../module/cbt/student/view/ExamInterface"),
   "/guru-dashboard": () =>
     import("../../module/teacher/dashboard/TeacherDash"),
+  "/guru-database-kelas": () =>
+    import("../../module/database/manager/ClassDbManager"),
 };
 
 const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
@@ -187,7 +195,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
       default:
         items = [];
     }
-
     return enhanceMenuItems(filterMenuItemsByUser(items, user));
   })();
 

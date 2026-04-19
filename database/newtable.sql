@@ -5,33 +5,11 @@
 SET search_path TO public, public;
 
 -- ================================================================
--- SECTION 1: MASTER WILAYAH (Diambil dari newtable db_*)
--- Penting untuk biodata siswa
+-- SECTION 1: MASTER WILAYAH & STUDENT DATABASE SCHEMA
+-- DDL untuk tabel yang dipakai DbForm dipindahkan ke:
+-- database/db_schema.sql
+-- Schema target: "database"
 -- ================================================================
-
-CREATE TABLE db_province (
-    id char(2) PRIMARY KEY,
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_city (
-    id char(4) PRIMARY KEY,
-    province_id char(2) REFERENCES db_province(id),
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_district (
-    id char(7) PRIMARY KEY,
-    city_id char(4) REFERENCES db_city(id),
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_village (
-    id char(20) PRIMARY KEY,
-    district_id char(7) REFERENCES db_district(id),
-    name varchar(255) NOT NULL,
-    postal_code varchar(10)
-);
 
 -- ================================================================
 -- SECTION 2: USER MANAGEMENT (GABUNGAN u_users & db_student)
@@ -73,13 +51,13 @@ CREATE TABLE u_teachers (
     is_homeroom boolean DEFAULT false -- Wali kelas
 );
 
--- PROFIL SISWA (Digabung dengan db_student dari newtable agar terpusat)
+-- PROFIL SISWA (tetap berada di schema public)
 CREATE TABLE u_students (
     user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
     nis text,
     nisn text,
     homebase_id integer,
-    current_class_id integer, 
+    current_class_id integer,
     current_periode_id integer,
     birth_place text,
     birth_date date,
@@ -89,50 +67,60 @@ CREATE TABLE u_students (
     order_number integer, -- anak ke berapa
     siblings_count integer,
     address text,
-    province_id char(2) REFERENCES db_province(id),
-    city_id char(4) REFERENCES db_city(id),
-    district_id char(7) REFERENCES db_district(id),
-    village_id char(20) REFERENCES db_village(id),
+    province_id char(2) REFERENCES "database".db_province(id),
+    city_id char(4) REFERENCES "database".db_city(id),
+    district_id char(7) REFERENCES "database".db_district(id),
+    village_id char(20) REFERENCES "database".db_village(id),
     postal_code text
 );
 
--- DATA KELUARGA SISWA (Dari db_family & db_student parents info)
-CREATE TABLE u_student_families (
-    id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
-    father_nik varchar(50),
-    father_name varchar(255),
-    father_birth_place varchar(255),
-    father_birth_date date,
-    father_job text,
-    father_phone text,
-    mother_nik varchar(50),
-    mother_name varchar(255),
-    mother_birth_place varchar(255),
-    mother_birth_date date,
-    mother_job text,
-    mother_phone text,
-    guardian_name varchar(255),
-    guardian_phone text
-);
-
--- Membuat tabel khusus untuk saudara kandung
-CREATE TABLE u_student_siblings (
-    id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students ON DELETE CASCADE,
-    name text NOT NULL,
-    gender varchar(20),
-    birth_date date,
-    created_at timestamp DEFAULT CURRENT_TIMESTAMP
-);
+-- Tabel pendukung DbForm pada schema "database" ada di file database/db_schema.sql
 
 -- AKUN ORANG TUA (Login khusus ortu)
+-- Revisi: 1 akun orang tua dapat terhubung ke lebih dari 1 siswa
 CREATE TABLE u_parents (
-    user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    user_id integer REFERENCES u_users(id) ON DELETE CASCADE,
     student_id integer REFERENCES u_students(user_id), -- Link ke anak
     phone text,
-    email text
+    email text,
+    CONSTRAINT uq_parent_student UNIQUE (user_id, student_id)
 );
+
+-- MIGRASI LEGACY:
+-- Jika database lama masih memakai PRIMARY KEY (user_id) pada u_parents,
+-- jalankan blok berikut agar 1 akun orang tua dapat terhubung ke lebih dari 1 siswa.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+         AND tc.table_name = kcu.table_name
+        WHERE tc.table_schema = 'public'
+          AND tc.table_name = 'u_parents'
+          AND tc.constraint_type = 'PRIMARY KEY'
+          AND kcu.column_name = 'user_id'
+    ) THEN
+        ALTER TABLE public.u_parents DROP CONSTRAINT u_parents_pkey;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_schema = 'public'
+          AND table_name = 'u_parents'
+          AND constraint_name = 'uq_parent_student'
+    ) THEN
+        ALTER TABLE public.u_parents
+        ADD CONSTRAINT uq_parent_student UNIQUE (user_id, student_id);
+    END IF;
+END $$;
 
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (
@@ -345,7 +333,6 @@ CREATE TABLE c_exam_attendance (
 );
 
 CREATE INDEX idx_exam_attendance_exam ON c_exam_attendance (exam_id);
-CREATE INDEX idx_students_current_class ON u_students (current_class_id);
 
 CREATE TABLE c_answer (
     id SERIAL PRIMARY KEY,
@@ -1518,4 +1505,95 @@ CREATE TABLE l_daily_absence_report(
 CREATE INDEX idx_daily_absence_report_lookup ON lms.l_daily_absence_report USING btree (homebase_id, periode_id, date, target_type, target_user_id);
 
 SET search_path TO public;
+
+-- ================================================================
+-- SECTION 7: STUDENT DATABASE PRESENTATION VIEW
+-- Dipakai untuk kebutuhan monitoring keterisian database siswa
+-- ================================================================
+
+CREATE OR REPLACE VIEW vw_student_database_profile AS
+SELECT
+    u.id AS student_id,
+    u.full_name,
+    u.gender,
+    s.nis,
+    s.nisn,
+    s.birth_place,
+    s.birth_date,
+    s.height,
+    s.weight,
+    s.head_circumference,
+    s.order_number,
+    s.siblings_count,
+    s.address,
+    s.postal_code,
+    hb.name AS education_unit,
+    pr.name AS province,
+    ci.name AS city,
+    di.name AS district,
+    vi.name AS village,
+    cl.id AS class_id,
+    cl.name AS class_name,
+    gr.id AS grade_id,
+    gr.name AS grade_name,
+    pe.name AS academic_year,
+    fam.father_name,
+    fam.father_nik,
+    fam.father_birth_place,
+    fam.father_birth_date,
+    fam.father_phone,
+    fam.mother_name,
+    fam.mother_nik,
+    fam.mother_birth_place,
+    fam.mother_birth_date,
+    fam.mother_phone,
+    COALESCE(sib.siblings, '[]'::json) AS siblings
+FROM u_users u
+JOIN u_students s ON s.user_id = u.id
+LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
+LEFT JOIN LATERAL (
+    SELECT ce.class_id, ce.periode_id
+    FROM u_class_enrollments ce
+    WHERE ce.student_id = u.id
+    ORDER BY ce.enrolled_at DESC, ce.id DESC
+    LIMIT 1
+) ce_last ON true
+LEFT JOIN a_class cl ON cl.id = ce_last.class_id
+LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+LEFT JOIN a_periode pe ON pe.id = ce_last.periode_id
+LEFT JOIN "database".db_province pr ON pr.id = s.province_id
+LEFT JOIN "database".db_city ci ON ci.id = s.city_id
+LEFT JOIN "database".db_district di ON di.id = s.district_id
+LEFT JOIN "database".db_village vi ON vi.id = s.village_id
+LEFT JOIN LATERAL (
+    SELECT
+      sf.father_name,
+      sf.father_nik,
+      sf.father_birth_place,
+      sf.father_birth_date,
+      sf.father_phone,
+      sf.mother_name,
+      sf.mother_nik,
+      sf.mother_birth_place,
+      sf.mother_birth_date,
+      sf.mother_phone
+    FROM "database".u_student_families sf
+    WHERE sf.student_id = u.id
+    ORDER BY sf.id DESC
+    LIMIT 1
+) fam ON true
+LEFT JOIN LATERAL (
+    SELECT json_agg(
+      json_build_object(
+        'id', ss.id,
+        'name', ss.name,
+        'gender', ss.gender,
+        'birth_date', ss.birth_date
+      )
+      ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
+    ) AS siblings
+    FROM "database".u_student_siblings ss
+    WHERE ss.student_id = u.id
+) sib ON true
+WHERE u.role = 'student';
 COMMIT;

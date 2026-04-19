@@ -39,28 +39,28 @@ router.post("/migrate/step-1-master", async (req, res) => {
     const provinces = await sourceClient.query("SELECT * FROM db_province");
     for (const r of provinces.rows) {
       await destClient.query(
-        "INSERT INTO db_province (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING",
+        'INSERT INTO "database".db_province (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
         [r.id, r.name],
       );
     }
     const cities = await sourceClient.query("SELECT * FROM db_city");
     for (const r of cities.rows) {
       await destClient.query(
-        "INSERT INTO db_city (id, province_id, name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
+        'INSERT INTO "database".db_city (id, province_id, name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
         [r.id, r.provinceid, r.name],
       );
     }
     const districts = await sourceClient.query("SELECT * FROM db_district");
     for (const r of districts.rows) {
       await destClient.query(
-        "INSERT INTO db_district (id, city_id, name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
+        'INSERT INTO "database".db_district (id, city_id, name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
         [r.id, r.cityid, r.name],
       );
     }
     const villages = await sourceClient.query("SELECT * FROM db_village");
     for (const r of villages.rows) {
       await destClient.query(
-        "INSERT INTO db_village (id, district_id, name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
+        'INSERT INTO "database".db_village (id, district_id, name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
         [r.id, r.districtid, r.name],
       );
     }
@@ -360,10 +360,10 @@ router.post("/migrate/step-2-users", async (req, res) => {
       return new Set(res.rows.map((r) => r.id));
     };
 
-    const validProvinces = await getIds("db_province");
-    const validCities = await getIds("db_city");
-    const validDistricts = await getIds("db_district");
-    const validVillages = await getIds("db_village");
+    const validProvinces = await getIds('"database".db_province');
+    const validCities = await getIds('"database".db_city');
+    const validDistricts = await getIds('"database".db_district');
+    const validVillages = await getIds('"database".db_village');
     const validHomebases = new Set(
       (await destClient.query("SELECT id FROM a_homebase")).rows.map(
         (r) => r.id,
@@ -513,7 +513,7 @@ router.post("/migrate/step-2-users", async (req, res) => {
 
       // Insert Keluarga
       await destClient.query(
-        `INSERT INTO u_student_families (
+        `INSERT INTO "database".u_student_families (
           student_id, father_nik, father_name, father_job, father_phone,
           mother_nik, mother_name, mother_job, mother_phone
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -965,7 +965,7 @@ router.post("/migrate/step-6-siblings", async (req, res) => {
 
         // 4. Insert ke u_student_siblings
         await destClient.query(
-          `INSERT INTO u_student_siblings (student_id, name, gender, birth_date, created_at)
+          `INSERT INTO "database".u_student_siblings (student_id, name, gender, birth_date, created_at)
            VALUES ($1, $2, $3, $4, $5)`,
           [newStudentId, row.name, row.gender, row.birth_date, row.createdat],
         );
