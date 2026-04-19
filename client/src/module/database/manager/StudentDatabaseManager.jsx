@@ -5,6 +5,7 @@ import {
   Card,
   Col,
   Empty,
+  Grid,
   Input,
   message,
   Progress,
@@ -16,6 +17,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { motion } from "framer-motion";
 import {
   Database,
   Lock,
@@ -32,10 +34,84 @@ import {
 } from "../../../service/database/ApiDatabase";
 import DbForm from "../form/DbForm";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
+const { useBreakpoint } = Grid;
 
 const PAGE_SIZE = 10;
 const EMPTY_OPTIONS = [];
+const MotionDiv = motion.div;
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.04,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 18 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.36,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const surfaceCardStyle = {
+  borderRadius: 24,
+  border: "1px solid #e6eef8",
+  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+  overflow: "hidden",
+};
+
+const heroCardStyle = {
+  ...surfaceCardStyle,
+  background:
+    "radial-gradient(circle at top right, rgba(255,255,255,0.18), transparent 28%), linear-gradient(135deg, #0f172a 0%, #0f4c81 48%, #0ea5e9 100%)",
+  color: "#fff",
+  boxShadow: "0 24px 54px rgba(15, 23, 42, 0.18)",
+};
+
+const statCardStyle = {
+  ...surfaceCardStyle,
+  background: "linear-gradient(180deg, #ffffff 0%, #f7fbff 100%)",
+  height: "100%",
+};
+
+const filterCardStyle = {
+  ...surfaceCardStyle,
+  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+};
+
+const panelCardStyle = {
+  ...surfaceCardStyle,
+  background: "#ffffff",
+};
+
+const detailCardStyle = {
+  borderRadius: 18,
+  border: "1px solid #eef2f7",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
+};
+
+const iconWrapStyle = (background, color) => ({
+  width: 46,
+  height: 46,
+  borderRadius: 16,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background,
+  color,
+  flexShrink: 0,
+});
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -59,6 +135,9 @@ const renderField = (label, value) => (
 );
 
 const StudentDatabaseManager = ({ scope = "all" }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const isSmallMobile = !screens.sm;
   const [searchText, setSearchText] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
@@ -98,6 +177,49 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
 
   const gradeOptions = data?.filters?.grades || EMPTY_OPTIONS;
   const classOptions = data?.filters?.classes || EMPTY_OPTIONS;
+  const stats = [
+    {
+      key: "total",
+      title: "Total Siswa",
+      value: summary.total_students,
+      icon: <Users size={18} />,
+      iconBg: "#dbeafe",
+      iconColor: "#1d4ed8",
+      accent: "#1d4ed8",
+      helper: "Seluruh siswa pada periode aktif",
+    },
+    {
+      key: "complete",
+      title: "Database Terisi",
+      value: summary.complete_students,
+      icon: <UserRoundCheck size={18} />,
+      iconBg: "#dcfce7",
+      iconColor: "#15803d",
+      accent: "#15803d",
+      helper: "Profil siswa telah lengkap",
+    },
+    {
+      key: "incomplete",
+      title: "Belum Terisi",
+      value: summary.incomplete_students,
+      icon: <UserRoundX size={18} />,
+      iconBg: "#ffedd5",
+      iconColor: "#c2410c",
+      accent: "#c2410c",
+      helper: "Masih perlu pembaruan data",
+    },
+    {
+      key: "percentage",
+      title: "Persentase Terisi",
+      value: summary.complete_percentage,
+      suffix: "%",
+      icon: <UserRound size={18} />,
+      iconBg: "#ede9fe",
+      iconColor: "#6d28d9",
+      accent: "#6d28d9",
+      helper: `${summary.average_completion || 0}% rata-rata kelengkapan`,
+    },
+  ];
 
   const filteredClassOptions = useMemo(() => {
     if (!gradeFilter) return classOptions;
@@ -111,6 +233,7 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
       title: "No",
       width: 64,
       align: "center",
+      responsive: ["sm"],
       render: (_, __, index) => (page - 1) * PAGE_SIZE + index + 1,
     },
     {
@@ -134,6 +257,7 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
       key: "completion_status",
       width: 130,
       align: "center",
+      responsive: ["sm"],
       render: (status) => (
         <Tag color={status === "Terisi" ? "green" : "orange"}>{status}</Tag>
       ),
@@ -191,7 +315,12 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
 
   const expandedRowRender = (record) => (
     <Space vertical size={12} style={{ width: "100%" }}>
-      <Card size='small' title='Informasi Pribadi Siswa'>
+      <Card
+        size='small'
+        title='Informasi Pribadi Siswa'
+        style={detailCardStyle}
+        styles={{ body: { background: "#fcfdff" } }}
+      >
         <Row gutter={[16, 12]}>
           {renderField("Tahun Pelajaran", record.academic_year)}
           {renderField("Satuan Pendidikan", record.education_unit)}
@@ -215,7 +344,12 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
         </Row>
       </Card>
 
-      <Card size='small' title='Informasi Orang Tua'>
+      <Card
+        size='small'
+        title='Informasi Orang Tua'
+        style={detailCardStyle}
+        styles={{ body: { background: "#fcfdff" } }}
+      >
         <Row gutter={[16, 12]}>
           {renderField("Nama Ayah", record.father_name)}
           {renderField("NIK Ayah", record.father_nik)}
@@ -236,7 +370,12 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
         </Row>
       </Card>
 
-      <Card size='small' title='Anggota Keluarga (Selain Orang Tua)'>
+      <Card
+        size='small'
+        title='Anggota Keluarga (Selain Orang Tua)'
+        style={detailCardStyle}
+        styles={{ body: { background: "#fcfdff" } }}
+      >
         {(record.siblings || []).length > 0 ? (
           <Table
             rowKey={(item) => item.id}
@@ -265,159 +404,311 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
   );
 
   return (
-    <Space vertical size={16} style={{ width: "100%" }}>
-      <Alert
-        type='info'
-        showIcon
-        icon={<Database size={16} />}
-        title='Monitoring Keterisian Database Siswa'
-        description={
-          activePeriodeName
-            ? `Perhitungan dan tampilan data siswa berdasarkan periode aktif: ${activePeriodeName}.`
-            : "Perhitungan dan tampilan data siswa berdasarkan periode aktif satuan."
-        }
-      />
+    <MotionDiv
+      variants={containerVariants}
+      initial='hidden'
+      animate='show'
+      style={{ width: "100%" }}
+    >
+      <Space vertical size={isMobile ? 16 : 20} style={{ width: "100%" }}>
+        <MotionDiv variants={itemVariants}>
+          <Card
+            style={heroCardStyle}
+            bodyStyle={{ padding: isSmallMobile ? 16 : isMobile ? 20 : 28 }}
+          >
+            <Row gutter={[20, 20]} align='middle'>
+              <Col xs={24} lg={15}>
+                <Space vertical size={10} style={{ width: "100%" }}>
+                  <div
+                    style={{
+                      ...iconWrapStyle("rgba(255,255,255,0.16)", "#ffffff"),
+                      width: isSmallMobile ? 48 : 56,
+                      height: isSmallMobile ? 48 : 56,
+                      borderRadius: 18,
+                    }}
+                  >
+                    <Database size={isSmallMobile ? 20 : 24} />
+                  </div>
+                  <div>
+                    <Title
+                      level={isSmallMobile ? 4 : 3}
+                      style={{
+                        color: "#ffffff",
+                        margin: 0,
+                        marginBottom: 6,
+                        fontSize: isSmallMobile ? 18 : undefined,
+                      }}
+                    >
+                      Monitoring Database Siswa
+                    </Title>
+                    <Text
+                      style={{
+                        color: "rgba(255,255,255,0.82)",
+                        fontSize: isSmallMobile ? 13 : 14,
+                        display: "block",
+                      }}
+                    >
+                      {activePeriodeName
+                        ? `Data dan progres kelengkapan siswa dihitung berdasarkan periode aktif ${activePeriodeName}.`
+                        : "Data dan progres kelengkapan siswa dihitung berdasarkan periode aktif satuan."}
+                    </Text>
+                  </div>
+                </Space>
+              </Col>
+              <Col xs={24} lg={9}>
+                <div
+                  style={{
+                    padding: isSmallMobile ? 14 : isMobile ? 16 : 18,
+                    borderRadius: 20,
+                    background: "rgba(255,255,255,0.12)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      display: "block",
+                      color: "rgba(255,255,255,0.72)",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Rata-rata kelengkapan
+                  </Text>
+                  <Title
+                    level={isSmallMobile ? 3 : 2}
+                    style={{
+                      color: "#ffffff",
+                      margin: 0,
+                      marginBottom: 10,
+                      fontSize: isSmallMobile ? 26 : undefined,
+                    }}
+                  >
+                    {summary.average_completion || 0}%
+                  </Title>
+                  <Progress
+                    percent={summary.average_completion}
+                    strokeColor={{
+                      "0%": "#7dd3fc",
+                      "100%": "#ffffff",
+                    }}
+                    trailColor='rgba(255,255,255,0.18)'
+                    showInfo={false}
+                  />
+                </div>
+              </Col>
+            </Row>
+          </Card>
+        </MotionDiv>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title='Total Siswa'
-              value={summary.total_students}
-              prefix={<Users size={16} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title='Database Terisi'
-              value={summary.complete_students}
-              prefix={<UserRoundCheck size={16} />}
-              styles={{ content: { color: "#389e0d" } }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title='Belum Terisi'
-              value={summary.incomplete_students}
-              prefix={<UserRoundX size={16} />}
-              styles={{ content: { color: "#d46b08" } }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title='Presentase Terisi'
-              value={summary.complete_percentage}
-              suffix='%'
-              prefix={<UserRound size={16} />}
-            />
-            <Progress
-              percent={summary.average_completion}
-              size='small'
-              style={{ marginTop: 8 }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card
-        title={
-          <Space>
-            <Filter size={16} />
-            <span>Filter Data</span>
-          </Space>
-        }
-      >
-        <Row gutter={[12, 12]}>
-          <Col xs={24} md={10}>
-            <Input.Search
-              allowClear
-              placeholder='Cari berdasarkan nama, NIS, NISN'
-              onChange={(event) => {
-                setSearchText(event.target.value);
-                setPage(1);
-              }}
-              onSearch={(value) => {
-                setSearchText(value);
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} md={7}>
-            <Select
-              allowClear
-              placeholder='Pilih Tingkat'
-              style={{ width: "100%" }}
-              value={gradeFilter || undefined}
-              options={gradeOptions}
-              onChange={(value) => {
-                setGradeFilter(value || "");
-                setClassFilter("");
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} md={7}>
-            <Select
-              allowClear
-              placeholder='Pilih Kelas'
-              style={{ width: "100%" }}
-              value={classFilter || undefined}
-              options={filteredClassOptions}
-              disabled={scope === "homeroom"}
-              suffixIcon={scope === "homeroom" ? <Lock size={14} /> : undefined}
-              onChange={(value) => {
-                setClassFilter(value || "");
-                setPage(1);
-              }}
-            />
-          </Col>
+        <Row gutter={[16, 16]}>
+          {stats.map((item) => (
+            <Col xs={24} sm={12} lg={6} key={item.key}>
+              <MotionDiv
+                variants={itemVariants}
+                whileHover={{ y: -4 }}
+                transition={{ duration: 0.2 }}
+                style={{ height: "100%" }}
+              >
+                <Card
+                  style={statCardStyle}
+                  bodyStyle={{
+                    padding: isSmallMobile ? 16 : 20,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: isSmallMobile ? 12 : 14,
+                    height: "100%",
+                  }}
+                >
+                  <Space align='start' size={14} style={{ width: "100%" }}>
+                    <div style={iconWrapStyle(item.iconBg, item.iconColor)}>
+                      {item.icon}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <Text
+                        type='secondary'
+                        style={{
+                          fontSize: 13,
+                          display: "block",
+                          marginBottom: 4,
+                          whiteSpace: "normal",
+                        }}
+                      >
+                        {item.title}
+                      </Text>
+                      <Statistic
+                        value={item.value}
+                        suffix={item.suffix}
+                        styles={{ content: { color: item.accent } }}
+                      />
+                    </div>
+                  </Space>
+                  <Text type='secondary' style={{ fontSize: 12 }}>
+                    {item.helper}
+                  </Text>
+                  {item.key === "percentage" && (
+                    <Progress
+                      percent={summary.average_completion}
+                      size='small'
+                      strokeColor={item.accent}
+                      style={{ marginTop: "auto" }}
+                    />
+                  )}
+                </Card>
+              </MotionDiv>
+            </Col>
+          ))}
         </Row>
-        {scope === "homeroom" && (
-          <Text type='secondary' style={{ fontSize: 12 }}>
-            Data dibatasi ke kelas wali:{" "}
-            {teacherScope.classes?.length > 0
-              ? teacherScope.classes.map((item) => item.class_name).join(", ")
-              : "-"}
-          </Text>
+
+        <MotionDiv variants={itemVariants}>
+          <Card
+            style={filterCardStyle}
+            title={
+              <Space
+                align='center'
+                direction={isSmallMobile ? "vertical" : "horizontal"}
+                size={isSmallMobile ? 8 : 12}
+                style={{
+                  width: "100%",
+                  alignItems: isSmallMobile ? "flex-start" : "center",
+                }}
+              >
+                <span style={iconWrapStyle("#dbeafe", "#1d4ed8")}>
+                  <Filter size={18} />
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700 }}>Filter Data</div>
+                  <Text type='secondary' style={{ fontSize: 12 }}>
+                    Persempit data untuk fokus pada kelompok siswa tertentu.
+                  </Text>
+                </div>
+              </Space>
+            }
+          >
+            <Row gutter={[12, 12]}>
+              <Col xs={24} md={10}>
+                <Input.Search
+                  allowClear
+                  placeholder='Cari berdasarkan nama, NIS, NISN'
+                  size='large'
+                  onChange={(event) => {
+                    setSearchText(event.target.value);
+                    setPage(1);
+                  }}
+                  onSearch={(value) => {
+                    setSearchText(value);
+                    setPage(1);
+                  }}
+                />
+              </Col>
+              <Col xs={24} md={7}>
+                <Select
+                  allowClear
+                  placeholder='Pilih Tingkat'
+                  size='large'
+                  style={{ width: "100%" }}
+                  value={gradeFilter || undefined}
+                  options={gradeOptions}
+                  onChange={(value) => {
+                    setGradeFilter(value || "");
+                    setClassFilter("");
+                    setPage(1);
+                  }}
+                />
+              </Col>
+              <Col xs={24} md={7}>
+                <Select
+                  allowClear
+                  placeholder='Pilih Kelas'
+                  size='large'
+                  style={{ width: "100%" }}
+                  value={classFilter || undefined}
+                  options={filteredClassOptions}
+                  disabled={scope === "homeroom"}
+                  suffixIcon={
+                    scope === "homeroom" ? <Lock size={14} /> : undefined
+                  }
+                  onChange={(value) => {
+                    setClassFilter(value || "");
+                    setPage(1);
+                  }}
+                />
+              </Col>
+            </Row>
+            {scope === "homeroom" && (
+              <Text
+                type='secondary'
+                style={{ fontSize: 12, display: "block", marginTop: 12 }}
+              >
+                Data dibatasi ke kelas wali:{" "}
+                {teacherScope.classes?.length > 0
+                  ? teacherScope.classes
+                      .map((item) => item.class_name)
+                      .join(", ")
+                  : "-"}
+              </Text>
+            )}
+          </Card>
+        </MotionDiv>
+
+        <MotionDiv variants={itemVariants}>
+          <Card
+            title={
+              <Space direction='vertical' size={2} style={{ width: "100%" }}>
+                <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
+                  Tabel Database Siswa
+                </Text>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  Klik baris untuk melihat detail, lalu gunakan aksi edit bila
+                  perlu.
+                </Text>
+              </Space>
+            }
+            style={panelCardStyle}
+            styles={{
+              body: {
+                overflowX: "hidden",
+                padding: isSmallMobile ? 12 : isMobile ? 16 : 24,
+              },
+            }}
+          >
+            <Table
+              rowKey='student_id'
+              loading={isLoading || isFetching}
+              dataSource={data?.data || []}
+              columns={columns}
+              tableLayout='fixed'
+              expandable={{ expandedRowRender }}
+              locale={{ emptyText: "Data siswa belum tersedia" }}
+              scroll={isMobile ? { x: 760 } : undefined}
+              pagination={{
+                current: page,
+                pageSize: PAGE_SIZE,
+                total: data?.meta?.total_data || 0,
+                showSizeChanger: false,
+                size: isMobile ? "small" : "default",
+                showLessItems: isMobile,
+                onChange: (nextPage) => setPage(nextPage),
+              }}
+            />
+          </Card>
+        </MotionDiv>
+
+        {scope === "homeroom" && teacherScope?.is_homeroom === false && (
+          <MotionDiv variants={itemVariants}>
+            <Alert
+              type='warning'
+              showIcon
+              message='Anda belum terdaftar sebagai wali kelas aktif.'
+              description='Menu database ditampilkan, tetapi data siswa tidak dapat dimuat karena akun guru belum memiliki kelas wali.'
+              style={{
+                borderRadius: 18,
+                border: "1px solid #fde68a",
+                boxShadow: "0 12px 24px rgba(217, 119, 6, 0.08)",
+              }}
+            />
+          </MotionDiv>
         )}
-      </Card>
-
-      <Card
-        title='Tabel Database Siswa'
-        styles={{ body: { overflowX: "hidden" } }}
-      >
-        <Table
-          rowKey='student_id'
-          loading={isLoading || isFetching}
-          dataSource={data?.data || []}
-          columns={columns}
-          tableLayout='fixed'
-          expandable={{ expandedRowRender }}
-          locale={{ emptyText: "Data siswa belum tersedia" }}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: data?.meta?.total_data || 0,
-            showSizeChanger: false,
-            onChange: (nextPage) => setPage(nextPage),
-          }}
-        />
-      </Card>
-
-      {scope === "homeroom" && teacherScope?.is_homeroom === false && (
-        <Alert
-          type='warning'
-          showIcon
-          message='Anda belum terdaftar sebagai wali kelas aktif.'
-          description='Menu database ditampilkan, tetapi data siswa tidak dapat dimuat karena akun guru belum memiliki kelas wali.'
-        />
-      )}
+      </Space>
 
       <DbForm
         open={isFormOpen}
@@ -429,7 +720,7 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
         }}
         onSubmit={handleUpdate}
       />
-    </Space>
+    </MotionDiv>
   );
 };
 

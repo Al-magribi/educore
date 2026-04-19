@@ -1,9 +1,88 @@
 import { Router } from "express";
+import fs from "fs";
+import multer from "multer";
+import path from "path";
 import bcrypt from "bcrypt";
+import { fileURLToPath } from "url";
+import pool from "../../config/connection.js";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 
 const router = Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const STUDENT_DOCUMENT_DIRECTORY = path.join(__dirname, "../../assets/db");
+const STUDENT_DOCUMENT_TYPES = {
+  ijazah: "Ijazah",
+  akta_kelahiran: "Akta Kelahiran",
+  kartu_keluarga: "Kartu Keluarga",
+};
+
+const ensureStudentDocumentDirectory = () => {
+  if (!fs.existsSync(STUDENT_DOCUMENT_DIRECTORY)) {
+    fs.mkdirSync(STUDENT_DOCUMENT_DIRECTORY, { recursive: true });
+  }
+};
+
+const sanitizeFileSegment = (value) =>
+  normalizeText(value)
+    .replace(/[^a-zA-Z0-9\s_-]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "") || "dokumen";
+
+const formatDocumentFileName = ({ documentType, studentName, extension }) => {
+  const typeLabel = STUDENT_DOCUMENT_TYPES[documentType] || "Dokumen";
+  const safeType = sanitizeFileSegment(typeLabel);
+  const safeStudentName = sanitizeFileSegment(studentName || "Siswa");
+  const safeExtension = extension?.startsWith(".") ? extension : "";
+
+  return `${safeType}_${safeStudentName}_${Date.now()}${safeExtension}`;
+};
+
+const removeFileIfExists = (targetPath) => {
+  if (targetPath && fs.existsSync(targetPath)) {
+    fs.unlinkSync(targetPath);
+  }
+};
+
+const studentDocumentStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    ensureStudentDocumentDirectory();
+    cb(null, STUDENT_DOCUMENT_DIRECTORY);
+  },
+  filename: (req, file, cb) => {
+    const documentType = normalizeText(req.body?.document_type).toLowerCase();
+    const studentName = req.documentAccess?.student_name || "Siswa";
+
+    cb(
+      null,
+      formatDocumentFileName({
+        documentType,
+        studentName,
+        extension: path.extname(file.originalname),
+      }),
+    );
+  },
+});
+
+const uploadStudentDocumentFile = multer({
+  storage: studentDocumentStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedExtensions = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+
+    if (!allowedExtensions.has(fileExtension)) {
+      cb(new Error("Format file tidak didukung. Gunakan PDF, JPG, JPEG, atau PNG."));
+      return;
+    }
+
+    cb(null, true);
+  },
+});
 
 const isFilled = (value) => {
   if (value === null || value === undefined) return false;
@@ -52,6 +131,241 @@ const normalizeStudentIds = (studentIds) => {
 
   return [...new Set(studentIds.map((item) => parseInt(item, 10)).filter(Number.isInteger))];
 };
+
+const getStudentDocumentTypeOptions = () =>
+  Object.entries(STUDENT_DOCUMENT_TYPES).map(([value, label]) => ({
+    value,
+    label,
+  }));
+
+const mapStudentDocumentRow = (row) => ({
+  id: row.id,
+  student_id: row.student_id,
+  document_type: row.document_type,
+  document_label: STUDENT_DOCUMENT_TYPES[row.document_type] || row.document_type,
+  file_name: row.file_name,
+  original_file_name: row.original_file_name,
+  mime_type: row.mime_type,
+  file_size: Number(row.file_size || 0),
+  uploaded_by: row.uploaded_by,
+  uploader_name: row.uploader_name,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+});
+
+const listStudentDocuments = async (client, studentId) => {
+  const result = await client.query(
+    `
+      SELECT
+        d.id,
+        d.student_id,
+        d.document_type,
+        d.file_name,
+        d.original_file_name,
+        d.mime_type,
+        d.file_size,
+        d.uploaded_by,
+        d.created_at,
+        d.updated_at,
+        uploader.full_name AS uploader_name
+      FROM "database".u_student_documents d
+      LEFT JOIN u_users uploader ON uploader.id = d.uploaded_by
+      WHERE d.student_id = $1
+      ORDER BY d.document_type ASC, d.updated_at DESC, d.id DESC
+    `,
+    [studentId],
+  );
+
+  return result.rows.map(mapStudentDocumentRow);
+};
+
+const getStudentDocumentById = async (client, studentId, documentId) => {
+  const result = await client.query(
+    `
+      SELECT
+        d.id,
+        d.student_id,
+        d.document_type,
+        d.file_name,
+        d.original_file_name,
+        d.file_path,
+        d.mime_type,
+        d.file_size,
+        d.uploaded_by,
+        d.created_at,
+        d.updated_at,
+        uploader.full_name AS uploader_name
+      FROM "database".u_student_documents d
+      LEFT JOIN u_users uploader ON uploader.id = d.uploaded_by
+      WHERE d.student_id = $1
+        AND d.id = $2
+      LIMIT 1
+    `,
+    [studentId, documentId],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getStudentDocumentAccess = async ({ client, user, studentId }) => {
+  if (!Number.isInteger(studentId)) {
+    throw Object.assign(new Error("ID siswa tidak valid."), { statusCode: 400 });
+  }
+
+  if (user.role === "student") {
+    const result = await client.query(
+      `
+        SELECT u.id AS student_id, u.full_name AS student_name, s.homebase_id
+        FROM u_users u
+        JOIN u_students s ON s.user_id = u.id
+        WHERE u.id = $1
+          AND u.role = 'student'
+      `,
+      [user.id],
+    );
+
+    if (result.rows.length === 0 || result.rows[0].student_id !== studentId) {
+      throw Object.assign(new Error("Anda tidak memiliki akses ke dokumen siswa ini."), {
+        statusCode: 403,
+      });
+    }
+
+    return result.rows[0];
+  }
+
+  if (user.role === "parent") {
+    const result = await client.query(
+      `
+        SELECT u.id AS student_id, u.full_name AS student_name, s.homebase_id
+        FROM u_parents p
+        JOIN u_students s ON s.user_id = p.student_id
+        JOIN u_users u ON u.id = s.user_id
+        WHERE p.user_id = $1
+          AND p.student_id = $2
+        LIMIT 1
+      `,
+      [user.id, studentId],
+    );
+
+    if (result.rows.length === 0) {
+      throw Object.assign(new Error("Anda tidak memiliki akses ke dokumen siswa ini."), {
+        statusCode: 403,
+      });
+    }
+
+    return result.rows[0];
+  }
+
+  if (user.role === "teacher") {
+    const activePeriode = await client.query(
+      `
+        SELECT id
+        FROM a_periode
+        WHERE is_active = true
+          AND homebase_id = $1
+        LIMIT 1
+      `,
+      [user.homebase_id],
+    );
+
+    if (activePeriode.rows.length === 0) {
+      throw Object.assign(new Error("Tidak ada periode aktif untuk satuan ini."), {
+        statusCode: 400,
+      });
+    }
+
+    const result = await client.query(
+      `
+        SELECT DISTINCT
+          u.id AS student_id,
+          u.full_name AS student_name,
+          s.homebase_id
+        FROM u_users u
+        JOIN u_students s ON s.user_id = u.id
+        JOIN u_class_enrollments ce
+          ON ce.student_id = u.id
+         AND ce.periode_id = $3
+        JOIN a_class c ON c.id = ce.class_id
+        WHERE u.id = $1
+          AND u.role = 'student'
+          AND s.homebase_id = $2
+          AND c.homeroom_teacher_id = $4
+        LIMIT 1
+      `,
+      [studentId, user.homebase_id, activePeriode.rows[0].id, user.id],
+    );
+
+    if (result.rows.length === 0) {
+      throw Object.assign(
+        new Error("Guru hanya dapat mengelola dokumen siswa pada kelas wali aktif."),
+        { statusCode: 403 },
+      );
+    }
+
+    return result.rows[0];
+  }
+
+  if (user.role === "admin" && user.admin_level === "satuan") {
+    const result = await client.query(
+      `
+        SELECT u.id AS student_id, u.full_name AS student_name, s.homebase_id
+        FROM u_users u
+        JOIN u_students s ON s.user_id = u.id
+        WHERE u.id = $1
+          AND u.role = 'student'
+          AND s.homebase_id = $2
+        LIMIT 1
+      `,
+      [studentId, user.homebase_id],
+    );
+
+    if (result.rows.length === 0) {
+      throw Object.assign(new Error("Data siswa tidak ditemukan."), { statusCode: 404 });
+    }
+
+    return result.rows[0];
+  }
+
+  throw Object.assign(new Error("Akses dilarang."), { statusCode: 403 });
+};
+
+const resolveStudentDocumentAccess = () =>
+  async (req, res, next) => {
+    const studentId = parseInt(req.params.studentId || req.params.id, 10);
+    let client;
+
+    try {
+      client = await pool.connect();
+      const access = await getStudentDocumentAccess({
+        client,
+        user: req.user,
+        studentId,
+      });
+
+      req.documentAccess = access;
+      next();
+    } catch (error) {
+      res.status(error.statusCode || 500).json({
+        message: error.message || "Gagal memvalidasi akses dokumen siswa.",
+      });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  };
+
+const runStudentDocumentUpload = (req, res) =>
+  new Promise((resolve, reject) => {
+    uploadStudentDocumentFile.single("file")(req, res, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
 
 const getParentTableMetadata = async (client) => {
   const result = await client.query(
@@ -515,7 +829,7 @@ const updateStudentProfileData = async (client, studentId, payload) => {
   );
 
   const existingFamily = await client.query(
-    `SELECT id FROM u_student_families WHERE student_id = $1 ORDER BY id DESC LIMIT 1`,
+    `SELECT id FROM "database".u_student_families WHERE student_id = $1 ORDER BY id DESC LIMIT 1`,
     [studentId],
   );
 
@@ -535,7 +849,7 @@ const updateStudentProfileData = async (client, studentId, payload) => {
   if (existingFamily.rows.length > 0) {
     await client.query(
       `
-        UPDATE u_student_families
+        UPDATE "database".u_student_families
         SET
           father_nik = $1,
           father_name = $2,
@@ -554,7 +868,7 @@ const updateStudentProfileData = async (client, studentId, payload) => {
   } else {
     await client.query(
       `
-        INSERT INTO u_student_families (
+        INSERT INTO "database".u_student_families (
           student_id,
           father_nik,
           father_name,
@@ -573,7 +887,7 @@ const updateStudentProfileData = async (client, studentId, payload) => {
     );
   }
 
-  await client.query(`DELETE FROM u_student_siblings WHERE student_id = $1`, [
+  await client.query(`DELETE FROM "database".u_student_siblings WHERE student_id = $1`, [
     studentId,
   ]);
 
@@ -584,7 +898,7 @@ const updateStudentProfileData = async (client, studentId, payload) => {
   for (const sibling of cleanSiblings) {
     await client.query(
       `
-        INSERT INTO u_student_siblings (student_id, name, gender, birth_date)
+        INSERT INTO "database".u_student_siblings (student_id, name, gender, birth_date)
         VALUES ($1, $2, $3, $4)
       `,
       [
@@ -826,10 +1140,10 @@ router.get(
       LEFT JOIN a_grade gr ON gr.id = cl.grade_id
       LEFT JOIN a_periode pe ON pe.id = ce.periode_id
 
-      LEFT JOIN db_province pr ON pr.id = s.province_id
-      LEFT JOIN db_city ci ON ci.id = s.city_id
-      LEFT JOIN db_district di ON di.id = s.district_id
-      LEFT JOIN db_village vi ON vi.id = s.village_id
+      LEFT JOIN "database".db_province pr ON pr.id = s.province_id
+      LEFT JOIN "database".db_city ci ON ci.id = s.city_id
+      LEFT JOIN "database".db_district di ON di.id = s.district_id
+      LEFT JOIN "database".db_village vi ON vi.id = s.village_id
 
       LEFT JOIN LATERAL (
         SELECT
@@ -843,7 +1157,7 @@ router.get(
           sf.mother_birth_place,
           sf.mother_birth_date,
           sf.mother_phone
-        FROM u_student_families sf
+        FROM "database".u_student_families sf
         WHERE sf.student_id = u.id
         ORDER BY sf.id DESC
         LIMIT 1
@@ -859,7 +1173,7 @@ router.get(
           )
           ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
         ) AS siblings
-        FROM u_student_siblings ss
+        FROM "database".u_student_siblings ss
         WHERE ss.student_id = u.id
       ) sib ON true
 
@@ -930,10 +1244,10 @@ router.get(
       LEFT JOIN a_class cl ON cl.id = ce.class_id
       LEFT JOIN a_grade gr ON gr.id = cl.grade_id
       LEFT JOIN a_periode pe ON pe.id = ce.periode_id
-      LEFT JOIN db_province pr ON pr.id = s.province_id
-      LEFT JOIN db_city ci ON ci.id = s.city_id
-      LEFT JOIN db_district di ON di.id = s.district_id
-      LEFT JOIN db_village vi ON vi.id = s.village_id
+      LEFT JOIN "database".db_province pr ON pr.id = s.province_id
+      LEFT JOIN "database".db_city ci ON ci.id = s.city_id
+      LEFT JOIN "database".db_district di ON di.id = s.district_id
+      LEFT JOIN "database".db_village vi ON vi.id = s.village_id
       LEFT JOIN LATERAL (
         SELECT
           sf.father_name,
@@ -946,7 +1260,7 @@ router.get(
           sf.mother_birth_place,
           sf.mother_birth_date,
           sf.mother_phone
-        FROM u_student_families sf
+        FROM "database".u_student_families sf
         WHERE sf.student_id = u.id
         ORDER BY sf.id DESC
         LIMIT 1
@@ -961,7 +1275,7 @@ router.get(
           )
           ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
         ) AS siblings
-        FROM u_student_siblings ss
+        FROM "database".u_student_siblings ss
         WHERE ss.student_id = u.id
       ) sib ON true
       WHERE u.role = 'student'
@@ -1192,7 +1506,7 @@ router.get(
           sf.mother_birth_place,
           sf.mother_birth_date,
           sf.mother_phone
-        FROM u_student_families sf
+        FROM "database".u_student_families sf
         WHERE sf.student_id = u.id
         ORDER BY sf.id DESC
         LIMIT 1
@@ -1207,7 +1521,7 @@ router.get(
           )
           ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
         ) AS siblings
-        FROM u_student_siblings ss
+        FROM "database".u_student_siblings ss
         WHERE ss.student_id = u.id
       ) sib ON true
       WHERE u.id = $1
@@ -1256,6 +1570,197 @@ router.put(
 
     await updateStudentProfileData(client, studentId, req.body);
     res.status(200).json({ message: "Profil siswa berhasil diperbarui." });
+  }),
+);
+
+router.get(
+  "/students/:studentId/documents",
+  authorize("satuan", "teacher", "student", "parent"),
+  resolveStudentDocumentAccess(),
+  withQuery(async (req, res, client) => {
+    const studentId = parseInt(req.params.studentId, 10);
+    const documents = await listStudentDocuments(client, studentId);
+
+    res.status(200).json({
+      data: documents,
+      options: getStudentDocumentTypeOptions(),
+    });
+  }),
+);
+
+router.post(
+  "/students/:studentId/documents",
+  authorize("satuan", "teacher", "student", "parent"),
+  resolveStudentDocumentAccess(),
+  withTransaction(async (req, res, client) => {
+    const studentId = parseInt(req.params.studentId, 10);
+    let uploadedFilePath = null;
+
+    try {
+      await runStudentDocumentUpload(req, res);
+
+      if (!req.file) {
+        return res.status(400).json({ message: "File berkas wajib diunggah." });
+      }
+
+      uploadedFilePath = req.file.path;
+      const documentType = normalizeText(req.body?.document_type).toLowerCase();
+      if (!documentType || !STUDENT_DOCUMENT_TYPES[documentType]) {
+        const invalidTypeError = new Error(
+          "Jenis berkas tidak valid. Pilih Ijazah, Akta Kelahiran, atau Kartu Keluarga.",
+        );
+        invalidTypeError.statusCode = 400;
+        throw invalidTypeError;
+      }
+
+      const existingDocument = await client.query(
+        `
+          SELECT id, file_path
+          FROM "database".u_student_documents
+          WHERE student_id = $1
+            AND document_type = $2
+          LIMIT 1
+        `,
+        [studentId, documentType],
+      );
+
+      let documentId;
+      if (existingDocument.rows.length > 0) {
+        documentId = existingDocument.rows[0].id;
+        await client.query(
+          `
+            UPDATE "database".u_student_documents
+            SET
+              file_name = $1,
+              original_file_name = $2,
+              file_path = $3,
+              mime_type = $4,
+              file_size = $5,
+              uploaded_by = $6,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $7
+          `,
+          [
+            req.file.filename,
+            req.file.originalname,
+            req.file.path,
+            req.file.mimetype,
+            req.file.size,
+            req.user.id,
+            documentId,
+          ],
+        );
+        removeFileIfExists(existingDocument.rows[0].file_path);
+      } else {
+        const insertResult = await client.query(
+          `
+            INSERT INTO "database".u_student_documents (
+              student_id,
+              document_type,
+              file_name,
+              original_file_name,
+              file_path,
+              mime_type,
+              file_size,
+              uploaded_by
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id
+          `,
+          [
+            studentId,
+            documentType,
+            req.file.filename,
+            req.file.originalname,
+            req.file.path,
+            req.file.mimetype,
+            req.file.size,
+            req.user.id,
+          ],
+        );
+        documentId = insertResult.rows[0].id;
+      }
+
+      const document = await getStudentDocumentById(client, studentId, documentId);
+
+      res.status(existingDocument.rows.length > 0 ? 200 : 201).json({
+        message: `Berkas ${STUDENT_DOCUMENT_TYPES[documentType]} berhasil disimpan.`,
+        data: mapStudentDocumentRow(document),
+      });
+    } catch (error) {
+      if (uploadedFilePath) {
+        removeFileIfExists(uploadedFilePath);
+      }
+
+      if (error instanceof multer.MulterError) {
+        error.statusCode = 400;
+        if (error.code === "LIMIT_FILE_SIZE") {
+          error.message = "Ukuran file melebihi 5 MB. Gunakan file yang lebih kecil.";
+        } else {
+          error.message = error.message || "Upload file gagal diproses.";
+        }
+      } else if (/Format file/i.test(error.message)) {
+        error.statusCode = 400;
+      } else {
+        error.statusCode = error.statusCode || 500;
+      }
+
+      error.message = error.message || "Gagal mengunggah berkas siswa.";
+      throw error;
+    }
+  }),
+);
+
+router.delete(
+  "/students/:studentId/documents/:documentId",
+  authorize("satuan", "teacher", "student", "parent"),
+  resolveStudentDocumentAccess(),
+  withTransaction(async (req, res, client) => {
+    const studentId = parseInt(req.params.studentId, 10);
+    const documentId = parseInt(req.params.documentId, 10);
+
+    if (!Number.isInteger(documentId)) {
+      return res.status(400).json({ message: "ID dokumen tidak valid." });
+    }
+
+    const document = await getStudentDocumentById(client, studentId, documentId);
+
+    if (!document) {
+      return res.status(404).json({ message: "Dokumen siswa tidak ditemukan." });
+    }
+
+    await client.query(`DELETE FROM "database".u_student_documents WHERE id = $1`, [documentId]);
+    removeFileIfExists(document.file_path);
+
+    res.status(200).json({
+      message: `Berkas ${STUDENT_DOCUMENT_TYPES[document.document_type] || "siswa"} berhasil dihapus.`,
+    });
+  }),
+);
+
+router.get(
+  "/students/:studentId/documents/:documentId/download",
+  authorize("satuan", "teacher", "student", "parent"),
+  resolveStudentDocumentAccess(),
+  withQuery(async (req, res, client) => {
+    const studentId = parseInt(req.params.studentId, 10);
+    const documentId = parseInt(req.params.documentId, 10);
+
+    if (!Number.isInteger(documentId)) {
+      return res.status(400).json({ message: "ID dokumen tidak valid." });
+    }
+
+    const document = await getStudentDocumentById(client, studentId, documentId);
+
+    if (!document) {
+      return res.status(404).json({ message: "Dokumen siswa tidak ditemukan." });
+    }
+
+    if (!fs.existsSync(document.file_path)) {
+      return res.status(404).json({ message: "File dokumen tidak ditemukan di server." });
+    }
+
+    res.download(document.file_path, document.file_name);
   }),
 );
 
@@ -1808,7 +2313,7 @@ router.get(
           sf.mother_birth_place,
           sf.mother_birth_date,
           sf.mother_phone
-        FROM u_student_families sf
+        FROM "database".u_student_families sf
         WHERE sf.student_id = s.user_id
         ORDER BY sf.id DESC
         LIMIT 1
@@ -1823,7 +2328,7 @@ router.get(
           )
           ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
         ) AS siblings
-        FROM u_student_siblings ss
+        FROM "database".u_student_siblings ss
         WHERE ss.student_id = s.user_id
       ) sib ON true
       WHERE p.user_id = $1

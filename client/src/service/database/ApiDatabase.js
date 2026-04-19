@@ -3,7 +3,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 export const ApiStudentDatabase = createApi({
   reducerPath: "ApiStudentDatabase",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/database" }),
-  tagTypes: ["StudentDatabase", "ParentAccount"],
+  tagTypes: ["StudentDatabase", "ParentAccount", "StudentDocument"],
   endpoints: (builder) => ({
     getStudentDatabase: builder.query({
       query: (params = {}) => {
@@ -65,6 +65,36 @@ export const ApiStudentDatabase = createApi({
         body,
       }),
       invalidatesTags: ["StudentDatabase"],
+    }),
+    getStudentDocuments: builder.query({
+      query: (studentId) => ({
+        url: `/students/${studentId}/documents`,
+        method: "GET",
+      }),
+      providesTags: (result, error, studentId) => [
+        { type: "StudentDocument", id: studentId },
+      ],
+    }),
+    uploadStudentDocument: builder.mutation({
+      query: ({ studentId, body }) => ({
+        url: `/students/${studentId}/documents`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result, error, { studentId }) => [
+        { type: "StudentDocument", id: studentId },
+        "StudentDatabase",
+      ],
+    }),
+    deleteStudentDocument: builder.mutation({
+      query: ({ studentId, documentId }) => ({
+        url: `/students/${studentId}/documents/${documentId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (result, error, { studentId }) => [
+        { type: "StudentDocument", id: studentId },
+        "StudentDatabase",
+      ],
     }),
     getParentAccounts: builder.query({
       query: (params = {}) => {
@@ -130,6 +160,9 @@ export const {
   useUpdateMyStudentProfileMutation,
   useGetParentStudentsQuery,
   useUpdateParentStudentMutation,
+  useGetStudentDocumentsQuery,
+  useUploadStudentDocumentMutation,
+  useDeleteStudentDocumentMutation,
   useGetParentAccountsQuery,
   useGetParentReferenceStudentsQuery,
   useCreateParentAccountMutation,

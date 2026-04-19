@@ -5,33 +5,11 @@
 SET search_path TO public, public;
 
 -- ================================================================
--- SECTION 1: MASTER WILAYAH (Diambil dari newtable db_*)
--- Penting untuk biodata siswa
+-- SECTION 1: MASTER WILAYAH & STUDENT DATABASE SCHEMA
+-- DDL untuk tabel yang dipakai DbForm dipindahkan ke:
+-- database/db_schema.sql
+-- Schema target: "database"
 -- ================================================================
-
-CREATE TABLE db_province (
-    id char(2) PRIMARY KEY,
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_city (
-    id char(4) PRIMARY KEY,
-    province_id char(2) REFERENCES db_province(id),
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_district (
-    id char(7) PRIMARY KEY,
-    city_id char(4) REFERENCES db_city(id),
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_village (
-    id char(20) PRIMARY KEY,
-    district_id char(7) REFERENCES db_district(id),
-    name varchar(255) NOT NULL,
-    postal_code varchar(10)
-);
 
 -- ================================================================
 -- SECTION 2: USER MANAGEMENT (GABUNGAN u_users & db_student)
@@ -73,13 +51,13 @@ CREATE TABLE u_teachers (
     is_homeroom boolean DEFAULT false -- Wali kelas
 );
 
--- PROFIL SISWA (Digabung dengan db_student dari newtable agar terpusat)
+-- PROFIL SISWA (tetap berada di schema public)
 CREATE TABLE u_students (
     user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
     nis text,
     nisn text,
     homebase_id integer,
-    current_class_id integer, 
+    current_class_id integer,
     current_periode_id integer,
     birth_place text,
     birth_date date,
@@ -89,42 +67,14 @@ CREATE TABLE u_students (
     order_number integer, -- anak ke berapa
     siblings_count integer,
     address text,
-    province_id char(2) REFERENCES db_province(id),
-    city_id char(4) REFERENCES db_city(id),
-    district_id char(7) REFERENCES db_district(id),
-    village_id char(20) REFERENCES db_village(id),
+    province_id char(2) REFERENCES "database".db_province(id),
+    city_id char(4) REFERENCES "database".db_city(id),
+    district_id char(7) REFERENCES "database".db_district(id),
+    village_id char(20) REFERENCES "database".db_village(id),
     postal_code text
 );
 
--- DATA KELUARGA SISWA (Dari db_family & db_student parents info)
-CREATE TABLE u_student_families (
-    id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
-    father_nik varchar(50),
-    father_name varchar(255),
-    father_birth_place varchar(255),
-    father_birth_date date,
-    father_job text,
-    father_phone text,
-    mother_nik varchar(50),
-    mother_name varchar(255),
-    mother_birth_place varchar(255),
-    mother_birth_date date,
-    mother_job text,
-    mother_phone text,
-    guardian_name varchar(255),
-    guardian_phone text
-);
-
--- Membuat tabel khusus untuk saudara kandung
-CREATE TABLE u_student_siblings (
-    id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students ON DELETE CASCADE,
-    name text NOT NULL,
-    gender varchar(20),
-    birth_date date,
-    created_at timestamp DEFAULT CURRENT_TIMESTAMP
-);
+-- Tabel pendukung DbForm pada schema "database" ada di file database/db_schema.sql
 
 -- AKUN ORANG TUA (Login khusus ortu)
 -- Revisi: 1 akun orang tua dapat terhubung ke lebih dari 1 siswa
@@ -383,7 +333,6 @@ CREATE TABLE c_exam_attendance (
 );
 
 CREATE INDEX idx_exam_attendance_exam ON c_exam_attendance (exam_id);
-CREATE INDEX idx_students_current_class ON u_students (current_class_id);
 
 CREATE TABLE c_answer (
     id SERIAL PRIMARY KEY,
@@ -1612,10 +1561,10 @@ LEFT JOIN LATERAL (
 LEFT JOIN a_class cl ON cl.id = ce_last.class_id
 LEFT JOIN a_grade gr ON gr.id = cl.grade_id
 LEFT JOIN a_periode pe ON pe.id = ce_last.periode_id
-LEFT JOIN db_province pr ON pr.id = s.province_id
-LEFT JOIN db_city ci ON ci.id = s.city_id
-LEFT JOIN db_district di ON di.id = s.district_id
-LEFT JOIN db_village vi ON vi.id = s.village_id
+LEFT JOIN "database".db_province pr ON pr.id = s.province_id
+LEFT JOIN "database".db_city ci ON ci.id = s.city_id
+LEFT JOIN "database".db_district di ON di.id = s.district_id
+LEFT JOIN "database".db_village vi ON vi.id = s.village_id
 LEFT JOIN LATERAL (
     SELECT
       sf.father_name,
@@ -1628,7 +1577,7 @@ LEFT JOIN LATERAL (
       sf.mother_birth_place,
       sf.mother_birth_date,
       sf.mother_phone
-    FROM u_student_families sf
+    FROM "database".u_student_families sf
     WHERE sf.student_id = u.id
     ORDER BY sf.id DESC
     LIMIT 1
@@ -1643,7 +1592,7 @@ LEFT JOIN LATERAL (
       )
       ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
     ) AS siblings
-    FROM u_student_siblings ss
+    FROM "database".u_student_siblings ss
     WHERE ss.student_id = u.id
 ) sib ON true
 WHERE u.role = 'student';
