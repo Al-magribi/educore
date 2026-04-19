@@ -126,7 +126,6 @@ const App = () => {
             {isDbEnabled &&
               renderDbRoutes({
                 LazyPage,
-                NotFoundRedirect,
               })}
 
             {isFinanceEnabled &&
