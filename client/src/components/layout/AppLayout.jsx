@@ -160,7 +160,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
       return nextItem;
     });
-
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();

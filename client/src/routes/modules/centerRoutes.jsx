@@ -12,7 +12,7 @@ const CenterTeacher = lazy(
 const CenterMarket = lazy(() => import("../../module/center/market/CenterMarket"));
 const CenterConfig = lazy(() => import("../../module/center/config/CenterConfig"));
 
-const renderCenterRoutes = ({ LazyPage, NotFoundRedirect, isDbEnabled }) => (
+const renderCenterRoutes = (routeHelpers) => (
   <Route
     element={
       <RouteProtection allowedRoles={["admin"]} allowedLevels={["pusat"]} />
@@ -20,35 +20,53 @@ const renderCenterRoutes = ({ LazyPage, NotFoundRedirect, isDbEnabled }) => (
   >
     <Route
       path="/center-dashboard"
-      element={<LazyPage title="Dashboard Center" Component={CenterDash} />}
+      element={
+        <routeHelpers.LazyPage title="Dashboard Center" Component={CenterDash} />
+      }
     />
     <Route
       path="/center-homebase"
       element={
-        <LazyPage title="Manajemen Satuan Pendidikan" Component={CenterHome} />
+        <routeHelpers.LazyPage
+          title="Manajemen Satuan Pendidikan"
+          Component={CenterHome}
+        />
       }
     />
     <Route
       path="/center-admin"
-      element={<LazyPage title="Manajemen Admin" Component={CenterAdmin} />}
+      element={
+        <routeHelpers.LazyPage title="Manajemen Admin" Component={CenterAdmin} />
+      }
     />
     <Route
       path="/center-teacher"
-      element={<LazyPage title="Manajement Guru" Component={CenterTeacher} />}
+      element={
+        <routeHelpers.LazyPage
+          title="Manajement Guru"
+          Component={CenterTeacher}
+        />
+      }
     />
     <Route
       path="/center-market"
       element={
-        <LazyPage title="Analisis Pasar & Demografi" Component={CenterMarket} />
+        <routeHelpers.LazyPage
+          title="Analisis Pasar & Demografi"
+          Component={CenterMarket}
+        />
       }
     />
     <Route
       path="/center-config"
       element={
-        isDbEnabled ? (
-          <LazyPage title="Manjemen Database" Component={CenterConfig} />
+        routeHelpers.isDbEnabled ? (
+          <routeHelpers.LazyPage
+            title="Manjemen Database"
+            Component={CenterConfig}
+          />
         ) : (
-          <NotFoundRedirect />
+          <routeHelpers.NotFoundRedirect />
         )
       }
     />

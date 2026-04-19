@@ -1,3 +1,4 @@
+﻿-- Active: 1768875297035@@212.85.24.143@5432@lms
 /* REVISI FIXEDTABLE.SQL
    Digabungkan dengan fitur dari newtable.sql
 */
@@ -79,48 +80,32 @@ CREATE TABLE u_students (
 -- AKUN ORANG TUA (Login khusus ortu)
 -- Revisi: 1 akun orang tua dapat terhubung ke lebih dari 1 siswa
 CREATE TABLE u_parents (
-    id SERIAL PRIMARY KEY,
-    user_id integer REFERENCES u_users(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id), -- Link ke anak
+    user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
+    student_id integer REFERENCES u_students(user_id), -- Legacy primary child (opsional)
     phone text,
     email text,
     CONSTRAINT uq_parent_student UNIQUE (user_id, student_id)
 );
 
--- MIGRASI LEGACY:
--- Jika database lama masih memakai PRIMARY KEY (user_id) pada u_parents,
--- jalankan blok berikut agar 1 akun orang tua dapat terhubung ke lebih dari 1 siswa.
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-         AND tc.table_name = kcu.table_name
-        WHERE tc.table_schema = 'public'
-          AND tc.table_name = 'u_parents'
-          AND tc.constraint_type = 'PRIMARY KEY'
-          AND kcu.column_name = 'user_id'
-    ) THEN
-        ALTER TABLE public.u_parents DROP CONSTRAINT u_parents_pkey;
-    END IF;
-END $$;
+-- RELASI ORANG TUA - SISWA (multi anak per orang tua)
+-- Rule:
+-- 1. 1 orang tua bisa memiliki banyak siswa
+-- 2. 1 siswa hanya boleh dimiliki 1 orang tua
+CREATE TABLE u_parent_students (
+    id SERIAL PRIMARY KEY,
+    parent_user_id integer NOT NULL REFERENCES u_users(id) ON DELETE CASCADE,
+    student_id integer NOT NULL REFERENCES u_students(user_id) ON DELETE CASCADE,
+    homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_parent_student_pair UNIQUE (parent_user_id, student_id),
+    CONSTRAINT uq_parent_student_owner UNIQUE (student_id)
+);
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.table_constraints
-        WHERE table_schema = 'public'
-          AND table_name = 'u_parents'
-          AND constraint_name = 'uq_parent_student'
-    ) THEN
-        ALTER TABLE public.u_parents
-        ADD CONSTRAINT uq_parent_student UNIQUE (user_id, student_id);
-    END IF;
-END $$;
+CREATE INDEX idx_parent_students_parent_homebase
+ON u_parent_students(parent_user_id, homebase_id);
+
+CREATE INDEX idx_parent_students_homebase
+ON u_parent_students(homebase_id);
 
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (
@@ -402,8 +387,21 @@ CREATE TABLE l_chapter (
     subject_id integer REFERENCES a_subject(id),
     title text NOT NULL,
     description text,
-    order_number integer
+    order_number integer,
+    grade_id integer REFERENCES a_grade(id),
+    class_id integer REFERENCES a_class(id),
+    class_ids integer[]
 );
+
+ALTER TABLE l_chapter
+ADD COLUMN grade_id integer REFERENCES a_grade(id);
+
+ALTER TABLE l_chapter
+ADD COLUMN class_id integer REFERENCES a_class(id);
+
+ALTER TABLE l_chapter
+ADD COLUMN class_ids integer[];
+
 
 CREATE TABLE l_content (
     id SERIAL PRIMARY KEY,
@@ -412,19 +410,44 @@ CREATE TABLE l_content (
     body text,
     video_url text,
     attachment_url text, -- Menggantikan l_file, simpan path disini
+    attachment_name text, -- Nama asli file
+    order_number integer,
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
+
+ALTER TABLE l_content
+ADD COLUMN order_number integer;
+
+ALTER TABLE l_content
+ADD COLUMN attachment_name text;
+
+
 CREATE TABLE l_attendance (
     id SERIAL PRIMARY KEY,
+    periode_id integer REFERENCES a_periode(id) ON DELETE CASCADE,
     class_id integer REFERENCES a_class(id),
     subject_id integer REFERENCES a_subject(id),
     student_id integer REFERENCES u_students(user_id),
     date date DEFAULT CURRENT_DATE,
-    status varchar(20) CHECK (status IN ('Hadir', 'Izin', 'Sakit', 'Alpha')), 
-    note text,
+    status varchar(20) CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa')), 
     teacher_id integer REFERENCES u_teachers(user_id)
 );
+
+ALTER TABLE l_attendance
+  ADD COLUMN IF NOT EXISTS periode_id integer REFERENCES a_periode(id) ON DELETE CASCADE;
+
+ALTER TABLE l_attendance
+  DROP CONSTRAINT IF EXISTS l_attendance_status_check;
+
+ALTER TABLE l_attendance
+  ADD CONSTRAINT l_attendance_status_check
+  CHECK (status IN ('Hadir', 'Telat', 'Izin', 'Sakit', 'Alpa'));
+
+
+ 
+
+
 
 -- PENGATURAN BOBOT NILAI (Dari l_weighting newtable)
 CREATE TABLE l_score_weighting (
@@ -434,7 +457,6 @@ CREATE TABLE l_score_weighting (
     weight_attendance integer DEFAULT 0,
     weight_attitude integer DEFAULT 0,
     weight_daily integer DEFAULT 0,
-    weight_mid integer DEFAULT 0,
     weight_final integer DEFAULT 0,
     CONSTRAINT total_weight_100 CHECK ((weight_attendance + weight_attitude + weight_daily + weight_mid + weight_final) = 100)
 );
@@ -443,49 +465,96 @@ CREATE TABLE l_score_weighting (
 CREATE TABLE l_score_attitude (
     id SERIAL PRIMARY KEY,
     student_id integer REFERENCES u_students(user_id),
+    class_id integer REFERENCES a_class(id),
     subject_id integer REFERENCES a_subject(id),
+    teacher_id integer REFERENCES u_teachers(user_id),
     periode_id integer REFERENCES a_periode(id),
-    month varchar(20), -- Januari, Februari, dst
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    month varchar(20),
     kinerja integer DEFAULT 0,
     kedisiplinan integer DEFAULT 0,
     keaktifan integer DEFAULT 0,
     percaya_diri integer DEFAULT 0,
-    
     teacher_note text,
     average_score numeric(5,2) GENERATED ALWAYS AS ((kinerja + kedisiplinan + keaktifan + percaya_diri) / 4.0) STORED
 );
+CREATE INDEX idx_score_attitude_month ON l_score_attitude(month);
+CREATE INDEX idx_score_attitude_semester ON l_score_attitude(semester);
+CREATE INDEX idx_score_attitude_lookup ON l_score_attitude(subject_id, periode_id, month);
+CREATE INDEX idx_score_attitude_class ON l_score_attitude(class_id);
+CREATE INDEX idx_score_attitude_teacher ON l_score_attitude(teacher_id);
+CREATE INDEX idx_score_attitude_teacher_class_month
+ON l_score_attitude(teacher_id, class_id, month);
 
 -- NILAI PENGETAHUAN (Formatif/Harian)
 CREATE TABLE l_score_formative (
     id SERIAL PRIMARY KEY,
+    periode_id integer REFERENCES a_periode(id),
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    month varchar(20),
+    class_id integer REFERENCES a_class(id),
     student_id integer REFERENCES u_students(user_id),
+    teacher_id integer REFERENCES u_teachers(user_id),
     subject_id integer REFERENCES a_subject(id),
     chapter_id integer REFERENCES l_chapter(id),
     type varchar(50), -- Tugas 1, Kuis 1, Praktek
     score integer CHECK (score >= 0 AND score <= 100)
 );
 
--- NILAI SUMATIF (PTS/PAS)
+CREATE INDEX idx_score_formative_month ON l_score_formative(month);
+CREATE INDEX idx_score_formative_chapter ON l_score_formative(chapter_id);
+CREATE INDEX idx_score_formative_semester ON l_score_formative(semester);
+CREATE INDEX idx_score_formative_lookup ON l_score_formative(subject_id, chapter_id, month);
+CREATE INDEX idx_score_formative_class ON l_score_formative(class_id);
+CREATE INDEX idx_score_formative_teacher ON l_score_formative(teacher_id);
+CREATE INDEX idx_score_formative_teacher_class_month
+ON l_score_formative(teacher_id, class_id, month);
+
+-- NILAI SUMATIF
 CREATE TABLE l_score_summative (
     id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students(user_id),
-    subject_id integer REFERENCES a_subject(id),
     periode_id integer REFERENCES a_periode(id),
-    type varchar(20), -- 'PTS', 'PAS'
-    score_written integer,
-    score_skill integer, -- Nilai Praktek
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    month varchar(20),
+    class_id integer REFERENCES a_class(id),
+    student_id integer REFERENCES u_students(user_id),
+    teacher_id integer REFERENCES u_teachers(user_id),
+    subject_id integer REFERENCES a_subject(id),
+    chapter_id integer REFERENCES l_chapter(id),
+    type varchar(50), -- Format: Mxx-B{chapter}-S{sub}
+    score_written integer CHECK (score_written >= 0 AND score_written <= 100),
+    score_skill integer CHECK (score_skill >= 0 AND score_skill <= 100), -- Nilai Praktek
     final_score numeric(5,2)
 );
+
+CREATE INDEX idx_score_summative_month ON l_score_summative(month);
+CREATE INDEX idx_score_summative_chapter ON l_score_summative(chapter_id);
+CREATE INDEX idx_score_summative_semester ON l_score_summative(semester);
+CREATE INDEX idx_score_summative_lookup ON l_score_summative(subject_id, periode_id, month);
+CREATE INDEX idx_score_summative_class ON l_score_summative(class_id);
+CREATE INDEX idx_score_summative_teacher ON l_score_summative(teacher_id);
+CREATE INDEX idx_score_summative_teacher_class_month
+ON l_score_summative(teacher_id, class_id, month);
+CREATE INDEX idx_score_summative_type ON l_score_summative(type);
 
 -- REKAP NILAI AKHIR (Untuk Rapor)
 CREATE TABLE l_score_final (
     id SERIAL PRIMARY KEY,
     periode_id integer REFERENCES a_periode(id),
+    semester integer CHECK (semester >= 1 AND semester <= 2),
+    class_id integer REFERENCES a_class(id),
     student_id integer REFERENCES u_students(user_id),
+    teacher_id integer REFERENCES u_teachers(user_id),
     subject_id integer REFERENCES a_subject(id),
-    final_grade integer, -- Nilai Akhir Angka
-    letter_grade varchar(2) -- A, B, C
+    final_grade integer CHECK (final_grade >= 0 AND final_grade <= 100)
 );
+
+CREATE INDEX idx_score_final_semester ON l_score_final(semester);
+CREATE INDEX idx_score_final_lookup ON l_score_final(subject_id, periode_id, semester);
+CREATE INDEX idx_score_final_class ON l_score_final(class_id);
+CREATE INDEX idx_score_final_teacher ON l_score_final(teacher_id);
+CREATE INDEX idx_score_final_teacher_class_semester
+ON l_score_final(teacher_id, class_id, semester);
 
 -- ================================================================
 -- SECTION 6: TAHFIZ (AL-QUR'AN)
@@ -882,6 +951,7 @@ CREATE TABLE l_duty_assignment(
     duty_teacher_id integer NOT NULL,
     assigned_by integer,
     note text,
+    report_note text,
     status varchar(20) NOT NULL DEFAULT 'assigned'::character varying,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
@@ -1051,7 +1121,8 @@ CREATE TABLE l_schedule_generation_run(
 -- Generated by the database client.
 CREATE TABLE l_teacher_session_log(
     id SERIAL NOT NULL,
-    schedule_entry_id integer NOT NULL,
+    schedule_entry_id integer,
+    class_id integer NOT NULL,
     "date" date NOT NULL,
     teacher_id integer NOT NULL,
     duty_assignment_id integer,
@@ -1179,6 +1250,7 @@ CREATE TABLE l_time_slot(
 CREATE UNIQUE INDEX uq_time_slot_slot_no ON lms.l_time_slot USING btree (config_id, day_of_week, slot_no);
 CREATE UNIQUE INDEX uq_time_slot_range ON lms.l_time_slot USING btree (config_id, day_of_week, start_time, end_time);
 CREATE INDEX idx_time_slot_config_day ON lms.l_time_slot USING btree (config_id, day_of_week, slot_no);
+
 
 SET search_path TO public;
 */
@@ -1356,6 +1428,7 @@ CREATE TABLE l_teacher_unavailability(
 );
 CREATE INDEX idx_teacher_unavailability_lookup ON lms.l_teacher_unavailability USING btree (teacher_id, periode_id, day_of_week, specific_date);
 
+
 CREATE TABLE l_schedule_entry(
     id SERIAL NOT NULL,
     homebase_id integer NOT NULL,
@@ -1452,6 +1525,8 @@ CREATE TABLE l_duty_assignment(
     CONSTRAINT l_duty_assignment_status_check CHECK (((status)::text = ANY ((ARRAY['assigned'::character varying, 'done'::character varying, 'cancelled'::character varying])::text[])))
 );
 CREATE INDEX idx_duty_assignment_lookup ON lms.l_duty_assignment USING btree (homebase_id, periode_id, date, duty_teacher_id);
+CREATE UNIQUE INDEX uq_duty_assignment_daily_teacher ON lms.l_duty_assignment USING btree (homebase_id, periode_id, date, duty_teacher_id) WHERE ((status)::text <> 'cancelled'::text);
+ALTER TABLE lms.l_duty_assignment ADD COLUMN IF NOT EXISTS report_note text;
 
 CREATE TABLE l_teacher_session_log(
     id SERIAL NOT NULL,
@@ -1468,14 +1543,15 @@ CREATE TABLE l_teacher_session_log(
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT l_teacher_session_log_schedule_entry_id_fkey FOREIGN KEY(schedule_entry_id) REFERENCES lms.l_schedule_entry(id),
+    CONSTRAINT l_teacher_session_log_class_id_fkey FOREIGN KEY(class_id) REFERENCES public.a_class(id),
     CONSTRAINT l_teacher_session_log_teacher_id_fkey FOREIGN KEY(teacher_id) REFERENCES public.u_teachers(user_id),
     CONSTRAINT l_teacher_session_log_duty_assignment_id_fkey FOREIGN KEY(duty_assignment_id) REFERENCES lms.l_duty_assignment(id),
     CONSTRAINT l_teacher_session_log_checkin_by_fkey FOREIGN KEY(checkin_by) REFERENCES public.u_users(id),
     CONSTRAINT l_teacher_session_log_checkout_by_fkey FOREIGN KEY(checkout_by) REFERENCES public.u_users(id),
     CONSTRAINT chk_teacher_session_time_order CHECK (((checkout_at IS NULL) OR (checkin_at IS NULL) OR (checkout_at >= checkin_at)))
 );
-CREATE UNIQUE INDEX uq_teacher_session_daily ON lms.l_teacher_session_log USING btree (schedule_entry_id, date);
-CREATE INDEX idx_teacher_session_log_lookup ON lms.l_teacher_session_log USING btree (date, teacher_id, schedule_entry_id);
+CREATE UNIQUE INDEX uq_teacher_session_daily ON lms.l_teacher_session_log USING btree (date, teacher_id, class_id);
+CREATE INDEX idx_teacher_session_log_lookup ON lms.l_teacher_session_log USING btree (date, teacher_id, class_id, schedule_entry_id);
 
 CREATE TABLE l_daily_absence_report(
     id SERIAL NOT NULL,
@@ -1597,3 +1673,225 @@ LEFT JOIN LATERAL (
 ) sib ON true
 WHERE u.role = 'student';
 COMMIT;
+
+-- ================================================================
+-- HELPER: Decode type format for monthly reports (Mxx-B{chapter}-S{sub})
+-- Example: M02-B10-S3 -> month_num=2, chapter_id=10, subchapter=3
+-- ================================================================
+CREATE OR REPLACE FUNCTION fn_decode_score_type(p_type text)
+RETURNS TABLE (
+    month_num integer,
+    chapter_id integer,
+    subchapter integer
+)
+LANGUAGE sql
+AS $$
+    SELECT
+        NULLIF(substring(p_type from 'M(\\d{2})'), '')::int AS month_num,
+        NULLIF(substring(p_type from 'B(\\d+)'), '')::int AS chapter_id,
+        NULLIF(substring(p_type from 'S(\\d+)'), '')::int AS subchapter;
+$$;
+
+-- ================================================================
+-- VIEWS: Monthly Reports (Ready for frontend)
+-- ================================================================
+
+CREATE OR REPLACE VIEW v_report_attitude_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  a.subject_id,
+  a.teacher_id,
+  a.month,
+  a.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  a.kinerja,
+  a.kedisiplinan,
+  a.keaktifan,
+  a.percaya_diri,
+  a.average_score,
+  a.teacher_note
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+LEFT JOIN l_score_attitude a
+  ON a.student_id = e.student_id
+ AND a.periode_id = e.periode_id;
+
+CREATE OR REPLACE VIEW v_report_formative_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  f.subject_id,
+  f.teacher_id,
+  f.month,
+  f.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  f.chapter_id,
+  d.subchapter AS subchapter_index,
+  f.score
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+JOIN l_score_formative f ON f.student_id = e.student_id
+LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true;
+
+CREATE OR REPLACE VIEW v_report_summative_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  s.subject_id,
+  s.teacher_id,
+  s.month,
+  s.semester,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  s.chapter_id,
+  d.subchapter AS subchapter_index,
+  s.type,
+  s.score_written,
+  s.score_skill,
+  s.final_score
+FROM u_class_enrollments e
+JOIN u_users u ON e.student_id = u.id
+JOIN u_students st ON e.student_id = st.user_id
+JOIN l_score_summative s ON s.student_id = e.student_id
+LEFT JOIN LATERAL fn_decode_score_type(s.type) d ON true;
+
+-- ================================================================
+-- SAMPLE REPORT QUERIES (Bulanan)
+-- ================================================================
+
+-- 1) Laporan Nilai Sikap Bulanan (per kelas, mapel, periode)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- Note: join ke u_class_enrollments agar konteks kelas & periode akurat
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   a.month,
+--   a.semester,
+--   a.kinerja,
+--   a.kedisiplinan,
+--   a.keaktifan,
+--   a.percaya_diri,
+--   a.average_score,
+--   a.teacher_note
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- LEFT JOIN l_score_attitude a
+--   ON a.student_id = e.student_id
+--  AND a.subject_id = :subject_id
+--  AND a.periode_id = :periode_id
+--  AND a.month = :month
+--  AND a.semester = :semester
+-- WHERE e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+-- ORDER BY u.full_name ASC;
+
+-- 2) Laporan Nilai Formatif Bulanan (per bab/subbab)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   f.chapter_id,
+--   d.subchapter AS subchapter_index,
+--   f.score
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- JOIN l_score_formative f ON f.student_id = e.student_id
+-- LEFT JOIN LATERAL fn_decode_score_type(f.type) d ON true
+-- WHERE f.subject_id = :subject_id
+--   AND e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+--   AND f.month = :month
+--   AND f.semester = :semester
+-- ORDER BY f.chapter_id, d.subchapter, u.full_name;
+
+-- 3) Laporan Nilai Sumatif Bulanan (per bab)
+-- Params: :subject_id, :class_id, :periode_id, :month, :semester
+-- SELECT
+--   u.id AS student_id,
+--   u.full_name,
+--   st.nis,
+--   s.chapter_id,
+--   s.score_written,
+--   s.score_skill,
+--   s.final_score
+-- FROM u_class_enrollments e
+-- JOIN u_users u ON e.student_id = u.id
+-- JOIN u_students st ON e.student_id = st.user_id
+-- JOIN l_score_summative s ON s.student_id = e.student_id
+-- WHERE s.subject_id = :subject_id
+--   AND e.class_id = :class_id
+--   AND e.periode_id = :periode_id
+--   AND s.month = :month
+--   AND s.semester = :semester
+-- ORDER BY s.chapter_id, u.full_name;
+
+-- ================================================================
+-- VIEW: Rekap Absensi Bulanan (LMS)
+-- Menyediakan data dasar rekap attendance per siswa per hari
+-- ================================================================
+CREATE OR REPLACE VIEW v_report_attendance_monthly AS
+SELECT
+  e.periode_id,
+  e.class_id,
+  a.subject_id,
+  a.teacher_id,
+  EXTRACT(YEAR FROM a.date)::int AS year_num,
+  EXTRACT(MONTH FROM a.date)::int AS month_num,
+  u.id AS student_id,
+  u.full_name,
+  st.nis,
+  a.date,
+  a.status,
+  CASE
+    WHEN a.status IN ('Hadir', 'Telat') THEN 'H'
+    WHEN a.status = 'Sakit' THEN 'S'
+    WHEN a.status = 'Izin' THEN 'I'
+    WHEN a.status = 'Alpa' THEN 'A'
+    ELSE '-'
+  END AS status_code
+FROM u_class_enrollments e
+JOIN u_users u ON u.id = e.student_id
+JOIN u_students st ON st.user_id = e.student_id
+LEFT JOIN l_attendance a
+  ON a.student_id = e.student_id
+ AND a.class_id = e.class_id;
+
+-- ================================================================
+-- PARENT DASHBOARD PERFORMANCE INDEXES (LMS)
+-- ================================================================
+CREATE INDEX IF NOT EXISTS idx_parent_students_parent
+ON u_parent_students(parent_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_l_attendance_student_periode
+ON l_attendance(student_id, periode_id);
+
+CREATE INDEX IF NOT EXISTS idx_l_chapter_class_ids_gin
+ON l_chapter USING GIN (class_ids);
+
+-- ================================================================
+-- PARENT ACADEMIC REPORT PERFORMANCE INDEXES
+-- ================================================================
+CREATE INDEX IF NOT EXISTS idx_l_attendance_student_subject_date
+ON l_attendance(student_id, subject_id, date);
+
+CREATE INDEX IF NOT EXISTS idx_score_attitude_student_subject_semester_month
+ON l_score_attitude(student_id, subject_id, semester, month);
+
+CREATE INDEX IF NOT EXISTS idx_score_formative_student_subject_semester_month
+ON l_score_formative(student_id, subject_id, semester, month);
+
+CREATE INDEX IF NOT EXISTS idx_score_summative_student_subject_semester_month
+ON l_score_summative(student_id, subject_id, semester, month);
+
