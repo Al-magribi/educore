@@ -10,9 +10,11 @@ const InfiniteScrollList = ({
   height = "75vh",
   emptyText = "Tidak ada data",
   grid = { gutter: [16, 16], xs: 24, sm: 24, md: 12, lg: 8, xl: 6, xxl: 6 },
+  useContainerScroll = false,
 }) => {
   // Ref untuk elemen penanda (sentinel) di paling bawah
   const observerTarget = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -27,7 +29,7 @@ const InfiniteScrollList = ({
       },
       {
         threshold: 0.1, // Trigger saat 10% elemen target masuk viewport
-        root: null, // Mengacu pada viewport browser (atau parent scrollable)
+        root: useContainerScroll ? scrollContainerRef.current : null, // Mengacu viewport browser atau container
       },
     );
 
@@ -43,13 +45,16 @@ const InfiniteScrollList = ({
         observer.unobserve(observerTarget.current);
       }
     };
-  }, [loading, hasMore, onLoadMore]); // Re-run effect jika status loading/hasMore berubah
+  }, [loading, hasMore, onLoadMore, useContainerScroll]); // Re-run effect jika status loading/hasMore berubah
 
   return (
     <div
+      ref={scrollContainerRef}
       style={{
         padding: "4px",
         position: "relative", // Penting untuk konteks scrolling
+        maxHeight: useContainerScroll ? height : "unset",
+        overflowY: useContainerScroll ? "auto" : "visible",
       }}
     >
       {/* KONDISI 1: Data Kosong & Tidak Loading */}
@@ -70,7 +75,7 @@ const InfiniteScrollList = ({
               xl={grid.xl}
               xxl={grid.xxl}
             >
-              {renderItem(item)}
+              {renderItem(item, index)}
             </Col>
           ))}
         </Row>
