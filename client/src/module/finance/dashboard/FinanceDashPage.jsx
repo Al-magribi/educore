@@ -1,4 +1,5 @@
 import { Alert, Button, Grid, Select, Space, Tabs, Typography } from "antd";
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 
 import { LoadApp } from "../../../components";
@@ -10,6 +11,43 @@ import FinanceDashboardUnitsTab from "./FinanceDashboardUnitsTab";
 
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
+
+const pageVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.35,
+      staggerChildren: 0.08,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const tabsVariants = {
+  hidden: { opacity: 0, y: 22, scale: 0.99 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.45,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
 
 const FinanceDashPage = () => {
   const screens = useBreakpoint();
@@ -83,84 +121,99 @@ const FinanceDashPage = () => {
   ];
 
   return (
-    <Space vertical size={18} style={{ width: "100%" }}>
-      <FinanceDashboardHero
-        meta={meta}
-        summary={summary}
-        spp={spp}
-        others={others}
-        isMobile={isMobile}
-      />
-
-      {showHomebaseFilter ? (
-        <Space
-          wrap
-          align='center'
-          size={12}
-          style={{ width: "100%", justifyContent: "space-between" }}
-        >
-          <Text type='secondary'>
-            Filter dashboard berdasarkan satuan aktif.
-          </Text>
-          <Select
-            allowClear
-            placeholder='Semua satuan'
-            style={{ width: isMobile ? "100%" : 280 }}
-            value={selectedHomebaseId}
-            onChange={setSelectedHomebaseId}
-            options={availableHomebases.map((item) => ({
-              value: item.homebase_id,
-              label: item.homebase_name,
-            }))}
+    <motion.div
+      initial='hidden'
+      animate='visible'
+      variants={pageVariants}
+      style={{ width: "100%" }}
+    >
+      <Space vertical size={18} style={{ width: "100%" }}>
+        <motion.div variants={sectionVariants}>
+          <FinanceDashboardHero
+            meta={meta}
+            summary={summary}
+            spp={spp}
+            others={others}
+            isMobile={isMobile}
           />
-        </Space>
-      ) : null}
+        </motion.div>
 
-      <Tabs
-        size={isMobile ? "small" : "middle"}
-        tabBarGutter={isMobile ? 16 : 24}
-        items={[
-          {
-            key: "overview",
-            label: "Ringkasan",
-            children: (
-              <FinanceDashboardOverviewTab
-                summaryCards={summaryCards}
-                summary={summary}
-                meta={meta}
-                spp={spp}
+        {showHomebaseFilter ? (
+          <motion.div variants={sectionVariants}>
+            <Space
+              wrap
+              align='center'
+              size={12}
+              style={{ width: "100%", justifyContent: "space-between" }}
+            >
+              <Text type='secondary'>
+                Filter dashboard berdasarkan satuan aktif.
+              </Text>
+              <Select
+                allowClear
+                placeholder='Semua satuan'
+                style={{ width: isMobile ? "100%" : 280 }}
+                value={selectedHomebaseId}
+                onChange={setSelectedHomebaseId}
+                options={availableHomebases.map((item) => ({
+                  value: item.homebase_id,
+                  label: item.homebase_name,
+                }))}
               />
-            ),
-          },
-          {
-            key: "units",
-            label: `Satuan (${homebases.length})`,
-            children: (
-              <FinanceDashboardUnitsTab
-                meta={meta}
-                homebases={homebases}
-                availableHomebases={availableHomebases}
-              />
-            ),
-          },
-          {
-            key: "activity",
-            label: `Aktivitas (${recentTransactions.length})`,
-            children: (
-              <FinanceDashboardActivityTab
-                recentTransactions={recentTransactions}
-                priorities={priorities}
-              />
-            ),
-          },
-        ]}
-      />
+            </Space>
+          </motion.div>
+        ) : null}
 
-      <Text type='secondary'>
-        Data dashboard dibatasi pada periode aktif dan dipisah per tab agar lebih
-        mudah dikelola.
-      </Text>
-    </Space>
+        <motion.div variants={tabsVariants}>
+          <Tabs
+            size={isMobile ? "small" : "middle"}
+            tabBarGutter={isMobile ? 16 : 24}
+            items={[
+              {
+                key: "overview",
+                label: "Ringkasan",
+                children: (
+                  <FinanceDashboardOverviewTab
+                    summaryCards={summaryCards}
+                    summary={summary}
+                    meta={meta}
+                    spp={spp}
+                  />
+                ),
+              },
+              {
+                key: "units",
+                label: `Satuan (${homebases.length})`,
+                children: (
+                  <FinanceDashboardUnitsTab
+                    meta={meta}
+                    homebases={homebases}
+                    availableHomebases={availableHomebases}
+                  />
+                ),
+              },
+              {
+                key: "activity",
+                label: `Aktivitas (${recentTransactions.length})`,
+                children: (
+                  <FinanceDashboardActivityTab
+                    recentTransactions={recentTransactions}
+                    priorities={priorities}
+                  />
+                ),
+              },
+            ]}
+          />
+        </motion.div>
+
+        <motion.div variants={sectionVariants}>
+          <Text type='secondary'>
+            Data dashboard dibatasi pada periode aktif dan dipisah per tab agar lebih
+            mudah dikelola.
+          </Text>
+        </motion.div>
+      </Space>
+    </motion.div>
   );
 };
 
