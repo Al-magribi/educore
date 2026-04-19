@@ -12,13 +12,24 @@ router.get(
   withQuery(async (req, res, pool) => {
     const { page = 1, limit = 10, search = "" } = req.query;
     const { id: userId, role, homebase_id } = req.user;
+    const normalizedSearch = String(search || "").trim();
 
     const offset = (page - 1) * limit;
 
     // --- 1. Dynamic Query Builder ---
-    const params = [`%${search}%`];
-    const conditions = [`b.title ILIKE $1`];
-    let paramIndex = 2;
+    const params = [];
+    const conditions = [];
+    let paramIndex = 1;
+
+    if (normalizedSearch) {
+      params.push(`%${normalizedSearch}%`);
+      conditions.push(`(
+        b.title ILIKE $${paramIndex}
+        OR s.name ILIKE $${paramIndex}
+        OR t.full_name ILIKE $${paramIndex}
+      )`);
+      paramIndex++;
+    }
 
     // Logika Filter
     if (role === "teacher") {
@@ -34,7 +45,8 @@ router.get(
       paramIndex++;
     }
 
-    const whereClause = `WHERE ${conditions.join(" AND ")}`;
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     // --- 2. Main Query ---
     const sql = `
@@ -60,6 +72,8 @@ router.get(
     const countSql = `
       SELECT COUNT(*) as total 
       FROM c_bank b
+      LEFT JOIN a_subject s ON b.subject_id = s.id
+      LEFT JOIN u_users t ON b.teacher_id = t.id
       LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
       ${whereClause}
     `;

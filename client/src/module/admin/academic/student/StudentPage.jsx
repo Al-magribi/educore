@@ -222,9 +222,6 @@ const StudentPage = ({ screens }) => {
             <Title level={4} style={{ margin: 0 }}>
               Direktori Siswa
             </Title>
-            <Text type='secondary'>
-              Temukan siswa dengan cepat lalu lanjutkan tambah atau edit data.
-            </Text>
           </div>
 
           <Flex

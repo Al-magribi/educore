@@ -13,9 +13,10 @@ import {
   message,
   theme,
   Grid,
-  Layout,
   Statistic,
+  Divider,
 } from "antd";
+import { motion } from "framer-motion";
 import {
   Plus,
   Search,
@@ -28,6 +29,7 @@ import {
   ClipboardList,
   Layers3,
   ShieldCheck,
+  Calendar,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { InfiniteScrollList, LoadApp } from "../../../../components";
@@ -42,11 +44,33 @@ import StudentAnswers from "../report/components/StudentAnswers";
 const { Text, Title } = Typography;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
-const { Content } = Layout;
+
+const containerVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.38,
+      staggerChildren: 0.08,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 18 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 const ExamList = () => {
   const { token } = useToken();
   const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view");
@@ -56,6 +80,7 @@ const ExamList = () => {
 
   const [page, setPage] = useState(1);
   const [searchText, setSearchText] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [allData, setAllData] = useState([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -86,11 +111,21 @@ const ExamList = () => {
   }, [data, page]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleSearch = (val) => {
-    setSearchText(val);
-    setPage(1);
-    setAllData([]);
-  };
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const normalizedSearch = searchInput.trim();
+
+      if (normalizedSearch === searchText) {
+        return;
+      }
+
+      setSearchText(normalizedSearch);
+      setPage(1);
+      setAllData([]);
+    }, 450);
+
+    return () => clearTimeout(timeout);
+  }, [searchInput, searchText]);
 
   const handleLoadMore = () => {
     if (data?.hasMore && !isFetching) {
@@ -134,6 +169,16 @@ const ExamList = () => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  const getInitials = (name) => {
+    if (!name) return "?";
+    return name
+      .split(" ")
+      .slice(0, 2)
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  };
+
   const renderItem = (item) => {
     const statusColor = item.is_active ? "green" : "default";
     const classNames = item.classes?.map((c) => c.name).join(", ");
@@ -141,142 +186,181 @@ const ExamList = () => {
       item.class_count > 0 ? `${item.class_count} kelas` : "Belum ada kelas";
 
     return (
-      <Card
-        hoverable
-        size="small"
-        style={{
-          height: "100%",
-          borderRadius: 16,
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
-        }}
-        styles={{
-          body: {
-            flex: 1,
+      <motion.div
+        variants={itemVariants}
+        whileHover={{ y: -4 }}
+        transition={{ duration: 0.2 }}
+        style={{ height: "100%" }}
+      >
+        <Card
+          hoverable
+          size='small'
+          style={{
+            height: "100%",
+            borderRadius: 22,
             display: "flex",
             flexDirection: "column",
-          },
-        }}
-        title={
-          <Flex justify="space-between" align="center">
-            <Tag color={statusColor}>
-              {item.is_active ? "Aktif" : "Nonaktif"}
-            </Tag>
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {item.bank_type || "UJIAN"}
-            </Text>
-          </Flex>
-        }
-        actions={[
-          <Tooltip title="Laporan" key="report">
-            <div
-              onClick={() => handleReport(item)}
-              style={{ display: "flex", justifyContent: "center" }}
-            >
-              <Folder size={16} />
-            </div>
-          </Tooltip>,
-          <Tooltip title="Edit" key="edit">
-            <div
-              onClick={() => openForm(item)}
-              style={{ display: "flex", justifyContent: "center" }}
-            >
-              <Edit size={16} />
-            </div>
-          </Tooltip>,
-          <Tooltip title="Hapus" key="delete">
-            <Popconfirm
-              title="Hapus Jadwal Ujian?"
-              onConfirm={() => handleDelete(item.id)}
-              okText="Ya"
-              cancelText="Batal"
-              okButtonProps={{ danger: true }}
-            >
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <Trash2 size={16} />
-              </div>
-            </Popconfirm>
-          </Tooltip>,
-        ]}
-      >
-        <Flex gap="middle" align="start" style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              background: token.colorPrimaryBg,
-              padding: 10,
-              borderRadius: 10,
+            border: "1px solid #eef2ff",
+            background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+            boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+          }}
+          styles={{
+            body: {
+              flex: 1,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <BookOpen size={20} color={token.colorPrimary} />
-          </div>
-          <div style={{ flex: 1, overflow: "hidden" }}>
-            <Tooltip title={item.name}>
-              <Title
-                level={5}
-                ellipsis={{ rows: 2 }}
-                style={{ margin: "0 0 4px 0", fontSize: 15, lineHeight: 1.3 }}
+              flexDirection: "column",
+              padding: 18,
+            },
+          }}
+          title={
+            <Flex justify='space-between' align='center' gap={8}>
+              <Tag
+                color={statusColor}
+                style={{ borderRadius: 999, fontWeight: 600 }}
               >
-                {item.name}
-              </Title>
-            </Tooltip>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {item.bank_title} - {item.subject_name || "Mapel Umum"}
-            </Text>
-          </div>
-        </Flex>
-
-        <Flex vertical gap={4} style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 12 }}>Grade: {item.grade_name || "-"}</Text>
-          <Tooltip title={classNames || ""}>
-            <Text style={{ fontSize: 12 }}>
-              <Users size={12} style={{ marginRight: 6 }} />
-              {classLabel}
-            </Text>
-          </Tooltip>
-          {item.token ? (
-            <Text
-              style={{ fontSize: 12 }}
-              copyable={{
-                text: item.token,
-                tooltips: ["Copy token", "Token disalin"],
+                {item.is_active ? "Aktif" : "Nonaktif"}
+              </Tag>
+              <Flex align='center' gap={4}>
+                <Calendar size={12} color='#94a3b8' />
+                <Text type='secondary' style={{ fontSize: 11 }}>
+                  {new Date(item.created_at).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </Text>
+              </Flex>
+            </Flex>
+          }
+          actions={[
+            <Tooltip title='Laporan' key='report'>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <Folder size={16} onClick={() => handleReport(item)} />
+              </div>
+            </Tooltip>,
+            <Tooltip title='Edit' key='edit'>
+              <div
+                onClick={() => openForm(item)}
+                style={{ display: "flex", justifyContent: "center" }}
+              >
+                <Edit size={16} />
+              </div>
+            </Tooltip>,
+            <Tooltip title='Hapus' key='delete'>
+              <Popconfirm
+                title='Hapus Jadwal Ujian?'
+                onConfirm={() => handleDelete(item.id)}
+                okText='Ya'
+                cancelText='Batal'
+                okButtonProps={{ danger: true }}
+              >
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <Trash2 size={16} />
+                </div>
+              </Popconfirm>
+            </Tooltip>,
+          ]}
+        >
+          <Flex gap='middle' align='start' style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                background: `linear-gradient(135deg, ${token.colorPrimaryBg}, #ffffff)`,
+                border: `1px solid ${token.colorPrimaryBorder}`,
+                padding: 12,
+                borderRadius: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              Token: {item.token}
-            </Text>
-          ) : (
-            <Text style={{ fontSize: 12 }}>Token: -</Text>
-          )}
-          <Text style={{ fontSize: 12 }}>
-            <Timer size={12} style={{ marginRight: 6 }} />
-            {item.duration_minutes} menit
-          </Text>
-        </Flex>
+              <BookOpen size={20} color={token.colorPrimary} />
+            </div>
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <Tooltip title={item.name}>
+                <Title
+                  level={5}
+                  ellipsis={{ rows: 2 }}
+                  style={{
+                    margin: "0 0 6px 0",
+                    fontSize: 16,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {item.name}
+                </Title>
+              </Tooltip>
+              <Tag
+                bordered={false}
+                style={{
+                  margin: 0,
+                  paddingInline: 10,
+                  borderRadius: 999,
+                  background: "#eef6ff",
+                  color: "#1d4ed8",
+                }}
+              >
+                {item.bank_title} - {item.subject_name || "Mapel Umum"}
+              </Tag>
+            </div>
+          </Flex>
 
-        <Flex align="center" gap={8} style={{ marginTop: "auto" }}>
-          <Avatar
-            size={22}
-            style={{
-              backgroundColor: "#f0f0f0",
-              color: "#666",
-              fontSize: 10,
-            }}
-          >
-            {(item.teacher_name || "?")
-              .split(" ")
-              .slice(0, 2)
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()}
-          </Avatar>
-          <Text ellipsis style={{ fontSize: 12, color: "#666" }}>
-            {item.teacher_name || "-"}
-          </Text>
-        </Flex>
-      </Card>
+          <Divider style={{ margin: "2px 0 14px", borderColor: "#e8eefc" }} />
+
+          <Flex vertical gap={8} style={{ marginBottom: 14 }}>
+            <Text style={{ fontSize: 12, color: "#334155" }}>
+              Grade: {item.grade_name || "-"}
+            </Text>
+            <Tooltip title={classNames || ""}>
+              <Text style={{ fontSize: 12, color: "#334155" }}>
+                <Users size={12} style={{ marginRight: 6 }} />
+                {classLabel}
+              </Text>
+            </Tooltip>
+            {item.token ? (
+              <Text
+                style={{ fontSize: 12, color: "#334155" }}
+                copyable={{
+                  text: item.token,
+                  tooltips: ["Copy token", "Token disalin"],
+                }}
+              >
+                Token: {item.token}
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 12, color: "#334155" }}>Token: -</Text>
+            )}
+            <Text style={{ fontSize: 12, color: "#334155" }}>
+              <Timer size={12} style={{ marginRight: 6 }} />
+              {item.duration_minutes} menit
+            </Text>
+          </Flex>
+
+          <Flex align='center' gap={10} style={{ marginTop: "auto" }}>
+            <Avatar
+              size={30}
+              style={{
+                backgroundColor: "#e2e8f0",
+                color: "#334155",
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            >
+              {getInitials(item.teacher_name)}
+            </Avatar>
+            <div style={{ minWidth: 0 }}>
+              <Text
+                style={{ display: "block", fontSize: 12, color: "#0f172a" }}
+              >
+                Pengampu
+              </Text>
+              <Text ellipsis type='secondary' style={{ fontSize: 12 }}>
+                {item.teacher_name || "-"}
+              </Text>
+            </div>
+          </Flex>
+        </Card>
+      </motion.div>
     );
   };
 
@@ -338,11 +422,81 @@ const ExamList = () => {
 
   return (
     <Suspense fallback={<LoadApp />}>
-      <>
-        <Flex gap={16} wrap="wrap" style={{ marginBottom: 20 }}>
+      <motion.div
+        variants={containerVariants}
+        initial='hidden'
+        animate='show'
+        style={{ width: "100%" }}
+      >
+        <motion.div variants={itemVariants}>
+          <Card
+            style={{
+              marginBottom: 20,
+              borderRadius: 28,
+              overflow: "hidden",
+              border: "none",
+              background:
+                "linear-gradient(135deg, #0f172a 0%, #1d4ed8 48%, #38bdf8 100%)",
+              boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
+            }}
+            styles={{ body: { padding: isMobile ? 18 : 24 } }}
+          >
+            <Flex
+              vertical={isMobile}
+              justify='space-between'
+              align={isMobile ? "stretch" : "center"}
+              gap={18}
+            >
+              <div style={{ color: "#fff", maxWidth: 640 }}>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.78)",
+                    display: "block",
+                    marginBottom: 8,
+                  }}
+                >
+                  Manajemen ujian
+                </Text>
+                <Title
+                  level={isMobile ? 4 : 3}
+                  style={{ color: "#fff", margin: 0 }}
+                >
+                  Kelola Jadwal Ujian
+                </Title>
+              </div>
+
+              <Flex
+                vertical={isMobile}
+                gap={12}
+                style={{ width: isMobile ? "100%" : "auto" }}
+              >
+                <Button
+                  icon={<Plus size={18} />}
+                  type='primary'
+                  onClick={() => openForm(null)}
+                  size='large'
+                  style={{
+                    width: isMobile ? "100%" : 180,
+                    borderRadius: 14,
+                    height: 46,
+                    background: "#fff",
+                    color: "#0f172a",
+                    border: "none",
+                    fontWeight: 600,
+                  }}
+                >
+                  Jadwal Ujian
+                </Button>
+              </Flex>
+            </Flex>
+          </Card>
+        </motion.div>
+
+        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
           {summaryCards.map((item) => (
-            <Card
+            <motion.div
               key={item.key}
+              variants={itemVariants}
               style={{
                 flex: screens.xl
                   ? "1 1 0"
@@ -351,96 +505,101 @@ const ExamList = () => {
                     : "1 1 100%",
                 minWidth: screens.md ? 0 : "100%",
               }}
-              styles={{ body: { padding: "18px 20px" } }}
-              hoverable
             >
-              <Flex justify="space-between" align="start">
-                <Statistic title={item.title} value={item.value} />
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 14,
-                    background: item.bg,
-                    color: item.color,
-                  }}
-                >
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
+              <Card
+                style={{
+                  borderRadius: 22,
+                  border: "1px solid #eef2ff",
+                  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
+                }}
+                styles={{ body: { padding: "18px 20px" } }}
+                hoverable
+              >
+                <Flex justify='space-between' align='start'>
+                  <Statistic title={item.title} value={item.value} />
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 16,
+                      background: item.bg,
+                      color: item.color,
+                    }}
+                  >
+                    {item.icon}
+                  </div>
+                </Flex>
+              </Card>
+            </motion.div>
           ))}
         </Flex>
 
-        <Card
-          style={{ marginBottom: 18 }}
-          styles={{ body: { padding: screens.md ? 20 : 16 } }}
-          hoverable
-        >
-          <Flex
-            gap={16}
-            justify="space-between"
-            align={screens.md ? "center" : "stretch"}
-            vertical={!screens.md}
+        <motion.div variants={itemVariants}>
+          <Card
+            style={{
+              marginBottom: 18,
+              borderRadius: 24,
+              border: "1px solid #eef2ff",
+              boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+            }}
+            styles={{ body: { padding: screens.md ? 20 : 16 } }}
           >
-            <div>
-              <Title level={4} style={{ margin: 0 }}>
-                Filter dan Aksi
-              </Title>
-              <Text type="secondary">
-                Cari jadwal ujian dan lanjutkan membuat atau mengedit data.
-              </Text>
-            </div>
-
-            <Flex
-              gap={10}
-              vertical={!screens.md}
-              style={{ width: !screens.md ? "100%" : "auto" }}
-            >
-              <Input
-                prefix={<Search size={16} color="rgba(0,0,0,.25)" />}
-                style={{ width: !screens.md ? "100%" : 320 }}
-                placeholder={searchPlaceholder}
-                allowClear
-                onChange={(e) => {
-                  setTimeout(() => handleSearch(e.target.value), 500);
-                }}
-              />
-
-              <Button
-                icon={<Plus size={18} />}
-                type="primary"
-                onClick={() => openForm(null)}
+            <Flex vertical gap={14}>
+              <Flex
+                vertical={isMobile}
+                justify='space-between'
+                align={isMobile ? "stretch" : "center"}
+                gap={12}
               >
-                Jadwal
-              </Button>
-            </Flex>
-          </Flex>
-        </Card>
+                <div>
+                  <Title level={5} style={{ margin: 0 }}>
+                    Daftar Jadwal Ujian
+                  </Title>
+                  <Text type='secondary' style={{ fontSize: 12 }}>
+                    Menampilkan {allData.length} dari {totalExams} data tersedia
+                  </Text>
+                </div>
 
-        <InfiniteScrollList
-          data={allData}
-          loading={isFetching}
-          hasMore={data?.hasMore || false}
-          onLoadMore={handleLoadMore}
-          renderItem={renderItem}
-          emptyText="Belum ada jadwal ujian tersedia"
-          grid={{
-            gutter: [16, 16],
-            xs: 24,
-            sm: 12,
-            md: 8,
-            lg: 6,
-          }}
-          height="calc(100vh - 360px)"
-        />
-      </>
+                <Input
+                  prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
+                  style={{ width: isMobile ? "100%" : 340 }}
+                  placeholder={searchPlaceholder}
+                  allowClear
+                  size='large'
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </Flex>
+            </Flex>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <InfiniteScrollList
+            data={allData}
+            loading={isFetching}
+            hasMore={data?.hasMore || false}
+            onLoadMore={handleLoadMore}
+            renderItem={renderItem}
+            emptyText='Belum ada jadwal ujian tersedia'
+            grid={{
+              gutter: [16, 16],
+              xs: 24,
+              sm: 12,
+              md: 12,
+              lg: 8,
+              xl: 6,
+            }}
+            height={isMobile ? "calc(100vh - 300px)" : "calc(100vh - 360px)"}
+          />
+        </motion.div>
+      </motion.div>
 
       <Modal
         title={
-          <Flex align="center" gap={8}>
+          <Flex align='center' gap={8}>
             <div
               style={{
                 background: token.colorPrimaryBg,
