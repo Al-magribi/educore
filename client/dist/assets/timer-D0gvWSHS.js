@@ -1,0 +1,1 @@
+import{a7 as e}from"./index-DfC0G_Pr.js";const y=e("timer",[["line",{x1:"10",x2:"14",y1:"2",y2:"2",key:"14vaq8"}],["line",{x1:"12",x2:"15",y1:"14",y2:"11",key:"17fdiu"}],["circle",{cx:"12",cy:"14",r:"8",key:"1e1u0o"}]]);export{y as T};
