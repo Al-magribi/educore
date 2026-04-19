@@ -1,163 +1,13 @@
 import React, { useMemo } from "react";
-import {
-  Button,
-  Card,
-  InputNumber,
-  Popconfirm,
-  Space,
-  Table,
-  Typography,
-} from "antd";
-import { Trash2 } from "lucide-react";
-import LoadApp from "../../../../../../components/loader/LoadApp";
+import { Card, InputNumber, Space, Table, Typography } from "antd";
 
 const { Text } = Typography;
-
-export const extractSubIdFromType = (typeValue) => {
-  const rawType = String(typeValue || "");
-  const match = rawType.match(/-S(\d+)/);
-  if (match) return Number(match[1]);
-  if (/^M\d{2}-B\d+$/.test(rawType)) return 1;
-  return null;
-};
-
-export const buildFormatifSubchapters = ({
-  students = [],
-  isFormativeFilterActive,
-  activeChapterId,
-  activeChapter,
-  chaptersWithContents = [],
-  slots = [],
-}) => {
-  if (isFormativeFilterActive) {
-    if (!activeChapterId) return [];
-    const slotMap = new Map();
-    (slots || []).forEach((slot, index) => {
-      const slotKey = String(slot?.slot_key ?? slot?.type ?? "");
-      if (!slotKey) return;
-      slotMap.set(slotKey, {
-        id: slotKey,
-        scoreKey: slotKey,
-        slotKey,
-        subchapterId: Number(slot?.subchapter_id) || null,
-        labelIndex: Number(slot?.label_index) || index + 1,
-        title: `Nilai ${Number(slot?.label_index) || index + 1}`,
-      });
-    });
-    students.forEach((student) => {
-      (student.scores || []).forEach((score) => {
-        const slotKey = String(score?.slot_key ?? score?.type ?? "");
-        if (!slotKey || slotMap.has(slotKey)) return;
-        slotMap.set(slotKey, {
-          id: slotKey,
-          scoreKey: slotKey,
-          slotKey,
-          subchapterId: Number(score?.subchapter_id) || null,
-          labelIndex: slotMap.size + 1,
-          title: `Nilai ${slotMap.size + 1}`,
-        });
-      });
-    });
-    return Array.from(slotMap.values()).map((slot, index) => {
-      const labelIndex = slot.labelIndex || index + 1;
-      return {
-        ...slot,
-        labelIndex,
-        title: `Nilai ${labelIndex}`,
-        scoreKey: slot.scoreKey || slot.slotKey || slot.id,
-      };
-    });
-  }
-
-  const chapterTitleMap = new Map(
-    (chaptersWithContents || []).map((chapter) => [
-      String(chapter.id),
-      chapter.title,
-    ]),
-  );
-  const subIndexMap = new Map();
-  (chaptersWithContents || []).forEach((chapter) => {
-    (chapter.contents || []).forEach((sub, index) => {
-      subIndexMap.set(`${chapter.id}:${sub.id}`, index + 1);
-    });
-  });
-
-  const columns = new Map();
-  const groupSubIds = new Map();
-  students.forEach((student) => {
-    (student.scores || []).forEach((score) => {
-      if (!score) return;
-      const chapterId = score.chapter_id ?? "0";
-      const monthValue = score.month || "M00";
-      const groupKey = `${monthValue}::${chapterId}`;
-      const explicitSubId = Number(score?.subchapter_id);
-      const subId =
-        Number.isFinite(explicitSubId) && explicitSubId > 0
-          ? explicitSubId
-          : extractSubIdFromType(score.type);
-      if (!groupSubIds.has(groupKey)) {
-        groupSubIds.set(groupKey, new Set());
-      }
-      if (subId != null) {
-        groupSubIds.get(groupKey).add(subId);
-      }
-    });
-  });
-  const groupIndexMap = new Map();
-  groupSubIds.forEach((subSet, groupKey) => {
-    const subList = Array.from(subSet).sort((a, b) => Number(a) - Number(b));
-    const indexMap = new Map();
-    subList.forEach((subId, idx) => {
-      indexMap.set(subId, idx + 1);
-    });
-    groupIndexMap.set(groupKey, indexMap);
-  });
-
-  students.forEach((student) => {
-    (student.scores || []).forEach((score) => {
-      if (!score) return;
-      const scoreKey =
-        score.slot_key ||
-        score.type ||
-        `${score.month || "M00"}-B${score.chapter_id ?? "0"}-S${
-          extractSubIdFromType(score.type) ?? "0"
-        }`;
-      if (columns.has(scoreKey)) return;
-      const chapterTitle =
-        chapterTitleMap.get(String(score.chapter_id)) ||
-        `Bab ${score.chapter_id ?? "-"}`;
-      const monthLabel = score.month || "-";
-      const groupKey = `${score.month || "M00"}::${score.chapter_id ?? "0"}`;
-      const explicitSubId = Number(score?.subchapter_id);
-      const subId =
-        Number.isFinite(explicitSubId) && explicitSubId > 0
-          ? explicitSubId
-          : extractSubIdFromType(score.type);
-      const derivedIndex =
-        subId != null ? groupIndexMap.get(groupKey)?.get(subId) : null;
-      const baseIndex =
-        subId != null
-          ? subIndexMap.get(`${score.chapter_id}:${subId}`)
-          : null;
-      const labelIndex = derivedIndex || baseIndex || 1;
-      columns.set(scoreKey, {
-        id: subId ?? scoreKey,
-        scoreKey,
-        title: `${monthLabel} - ${chapterTitle} - Nilai ${labelIndex}`,
-        labelIndex,
-      });
-    });
-  });
-  return Array.from(columns.values());
-};
 
 const StudentGradingTableFormatif = ({
   students,
   isMobile,
   isFilterReady,
-  isLoading,
   onFormativeChange,
-  onDeleteColumn,
   subchapters = [],
 }) => {
   const normalizedSubchapters = useMemo(() => {
@@ -215,32 +65,6 @@ const StudentGradingTableFormatif = ({
 
   const getSubTitle = (sub) =>
     sub?.title || `Nilai ${sub?.labelIndex ?? sub?.id ?? "-"}`;
-  const renderSubHeader = (sub) => {
-    const scoreKey = getScoreKey(sub);
-    const title = getSubTitle(sub);
-    const canDelete = isFilterReady && scoreKey && scoreKey !== "__new";
-    return (
-      <Space align='center' size={6}>
-        <Text>{title}</Text>
-        {canDelete && (
-          <Popconfirm
-            title={`Hapus ${title}?`}
-            description='Kolom ini akan langsung dihapus dari data formatif.'
-            okText='Hapus'
-            cancelText='Batal'
-            onConfirm={() => onDeleteColumn?.(scoreKey)}
-          >
-            <Button
-              type='text'
-              size='small'
-              danger
-              icon={<Trash2 size={14} />}
-            />
-          </Popconfirm>
-        )}
-      </Space>
-    );
-  };
 
   const renderScoreInput = (record, index, subchapter) => {
     const scoreKey = getScoreKey(subchapter);
@@ -292,7 +116,7 @@ const StudentGradingTableFormatif = ({
     ...normalizedSubchapters.map((sub) => {
       const scoreKey = getScoreKey(sub);
       return {
-        title: renderSubHeader(sub),
+        title: getSubTitle(sub),
         key: `sub_${scoreKey}`,
         width: "16%",
         render: (_, record, index) => renderScoreInput(record, index, sub),
@@ -332,7 +156,7 @@ const StudentGradingTableFormatif = ({
         <div style={{ display: "grid", gap: 8 }}>
           {normalizedSubchapters.map((sub) => (
             <div key={`sub_mobile_${getScoreKey(sub)}`}>
-              <div style={{ marginBottom: 4 }}>{renderSubHeader(sub)}</div>
+              <Text type="secondary">{getSubTitle(sub)}</Text>
               {renderScoreInput(student, index, sub)}
             </div>
           ))}
@@ -346,10 +170,6 @@ const StudentGradingTableFormatif = ({
       </Space>
     </Card>
   );
-
-  if (isFilterReady && isLoading) {
-    return <LoadApp />;
-  }
 
   return isMobile ? (
     <Space orientation="vertical" size={12} style={{ width: "100%" }}>

@@ -10,6 +10,7 @@ import {
   Upload,
   Select,
   Modal,
+  Skeleton,
 } from "antd";
 import { Download, Save, Upload as UploadIcon } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -17,7 +18,7 @@ import dayjs from "dayjs";
 import {
   buildFormatifSubchapters,
   extractSubIdFromType,
-} from "./components/StudentGradingTableFormatif";
+} from "./components/formatifUtils";
 import {
   ExclamationCircleOutlined,
   DeleteOutlined,
@@ -40,27 +41,11 @@ import {
   useGetChaptersQuery,
   useGetContentsQuery,
 } from "../../../../../service/lms/ApiLms";
-import LoadApp from "../../../../../components/loader/LoadApp";
 
 const GradingHeader = lazy(() => import("./components/GradingHeader"));
 const StudentGradingTable = lazy(() =>
   import("./components/StudentGradingTable"),
 );
-
-const MONTH_NAMES = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-];
 
 const Grading = ({ subject }) => {
   const { data: metaRes } = useGetGradingMetaQuery();
@@ -98,6 +83,7 @@ const Grading = ({ subject }) => {
   );
   const classes = classRes?.data || [];
   const [classId, setClassId] = useState(null);
+  const [semesterKey, setSemesterKey] = useState("semester1");
   const [gradingTab, setGradingTab] = useState("sikap");
 
   useEffect(() => {
@@ -121,6 +107,15 @@ const Grading = ({ subject }) => {
   const unit = unitOptions[0] || null;
   const period = periodOptions[0] || null;
 
+  const semesterLabel =
+    semesterKey === "semester1" ? "Semester 1" : "Semester 2";
+  const semesterValue = semesterKey === "semester1" ? 1 : 2;
+
+  const semesterTabs = [
+    { key: "semester1", label: "Semester 1" },
+    { key: "semester2", label: "Semester 2" },
+  ];
+
   const gradingTabs = [
     { key: "sikap", label: "Sikap" },
     { key: "formatif", label: "Formatif" },
@@ -133,115 +128,60 @@ const Grading = ({ subject }) => {
   const [isFormativeDirty, setIsFormativeDirty] = useState(false);
   const [isSummativeDirty, setIsSummativeDirty] = useState(false);
   const [isFinalDirty, setIsFinalDirty] = useState(false);
-  const [deletedFormativeScoreKeys, setDeletedFormativeScoreKeys] = useState([]);
-  const [deletedSummativeScoreKeys, setDeletedSummativeScoreKeys] = useState([]);
   const [tabFilters, setTabFilters] = useState({
     sikap: { monthId: undefined, chapterId: undefined },
     formatif: { monthId: undefined, chapterId: undefined },
     sumatif: { monthId: undefined, chapterId: undefined },
-    ujianAkhir: { semesterId: 1 },
   });
 
-  const periodStartMonth = useMemo(() => {
-    const parsed = dayjs(period?.start);
-    return parsed.isValid() ? parsed.startOf("month") : null;
-  }, [period?.start]);
-  const periodEndMonth = useMemo(() => {
-    const parsed = dayjs(period?.end);
-    return parsed.isValid() ? parsed.endOf("month") : null;
-  }, [period?.end]);
   const currentMonthValue = useMemo(() => dayjs().format("YYYY-MM"), []);
-  const initialMonthValue = useMemo(() => {
-    if (!periodStartMonth || !periodEndMonth) return currentMonthValue;
-    const current = dayjs(currentMonthValue, "YYYY-MM", true);
-    if (
-      current.isValid() &&
-      !current.isBefore(periodStartMonth, "month") &&
-      !current.isAfter(periodEndMonth, "month")
-    ) {
-      return current.format("YYYY-MM");
-    }
-    return periodStartMonth.format("YYYY-MM");
-  }, [currentMonthValue, periodEndMonth, periodStartMonth]);
-
   const monthNameFromValue = (value) => {
     if (!value) return "";
     const match = String(value).match(/^(\d{4})-(\d{2})$/);
     if (!match) return String(value);
     const monthIndex = Number(match[2]) - 1;
-    return MONTH_NAMES[monthIndex] || String(value);
+    const monthNames = [
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
+    ];
+    return monthNames[monthIndex] || String(value);
   };
-
-  const deriveSemesterFromMonth = (value) => {
-    if (!value) return null;
-    const selectedMonth = dayjs(value, "YYYY-MM", true);
-    if (!selectedMonth.isValid()) return null;
-    const monthNumber = selectedMonth.month() + 1;
-    return monthNumber >= 7 ? 1 : 2;
-  };
-
-  const semesterLabelFromValue = (value) =>
-    value === 2 ? "Semester 2" : "Semester 1";
 
   useEffect(() => {
     setTabFilters((prev) => ({
       sikap: {
         ...prev.sikap,
-        monthId: prev.sikap.monthId || initialMonthValue,
+        monthId: prev.sikap.monthId || currentMonthValue,
       },
       formatif: {
         ...prev.formatif,
-        monthId: prev.formatif.monthId || initialMonthValue,
+        monthId: prev.formatif.monthId || currentMonthValue,
       },
       sumatif: {
         ...prev.sumatif,
-        monthId: prev.sumatif.monthId || initialMonthValue,
-      },
-      ujianAkhir: {
-        ...prev.ujianAkhir,
-        semesterId: prev.ujianAkhir?.semesterId || 1,
+        monthId: prev.sumatif.monthId || currentMonthValue,
       },
     }));
-  }, [initialMonthValue]);
+  }, [currentMonthValue]);
 
   const attitudeMonth = tabFilters.sikap?.monthId;
-  const attitudeSemester = deriveSemesterFromMonth(attitudeMonth) || 1;
-  const formativeMonth = tabFilters.formatif?.monthId;
-  const formativeSemester = deriveSemesterFromMonth(formativeMonth) || 1;
-  const summativeMonth = tabFilters.sumatif?.monthId;
-  const summativeSemester = deriveSemesterFromMonth(summativeMonth) || 1;
-  const finalSemester = Number(tabFilters.ujianAkhir?.semesterId) || 1;
-
-  const activeSemesterLabel = useMemo(() => {
-    if (gradingTab === "ujianAkhir") {
-      return semesterLabelFromValue(finalSemester);
-    }
-    if (gradingTab === "sumatif") {
-      return semesterLabelFromValue(summativeSemester);
-    }
-    if (gradingTab === "formatif") {
-      return semesterLabelFromValue(formativeSemester);
-    }
-    return semesterLabelFromValue(attitudeSemester);
-  }, [
-    attitudeSemester,
-    finalSemester,
-    formativeSemester,
-    gradingTab,
-    summativeSemester,
-  ]);
-
   const attitudeMonthName = monthNameFromValue(attitudeMonth);
-  const {
-    data: attitudeRes,
-    isLoading: isAttitudeLoading,
-    isFetching: isAttitudeFetching,
-  } = useGetGradingAttitudeQuery(
+  const { data: attitudeRes } = useGetGradingAttitudeQuery(
     {
       subjectId: subject?.id,
       classId,
       month: attitudeMonthName,
-      semester: attitudeSemester,
+      semester: semesterValue,
     },
     {
       skip:
@@ -358,20 +298,16 @@ const Grading = ({ subject }) => {
     setIsAttitudeDirty(false);
   }, [attitudeRes]);
 
+  const formativeMonth = tabFilters.formatif?.monthId;
   const formativeMonthName = monthNameFromValue(formativeMonth);
   const formativeChapterId = tabFilters.formatif?.chapterId;
   const isFormativeFilterActive = !!(formativeMonthName && formativeChapterId);
-  const {
-    data: formativeRes,
-    refetch: refetchFormative,
-    isLoading: isFormativeLoading,
-    isFetching: isFormativeFetching,
-  } = useGetGradingFormativeQuery(
+  const { data: formativeRes } = useGetGradingFormativeQuery(
     {
       subjectId: subject?.id,
       classId,
       month: formativeMonthName,
-      semester: formativeSemester,
+      semester: semesterValue,
       chapterId: formativeChapterId,
     },
     {
@@ -391,7 +327,6 @@ const Grading = ({ subject }) => {
         activeChapterId,
         activeChapter,
         chaptersWithContents,
-        slots: formativeRes?.data?.slots || [],
       }),
     [
       formativeRes,
@@ -401,113 +336,22 @@ const Grading = ({ subject }) => {
       chaptersWithContents,
     ],
   );
-  const formativeTemplateColumns = useMemo(
-    () => {
-      const merged = [...(formatifSubchapters || [])];
-      const existingKeys = new Set(
-        merged.map((sub, index) =>
-          String(
-            sub?.scoreKey ?? sub?.slotKey ?? sub?.id ?? sub?.key ?? sub?.value ?? index + 1,
-          ),
-        ),
-      );
-      const currentMaxLabel = merged.reduce((max, sub, index) => {
-        const labelIndex =
-          Number(sub?.labelIndex) > 0 ? Number(sub.labelIndex) : index + 1;
-        return Math.max(max, labelIndex);
-      }, 0);
-      let nextLabelIndex = currentMaxLabel + 1;
-
-      studentInputs.forEach((student) => {
-        Object.keys(student?.formatifScores || {}).forEach((rawKey) => {
-          const scoreKey = String(rawKey || "").trim();
-          if (!scoreKey || scoreKey === "__new" || existingKeys.has(scoreKey)) {
-            return;
-          }
-          const numericKey = Number(scoreKey);
-          const labelIndex =
-            Number.isFinite(numericKey) && numericKey > 0
-              ? numericKey
-              : nextLabelIndex++;
-          merged.push({
-            id: scoreKey,
-            scoreKey,
-            labelIndex,
-            title: `Nilai ${labelIndex}`,
-            subchapterId:
-              Number.isFinite(numericKey) && numericKey > 0 ? numericKey : null,
-          });
-          existingKeys.add(scoreKey);
-        });
-      });
-
-      return merged.map((sub, index) => {
-        const scoreKey = String(
-          sub?.scoreKey ?? sub?.slotKey ?? sub?.id ?? sub?.key ?? sub?.value ?? index + 1,
-        );
-        const numericKey = Number(scoreKey);
-        const labelIndex =
-          Number(sub?.labelIndex) > 0
-            ? Number(sub.labelIndex)
-            : Number.isFinite(numericKey) && numericKey > 0
-              ? numericKey
-              : index + 1;
-        return {
-          ...sub,
-          scoreKey,
-          labelIndex,
-          title: sub?.title || `Nilai ${labelIndex}`,
-          header: `Nilai ${labelIndex}`,
-        };
-      });
-    },
-    [formatifSubchapters, studentInputs],
-  );
-  const visibleFormativeColumns = useMemo(
-    () =>
-      formativeTemplateColumns.filter((column) => {
-        const scoreKey = String(column?.scoreKey ?? column?.id ?? "");
-        return scoreKey && !deletedFormativeScoreKeys.includes(scoreKey);
-      }),
-    [deletedFormativeScoreKeys, formativeTemplateColumns],
-  );
-  const formativeTemplateHeaderMap = useMemo(() => {
-    const map = new Map();
-    visibleFormativeColumns.forEach((column) => {
-      const headerKey = String(column.header || "")
-        .trim()
-        .toLowerCase();
-      if (headerKey) {
-        map.set(headerKey, column.scoreKey);
-      }
-      const titleKey = String(column.title || "")
-        .trim()
-        .toLowerCase();
-      if (titleKey) {
-        map.set(titleKey, column.scoreKey);
-      }
-    });
-    return map;
-  }, [visibleFormativeColumns]);
   const nextFormatifIndex = useMemo(() => {
     if (!isFormativeFilterActive) return null;
     const subIds = new Set();
-    formativeTemplateColumns.forEach((column) => {
-      const explicitSubId = Number(
-        column?.subchapterId ?? column?.subchapter_id ?? column?.scoreKey,
-      );
-      if (Number.isFinite(explicitSubId) && explicitSubId > 0) {
-        subIds.add(explicitSubId);
-      }
+    (formativeRes?.data?.students || []).forEach((student) => {
+      (student.scores || []).forEach((score) => {
+        const subId = extractSubIdFromType(score?.type);
+        if (subId != null) subIds.add(subId);
+      });
     });
     if (!subIds.size) return 1;
     return Math.max(...Array.from(subIds)) + 1;
-  }, [formativeTemplateColumns, isFormativeFilterActive]);
+  }, [formativeRes, isFormativeFilterActive]);
 
   useEffect(() => {
     if (gradingTab !== "formatif") return;
     if (!formativeMonthName || !formativeChapterId) {
-      setDeletedFormativeScoreKeys([]);
       setStudentInputs((prev) =>
         prev.map((student) => ({
           ...student,
@@ -523,10 +367,6 @@ const Grading = ({ subject }) => {
   }, [gradingTab, formativeMonthName, formativeChapterId]);
 
   useEffect(() => {
-    setDeletedFormativeScoreKeys([]);
-  }, [classId, formativeChapterId, formativeMonthName, gradingTab]);
-
-  useEffect(() => {
     if (!formativeRes?.data?.students) return;
     const formativeMap = new Map(
       formativeRes.data.students.map((item) => [String(item.student_id), item]),
@@ -539,20 +379,14 @@ const Grading = ({ subject }) => {
         const nextScores = {};
         scoreEntries.forEach((entry) => {
           if (!entry) return;
-          const slotKey = String(entry.slot_key || entry.type || "").trim();
-          const explicitSubId = Number(entry?.subchapter_id);
-          const parsedSubId =
-            Number.isFinite(explicitSubId) && explicitSubId > 0
-              ? explicitSubId
-              : extractSubIdFromType(entry.type);
+          const parsedSubId = extractSubIdFromType(entry.type);
           const resolvedSubId =
             parsedSubId != null || !/^M\d{2}-B\d+$/.test(String(entry.type || ""))
               ? parsedSubId
               : 1;
           const scoreKey = isFormativeFilterActive
-            ? (slotKey || (resolvedSubId ?? "default"))
-            : slotKey ||
-              entry.type ||
+            ? (resolvedSubId ?? "default")
+            : entry.type ||
               `${entry.month || "M00"}-B${entry.chapter_id ?? "0"}-S${
                 resolvedSubId ?? "0"
               }`;
@@ -565,7 +399,7 @@ const Grading = ({ subject }) => {
           }
           nextScores[scoreKey] = entry.score ?? 0;
         });
-        nextScores.__new = null;
+        nextScores.__new = 0;
         return {
           ...student,
           summary: {
@@ -581,20 +415,16 @@ const Grading = ({ subject }) => {
     setIsFormativeDirty(false);
   }, [formativeRes]);
 
+  const summativeMonth = tabFilters.sumatif?.monthId;
   const summativeMonthName = monthNameFromValue(summativeMonth);
   const summativeChapterId = tabFilters.sumatif?.chapterId;
   const isSummativeFilterActive = !!(summativeMonthName && summativeChapterId);
-  const {
-    data: summativeRes,
-    refetch: refetchSummative,
-    isLoading: isSummativeLoading,
-    isFetching: isSummativeFetching,
-  } = useGetGradingSummativeQuery(
+  const { data: summativeRes } = useGetGradingSummativeQuery(
     {
       subjectId: subject?.id,
       classId,
       month: summativeMonthName,
-      semester: summativeSemester,
+      semester: semesterValue,
       chapterId: summativeChapterId,
     },
     {
@@ -608,9 +438,9 @@ const Grading = ({ subject }) => {
   );
   const sumatifSubchapters = useMemo(
     () =>
-      buildSummativeSubchapters({
+      buildFormatifSubchapters({
         students: summativeRes?.data?.students || [],
-        isSummativeFilterActive,
+        isFormativeFilterActive: isSummativeFilterActive,
         activeChapterId,
         activeChapter,
         chaptersWithContents,
@@ -623,91 +453,22 @@ const Grading = ({ subject }) => {
       chaptersWithContents,
     ],
   );
-  const summativeTemplateColumns = useMemo(() => {
-    const merged = [...(sumatifSubchapters || [])];
-    const existingKeys = new Set(
-      merged.map((sub, index) =>
-        String(
-          sub?.scoreKey ?? sub?.slotKey ?? sub?.id ?? sub?.key ?? sub?.value ?? index + 1,
-        ),
-      ),
-    );
-    const currentMaxLabel = merged.reduce((max, sub, index) => {
-      const labelIndex =
-        Number(sub?.labelIndex) > 0 ? Number(sub.labelIndex) : index + 1;
-      return Math.max(max, labelIndex);
-    }, 0);
-    let nextLabelIndex = currentMaxLabel + 1;
-
-    studentInputs.forEach((student) => {
-      Object.keys(student?.summativeScores || {}).forEach((rawKey) => {
-        const scoreKey = String(rawKey || "").trim();
-        if (!scoreKey || scoreKey === "__new" || existingKeys.has(scoreKey)) {
-          return;
-        }
-        const numericKey = Number(scoreKey);
-        const labelIndex =
-          Number.isFinite(numericKey) && numericKey > 0
-            ? numericKey
-            : nextLabelIndex++;
-        merged.push({
-          id: scoreKey,
-          scoreKey,
-          labelIndex,
-          title: `Nilai ${labelIndex}`,
-          subchapterId:
-            Number.isFinite(numericKey) && numericKey > 0 ? numericKey : null,
-        });
-        existingKeys.add(scoreKey);
-      });
-    });
-
-    return merged.map((sub, index) => {
-      const scoreKey = String(
-        sub?.scoreKey ?? sub?.slotKey ?? sub?.id ?? sub?.key ?? sub?.value ?? index + 1,
-      );
-      const numericKey = Number(scoreKey);
-      const labelIndex =
-        Number(sub?.labelIndex) > 0
-          ? Number(sub.labelIndex)
-          : Number.isFinite(numericKey) && numericKey > 0
-            ? numericKey
-            : index + 1;
-      return {
-        ...sub,
-        scoreKey,
-        labelIndex,
-        title: sub?.title || `Nilai ${labelIndex}`,
-      };
-    });
-  }, [studentInputs, sumatifSubchapters]);
-  const visibleSummativeColumns = useMemo(
-    () =>
-      summativeTemplateColumns.filter((column) => {
-        const scoreKey = String(column?.scoreKey ?? column?.id ?? "");
-        return scoreKey && !deletedSummativeScoreKeys.includes(scoreKey);
-      }),
-    [deletedSummativeScoreKeys, summativeTemplateColumns],
-  );
   const nextSumatifIndex = useMemo(() => {
     if (!isSummativeFilterActive) return null;
     const subIds = new Set();
-    summativeTemplateColumns.forEach((column) => {
-      const explicitSubId = Number(
-        column?.subchapterId ?? column?.subchapter_id ?? column?.scoreKey,
-      );
-      if (Number.isFinite(explicitSubId) && explicitSubId > 0) {
-        subIds.add(explicitSubId);
-      }
+    (summativeRes?.data?.students || []).forEach((student) => {
+      (student.scores || []).forEach((score) => {
+        const subId = extractSummativeSubId(score);
+        if (subId != null) subIds.add(subId);
+      });
     });
     if (!subIds.size) return 1;
     return Math.max(...Array.from(subIds)) + 1;
-  }, [isSummativeFilterActive, summativeTemplateColumns]);
+  }, [summativeRes, isSummativeFilterActive]);
 
   useEffect(() => {
     if (gradingTab !== "sumatif") return;
     if (!summativeMonthName || !summativeChapterId) {
-      setDeletedSummativeScoreKeys([]);
       setStudentInputs((prev) =>
         prev.map((student) => ({
           ...student,
@@ -721,10 +482,6 @@ const Grading = ({ subject }) => {
       setIsSummativeDirty(false);
     }
   }, [gradingTab, summativeMonthName, summativeChapterId]);
-
-  useEffect(() => {
-    setDeletedSummativeScoreKeys([]);
-  }, [classId, gradingTab, summativeChapterId, summativeMonthName]);
 
   useEffect(() => {
     if (!summativeRes?.data?.students) return;
@@ -754,11 +511,7 @@ const Grading = ({ subject }) => {
               buildSummativeFinal(entry.score_written, entry.score_skill),
           };
         });
-        nextScores.__new = {
-          score_written: null,
-          score_skill: null,
-          final_score: null,
-        };
+        nextScores.__new = { score_written: 0, score_skill: 0, final_score: 0 };
         return {
           ...student,
           summary: {
@@ -774,15 +527,11 @@ const Grading = ({ subject }) => {
     setIsSummativeDirty(false);
   }, [summativeRes, isSummativeFilterActive]);
 
-  const {
-    data: finalRes,
-    isLoading: isFinalLoading,
-    isFetching: isFinalFetching,
-  } = useGetGradingFinalQuery(
+  const { data: finalRes } = useGetGradingFinalQuery(
     {
       subjectId: subject?.id,
       classId,
-      semester: finalSemester,
+      semester: semesterValue,
     },
     {
       skip: gradingTab !== "ujianAkhir" || !subject?.id || !classId,
@@ -836,13 +585,7 @@ const Grading = ({ subject }) => {
     setStudentInputs((prev) => {
       const next = [...prev];
       const current = next[index] || {};
-      const isNewScoreColumn = subchapterId === "__new";
-      const nextValue =
-        value === null || value === undefined || value === ""
-          ? null
-          : isNewScoreColumn
-            ? Number(value)
-            : (value ?? 0);
+      const nextValue = value === null ? null : (value ?? 0);
       const nextScores = {
         ...(current.formatifScores || {}),
         [subchapterId ?? "default"]: nextValue,
@@ -861,82 +604,6 @@ const Grading = ({ subject }) => {
       return next;
     });
     setIsFormativeDirty(true);
-  };
-
-  const handleDeleteFormativeColumn = async (scoreKey) => {
-    const normalizedKey = String(scoreKey || "").trim();
-    if (!normalizedKey || normalizedKey === "__new") {
-      message.error("Kolom formatif tidak valid.");
-      return;
-    }
-    if (!subject?.id || !classId || !formativeMonthName || !formativeChapterId) {
-      message.error("Pilih kelas, bulan, dan bab formatif terlebih dahulu.");
-      return;
-    }
-
-    const targetColumn = formativeTemplateColumns.find(
-      (column) => String(column?.scoreKey ?? column?.id ?? "").trim() === normalizedKey,
-    );
-    const subchapterId = Number(
-      targetColumn?.subchapterId ?? targetColumn?.subchapter_id ?? normalizedKey,
-    );
-    if (!Number.isFinite(subchapterId) || subchapterId <= 0) {
-      message.error("Kolom formatif tidak dapat dihapus.");
-      return;
-    }
-
-    const items = studentInputs.map((student) => ({
-      student_id: student.student_id,
-      subchapter_id: subchapterId,
-      score: null,
-    }));
-
-    const loadingKey = `delete-formatif-${normalizedKey}`;
-    message.loading({
-      key: loadingKey,
-      content: `Menghapus ${targetColumn?.title || "kolom formatif"}...`,
-      duration: 0,
-    });
-
-    try {
-      const res = await submitFormative({
-        subject_id: subject.id,
-        class_id: classId,
-        month: formativeMonthName,
-        semester: formativeSemester,
-        chapter_id: formativeChapterId,
-        items,
-      }).unwrap();
-
-      setDeletedFormativeScoreKeys((prev) =>
-        prev.includes(normalizedKey) ? prev : [...prev, normalizedKey],
-      );
-      setStudentInputs((prev) =>
-        prev.map((student) => {
-          const nextScores = { ...(student.formatifScores || {}) };
-          delete nextScores[normalizedKey];
-          return {
-            ...student,
-            formatifScores: nextScores,
-          };
-        }),
-      );
-      setIsFormativeDirty(false);
-      await refetchFormative();
-      message.success({
-        key: loadingKey,
-        content:
-          res?.message ||
-          `${targetColumn?.title || "Kolom formatif"} berhasil dihapus.`,
-      });
-    } catch (error) {
-      message.error({
-        key: loadingKey,
-        content:
-          error?.data?.message ||
-          `${targetColumn?.title || "Kolom formatif"} gagal dihapus.`,
-      });
-    }
   };
 
   const handleAttitudeChange = (index, key, value) => {
@@ -976,10 +643,7 @@ const Grading = ({ subject }) => {
       const scoreKey = subchapterId ?? "default";
       const currentScores = current.summativeScores || {};
       const currentScoreObj = currentScores[scoreKey] || {};
-      const normalizedValue =
-        value === null || value === undefined || value === ""
-          ? null
-          : Number(value);
+      const normalizedValue = value === null ? null : (value ?? 0);
       const nextScoreObj = {
         ...currentScoreObj,
         [field]: normalizedValue,
@@ -1005,92 +669,11 @@ const Grading = ({ subject }) => {
     setIsSummativeDirty(true);
   };
 
-  const handleDeleteSummativeColumn = async (scoreKey) => {
-    const normalizedKey = String(scoreKey || "").trim();
-    if (!normalizedKey || normalizedKey === "__new") {
-      message.error("Kolom sumatif tidak valid.");
-      return;
-    }
-    if (!subject?.id || !classId || !summativeMonthName || !summativeChapterId) {
-      message.error("Pilih kelas, bulan, dan bab sumatif terlebih dahulu.");
-      return;
-    }
-
-    const targetColumn = summativeTemplateColumns.find(
-      (column) =>
-        String(column?.scoreKey ?? column?.id ?? "").trim() === normalizedKey,
-    );
-    const subchapterId = Number(
-      targetColumn?.subchapterId ?? targetColumn?.subchapter_id ?? normalizedKey,
-    );
-    if (!Number.isFinite(subchapterId) || subchapterId <= 0) {
-      message.error("Kolom sumatif tidak dapat dihapus.");
-      return;
-    }
-
-    const items = studentInputs.map((student) => ({
-      student_id: student.student_id,
-      subchapter_id: subchapterId,
-      score_written: null,
-      score_skill: null,
-    }));
-
-    const loadingKey = `delete-sumatif-${normalizedKey}`;
-    message.loading({
-      key: loadingKey,
-      content: `Menghapus ${targetColumn?.title || "kolom sumatif"}...`,
-      duration: 0,
-    });
-
-    try {
-      const res = await submitSummative({
-        subject_id: subject.id,
-        class_id: classId,
-        month: summativeMonthName,
-        semester: summativeSemester,
-        chapter_id: summativeChapterId,
-        items,
-      }).unwrap();
-
-      setDeletedSummativeScoreKeys((prev) =>
-        prev.includes(normalizedKey) ? prev : [...prev, normalizedKey],
-      );
-      setStudentInputs((prev) =>
-        prev.map((student) => {
-          const nextScores = { ...(student.summativeScores || {}) };
-          delete nextScores[normalizedKey];
-          return {
-            ...student,
-            summativeScores: nextScores,
-          };
-        }),
-      );
-      setIsSummativeDirty(false);
-      await refetchSummative();
-      message.success({
-        key: loadingKey,
-        content:
-          res?.message ||
-          `${targetColumn?.title || "Kolom sumatif"} berhasil dihapus.`,
-      });
-    } catch (error) {
-      message.error({
-        key: loadingKey,
-        content:
-          error?.data?.message ||
-          `${targetColumn?.title || "Kolom sumatif"} gagal dihapus.`,
-      });
-    }
-  };
-
   const normalizeScoreValue = (value) => {
     const numberValue = Number(value);
     if (Number.isNaN(numberValue)) return 0;
     return Math.max(0, Math.min(100, Math.round(numberValue)));
   };
-
-  const hasPositiveSummativeScore = (scoreWritten, scoreSkill) =>
-    (scoreWritten ?? 0) > 0 || (scoreSkill ?? 0) > 0;
 
   function extractSummativeSubId(entry) {
     const explicitSubId = Number(entry?.subchapter_id);
@@ -1104,56 +687,6 @@ const Grading = ({ subject }) => {
       return 1;
     }
     return null;
-  }
-
-  function buildSummativeSubchapters({
-    students = [],
-    isSummativeFilterActive,
-    activeChapterId,
-    activeChapter,
-    chaptersWithContents = [],
-  }) {
-    if (!isSummativeFilterActive) {
-      return buildFormatifSubchapters({
-        students,
-        isFormativeFilterActive: false,
-        activeChapterId,
-        activeChapter,
-        chaptersWithContents,
-      });
-    }
-    if (!activeChapterId) return [];
-
-    const activeSubchapterIndexMap = new Map(
-      (activeChapter?.contents || []).map((subchapter, index) => [
-        Number(subchapter.id),
-        index + 1,
-      ]),
-    );
-    const columns = new Map();
-
-    students.forEach((student) => {
-      (student?.scores || []).forEach((score) => {
-        const subchapterId = extractSummativeSubId(score);
-        if (!Number.isFinite(subchapterId) || subchapterId <= 0) return;
-        const scoreKey = String(subchapterId);
-        if (columns.has(scoreKey)) return;
-
-        const labelIndex =
-          activeSubchapterIndexMap.get(subchapterId) || columns.size + 1;
-        columns.set(scoreKey, {
-          id: scoreKey,
-          scoreKey,
-          subchapterId,
-          labelIndex,
-          title: `Nilai ${labelIndex}`,
-        });
-      });
-    });
-
-    return Array.from(columns.values()).sort(
-      (left, right) => left.labelIndex - right.labelIndex,
-    );
   }
 
   const buildSummativeFinal = (scoreWritten, scoreSkill) => {
@@ -1229,25 +762,13 @@ const Grading = ({ subject }) => {
       message.warning("Belum ada data siswa untuk dibuatkan template.");
       return;
     }
-    const headers = [
-      "NIS",
-      "Nama",
-      ...visibleFormativeColumns.map((column) => column.header),
-      "Input Nilai",
-    ];
+    const headers = ["NIS", "Nama", "Input Nilai"];
     const templateRows = studentInputs.map((student) => {
       const row = {
         NIS: student.nis || "",
         Nama: student.name || "",
       };
-      visibleFormativeColumns.forEach((column) => {
-        const currentValue = student.formatifScores?.[column.scoreKey];
-        row[column.header] =
-          currentValue === null || currentValue === undefined ? "" : currentValue;
-      });
-      const newValue = student.formatifScores?.__new;
-      row["Input Nilai"] =
-        newValue === null || newValue === undefined ? "" : newValue;
+      row["Input Nilai"] = student.formatifScores?.__new ?? 0;
       return row;
     });
     const worksheet = XLSX.utils.json_to_sheet(templateRows, {
@@ -1451,35 +972,33 @@ const Grading = ({ subject }) => {
             return;
           }
 
-          const nextScores = {};
-          Object.entries(normalizedRow).forEach(([key, value]) => {
-            if (value === null || value === undefined || value === "") return;
-            if (formativeTemplateHeaderMap.has(key)) {
-              nextScores[formativeTemplateHeaderMap.get(key)] =
-                normalizeScoreValue(value);
+          const nilaiKeys = Object.keys(normalizedRow).filter((key) =>
+            /^nilai\s*\d+$/i.test(key),
+          );
+          if (nilaiKeys.length) {
+            const multiValues = {};
+            nilaiKeys.forEach((key) => {
+              const match = key.match(/\d+/);
+              const index = match ? Number(match[0]) : null;
+              if (!index) return;
+              const value = normalizedRow[key];
+              if (value === null || value === undefined || value === "") return;
+              multiValues[index] = normalizeScoreValue(value);
+            });
+            if (Object.keys(multiValues).length) {
+              updates.set(nis, multiValues);
               return;
             }
-            if (!/^nilai\s*\d+$/i.test(key)) return;
-            const match = key.match(/\d+/);
-            const index = match ? Number(match[0]) : null;
-            if (!index) return;
-            nextScores[String(index)] = normalizeScoreValue(value);
-          });
+          }
+
           const inputValue =
             normalizedRow["input nilai"] ??
             normalizedRow.nilai ??
             normalizedRow.score ??
             normalizedRow.formatif ??
             null;
-          if (
-            inputValue !== null &&
-            inputValue !== undefined &&
-            inputValue !== ""
-          ) {
-            nextScores.__new = normalizeScoreValue(inputValue);
-          }
-          if (Object.keys(nextScores).length) {
-            updates.set(nis, nextScores);
+          if (inputValue != null) {
+            updates.set(nis, normalizeScoreValue(inputValue));
           }
         });
 
@@ -1496,9 +1015,13 @@ const Grading = ({ subject }) => {
             }
             const update = updates.get(nisKey);
             const nextScores = { ...(student.formatifScores || {}) };
-            Object.entries(update || {}).forEach(([key, value]) => {
-              nextScores[key] = value;
-            });
+            if (typeof update === "object" && update !== null) {
+              Object.entries(update).forEach(([key, value]) => {
+                nextScores[Number(key)] = value;
+              });
+            } else {
+              nextScores.__new = update;
+            }
             return {
               ...student,
               formatifScores: nextScores,
@@ -1531,41 +1054,13 @@ const Grading = ({ subject }) => {
       message.warning("Belum ada data siswa untuk dibuatkan template.");
       return;
     }
-    const headers = ["NIS", "Nama"];
-    visibleSummativeColumns.forEach((column) => {
-      headers.push(`${column.title} - Tertulis`);
-      headers.push(`${column.title} - Praktik`);
-    });
-    headers.push("Nilai Tertulis");
-    headers.push("Nilai Praktik");
-    const templateRows = studentInputs.map((student) => {
-      const row = {
-        NIS: student.nis || "",
-        Nama: student.name || "",
-      };
-      visibleSummativeColumns.forEach((column) => {
-        const scoreObj = student.summativeScores?.[column.scoreKey] || {};
-        row[`${column.title} - Tertulis`] =
-          scoreObj.score_written === null || scoreObj.score_written === undefined
-            ? ""
-            : scoreObj.score_written;
-        row[`${column.title} - Praktik`] =
-          scoreObj.score_skill === null || scoreObj.score_skill === undefined
-            ? ""
-            : scoreObj.score_skill;
-      });
-      row["Nilai Tertulis"] =
-        student.summativeScores?.__new?.score_written === null ||
-        student.summativeScores?.__new?.score_written === undefined
-          ? ""
-          : student.summativeScores.__new.score_written;
-      row["Nilai Praktik"] =
-        student.summativeScores?.__new?.score_skill === null ||
-        student.summativeScores?.__new?.score_skill === undefined
-          ? ""
-          : student.summativeScores.__new.score_skill;
-      return row;
-    });
+    const headers = ["NIS", "Nama", "Nilai Tertulis", "Nilai Praktik"];
+    const templateRows = studentInputs.map((student) => ({
+      NIS: student.nis || "",
+      Nama: student.name || "",
+      "Nilai Tertulis": student.summativeScores?.__new?.score_written ?? 0,
+      "Nilai Praktik": student.summativeScores?.__new?.score_skill ?? 0,
+    }));
     const worksheet = XLSX.utils.json_to_sheet(templateRows, {
       header: headers,
     });
@@ -1640,87 +1135,26 @@ const Grading = ({ subject }) => {
             return;
           }
 
-          const nextScores = {};
-          visibleSummativeColumns.forEach((column) => {
-            const writtenValue =
-              normalizedRow[`${String(column.title || "").toLowerCase()} - tertulis`] ??
-              normalizedRow[`nilai ${column.labelIndex} - tertulis`] ??
-              normalizedRow[`nilai ${column.labelIndex} tertulis`];
-            const skillValue =
-              normalizedRow[`${String(column.title || "").toLowerCase()} - praktik`] ??
-              normalizedRow[`${String(column.title || "").toLowerCase()} - praktek`] ??
-              normalizedRow[`nilai ${column.labelIndex} - praktik`] ??
-              normalizedRow[`nilai ${column.labelIndex} - praktek`] ??
-              normalizedRow[`nilai ${column.labelIndex} praktik`] ??
-              normalizedRow[`nilai ${column.labelIndex} praktek`];
-            if (
-              writtenValue === null ||
-              writtenValue === undefined ||
-              writtenValue === ""
-            ) {
-              if (
-                skillValue === null ||
-                skillValue === undefined ||
-                skillValue === ""
-              ) {
-                return;
-              }
-            }
-            const scoreWritten =
-              writtenValue === null || writtenValue === undefined || writtenValue === ""
-                ? null
-                : normalizeScoreValue(writtenValue);
-            const scoreSkill =
-              skillValue === null || skillValue === undefined || skillValue === ""
-                ? null
-                : normalizeScoreValue(skillValue);
-            nextScores[column.scoreKey] = {
-              score_written: scoreWritten,
-              score_skill: scoreSkill,
-              final_score: buildSummativeFinal(scoreWritten, scoreSkill),
-            };
-          });
-
-          const scoreWrittenRaw =
+          const scoreWritten = normalizeScoreValue(
             normalizedRow["nilai tertulis"] ??
-            normalizedRow.tertulis ??
-            normalizedRow["score_written"] ??
-            normalizedRow["nilai tulis"];
-          const scoreSkillRaw =
+              normalizedRow.tertulis ??
+              normalizedRow["score_written"] ??
+              normalizedRow["nilai tulis"] ??
+              0,
+          );
+          const scoreSkill = normalizeScoreValue(
             normalizedRow["nilai praktik"] ??
-            normalizedRow.praktik ??
-            normalizedRow.praktek ??
-            normalizedRow["score_skill"];
-          if (
-            scoreWrittenRaw !== null &&
-            scoreWrittenRaw !== undefined &&
-            scoreWrittenRaw !== "" ||
-            scoreSkillRaw !== null &&
-            scoreSkillRaw !== undefined &&
-            scoreSkillRaw !== ""
-          ) {
-            const scoreWritten =
-              scoreWrittenRaw === null ||
-              scoreWrittenRaw === undefined ||
-              scoreWrittenRaw === ""
-                ? null
-                : normalizeScoreValue(scoreWrittenRaw);
-            const scoreSkill =
-              scoreSkillRaw === null ||
-              scoreSkillRaw === undefined ||
-              scoreSkillRaw === ""
-                ? null
-                : normalizeScoreValue(scoreSkillRaw);
-            nextScores.__new = {
-              score_written: scoreWritten,
-              score_skill: scoreSkill,
-              final_score: buildSummativeFinal(scoreWritten, scoreSkill),
-            };
-          }
+              normalizedRow.praktik ??
+              normalizedRow.praktek ??
+              normalizedRow["score_skill"] ??
+              0,
+          );
 
-          if (Object.keys(nextScores).length) {
-            updates.set(nis, nextScores);
-          }
+          updates.set(nis, {
+            score_written: scoreWritten,
+            score_skill: scoreSkill,
+            final_score: buildSummativeFinal(scoreWritten, scoreSkill),
+          });
         });
 
         if (updates.size === 0) {
@@ -1735,10 +1169,10 @@ const Grading = ({ subject }) => {
               return student;
             }
             const update = updates.get(nisKey);
-            const nextScores = { ...(student.summativeScores || {}) };
-            Object.entries(update || {}).forEach(([key, value]) => {
-              nextScores[key] = value;
-            });
+            const nextScores = {
+              ...(student.summativeScores || {}),
+              __new: update,
+            };
             return {
               ...student,
               summativeScores: nextScores,
@@ -1781,7 +1215,7 @@ const Grading = ({ subject }) => {
     const className =
       classes.find((item) => String(item.id) === String(classId))?.name ||
       "Kelas";
-    const safeName = `Template_Nilai_UjianAkhir_${className}_Semester${finalSemester}`.replace(
+    const safeName = `Template_Nilai_UjianAkhir_${className}_Semester${semesterValue}`.replace(
       /[\/:*?"<>|]/g,
       "-",
     );
@@ -1925,7 +1359,7 @@ const Grading = ({ subject }) => {
         subject_id: subject.id,
         class_id: classId,
         month: attitudeMonthName,
-        semester: attitudeSemester,
+        semester: semesterValue,
         items,
       }).unwrap();
       message.success(res?.message || "Nilai sikap tersimpan.");
@@ -1945,51 +1379,28 @@ const Grading = ({ subject }) => {
       message.warning("Pilih bulan dan bab formatif terlebih dahulu.");
       return;
     }
-    const hasMeaningfulNewFormativeScore = studentInputs.some((student) => {
-      const newRaw = student.formatifScores?.__new;
-      if (newRaw === null || newRaw === undefined || newRaw === "") return false;
-      const newValue = normalizeScoreValue(newRaw);
-      return newValue > 0;
-    });
-
-    if (hasMeaningfulNewFormativeScore && !nextFormatifIndex) {
+    if (!nextFormatifIndex) {
       message.warning("Nilai formatif baru belum bisa ditentukan.");
       return;
     }
 
     const items = [];
     studentInputs.forEach((student) => {
-      formativeTemplateColumns.forEach((sub) => {
-        const scoreKey = String(
-          sub?.scoreKey ?? sub?.slotKey ?? sub?.id ?? sub?.key ?? sub?.value ?? "",
-        );
-        const rawScore = student.formatifScores?.[scoreKey];
+      formatifSubchapters.forEach((sub) => {
+        const rawScore = student.formatifScores?.[sub.id];
         const scoreValue =
           rawScore === null || rawScore === undefined
             ? null
             : normalizeScoreValue(rawScore);
-        const subchapterId = Number(
-          sub?.subchapterId ??
-            sub?.subchapter_id ??
-            scoreKey,
-        );
-        if (!Number.isFinite(subchapterId) || subchapterId <= 0) {
-          return;
-        }
         items.push({
           student_id: student.student_id,
-          subchapter_id: subchapterId,
+          subchapter_id: sub.id,
           score: scoreValue,
         });
       });
 
       const newRaw = student.formatifScores?.__new;
-      if (
-        hasMeaningfulNewFormativeScore &&
-        newRaw !== null &&
-        newRaw !== undefined &&
-        newRaw !== ""
-      ) {
+      if (newRaw !== null && newRaw !== undefined && newRaw !== "") {
         const newValue = normalizeScoreValue(newRaw);
         items.push({
           student_id: student.student_id,
@@ -2004,7 +1415,7 @@ const Grading = ({ subject }) => {
         subject_id: subject.id,
         class_id: classId,
         month: formativeMonthName,
-        semester: formativeSemester,
+        semester: semesterValue,
         chapter_id: formativeChapterId,
         items,
       }).unwrap();
@@ -2014,7 +1425,7 @@ const Grading = ({ subject }) => {
           ...student,
           formatifScores: {
             ...(student.formatifScores || {}),
-            __new: null,
+            __new: 0,
           },
         })),
       );
@@ -2034,35 +1445,15 @@ const Grading = ({ subject }) => {
       message.warning("Pilih bulan dan bab sumatif terlebih dahulu.");
       return;
     }
-    const hasMeaningfulNewSummativeScore = studentInputs.some((student) => {
-      const newObj = student.summativeScores?.__new || {};
-      const newWritten =
-        newObj.score_written === null ||
-        newObj.score_written === undefined ||
-        newObj.score_written === ""
-          ? null
-          : normalizeScoreValue(newObj.score_written);
-      const newSkill =
-        newObj.score_skill === null ||
-        newObj.score_skill === undefined ||
-        newObj.score_skill === ""
-          ? null
-          : normalizeScoreValue(newObj.score_skill);
-      return hasPositiveSummativeScore(newWritten, newSkill);
-    });
-
-    if (hasMeaningfulNewSummativeScore && !nextSumatifIndex) {
+    if (!nextSumatifIndex) {
       message.warning("Nilai sumatif baru belum bisa ditentukan.");
       return;
     }
 
     const items = [];
     studentInputs.forEach((student) => {
-      summativeTemplateColumns.forEach((sub) => {
-        const scoreKey = String(
-          sub?.scoreKey ?? sub?.slotKey ?? sub?.id ?? sub?.key ?? sub?.value ?? "",
-        );
-        const rawObj = student.summativeScores?.[scoreKey] || {};
+      sumatifSubchapters.forEach((sub) => {
+        const rawObj = student.summativeScores?.[sub.id] || {};
         const scoreWritten =
           rawObj.score_written === null ||
           rawObj.score_written === undefined ||
@@ -2075,20 +1466,9 @@ const Grading = ({ subject }) => {
           rawObj.score_skill === ""
             ? null
             : normalizeScoreValue(rawObj.score_skill);
-        const subchapterId = Number(
-          sub?.subchapterId ??
-            sub?.subchapter_id ??
-            scoreKey,
-        );
-        if (!Number.isFinite(subchapterId) || subchapterId <= 0) {
-          return;
-        }
-        if (!hasPositiveSummativeScore(scoreWritten, scoreSkill)) {
-          return;
-        }
         items.push({
           student_id: student.student_id,
-          subchapter_id: subchapterId,
+          subchapter_id: sub.id,
           score_written: scoreWritten,
           score_skill: scoreSkill,
         });
@@ -2107,8 +1487,7 @@ const Grading = ({ subject }) => {
         newObj.score_skill === ""
           ? null
           : normalizeScoreValue(newObj.score_skill);
-      if (!hasMeaningfulNewSummativeScore) return;
-      if (!hasPositiveSummativeScore(newWritten, newSkill)) return;
+      if (newWritten == null && newSkill == null) return;
       items.push({
         student_id: student.student_id,
         subchapter_id: nextSumatifIndex,
@@ -2126,7 +1505,7 @@ const Grading = ({ subject }) => {
         subject_id: subject.id,
         class_id: classId,
         month: summativeMonthName,
-        semester: summativeSemester,
+        semester: semesterValue,
         chapter_id: summativeChapterId,
         items,
       }).unwrap();
@@ -2136,7 +1515,7 @@ const Grading = ({ subject }) => {
           ...student,
           summativeScores: {
             ...(student.summativeScores || {}),
-            __new: { score_written: null, score_skill: null, final_score: null },
+            __new: { score_written: 0, score_skill: 0, final_score: 0 },
           },
         })),
       );
@@ -2168,7 +1547,7 @@ const Grading = ({ subject }) => {
       const res = await submitFinal({
         subject_id: subject.id,
         class_id: classId,
-        semester: finalSemester,
+        semester: semesterValue,
         items,
       }).unwrap();
       message.success(res?.message || "Nilai ujian akhir tersimpan.");
@@ -2187,7 +1566,7 @@ const Grading = ({ subject }) => {
       const res = await deleteFinal({
         subject_id: subject.id,
         class_id: classId,
-        semester: finalSemester,
+        semester: semesterValue,
       }).unwrap();
       message.success(res?.message || "Nilai ujian akhir berhasil dihapus.");
       setStudentInputs((prev) =>
@@ -2209,49 +1588,63 @@ const Grading = ({ subject }) => {
     <StudentGradingTable
       students={studentInputs}
       chapters={chaptersWithContents}
-      classes={classes}
-      classId={classId}
       typeKey={typeKey}
       filters={tabFilters[typeKey]}
       onFilterChange={handleFilterChange}
-      onClassChange={(value) => setClassId(value)}
       onStudentChange={handleStudentChange}
       onFormativeChange={handleFormativeChange}
-      formativeSubchapters={visibleFormativeColumns}
-      onDeleteFormativeColumn={handleDeleteFormativeColumn}
+      formativeSubchapters={formatifSubchapters}
       onSummativeChange={handleSummativeChange}
-      summativeSubchapters={visibleSummativeColumns}
-      onDeleteSummativeColumn={handleDeleteSummativeColumn}
+      summativeSubchapters={sumatifSubchapters}
       onAttitudeChange={handleAttitudeChange}
-      period={period}
-      isAttitudeLoading={
-        gradingTab === "sikap" && (isAttitudeLoading || isAttitudeFetching)
-      }
-      isFormativeLoading={
-        gradingTab === "formatif" && (isFormativeLoading || isFormativeFetching)
-      }
-      isSummativeLoading={
-        gradingTab === "sumatif" && (isSummativeLoading || isSummativeFetching)
-      }
-      isFinalLoading={
-        gradingTab === "ujianAkhir" && (isFinalLoading || isFinalFetching)
-      }
-      showFilters
+      showFilters={typeKey !== "ujianAkhir"}
     />
   );
 
   return (
-    <Suspense fallback={<LoadApp />}>
+    <Suspense
+      fallback={
+        <Card style={{ borderRadius: 12 }}>
+          <Skeleton active paragraph={{ rows: 5 }} />
+        </Card>
+      }
+    >
       <Flex vertical gap="middle">
       <GradingHeader
         subject={subject}
         unit={unit}
         period={period}
-        semesterLabel={activeSemesterLabel}
+        semesterLabel={semesterLabel}
         classes={classes}
         classId={classId}
         onClassChange={(value) => setClassId(value)}
       />
+
+      <Card
+        style={{ borderRadius: 14, border: "1px solid #f0f0f0" }}
+        styles={{ body: { padding: 12 } }}
+      >
+        <Flex align="center" justify="space-between" wrap="wrap" gap={12}>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <Tabs
+              activeKey={semesterKey}
+              items={semesterTabs}
+              onChange={setSemesterKey}
+            />
+          </div>
+          <Select
+            value={classId}
+            placeholder="Pilih kelas"
+            options={classes.map((item) => ({
+              label: item.name,
+              value: item.id,
+            }))}
+            onChange={(value) => setClassId(value)}
+            disabled={!classes.length}
+            style={{ minWidth: 220 }}
+          />
+        </Flex>
+      </Card>
 
       {unitId && periodId && classId ? (
         <Flex vertical gap={16}>

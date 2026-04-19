@@ -1,15 +1,6 @@
 import React, { useMemo } from "react";
-import { BookText, Hammer, Trash2 } from "lucide-react";
-import {
-  Button,
-  Card,
-  InputNumber,
-  Popconfirm,
-  Space,
-  Table,
-  Typography,
-} from "antd";
-import LoadApp from "../../../../../../components/loader/LoadApp";
+import { BookText, Hammer } from "lucide-react";
+import { Card, InputNumber, Space, Table, Typography } from "antd";
 
 const { Text } = Typography;
 
@@ -17,9 +8,7 @@ const StudentGradingTableSumatif = ({
   students,
   isMobile,
   isFilterReady,
-  isLoading,
   onSummativeChange,
-  onDeleteColumn,
   subchapters = [],
 }) => {
   const normalizedSubchapters = useMemo(() => {
@@ -77,32 +66,6 @@ const StudentGradingTableSumatif = ({
 
   const getSubTitle = (sub) =>
     sub?.title || `Nilai ${sub?.labelIndex ?? sub?.id ?? "-"}`;
-  const renderSubHeader = (sub) => {
-    const scoreKey = getScoreKey(sub);
-    const title = getSubTitle(sub);
-    const canDelete = isFilterReady && scoreKey && scoreKey !== "__new";
-    return (
-      <Space align='center' size={6}>
-        <Text>{title}</Text>
-        {canDelete && (
-          <Popconfirm
-            title={`Hapus ${title}?`}
-            description='Kolom ini akan langsung dihapus dari data sumatif.'
-            okText='Hapus'
-            cancelText='Batal'
-            onConfirm={() => onDeleteColumn?.(scoreKey)}
-          >
-            <Button
-              type='text'
-              size='small'
-              danger
-              icon={<Trash2 size={14} />}
-            />
-          </Popconfirm>
-        )}
-      </Space>
-    );
-  };
 
   const getScoreObject = (record, scoreKey) =>
     record?.summativeScores?.[scoreKey] || {};
@@ -187,7 +150,7 @@ const StudentGradingTableSumatif = ({
     ...normalizedSubchapters.map((sub) => {
       const scoreKey = getScoreKey(sub);
       return {
-        title: renderSubHeader(sub),
+        title: getSubTitle(sub),
         key: `sub_${scoreKey}`,
         width: "20%",
         render: (_, record, index) => renderDualInput(record, index, sub),
@@ -227,7 +190,7 @@ const StudentGradingTableSumatif = ({
         <div style={{ display: "grid", gap: 8 }}>
           {normalizedSubchapters.map((sub) => (
             <div key={`sub_mobile_${getScoreKey(sub)}`}>
-              <div style={{ marginBottom: 4 }}>{renderSubHeader(sub)}</div>
+              <Text type="secondary">{getSubTitle(sub)}</Text>
               {renderDualInput(student, index, sub)}
             </div>
           ))}
@@ -241,10 +204,6 @@ const StudentGradingTableSumatif = ({
       </Space>
     </Card>
   );
-
-  if (isFilterReady && isLoading) {
-    return <LoadApp />;
-  }
 
   return isMobile ? (
     <Space vertical size={12} style={{ width: "100%" }}>

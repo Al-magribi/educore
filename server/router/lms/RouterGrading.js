@@ -32,21 +32,6 @@ const MONTHS_ID = [
   "desember",
 ];
 
-const MONTHS_EN = [
-  "january",
-  "february",
-  "march",
-  "april",
-  "may",
-  "june",
-  "july",
-  "august",
-  "september",
-  "october",
-  "november",
-  "december",
-];
-
 const getMonthNumber = (month) => {
   if (!month) return null;
   const normalized = String(month).trim();
@@ -61,32 +46,7 @@ const getMonthNumber = (month) => {
   const namePart = normalized.split(" ")[0]?.toLowerCase();
   const index = MONTHS_ID.indexOf(namePart);
   if (index >= 0) return index + 1;
-  const englishIndex = MONTHS_EN.indexOf(namePart);
-  if (englishIndex >= 0) return englishIndex + 1;
   return null;
-};
-
-const normalizeMonthLabel = (month) => {
-  const monthNumber = getMonthNumber(month);
-  if (!monthNumber) return String(month || "").trim();
-  const base = MONTHS_ID[monthNumber - 1] || String(month || "").trim();
-  return base.charAt(0).toUpperCase() + base.slice(1);
-};
-
-const getMonthAliases = (month) => {
-  const monthNumber = getMonthNumber(month);
-  if (!monthNumber) {
-    const raw = String(month || "").trim().toLowerCase();
-    return raw ? [raw] : [];
-  }
-  return Array.from(
-    new Set([
-      MONTHS_ID[monthNumber - 1],
-      MONTHS_EN[monthNumber - 1],
-      String(monthNumber),
-      String(monthNumber).padStart(2, "0"),
-    ]),
-  ).filter(Boolean);
 };
 
 const isSameMonthValue = (storedMonth, targetMonth) => {
@@ -130,15 +90,6 @@ const buildSummativeLegacyType = (month, chapterId) => {
   return `${monthPart}-${chapterPart}`;
 };
 
-const deriveSemesterFromMonthValue = (month, fallbackSemester = null) => {
-  const monthNumber = getMonthNumber(month);
-  if (monthNumber != null) {
-    return monthNumber >= 7 ? 1 : 2;
-  }
-  const normalizedFallback = Number(fallbackSemester);
-  return [1, 2].includes(normalizedFallback) ? normalizedFallback : null;
-};
-
 const extractSubchapterFromType = (typeValue) => {
   const raw = String(typeValue || "");
   const match = raw.match(/-S(\d+)/);
@@ -174,67 +125,6 @@ const ensureActivePeriode = async (pool, homebaseId) => {
     [homebaseId],
   );
   return periodeResult.rows[0] || null;
-};
-
-const resolveEffectiveTeacherId = async ({
-  pool,
-  role,
-  userId,
-  teacherId,
-  subjectId,
-  classId,
-  homebaseId,
-}) => {
-  if (role === "teacher") return Number(userId) || null;
-
-  const explicitTeacherId = Number(teacherId || 0) || null;
-  if (explicitTeacherId) return explicitTeacherId;
-
-  const params = [subjectId, classId];
-  const conditions = ["subject_id = $1", "class_id = $2"];
-  if (homebaseId) {
-    params.push(homebaseId);
-    conditions.push(
-      `teacher_id IN (
-         SELECT user_id
-         FROM u_teachers
-         WHERE homebase_id = $${params.length}
-       )`,
-    );
-  }
-
-  const assignmentResult = await pool.query(
-    `SELECT DISTINCT teacher_id
-     FROM at_subject
-     WHERE ${conditions.join("\n       AND ")}
-       AND teacher_id IS NOT NULL
-     ORDER BY teacher_id ASC`,
-    params,
-  );
-
-  if (assignmentResult.rowCount === 1) {
-    return Number(assignmentResult.rows[0].teacher_id) || null;
-  }
-
-  return null;
-};
-
-const resolveReadableTeacherId = async (params) => {
-  const { role, userId, teacherId } = params;
-  if (role === "teacher") return Number(userId) || null;
-
-  const explicitTeacherId = Number(teacherId || 0) || null;
-  if (explicitTeacherId) return explicitTeacherId;
-
-  return resolveEffectiveTeacherId(params);
-};
-
-const parseTypeSubchapterNumber = (typeValue) => {
-  const raw = String(typeValue || "");
-  const match = raw.match(/-S(\d+)/i);
-  if (match) return Number(match[1]);
-  if (/^M\d{2}-B\d+$/i.test(raw)) return 1;
-  return null;
 };
 
 const getClassHomebaseId = async (pool, classId) => {
@@ -439,7 +329,7 @@ router.get(
       });
     }
 
-    const semesterValue = deriveSemesterFromMonthValue(month, semester);
+    const semesterValue = Number(semester);
     if (![1, 2].includes(semesterValue)) {
       return res.status(400).json({
         status: "error",
@@ -447,15 +337,14 @@ router.get(
       });
     }
 
-    const effectiveTeacherId = await resolveReadableTeacherId({
-      pool,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
 
     const classHomebaseId = await getClassHomebaseId(pool, class_id);
     if (!classHomebaseId) {
@@ -507,10 +396,6 @@ router.get(
       });
     }
 
-    const targetMonthAliases = getMonthAliases(month);
-
-    const attitudeTeacherJoin =
-      effectiveTeacherId != null ? "\n        AND a.teacher_id = $5" : "";
     const studentResult = await pool.query(
       `SELECT
          u.id AS student_id,
@@ -531,61 +416,22 @@ router.get(
          ON a.student_id = e.student_id
         AND a.subject_id = $1
         AND a.periode_id = $3
-        AND a.semester = $4
+        AND a.month = $4
+        AND a.semester = $5
         AND a.class_id = $2
-        ${attitudeTeacherJoin}
+        AND a.teacher_id = $6
        WHERE e.class_id = $2
          AND e.periode_id = $3
-       ORDER BY u.full_name ASC, a.id DESC`,
-      effectiveTeacherId != null
-        ? [
-            subject_id,
-            class_id,
-            activePeriode.id,
-            semesterValue,
-            effectiveTeacherId,
-          ]
-        : [subject_id, class_id, activePeriode.id, semesterValue],
+       ORDER BY u.full_name ASC`,
+      [
+        subject_id,
+        class_id,
+        activePeriode.id,
+        month,
+        semesterValue,
+        effectiveTeacherId,
+      ],
     );
-
-    const studentsMap = new Map();
-    for (const row of studentResult.rows) {
-      const studentId = String(row.student_id);
-      if (!studentsMap.has(studentId)) {
-        studentsMap.set(studentId, {
-          student_id: row.student_id,
-          full_name: row.full_name,
-          nis: row.nis,
-          month: null,
-          semester: semesterValue,
-          kinerja: 0,
-          kedisiplinan: 0,
-          keaktifan: 0,
-          percaya_diri: 0,
-          teacher_note: "",
-          average_score: 0,
-          _matched: false,
-        });
-      }
-      const entry = studentsMap.get(studentId);
-      if (!row.month || entry._matched) continue;
-      if (targetMonthAliases.length && !isSameMonthValue(row.month, month)) {
-        continue;
-      }
-      entry.month = row.month;
-      entry.kinerja = row.kinerja ?? 0;
-      entry.kedisiplinan = row.kedisiplinan ?? 0;
-      entry.keaktifan = row.keaktifan ?? 0;
-      entry.percaya_diri = row.percaya_diri ?? 0;
-      entry.teacher_note = row.teacher_note || "";
-      entry.average_score = row.average_score ?? 0;
-      entry._matched = true;
-    }
-
-    const students = Array.from(studentsMap.values()).map((item) => {
-      const { _matched, ...rest } = item;
-      return rest;
-    });
 
     return res.json({
       status: "success",
@@ -594,7 +440,7 @@ router.get(
         periode_name: activePeriode.name,
         month,
         semester: semesterValue,
-        students,
+        students: studentResult.rows,
       },
     });
   }),
@@ -625,7 +471,7 @@ router.get(
       });
     }
 
-    const semesterValue = deriveSemesterFromMonthValue(month, semester);
+    const semesterValue = Number(semester);
     if (![1, 2].includes(semesterValue)) {
       return res.status(400).json({
         status: "error",
@@ -633,15 +479,14 @@ router.get(
       });
     }
 
-    const effectiveTeacherId = await resolveReadableTeacherId({
-      pool,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
 
     const classHomebaseId = await getClassHomebaseId(pool, class_id);
     if (!classHomebaseId) {
@@ -697,27 +542,22 @@ router.get(
       "f.student_id = e.student_id",
       "f.subject_id = $1",
       "f.periode_id = $3",
+      "f.semester = $4",
       "f.class_id = $2",
+      "f.teacher_id = $5",
     ];
     const joinParams = [
       subject_id,
       class_id,
       activePeriode.id,
+      semesterValue,
+      effectiveTeacherId,
     ];
-    let paramIndex = 4;
-    if (!month) {
-      joinConditions.push(`f.semester = $${paramIndex}`);
-      joinParams.push(semesterValue);
-      paramIndex += 1;
-    }
-    if (effectiveTeacherId != null) {
-      joinConditions.push(`f.teacher_id = $${paramIndex}`);
-      joinParams.push(effectiveTeacherId);
-      paramIndex += 1;
-    }
+    let paramIndex = 6;
     if (chapter_id) {
       joinConditions.push(`f.chapter_id = $${paramIndex}`);
       joinParams.push(chapter_id);
+      paramIndex += 1;
     }
 
     const studentResult = await pool.query(
@@ -729,22 +569,19 @@ router.get(
          f.month,
          f.chapter_id,
          f.type,
-         f.score,
-         ch.title AS chapter_title
+         f.score
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
        LEFT JOIN l_score_formative f
          ON ${joinConditions.join("\n        AND ")}
-       LEFT JOIN l_chapter ch ON ch.id = f.chapter_id
        WHERE e.class_id = $2
          AND e.periode_id = $3
-       ORDER BY u.full_name ASC, f.chapter_id ASC, f.type ASC, f.id ASC`,
+       ORDER BY u.full_name ASC, f.id DESC`,
       joinParams,
     );
 
     const studentsMap = new Map();
-    const slotRegistry = new Map();
     for (const row of studentResult.rows) {
       const studentId = String(row.student_id);
       if (!studentsMap.has(studentId)) {
@@ -760,33 +597,12 @@ router.get(
       const entry = studentsMap.get(studentId);
       if (!row.type) continue;
       if (month && !isSameMonthValue(row.month, month)) continue;
-      const slotKey =
-        row.type && String(row.type).trim().length
-          ? String(row.type).trim()
-          : `c${row.chapter_id || 0}-f${row.score_id || 0}`;
-      const parsedSubchapter = parseTypeSubchapterNumber(row.type);
-      const subchapterId = parsedSubchapter ?? null;
-      const chapterTitle = row.chapter_title || `Bab ${row.chapter_id || "-"}`;
-      if (entry._typeSet.has(slotKey)) continue;
-      entry._typeSet.add(slotKey);
-      if (!slotRegistry.has(slotKey)) {
-        slotRegistry.set(slotKey, {
-          slot_key: slotKey,
-          chapter_id: row.chapter_id ?? null,
-          chapter_title: chapterTitle,
-          type: row.type || null,
-          subchapter_id: subchapterId,
-          subchapter_number: parsedSubchapter,
-        });
-      }
+      if (entry._typeSet.has(row.type)) continue;
+      entry._typeSet.add(row.type);
       entry.scores.push({
-        id: row.score_id ?? null,
-        slot_key: slotKey,
         type: row.type,
         month: row.month,
         chapter_id: row.chapter_id,
-        chapter_title: chapterTitle,
-        subchapter_id: subchapterId,
         score: row.score ?? 0,
       });
       if (month && chapter_id && entry.score == null) {
@@ -798,28 +614,6 @@ router.get(
       const { _typeSet, ...rest } = item;
       return rest;
     });
-    const slots = Array.from(slotRegistry.values())
-      .sort((a, b) => {
-        const chapterA = Number(a.chapter_id || 0);
-        const chapterB = Number(b.chapter_id || 0);
-        if (chapterA !== chapterB) return chapterA - chapterB;
-
-        const subA =
-          a.subchapter_number === null || a.subchapter_number === undefined
-            ? Number.MAX_SAFE_INTEGER
-            : Number(a.subchapter_number);
-        const subB =
-          b.subchapter_number === null || b.subchapter_number === undefined
-            ? Number.MAX_SAFE_INTEGER
-            : Number(b.subchapter_number);
-        if (subA !== subB) return subA - subB;
-
-        return String(a.slot_key).localeCompare(String(b.slot_key));
-      })
-      .map((slot, index) => ({
-        ...slot,
-        label_index: index + 1,
-      }));
 
     return res.json({
       status: "success",
@@ -829,7 +623,6 @@ router.get(
         month: month || null,
         semester: semesterValue,
         chapter_id: chapter_id ? Number(chapter_id) : null,
-        slots,
         students,
       },
     });
@@ -860,7 +653,7 @@ router.get(
       });
     }
 
-    const semesterValue = deriveSemesterFromMonthValue(month, semester);
+    const semesterValue = Number(semester);
     if (![1, 2].includes(semesterValue)) {
       return res.status(400).json({
         status: "error",
@@ -868,15 +661,14 @@ router.get(
       });
     }
 
-    const effectiveTeacherId = await resolveReadableTeacherId({
-      pool,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
 
     const classHomebaseId = await getClassHomebaseId(pool, class_id);
     if (!classHomebaseId) {
@@ -932,27 +724,22 @@ router.get(
       "s.student_id = e.student_id",
       "s.subject_id = $1",
       "s.periode_id = $3",
+      "s.semester = $4",
       "s.class_id = $2",
+      "s.teacher_id = $5",
     ];
     const joinParams = [
       subject_id,
       class_id,
       activePeriode.id,
+      semesterValue,
+      effectiveTeacherId,
     ];
-    let paramIndex = 4;
-    if (!month) {
-      joinConditions.push(`s.semester = $${paramIndex}`);
-      joinParams.push(semesterValue);
-      paramIndex += 1;
-    }
-    if (effectiveTeacherId != null) {
-      joinConditions.push(`s.teacher_id = $${paramIndex}`);
-      joinParams.push(effectiveTeacherId);
-      paramIndex += 1;
-    }
+    let paramIndex = 6;
     if (chapter_id) {
       joinConditions.push(`s.chapter_id = $${paramIndex}`);
       joinParams.push(chapter_id);
+      paramIndex += 1;
     }
 
     const studentResult = await pool.query(
@@ -1054,7 +841,7 @@ router.post(
       });
     }
 
-    const semesterValue = deriveSemesterFromMonthValue(month, semester);
+    const semesterValue = Number(semester);
     if (![1, 2].includes(semesterValue)) {
       return res.status(400).json({
         status: "error",
@@ -1069,15 +856,8 @@ router.post(
       });
     }
 
-    const effectiveTeacherId = await resolveEffectiveTeacherId({
-      pool: client,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
     if (!effectiveTeacherId) {
       return res.status(400).json({
         status: "error",
@@ -1135,9 +915,6 @@ router.post(
       });
     }
 
-    const normalizedMonth = normalizeMonthLabel(month);
-    const monthAliases = getMonthAliases(month);
-
     const studentIds = items.map((item) => item.student_id).filter(Boolean);
     if (studentIds.length === 0) {
       return res.status(400).json({
@@ -1150,7 +927,7 @@ router.post(
       `DELETE FROM l_score_attitude
        WHERE subject_id = $1
          AND periode_id = $2
-         AND LOWER(TRIM(month)) = ANY($3::text[])
+         AND month = $3
          AND semester = $4
          AND class_id = $5
          AND teacher_id = $6
@@ -1158,7 +935,7 @@ router.post(
       [
         subject_id,
         activePeriode.id,
-        monthAliases,
+        month,
         semesterValue,
         class_id,
         effectiveTeacherId,
@@ -1190,7 +967,7 @@ router.post(
           effectiveTeacherId,
           activePeriode.id,
           semesterValue,
-          normalizedMonth,
+          month,
           normalizeScore(item.kinerja),
           normalizeScore(item.kedisiplinan),
           normalizeScore(item.keaktifan),
@@ -1249,15 +1026,8 @@ router.post(
       });
     }
 
-    const effectiveTeacherId = await resolveEffectiveTeacherId({
-      pool: client,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
     if (!effectiveTeacherId) {
       return res.status(400).json({
         status: "error",
@@ -1315,8 +1085,6 @@ router.post(
       });
     }
 
-    const normalizedMonth = normalizeMonthLabel(month);
-
     const normalizedItemsMap = new Map();
     for (const item of items) {
       const studentId = Number(item.student_id || 0);
@@ -1366,14 +1134,18 @@ router.post(
       `DELETE FROM l_score_formative
        WHERE subject_id = $1
          AND periode_id = $2
-         AND class_id = $3
-         AND chapter_id = $4
-         AND teacher_id = $5
-         AND type = ANY($6::text[])
-         AND student_id = ANY($7::int[])`,
+         AND month = $3
+         AND semester = $4
+         AND class_id = $5
+         AND chapter_id = $6
+         AND teacher_id = $7
+         AND type = ANY($8::text[])
+         AND student_id = ANY($9::int[])`,
       [
         subject_id,
         activePeriode.id,
+        month,
+        semesterValue,
         class_id,
         chapter_id,
         effectiveTeacherId,
@@ -1408,7 +1180,7 @@ router.post(
         [
           activePeriode.id,
           semesterValue,
-          normalizedMonth,
+          month,
           class_id,
           item.student_id,
           effectiveTeacherId,
@@ -1469,15 +1241,8 @@ router.post(
       });
     }
 
-    const effectiveTeacherId = await resolveEffectiveTeacherId({
-      pool: client,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
     if (!effectiveTeacherId) {
       return res.status(400).json({
         status: "error",
@@ -1534,8 +1299,6 @@ router.post(
         message: "Periode aktif belum diatur.",
       });
     }
-
-    const normalizedMonth = normalizeMonthLabel(month);
 
     const normalizedItemsMap = new Map();
     for (const item of items) {
@@ -1596,14 +1359,18 @@ router.post(
       `DELETE FROM l_score_summative
        WHERE subject_id = $1
          AND periode_id = $2
-         AND class_id = $3
-         AND chapter_id = $4
-         AND teacher_id = $5
-         AND type = ANY($6::text[])
-         AND student_id = ANY($7::int[])`,
+         AND month = $3
+         AND semester = $4
+         AND class_id = $5
+         AND chapter_id = $6
+         AND teacher_id = $7
+         AND type = ANY($8::text[])
+         AND student_id = ANY($9::int[])`,
       [
         subject_id,
         activePeriode.id,
+        month,
+        semesterValue,
         class_id,
         chapter_id,
         effectiveTeacherId,
@@ -1636,7 +1403,7 @@ router.post(
         [
           activePeriode.id,
           semesterValue,
-          normalizedMonth,
+          month,
           class_id,
           item.student_id,
           effectiveTeacherId,
@@ -1682,15 +1449,14 @@ router.get(
       });
     }
 
-    const effectiveTeacherId = await resolveReadableTeacherId({
-      pool,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
 
     const classHomebaseId = await getClassHomebaseId(pool, class_id);
     if (!classHomebaseId) {
@@ -1742,14 +1508,11 @@ router.get(
       });
     }
 
-    const finalTeacherJoin =
-      effectiveTeacherId != null ? "\n        AND f.teacher_id = $5" : "";
     const studentResult = await pool.query(
       `SELECT
          u.id AS student_id,
          u.full_name,
          st.nis,
-         f.id AS score_id,
          f.final_grade
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
@@ -1760,29 +1523,12 @@ router.get(
         AND f.class_id = $2
         AND f.periode_id = $3
         AND f.semester = $4
-        ${finalTeacherJoin}
+        AND f.teacher_id = $5
        WHERE e.class_id = $2
          AND e.periode_id = $3
-       ORDER BY u.full_name ASC, f.id DESC`,
-      effectiveTeacherId != null
-        ? [subject_id, class_id, activePeriode.id, semesterValue, effectiveTeacherId]
-        : [subject_id, class_id, activePeriode.id, semesterValue],
+       ORDER BY u.full_name ASC`,
+      [subject_id, class_id, activePeriode.id, semesterValue, effectiveTeacherId],
     );
-
-    const studentMap = new Map();
-    for (const row of studentResult.rows) {
-      const studentId = String(row.student_id);
-      if (studentMap.has(studentId)) continue;
-      studentMap.set(studentId, {
-        student_id: row.student_id,
-        full_name: row.full_name,
-        nis: row.nis,
-        final_grade:
-          row.final_grade === null || row.final_grade === undefined
-            ? null
-            : Number(row.final_grade),
-      });
-    }
 
     return res.json({
       status: "success",
@@ -1790,7 +1536,7 @@ router.get(
         periode_id: activePeriode.id,
         periode_name: activePeriode.name,
         semester: semesterValue,
-        students: Array.from(studentMap.values()),
+        students: studentResult.rows,
       },
     });
   }),
@@ -1828,15 +1574,8 @@ router.post(
       });
     }
 
-    const effectiveTeacherId = await resolveEffectiveTeacherId({
-      pool: client,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
     if (!effectiveTeacherId) {
       return res.status(400).json({
         status: "error",
@@ -1988,15 +1727,8 @@ router.delete(
       });
     }
 
-    const effectiveTeacherId = await resolveEffectiveTeacherId({
-      pool: client,
-      role,
-      userId,
-      teacherId: teacher_id,
-      subjectId: subject_id,
-      classId: class_id,
-      homebaseId: homebase_id,
-    });
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
     if (!effectiveTeacherId) {
       return res.status(400).json({
         status: "error",

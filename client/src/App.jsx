@@ -71,17 +71,11 @@ const NotFoundRedirect = () => {
   }
 };
 
-const LazyRoute = ({ title, Component: RouteComponent }) => {
-  const content = (
-    <Suspense fallback={<LoadApp />}>
-      {RouteComponent ? createElement(RouteComponent) : null}
-    </Suspense>
-  );
-
-  if (!title) return content;
-
-  return <AppLayout title={title}>{content}</AppLayout>;
-};
+const LazyRoute = ({ Component }) => (
+  <Suspense fallback={<LoadApp />}>
+    {Component ? createElement(Component) : null}
+  </Suspense>
+);
 
 const LazyPage = ({ title, Component }) => {
   return (

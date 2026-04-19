@@ -1,6 +1,5 @@
 ﻿import React, { useMemo } from "react";
 import { Card, Input, InputNumber, Space, Table, Typography } from "antd";
-import LoadApp from "../../../../../../components/loader/LoadApp";
 
 const { Text } = Typography;
 
@@ -8,7 +7,6 @@ const StudentGradingTableSikap = ({
   students,
   isMobile,
   isFilterReady,
-  isLoading,
   onAttitudeChange,
 }) => {
   const formatScore = (value) => {
@@ -211,10 +209,6 @@ const StudentGradingTableSikap = ({
       </Space>
     </Card>
   );
-
-  if (isFilterReady && isLoading) {
-    return <LoadApp />;
-  }
 
   return isMobile ? (
     <Space orientation="vertical" size={12} style={{ width: "100%" }}>

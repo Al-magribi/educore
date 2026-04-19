@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Alert, Card, Col, Empty, Flex, Grid, Row, Tag } from "antd";
 import { useGetStudentSubjectReportQuery } from "../../../../../service/lms/ApiRecap";
 import AttendanceSection from "./report/AttendanceSection";
@@ -10,6 +10,7 @@ import ScoreSectionCard from "./report/ScoreSectionCard";
 import { formatDateDisplay } from "./report/utils";
 
 const { useBreakpoint } = Grid;
+const EMPTY_FILTERS = [];
 
 const ReportTab = ({ subject, classId }) => {
   const screens = useBreakpoint();
@@ -44,8 +45,7 @@ const ReportTab = ({ subject, classId }) => {
   const attitude = reportData?.attitude || {};
   const formative = reportData?.formative || {};
   const summative = reportData?.summative || {};
-
-  const availableFilters = meta?.available_filters || [];
+  const availableFilters = meta?.available_filters ?? EMPTY_FILTERS;
 
   const semesterOptions = useMemo(
     () =>
@@ -77,26 +77,6 @@ const ReportTab = ({ subject, classId }) => {
       fallbackMonths.includes(Number(item.value)),
     );
   }, [availableFilters, selectedSemester]);
-
-  useEffect(() => {
-    if (!semesterOptions.length) return;
-    const selectedExists = semesterOptions.some(
-      (item) => Number(item.value) === Number(selectedSemester),
-    );
-    if (!selectedExists) {
-      setSelectedSemester(Number(semesterOptions[0].value));
-    }
-  }, [semesterOptions, selectedSemester]);
-
-  useEffect(() => {
-    if (!monthOptions.length) return;
-    const selectedExists = monthOptions.some(
-      (item) => Number(item.value) === Number(selectedMonth),
-    );
-    if (!selectedExists) {
-      setSelectedMonth(Number(monthOptions[0].value));
-    }
-  }, [monthOptions, selectedMonth]);
 
   const attendanceRows = (attendance.records || []).map((item, index) => ({
     key: `${item.date}-${index}`,
