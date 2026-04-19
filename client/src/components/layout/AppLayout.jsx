@@ -36,7 +36,6 @@ const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const LayoutShellContext = createContext(null);
-
 const routePreloaders = {
   "/profile": () => import("../profile/Profile"),
   "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
@@ -106,7 +105,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
       preloadedRoutes.current.delete(key);
     });
   }, []);
-
   const filterMenuItemsByUser = (items, currentUser) => {
     return items
       .map((item) => {
