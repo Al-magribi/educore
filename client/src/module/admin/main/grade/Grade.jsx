@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
   Card,
   Button,
@@ -11,7 +12,6 @@ import {
   Typography,
   theme,
   Flex,
-  Layout,
   Grid,
   Statistic,
 } from "antd";
@@ -34,12 +34,31 @@ import {
 
 const { Search: AntSearch } = Input;
 const { Text, Title } = Typography;
-const { Content } = Layout;
 const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
+
+const containerVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: "easeOut", staggerChildren: 0.08 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.28, ease: "easeOut" },
+  },
+};
 
 const Grade = ({ screens }) => {
   const breakpointScreens = useBreakpoint();
   const activeScreens = screens || breakpointScreens;
+  const isMobile = !activeScreens.md;
   const { token } = theme.useToken();
   const [form] = Form.useForm();
 
@@ -140,136 +159,119 @@ const Grade = ({ screens }) => {
   ];
 
   const renderGradeItem = (item) => (
-    <Card
-      hoverable
-      style={{
-        height: "100%",
-        borderRadius: token.borderRadiusLG,
-        border: `1px solid ${token.colorBorderSecondary}`,
-      }}
-      styles={{ body: { padding: "16px" } }}
-      actions={[
-        <Tooltip title="Edit Data" key="edit">
-          <Button
-            type="text"
-            icon={<Pencil size={16} className="text-yellow-600" />}
-            onClick={() => openModal(item)}
-            block
-          />
-        </Tooltip>,
-        <Tooltip title="Hapus Data" key="delete">
-          <Popconfirm
-            title="Hapus Tingkat?"
-            description="Aksi ini tidak dapat dibatalkan."
-            onConfirm={() => handleDelete(item.id)}
-            okText="Ya"
-            cancelText="Batal"
-            okButtonProps={{ danger: true, loading: isDeleting }}
-          >
-            <Button type="text" danger icon={<Trash2 size={16} />} block />
-          </Popconfirm>
-        </Tooltip>,
-      ]}
-    >
-      <div
+    <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.18 }}>
+      <Card
+        hoverable
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 8,
+          height: "100%",
+          borderRadius: token.borderRadiusXL,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
         }}
+        styles={{ body: { padding: "16px" } }}
+        actions={[
+          <Tooltip title="Edit Data" key="edit">
+            <Button
+              type="text"
+              icon={<Pencil size={16} className="text-yellow-600" />}
+              onClick={() => openModal(item)}
+              block
+            />
+          </Tooltip>,
+          <Tooltip title="Hapus Data" key="delete">
+            <Popconfirm
+              title="Hapus Tingkat?"
+              description="Aksi ini tidak dapat dibatalkan."
+              onConfirm={() => handleDelete(item.id)}
+              okText="Ya"
+              cancelText="Batal"
+              okButtonProps={{ danger: true, loading: isDeleting }}
+            >
+              <Button type="text" danger icon={<Trash2 size={16} />} block />
+            </Popconfirm>
+          </Tooltip>,
+        ]}
       >
         <div
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            background: token.colorPrimaryBg,
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            color: token.colorPrimary,
+            gap: 12,
+            marginBottom: 8,
           }}
         >
-          <GraduationCap size={20} />
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Tingkat Kelas
-          </Text>
-          <div style={{ fontSize: 18, fontWeight: "bold", lineHeight: 1 }}>
-            {item.name}
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #fef3c7, #ffedd5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#b45309",
+            }}
+          >
+            <GraduationCap size={20} />
+          </div>
+          <div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Tingkat Kelas
+            </Text>
+            <div style={{ fontSize: 18, fontWeight: "bold", lineHeight: 1.2 }}>
+              {item.name}
+            </div>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </MotionDiv>
   );
 
   return (
     <>
-      <Flex gap={16} wrap="wrap" style={{ marginBottom: 20 }}>
-        {summaryCards.map((item) => (
+      <MotionDiv
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        style={{ display: "flex", flexDirection: "column", gap: 20 }}
+      >
+        <MotionDiv variants={itemVariants}>
           <Card
-            key={item.key}
+            bordered={false}
             style={{
-              flex: activeScreens.md ? "1 1 0" : "1 1 100%",
-              minWidth: activeScreens.md ? 0 : "100%",
+              borderRadius: token.borderRadiusXL,
+              overflow: "hidden",
+              background:
+                "linear-gradient(135deg, rgba(255,251,235,0.98), rgba(255,247,237,0.98))",
+              boxShadow: token.boxShadowTertiary,
             }}
-            styles={{ body: { padding: "18px 20px" } }}
-            hoverable
+            styles={{ body: { padding: isMobile ? 18 : 24 } }}
           >
-            <Flex justify="space-between" align="start">
-              <Statistic title={item.title} value={item.value} />
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 14,
-                  background: "linear-gradient(135deg, #fef3c7, #ffedd5)",
-                  color: "#b45309",
-                }}
-              >
-                {item.icon}
-              </div>
-            </Flex>
-          </Card>
-        ))}
-      </Flex>
-
-      <Flex vertical gap={"middle"}>
-        <Card
-          hoverable
-          styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
-        >
-          <Flex
-            justify="space-between"
-            align={activeScreens.md ? "center" : "stretch"}
-            vertical={!activeScreens.md}
-            gap={16}
-          >
-            <div>
-              <Title level={4} style={{ margin: 0 }}>
-                Direktori Tingkat
-              </Title>
-              <Text type="secondary">
-                Cari tingkat kelas yang ada atau tambahkan level baru.
-              </Text>
-            </div>
-
             <Flex
-              gap={10}
+              justify="space-between"
+              align={activeScreens.md ? "center" : "stretch"}
               vertical={!activeScreens.md}
-              style={{ width: !activeScreens.md ? "100%" : "auto" }}
+              gap={16}
             >
-              <AntSearch
-                placeholder="Cari tingkat..."
-                onSearch={handleSearch}
-                allowClear
-                style={{ width: !activeScreens.md ? "100%" : 280 }}
-                size="large"
-              />
+              <div>
+                <Text
+                  style={{
+                    color: "#b45309",
+                    fontWeight: 700,
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  MANAJEMEN TINGKAT
+                </Text>
+                <Title level={4} style={{ margin: "6px 0 4px" }}>
+                  Struktur tingkat tampil lebih rapi untuk proses administrasi.
+                </Title>
+                <Text type="secondary">
+                  Cari tingkat kelas yang ada atau tambahkan level baru tanpa
+                  mengubah alur kerja saat ini.
+                </Text>
+              </div>
+
               <Button
                 type="primary"
                 icon={<Plus size={16} />}
@@ -279,27 +281,123 @@ const Grade = ({ screens }) => {
                 Tambah Tingkat
               </Button>
             </Flex>
-          </Flex>
-        </Card>
+          </Card>
+        </MotionDiv>
 
-        <InfiniteScrollList
-          data={allItems}
-          loading={isFetching}
-          hasMore={hasMore}
-          onLoadMore={handleLoadMore}
-          renderItem={renderGradeItem}
-          emptyText="Belum ada data tingkat kelas"
-          grid={{
-            gutter: [16, 16],
-            xs: 24,
-            sm: 12,
-            md: 8,
-            lg: 6,
-            xl: 4,
-            xxl: 4,
-          }}
-        />
-      </Flex>
+        <MotionDiv variants={itemVariants}>
+          <Flex gap={16} wrap="wrap">
+            {summaryCards.map((item) => (
+              <MotionDiv
+                key={item.key}
+                whileHover={{ y: -4 }}
+                transition={{ duration: 0.18 }}
+                style={{
+                  flex: activeScreens.md ? "1 1 0" : "1 1 100%",
+                  minWidth: activeScreens.md ? 0 : "100%",
+                }}
+              >
+                <Card
+                  style={{
+                    borderRadius: token.borderRadiusXL,
+                    boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
+                  }}
+                  styles={{ body: { padding: "18px 20px" } }}
+                  hoverable
+                >
+                  <Flex justify="space-between" align="start">
+                    <Statistic title={item.title} value={item.value} />
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        display: "grid",
+                        placeItems: "center",
+                        borderRadius: 14,
+                        background: "linear-gradient(135deg, #fef3c7, #ffedd5)",
+                        color: "#b45309",
+                      }}
+                    >
+                      {item.icon}
+                    </div>
+                  </Flex>
+                </Card>
+              </MotionDiv>
+            ))}
+          </Flex>
+        </MotionDiv>
+
+        <MotionDiv variants={itemVariants}>
+          <Card
+            hoverable
+            bordered={false}
+            style={{
+              borderRadius: token.borderRadiusXL,
+              boxShadow: token.boxShadowSecondary,
+            }}
+            styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
+          >
+            <Flex
+              justify="space-between"
+              align={activeScreens.md ? "center" : "stretch"}
+              vertical={!activeScreens.md}
+              gap={16}
+            >
+              <div>
+                <Title level={4} style={{ margin: 0 }}>
+                  Pencarian Data Tingkat
+                </Title>
+                <Text type="secondary">
+                  Filter daftar tingkat dengan cepat dari toolbar yang lebih
+                  bersih.
+                </Text>
+              </div>
+
+              <Flex
+                gap={10}
+                vertical={!activeScreens.md}
+                style={{ width: !activeScreens.md ? "100%" : "auto" }}
+              >
+                <AntSearch
+                  placeholder="Cari tingkat..."
+                  onSearch={handleSearch}
+                  allowClear
+                  style={{ width: !activeScreens.md ? "100%" : 300 }}
+                  size="large"
+                />
+                <Button
+                  type="primary"
+                  icon={<Plus size={16} />}
+                  onClick={() => openModal(null)}
+                  size="large"
+                  style={{ display: activeScreens.md ? "none" : "inline-flex" }}
+                >
+                  Tambah Tingkat
+                </Button>
+              </Flex>
+            </Flex>
+          </Card>
+        </MotionDiv>
+
+        <MotionDiv variants={itemVariants}>
+          <InfiniteScrollList
+            data={allItems}
+            loading={isFetching}
+            hasMore={hasMore}
+            onLoadMore={handleLoadMore}
+            renderItem={renderGradeItem}
+            emptyText="Belum ada data tingkat kelas"
+            grid={{
+              gutter: [16, 16],
+              xs: 24,
+              sm: 12,
+              md: 8,
+              lg: 6,
+              xl: 4,
+              xxl: 4,
+            }}
+          />
+        </MotionDiv>
+      </MotionDiv>
 
       <Modal
         title={editingItem ? "Edit Grade" : "Tambah Grade Baru"}
