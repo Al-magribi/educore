@@ -5,6 +5,26 @@ import { authorize } from "../../middleware/authorize.js";
 
 const router = Router();
 
+const MONTH_NAMES = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+
+const SEMESTER_MONTHS = {
+  1: [7, 8, 9, 10, 11, 12],
+  2: [1, 2, 3, 4, 5, 6],
+};
+
 const normalizeNisList = (value) => {
   if (!value) return [];
   const items = Array.isArray(value) ? value : [value];
@@ -131,6 +151,57 @@ const monthFilterSql = (columnRef, paramIndex) => `
     OR lower(${columnRef}) = lower(trim(to_char(make_date(2000, $${paramIndex}::int, 1), 'FMMonth')))
   )
 `;
+
+const normalizeStatus = (status) => {
+  if (!status) return null;
+  const lower = String(status).trim().toLowerCase();
+  if (lower === "h" || lower === "hadir") return "Hadir";
+  if (lower === "t" || lower === "telat") return "Telat";
+  if (lower === "s" || lower === "sakit") return "Sakit";
+  if (lower === "i" || lower === "izin") return "Izin";
+  if (lower === "a" || lower === "alpha" || lower === "alpa") return "Alpa";
+  return status;
+};
+
+const toStatusCode = (status) => {
+  const normalized = normalizeStatus(status);
+  if (!normalized) return "-";
+  if (normalized === "Hadir") return "H";
+  if (normalized === "Telat") return "T";
+  if (normalized === "Sakit") return "S";
+  if (normalized === "Izin") return "I";
+  if (normalized === "Alpa") return "A";
+  return "-";
+};
+
+const toUniqueSortedIds = (values = []) =>
+  Array.from(
+    new Set(
+      values
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0),
+    ),
+  ).sort((a, b) => a - b);
+
+const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const toAcademicYears = (periodeName, now = new Date()) => {
+  const raw = String(periodeName || "");
+  const rangeMatch = raw.match(/(\d{4})\s*\/\s*(\d{4})/);
+  if (rangeMatch) {
+    return {
+      startYear: Number(rangeMatch[1]),
+      endYear: Number(rangeMatch[2]),
+    };
+  }
+
+  const thisYear = now.getFullYear();
+  const thisMonth = now.getMonth() + 1;
+  if (thisMonth >= 7) {
+    return { startYear: thisYear, endYear: thisYear + 1 };
+  }
+  return { startYear: thisYear - 1, endYear: thisYear };
+};
 
 router.get(
   "/parent/dashboard",
@@ -395,199 +466,396 @@ router.get(
     const classId = parsePositiveInt(selectedStudent?.class_id);
     const periodeId = parsePositiveInt(selectedStudent?.periode_id);
 
-    const params = [
-      selectedStudentId, // $1
-      classId, // $2
-      semester || null, // $3
-      month || null, // $4
-      periodeId || null, // $5
-    ];
+    if (!classId || !periodeId || !semester || !month) {
+      return res.json({
+        status: "success",
+        data: {
+          filters: {
+            selected_student_id: selectedStudentId,
+            selected_semester: semester || null,
+            selected_month: month || null,
+          },
+          students: studentsRes.rows,
+          reports: [],
+        },
+      });
+    }
 
-    const attendanceFilterSql = `
-      a.student_id = $1
-      AND ($2::int IS NULL OR a.class_id = $2)
-      AND (
-        $3::int IS NULL
-        OR (
-          ($3::int = 1 AND EXTRACT(MONTH FROM a.date)::int BETWEEN 7 AND 12)
-          OR ($3::int = 2 AND EXTRACT(MONTH FROM a.date)::int BETWEEN 1 AND 6)
-        )
-      )
-      AND ($4::int IS NULL OR EXTRACT(MONTH FROM a.date)::int = $4::int)
-    `;
+    const academicYears = toAcademicYears(selectedStudent?.class_name || "");
+    const activePeriode = await getActivePeriode(pool, req.user.homebase_id);
+    const effectivePeriodeId = parsePositiveInt(activePeriode?.id || periodeId);
+    const effectivePeriodeName = activePeriode?.name || null;
+    const periodYears = toAcademicYears(effectivePeriodeName);
+    const semesterMonths = SEMESTER_MONTHS[semester] || [];
 
-    const reportsRes = await pool.query(
+    if (!semesterMonths.includes(month)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Filter semester/bulan tidak valid pada periode aktif ini.",
+      });
+    }
+
+    const reportYear = semester === 1 ? periodYears.startYear : periodYears.endYear;
+    const monthName = MONTH_NAMES[month - 1];
+    const nextDate = new Date(Date.UTC(reportYear, month, 1));
+    const fromDate = `${reportYear}-${String(month).padStart(2, "0")}-01`;
+    const toDate = `${nextDate.getUTCFullYear()}-${String(nextDate.getUTCMonth() + 1).padStart(2, "0")}-01`;
+
+    const subjectBaseRes = await pool.query(
       `WITH subject_base AS (
          SELECT DISTINCT s.id AS subject_id, s.name AS subject_name, s.code AS subject_code
          FROM a_subject s
          WHERE s.id IN (
            SELECT ats.subject_id
            FROM at_subject ats
-           WHERE $2::int IS NOT NULL
-             AND ats.class_id = $2
+           WHERE ats.class_id = $1
 
            UNION
 
            SELECT a.subject_id
            FROM l_attendance a
-           WHERE ${attendanceFilterSql}
+           WHERE a.student_id = $2
+             AND a.class_id = $1
+             AND EXISTS (
+               SELECT 1
+               FROM u_class_enrollments e
+               WHERE e.student_id = a.student_id
+                 AND e.class_id = a.class_id
+                 AND e.periode_id = $3
+             )
+             AND a.date >= $4::date
+             AND a.date < $5::date
+             AND EXTRACT(MONTH FROM a.date) = $6
+             AND EXTRACT(YEAR FROM a.date) = $7
              AND a.subject_id IS NOT NULL
 
            UNION
 
            SELECT x.subject_id
            FROM l_score_attitude x
-           WHERE x.student_id = $1
-             AND ($5::int IS NULL OR x.periode_id = $5)
-             AND ($3::int IS NULL OR x.semester = $3)
-             AND ${monthFilterSql("COALESCE(x.month, '')", 4)}
+           WHERE x.student_id = $2
+             AND x.class_id = $1
+             AND x.periode_id = $3
+             AND x.month = $8
+             AND x.semester = $9
              AND x.subject_id IS NOT NULL
 
            UNION
 
            SELECT f.subject_id
            FROM l_score_formative f
-           WHERE f.student_id = $1
-             AND ($5::int IS NULL OR f.periode_id = $5)
-             AND ($3::int IS NULL OR f.semester = $3)
-             AND ${monthFilterSql("COALESCE(f.month, '')", 4)}
+           WHERE f.student_id = $2
+             AND f.class_id = $1
+             AND f.periode_id = $3
+             AND f.month = $8
+             AND f.semester = $9
              AND f.subject_id IS NOT NULL
 
            UNION
 
-           SELECT sm.subject_id
-           FROM l_score_summative sm
-           WHERE sm.student_id = $1
-             AND ($5::int IS NULL OR sm.periode_id = $5)
-             AND ($3::int IS NULL OR sm.semester = $3)
-             AND ${monthFilterSql("COALESCE(sm.month, '')", 4)}
-             AND sm.subject_id IS NOT NULL
+           SELECT s.subject_id
+           FROM l_score_summative s
+           WHERE s.student_id = $2
+             AND s.class_id = $1
+             AND s.periode_id = $3
+             AND s.month = $8
+             AND s.semester = $9
+             AND s.subject_id IS NOT NULL
          )
-       ),
-       attendance_agg AS (
-         SELECT
-           a.subject_id,
-           COUNT(*)::int AS total_sessions,
-           COUNT(*) FILTER (WHERE a.status IN ('Hadir', 'Telat'))::int AS hadir_sessions,
-           COUNT(*) FILTER (WHERE a.status = 'Izin')::int AS izin_sessions,
-           COUNT(*) FILTER (WHERE a.status = 'Sakit')::int AS sakit_sessions,
-           COUNT(*) FILTER (WHERE a.status = 'Alpa')::int AS alpa_sessions
-         FROM l_attendance a
-         WHERE ${attendanceFilterSql}
-         GROUP BY a.subject_id
-       ),
-       attitude_agg AS (
-         SELECT
-           x.subject_id,
-           ROUND(AVG(x.average_score)::numeric, 2) AS avg_attitude,
-           MAX(x.teacher_note) FILTER (
-             WHERE x.teacher_note IS NOT NULL AND btrim(x.teacher_note) <> ''
-           ) AS latest_note
-         FROM l_score_attitude x
-         WHERE x.student_id = $1
-           AND ($5::int IS NULL OR x.periode_id = $5)
-           AND ($3::int IS NULL OR x.semester = $3)
-           AND ${monthFilterSql("COALESCE(x.month, '')", 4)}
-         GROUP BY x.subject_id
-       ),
-       formative_agg AS (
-         SELECT
-           f.subject_id,
-           ROUND(AVG(f.score)::numeric, 2) AS avg_formative,
-           COUNT(*)::int AS formative_items
-         FROM l_score_formative f
-         WHERE f.student_id = $1
-           AND ($5::int IS NULL OR f.periode_id = $5)
-           AND ($3::int IS NULL OR f.semester = $3)
-           AND ${monthFilterSql("COALESCE(f.month, '')", 4)}
-         GROUP BY f.subject_id
-       ),
-       summative_agg AS (
-         SELECT
-           s.subject_id,
-           ROUND(
-             AVG(
-               COALESCE(
-                 s.final_score,
-                 (COALESCE(s.score_written, 0) + COALESCE(s.score_skill, 0)) / 2.0
-               )
-             )::numeric,
-             2
-           ) AS avg_summative,
-           COUNT(*)::int AS summative_items
-         FROM l_score_summative s
-         WHERE s.student_id = $1
-           AND ($5::int IS NULL OR s.periode_id = $5)
-           AND ($3::int IS NULL OR s.semester = $3)
-           AND ${monthFilterSql("COALESCE(s.month, '')", 4)}
-         GROUP BY s.subject_id
        )
-       SELECT
-         sb.subject_id,
-         sb.subject_name,
-         sb.subject_code,
-         COALESCE(att.total_sessions, 0) AS attendance_total,
-         COALESCE(att.hadir_sessions, 0) AS attendance_hadir,
-         COALESCE(att.izin_sessions, 0) AS attendance_izin,
-         COALESCE(att.sakit_sessions, 0) AS attendance_sakit,
-         COALESCE(att.alpa_sessions, 0) AS attendance_alpa,
-         CASE
-           WHEN COALESCE(att.total_sessions, 0) > 0
-             THEN ROUND((att.hadir_sessions::numeric / att.total_sessions::numeric) * 100, 2)
-           ELSE NULL
-         END AS attendance_rate,
-         atti.avg_attitude,
-         atti.latest_note AS attitude_note,
-         form.avg_formative,
-         form.formative_items,
-         summ.avg_summative,
-         summ.summative_items
-       FROM subject_base sb
-       LEFT JOIN attendance_agg att ON att.subject_id = sb.subject_id
-       LEFT JOIN attitude_agg atti ON atti.subject_id = sb.subject_id
-       LEFT JOIN formative_agg form ON form.subject_id = sb.subject_id
-       LEFT JOIN summative_agg summ ON summ.subject_id = sb.subject_id
-       ORDER BY sb.subject_name ASC`,
-      params,
+       SELECT subject_id, subject_name, subject_code
+       FROM subject_base
+       ORDER BY subject_name ASC`,
+      [
+        classId,
+        selectedStudentId,
+        effectivePeriodeId,
+        fromDate,
+        toDate,
+        month,
+        reportYear,
+        monthName,
+        semester,
+      ],
     );
 
-    const reports = reportsRes.rows.map((row) => ({
-      subject_id: Number(row.subject_id),
-      subject_name: row.subject_name,
-      subject_code: row.subject_code,
-      attendance: {
-        total: Number(row.attendance_total || 0),
-        hadir: Number(row.attendance_hadir || 0),
-        izin: Number(row.attendance_izin || 0),
-        sakit: Number(row.attendance_sakit || 0),
-        alpa: Number(row.attendance_alpa || 0),
-        rate:
-          row.attendance_rate === null || row.attendance_rate === undefined
-            ? null
-            : Number(row.attendance_rate),
-      },
-      attitude: {
-        average:
-          row.avg_attitude === null || row.avg_attitude === undefined
-            ? null
-            : Number(row.avg_attitude),
-        note: row.attitude_note || null,
-      },
-      formative: {
-        average:
-          row.avg_formative === null || row.avg_formative === undefined
-            ? null
-            : Number(row.avg_formative),
-        items: Number(row.formative_items || 0),
-      },
-      summative: {
-        average:
-          row.avg_summative === null || row.avg_summative === undefined
-            ? null
-            : Number(row.avg_summative),
-        items: Number(row.summative_items || 0),
-      },
-    }));
+    const reports = await Promise.all(
+      subjectBaseRes.rows.map(async (subjectRow) => {
+        const subjectId = Number(subjectRow.subject_id);
+
+        const teacherAssignmentResult = await pool.query(
+          `SELECT DISTINCT teacher_id
+           FROM at_subject
+           WHERE subject_id = $1
+             AND class_id = $2
+             AND teacher_id IS NOT NULL`,
+          [subjectId, classId],
+        );
+
+        const teacherIds = toUniqueSortedIds(
+          teacherAssignmentResult.rows.map((row) => row.teacher_id),
+        );
+
+        const attendanceFilterClause = teacherIds.length
+          ? "AND (a.teacher_id = ANY($9::int[]) OR a.teacher_id IS NULL)"
+          : "";
+        const attendanceResult = await pool.query(
+          `SELECT
+             TO_CHAR(a.date::date, 'YYYY-MM-DD') AS attendance_date,
+             a.status
+           FROM l_attendance a
+           WHERE a.student_id = $1
+             AND a.subject_id = $2
+             AND a.class_id = $3
+             AND EXISTS (
+               SELECT 1
+               FROM u_class_enrollments e
+               WHERE e.student_id = a.student_id
+                 AND e.class_id = a.class_id
+                 AND e.periode_id = $4
+             )
+             AND a.date >= $5::date
+             AND a.date < $6::date
+             AND EXTRACT(MONTH FROM a.date) = $7
+             AND EXTRACT(YEAR FROM a.date) = $8
+             ${attendanceFilterClause}
+           ORDER BY a.date ASC`,
+          [
+            selectedStudentId,
+            subjectId,
+            classId,
+            effectivePeriodeId,
+            fromDate,
+            toDate,
+            month,
+            reportYear,
+            ...(!teacherIds.length ? [] : [teacherIds]),
+          ],
+        );
+
+        const attendanceRows = attendanceResult.rows.map((row) => {
+          const normalized = normalizeStatus(row.status);
+          return {
+            date: row.attendance_date,
+            status_name: normalized,
+            status_code: toStatusCode(normalized),
+          };
+        });
+
+        const attendanceSummary = attendanceRows.reduce(
+          (acc, row) => {
+            if (row.status_name === "Hadir" || row.status_name === "Telat") acc.hadir += 1;
+            if (row.status_name === "Sakit") acc.sakit += 1;
+            if (row.status_name === "Izin") acc.izin += 1;
+            if (row.status_name === "Alpa") acc.alpa += 1;
+            return acc;
+          },
+          { hadir: 0, sakit: 0, izin: 0, alpa: 0 },
+        );
+
+        const meetingCount = attendanceRows.length;
+        const attendancePercent = meetingCount
+          ? round2((attendanceSummary.hadir / meetingCount) * 100)
+          : 0;
+
+        const teacherFilterScoreClause = teacherIds.length
+          ? "AND (teacher_id = ANY($7::int[]) OR teacher_id IS NULL)"
+          : "";
+
+        const formativeResult = await pool.query(
+          `SELECT
+             f.id,
+             f.chapter_id,
+             f.type,
+             f.score,
+             ch.title AS chapter_title
+           FROM l_score_formative f
+           LEFT JOIN l_chapter ch ON ch.id = f.chapter_id
+           WHERE f.student_id = $1
+             AND f.subject_id = $2
+             AND f.class_id = $3
+             AND f.periode_id = $4
+             AND f.semester = $5
+             AND f.month = $6
+             ${teacherFilterScoreClause}
+           ORDER BY f.chapter_id ASC, f.type ASC, f.id ASC`,
+          [
+            selectedStudentId,
+            subjectId,
+            classId,
+            effectivePeriodeId,
+            semester,
+            monthName,
+            ...(!teacherIds.length ? [] : [teacherIds]),
+          ],
+        );
+
+        const formativeEntries = formativeResult.rows.map((row) => ({
+          id: row.id,
+          chapter_id: row.chapter_id,
+          chapter_title: row.chapter_title || `Bab ${row.chapter_id || "-"}`,
+          type: row.type || "-",
+          score:
+            row.score === null || row.score === undefined ? null : Number(row.score),
+        }));
+
+        const formativeValues = formativeEntries
+          .map((item) => item.score)
+          .filter((value) => value !== null && value !== undefined);
+        const formativeAverage = formativeValues.length
+          ? round2(
+              formativeValues.reduce((sum, value) => sum + Number(value), 0) /
+                formativeValues.length,
+            )
+          : 0;
+
+        const summativeResult = await pool.query(
+          `SELECT
+             s.id,
+             s.chapter_id,
+             s.type,
+             s.score_written,
+             s.score_skill,
+             s.final_score,
+             ch.title AS chapter_title
+           FROM l_score_summative s
+           LEFT JOIN l_chapter ch ON ch.id = s.chapter_id
+           WHERE s.student_id = $1
+             AND s.subject_id = $2
+             AND s.class_id = $3
+             AND s.periode_id = $4
+             AND s.semester = $5
+             AND s.month = $6
+             ${teacherFilterScoreClause}
+           ORDER BY s.chapter_id ASC, s.type ASC, s.id ASC`,
+          [
+            selectedStudentId,
+            subjectId,
+            classId,
+            effectivePeriodeId,
+            semester,
+            monthName,
+            ...(!teacherIds.length ? [] : [teacherIds]),
+          ],
+        );
+
+        const summativeEntries = summativeResult.rows.map((row) => ({
+          id: row.id,
+          chapter_id: row.chapter_id,
+          chapter_title: row.chapter_title || `Bab ${row.chapter_id || "-"}`,
+          type: row.type || "-",
+          score_written:
+            row.score_written === null || row.score_written === undefined
+              ? null
+              : Number(row.score_written),
+          score_skill:
+            row.score_skill === null || row.score_skill === undefined
+              ? null
+              : Number(row.score_skill),
+          final_score:
+            row.final_score === null || row.final_score === undefined
+              ? null
+              : Number(row.final_score),
+        }));
+
+        const summativeValues = summativeEntries
+          .flatMap((item) => [item.score_written, item.score_skill])
+          .filter((value) => value !== null && value !== undefined);
+        const summativeAverage = summativeValues.length
+          ? round2(
+              summativeValues.reduce((sum, value) => sum + Number(value), 0) /
+                summativeValues.length,
+            )
+          : 0;
+
+        const attitudeFilterClause = teacherIds.length
+          ? "AND (a.teacher_id = ANY($7::int[]) OR a.teacher_id IS NULL)"
+          : "";
+        const attitudeResult = await pool.query(
+          `SELECT
+             a.kinerja,
+             a.kedisiplinan,
+             a.keaktifan,
+             a.percaya_diri,
+             a.teacher_note,
+             a.average_score
+           FROM l_score_attitude a
+           WHERE a.student_id = $1
+             AND a.subject_id = $2
+             AND a.class_id = $3
+             AND a.periode_id = $4
+             AND a.month = $5
+             AND a.semester = $6
+             ${attitudeFilterClause}
+           ORDER BY a.id DESC`,
+          [
+            selectedStudentId,
+            subjectId,
+            classId,
+            effectivePeriodeId,
+            monthName,
+            semester,
+            ...(!teacherIds.length ? [] : [teacherIds]),
+          ],
+        );
+
+        const attitudeRows = attitudeResult.rows;
+        const avgFromField = (fieldName) => {
+          const values = attitudeRows
+            .map((row) => row[fieldName])
+            .filter((value) => value !== null && value !== undefined);
+          return values.length
+            ? round2(
+                values.reduce((sum, value) => sum + Number(value), 0) / values.length,
+              )
+            : null;
+        };
+
+        const attitudeAverageValues = attitudeRows
+          .map((row) => row.average_score)
+          .filter((value) => value !== null && value !== undefined);
+        const attitudeAverage = attitudeAverageValues.length
+          ? round2(
+              attitudeAverageValues.reduce((sum, value) => sum + Number(value), 0) /
+                attitudeAverageValues.length,
+            )
+          : null;
+
+        return {
+          subject_id: subjectId,
+          subject_name: subjectRow.subject_name,
+          subject_code: subjectRow.subject_code,
+          attendance: {
+            total_meetings: meetingCount,
+            percent_hadir: attendancePercent,
+            summary: attendanceSummary,
+            records: attendanceRows,
+          },
+          attitude: {
+            score: {
+              kinerja: avgFromField("kinerja"),
+              kedisiplinan: avgFromField("kedisiplinan"),
+              keaktifan: avgFromField("keaktifan"),
+              percaya_diri: avgFromField("percaya_diri"),
+              average_score: attitudeAverage,
+            },
+            teacher_note:
+              attitudeRows.find((item) => item.teacher_note)?.teacher_note || null,
+            total_entries: attitudeRows.length,
+          },
+          formative: {
+            average_score: formativeAverage,
+            total_entries: formativeEntries.length,
+            entries: formativeEntries,
+          },
+          summative: {
+            average_score: summativeAverage,
+            total_entries: summativeEntries.length,
+            entries: summativeEntries,
+          },
+        };
+      }),
+    );
 
     res.json({
       status: "success",

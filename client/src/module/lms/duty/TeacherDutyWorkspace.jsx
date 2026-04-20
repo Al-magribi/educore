@@ -4,14 +4,12 @@ import {
   Alert,
   Button,
   DatePicker,
-  Empty,
   Flex,
+  Grid,
   Input,
-  Modal,
   Popconfirm,
   Select,
   Space,
-  Table,
   Tabs,
   Typography,
   message,
@@ -30,9 +28,16 @@ import {
   buildTeacherAbsenceRows,
   buildTeacherSessionRows,
 } from "./utils";
+import TeacherDutyDailyNotePanel from "./components/TeacherDutyDailyNotePanel";
+import TeacherDutyFormModal from "./components/TeacherDutyFormModal";
+import TeacherDutyRecordSection from "./components/TeacherDutyRecordSection";
 
-const { Text, Title } = Typography;
-const { TextArea } = Input;
+const { Text } = Typography;
+const { useBreakpoint } = Grid;
+
+const modalInputStyle = {
+  borderRadius: 14,
+};
 
 const createEmptySessionForm = (dateValue) => ({
   key: null,
@@ -60,6 +65,8 @@ const createEmptyTeacherAbsenceForm = () => ({
 });
 
 const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [studentAbsences, setStudentAbsences] = useState(() =>
     buildStudentAbsenceRows(payload),
   );
@@ -252,7 +259,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     };
 
     const nextStudentAbsences = (() => {
-      const existing = studentAbsences.findIndex((item) => item.key === nextRow.key);
+      const existing = studentAbsences.findIndex(
+        (item) => item.key === nextRow.key,
+      );
       if (existing >= 0) {
         return studentAbsences.map((item) =>
           item.key === nextRow.key ? nextRow : item,
@@ -275,7 +284,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
   };
 
   const removeStudentAbsenceRow = async (key) => {
-    const nextStudentAbsences = studentAbsences.filter((item) => item.key !== key);
+    const nextStudentAbsences = studentAbsences.filter(
+      (item) => item.key !== key,
+    );
     const saved = await handleSave(
       { student_absences: nextStudentAbsences },
       "Catatan siswa tidak masuk berhasil dihapus.",
@@ -318,7 +329,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     };
 
     const nextTeacherAbsences = (() => {
-      const existing = teacherAbsences.findIndex((item) => item.key === nextRow.key);
+      const existing = teacherAbsences.findIndex(
+        (item) => item.key === nextRow.key,
+      );
       if (existing >= 0) {
         return teacherAbsences.map((item) =>
           item.key === nextRow.key ? nextRow : item,
@@ -341,7 +354,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
   };
 
   const removeTeacherAbsenceRow = async (key) => {
-    const nextTeacherAbsences = teacherAbsences.filter((item) => item.key !== key);
+    const nextTeacherAbsences = teacherAbsences.filter(
+      (item) => item.key !== key,
+    );
     const saved = await handleSave(
       { teacher_absences: nextTeacherAbsences },
       "Catatan guru tidak masuk berhasil dihapus.",
@@ -427,7 +442,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     };
 
     const nextTeacherSessions = (() => {
-      const existing = teacherSessions.findIndex((item) => item.key === nextRow.key);
+      const existing = teacherSessions.findIndex(
+        (item) => item.key === nextRow.key,
+      );
       if (existing >= 0) {
         return teacherSessions.map((item) =>
           item.key === nextRow.key ? nextRow : item,
@@ -455,7 +472,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
   };
 
   const removeTeacherSessionRow = async (key) => {
-    const nextTeacherSessions = teacherSessions.filter((item) => item.key !== key);
+    const nextTeacherSessions = teacherSessions.filter(
+      (item) => item.key !== key,
+    );
     const saved = await handleSave(
       { teacher_sessions: nextTeacherSessions },
       "Catatan guru masuk kelas berhasil dihapus.",
@@ -489,7 +508,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     {
       title: "Tindak Lanjut",
       dataIndex: "follow_up",
-      render: (value) => value || <Text type="secondary">-</Text>,
+      render: (value) => value || <Text type='secondary'>-</Text>,
     },
     {
       title: "Aksi",
@@ -498,17 +517,17 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       render: (_, record) => (
         <Space size={4}>
           <Button
-            size="small"
+            size='small'
             icon={<Pencil size={14} />}
             onClick={() => openEditStudentModal(record)}
           />
           <Popconfirm
-            title="Hapus catatan siswa ini?"
-            okText="Ya"
-            cancelText="Tidak"
+            title='Hapus catatan siswa ini?'
+            okText='Ya'
+            cancelText='Tidak'
             onConfirm={() => removeStudentAbsenceRow(record.key)}
           >
-            <Button danger size="small" icon={<Trash2 size={14} />} />
+            <Button danger size='small' icon={<Trash2 size={14} />} />
           </Popconfirm>
         </Space>
       ),
@@ -552,7 +571,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     {
       title: "Catatan",
       dataIndex: "note",
-      render: (value) => value || <Text type="secondary">-</Text>,
+      render: (value) => value || <Text type='secondary'>-</Text>,
     },
     {
       title: "Aksi",
@@ -561,17 +580,17 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       render: (_, record) => (
         <Space size={4}>
           <Button
-            size="small"
+            size='small'
             icon={<Pencil size={14} />}
             onClick={() => openEditSessionModal(record)}
           />
           <Popconfirm
-            title="Hapus catatan guru masuk kelas ini?"
-            okText="Ya"
-            cancelText="Tidak"
+            title='Hapus catatan guru masuk kelas ini?'
+            okText='Ya'
+            cancelText='Tidak'
             onConfirm={() => removeTeacherSessionRow(record.key)}
           >
-            <Button danger size="small" icon={<Trash2 size={14} />} />
+            <Button danger size='small' icon={<Trash2 size={14} />} />
           </Popconfirm>
         </Space>
       ),
@@ -596,7 +615,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     {
       title: "Tindak Lanjut",
       dataIndex: "follow_up",
-      render: (value) => value || <Text type="secondary">-</Text>,
+      render: (value) => value || <Text type='secondary'>-</Text>,
     },
     {
       title: "Aksi",
@@ -605,17 +624,17 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       render: (_, record) => (
         <Space size={4}>
           <Button
-            size="small"
+            size='small'
             icon={<Pencil size={14} />}
             onClick={() => openEditTeacherAbsenceModal(record)}
           />
           <Popconfirm
-            title="Hapus catatan guru tidak masuk ini?"
-            okText="Ya"
-            cancelText="Tidak"
+            title='Hapus catatan guru tidak masuk ini?'
+            okText='Ya'
+            cancelText='Tidak'
             onConfirm={() => removeTeacherAbsenceRow(record.key)}
           >
-            <Button danger size="small" icon={<Trash2 size={14} />} />
+            <Button danger size='small' icon={<Trash2 size={14} />} />
           </Popconfirm>
         </Space>
       ),
@@ -627,60 +646,14 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       {payload.assignment?.note ? (
         <Alert
           showIcon
-          type="info"
-          title="Catatan Admin"
+          type='info'
+          title='Catatan Admin'
           description={payload.assignment.note}
         />
       ) : null}
 
       <Tabs
         items={[
-          {
-            key: "student-absence",
-            label: (
-              <Space size={6}>
-                <Users size={14} />
-                Siswa Tidak Masuk
-              </Space>
-            ),
-            children: (
-              <Flex vertical gap={12}>
-                <Flex
-                  justify="space-between"
-                  align="center"
-                  wrap="wrap"
-                  gap={8}
-                >
-                  <Text type="secondary">
-                    Catat siswa yang tidak masuk pada hari ini.
-                  </Text>
-                  <Button
-                    type="dashed"
-                    icon={<Plus size={14} />}
-                    onClick={openCreateStudentModal}
-                  >
-                    Tambah Siswa
-                  </Button>
-                </Flex>
-
-                <Table
-                  rowKey="key"
-                  columns={studentColumns}
-                  dataSource={studentAbsences}
-                  pagination={false}
-                  locale={{
-                    emptyText: (
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="Belum ada catatan siswa tidak masuk."
-                      />
-                    ),
-                  }}
-                  scroll={{ x: 760 }}
-                />
-              </Flex>
-            ),
-          },
           {
             key: "teacher-session",
             label: (
@@ -690,43 +663,44 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
               </Space>
             ),
             children: (
-              <Flex vertical gap={12}>
-                <Flex
-                  justify="space-between"
-                  align="center"
-                  wrap="wrap"
-                  gap={8}
-                >
-                  <Text type="secondary">
-                    Kelola catatan guru masuk kelas untuk hari ini.
-                  </Text>
-                  <Button
-                    type="dashed"
-                    icon={<Plus size={14} />}
-                    onClick={openCreateSessionModal}
-                  >
-                    Tambah Catatan
-                  </Button>
-                </Flex>
-
-                <Table
-                  rowKey="key"
-                  columns={teacherSessionColumns}
-                  dataSource={teacherSessions}
-                  pagination={false}
-                  locale={{
-                    emptyText: (
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="Belum ada catatan guru masuk kelas."
-                      />
-                    ),
-                  }}
-                  scroll={{ x: 900 }}
-                />
-              </Flex>
+              <TeacherDutyRecordSection
+                title='Guru Masuk Kelas'
+                description='Kelola catatan guru masuk kelas untuk hari ini.'
+                addButtonText='Tambah Catatan'
+                onAdd={openCreateSessionModal}
+                columns={teacherSessionColumns}
+                dataSource={teacherSessions}
+                emptyDescription='Belum ada catatan guru masuk kelas.'
+                scrollX={900}
+                actionIcon={<Plus size={14} />}
+                isMobile={isMobile}
+              />
             ),
           },
+          {
+            key: "student-absence",
+            label: (
+              <Space size={6}>
+                <Users size={14} />
+                Siswa Tidak Masuk
+              </Space>
+            ),
+            children: (
+              <TeacherDutyRecordSection
+                title='Siswa Tidak Masuk'
+                description='Catat siswa yang tidak masuk pada hari ini.'
+                addButtonText='Tambah Siswa'
+                onAdd={openCreateStudentModal}
+                columns={studentColumns}
+                dataSource={studentAbsences}
+                emptyDescription='Belum ada catatan siswa tidak masuk.'
+                scrollX={760}
+                actionIcon={<Plus size={14} />}
+                isMobile={isMobile}
+              />
+            ),
+          },
+
           {
             key: "teacher-absence",
             label: (
@@ -736,41 +710,18 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
               </Space>
             ),
             children: (
-              <Flex vertical gap={12}>
-                <Flex
-                  justify="space-between"
-                  align="center"
-                  wrap="wrap"
-                  gap={8}
-                >
-                  <Text type="secondary">
-                    Catat guru yang tidak masuk beserta alasannya.
-                  </Text>
-                  <Button
-                    type="dashed"
-                    icon={<Plus size={14} />}
-                    onClick={openCreateTeacherAbsenceModal}
-                  >
-                    Tambah Guru
-                  </Button>
-                </Flex>
-
-                <Table
-                  rowKey="key"
-                  columns={teacherAbsenceColumns}
-                  dataSource={teacherAbsences}
-                  pagination={false}
-                  locale={{
-                    emptyText: (
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="Belum ada catatan guru tidak masuk."
-                      />
-                    ),
-                  }}
-                  scroll={{ x: 760 }}
-                />
-              </Flex>
+              <TeacherDutyRecordSection
+                title='Guru Tidak Masuk'
+                description='Catat guru yang tidak masuk beserta alasannya.'
+                addButtonText='Tambah Guru'
+                onAdd={openCreateTeacherAbsenceModal}
+                columns={teacherAbsenceColumns}
+                dataSource={teacherAbsences}
+                emptyDescription='Belum ada catatan guru tidak masuk.'
+                scrollX={760}
+                actionIcon={<Plus size={14} />}
+                isMobile={isMobile}
+              />
             ),
           },
           {
@@ -782,243 +733,322 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
               </Space>
             ),
             children: (
-              <Flex vertical gap={16}>
-                <div>
-                  <Title level={5} style={{ marginTop: 0 }}>
-                    Catatan Harian
-                  </Title>
-                  <TextArea
-                    rows={8}
-                    value={dailyNote}
-                    onChange={(event) => setDailyNote(event.target.value)}
-                    placeholder="Tulis ringkasan kondisi harian, kejadian penting, atau tindak lanjut yang perlu diketahui admin."
-                    maxLength={2000}
-                    showCount
-                  />
-                </div>
-
-                <Flex justify="flex-end" wrap="wrap">
-                  <Button type="primary" onClick={handleSave} loading={saving}>
-                    Simpan Catatan Harian
-                  </Button>
-                </Flex>
-              </Flex>
+              <TeacherDutyDailyNotePanel
+                dailyNote={dailyNote}
+                onChange={setDailyNote}
+                onSave={handleSave}
+                saving={saving}
+                isMobile={isMobile}
+              />
             ),
           },
         ]}
       />
 
-      <Modal
+      <TeacherDutyFormModal
         title={
           studentForm.key
             ? "Ubah Catatan Siswa Tidak Masuk"
             : "Tambah Catatan Siswa Tidak Masuk"
+        }
+        subtitle={
+          studentForm.key
+            ? "Perbarui data siswa, alasan ketidakhadiran, dan tindak lanjut yang diperlukan."
+            : "Isi data siswa yang tidak hadir agar laporan harian tetap lengkap dan mudah ditinjau."
         }
         open={studentModalOpen}
         onCancel={closeStudentModal}
         onOk={submitStudentModal}
         okText={studentForm.key ? "Simpan Perubahan" : "Tambah"}
         width={720}
+        isMobile={isMobile}
+        helperTitle='Detail ketidakhadiran siswa'
+        helperDescription='Pilih kelas lebih dulu agar daftar siswa yang muncul tetap relevan.'
       >
-        <Flex vertical gap={12}>
-          <Select
-            placeholder="Pilih kelas"
-            value={studentForm.class_id}
-            options={classOptions}
-            onChange={(value) =>
-              setStudentForm((prev) => ({
-                ...prev,
-                class_id: value,
-                student_id: null,
-              }))
-            }
-            virtual={false}
-            showSearch={{ optionFilterProp: "label" }}
-            allowClear
-          />
+        <Flex vertical gap={14}>
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Kelas
+            </Text>
+            <Select
+              placeholder='Pilih kelas'
+              value={studentForm.class_id}
+              options={classOptions}
+              onChange={(value) =>
+                setStudentForm((prev) => ({
+                  ...prev,
+                  class_id: value,
+                  student_id: null,
+                }))
+              }
+              virtual={false}
+              showSearch={{ optionFilterProp: "label" }}
+              allowClear
+              style={{ width: "100%" }}
+            />
+          </div>
 
-          <Select
-            placeholder="Pilih siswa"
-            value={studentForm.student_id}
-            showSearch={{ optionFilterProp: "label" }}
-            options={studentOptions
-              .filter((option) =>
-                studentForm.class_id
-                  ? Number(option.class_id) === Number(studentForm.class_id)
-                  : true,
-              )
-              .map((option) => ({
-                value: option.value,
-                label: option.label,
-                searchText: option.searchText,
-              }))}
-            onChange={(value) =>
-              setStudentForm((prev) => ({
-                ...prev,
-                student_id: value,
-              }))
-            }
-            virtual={false}
-            allowClear
-          />
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Siswa
+            </Text>
+            <Select
+              placeholder='Pilih siswa'
+              value={studentForm.student_id}
+              showSearch={{ optionFilterProp: "label" }}
+              options={studentOptions
+                .filter((option) =>
+                  studentForm.class_id
+                    ? Number(option.class_id) === Number(studentForm.class_id)
+                    : true,
+                )
+                .map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                  searchText: option.searchText,
+                }))}
+              onChange={(value) =>
+                setStudentForm((prev) => ({
+                  ...prev,
+                  student_id: value,
+                }))
+              }
+              virtual={false}
+              allowClear
+              style={{ width: "100%" }}
+            />
+          </div>
 
-          <Input
-            value={studentForm.reason}
-            onChange={(event) =>
-              setStudentForm((prev) => ({
-                ...prev,
-                reason: event.target.value,
-              }))
-            }
-            placeholder="Alasan / keterangan"
-          />
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Alasan / keterangan
+            </Text>
+            <Input
+              value={studentForm.reason}
+              onChange={(event) =>
+                setStudentForm((prev) => ({
+                  ...prev,
+                  reason: event.target.value,
+                }))
+              }
+              placeholder='Contoh: sakit, izin, atau terlambat hadir'
+              style={modalInputStyle}
+            />
+          </div>
 
-          <Input
-            value={studentForm.follow_up}
-            onChange={(event) =>
-              setStudentForm((prev) => ({
-                ...prev,
-                follow_up: event.target.value,
-              }))
-            }
-            placeholder="Tindak lanjut"
-          />
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Tindak lanjut
+            </Text>
+            <Input
+              value={studentForm.follow_up}
+              onChange={(event) =>
+                setStudentForm((prev) => ({
+                  ...prev,
+                  follow_up: event.target.value,
+                }))
+              }
+              placeholder='Misalnya: konfirmasi wali kelas atau hubungi orang tua'
+              style={modalInputStyle}
+            />
+          </div>
         </Flex>
-      </Modal>
+      </TeacherDutyFormModal>
 
-      <Modal
+      <TeacherDutyFormModal
         title={
           teacherForm.key
             ? "Ubah Catatan Guru Tidak Masuk"
             : "Tambah Catatan Guru Tidak Masuk"
+        }
+        subtitle={
+          teacherForm.key
+            ? "Perbarui informasi guru yang berhalangan hadir beserta tindak lanjutnya."
+            : "Catat guru yang tidak hadir untuk membantu admin meninjau kondisi operasional hari ini."
         }
         open={teacherModalOpen}
         onCancel={closeTeacherModal}
         onOk={submitTeacherModal}
         okText={teacherForm.key ? "Simpan Perubahan" : "Tambah"}
         width={640}
+        isMobile={isMobile}
+        helperTitle='Detail ketidakhadiran guru'
+        helperDescription='Lengkapi alasan dan tindak lanjut agar koordinasi pengganti atau penyesuaian jadwal lebih mudah.'
       >
-        <Flex vertical gap={12}>
-          <Select
-            virtual={false}
-            placeholder="Pilih guru"
-            value={teacherForm.teacher_id}
-            showSearch
-            filterOption={(input, option) =>
-              String(option?.searchText || "")
-                .toLowerCase()
-                .includes(input.toLowerCase())
-            }
-            options={teacherOptions}
-            onChange={(value) =>
-              setTeacherForm((prev) => ({
-                ...prev,
-                teacher_id: value,
-              }))
-            }
-          />
+        <Flex vertical gap={14}>
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Guru
+            </Text>
+            <Select
+              virtual={false}
+              placeholder='Pilih guru'
+              value={teacherForm.teacher_id}
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.searchText || "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              options={teacherOptions}
+              onChange={(value) =>
+                setTeacherForm((prev) => ({
+                  ...prev,
+                  teacher_id: value,
+                }))
+              }
+              style={{ width: "100%" }}
+            />
+          </div>
 
-          <Input
-            value={teacherForm.reason}
-            onChange={(event) =>
-              setTeacherForm((prev) => ({
-                ...prev,
-                reason: event.target.value,
-              }))
-            }
-            placeholder="Alasan"
-          />
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Alasan
+            </Text>
+            <Input
+              value={teacherForm.reason}
+              onChange={(event) =>
+                setTeacherForm((prev) => ({
+                  ...prev,
+                  reason: event.target.value,
+                }))
+              }
+              placeholder='Contoh: sakit, dinas luar, atau izin'
+              style={modalInputStyle}
+            />
+          </div>
 
-          <Input
-            value={teacherForm.follow_up}
-            onChange={(event) =>
-              setTeacherForm((prev) => ({
-                ...prev,
-                follow_up: event.target.value,
-              }))
-            }
-            placeholder="Tindak lanjut"
-          />
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Tindak lanjut
+            </Text>
+            <Input
+              value={teacherForm.follow_up}
+              onChange={(event) =>
+                setTeacherForm((prev) => ({
+                  ...prev,
+                  follow_up: event.target.value,
+                }))
+              }
+              placeholder='Misalnya: penyesuaian jadwal atau guru pengganti'
+              style={modalInputStyle}
+            />
+          </div>
         </Flex>
-      </Modal>
+      </TeacherDutyFormModal>
 
-      <Modal
+      <TeacherDutyFormModal
         title={
           sessionForm.key
             ? "Ubah Catatan Guru Masuk Kelas"
             : "Tambah Catatan Guru Masuk Kelas"
+        }
+        subtitle={
+          sessionForm.key
+            ? "Perbarui data sesi kelas yang sudah dicatat sebelumnya."
+            : "Catat sesi guru yang masuk kelas agar aktivitas pembelajaran harian terdokumentasi dengan rapi."
         }
         open={sessionModalOpen}
         onCancel={closeSessionModal}
         onOk={submitSessionModal}
         okText={sessionForm.key ? "Simpan Perubahan" : "Tambah"}
         width={720}
+        isMobile={isMobile}
+        helperTitle='Detail sesi pembelajaran'
+        helperDescription='Pilih guru dan kelas sesuai penugasan, lalu lengkapi waktu masuk dan keluar kelas.'
       >
-        <Flex vertical gap={12}>
-          <Select
-            placeholder="Pilih guru"
-            value={sessionForm.teacher_id}
-            showSearch
-            optionFilterProp="label"
-            virtual={false}
-            allowClear
-            options={teacherOptions}
-            onChange={handleSessionTeacherChange}
-          />
-
-          <Select
-            placeholder="Pilih kelas sesuai penugasan"
-            value={sessionForm.class_id}
-            showSearch
-            optionFilterProp="label"
-            virtual={false}
-            allowClear
-            options={sessionClassOptions}
-            onChange={handleSessionClassChange}
-            disabled={!sessionForm.teacher_id}
-          />
-
-          <Flex wrap="wrap" gap={12}>
-            <DatePicker
-              showTime={{ format: "HH:mm" }}
-              format="DD MMM YYYY HH:mm"
-              style={{ flex: "1 1 240px" }}
-              value={sessionForm.checkin_at}
-              onChange={(value) =>
-                setSessionForm((prev) => ({
-                  ...prev,
-                  checkin_at: value,
-                }))
-              }
-              placeholder="Tanggal & jam masuk"
+        <Flex vertical gap={14}>
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Guru
+            </Text>
+            <Select
+              placeholder='Pilih guru'
+              value={sessionForm.teacher_id}
+              showSearch
+              optionFilterProp='label'
+              virtual={false}
+              allowClear
+              options={teacherOptions}
+              onChange={handleSessionTeacherChange}
+              style={{ width: "100%" }}
             />
-            <DatePicker
-              showTime={{ format: "HH:mm" }}
-              format="DD MMM YYYY HH:mm"
-              style={{ flex: "1 1 240px" }}
-              value={sessionForm.checkout_at}
-              onChange={(value) =>
-                setSessionForm((prev) => ({
-                  ...prev,
-                  checkout_at: value,
-                }))
-              }
-              placeholder="Tanggal & jam keluar"
+          </div>
+
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Kelas sesuai penugasan
+            </Text>
+            <Select
+              placeholder='Pilih kelas sesuai penugasan'
+              value={sessionForm.class_id}
+              showSearch={{ optionFilterProp: "label" }}
+              virtual={false}
+              allowClear
+              options={sessionClassOptions}
+              onChange={handleSessionClassChange}
+              disabled={!sessionForm.teacher_id}
+              style={{ width: "100%" }}
             />
+          </div>
+
+          <Flex vertical={isMobile} gap={12}>
+            <div style={{ flex: 1 }}>
+              <Text strong style={{ display: "block", marginBottom: 8 }}>
+                Waktu masuk
+              </Text>
+              <DatePicker
+                showTime={{ format: "HH:mm" }}
+                format='DD MMM YYYY HH:mm'
+                style={{ width: "100%" }}
+                value={sessionForm.checkin_at}
+                onChange={(value) =>
+                  setSessionForm((prev) => ({
+                    ...prev,
+                    checkin_at: value,
+                  }))
+                }
+                placeholder='Tanggal & jam masuk'
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <Text strong style={{ display: "block", marginBottom: 8 }}>
+                Waktu keluar
+              </Text>
+              <DatePicker
+                showTime={{ format: "HH:mm" }}
+                format='DD MMM YYYY HH:mm'
+                style={{ width: "100%" }}
+                value={sessionForm.checkout_at}
+                onChange={(value) =>
+                  setSessionForm((prev) => ({
+                    ...prev,
+                    checkout_at: value,
+                  }))
+                }
+                placeholder='Tanggal & jam keluar'
+              />
+            </div>
           </Flex>
 
-          <Input
-            value={sessionForm.note}
-            onChange={(event) =>
-              setSessionForm((prev) => ({
-                ...prev,
-                note: event.target.value,
-              }))
-            }
-            placeholder="Catatan sesi kelas"
-          />
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 8 }}>
+              Catatan sesi kelas
+            </Text>
+            <Input
+              value={sessionForm.note}
+              onChange={(event) =>
+                setSessionForm((prev) => ({
+                  ...prev,
+                  note: event.target.value,
+                }))
+              }
+              placeholder='Contoh: pembelajaran berjalan normal atau ada catatan khusus'
+              style={modalInputStyle}
+            />
+          </div>
         </Flex>
-      </Modal>
+      </TeacherDutyFormModal>
     </Flex>
   );
 };

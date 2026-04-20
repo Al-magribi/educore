@@ -55,12 +55,18 @@ const StudentLmsMenu = () => ({
   icon: <BookOpenText size={14} />,
 });
 
+const ParentLmsMenu = () => ({
+  label: "Laporan Akademik",
+  key: "/laporan-akademik",
+  icon: <BranchesOutlined />,
+});
+
 const buildLmsMenus = () => ({
   center: [],
   admin: [AdminLmsMenu()],
   teacher: [TeacherLmsMenu({ includeDuty: true })],
   student: [StudentLmsMenu()],
-  parent: [],
+  parent: [ParentLmsMenu()],
   tahfiz: [],
 });
 

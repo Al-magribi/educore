@@ -387,6 +387,7 @@ const ScheduleActivity = ({
                   { value: "all", label: "Semua shift" },
                   ...shiftOptions,
                 ]}
+                virtual={false}
               />
             </Space>
           ) : null
@@ -466,6 +467,7 @@ const ScheduleActivity = ({
               <Select
                 options={slotOptions}
                 placeholder='Pilih slot dari shift aktif'
+                virtual={false}
               />
             </Form.Item>
             <Form.Item
@@ -488,10 +490,10 @@ const ScheduleActivity = ({
             >
               <Select
                 mode='multiple'
-                showSearch
-                optionFilterProp='label'
+                showSearch={{ optionFilterProp: "label" }}
                 options={assignmentOptions}
                 placeholder='Pilih guru / mapel / kelas dari shift aktif'
+                virtual={false}
               />
             </Form.Item>
           ) : null}

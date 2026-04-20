@@ -102,7 +102,11 @@ const UnavailabilityEntryFields = ({
           label='Mulai jam ke'
           style={{ width: "50%" }}
         >
-          <Select placeholder='Pilih jam mulai' options={slotOptions} />
+          <Select
+            placeholder='Pilih jam mulai'
+            options={slotOptions}
+            virtual={false}
+          />
         </Form.Item>
         <Form.Item
           name={[field.name, "end_slot_no"]}
@@ -150,6 +154,7 @@ const UnavailabilityEntryFields = ({
                 Number(selectedStartSlot) > 0 &&
                 Number(slot.value) < Number(selectedStartSlot),
             }))}
+            virtual={false}
           />
         </Form.Item>
       </Flex>
@@ -319,7 +324,7 @@ const ScheduleUnavailabilityCard = ({
       });
     }
 
-    return [{ value: "all", label: "Semua shift" }, ...fromGroups, ...extra];
+    return [{ value: "all", label: "Semua Jadwal" }, ...fromGroups, ...extra];
   }, [groups, tableData]);
 
   const filteredTableData = useMemo(() => {
@@ -335,7 +340,10 @@ const ScheduleUnavailabilityCard = ({
       : [];
 
     for (const groupId of candidateGroupIds) {
-      const daySlots = slotByGroupDay.get(`${Number(groupId)}:${Number(record.day_of_week)}`) || [];
+      const daySlots =
+        slotByGroupDay.get(
+          `${Number(groupId)}:${Number(record.day_of_week)}`,
+        ) || [];
       const matchedSlots = getMatchedSlots(
         daySlots,
         record.start_time,

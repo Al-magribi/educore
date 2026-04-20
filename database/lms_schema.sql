@@ -756,3 +756,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_schedule_config_group_class ON lms.l_schedu
 
 SET search_path TO public;
 COMMIT;
+
+ROLLBACK
