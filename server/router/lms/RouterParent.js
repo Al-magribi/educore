@@ -185,6 +185,19 @@ const toUniqueSortedIds = (values = []) =>
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
+const loadFinanceFeatureAvailability = async (client) => {
+  const result = await client.query(`
+    SELECT
+      to_regclass('finance.savings_transactions') IS NOT NULL AS savings_exists,
+      to_regclass('finance.class_cash_transactions') IS NOT NULL AS class_cash_exists
+  `);
+
+  return result.rows[0] || {
+    savings_exists: false,
+    class_cash_exists: false,
+  };
+};
+
 const toAcademicYears = (periodeName, now = new Date()) => {
   const raw = String(periodeName || "");
   const rangeMatch = raw.match(/(\d{4})\s*\/\s*(\d{4})/);
@@ -257,6 +270,9 @@ router.get(
     }
 
     const students = studentsRes.rows;
+    const studentIds = Array.from(
+      new Set(students.map((item) => Number(item.student_id)).filter(Boolean)),
+    );
     const classIds = Array.from(
       new Set(students.map((item) => Number(item.class_id)).filter(Boolean)),
     );
@@ -265,6 +281,77 @@ router.get(
       students[0]?.homebase_id && Number.isInteger(Number(students[0].homebase_id))
         ? await getActivePeriode(pool, Number(students[0].homebase_id))
         : null;
+
+    const financeAvailability = await loadFinanceFeatureAvailability(pool);
+
+    const [savingsRes, classCashRes] = await Promise.all([
+      financeAvailability.savings_exists && studentIds.length > 0
+        ? pool.query(
+            `SELECT
+               student_id,
+               COUNT(*)::int AS transactions_total,
+               MAX(transaction_date) AS last_transaction_date,
+               COALESCE(
+                 SUM(
+                   CASE
+                     WHEN lower(transaction_type) = 'deposit' THEN amount
+                     WHEN lower(transaction_type) = 'withdrawal' THEN -amount
+                     ELSE 0
+                   END
+                 ),
+                 0
+               )::numeric AS balance
+             FROM finance.savings_transactions
+             WHERE student_id = ANY($1::int[])
+             GROUP BY student_id`,
+            [studentIds],
+          )
+        : Promise.resolve({ rows: [] }),
+      financeAvailability.class_cash_exists && classIds.length > 0
+        ? pool.query(
+            `SELECT
+               class_id,
+               COUNT(*)::int AS transactions_total,
+               MAX(transaction_date) AS last_transaction_date,
+               COALESCE(
+                 SUM(
+                   CASE
+                     WHEN lower(transaction_type) = 'income' THEN amount
+                     WHEN lower(transaction_type) = 'expense' THEN -amount
+                     ELSE 0
+                   END
+                 ),
+                 0
+               )::numeric AS balance
+             FROM finance.class_cash_transactions
+             WHERE class_id = ANY($1::int[])
+             GROUP BY class_id`,
+            [classIds],
+          )
+        : Promise.resolve({ rows: [] }),
+    ]);
+
+    const savingsMap = new Map(
+      savingsRes.rows.map((row) => [
+        Number(row.student_id),
+        {
+          balance: round2(row.balance),
+          transactions_total: Number(row.transactions_total || 0),
+          last_transaction_date: row.last_transaction_date || null,
+        },
+      ]),
+    );
+
+    const classCashMap = new Map(
+      classCashRes.rows.map((row) => [
+        Number(row.class_id),
+        {
+          balance: round2(row.balance),
+          transactions_total: Number(row.transactions_total || 0),
+          last_transaction_date: row.last_transaction_date || null,
+        },
+      ]),
+    );
 
     const studentCards = await Promise.all(
       students.map(async (student) => {
@@ -305,6 +392,16 @@ router.get(
 
         const lms = lmsRes.rows[0] || {};
         const attendance = attendanceRes.rows[0] || {};
+        const savings = savingsMap.get(studentId) || {
+          balance: 0,
+          transactions_total: 0,
+          last_transaction_date: null,
+        };
+        const classCash = classCashMap.get(classId) || {
+          balance: 0,
+          transactions_total: 0,
+          last_transaction_date: null,
+        };
 
         return {
           student_id: studentId,
@@ -320,6 +417,10 @@ router.get(
               hadir_sessions: Number(attendance.hadir_sessions || 0),
               total_sessions: Number(attendance.total_sessions || 0),
             },
+          },
+          finance: {
+            savings,
+            class_cash: classCash,
           },
         };
       }),
@@ -357,6 +458,8 @@ router.get(
         acc.lms_materials_total += item.lms.materials_total;
         acc.lms_attendance_total += item.lms.attendance.total_sessions;
         acc.lms_attendance_hadir += item.lms.attendance.hadir_sessions;
+        acc.total_savings_balance += Number(item.finance?.savings?.balance || 0);
+        acc.total_class_cash_balance += Number(item.finance?.class_cash?.balance || 0);
         return acc;
       },
       {
@@ -365,6 +468,8 @@ router.get(
         lms_materials_total: 0,
         lms_attendance_total: 0,
         lms_attendance_hadir: 0,
+        total_savings_balance: 0,
+        total_class_cash_balance: 0,
       },
     );
 
@@ -385,6 +490,8 @@ router.get(
           lms_subjects_total: summary.lms_subjects_total,
           lms_materials_total: summary.lms_materials_total,
           lms_attendance_rate: attendanceRate,
+          total_savings_balance: round2(summary.total_savings_balance),
+          total_class_cash_balance: round2(summary.total_class_cash_balance),
         },
         students: studentCards,
         recent_lms: recentMaterialsRes.rows,

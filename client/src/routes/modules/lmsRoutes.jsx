@@ -12,6 +12,10 @@ const TeacherSchedule = lazy(
 );
 const Duty = lazy(() => import("../../module/lms/duty/Duty"));
 const SubjectList = lazy(() => import("../../module/lms/student/SubjectList"));
+
+const ParentDash = lazy(
+  () => import("../../module/parent/dashboard/ParentDash"),
+);
 const AcademicReport = lazy(
   () => import("../../module/lms/report/AcademicReport"),
 );
@@ -73,6 +77,14 @@ const renderStudentLmsRoutes = ({ LazyRoute }) => (
 
 const renderParentLmsRoutes = ({ LazyRoute }) => (
   <Route element={<RouteProtection allowedRoles={["parent"]} />}>
+    <Route
+      path='/orangtua-dashboard'
+      element={createElement(LazyRoute, {
+        title: "Dashboard Orang Tua",
+        Component: ParentDash,
+      })}
+    />
+
     <Route
       path='/laporan-akademik'
       element={createElement(LazyRoute, {
