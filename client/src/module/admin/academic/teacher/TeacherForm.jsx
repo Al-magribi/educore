@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from "react";
+import { motion } from "framer-motion";
 import {
   Modal,
   Form,
@@ -10,12 +11,26 @@ import {
   Col,
   Space,
   Card,
+  Typography,
+  Flex,
 } from "antd";
-import { Plus, Trash2, User, Briefcase, BookOpen } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  User,
+  Briefcase,
+  BookOpen,
+  Loader2,
+  School,
+  CheckCircle,
+} from "lucide-react";
 import {
   useGetClassesListQuery,
   useGetSubjectsListQuery,
 } from "../../../../service/academic/ApiTeacher"; // Sesuaikan path import
+
+const { Title, Text } = Typography;
+const MotionDiv = motion.div;
 
 const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
   const [form] = Form.useForm();
@@ -135,21 +150,31 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
 
   return (
     <Modal
-      title={initialValues ? "Edit Data Guru" : "Tambah Guru Baru"}
       open={open}
       onCancel={onCancel}
-      onOk={() => form.submit()}
-      confirmLoading={loading}
+      footer={null}
       width={750} // Sedikit diperlebar agar nyaman
       centered
       destroyOnHidden
       styles={{
-        body: {
-          maxHeight: "calc(100vh - 220px)",
-          overflowY: "auto",
-          paddingRight: 8,
+        content: {
+          padding: 0,
+          overflow: "hidden",
+          borderRadius: 28,
+          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
         },
+        body: { padding: 0 },
       }}
+      closable={false}
+      modalRender={(modalNode) => (
+        <MotionDiv
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.24, ease: "easeOut" }}
+        >
+          {modalNode}
+        </MotionDiv>
+      )}
     >
       <Form
         form={form}
@@ -157,161 +182,248 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
         onFinish={onSubmit}
         initialValues={{ allocations: [] }}
       >
-        {/* --- SECTION 1: DATA PRIBADI --- */}
-        <Divider titlePlacement="left">
-          <Space>
-            <User size={16} /> Data Pribadi
-          </Space>
-        </Divider>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              name="full_name"
-              label="Nama Lengkap"
-              rules={[{ required: true }]}
-            >
-              <Input placeholder="Nama lengkap dengan gelar" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="username"
-              label="Username (Login)"
-              rules={[{ required: true }]}
-            >
-              <Input placeholder="Username unik" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="nip" label="NIP / NIY">
-              <Input placeholder="Nomor Induk Pegawai" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="phone" label="No. Telepon">
-              <Input placeholder="08..." />
-            </Form.Item>
-          </Col>
-          <Col span={24}>
-            <Form.Item name="email" label="Email">
-              <Input placeholder="email@sekolah.sch.id" />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        {/* --- SECTION 2: TUGAS TAMBAHAN --- */}
-        <Divider titlePlacement="left">
-          <Space>
-            <Briefcase size={16} /> Tugas Tambahan
-          </Space>
-        </Divider>
-        <Form.Item
-          name="homeroom_class_id"
-          label="Wali Kelas (Opsional)"
-          help="Pilih kelas jika guru ini adalah wali kelas"
+        <div
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(239,246,255,1), rgba(236,253,245,0.96))",
+            padding: 28,
+            borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
+          }}
         >
-          <Select
-            allowClear
-            placeholder="Pilih Kelas"
-            options={classOptions}
-            showSearch
-            optionFilterProp="label"
-          />
-        </Form.Item>
-
-        {/* --- SECTION 3: ALOKASI MENGAJAR (MULTI-SELECT) --- */}
-        <Divider titlePlacement="left">
-          <Space>
-            <BookOpen size={16} /> Mata Pelajaran yang Diampu
-          </Space>
-        </Divider>
-
-        <Form.List name="allocations">
-          {(fields, { add, remove }) => (
+          <Flex align="flex-start" gap={16}>
             <div
-              style={{ display: "flex", flexDirection: "column", rowGap: 16 }}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 18,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #2563eb, #14b8a6)",
+                color: "#fff",
+                boxShadow: "0 16px 30px rgba(37, 99, 235, 0.28)",
+              }}
             >
-              {fields.map(({ key, name, ...restField }) => (
-                <Card
-                  key={key}
-                  size="small"
-                  type="inner"
-                  styles={{ body: { padding: "12px", background: "#f9f9f9" } }}
-                >
-                  <Row gutter={12} align="top">
-                    {" "}
-                    {/* Align top agar rapi jika select membesar */}
-                    <Col span={8}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, "subject_id"]}
-                        label="Mata Pelajaran"
-                        rules={[{ required: true, message: "Wajib pilih" }]}
-                      >
-                        <Select
-                          placeholder="Pilih Mapel"
-                          showSearch
-                          optionFilterProp="label"
-                          options={subjectOptions}
-                          allowClear
-                          virtual={false}
-                        />
-                      </Form.Item>
-                    </Col>
-                    {/* --- PERBAIKAN 2: MULTI SELECT CLASS --- */}
-                    <Col span={14}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, "class_ids"]} // Perhatikan nama field jamak
-                        label="Daftar Kelas Ajar"
-                        rules={[
-                          { required: true, message: "Pilih minimal 1 kelas" },
-                        ]}
-                      >
-                        <Select
-                          mode="multiple" // Fitur Kunci: Multi Select
-                          placeholder="Pilih Kelas (Bisa banyak)"
-                          allowClear
-                          virtual={false}
-                          maxTagCount="responsive" // Agar tidak merusak layout jika banyak
-                          showSearch
-                          optionFilterProp="label"
-                          options={classOptions}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col
-                      span={2}
-                      style={{ textAlign: "right", paddingTop: "30px" }}
-                    >
-                      <Button
-                        type="text"
-                        danger
-                        icon={<Trash2 size={18} />}
-                        onClick={() => remove(name)}
-                      />
-                    </Col>
-                  </Row>
-                </Card>
-              ))}
-
-              <Button
-                type="dashed"
-                onClick={() => add()}
-                block
-                icon={<Plus size={16} />}
-              >
-                Tambah Alokasi Mapel
-              </Button>
+              {initialValues ? <User size={22} /> : <Plus size={22} />}
             </div>
-          )}
-        </Form.List>
+            <div style={{ flex: 1 }}>
+              <Title level={4} style={{ margin: 0 }}>
+                {initialValues ? "Edit Data Guru" : "Tambah Guru Baru"}
+              </Title>
+              <Text type="secondary" style={{ display: "block", marginTop: 6 }}>
+                Simpan data guru, tugas tambahan, dan alokasi mengajar dalam satu form yang lebih rapi.
+              </Text>
+            </div>
+          </Flex>
+        </div>
 
-        {!initialValues && (
-          <Form.Item name="password" hidden initialValue="123456">
-            <Input />
-          </Form.Item>
-        )}
+        <div style={{ padding: 28, maxHeight: "calc(100vh - 180px)", overflowY: "auto" }}>
+          <MotionDiv
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.05 }}
+            style={{ display: "flex", flexDirection: "column", gap: 20 }}
+          >
+            <Card bordered={false} style={{ borderRadius: 20, background: "#fff" }}>
+              <Divider titlePlacement="left">
+                <Space>
+                  <User size={16} /> Data Pribadi
+                </Space>
+              </Divider>
+              <Row gutter={16}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="full_name"
+                    label="Nama Lengkap"
+                    rules={[{ required: true }]}
+                  >
+                    <Input placeholder="Nama lengkap dengan gelar" size="large" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="username"
+                    label="Username (Login)"
+                    rules={[{ required: true }]}
+                  >
+                    <Input placeholder="Username unik" size="large" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="nip" label="NIP / NIY">
+                    <Input placeholder="Nomor Induk Pegawai" size="large" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="phone" label="No. Telepon">
+                    <Input placeholder="08..." size="large" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24}>
+                  <Form.Item name="email" label="Email">
+                    <Input placeholder="email@sekolah.sch.id" size="large" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+
+            <Card bordered={false} style={{ borderRadius: 20, background: "#fff" }}>
+              <Divider titlePlacement="left">
+                <Space>
+                  <Briefcase size={16} /> Tugas Tambahan
+                </Space>
+              </Divider>
+              <Form.Item
+                name="homeroom_class_id"
+                label="Wali Kelas (Opsional)"
+                help="Pilih kelas jika guru ini adalah wali kelas"
+              >
+                <Select
+                  allowClear
+                  placeholder="Pilih Kelas"
+                  options={classOptions}
+                  showSearch
+                  optionFilterProp="label"
+                  size="large"
+                  virtual={false}
+                />
+              </Form.Item>
+            </Card>
+
+            <Card bordered={false} style={{ borderRadius: 20, background: "#fff" }}>
+              <Divider titlePlacement="left">
+                <Space>
+                  <BookOpen size={16} /> Mata Pelajaran yang Diampu
+                </Space>
+              </Divider>
+
+              <Form.List name="allocations">
+                {(fields, { add, remove }) => (
+                  <div style={{ display: "flex", flexDirection: "column", rowGap: 16 }}>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <Card
+                        key={key}
+                        size="small"
+                        styles={{ body: { padding: "14px", background: "#f8fafc" } }}
+                        style={{ borderRadius: 18 }}
+                      >
+                        <Row gutter={12} align="top">
+                          <Col xs={24} md={8}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, "subject_id"]}
+                              label="Mata Pelajaran"
+                              rules={[{ required: true, message: "Wajib pilih" }]}
+                            >
+                              <Select
+                                placeholder="Pilih Mapel"
+                                showSearch
+                                optionFilterProp="label"
+                                options={subjectOptions}
+                                allowClear
+                                virtual={false}
+                                size="large"
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} md={14}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, "class_ids"]}
+                              label="Daftar Kelas Ajar"
+                              rules={[
+                                { required: true, message: "Pilih minimal 1 kelas" },
+                              ]}
+                            >
+                              <Select
+                                mode="multiple"
+                                placeholder="Pilih Kelas (Bisa banyak)"
+                                allowClear
+                                virtual={false}
+                                maxTagCount="responsive"
+                                showSearch
+                                optionFilterProp="label"
+                                options={classOptions}
+                                size="large"
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} md={2} style={{ textAlign: "right", paddingTop: "30px" }}>
+                            <Button
+                              type="text"
+                              danger
+                              icon={<Trash2 size={18} />}
+                              onClick={() => remove(name)}
+                            />
+                          </Col>
+                        </Row>
+                      </Card>
+                    ))}
+
+                    <Button
+                      type="dashed"
+                      onClick={() => add()}
+                      block
+                      icon={<Plus size={16} />}
+                      size="large"
+                      style={{ borderRadius: 14 }}
+                    >
+                      Tambah Alokasi Mapel
+                    </Button>
+                  </div>
+                )}
+              </Form.List>
+            </Card>
+
+            <Card
+              bordered={false}
+              style={{
+                borderRadius: 20,
+                background: "linear-gradient(135deg, #ecfeff, #eff6ff)",
+                border: "1px solid rgba(14, 165, 233, 0.16)",
+              }}
+            >
+              <Flex align="flex-start" gap={12}>
+                <CheckCircle size={18} color="#0284c7" style={{ marginTop: 2 }} />
+                <div>
+                  <Text strong style={{ display: "block", marginBottom: 4 }}>
+                    Tips pengisian
+                  </Text>
+                  <Text type="secondary">
+                    Pastikan username unik, wali kelas sesuai referensi kelas, dan alokasi mapel sudah mencakup semua kelas yang diajar.
+                  </Text>
+                </div>
+              </Flex>
+            </Card>
+
+            {!initialValues && (
+              <Form.Item name="password" hidden initialValue="123456">
+                <Input />
+              </Form.Item>
+            )}
+
+            <Flex justify="flex-end" gap={10}>
+              <Button size="large" onClick={onCancel} style={{ borderRadius: 14, minWidth: 120 }}>
+                Batal
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                size="large"
+                loading={loading}
+                icon={
+                  loading ? <Loader2 className="animate-spin" size={16} /> : <School size={16} />
+                }
+                style={{
+                  borderRadius: 14,
+                  minWidth: 190,
+                  boxShadow: "0 12px 24px rgba(37, 99, 235, 0.22)",
+                }}
+              >
+                {initialValues ? "Simpan Perubahan" : "Buat Data Guru"}
+              </Button>
+            </Flex>
+          </MotionDiv>
+        </div>
       </Form>
     </Modal>
   );

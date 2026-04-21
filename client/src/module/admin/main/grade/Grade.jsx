@@ -23,6 +23,7 @@ import {
   GraduationCap,
   Layers3,
   Search,
+  CheckCircle,
 } from "lucide-react";
 import { InfiniteScrollList } from "../../../../components";
 import {
@@ -137,6 +138,11 @@ const Grade = ({ screens }) => {
   const totalGrades = data?.meta?.totalData || allItems.length || 0;
   const loadedGrades = allItems.length;
   const remainingGrades = Math.max(totalGrades - loadedGrades, 0);
+  const modalTitle = editingItem ? "Edit Tingkat" : "Tambah Tingkat Baru";
+  const modalDescription = editingItem
+    ? "Perbarui nama tingkat agar tetap konsisten dengan struktur kelas yang sedang digunakan."
+    : "Tambahkan tingkat baru untuk menjaga struktur kelas tetap rapi dan mudah dikelola.";
+  const submitButtonLabel = editingItem ? "Simpan Perubahan" : "Buat Tingkat";
   const summaryCards = [
     {
       key: "total",
@@ -170,24 +176,24 @@ const Grade = ({ screens }) => {
         }}
         styles={{ body: { padding: "16px" } }}
         actions={[
-          <Tooltip title="Edit Data" key="edit">
+          <Tooltip title='Edit Data' key='edit'>
             <Button
-              type="text"
-              icon={<Pencil size={16} className="text-yellow-600" />}
+              type='text'
+              icon={<Pencil size={16} className='text-yellow-600' />}
               onClick={() => openModal(item)}
               block
             />
           </Tooltip>,
-          <Tooltip title="Hapus Data" key="delete">
+          <Tooltip title='Hapus Data' key='delete'>
             <Popconfirm
-              title="Hapus Tingkat?"
-              description="Aksi ini tidak dapat dibatalkan."
+              title='Hapus Tingkat?'
+              description='Aksi ini tidak dapat dibatalkan.'
               onConfirm={() => handleDelete(item.id)}
-              okText="Ya"
-              cancelText="Batal"
+              okText='Ya'
+              cancelText='Batal'
               okButtonProps={{ danger: true, loading: isDeleting }}
             >
-              <Button type="text" danger icon={<Trash2 size={16} />} block />
+              <Button type='text' danger icon={<Trash2 size={16} />} block />
             </Popconfirm>
           </Tooltip>,
         ]}
@@ -215,7 +221,7 @@ const Grade = ({ screens }) => {
             <GraduationCap size={20} />
           </div>
           <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text type='secondary' style={{ fontSize: 12 }}>
               Tingkat Kelas
             </Text>
             <div style={{ fontSize: 18, fontWeight: "bold", lineHeight: 1.2 }}>
@@ -231,8 +237,8 @@ const Grade = ({ screens }) => {
     <>
       <MotionDiv
         variants={containerVariants}
-        initial="hidden"
-        animate="visible"
+        initial='hidden'
+        animate='visible'
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
         <MotionDiv variants={itemVariants}>
@@ -248,7 +254,7 @@ const Grade = ({ screens }) => {
             styles={{ body: { padding: isMobile ? 18 : 24 } }}
           >
             <Flex
-              justify="space-between"
+              justify='space-between'
               align={activeScreens.md ? "center" : "stretch"}
               vertical={!activeScreens.md}
               gap={16}
@@ -266,17 +272,17 @@ const Grade = ({ screens }) => {
                 <Title level={4} style={{ margin: "6px 0 4px" }}>
                   Struktur tingkat tampil lebih rapi untuk proses administrasi.
                 </Title>
-                <Text type="secondary">
+                <Text type='secondary'>
                   Cari tingkat kelas yang ada atau tambahkan level baru tanpa
                   mengubah alur kerja saat ini.
                 </Text>
               </div>
 
               <Button
-                type="primary"
+                type='primary'
                 icon={<Plus size={16} />}
                 onClick={() => openModal(null)}
-                size="large"
+                size='large'
               >
                 Tambah Tingkat
               </Button>
@@ -285,7 +291,7 @@ const Grade = ({ screens }) => {
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
-          <Flex gap={16} wrap="wrap">
+          <Flex gap={16} wrap='wrap'>
             {summaryCards.map((item) => (
               <MotionDiv
                 key={item.key}
@@ -304,7 +310,7 @@ const Grade = ({ screens }) => {
                   styles={{ body: { padding: "18px 20px" } }}
                   hoverable
                 >
-                  <Flex justify="space-between" align="start">
+                  <Flex justify='space-between' align='start'>
                     <Statistic title={item.title} value={item.value} />
                     <div
                       style={{
@@ -337,7 +343,7 @@ const Grade = ({ screens }) => {
             styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
           >
             <Flex
-              justify="space-between"
+              justify='space-between'
               align={activeScreens.md ? "center" : "stretch"}
               vertical={!activeScreens.md}
               gap={16}
@@ -346,7 +352,7 @@ const Grade = ({ screens }) => {
                 <Title level={4} style={{ margin: 0 }}>
                   Pencarian Data Tingkat
                 </Title>
-                <Text type="secondary">
+                <Text type='secondary'>
                   Filter daftar tingkat dengan cepat dari toolbar yang lebih
                   bersih.
                 </Text>
@@ -358,17 +364,17 @@ const Grade = ({ screens }) => {
                 style={{ width: !activeScreens.md ? "100%" : "auto" }}
               >
                 <AntSearch
-                  placeholder="Cari tingkat..."
+                  placeholder='Cari tingkat...'
                   onSearch={handleSearch}
                   allowClear
                   style={{ width: !activeScreens.md ? "100%" : 300 }}
-                  size="large"
+                  size='large'
                 />
                 <Button
-                  type="primary"
+                  type='primary'
                   icon={<Plus size={16} />}
                   onClick={() => openModal(null)}
-                  size="large"
+                  size='large'
                   style={{ display: activeScreens.md ? "none" : "inline-flex" }}
                 >
                   Tambah Tingkat
@@ -385,7 +391,7 @@ const Grade = ({ screens }) => {
             hasMore={hasMore}
             onLoadMore={handleLoadMore}
             renderItem={renderGradeItem}
-            emptyText="Belum ada data tingkat kelas"
+            emptyText='Belum ada data tingkat kelas'
             grid={{
               gutter: [16, 16],
               xs: 24,
@@ -400,43 +406,201 @@ const Grade = ({ screens }) => {
       </MotionDiv>
 
       <Modal
-        title={editingItem ? "Edit Grade" : "Tambah Grade Baru"}
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
         footer={null}
         destroyOnHidden
-      >
-        <Form form={form} layout="vertical" onFinish={handleSave}>
-          <Form.Item
-            label="Nama Tingkat"
-            name="name"
-            rules={[{ required: true, message: "Harap isi nama tingkat!" }]}
-            help="Contoh: X, XI, XII, atau 1, 2, 3"
+        closable={false}
+        centered
+        width={isMobile ? "calc(100vw - 24px)" : 640}
+        styles={{
+          content: {
+            padding: 0,
+            overflow: "hidden",
+            borderRadius: 28,
+            boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          },
+          body: {
+            padding: 0,
+          },
+        }}
+        modalRender={(modalNode) => (
+          <MotionDiv
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.24, ease: "easeOut" }}
           >
-            <Input placeholder="Masukkan nama..." />
-          </Form.Item>
-
+            {modalNode}
+          </MotionDiv>
+        )}
+      >
+        <Form form={form} layout='vertical' onFinish={handleSave}>
           <div
             style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 24,
+              background:
+                "linear-gradient(135deg, rgba(255,251,235,1), rgba(255,247,237,0.96))",
+              padding: isMobile ? 20 : 28,
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
             }}
           >
-            <Button onClick={() => setIsModalOpen(false)}>Batal</Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={isAdding || isEditing}
-              icon={
-                isAdding || isEditing ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : null
-              }
+            <Flex align='flex-start' gap={16}>
+              <div
+                style={{
+                  width: isMobile ? 48 : 56,
+                  height: isMobile ? 48 : 56,
+                  borderRadius: 18,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "linear-gradient(135deg, #d97706, #f59e0b)",
+                  color: "#fff",
+                  boxShadow: "0 16px 30px rgba(217, 119, 6, 0.28)",
+                  flexShrink: 0,
+                }}
+              >
+                {editingItem ? (
+                  <Pencil size={22} />
+                ) : (
+                  <GraduationCap size={22} />
+                )}
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <Flex
+                  justify='space-between'
+                  align={isMobile ? "flex-start" : "center"}
+                  vertical={isMobile}
+                  gap={10}
+                >
+                  <div>
+                    <Title level={4} style={{ margin: 0 }}>
+                      {modalTitle}
+                    </Title>
+                    <Text
+                      type='secondary'
+                      style={{ display: "block", marginTop: 6 }}
+                    >
+                      {modalDescription}
+                    </Text>
+                  </div>
+                  <div
+                    style={{
+                      marginInlineEnd: 0,
+                      borderRadius: 999,
+                      padding: "6px 12px",
+                      fontWeight: 600,
+                      color: "#b45309",
+                      background: "rgba(245, 158, 11, 0.12)",
+                    }}
+                  >
+                    {editingItem ? "Edit" : "Baru"}
+                  </div>
+                </Flex>
+              </div>
+            </Flex>
+          </div>
+
+          <div style={{ padding: isMobile ? 20 : 28 }}>
+            <MotionDiv
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, delay: 0.05 }}
+              style={{ display: "flex", flexDirection: "column", gap: 20 }}
             >
-              Simpan
-            </Button>
+              <div
+                style={{
+                  borderRadius: 20,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  background: "#ffffff",
+                  padding: isMobile ? 16 : 18,
+                }}
+              >
+                <Form.Item
+                  label='Nama Tingkat'
+                  name='name'
+                  rules={[
+                    { required: true, message: "Harap isi nama tingkat!" },
+                  ]}
+                  help='Contoh: X, XI, XII, atau 1, 2, 3'
+                  style={{ marginBottom: 0 }}
+                >
+                  <Input
+                    size='large'
+                    prefix={<GraduationCap size={16} color='#d97706' />}
+                    placeholder='Masukkan nama tingkat'
+                    style={{
+                      borderRadius: 14,
+                      paddingBlock: 8,
+                    }}
+                  />
+                </Form.Item>
+              </div>
+
+              <div
+                style={{
+                  borderRadius: 20,
+                  background: "linear-gradient(135deg, #fffbeb, #fff7ed)",
+                  border: "1px solid rgba(245, 158, 11, 0.16)",
+                  padding: isMobile ? 16 : 18,
+                }}
+              >
+                <Flex align='flex-start' gap={12}>
+                  <CheckCircle
+                    size={18}
+                    color='#d97706'
+                    style={{ marginTop: 2 }}
+                  />
+                  <div>
+                    <Text strong style={{ display: "block", marginBottom: 4 }}>
+                      Tips penamaan
+                    </Text>
+                    <Text type='secondary'>
+                      Gunakan format tingkat yang konsisten supaya pemetaan
+                      kelas dan pencarian data lebih cepat dilakukan.
+                    </Text>
+                  </div>
+                </Flex>
+              </div>
+
+              <Flex
+                justify='flex-end'
+                gap={10}
+                vertical={isMobile}
+                style={{ marginTop: 4 }}
+              >
+                <Button
+                  size='large'
+                  onClick={() => setIsModalOpen(false)}
+                  style={{
+                    borderRadius: 14,
+                    minWidth: isMobile ? "100%" : 120,
+                  }}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type='primary'
+                  htmlType='submit'
+                  size='large'
+                  loading={isAdding || isEditing}
+                  icon={
+                    isAdding || isEditing ? (
+                      <Loader2 className='animate-spin' size={16} />
+                    ) : editingItem ? (
+                      <Pencil size={16} />
+                    ) : (
+                      <Plus size={16} />
+                    )
+                  }
+                  style={{
+                    borderRadius: 14,
+                    minWidth: isMobile ? "100%" : 190,
+                    boxShadow: "0 12px 24px rgba(217, 119, 6, 0.22)",
+                  }}
+                >
+                  {submitButtonLabel}
+                </Button>
+              </Flex>
+            </MotionDiv>
           </div>
         </Form>
       </Modal>

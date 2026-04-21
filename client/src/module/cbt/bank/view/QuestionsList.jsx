@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useState, useMemo } from "react";
+import { motion } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Collapse,
@@ -13,6 +14,8 @@ import {
   Modal,
   Space,
   Tag,
+  Card,
+  Statistic,
 } from "antd";
 import { Edit3, Trash2, AlertTriangle } from "lucide-react";
 import {
@@ -31,6 +34,7 @@ const QuestionForm = lazy(() => import("../components/question/QuestionForm"));
 const ImportExcelModal = lazy(() => import("./ImportExcelModal"));
 
 const { Text } = Typography;
+const MotionDiv = motion.div;
 
 const getQuestionTypeName = (type) => {
   const types = {
@@ -85,18 +89,20 @@ const QuestionPreviewText = ({ value }) => {
         wordBreak: "break-word",
       }}
     >
-      {hasValidDollarPair
-        ? segments.map((segment, idx) => {
-            if (segment.startsWith("$") && segment.endsWith("$")) {
-              const formula = segment.slice(1, -1).trim();
-              if (!formula) return null;
-              return <InlineMath key={`${idx}-${formula}`} math={formula} />;
-            }
-            return <span key={`${idx}-${segment}`}>{segment}</span>;
-          })
-        : hasLatexFallback
-          ? <InlineMath math={normalizedNoDollar} />
-          : <span>{normalized}</span>}
+      {hasValidDollarPair ? (
+        segments.map((segment, idx) => {
+          if (segment.startsWith("$") && segment.endsWith("$")) {
+            const formula = segment.slice(1, -1).trim();
+            if (!formula) return null;
+            return <InlineMath key={`${idx}-${formula}`} math={formula} />;
+          }
+          return <span key={`${idx}-${segment}`}>{segment}</span>;
+        })
+      ) : hasLatexFallback ? (
+        <InlineMath math={normalizedNoDollar} />
+      ) : (
+        <span>{normalized}</span>
+      )}
     </div>
   );
 };
@@ -140,7 +146,7 @@ const QuestionsList = () => {
       message.success("Soal berhasil dihapus");
       setSelectedIds((prev) => prev.filter((item) => item !== id));
       refetch();
-    } catch (err) {
+    } catch {
       message.error("Gagal menghapus soal");
     }
   };
@@ -160,7 +166,7 @@ const QuestionsList = () => {
           message.success(`${selectedIds.length} soal berhasil dihapus`);
           setSelectedIds([]);
           refetch();
-        } catch (err) {
+        } catch {
           message.error("Gagal menghapus beberapa soal");
         }
       },
@@ -185,7 +191,7 @@ const QuestionsList = () => {
           message.success("Semua soal berhasil dihapus");
           setSelectedIds([]);
           refetch();
-        } catch (err) {
+        } catch {
           message.error("Gagal mengosongkan soal");
         }
       },
@@ -214,115 +220,149 @@ const QuestionsList = () => {
     );
 
   return (
-    <Flex gap='middle' vertical>
-      <QuestionHeader
-        bankName={bankName}
-        totalCount={questions.length}
-        totalScore={totalScore}
-        onBack={() => navigate("/computer-based-test/bank")}
-        onImport={() => setIsImportModalOpen(true)}
-        onAdd={() => {
-          setEditingItem(null);
-          setIsFormVisible(true);
-        }}
-        onDeleteAll={handleDeleteAll}
-      />
-
-      <QuestionBulkActions
-        selectedCount={selectedIds.length}
-        onCancel={() => setSelectedIds([])}
-        onDelete={handleBulkDelete}
-      />
-
-      {isLoading ? (
-        <Flex justify='center' align='center' style={{ minHeight: 400 }}>
-          <Spin size='large' />
-        </Flex>
-      ) : (
-        <Collapse
-          accordion
-          ghost
-          expandIconPlacement='end'
-          items={questions.map((q, index) => ({
-            key: q.id,
-            label: (
-              <Flex
-                align='center'
-                gap={12}
-                onClick={(e) => e.stopPropagation()}
-                style={{ width: "100%", overflow: "hidden" }} // Mencegah overflow
-              >
-                <Checkbox
-                  checked={selectedIds.includes(q.id)}
-                  onChange={() => handleSelect(q.id)}
-                  style={{ flexShrink: 0 }}
-                />
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Container utama teks */}
-                  <Flex vertical gap={4}>
-                    <Flex gap={8} align='center'>
-                      <Text strong style={{ color: token.colorPrimary }}>
-                        {index + 1}.
-                      </Text>
-                      <Flex gap={4} wrap='wrap'>
-                        <Tag
-                          color={getQuestionTypeName(q.q_type).color}
-                          style={{ fontSize: "10px", margin: 0 }}
-                        >
-                          {getQuestionTypeName(q.q_type).label}
-                        </Tag>
-                        <Tag style={{ fontSize: "10px", margin: 0 }}>
-                          {q.score_point} Pts
-                        </Tag>
-                      </Flex>
-                    </Flex>
-                    <QuestionPreviewText value={q.content} />
-                  </Flex>
-                </div>
-
-                <Space
-                  size={4}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ flexShrink: 0 }}
-                >
-                  <Button
-                    type='text'
-                    size='small'
-                    icon={<Edit3 size={16} />}
-                    onClick={() => {
-                      setEditingItem(q);
-                      setIsFormVisible(true);
-                    }}
-                  />
-                  <Popconfirm
-                    title='Hapus?'
-                    onConfirm={() => handleDeleteSingle(q.id)}
-                  >
-                    <Button
-                      type='text'
-                      size='small'
-                      danger
-                      icon={<Trash2 size={16} />}
-                    />
-                  </Popconfirm>
-                </Space>
-              </Flex>
-            ),
-            children: (
-              <div style={{ padding: "0 4px 12px 32px" }}>
-                <QuestionItem question={q} />
-              </div>
-            ),
-            style: {
-              background: "#fff",
-              borderRadius: 12,
-              marginBottom: 12,
-              border: "1px solid #f0f0f0",
-            },
-          }))}
+    <MotionDiv
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: "easeOut" }}
+    >
+      <Flex gap='middle' vertical>
+        <QuestionHeader
+          bankName={bankName}
+          totalCount={questions.length}
+          totalScore={totalScore}
+          onBack={() => navigate("/computer-based-test/bank")}
+          onImport={() => setIsImportModalOpen(true)}
+          onAdd={() => {
+            setEditingItem(null);
+            setIsFormVisible(true);
+          }}
+          onDeleteAll={handleDeleteAll}
         />
-      )}
+
+        <QuestionBulkActions
+          selectedCount={selectedIds.length}
+          onCancel={() => setSelectedIds([])}
+          onDelete={handleBulkDelete}
+        />
+
+        {isLoading ? (
+          <Flex justify='center' align='center' style={{ minHeight: 400 }}>
+            <Spin size='large' />
+          </Flex>
+        ) : (
+          <Card
+            bordered={false}
+            style={{
+              borderRadius: 24,
+              boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+            }}
+            styles={{ body: { padding: 16 } }}
+          >
+            <Flex vertical gap={6} style={{ marginBottom: 16 }}>
+              <Text strong style={{ fontSize: 16 }}>
+                Daftar Pertanyaan
+              </Text>
+              <Text type='secondary'>
+                Tinjau, pilih, dan kelola soal dalam bank ini dari panel yang
+                lebih terstruktur.
+              </Text>
+            </Flex>
+
+            <Collapse
+              accordion
+              ghost
+              expandIconPlacement='end'
+              items={questions.map((q, index) => ({
+                key: q.id,
+                label: (
+                  <Flex
+                    align='center'
+                    gap={12}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ width: "100%", overflow: "hidden" }}
+                  >
+                    <Checkbox
+                      checked={selectedIds.includes(q.id)}
+                      onChange={() => handleSelect(q.id)}
+                      style={{ flexShrink: 0 }}
+                    />
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Flex vertical gap={4}>
+                        <Flex gap={8} align='center' wrap='wrap'>
+                          <Text strong style={{ color: token.colorPrimary }}>
+                            {index + 1}.
+                          </Text>
+                          <Flex gap={4} wrap='wrap'>
+                            <Tag
+                              color={getQuestionTypeName(q.q_type).color}
+                              style={{
+                                fontSize: "10px",
+                                margin: 0,
+                                borderRadius: 999,
+                              }}
+                            >
+                              {getQuestionTypeName(q.q_type).label}
+                            </Tag>
+                            <Tag
+                              style={{
+                                fontSize: "10px",
+                                margin: 0,
+                                borderRadius: 999,
+                              }}
+                            >
+                              {q.score_point} Pts
+                            </Tag>
+                          </Flex>
+                        </Flex>
+                        <QuestionPreviewText value={q.content} />
+                      </Flex>
+                    </div>
+
+                    <Space
+                      size={4}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ flexShrink: 0 }}
+                    >
+                      <Button
+                        type='text'
+                        size='small'
+                        icon={<Edit3 size={16} />}
+                        onClick={() => {
+                          setEditingItem(q);
+                          setIsFormVisible(true);
+                        }}
+                      />
+                      <Popconfirm
+                        title='Hapus soal ini?'
+                        onConfirm={() => handleDeleteSingle(q.id)}
+                      >
+                        <Button
+                          type='text'
+                          size='small'
+                          danger
+                          icon={<Trash2 size={16} />}
+                        />
+                      </Popconfirm>
+                    </Space>
+                  </Flex>
+                ),
+                children: (
+                  <div style={{ padding: "0 4px 12px 32px" }}>
+                    <QuestionItem question={q} />
+                  </div>
+                ),
+                style: {
+                  background: "#fff",
+                  borderRadius: 16,
+                  marginBottom: 12,
+                  border: "1px solid #eef2ff",
+                },
+              }))}
+            />
+          </Card>
+        )}
+      </Flex>
 
       {isImportModalOpen && (
         <Suspense fallback={null}>
@@ -337,7 +377,7 @@ const QuestionsList = () => {
           />
         </Suspense>
       )}
-    </Flex>
+    </MotionDiv>
   );
 };
 
