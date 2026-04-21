@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Button,
   Card,
   Col,
@@ -15,6 +14,7 @@ import {
   Tag,
   Typography,
   message,
+  theme,
 } from "antd";
 import {
   DownloadOutlined,
@@ -27,6 +27,7 @@ import {
   Database,
   Link2,
   Pencil,
+  ShieldCheck,
   Trash2,
   UserRoundCheck,
   Users,
@@ -45,6 +46,7 @@ import { downloadParentTemplate } from "./parentImportTemplate";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
+const { useToken } = theme;
 
 const MotionDiv = motion.div;
 
@@ -123,6 +125,7 @@ const iconWrapStyle = (background, color) => ({
 
 const ParentAccountManager = ({ scope = "all" }) => {
   const screens = useBreakpoint();
+  const { token } = useToken();
   const isMobile = !screens.md;
   const isSmallMobile = !screens.sm;
   const [page, setPage] = useState(1);
@@ -354,6 +357,17 @@ const ParentAccountManager = ({ scope = "all" }) => {
     },
   ];
 
+  const scopeLabel =
+    scope === "homeroom" ? "Akun orang tua kelas wali" : "Akun orang tua seluruh siswa";
+
+  const heroTitle =
+    scope === "homeroom"
+      ? "Kelola akun orang tua untuk kelas wali dengan lebih tertata."
+      : "Manajemen akun orang tua yang lebih rapi dan siap operasional.";
+
+  const heroDescription =
+    "Atur akun login orang tua, hubungan ke siswa, dan proses impor data dari satu panel yang lebih mudah dipakai untuk kebutuhan administrasi harian.";
+
   return (
     <MotionDiv
       variants={containerVariants}
@@ -369,7 +383,39 @@ const ParentAccountManager = ({ scope = "all" }) => {
           >
             <Row gutter={[20, 20]} align='middle'>
               <Col xs={24} lg={15}>
-                <Space direction='vertical' size={10} style={{ width: "100%" }}>
+                <Flex vertical gap={12} style={{ width: "100%" }}>
+                  <Flex align='center' gap={10} wrap='wrap'>
+                    <Flex
+                      align='center'
+                      gap={8}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.12)",
+                        border: "1px solid rgba(255,255,255,0.16)",
+                        color: "#f8fafc",
+                        fontWeight: 700,
+                        letterSpacing: 0.4,
+                      }}
+                    >
+                      <Users size={16} />
+                      <span>AKUN ORANG TUA</span>
+                    </Flex>
+                    <Flex
+                      align='center'
+                      gap={6}
+                      style={{
+                        padding: "7px 12px",
+                        borderRadius: 999,
+                        background: "rgba(15,23,42,0.18)",
+                        color: "#e0f2fe",
+                      }}
+                    >
+                      <Link2 size={14} />
+                      <span>{scopeLabel}</span>
+                    </Flex>
+                  </Flex>
+
                   <div
                     style={{
                       ...iconWrapStyle("rgba(255,255,255,0.16)", "#ffffff"),
@@ -378,8 +424,9 @@ const ParentAccountManager = ({ scope = "all" }) => {
                       borderRadius: 18,
                     }}
                   >
-                    <Users size={isSmallMobile ? 20 : 24} />
+                    <ShieldCheck size={isSmallMobile ? 20 : 24} />
                   </div>
+
                   <div>
                     <Title
                       level={isSmallMobile ? 4 : 3}
@@ -388,22 +435,23 @@ const ParentAccountManager = ({ scope = "all" }) => {
                         margin: 0,
                         marginBottom: 6,
                         fontSize: isSmallMobile ? 18 : undefined,
+                        lineHeight: 1.15,
                       }}
                     >
-                      Manajemen Akun Orang Tua
+                      {heroTitle}
                     </Title>
                     <Text
                       style={{
                         color: "rgba(255,255,255,0.82)",
                         fontSize: isSmallMobile ? 13 : 14,
                         display: "block",
+                        maxWidth: 640,
                       }}
                     >
-                      Kelola akun login orang tua, hubungan ke siswa, dan proses
-                      import data.
+                      {heroDescription}
                     </Text>
                   </div>
-                </Space>
+                </Flex>
               </Col>
               <Col xs={24} lg={9}>
                 <div
@@ -498,6 +546,9 @@ const ParentAccountManager = ({ scope = "all" }) => {
         <MotionDiv variants={itemVariants}>
           <Card
             style={filterCardStyle}
+            styles={{
+              body: { padding: isSmallMobile ? 14 : isMobile ? 18 : 22 },
+            }}
             title={
               <Space
                 align='center'
@@ -524,7 +575,7 @@ const ParentAccountManager = ({ scope = "all" }) => {
             <Flex
               vertical={isSmallMobile ? true : false}
               justify='space-between'
-              align='center'
+              align={isSmallMobile ? "stretch" : "center"}
               gap={"middle"}
             >
               <Input
@@ -532,6 +583,7 @@ const ParentAccountManager = ({ scope = "all" }) => {
                 prefix={<SearchOutlined />}
                 size='large'
                 placeholder='Cari nama, username, telepon, email, nama siswa, atau NIS'
+                style={{ width: "100%" }}
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
@@ -543,6 +595,7 @@ const ParentAccountManager = ({ scope = "all" }) => {
                 vertical={isSmallMobile ? true : false}
                 justify='center'
                 gap={"middle"}
+                style={{ width: isSmallMobile ? "100%" : "auto" }}
               >
                 <Button
                   icon={<DownloadOutlined />}
@@ -550,12 +603,14 @@ const ParentAccountManager = ({ scope = "all" }) => {
                     downloadParentTemplate({ students: studentOptions })
                   }
                   loading={isFetchingStudents}
+                  style={{ width: isSmallMobile ? "100%" : undefined }}
                 >
                   Template
                 </Button>
                 <Button
                   icon={<UploadOutlined />}
                   onClick={() => setIsImportOpen(true)}
+                  style={{ width: isSmallMobile ? "100%" : undefined }}
                 >
                   Import Excel
                 </Button>
@@ -563,10 +618,45 @@ const ParentAccountManager = ({ scope = "all" }) => {
                   type='primary'
                   icon={<PlusOutlined />}
                   onClick={handleOpenCreate}
+                  style={{ width: isSmallMobile ? "100%" : undefined }}
                 >
                   Tambah Orang Tua
                 </Button>
               </Flex>
+            </Flex>
+            <Flex
+              justify='space-between'
+              align={isSmallMobile ? "flex-start" : "center"}
+              vertical={isSmallMobile}
+              gap={10}
+              style={{
+                marginTop: 14,
+                padding: "12px 14px",
+                borderRadius: 16,
+                background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+                border: "1px solid #edf2f7",
+              }}
+            >
+              <div>
+                <Text strong style={{ color: "#0f172a", display: "block" }}>
+                  Workspace akun orang tua
+                </Text>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  Gunakan pencarian untuk menemukan akun lebih cepat, lalu lanjutkan
+                  ke edit, impor, atau penambahan akun baru.
+                </Text>
+              </div>
+              <Tag
+                color='blue'
+                style={{
+                  margin: 0,
+                  borderRadius: 999,
+                  paddingInline: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {data?.meta?.total_data || 0} akun
+              </Tag>
             </Flex>
           </Card>
         </MotionDiv>
@@ -574,21 +664,42 @@ const ParentAccountManager = ({ scope = "all" }) => {
         <MotionDiv variants={itemVariants}>
           <Card
             title={
-              <Space direction='vertical' size={2} style={{ width: "100%" }}>
-                <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
-                  Daftar Akun Orang Tua
-                </Text>
-                <Text type='secondary' style={{ fontSize: 12 }}>
-                  Lihat relasi siswa, ubah akun, atau hapus akun yang tidak lagi
-                  digunakan.
-                </Text>
-              </Space>
+              <Flex
+                justify='space-between'
+                align={isSmallMobile ? "flex-start" : "center"}
+                vertical={isSmallMobile}
+                gap={12}
+              >
+                <Space vertical size={2} style={{ width: "100%" }}>
+                  <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
+                    Daftar Akun Orang Tua
+                  </Text>
+                  <Text type='secondary' style={{ fontSize: 12 }}>
+                    Lihat relasi siswa, ubah akun, atau hapus akun yang tidak lagi
+                    digunakan.
+                  </Text>
+                </Space>
+                <Tag
+                  color='geekblue'
+                  style={{
+                    margin: 0,
+                    borderRadius: 999,
+                    paddingInline: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  Halaman {page}
+                </Tag>
+              </Flex>
             }
             style={panelCardStyle}
             styles={{
               body: {
                 overflowX: "hidden",
                 padding: isSmallMobile ? 12 : isMobile ? 16 : 24,
+              },
+              header: {
+                borderBottom: `1px solid ${token.colorBorderSecondary}`,
               },
             }}
           >
@@ -601,7 +712,29 @@ const ParentAccountManager = ({ scope = "all" }) => {
               expandable={{
                 expandedRowRender: (record) => (
                   <Space vertical size={12} style={{ width: "100%" }}>
-                    <Text strong>Siswa Terhubung</Text>
+                    <Flex align='center' gap={10}>
+                      <div
+                        style={{
+                          ...iconWrapStyle(
+                            "linear-gradient(135deg, #dbeafe, #eff6ff)",
+                            "#1d4ed8",
+                          ),
+                          width: 40,
+                          height: 40,
+                          borderRadius: 14,
+                        }}
+                      >
+                        <Link2 size={18} />
+                      </div>
+                      <div>
+                        <Text strong style={{ display: "block", color: "#0f172a" }}>
+                          Siswa Terhubung
+                        </Text>
+                        <Text type='secondary' style={{ fontSize: 12 }}>
+                          Daftar siswa yang terhubung ke akun orang tua ini
+                        </Text>
+                      </div>
+                    </Flex>
                     <Row gutter={[12, 12]}>
                       {(record.students || []).map((item) => (
                         <Col xs={24} md={12} xl={8} key={item.student_id}>
@@ -610,15 +743,28 @@ const ParentAccountManager = ({ scope = "all" }) => {
                             style={detailCardStyle}
                             bodyStyle={{ background: "#fcfdff" }}
                           >
-                            <Space vertical size={0}>
-                              <Text strong>{item.full_name}</Text>
-                              <Text type='secondary'>
+                            <Space vertical size={4}>
+                              <Text strong style={{ color: "#0f172a" }}>
+                                {item.full_name}
+                              </Text>
+                              <Text type='secondary' style={{ fontSize: 12 }}>
                                 NIS: {item.nis || "-"}
                               </Text>
-                              <Text type='secondary'>
+                              <Text type='secondary' style={{ fontSize: 12 }}>
                                 {item.grade_name || "-"} |{" "}
                                 {item.class_name || "-"}
                               </Text>
+                              <Tag
+                                color='blue'
+                                style={{
+                                  width: "fit-content",
+                                  marginTop: 4,
+                                  borderRadius: 999,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Terhubung
+                              </Tag>
                             </Space>
                           </Card>
                         </Col>
@@ -628,6 +774,7 @@ const ParentAccountManager = ({ scope = "all" }) => {
                 ),
               }}
               locale={{ emptyText: "Akun orang tua belum tersedia." }}
+              rowClassName={() => "parent-account-row"}
               pagination={{
                 current: page,
                 pageSize: 10,

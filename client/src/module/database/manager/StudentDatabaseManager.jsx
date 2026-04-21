@@ -5,6 +5,7 @@ import {
   Card,
   Col,
   Empty,
+  Flex,
   Grid,
   Input,
   message,
@@ -16,6 +17,7 @@ import {
   Table,
   Tag,
   Typography,
+  theme,
 } from "antd";
 import { motion } from "framer-motion";
 import {
@@ -36,6 +38,7 @@ import DbForm from "../form/DbForm";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
+const { useToken } = theme;
 
 const PAGE_SIZE = 10;
 const EMPTY_OPTIONS = [];
@@ -127,15 +130,38 @@ const formatDate = (value) => {
 
 const renderField = (label, value) => (
   <Col xs={24} md={12} key={label}>
-    <Text type='secondary' style={{ display: "block", fontSize: 12 }}>
-      {label}
-    </Text>
-    <Text style={{ wordBreak: "break-word" }}>{value || "-"}</Text>
+    <div
+      style={{
+        height: "100%",
+        padding: 14,
+        borderRadius: 16,
+        border: "1px solid #edf2f7",
+        background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+      }}
+    >
+      <Text
+        type='secondary'
+        style={{ display: "block", fontSize: 12, marginBottom: 6 }}
+      >
+        {label}
+      </Text>
+      <Text
+        strong
+        style={{
+          color: "#0f172a",
+          wordBreak: "break-word",
+          lineHeight: 1.5,
+        }}
+      >
+        {value || "-"}
+      </Text>
+    </div>
   </Col>
 );
 
 const StudentDatabaseManager = ({ scope = "all" }) => {
   const screens = useBreakpoint();
+  const { token } = useToken();
   const isMobile = !screens.md;
   const isSmallMobile = !screens.sm;
   const [searchText, setSearchText] = useState("");
@@ -220,6 +246,18 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
       helper: `${summary.average_completion || 0}% rata-rata kelengkapan`,
     },
   ];
+
+  const scopeLabel =
+    scope === "homeroom" ? "Monitoring kelas wali" : "Monitoring seluruh siswa";
+
+  const heroTitle =
+    scope === "homeroom"
+      ? "Pantau database siswa kelas wali dari satu workspace."
+      : "Monitoring database siswa";
+
+  const heroDescription = activePeriodeName
+    ? `Progres kelengkapan data dihitung berdasarkan periode aktif ${activePeriodeName}, sehingga tim dapat memantau pembaruan profil siswa secara lebih akurat.`
+    : "Progres kelengkapan data siswa dirangkum dalam satu halaman untuk memudahkan validasi dan tindak lanjut administrasi.";
 
   const filteredClassOptions = useMemo(() => {
     if (!gradeFilter) return classOptions;
@@ -317,7 +355,31 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
     <Space vertical size={12} style={{ width: "100%" }}>
       <Card
         size='small'
-        title='Informasi Pribadi Siswa'
+        title={
+          <Flex align='center' gap={10}>
+            <div
+              style={{
+                ...iconWrapStyle(
+                  "linear-gradient(135deg, #dbeafe, #eff6ff)",
+                  "#1d4ed8",
+                ),
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+              }}
+            >
+              <Database size={18} />
+            </div>
+            <div>
+              <Text strong style={{ display: "block", color: "#0f172a" }}>
+                Informasi Pribadi Siswa
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                Biodata dan informasi akademik utama siswa
+              </Text>
+            </div>
+          </Flex>
+        }
         style={detailCardStyle}
         styles={{ body: { background: "#fcfdff" } }}
       >
@@ -346,7 +408,31 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
 
       <Card
         size='small'
-        title='Informasi Orang Tua'
+        title={
+          <Flex align='center' gap={10}>
+            <div
+              style={{
+                ...iconWrapStyle(
+                  "linear-gradient(135deg, #dcfce7, #ecfdf5)",
+                  "#15803d",
+                ),
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+              }}
+            >
+              <Users size={18} />
+            </div>
+            <div>
+              <Text strong style={{ display: "block", color: "#0f172a" }}>
+                Informasi Orang Tua
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                Data ayah dan ibu untuk kebutuhan administrasi sekolah
+              </Text>
+            </div>
+          </Flex>
+        }
         style={detailCardStyle}
         styles={{ body: { background: "#fcfdff" } }}
       >
@@ -372,7 +458,31 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
 
       <Card
         size='small'
-        title='Anggota Keluarga (Selain Orang Tua)'
+        title={
+          <Flex align='center' gap={10}>
+            <div
+              style={{
+                ...iconWrapStyle(
+                  "linear-gradient(135deg, #fef3c7, #fff7ed)",
+                  "#d97706",
+                ),
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+              }}
+            >
+              <UserRound size={18} />
+            </div>
+            <div>
+              <Text strong style={{ display: "block", color: "#0f172a" }}>
+                Anggota Keluarga Lain
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                Data keluarga selain orang tua yang tercatat pada profil siswa
+              </Text>
+            </div>
+          </Flex>
+        }
         style={detailCardStyle}
         styles={{ body: { background: "#fcfdff" } }}
       >
@@ -418,17 +528,39 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
           >
             <Row gutter={[20, 20]} align='middle'>
               <Col xs={24} lg={15}>
-                <Space vertical size={10} style={{ width: "100%" }}>
-                  <div
-                    style={{
-                      ...iconWrapStyle("rgba(255,255,255,0.16)", "#ffffff"),
-                      width: isSmallMobile ? 48 : 56,
-                      height: isSmallMobile ? 48 : 56,
-                      borderRadius: 18,
-                    }}
-                  >
-                    <Database size={isSmallMobile ? 20 : 24} />
-                  </div>
+                <Flex vertical gap={12} style={{ width: "100%" }}>
+                  <Flex align='center' gap={10} wrap='wrap'>
+                    <Flex
+                      align='center'
+                      gap={8}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.12)",
+                        border: "1px solid rgba(255,255,255,0.16)",
+                        color: "#f8fafc",
+                        fontWeight: 700,
+                        letterSpacing: 0.4,
+                      }}
+                    >
+                      <Database size={16} />
+                      <span>DATABASE SISWA</span>
+                    </Flex>
+                    <Flex
+                      align='center'
+                      gap={6}
+                      style={{
+                        padding: "7px 12px",
+                        borderRadius: 999,
+                        background: "rgba(15,23,42,0.18)",
+                        color: "#e0f2fe",
+                      }}
+                    >
+                      <UserRound size={14} />
+                      <span>{scopeLabel}</span>
+                    </Flex>
+                  </Flex>
+
                   <div>
                     <Title
                       level={isSmallMobile ? 4 : 3}
@@ -437,23 +569,23 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
                         margin: 0,
                         marginBottom: 6,
                         fontSize: isSmallMobile ? 18 : undefined,
+                        lineHeight: 1.15,
                       }}
                     >
-                      Monitoring Database Siswa
+                      {heroTitle}
                     </Title>
                     <Text
                       style={{
                         color: "rgba(255,255,255,0.82)",
                         fontSize: isSmallMobile ? 13 : 14,
                         display: "block",
+                        maxWidth: 640,
                       }}
                     >
-                      {activePeriodeName
-                        ? `Data dan progres kelengkapan siswa dihitung berdasarkan periode aktif ${activePeriodeName}.`
-                        : "Data dan progres kelengkapan siswa dihitung berdasarkan periode aktif satuan."}
+                      {heroDescription}
                     </Text>
                   </div>
-                </Space>
+                </Flex>
               </Col>
               <Col xs={24} lg={9}>
                 <div
@@ -562,6 +694,9 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
         <MotionDiv variants={itemVariants}>
           <Card
             style={filterCardStyle}
+            styles={{
+              body: { padding: isSmallMobile ? 14 : isMobile ? 18 : 22 },
+            }}
             title={
               <Space
                 align='center'
@@ -634,6 +769,40 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
                 />
               </Col>
             </Row>
+            <Flex
+              justify='space-between'
+              align={isSmallMobile ? "flex-start" : "center"}
+              vertical={isSmallMobile}
+              gap={10}
+              style={{
+                marginTop: 14,
+                padding: "12px 14px",
+                borderRadius: 16,
+                background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+                border: "1px solid #edf2f7",
+              }}
+            >
+              <div>
+                <Text strong style={{ color: "#0f172a", display: "block" }}>
+                  Tampilan data
+                </Text>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  Gunakan pencarian dan filter untuk fokus pada kelompok siswa
+                  yang membutuhkan validasi.
+                </Text>
+              </div>
+              <Tag
+                color='blue'
+                style={{
+                  margin: 0,
+                  borderRadius: 999,
+                  paddingInline: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {data?.meta?.total_data || 0} data
+              </Tag>
+            </Flex>
             {scope === "homeroom" && (
               <Text
                 type='secondary'
@@ -653,21 +822,42 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
         <MotionDiv variants={itemVariants}>
           <Card
             title={
-              <Space direction='vertical' size={2} style={{ width: "100%" }}>
-                <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
-                  Tabel Database Siswa
-                </Text>
-                <Text type='secondary' style={{ fontSize: 12 }}>
-                  Klik baris untuk melihat detail, lalu gunakan aksi edit bila
-                  perlu.
-                </Text>
-              </Space>
+              <Flex
+                justify='space-between'
+                align={isSmallMobile ? "flex-start" : "center"}
+                vertical={isSmallMobile}
+                gap={12}
+              >
+                <Space direction='vertical' size={2} style={{ width: "100%" }}>
+                  <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
+                    Tabel Database Siswa
+                  </Text>
+                  <Text type='secondary' style={{ fontSize: 12 }}>
+                    Klik baris untuk melihat detail, lalu gunakan aksi edit bila
+                    perlu.
+                  </Text>
+                </Space>
+                <Tag
+                  color='geekblue'
+                  style={{
+                    margin: 0,
+                    borderRadius: 999,
+                    paddingInline: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  Halaman {page}
+                </Tag>
+              </Flex>
             }
             style={panelCardStyle}
             styles={{
               body: {
                 overflowX: "hidden",
                 padding: isSmallMobile ? 12 : isMobile ? 16 : 24,
+              },
+              header: {
+                borderBottom: `1px solid ${token.colorBorderSecondary}`,
               },
             }}
           >
@@ -680,6 +870,7 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
               expandable={{ expandedRowRender }}
               locale={{ emptyText: "Data siswa belum tersedia" }}
               scroll={isMobile ? { x: 760 } : undefined}
+              rowClassName={() => "student-database-row"}
               pagination={{
                 current: page,
                 pageSize: PAGE_SIZE,

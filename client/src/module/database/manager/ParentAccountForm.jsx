@@ -189,6 +189,7 @@ const ParentAccountForm = ({
       <Modal
         open={open}
         onCancel={onCancel}
+        closable={false}
         width={isMobile ? "calc(100vw - 16px)" : 760}
         destroyOnHidden
         centered
@@ -200,7 +201,7 @@ const ParentAccountForm = ({
           <div style={{ ...heroStyle, padding: heroPadding }}>
             <Row gutter={[16, 16]} align='middle'>
               <Col xs={24} lg={15}>
-                <Space direction='vertical' size={10} style={{ width: "100%" }}>
+                <Space vertical size={10} style={{ width: "100%" }}>
                   <div
                     style={iconWrapStyle(
                       "rgba(255,255,255,0.14)",
@@ -239,7 +240,7 @@ const ParentAccountForm = ({
               </Col>
               <Col xs={24} lg={9}>
                 <Card
-                  bordered={false}
+                  variant='borderless'
                   style={{
                     background: "rgba(255,255,255,0.12)",
                     borderRadius: 20,
@@ -248,11 +249,7 @@ const ParentAccountForm = ({
                   }}
                   bodyStyle={{ padding: isSmallMobile ? 14 : 16 }}
                 >
-                  <Space
-                    direction='vertical'
-                    size={8}
-                    style={{ width: "100%" }}
-                  >
+                  <Space vertical size={8} style={{ width: "100%" }}>
                     <Text style={{ color: "rgba(255,255,255,0.72)" }}>
                       Ringkasan akun
                     </Text>
@@ -447,7 +444,7 @@ const ParentAccountForm = ({
                         align='middle'
                         justify='space-between'
                       >
-                        <Space direction='vertical' size={2}>
+                        <Space vertical size={2}>
                           <Text strong style={{ color: "#0f172a" }}>
                             Simpan akun orang tua
                           </Text>
