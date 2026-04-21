@@ -15,7 +15,16 @@ import {
   Statistic,
   theme,
 } from "antd";
-import { Plus, Search, Pencil, Trash2, GitBranch, School } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  GitBranch,
+  School,
+  Loader2,
+  CheckCircle,
+} from "lucide-react";
 
 import { InfiniteScrollList } from "../../../../components";
 import {
@@ -141,8 +150,15 @@ const Major = ({ screens }) => {
   };
 
   const totalMajors = listData.length;
-  const withHomebaseCount = listData.filter((item) => item.homebase_name).length;
+  const withHomebaseCount = listData.filter(
+    (item) => item.homebase_name,
+  ).length;
   const searchResultCount = search ? listData.length : totalMajors;
+  const modalTitle = editingItem ? "Edit Jurusan" : "Tambah Jurusan Baru";
+  const modalDescription = editingItem
+    ? "Perbarui nama jurusan agar tetap konsisten dengan struktur akademik dan data homebase."
+    : "Tambahkan jurusan baru untuk menjaga pengelolaan program studi tetap rapi dan mudah ditemukan.";
+  const submitButtonLabel = editingItem ? "Simpan Perubahan" : "Buat Jurusan";
   const summaryCards = [
     {
       key: "total",
@@ -177,24 +193,24 @@ const Major = ({ screens }) => {
         }}
         styles={{ body: { flex: 1, padding: "16px" } }}
         actions={[
-          <Tooltip title="Edit Nama" key="edit">
+          <Tooltip title='Edit Nama' key='edit'>
             <Button
-              type="text"
-              icon={<Pencil size={14} color="#faad14" />}
+              type='text'
+              icon={<Pencil size={14} color='#faad14' />}
               onClick={() => handleOpenModal(item)}
             />
           </Tooltip>,
           <Popconfirm
-            key="delete"
-            title="Hapus Jurusan?"
-            description="Pastikan tidak ada kelas yang terhubung."
+            key='delete'
+            title='Hapus Jurusan?'
+            description='Pastikan tidak ada kelas yang terhubung.'
             onConfirm={() => handleDelete(item.id)}
-            okText="Ya, Hapus"
-            cancelText="Batal"
+            okText='Ya, Hapus'
+            cancelText='Batal'
             disabled={isDeleting}
           >
             <Button
-              type="text"
+              type='text'
               danger
               icon={<Trash2 size={14} />}
               loading={isDeleting}
@@ -222,7 +238,7 @@ const Major = ({ screens }) => {
               {item.name}
             </Title>
             <Text
-              type="secondary"
+              type='secondary'
               style={{
                 fontSize: 12,
                 display: "flex",
@@ -241,8 +257,8 @@ const Major = ({ screens }) => {
   return (
     <MotionDiv
       variants={containerVariants}
-      initial="hidden"
-      animate="visible"
+      initial='hidden'
+      animate='visible'
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
       <MotionDiv variants={itemVariants}>
@@ -258,7 +274,7 @@ const Major = ({ screens }) => {
           styles={{ body: { padding: isMobile ? 18 : 24 } }}
         >
           <Flex
-            justify="space-between"
+            justify='space-between'
             align={activeScreens.md ? "center" : "stretch"}
             vertical={!activeScreens.md}
             gap={16}
@@ -274,19 +290,18 @@ const Major = ({ screens }) => {
                 MANAJEMEN JURUSAN
               </Text>
               <Title level={4} style={{ margin: "6px 0 4px" }}>
-                Daftar jurusan tampil lebih modern dan tetap fokus pada aksi.
+                Daftar Jurusan
               </Title>
-              <Text type="secondary">
-                Kelola jurusan dengan tampilan kartu yang lebih konsisten untuk
-                desktop dan mobile.
+              <Text type='secondary'>
+                Kelola jurusan untuk menjaga struktur akademik.
               </Text>
             </div>
 
             <Button
-              type="primary"
+              type='primary'
               icon={<Plus size={18} />}
               onClick={() => handleOpenModal(null)}
-              size="large"
+              size='large'
             >
               Tambah Jurusan
             </Button>
@@ -295,7 +310,7 @@ const Major = ({ screens }) => {
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>
-        <Flex gap={16} wrap="wrap">
+        <Flex gap={16} wrap='wrap'>
           {summaryCards.map((item) => (
             <MotionDiv
               key={item.key}
@@ -314,7 +329,7 @@ const Major = ({ screens }) => {
                 }}
                 styles={{ body: { padding: "18px 20px" } }}
               >
-                <Flex justify="space-between" align="start">
+                <Flex justify='space-between' align='start'>
                   <Statistic title={item.title} value={item.value} />
                   <div
                     style={{
@@ -347,7 +362,7 @@ const Major = ({ screens }) => {
           styles={{ body: { padding: isMobile ? 16 : 20 } }}
         >
           <Flex
-            justify="space-between"
+            justify='space-between'
             align={activeScreens.md ? "center" : "stretch"}
             vertical={!activeScreens.md}
             gap={16}
@@ -356,7 +371,7 @@ const Major = ({ screens }) => {
               <Title level={4} style={{ margin: 0 }}>
                 Pencarian & Pengelolaan
               </Title>
-              <Text type="secondary">
+              <Text type='secondary'>
                 Cari jurusan berdasarkan nama lalu lanjutkan edit atau hapus
                 langsung dari daftar.
               </Text>
@@ -365,23 +380,23 @@ const Major = ({ screens }) => {
               gap={8}
               vertical={isMobile}
               align={isMobile ? "stretch" : "center"}
-              justify="flex-end"
+              justify='flex-end'
               style={{ width: isMobile ? "100%" : "auto" }}
             >
               <Input
-                placeholder="Cari jurusan..."
-                prefix={<Search size={16} color="#bfbfbf" />}
+                placeholder='Cari jurusan...'
+                prefix={<Search size={16} color='#bfbfbf' />}
                 allowClear
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ width: isMobile ? "100%" : 280 }}
-                size="large"
+                size='large'
               />
               <Button
-                type="primary"
+                type='primary'
                 icon={<Plus size={18} />}
                 onClick={() => handleOpenModal(null)}
                 style={{ display: activeScreens.md ? "none" : "inline-flex" }}
-                size="large"
+                size='large'
               >
                 Tambah
               </Button>
@@ -397,7 +412,7 @@ const Major = ({ screens }) => {
           hasMore={apiData?.hasMore}
           onLoadMore={handleLoadMore}
           renderItem={renderItem}
-          emptyText="Belum ada data jurusan"
+          emptyText='Belum ada data jurusan'
           grid={{
             gutter: [16, 16],
             xs: 24,
@@ -411,22 +426,199 @@ const Major = ({ screens }) => {
       </MotionDiv>
 
       <Modal
-        title={editingItem ? "Edit Jurusan" : "Tambah Jurusan Baru"}
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
-        onOk={form.submit}
-        confirmLoading={isAdding || isUpdating}
+        footer={null}
         destroyOnHidden
-      >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item
-            name="name"
-            label="Nama Jurusan"
-            rules={[{ required: true, message: "Nama jurusan wajib diisi" }]}
-            help="Contoh: IPA, IPS, Teknik Komputer Jaringan"
+        closable={false}
+        centered
+        width={isMobile ? "calc(100vw - 24px)" : 640}
+        styles={{
+          content: {
+            padding: 0,
+            overflow: "hidden",
+            borderRadius: 28,
+            boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          },
+          body: {
+            padding: 0,
+          },
+        }}
+        modalRender={(modalNode) => (
+          <MotionDiv
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.24, ease: "easeOut" }}
           >
-            <Input placeholder="Masukkan nama jurusan..." />
-          </Form.Item>
+            {modalNode}
+          </MotionDiv>
+        )}
+      >
+        <Form form={form} layout='vertical' onFinish={handleSubmit}>
+          <div
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(239,246,255,1), rgba(248,250,252,0.96))",
+              padding: isMobile ? 20 : 28,
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
+            }}
+          >
+            <Flex align='flex-start' gap={16}>
+              <div
+                style={{
+                  width: isMobile ? 48 : 56,
+                  height: isMobile ? 48 : 56,
+                  borderRadius: 18,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "linear-gradient(135deg, #1890ff, #2563eb)",
+                  color: "#fff",
+                  boxShadow: "0 16px 30px rgba(37, 99, 235, 0.28)",
+                  flexShrink: 0,
+                }}
+              >
+                {editingItem ? <Pencil size={22} /> : <GitBranch size={22} />}
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <Flex
+                  justify='space-between'
+                  align={isMobile ? "flex-start" : "center"}
+                  vertical={isMobile}
+                  gap={10}
+                >
+                  <div>
+                    <Title level={4} style={{ margin: 0 }}>
+                      {modalTitle}
+                    </Title>
+                    <Text
+                      type='secondary'
+                      style={{ display: "block", marginTop: 6 }}
+                    >
+                      {modalDescription}
+                    </Text>
+                  </div>
+                  <div
+                    style={{
+                      marginInlineEnd: 0,
+                      borderRadius: 999,
+                      padding: "6px 12px",
+                      fontWeight: 600,
+                      color: "#2563eb",
+                      background: "rgba(37, 99, 235, 0.10)",
+                    }}
+                  >
+                    {editingItem ? "Edit" : "Baru"}
+                  </div>
+                </Flex>
+              </div>
+            </Flex>
+          </div>
+
+          <div style={{ padding: isMobile ? 20 : 28 }}>
+            <MotionDiv
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, delay: 0.05 }}
+              style={{ display: "flex", flexDirection: "column", gap: 20 }}
+            >
+              <div
+                style={{
+                  borderRadius: 20,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  background: "#ffffff",
+                  padding: isMobile ? 16 : 18,
+                }}
+              >
+                <Form.Item
+                  name='name'
+                  label='Nama Jurusan'
+                  rules={[
+                    { required: true, message: "Nama jurusan wajib diisi" },
+                  ]}
+                  help='Contoh: IPA, IPS, Teknik Komputer Jaringan'
+                  style={{ marginBottom: 0 }}
+                >
+                  <Input
+                    size='large'
+                    prefix={<School size={16} color='#1890ff' />}
+                    placeholder='Masukkan nama jurusan'
+                    style={{
+                      borderRadius: 14,
+                      paddingBlock: 8,
+                    }}
+                  />
+                </Form.Item>
+              </div>
+
+              <div
+                style={{
+                  borderRadius: 20,
+                  background: "linear-gradient(135deg, #eff6ff, #f8fafc)",
+                  border: "1px solid rgba(37, 99, 235, 0.14)",
+                  padding: isMobile ? 16 : 18,
+                }}
+              >
+                <Flex align='flex-start' gap={12}>
+                  <CheckCircle
+                    size={18}
+                    color='#2563eb'
+                    style={{ marginTop: 2 }}
+                  />
+                  <div>
+                    <Text strong style={{ display: "block", marginBottom: 4 }}>
+                      Tips penamaan
+                    </Text>
+                    <Text type='secondary'>
+                      Gunakan nama jurusan yang konsisten dengan struktur
+                      sekolah agar mudah dicari, dipetakan ke homebase, dan
+                      dikelola ke depan.
+                    </Text>
+                  </div>
+                </Flex>
+              </div>
+
+              <Flex
+                justify='flex-end'
+                gap={10}
+                vertical={isMobile}
+                style={{ marginTop: 4 }}
+              >
+                <Button
+                  size='large'
+                  onClick={() => setIsModalOpen(false)}
+                  style={{
+                    borderRadius: 14,
+                    minWidth: isMobile ? "100%" : 120,
+                  }}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type='primary'
+                  htmlType='submit'
+                  size='large'
+                  loading={isAdding || isUpdating}
+                  icon={
+                    isAdding || isUpdating ? (
+                      <Loader2 className='animate-spin' size={16} />
+                    ) : editingItem ? (
+                      <Pencil size={16} />
+                    ) : (
+                      <Plus size={16} />
+                    )
+                  }
+                  style={{
+                    borderRadius: 14,
+                    minWidth: isMobile ? "100%" : 190,
+                    boxShadow: "0 12px 24px rgba(37, 99, 235, 0.22)",
+                  }}
+                >
+                  {submitButtonLabel}
+                </Button>
+              </Flex>
+            </MotionDiv>
+          </div>
         </Form>
       </Modal>
     </MotionDiv>

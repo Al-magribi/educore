@@ -1,4 +1,13 @@
-import { Card, Row, Col, Space, Button, Divider, Flex, Typography } from "antd";
+import { motion } from "framer-motion";
+import {
+  Card,
+  Button,
+  Flex,
+  Typography,
+  Grid,
+  Tag,
+  Statistic,
+} from "antd";
 import {
   ArrowLeft,
   FileText,
@@ -6,9 +15,13 @@ import {
   Plus,
   Trash2,
   AlertCircle,
+  Sparkles,
+  ClipboardList,
 } from "lucide-react";
 
 const { Text, Title } = Typography;
+const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const QuestionHeader = ({
   bankName,
@@ -19,90 +32,238 @@ const QuestionHeader = ({
   onAdd,
   onDeleteAll,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const isOverScore = totalScore > 100;
 
   return (
-    <Card
-      hoverable
-      styles={{ body: { padding: "16px" } }} // Padding lebih kecil di mobile
+    <MotionDiv
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: "easeOut" }}
     >
-      <Row gutter={[16, 16]} align="middle">
-        <Col xs={24} lg={12}>
-          <Space size="middle" align="start">
+      <Card
+        bordered={false}
+        style={{
+          borderRadius: 24,
+          overflow: "hidden",
+          position: "relative",
+          background:
+            "radial-gradient(circle at top left, rgba(56,189,248,0.24), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
+          boxShadow: "0 22px 46px rgba(15, 23, 42, 0.16)",
+        }}
+        styles={{ body: { padding: isMobile ? 18 : 22 } }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
+            pointerEvents: "none",
+          }}
+        />
+
+        <Flex
+          justify="space-between"
+          align={isMobile ? "stretch" : "center"}
+          vertical={isMobile}
+          gap={18}
+          style={{ position: "relative" }}
+        >
+          <Flex gap={14} align="flex-start" style={{ flex: 1 }}>
             <Button
               icon={<ArrowLeft size={18} />}
               type="text"
               shape="circle"
               onClick={onBack}
-              style={{ background: "#f5f5f5", flexShrink: 0 }}
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.18)",
+                flexShrink: 0,
+              }}
             />
-            <div>
+
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 8 }}>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.82)",
+                    fontWeight: 700,
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  WORKSPACE SOAL
+                </Text>
+                <Flex
+                  align="center"
+                  gap={6}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,0.12)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                    color: "#e0f2fe",
+                    fontWeight: 600,
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>Kelola isi bank soal</span>
+                </Flex>
+              </Flex>
+
               <Title
-                level={4}
-                style={{ margin: 0, fontSize: "clamp(16px, 4vw, 20px)" }}
+                level={isMobile ? 4 : 3}
+                style={{
+                  margin: 0,
+                  color: "#fff",
+                  fontSize: "clamp(18px, 4vw, 24px)",
+                  lineHeight: 1.2,
+                }}
               >
                 {bankName?.replaceAll("-", " ")}
               </Title>
-              <Flex gap={8} wrap="wrap" style={{ marginTop: 4 }}>
-                <Flex align="center" gap={4}>
-                  <FileText size={14} style={{ color: "#8c8c8c" }} />
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {totalCount} Soal
-                  </Text>
-                </Flex>
-                <Divider orientation="vertical" />
-                <Flex align="center" gap={4}>
-                  {isOverScore && <AlertCircle size={14} color="#ff4d4f" />}
-                  <Text
-                    type={isOverScore ? "danger" : "secondary"}
-                    strong={isOverScore}
-                    style={{ fontSize: 12 }}
-                  >
-                    Bobot: {totalScore}/100
-                  </Text>
-                </Flex>
-              </Flex>
-            </div>
-          </Space>
-        </Col>
 
-        <Col xs={24} lg={12}>
-          <Flex gap={8} wrap="wrap" justify="end">
-            <Button
-              danger
-              variant="text"
-              icon={<Trash2 size={16} />}
-              onClick={onDeleteAll}
-              disabled={totalCount === 0}
-              className="res-btn-full"
-            >
-              Kosongkan
-            </Button>
-            <Button
-              icon={<FileUp size={16} />}
-              onClick={onImport}
-              className="res-btn-full"
-            >
-              Import
-            </Button>
-            <Button
-              type="primary"
-              icon={<Plus size={16} />}
-              onClick={onAdd}
-              style={{ boxShadow: "0 2px 4px rgba(24, 144, 255, 0.3)" }}
-              className="res-btn-full"
-            >
-              Tambah Soal
-            </Button>
+              <Text
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  color: "rgba(241,245,249,0.84)",
+                  maxWidth: 640,
+                }}
+              >
+                Susun, review, dan optimalkan pertanyaan dalam bank soal ini
+                dari panel yang lebih fokus dan siap digunakan untuk operasional CBT.
+              </Text>
+            </div>
           </Flex>
-        </Col>
-      </Row>
-      <style>{`
-        @media (max-width: 576px) {
-          .res-btn-full { flex: 1; justify-content: center; }
-        }
-      `}</style>
-    </Card>
+
+          <Flex
+            gap={12}
+            wrap="wrap"
+            style={{ minWidth: isMobile ? "100%" : 280 }}
+          >
+            <Card
+              size="small"
+              style={{
+                flex: 1,
+                minWidth: 120,
+                borderRadius: 18,
+                background: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.16)",
+              }}
+              styles={{ body: { padding: "12px 14px" } }}
+            >
+              <Statistic
+                title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Jumlah Soal</span>}
+                value={totalCount}
+                valueStyle={{ color: "#fff" }}
+              />
+            </Card>
+
+            <Card
+              size="small"
+              style={{
+                flex: 1,
+                minWidth: 120,
+                borderRadius: 18,
+                background: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.16)",
+              }}
+              styles={{ body: { padding: "12px 14px" } }}
+            >
+              <Statistic
+                title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Bobot Total</span>}
+                value={totalScore}
+                suffix="/100"
+                valueStyle={{ color: isOverScore ? "#fecaca" : "#fff" }}
+              />
+            </Card>
+          </Flex>
+        </Flex>
+
+        <Flex
+          gap={10}
+          wrap="wrap"
+          justify={isMobile ? "stretch" : "flex-end"}
+          style={{ position: "relative", marginTop: 18 }}
+        >
+          {isOverScore && (
+            <Tag
+              bordered={false}
+              style={{
+                marginInlineEnd: 0,
+                borderRadius: 999,
+                padding: "8px 12px",
+                background: "rgba(239, 68, 68, 0.14)",
+                color: "#fee2e2",
+                fontWeight: 600,
+              }}
+            >
+              <Flex align="center" gap={8}>
+                <AlertCircle size={14} />
+                <span>Total bobot melebihi 100 poin</span>
+              </Flex>
+            </Tag>
+          )}
+
+          <Button
+            danger
+            icon={<Trash2 size={16} />}
+            onClick={onDeleteAll}
+            disabled={totalCount === 0}
+            className="res-btn-full"
+            style={{
+              borderRadius: 14,
+              minHeight: 42,
+            }}
+          >
+            Kosongkan
+          </Button>
+          <Button
+            icon={<FileUp size={16} />}
+            onClick={onImport}
+            className="res-btn-full"
+            style={{
+              borderRadius: 14,
+              minHeight: 42,
+              background: "rgba(255,255,255,0.12)",
+              color: "#fff",
+              borderColor: "rgba(255,255,255,0.24)",
+            }}
+          >
+            Import
+          </Button>
+          <Button
+            type="primary"
+            icon={<Plus size={16} />}
+            onClick={onAdd}
+            className="res-btn-full"
+            style={{
+              borderRadius: 14,
+              minHeight: 42,
+              background: "#fff",
+              color: "#0f172a",
+              border: "none",
+              fontWeight: 600,
+              boxShadow: "0 12px 24px rgba(255,255,255,0.18)",
+            }}
+          >
+            Tambah Soal
+          </Button>
+        </Flex>
+
+        <style>{`
+          @media (max-width: 576px) {
+            .res-btn-full {
+              flex: 1;
+              justify-content: center;
+            }
+          }
+        `}</style>
+      </Card>
+    </MotionDiv>
   );
 };
 

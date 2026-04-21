@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import InfiniteScrollList from "../scroll/InfiniteScrollList";
 import {
   useGetTeachersQuery,
@@ -16,6 +17,8 @@ import {
   Tag,
   Avatar,
   message,
+  Flex,
+  Statistic,
 } from "antd";
 import {
   PlusOutlined,
@@ -28,6 +31,7 @@ import {
 import useDebounced from "../../utils/useDebounced";
 
 const { Title, Text } = Typography;
+const MotionDiv = motion.div;
 
 const TeacherList = () => {
   // === State ===
@@ -55,6 +59,7 @@ const TeacherList = () => {
   const [deleteTeacher, { isLoading: isDeleting }] = useDeleteTeacherMutation();
 
   // === Infinite Scroll Logic ===
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (apiData?.data) {
       if (page === 1) {
@@ -69,10 +74,7 @@ const TeacherList = () => {
       }
     }
   }, [apiData, page]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // === Handlers ===
   const handleLoadMore = () => {
@@ -92,7 +94,7 @@ const TeacherList = () => {
       message.success("Guru berhasil dihapus");
       setPage(1);
       refetch();
-    } catch (error) {
+    } catch {
       message.error("Gagal menghapus data");
     }
   };
@@ -106,7 +108,8 @@ const TeacherList = () => {
 
   // === Render Card Item ===
   const renderItem = (item) => (
-    <Card hoverable style={{ height: "100%" }} bodyStyle={{ padding: "16px" }}>
+    <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.18 }}>
+    <Card hoverable style={{ height: "100%", borderRadius: 20, boxShadow: "0 12px 24px rgba(15,23,42,.06)" }} bodyStyle={{ padding: "16px" }}>
       <div
         style={{
           display: "flex",
@@ -204,24 +207,43 @@ const TeacherList = () => {
         </Space>
       </div>
     </Card>
+    </MotionDiv>
   );
 
   return (
     <>
-      {/* Toolbar */}
+      <Card
+        bordered={false}
+        style={{
+          marginBottom: 16,
+          borderRadius: 22,
+          background:
+            "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(236,253,245,0.98))",
+          boxShadow: "0 16px 32px rgba(15, 23, 42, 0.05)",
+        }}
+        styles={{ body: { padding: 18 } }}
+      >
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          marginBottom: 16,
-          gap: 10,
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
+        <Flex gap={12} wrap="wrap">
+          <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "12px 14px" } }}>
+            <Statistic title="Total Guru" value={apiData?.totalData || listData.length || 0} />
+          </Card>
+        </Flex>
         <Input
           placeholder="Cari nama atau NIP..."
           prefix={<SearchOutlined />}
           allowClear
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           style={{ maxWidth: 300 }}
         />
         <Button
@@ -232,6 +254,7 @@ const TeacherList = () => {
           Tambah Guru
         </Button>
       </div>
+      </Card>
 
       {/* Infinite Grid List */}
       <InfiniteScrollList
