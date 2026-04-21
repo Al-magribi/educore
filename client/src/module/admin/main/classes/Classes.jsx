@@ -172,13 +172,13 @@ const Classes = ({ screens }) => {
     <>
       <MotionDiv
         variants={containerVariants}
-        initial="hidden"
-        animate="visible"
+        initial='hidden'
+        animate='visible'
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
         <MotionDiv variants={itemVariants}>
           <Card
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: 24,
               overflow: "hidden",
@@ -189,7 +189,7 @@ const Classes = ({ screens }) => {
             styles={{ body: { padding: isMobile ? 18 : 24 } }}
           >
             <Flex
-              justify="space-between"
+              justify='space-between'
               align={activeScreens.md ? "center" : "stretch"}
               vertical={!activeScreens.md}
               gap={16}
@@ -205,27 +205,26 @@ const Classes = ({ screens }) => {
                   MANAJEMEN KELAS
                 </Text>
                 <Title level={4} style={{ margin: "6px 0 4px" }}>
-                  Direktori kelas tampil lebih modern dan mudah dipindai.
+                  Direktori Kelas
                 </Title>
-                <Text type="secondary">
-                  Kelola daftar kelas, tambah data baru, dan upload siswa global
-                  dari panel yang konsisten di semua ukuran layar.
+                <Text type='secondary'>
+                  Kelola daftar kelas, tambah data baru, dan upload siswa.
                 </Text>
               </div>
 
-              <Flex gap={10} wrap="wrap">
+              <Flex gap={10} wrap='wrap'>
                 <Button
                   icon={<UploadIcon size={16} />}
                   onClick={() => setIsUploadDrawerOpen(true)}
-                  size="large"
+                  size='large'
                 >
                   Upload Siswa
                 </Button>
                 <Button
-                  type="primary"
+                  type='primary'
                   icon={<Plus size={16} />}
                   onClick={handleAddClass}
-                  size="large"
+                  size='large'
                 >
                   Tambah Kelas
                 </Button>
@@ -235,7 +234,7 @@ const Classes = ({ screens }) => {
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
-          <Flex gap={16} wrap="wrap">
+          <Flex gap={16} wrap='wrap'>
             {summaryCards.map((item) => (
               <MotionDiv
                 key={item.key}
@@ -255,7 +254,7 @@ const Classes = ({ screens }) => {
                   }}
                   styles={{ body: { padding: "18px 20px" } }}
                 >
-                  <Flex justify="space-between" align="start">
+                  <Flex justify='space-between' align='start'>
                     <Statistic title={item.title} value={item.value} />
                     <div
                       style={{
@@ -280,7 +279,7 @@ const Classes = ({ screens }) => {
         <MotionDiv variants={itemVariants}>
           <Card
             hoverable
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: 22,
               boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
@@ -288,7 +287,7 @@ const Classes = ({ screens }) => {
             styles={{ body: { padding: isMobile ? 16 : 20 } }}
           >
             <Flex
-              justify="space-between"
+              justify='space-between'
               align={activeScreens.md ? "center" : "stretch"}
               vertical={!activeScreens.md}
               gap={16}
@@ -297,7 +296,7 @@ const Classes = ({ screens }) => {
                 <Title level={4} style={{ margin: 0 }}>
                   Pencarian & Aksi Cepat
                 </Title>
-                <Text type="secondary">
+                <Text type='secondary'>
                   Gunakan pencarian untuk mempersempit daftar kelas secara
                   langsung.
                 </Text>
@@ -309,19 +308,19 @@ const Classes = ({ screens }) => {
                 style={{ width: !activeScreens.md ? "100%" : "auto" }}
               >
                 <Input
-                  prefix={<Search size={16} color="rgba(0,0,0,.25)" />}
-                  placeholder="Cari nama kelas..."
+                  prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
+                  placeholder='Cari nama kelas...'
                   onChange={handleSearch}
                   style={{ width: !activeScreens.md ? "100%" : 320 }}
                   allowClear
-                  size="large"
+                  size='large'
                 />
 
                 <Button
-                  type="primary"
+                  type='primary'
                   icon={<Plus size={16} />}
                   onClick={handleAddClass}
-                  size="large"
+                  size='large'
                   style={{ display: activeScreens.md ? "none" : "inline-flex" }}
                 >
                   Tambah Kelas
@@ -337,7 +336,9 @@ const Classes = ({ screens }) => {
             loading={isFetching}
             hasMore={hasMore}
             onLoadMore={handleLoadMore}
-            emptyText={search ? "Kelas tidak ditemukan" : "Belum ada data kelas"}
+            emptyText={
+              search ? "Kelas tidak ditemukan" : "Belum ada data kelas"
+            }
             grid={{
               gutter: [16, 16],
               xs: 24,

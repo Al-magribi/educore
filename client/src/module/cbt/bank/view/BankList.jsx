@@ -46,6 +46,7 @@ const QuestionsList = lazy(() => import("./QuestionsList"));
 const { Text, Title } = Typography;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const containerVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -225,7 +226,7 @@ const BankList = () => {
     const color = typeColors[item.type] || "default";
 
     return (
-      <motion.div
+      <MotionDiv
         variants={itemVariants}
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
@@ -335,7 +336,7 @@ const BankList = () => {
                 </Title>
               </Tooltip>
               <Tag
-                bordered={false}
+                variant='filled'
                 style={{
                   margin: 0,
                   paddingInline: 10,
@@ -375,7 +376,7 @@ const BankList = () => {
             </div>
           </Flex>
         </Card>
-      </motion.div>
+      </MotionDiv>
     );
   };
 
@@ -392,47 +393,85 @@ const BankList = () => {
           <QuestionsList />
         </Suspense>
       ) : (
-        <motion.div
+        <MotionDiv
           variants={containerVariants}
           initial='hidden'
           animate='show'
           style={{ width: "100%" }}
         >
-          <motion.div variants={itemVariants}>
+          <MotionDiv variants={itemVariants}>
             <Card
               style={{
                 marginBottom: 20,
                 borderRadius: 28,
                 overflow: "hidden",
                 border: "none",
+                position: "relative",
                 background:
-                  "linear-gradient(135deg, #0f172a 0%, #1d4ed8 48%, #38bdf8 100%)",
-                boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
+                  "radial-gradient(circle at top left, rgba(56,189,248,0.28), transparent 28%), radial-gradient(circle at right center, rgba(255,255,255,0.16), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
+                boxShadow: "0 26px 54px rgba(15, 23, 42, 0.20)",
               }}
               styles={{ body: { padding: isMobile ? 18 : 24 } }}
             >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
+                  pointerEvents: "none",
+                }}
+              />
               <Flex
                 vertical={isMobile}
                 justify='space-between'
                 align={isMobile ? "stretch" : "center"}
                 gap={18}
+                style={{ position: "relative" }}
               >
-                <div style={{ color: "#fff", maxWidth: 640 }}>
-                  <Text
-                    style={{
-                      color: "rgba(255,255,255,0.78)",
-                      display: "block",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Manajemen bank soal
-                  </Text>
+                <div style={{ color: "#fff", maxWidth: 720, flex: 1 }}>
+                  <Flex align='center' gap={10} wrap='wrap' style={{ marginBottom: 10 }}>
+                    <Text
+                      style={{
+                        color: "rgba(255,255,255,0.86)",
+                        fontWeight: 700,
+                        letterSpacing: 0.4,
+                      }}
+                    >
+                      MANAJEMEN BANK SOAL
+                    </Text>
+                    <Flex
+                      align='center'
+                      gap={6}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.12)",
+                        border: "1px solid rgba(255,255,255,0.16)",
+                        color: "#e0f2fe",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <LibraryBig size={14} />
+                      <span>CBT Workspace</span>
+                    </Flex>
+                  </Flex>
                   <Title
                     level={isMobile ? 4 : 3}
-                    style={{ color: "#fff", margin: 0 }}
+                    style={{ color: "#fff", margin: "0 0 6px" }}
                   >
-                    Kelola Bank Soal
+                    Kelola bank soal lebih cepat, rapi, dan siap dipakai.
                   </Title>
+                  <Text
+                    style={{
+                      color: "rgba(241,245,249,0.84)",
+                      display: "block",
+                      maxWidth: 620,
+                    }}
+                  >
+                    Atur bank soal per guru, mata pelajaran, dan tipe ujian dari
+                    satu panel yang lebih fokus untuk kebutuhan operasional CBT.
+                  </Text>
                 </div>
 
                 <Flex
@@ -453,6 +492,7 @@ const BankList = () => {
                       color: "#0f172a",
                       border: "none",
                       fontWeight: 600,
+                      boxShadow: "0 12px 24px rgba(255,255,255,0.18)",
                     }}
                   >
                     Bank Soal
@@ -476,11 +516,11 @@ const BankList = () => {
                 </Flex>
               </Flex>
             </Card>
-          </motion.div>
+          </MotionDiv>
 
           <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
             {summaryCards.map((item) => (
-              <motion.div
+              <MotionDiv
                 key={item.key}
                 variants={itemVariants}
                 style={{
@@ -518,35 +558,38 @@ const BankList = () => {
                     </div>
                   </Flex>
                 </Card>
-              </motion.div>
+              </MotionDiv>
             ))}
           </Flex>
 
-          <motion.div variants={itemVariants}>
-            <Card
-              style={{
-                marginBottom: 18,
-                borderRadius: 24,
+        <MotionDiv variants={itemVariants}>
+          <Card
+            style={{
+              marginBottom: 18,
+              borderRadius: 24,
                 border: "1px solid #eef2ff",
                 boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
               }}
               styles={{ body: { padding: screens.md ? 20 : 16 } }}
             >
               <Flex vertical gap={14}>
-                <Flex
-                  vertical={isMobile}
-                  justify='space-between'
-                  align={isMobile ? "stretch" : "center"}
-                  gap={12}
-                >
-                  <div>
-                    <Title level={5} style={{ margin: 0 }}>
-                      Daftar Bank Soal
-                    </Title>
-                    <Text type='secondary' style={{ fontSize: 12 }}>
-                      Menampilkan {loadedBanks} dari {totalBanks} data tersedia
-                    </Text>
-                  </div>
+              <Flex
+                vertical={isMobile}
+                justify='space-between'
+                align={isMobile ? "stretch" : "center"}
+                gap={12}
+              >
+                <div>
+                  <Title level={5} style={{ margin: 0 }}>
+                    Daftar Bank Soal
+                  </Title>
+                  <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                    Menampilkan {loadedBanks} dari {totalBanks} data tersedia
+                  </Text>
+                  <Text type='secondary' style={{ fontSize: 12 }}>
+                    Gunakan pencarian untuk mempersempit hasil berdasarkan judul, mapel, atau penyusun.
+                  </Text>
+                </div>
 
                   <Input
                     prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
@@ -560,9 +603,9 @@ const BankList = () => {
                 </Flex>
               </Flex>
             </Card>
-          </motion.div>
+          </MotionDiv>
 
-          <motion.div variants={itemVariants}>
+          <MotionDiv variants={itemVariants}>
             <InfiniteScrollList
               data={allData}
               loading={isFetching}
@@ -580,34 +623,36 @@ const BankList = () => {
               }}
               height={isMobile ? "calc(100vh - 300px)" : "calc(100vh - 360px)"}
             />
-          </motion.div>
-        </motion.div>
+          </MotionDiv>
+        </MotionDiv>
       )}
 
       <Modal
-        title={
-          <Flex align='center' gap={8}>
-            <div
-              style={{
-                background: token.colorPrimaryBg,
-                padding: 6,
-                borderRadius: 6,
-                display: "flex",
-              }}
-            >
-              <FileText size={18} color={token.colorPrimary} />
-            </div>
-            <Text strong style={{ fontSize: 16 }}>
-              {editingItem ? "Edit Bank Soal" : "Buat Bank Soal Baru"}
-            </Text>
-          </Flex>
-        }
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
         footer={null}
         destroyOnHidden
         centered
-        width={500}
+        width={isMobile ? "calc(100vw - 24px)" : 620}
+        closable={false}
+        styles={{
+          content: {
+            padding: 0,
+            overflow: "hidden",
+            borderRadius: 28,
+            boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          },
+          body: { padding: 0 },
+        }}
+        modalRender={(modalNode) => (
+          <MotionDiv
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.24, ease: "easeOut" }}
+          >
+            {modalNode}
+          </MotionDiv>
+        )}
       >
         <BankForm
           initialValues={editingItem}
