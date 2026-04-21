@@ -1,6 +1,7 @@
 import { cloneElement, useState } from "react";
 import {
   Button,
+  Card,
   Dropdown,
   Modal,
   Space,
@@ -9,8 +10,9 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { motion } from "framer-motion";
 import * as XLSX from "xlsx";
-import { ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Pencil, Trash2 } from "lucide-react";
 
 import {
   currencyFormatter,
@@ -19,6 +21,7 @@ import {
 } from "../constants";
 
 const { Text } = Typography;
+const MotionDiv = motion.div;
 
 const normalizeSortValue = (value = "") =>
   String(value || "")
@@ -125,7 +128,7 @@ const MonthlyPaymentTable = ({
       key: "student_name",
       ellipsis: true,
       render: (_, record) => (
-        <Space vertical size={0}>
+        <Space direction='vertical' size={0}>
           <Text strong>{record.student_name}</Text>
           <Text
             type='secondary'
@@ -136,14 +139,12 @@ const MonthlyPaymentTable = ({
         </Space>
       ),
     },
-
     {
       title: "Tagihan",
       dataIndex: "billing_period_label",
       key: "billing_period_label",
       ellipsis: true,
     },
-
     {
       title: "Nominal",
       dataIndex: "amount",
@@ -155,7 +156,12 @@ const MonthlyPaymentTable = ({
       dataIndex: "status",
       key: "status",
       render: (value) => (
-        <Tag color={statusColorMap[value]}>{statusLabelMap[value]}</Tag>
+        <Tag
+          color={statusColorMap[value]}
+          style={{ borderRadius: 999, fontWeight: 600 }}
+        >
+          {statusLabelMap[value]}
+        </Tag>
       ),
     },
     {
@@ -213,77 +219,65 @@ const MonthlyPaymentTable = ({
   const currentData =
     activeStatusTab === "paid" ? paidPayments : unpaidPayments;
 
+  const renderTable = (emptyText) => (
+    <Card
+      variant='borderless'
+      style={{
+        borderRadius: 22,
+        background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+        border: "1px solid rgba(148,163,184,0.14)",
+        boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
+      }}
+    >
+      <Table
+        rowKey={(record) =>
+          record.id || `${record.student_id}-${record.periode_id}-${record.bill_month}`
+        }
+        columns={columns}
+        dataSource={currentData}
+        loading={loading}
+        title={() => (
+          <Space
+            style={{ width: "100%", justifyContent: "space-between" }}
+            wrap
+          >
+            <Text strong>
+              Data pembayaran SPP terurut berdasarkan tingkat, kelas, dan nama.
+            </Text>
+            <Button icon={<Download size={16} />} onClick={handleExportExcel}>
+              Download Excel
+            </Button>
+          </Space>
+        )}
+        pagination={{ pageSize: 10 }}
+        locale={{ emptyText }}
+      />
+    </Card>
+  );
+
   return (
-    <Tabs
-      activeKey={activeStatusTab}
-      onChange={setActiveStatusTab}
-      items={[
-        {
-          key: "unpaid",
-          label: `Belum Lunas (${unpaidPayments.length})`,
-          children: (
-            <Table
-              rowKey={(record) =>
-                record.id ||
-                `${record.student_id}-${record.periode_id}-${record.bill_month}`
-              }
-              columns={columns}
-              dataSource={currentData}
-              loading={loading}
-              title={() => (
-                <Space
-                  style={{ width: "100%", justifyContent: "space-between" }}
-                  wrap
-                >
-                  <Text strong>
-                    Data pembayaran SPP terurut berdasarkan tingkat, kelas, dan
-                    nama.
-                  </Text>
-                  <Button onClick={handleExportExcel}>Download Excel</Button>
-                </Space>
-              )}
-              pagination={{ pageSize: 10 }}
-              locale={{
-                emptyText:
-                  "Semua siswa pada filter ini sudah melunasi SPP bulan yang dipilih.",
-              }}
-            />
-          ),
-        },
-        {
-          key: "paid",
-          label: `Lunas (${paidPayments.length})`,
-          children: (
-            <Table
-              rowKey={(record) =>
-                record.id ||
-                `${record.student_id}-${record.periode_id}-${record.bill_month}`
-              }
-              columns={columns}
-              dataSource={currentData}
-              loading={loading}
-              title={() => (
-                <Space
-                  style={{ width: "100%", justifyContent: "space-between" }}
-                  wrap
-                >
-                  <Text strong>
-                    Data pembayaran SPP terurut berdasarkan tingkat, kelas, dan
-                    nama.
-                  </Text>
-                  <Button onClick={handleExportExcel}>Download Excel</Button>
-                </Space>
-              )}
-              pagination={{ pageSize: 10 }}
-              locale={{
-                emptyText:
-                  "Belum ada siswa yang tercatat lunas pada bulan yang dipilih.",
-              }}
-            />
-          ),
-        },
-      ]}
-    />
+    <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      <Tabs
+        activeKey={activeStatusTab}
+        onChange={setActiveStatusTab}
+        items={[
+          {
+            key: "unpaid",
+            label: `Belum Lunas (${unpaidPayments.length})`,
+            children: renderTable(
+              "Semua siswa pada filter ini sudah melunasi SPP bulan yang dipilih.",
+            ),
+          },
+          {
+            key: "paid",
+            label: `Lunas (${paidPayments.length})`,
+            children: renderTable(
+              "Belum ada siswa yang tercatat lunas pada bulan yang dipilih.",
+            ),
+          },
+        ]}
+      />
+    </MotionDiv>
   );
 };
 

@@ -1,14 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import {
-  Card,
-  Flex,
-  Form,
-  Space,
-  Tabs,
-  Typography,
-  message,
-} from "antd";
+import { Card, Form, Space, Tabs, Typography, message } from "antd";
+import { motion } from "framer-motion";
+import { CreditCard, ReceiptText, Sparkles } from "lucide-react";
 
 import { LoadApp } from "../../../../components";
 import {
@@ -23,12 +17,39 @@ import {
 import { cardStyle } from "./constants";
 import OthersChargesTable from "./components/OthersChargesTable";
 import OthersFilters from "./components/OthersFilters";
+import OthersHeader from "./components/OthersHeader";
 import OthersReportPanel from "./components/OthersReportPanel";
 import OthersSummaryCards from "./components/OthersSummaryCards";
 import OthersTypeModal from "./components/OthersTypeModal";
 import OthersTypesTable from "./components/OthersTypesTable";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
+const MotionDiv = motion.div;
+
+const containerVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.35,
+      ease: [0.22, 1, 0.36, 1],
+      staggerChildren: 0.07,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.3,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
 
 const Others = () => {
   const { user } = useSelector((state) => state.auth);
@@ -84,15 +105,22 @@ const Others = () => {
 
   const options = optionsResponse?.data || {};
   const scopedOptions = scopedOptionsResponse?.data || {};
-  const homebases = options.homebases || [];
-  const periodes = options.periodes || [];
-  const grades = options.grades || [];
-  const classes = scopedOptions.classes || [];
-  const students = scopedOptions.students || [];
+  const homebases = useMemo(() => options.homebases || [], [options.homebases]);
+  const periodes = useMemo(() => options.periodes || [], [options.periodes]);
+  const grades = useMemo(() => options.grades || [], [options.grades]);
+  const classes = useMemo(
+    () => scopedOptions.classes || [],
+    [scopedOptions.classes],
+  );
+  const students = useMemo(
+    () => scopedOptions.students || [],
+    [scopedOptions.students],
+  );
   const types = typeResponse?.data || [];
   const charges = chargeResponse?.data || [];
   const summary = chargeResponse?.summary || {};
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!filters.homebase_id && options.selected_homebase_id) {
       setFilters((previous) => ({
@@ -140,10 +168,15 @@ const Others = () => {
   }, [filters.student_id, students]);
 
   useEffect(() => {
-    if (typeModalOpen && homebases.length === 1 && !typeForm.getFieldValue("homebase_id")) {
+    if (
+      typeModalOpen &&
+      homebases.length === 1 &&
+      !typeForm.getFieldValue("homebase_id")
+    ) {
       typeForm.setFieldValue("homebase_id", homebases[0]?.id);
     }
   }, [homebases, typeForm, typeModalOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const openTypeModal = (record = null) => {
     setEditingType(record);
@@ -233,38 +266,58 @@ const Others = () => {
     return <LoadApp />;
   }
 
+  const activeHomebaseName =
+    homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
+      ?.name ||
+    user?.homebase_name ||
+    user?.homebase_id ||
+    "-";
+
+  const createTabLabel = (label, icon, count, caption) => (
+    <Space size={10}>
+      <span
+        style={{
+          width: 34,
+          height: 34,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
+          color: "#0369a1",
+          border: "1px solid rgba(148,163,184,0.14)",
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </span>
+      <div>
+        <div style={{ fontWeight: 600, lineHeight: 1.2 }}>
+          {label} {count !== undefined ? `(${count})` : ""}
+        </div>
+        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
+          {caption}
+        </div>
+      </div>
+    </Space>
+  );
+
   return (
-    <div>
-      <Space vertical size={24} style={{ width: "100%" }}>
-        <div>
-          <Card style={cardStyle} styles={{ body: { padding: 20 } }}>
-            <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
-              <div>
-                <Text
-                  type='secondary'
-                  style={{
-                    display: "block",
-                    fontSize: 12,
-                    letterSpacing: 0.4,
-                    textTransform: "uppercase",
-                    marginBottom: 4,
-                  }}
-                >
-                  Finance / Pembayaran Lainnya
-                </Text>
-                <Title level={4} style={{ margin: 0 }}>
-                  Pengelolaan Tagihan Non-SPP
-                </Title>
-              </div>
-            </Flex>
-          </Card>
-        </div>
+    <MotionDiv
+      variants={containerVariants}
+      initial='hidden'
+      animate='visible'
+      style={{ width: "100%" }}
+    >
+      <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
+        <MotionDiv variants={itemVariants}>
+          <OthersHeader onOpenType={() => openTypeModal()} />
+        </MotionDiv>
 
-        <div>
+        <MotionDiv variants={itemVariants}>
           <OthersSummaryCards summary={summary} />
-        </div>
+        </MotionDiv>
 
-        <div>
+        <MotionDiv variants={itemVariants}>
           <OthersFilters
             filters={filters}
             setFilters={setFilters}
@@ -275,15 +328,29 @@ const Others = () => {
             students={students}
             types={types}
           />
-        </div>
+        </MotionDiv>
 
-        <div>
-          <Card style={cardStyle} styles={{ body: { paddingTop: 12 } }}>
+        <MotionDiv variants={itemVariants}>
+          <Card
+            style={{
+              ...cardStyle,
+              borderRadius: 28,
+              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.07)",
+            }}
+            styles={{ body: { paddingTop: 12 } }}
+          >
             <Tabs
+              tabBarGutter={14}
+              tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
               items={[
                 {
                   key: "types",
-                  label: `Jenis Biaya (${types.length})`,
+                  label: createTabLabel(
+                    "Jenis Biaya",
+                    <ReceiptText size={16} />,
+                    types.length,
+                    "Master biaya non-SPP",
+                  ),
                   children: (
                     <OthersTypesTable
                       types={types}
@@ -297,9 +364,15 @@ const Others = () => {
                 },
                 {
                   key: "report",
-                  label: "Laporan Pembayaran",
+                  label: createTabLabel(
+                    "Laporan Pembayaran",
+                    <CreditCard size={16} />,
+                    charges.length,
+                    "Ringkasan dan daftar tagihan",
+                  ),
                   children: (
                     <Tabs
+                      tabBarGutter={12}
                       items={[
                         {
                           key: "summary",
@@ -325,20 +398,28 @@ const Others = () => {
               ]}
             />
           </Card>
-        </div>
+        </MotionDiv>
 
-        <div style={{ marginTop: 12 }}>
-          <Text type='secondary'>
-            Satuan aktif:{" "}
-            {homebases.find(
-              (item) => Number(item.id) === Number(filters.homebase_id),
-            )?.name ||
-              user?.homebase_name ||
-              user?.homebase_id ||
-              "-"}
-            .
-          </Text>
-        </div>
+        <MotionDiv variants={itemVariants}>
+          <Card
+            variant='borderless'
+            style={{
+              borderRadius: 20,
+              border: "1px solid rgba(148,163,184,0.14)",
+              background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+            }}
+            styles={{ body: { padding: "14px 16px" } }}
+          >
+            <Space align='center' size={8}>
+              <Sparkles size={14} color='#64748b' />
+              <Text type='secondary'>
+                Satuan aktif: {activeHomebaseName}. Gunakan filter untuk
+                memantau jenis biaya, status tagihan, dan realisasi pembayaran
+                non-SPP dengan lebih terarah.
+              </Text>
+            </Space>
+          </Card>
+        </MotionDiv>
       </Space>
 
       <OthersTypeModal
@@ -354,7 +435,7 @@ const Others = () => {
         homebases={homebases}
         grades={grades}
       />
-    </div>
+    </MotionDiv>
   );
 };
 

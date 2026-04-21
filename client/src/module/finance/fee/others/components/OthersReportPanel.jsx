@@ -1,8 +1,34 @@
 import { Card, Col, Row, Table, Tag, Typography } from "antd";
+import { motion } from "framer-motion";
+import { AlertTriangle, BarChart3, CircleDollarSign, Target } from "lucide-react";
 
 import { cardStyle, currencyFormatter } from "../constants";
 
 const { Text } = Typography;
+const MotionDiv = motion.div;
+
+const reportCardMeta = {
+  target: {
+    icon: <Target size={18} />,
+    bg: "linear-gradient(135deg, #dbeafe, #eff6ff)",
+    color: "#2563eb",
+  },
+  realization: {
+    icon: <CircleDollarSign size={18} />,
+    bg: "linear-gradient(135deg, #dcfce7, #ecfdf5)",
+    color: "#15803d",
+  },
+  remaining: {
+    icon: <BarChart3 size={18} />,
+    bg: "linear-gradient(135deg, #ede9fe, #f5f3ff)",
+    color: "#7c3aed",
+  },
+  paid: {
+    icon: <AlertTriangle size={18} />,
+    bg: "linear-gradient(135deg, #fef3c7, #fff7ed)",
+    color: "#d97706",
+  },
+};
 
 const OthersReportPanel = ({ charges }) => {
   const reportMap = new Map();
@@ -60,6 +86,29 @@ const OthersReportPanel = ({ charges }) => {
   const totalRemaining = Math.max(totalTarget - totalRealization, 0);
   const totalPaidCharges = charges.filter((item) => item.status === "paid").length;
 
+  const summaryItems = [
+    {
+      key: "target",
+      label: "Total Target",
+      value: currencyFormatter.format(totalTarget),
+    },
+    {
+      key: "realization",
+      label: "Total Realisasi",
+      value: currencyFormatter.format(totalRealization),
+    },
+    {
+      key: "remaining",
+      label: "Sisa Tagihan",
+      value: currencyFormatter.format(totalRemaining),
+    },
+    {
+      key: "paid",
+      label: "Tagihan Lunas",
+      value: totalPaidCharges,
+    },
+  ];
+
   const columns = [
     {
       title: "Jenis Biaya / Target",
@@ -97,38 +146,73 @@ const OthersReportPanel = ({ charges }) => {
       title: "Capaian",
       dataIndex: "achievementMeta",
       key: "achievementMeta",
-      render: (value) => <Tag color={value.color}>{value.label}</Tag>,
+      render: (value) => (
+        <Tag color={value.color} style={{ borderRadius: 999, fontWeight: 600 }}>
+          {value.label}
+        </Tag>
+      ),
     },
   ];
 
   return (
     <Row gutter={[16, 16]}>
-      <Col xs={24} md={12} xl={6}>
-        <Card style={cardStyle}>
-          <Text type='secondary'>Total Target</Text>
-          <div>{currencyFormatter.format(totalTarget)}</div>
-        </Card>
-      </Col>
-      <Col xs={24} md={12} xl={6}>
-        <Card style={cardStyle}>
-          <Text type='secondary'>Total Realisasi</Text>
-          <div>{currencyFormatter.format(totalRealization)}</div>
-        </Card>
-      </Col>
-      <Col xs={24} md={12} xl={6}>
-        <Card style={cardStyle}>
-          <Text type='secondary'>Sisa Tagihan</Text>
-          <div>{currencyFormatter.format(totalRemaining)}</div>
-        </Card>
-      </Col>
-      <Col xs={24} md={12} xl={6}>
-        <Card style={cardStyle}>
-          <Text type='secondary'>Tagihan Lunas</Text>
-          <div>{totalPaidCharges}</div>
-        </Card>
-      </Col>
+      {summaryItems.map((item, index) => {
+        const meta = reportCardMeta[item.key];
+        return (
+          <Col xs={24} md={12} xl={6} key={item.key}>
+            <MotionDiv
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              whileHover={{ y: -4 }}
+            >
+              <Card
+                style={{
+                  ...cardStyle,
+                  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 16,
+                    background: meta.bg,
+                    color: meta.color,
+                    marginBottom: 12,
+                  }}
+                >
+                  {meta.icon}
+                </div>
+                <Text type='secondary'>{item.label}</Text>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {item.value}
+                </div>
+              </Card>
+            </MotionDiv>
+          </Col>
+        );
+      })}
       <Col span={24}>
-        <Card style={cardStyle} title='Laporan Pembayaran per Jenis Biaya'>
+        <Card
+          style={cardStyle}
+          title='Laporan Pembayaran per Jenis Biaya'
+          extra={
+            <Tag color='blue' style={{ borderRadius: 999, fontWeight: 600 }}>
+              {dataSource.length} jenis
+            </Tag>
+          }
+        >
           <Table
             rowKey='key'
             columns={columns}

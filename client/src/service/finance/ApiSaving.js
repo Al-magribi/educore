@@ -18,7 +18,7 @@ export const ApiSaving = createApi({
   tagTypes: ["SavingOption", "SavingStudent", "SavingTransaction", "MySaving"],
   endpoints: (builder) => ({
     getMySavingOverview: builder.query({
-      query: () => "/saving/me",
+      query: (params) => `/saving/me?${buildQueryString(params)}`,
       providesTags: ["MySaving"],
     }),
 

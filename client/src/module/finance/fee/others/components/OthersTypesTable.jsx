@@ -1,9 +1,11 @@
-import { Button, Dropdown, Flex, Modal, Space, Table, Tag, Typography } from "antd";
-import { MoreOutlined } from "@ant-design/icons";
+import { Button, Card, Dropdown, Flex, Modal, Space, Table, Tag, Typography } from "antd";
+import { motion } from "framer-motion";
+import { MoreHorizontal, Plus } from "lucide-react";
 
 import { currencyFormatter } from "../constants";
 
 const { Text } = Typography;
+const MotionDiv = motion.div;
 
 const OthersTypesTable = ({
   types,
@@ -51,7 +53,10 @@ const OthersTypesTable = ({
       key: "is_active",
       width: 120,
       render: (value) => (
-        <Tag color={value ? "green" : "red"}>
+        <Tag
+          color={value ? "green" : "red"}
+          style={{ borderRadius: 999, fontWeight: 600 }}
+        >
           {value ? "Aktif" : "Nonaktif"}
         </Tag>
       ),
@@ -101,7 +106,7 @@ const OthersTypesTable = ({
         return (
           <Dropdown.Button
             type='primary'
-            icon={<MoreOutlined />}
+            icon={<MoreHorizontal size={16} />}
             menu={{
               items: menuItems,
               onClick: handleMenuClick,
@@ -116,23 +121,41 @@ const OthersTypesTable = ({
   ];
 
   return (
-    <Space direction='vertical' size={16} style={{ width: "100%" }}>
-      <Flex justify='flex-end'>
-        <Button type='primary' onClick={onAddType}>
-          Atur Jenis Biaya
-        </Button>
-      </Flex>
+    <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      <Card
+        variant='borderless'
+        style={{
+          borderRadius: 22,
+          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          border: "1px solid rgba(148,163,184,0.14)",
+          boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
+        }}
+      >
+        <Flex justify='space-between' align='center' wrap='wrap' gap={12} style={{ marginBottom: 16 }}>
+          <div>
+            <Text strong style={{ display: "block", color: "#0f172a" }}>
+              Master Jenis Biaya
+            </Text>
+            <Text type='secondary'>
+              Kelola daftar biaya non-SPP yang dipakai pada satuan aktif.
+            </Text>
+          </div>
+          <Button type='primary' icon={<Plus size={16} />} onClick={onAddType}>
+            Atur Jenis Biaya
+          </Button>
+        </Flex>
 
-      <Table
-        rowKey='type_id'
-        columns={columns}
-        dataSource={types}
-        loading={loading}
-        pagination={{ pageSize: 8 }}
-        scroll={{ x: 760 }}
-        locale={{ emptyText: "Belum ada jenis biaya tambahan." }}
-      />
-    </Space>
+        <Table
+          rowKey='type_id'
+          columns={columns}
+          dataSource={types}
+          loading={loading}
+          pagination={{ pageSize: 8 }}
+          scroll={{ x: 760 }}
+          locale={{ emptyText: "Belum ada jenis biaya tambahan." }}
+        />
+      </Card>
+    </MotionDiv>
   );
 };
 

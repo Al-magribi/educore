@@ -1,8 +1,10 @@
 import { Card, Descriptions, Empty, Flex, Space, Tag, Typography } from "antd";
+import { motion } from "framer-motion";
 
 import { currencyFormatter } from "./transactionFormShared.jsx";
 
 const { Text } = Typography;
+const MotionDiv = motion.div;
 
 const TransactionStepConfirm = ({
   student,
@@ -43,7 +45,11 @@ const TransactionStepConfirm = ({
               <Text strong>SPP</Text>
               <Space wrap>
                 {monthlySelection.map((month) => (
-                  <Tag key={month} color='blue'>
+                  <Tag
+                    key={month}
+                    color='blue'
+                    style={{ borderRadius: 999, fontWeight: 600 }}
+                  >
                     {monthMap.get(month) || `Bulan ${month}`}
                   </Tag>
                 ))}
@@ -57,22 +63,28 @@ const TransactionStepConfirm = ({
           {selectedOtherPayments.length > 0 ? (
             <Flex vertical gap={8}>
               <Text strong>Pembayaran Lainnya</Text>
-              {selectedOtherPayments.map((item) => (
-                <Card
+              {selectedOtherPayments.map((item, index) => (
+                <MotionDiv
                   key={`${item.type_id}-${item.charge_id || "new"}`}
-                  size='small'
-                  style={{ borderRadius: 14 }}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
                 >
-                  <Flex justify='space-between' align='start' gap={12}>
-                    <Space direction='vertical' size={2}>
-                      <Text strong>{item.type_name}</Text>
-                      <Text type='secondary'>
-                        {item.description || "Pembayaran lainnya"}
-                      </Text>
-                    </Space>
-                    <Text strong>{currencyFormatter.format(item.amount_paid)}</Text>
-                  </Flex>
-                </Card>
+                  <Card
+                    size='small'
+                    style={{ borderRadius: 14, background: "#f8fafc" }}
+                  >
+                    <Flex justify='space-between' align='start' gap={12}>
+                      <Space direction='vertical' size={2}>
+                        <Text strong>{item.type_name}</Text>
+                        <Text type='secondary'>
+                          {item.description || "Pembayaran lainnya"}
+                        </Text>
+                      </Space>
+                      <Text strong>{currencyFormatter.format(item.amount_paid)}</Text>
+                    </Flex>
+                  </Card>
+                </MotionDiv>
               ))}
             </Flex>
           ) : null}
@@ -98,9 +110,7 @@ const TransactionStepConfirm = ({
             </Text>
           </Flex>
           <Flex justify='space-between'>
-            <Text style={{ color: "rgba(255,255,255,0.7)" }}>
-              Total Lainnya
-            </Text>
+            <Text style={{ color: "rgba(255,255,255,0.7)" }}>Total Lainnya</Text>
             <Text strong style={{ color: "#ffffff" }}>
               {currencyFormatter.format(selectedOtherTotal)}
             </Text>

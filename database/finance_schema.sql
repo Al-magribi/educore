@@ -3,6 +3,18 @@ CREATE SCHEMA IF NOT EXISTS finance;
 
 SET search_path TO finance, public;
 
+CREATE TABLE IF NOT EXISTS public.u_parent_students (
+    id SERIAL PRIMARY KEY,
+    parent_user_id INT NOT NULL REFERENCES public.u_users(id) ON DELETE CASCADE,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    relationship VARCHAR(50),
+    is_primary BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (parent_user_id, student_id)
+);
+
 -- =================================================================================
 -- TABEL AKTIF: Billing & Pembayaran Final
 -- Dipakai untuk SPP, pembayaran lainnya, pembayaran manual, dan Midtrans.

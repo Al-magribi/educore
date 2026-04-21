@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import dayjs from "dayjs";
 import { Form, Space, message } from "antd";
+import { motion } from "framer-motion";
 
 import { LoadApp } from "../../../../components";
 import {
@@ -17,6 +18,33 @@ import {
   buildOtherPaymentValue,
   getOtherPaymentSelectionKey,
 } from "./components/transactionFormShared.jsx";
+
+const MotionDiv = motion.div;
+
+const containerVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.35,
+      ease: [0.22, 1, 0.36, 1],
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.28,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
 
 const resetStudentContextValue = {
   student_search: "",
@@ -60,7 +88,10 @@ const Transaction = () => {
   const studentId = Form.useWatch("student_id", form);
   const studentSearch = Form.useWatch("student_search", form);
   const monthlySelection = Form.useWatch("bill_months", form) || [];
-  const otherPaymentSelections = otherPaymentSelectionsState || {};
+  const otherPaymentSelections = useMemo(
+    () => otherPaymentSelectionsState || {},
+    [otherPaymentSelectionsState],
+  );
 
   const effectiveTransactionFilters = useMemo(
     () => ({
@@ -456,104 +487,113 @@ const Transaction = () => {
   }
 
   return (
-    <Space vertical size={24} style={{ width: "100%" }}>
-      <TransactionList
-        user={user}
-        homebases={homebases}
-        transactions={transactions}
-        transactionSummary={transactionSummary}
-        transactionFilters={effectiveTransactionFilters}
-        setTransactionFilters={setTransactionFilters}
-        loading={isLoadingTransactions}
-        isDeletingTransaction={isDeletingTransaction}
-        onEdit={handleEditTransaction}
-        onDelete={handleDeleteCurrentTransaction}
-        onCreate={openCreateModal}
-      />
+    <MotionDiv
+      variants={containerVariants}
+      initial='hidden'
+      animate='visible'
+      style={{ width: "100%" }}
+    >
+      <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
+        <MotionDiv variants={itemVariants}>
+          <TransactionList
+            user={user}
+            homebases={homebases}
+            transactions={transactions}
+            transactionSummary={transactionSummary}
+            transactionFilters={effectiveTransactionFilters}
+            setTransactionFilters={setTransactionFilters}
+            loading={isLoadingTransactions}
+            isDeletingTransaction={isDeletingTransaction}
+            onEdit={handleEditTransaction}
+            onDelete={handleDeleteCurrentTransaction}
+            onCreate={openCreateModal}
+          />
+        </MotionDiv>
 
-      <TransactionFormModal
-        open={modalOpen}
-        loadingOpen={modalRequestedOpen && isLoadingOptions && !optionResponse}
-        isStudentOptionsLoading={isFetchingStudentOptions}
-        isStudentContextLoading={isResolvingStudentContext}
-        isStudentContextReady={isSelectedStudentContextReady}
-        form={form}
-        editingTransaction={editingTransaction}
-        onCancel={closeModal}
-        onSubmit={handleSubmit}
-        onReset={() => {
-          setEditingTransaction(null);
-          resetForm();
-        }}
-        confirmLoading={isSubmitting || isUpdatingTransaction}
-        homebases={homebases}
-        periodes={periodes}
-        students={students}
-        student={resolvedStudent}
-        onStudentSelect={(item) => {
-          pendingSelectedStudentSearchRef.current = item
-            ? formatStudentSearchLabel(item)
-            : null;
-          setSelectedStudentOption(item);
-        }}
-        onHomebaseChange={(value) => {
-          pendingSelectedStudentSearchRef.current = null;
-          setOtherPaymentSelectionsState({});
-          setSelectedStudentOption(null);
-          form.setFieldsValue({
-            homebase_id: value,
-            periode_id: undefined,
-            ...resetStudentContextValue,
-          });
-        }}
-        onPeriodeChange={(value) => {
-          pendingSelectedStudentSearchRef.current = null;
-          setOtherPaymentSelectionsState({});
-          setSelectedStudentOption(null);
-          form.setFieldsValue({
-            periode_id: value,
-            ...resetStudentContextValue,
-          });
-        }}
-        onStudentSearchChange={(value) => {
-          const keyword = String(value || "");
-          const activeStudentId = form.getFieldValue("student_id");
-
-          form.setFieldValue("student_search", keyword);
-
-          if (pendingSelectedStudentSearchRef.current !== null) {
-            const pendingKeyword = pendingSelectedStudentSearchRef.current;
+        <TransactionFormModal
+          open={modalOpen}
+          loadingOpen={modalRequestedOpen && isLoadingOptions && !optionResponse}
+          isStudentOptionsLoading={isFetchingStudentOptions}
+          isStudentContextLoading={isResolvingStudentContext}
+          isStudentContextReady={isSelectedStudentContextReady}
+          form={form}
+          editingTransaction={editingTransaction}
+          onCancel={closeModal}
+          onSubmit={handleSubmit}
+          onReset={() => {
+            setEditingTransaction(null);
+            resetForm();
+          }}
+          confirmLoading={isSubmitting || isUpdatingTransaction}
+          homebases={homebases}
+          periodes={periodes}
+          students={students}
+          student={resolvedStudent}
+          onStudentSelect={(item) => {
+            pendingSelectedStudentSearchRef.current = item
+              ? formatStudentSearchLabel(item)
+              : null;
+            setSelectedStudentOption(item);
+          }}
+          onHomebaseChange={(value) => {
             pendingSelectedStudentSearchRef.current = null;
-
-            if (keyword === pendingKeyword || keyword === "") {
-              return;
-            }
-          }
-
-          if (activeStudentId) {
-            setSelectedStudentOption(null);
             setOtherPaymentSelectionsState({});
+            setSelectedStudentOption(null);
             form.setFieldsValue({
-              student_id: undefined,
-              grade_id: undefined,
-              class_id: undefined,
-              bill_months: [],
-              other_payments: {},
+              homebase_id: value,
+              periode_id: undefined,
+              ...resetStudentContextValue,
             });
-          }
-        }}
-        currentStudentSearch={studentSearch}
-        unpaidMonths={wizardUnpaidMonths}
-        tariffAmount={tariffAmount}
-        otherCharges={wizardOtherCharges}
-        selectedOtherPayments={selectedOtherPayments}
-        otherPaymentSelections={otherPaymentSelections}
-        totalMonthlyAmount={totalMonthlyAmount}
-        selectedOtherTotal={selectedOtherTotal}
-        grandTotal={grandTotal}
-        onOtherPaymentAmountChange={handleOtherPaymentAmountChange}
-      />
-    </Space>
+          }}
+          onPeriodeChange={(value) => {
+            pendingSelectedStudentSearchRef.current = null;
+            setOtherPaymentSelectionsState({});
+            setSelectedStudentOption(null);
+            form.setFieldsValue({
+              periode_id: value,
+              ...resetStudentContextValue,
+            });
+          }}
+          onStudentSearchChange={(value) => {
+            const keyword = String(value || "");
+            const activeStudentId = form.getFieldValue("student_id");
+
+            form.setFieldValue("student_search", keyword);
+
+            if (pendingSelectedStudentSearchRef.current !== null) {
+              const pendingKeyword = pendingSelectedStudentSearchRef.current;
+              pendingSelectedStudentSearchRef.current = null;
+
+              if (keyword === pendingKeyword || keyword === "") {
+                return;
+              }
+            }
+
+            if (activeStudentId) {
+              setSelectedStudentOption(null);
+              setOtherPaymentSelectionsState({});
+              form.setFieldsValue({
+                student_id: undefined,
+                grade_id: undefined,
+                class_id: undefined,
+                bill_months: [],
+                other_payments: {},
+              });
+            }
+          }}
+          currentStudentSearch={studentSearch}
+          unpaidMonths={wizardUnpaidMonths}
+          tariffAmount={tariffAmount}
+          otherCharges={wizardOtherCharges}
+          selectedOtherPayments={selectedOtherPayments}
+          otherPaymentSelections={otherPaymentSelections}
+          totalMonthlyAmount={totalMonthlyAmount}
+          selectedOtherTotal={selectedOtherTotal}
+          grandTotal={grandTotal}
+          onOtherPaymentAmountChange={handleOtherPaymentAmountChange}
+        />
+      </Space>
+    </MotionDiv>
   );
 };
 

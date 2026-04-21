@@ -123,6 +123,61 @@ const getActivePeriode = async (db, homebaseId) => {
   return result.rows[0] || null;
 };
 
+const getParentLinkedStudents = async (db, parentUserId) => {
+  const result = await db.query(
+    `
+      WITH parent_links AS (
+        SELECT
+          ups.homebase_id,
+          ups.student_id,
+          ups.is_primary
+        FROM public.u_parent_students ups
+        WHERE ups.parent_user_id = $1
+
+        UNION
+
+        SELECT
+          s.homebase_id,
+          p.student_id,
+          true AS is_primary
+        FROM public.u_parents p
+        JOIN public.u_students s ON s.user_id = p.student_id
+        WHERE p.user_id = $1
+          AND p.student_id IS NOT NULL
+      )
+      SELECT DISTINCT ON (pl.student_id)
+        pl.student_id,
+        pl.is_primary,
+        COALESCE(pl.homebase_id, s.homebase_id) AS homebase_id,
+        u.full_name AS student_name,
+        s.nis,
+        c.name AS class_name
+      FROM parent_links pl
+      JOIN public.u_students s ON s.user_id = pl.student_id
+      JOIN public.u_users u ON u.id = s.user_id
+      LEFT JOIN public.a_class c ON c.id = s.current_class_id
+      ORDER BY pl.student_id, pl.is_primary DESC
+    `,
+    [parentUserId],
+  );
+
+  return result.rows.sort((left, right) => {
+    if (left.is_primary && !right.is_primary) {
+      return -1;
+    }
+
+    if (!left.is_primary && right.is_primary) {
+      return 1;
+    }
+
+    return String(left.student_name || "").localeCompare(
+      String(right.student_name || ""),
+      "id",
+      { sensitivity: "base" },
+    );
+  });
+};
+
 const getTeacherHomeroomClass = async (db, homebaseId, teacherId) => {
   const result = await db.query(
     `
@@ -489,11 +544,34 @@ const getTransactionScope = async (db, accessContext, transactionId) => {
 
 router.get(
   "/saving/me",
-  authorize("student"),
+  authorize("student", "parent"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
-    const { id: studentId, homebase_id: homebaseId } = req.user;
+    let studentId = req.user.id;
+    let homebaseId = req.user.homebase_id;
+    let linkedStudents = [];
+    const requestedStudentId = parseOptionalInt(req.query.student_id);
+
+    if (req.user.role === "parent") {
+      linkedStudents = await getParentLinkedStudents(db, req.user.id);
+
+      if (linkedStudents.length === 0) {
+        return res.status(404).json({
+          message:
+            "Akun orang tua belum terhubung ke data siswa. Hubungi admin sekolah.",
+        });
+      }
+
+      const selectedStudent =
+        linkedStudents.find(
+          (item) => Number(item.student_id) === Number(requestedStudentId),
+        ) || linkedStudents[0];
+
+      studentId = selectedStudent.student_id;
+      homebaseId = selectedStudent.homebase_id || homebaseId;
+    }
+
     const activePeriode = await getActivePeriode(db, homebaseId);
 
     if (!activePeriode || !activePeriode.is_active) {
@@ -569,6 +647,19 @@ router.get(
       status: "success",
       data: {
         active_periode: activePeriode,
+        children:
+          req.user.role === "parent"
+            ? linkedStudents.map((item) => ({
+                student_id: Number(item.student_id),
+                student_name: item.student_name,
+                nis: item.nis,
+                class_name: item.class_name,
+                homebase_id: Number(item.homebase_id || 0) || null,
+                is_primary: Boolean(item.is_primary),
+              }))
+            : [],
+        selected_student_id:
+          req.user.role === "parent" ? Number(studentId) : null,
         student: studentScope.rows[0],
         summary: {
           balance: totalDeposit - totalWithdrawal,

@@ -14,6 +14,8 @@ import {
   Typography,
   message,
 } from "antd";
+import { motion } from "framer-motion";
+import { CreditCard, ReceiptText, UserRound } from "lucide-react";
 
 import TransactionStepConfirm from "./TransactionStepConfirm.jsx";
 import TransactionStepOther from "./TransactionStepOther.jsx";
@@ -22,6 +24,7 @@ import TransactionStepStudent from "./TransactionStepStudent.jsx";
 import { currencyFormatter } from "./transactionFormShared.jsx";
 
 const { Text } = Typography;
+const MotionDiv = motion.div;
 
 const stepVisibilityStyle = (active) => ({
   display: active ? "block" : "none",
@@ -65,10 +68,10 @@ const TransactionFormModal = ({
 
   const steps = useMemo(
     () => [
-      { title: "Data Siswa" },
-      { title: "Pembayaran SPP" },
-      { title: "Pembayaran Lainnya" },
-      { title: "Konfirmasi" },
+      { title: "Data Siswa", icon: <UserRound size={14} /> },
+      { title: "Pembayaran SPP", icon: <CreditCard size={14} /> },
+      { title: "Pembayaran Lainnya", icon: <ReceiptText size={14} /> },
+      { title: "Konfirmasi", icon: <CreditCard size={14} /> },
     ],
     [],
   );
@@ -124,178 +127,226 @@ const TransactionFormModal = ({
   return (
     <Modal
       open={open}
-      title={modalTitle}
+      title={null}
       onCancel={onCancel}
-      width={screens.lg ? 1120 : "100%"}
+      width={screens.lg ? 1120 : "calc(100vw - 20px)"}
       style={{ top: 20 }}
       destroyOnHidden
       footer={null}
+      closable={false}
+      styles={{
+        content: {
+          padding: 0,
+          overflow: "hidden",
+          borderRadius: 30,
+          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+        },
+        body: { padding: 0 },
+      }}
+      modalRender={(modalNode) => (
+        <MotionDiv
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.24, ease: "easeOut" }}
+        >
+          {modalNode}
+        </MotionDiv>
+      )}
     >
-      <Spin spinning={loadingOpen}>
-        <Form form={form} layout='vertical' preserve>
-          <Space vertical size={20} style={{ width: "100%" }}>
-            <Card
-              variant='borderless'
-              style={{
-                borderRadius: 20,
-                background:
-                  "linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96))",
-              }}
-            >
-              <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-                <Space vertical size={2}>
-                  <Text strong style={{ fontSize: 18, color: "#0f172a" }}>
-                    {modalTitle}
-                  </Text>
-                  <Text type='secondary'>
-                    Wizard 4 langkah untuk input pembayaran siswa yang aman dan
-                    cepat.
-                  </Text>
-                </Space>
-                <Text strong style={{ color: "#2563eb", fontSize: 20 }}>
-                  {currencyFormatter.format(grandTotal)}
-                </Text>
-              </Flex>
-            </Card>
-
-            <Steps
-              current={currentStep}
-              items={steps}
-              responsive
-              size={screens.md ? "default" : "small"}
-            />
-
-            {isStudentContextLoading ? (
-              <Alert
-                type='info'
-                showIcon
-                message='Memuat konteks tagihan siswa'
-                description='Sistem sedang mengambil data SPP dan pembayaran lainnya untuk siswa terpilih.'
-              />
-            ) : null}
-
-            {currentStep > 0 && student ? (
+      <div
+        style={{
+          padding: 24,
+          background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+        }}
+      >
+        <Spin spinning={loadingOpen}>
+          <Form form={form} layout='vertical' preserve>
+            <Space vertical size={20} style={{ width: "100%" }}>
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: 18,
+                  borderRadius: 24,
+                  overflow: "hidden",
+                  position: "relative",
                   background:
-                    "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
+                    "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0f766e 100%)",
                 }}
-                styles={{ body: { padding: 18 } }}
+                styles={{ body: { padding: 20 } }}
               >
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
+                    pointerEvents: "none",
+                  }}
+                />
                 <Flex
                   justify='space-between'
                   align='center'
                   wrap='wrap'
-                  gap={16}
+                  gap={12}
+                  style={{ position: "relative" }}
                 >
-                  <Space size={14} align='start'>
-                    <Avatar
-                      size={48}
-                      style={{ background: "#2563eb", fontWeight: 700 }}
-                    >
-                      {(student.student_name || student.full_name || "?")
-                        .slice(0, 1)
-                        .toUpperCase()}
-                    </Avatar>
-                    <Space vertical size={2}>
-                      <Text strong style={{ color: "#ffffff", fontSize: 16 }}>
-                        {student.student_name || student.full_name}
-                      </Text>
-                      <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                        {`NIS ${student.nis || "-"} | ${student.grade_name || "-"} | ${student.class_name || "-"}`}
-                      </Text>
-                      <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                        {student.periode_name || "-"}
-                      </Text>
-                    </Space>
+                  <Space direction='vertical' size={2}>
+                    <Text strong style={{ fontSize: 20, color: "#fff" }}>
+                      {modalTitle}
+                    </Text>
+                    <Text style={{ color: "rgba(255,255,255,0.8)" }}>
+                      Wizard 4 langkah untuk input pembayaran siswa yang aman dan
+                      lebih nyaman dipakai.
+                    </Text>
                   </Space>
+                  <Text strong style={{ color: "#fff", fontSize: 24 }}>
+                    {currencyFormatter.format(grandTotal)}
+                  </Text>
                 </Flex>
               </Card>
-            ) : null}
 
-            <div style={stepVisibilityStyle(currentStep === 0)}>
-              <TransactionStepStudent
-                form={form}
-                homebases={homebases}
-                periodes={periodes}
-                students={students}
-                student={student}
-                isStudentOptionsLoading={isStudentOptionsLoading}
-                onStudentSelect={onStudentSelect}
-                onHomebaseChange={onHomebaseChange}
-                onPeriodeChange={onPeriodeChange}
-                onStudentSearchChange={onStudentSearchChange}
-                currentStudentSearch={currentStudentSearch}
-              />
-            </div>
+              <Card
+                variant='borderless'
+                style={{
+                  borderRadius: 20,
+                  border: "1px solid rgba(148,163,184,0.14)",
+                }}
+              >
+                <Steps
+                  current={currentStep}
+                  items={steps}
+                  responsive
+                  size={screens.md ? "default" : "small"}
+                />
+              </Card>
 
-            <div style={stepVisibilityStyle(currentStep === 1)}>
-              <TransactionStepSpp
-                form={form}
-                unpaidMonths={unpaidMonths}
-                tariffAmount={tariffAmount}
-                loading={isStudentContextLoading}
-              />
-            </div>
+              {isStudentContextLoading ? (
+                <Alert
+                  type='info'
+                  showIcon
+                  message='Memuat konteks tagihan siswa'
+                  description='Sistem sedang mengambil data SPP dan pembayaran lainnya untuk siswa terpilih.'
+                  style={{ borderRadius: 16 }}
+                />
+              ) : null}
 
-            <div style={stepVisibilityStyle(currentStep === 2)}>
-              <TransactionStepOther
-                form={form}
-                otherCharges={otherCharges}
-                otherPaymentSelections={otherPaymentSelections}
-                onOtherPaymentAmountChange={onOtherPaymentAmountChange}
-                loading={isStudentContextLoading}
-              />
-            </div>
+              {currentStep > 0 && student ? (
+                <Card
+                  variant='borderless'
+                  style={{
+                    borderRadius: 20,
+                    background:
+                      "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
+                  }}
+                  styles={{ body: { padding: 18 } }}
+                >
+                  <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
+                    <Space size={14} align='start'>
+                      <Avatar
+                        size={48}
+                        style={{ background: "#2563eb", fontWeight: 700 }}
+                      >
+                        {(student.student_name || student.full_name || "?")
+                          .slice(0, 1)
+                          .toUpperCase()}
+                      </Avatar>
+                      <Space direction='vertical' size={2}>
+                        <Text strong style={{ color: "#ffffff", fontSize: 16 }}>
+                          {student.student_name || student.full_name}
+                        </Text>
+                        <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                          {`NIS ${student.nis || "-"} | ${student.grade_name || "-"} | ${student.class_name || "-"}`}
+                        </Text>
+                        <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                          {student.periode_name || "-"}
+                        </Text>
+                      </Space>
+                    </Space>
+                  </Flex>
+                </Card>
+              ) : null}
 
-            <div style={stepVisibilityStyle(currentStep === 3)}>
-              <TransactionStepConfirm
-                student={student}
-                monthlySelection={monthlySelection}
-                unpaidMonths={unpaidMonths}
-                tariffAmount={tariffAmount}
-                selectedOtherPayments={selectedOtherPayments}
-                totalMonthlyAmount={totalMonthlyAmount}
-                selectedOtherTotal={selectedOtherTotal}
-                grandTotal={grandTotal}
-              />
-            </div>
+              <div style={stepVisibilityStyle(currentStep === 0)}>
+                <TransactionStepStudent
+                  form={form}
+                  homebases={homebases}
+                  periodes={periodes}
+                  students={students}
+                  student={student}
+                  isStudentOptionsLoading={isStudentOptionsLoading}
+                  onStudentSelect={onStudentSelect}
+                  onHomebaseChange={onHomebaseChange}
+                  onPeriodeChange={onPeriodeChange}
+                  onStudentSearchChange={onStudentSearchChange}
+                  currentStudentSearch={currentStudentSearch}
+                />
+              </div>
 
-            <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-              <Space wrap>
-                <Button onClick={handleReset}>Reset</Button>
-                <Button onClick={onCancel}>Batal</Button>
-              </Space>
+              <div style={stepVisibilityStyle(currentStep === 1)}>
+                <TransactionStepSpp
+                  form={form}
+                  unpaidMonths={unpaidMonths}
+                  tariffAmount={tariffAmount}
+                  loading={isStudentContextLoading}
+                />
+              </div>
 
-              <Space wrap>
-                {currentStep > 0 ? (
-                  <Button
-                    onClick={() => setCurrentStep((previous) => previous - 1)}
-                  >
-                    Sebelumnya
-                  </Button>
-                ) : null}
+              <div style={stepVisibilityStyle(currentStep === 2)}>
+                <TransactionStepOther
+                  form={form}
+                  otherCharges={otherCharges}
+                  otherPaymentSelections={otherPaymentSelections}
+                  onOtherPaymentAmountChange={onOtherPaymentAmountChange}
+                  loading={isStudentContextLoading}
+                />
+              </div>
 
-                {currentStep < steps.length - 1 ? (
-                  <Button type='primary' onClick={handleNext}>
-                    Lanjut
-                  </Button>
-                ) : (
-                  <Button
-                    type='primary'
-                    loading={confirmLoading}
-                    onClick={handleFinish}
-                  >
-                    Simpan Transaksi
-                  </Button>
-                )}
-              </Space>
-            </Flex>
-          </Space>
-        </Form>
-      </Spin>
+              <div style={stepVisibilityStyle(currentStep === 3)}>
+                <TransactionStepConfirm
+                  student={student}
+                  monthlySelection={monthlySelection}
+                  unpaidMonths={unpaidMonths}
+                  tariffAmount={tariffAmount}
+                  selectedOtherPayments={selectedOtherPayments}
+                  totalMonthlyAmount={totalMonthlyAmount}
+                  selectedOtherTotal={selectedOtherTotal}
+                  grandTotal={grandTotal}
+                />
+              </div>
+
+              <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
+                <Space wrap>
+                  <Button onClick={handleReset}>Reset</Button>
+                  <Button onClick={onCancel}>Batal</Button>
+                </Space>
+
+                <Space wrap>
+                  {currentStep > 0 ? (
+                    <Button
+                      onClick={() => setCurrentStep((previous) => previous - 1)}
+                    >
+                      Sebelumnya
+                    </Button>
+                  ) : null}
+
+                  {currentStep < steps.length - 1 ? (
+                    <Button type='primary' onClick={handleNext}>
+                      Lanjut
+                    </Button>
+                  ) : (
+                    <Button
+                      type='primary'
+                      loading={confirmLoading}
+                      onClick={handleFinish}
+                    >
+                      Simpan Transaksi
+                    </Button>
+                  )}
+                </Space>
+              </Flex>
+            </Space>
+          </Form>
+        </Spin>
+      </div>
     </Modal>
   );
 };

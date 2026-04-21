@@ -218,6 +218,137 @@ export const ensureStudentScope = async (
 };
 
 export const ensureFinalFinanceTables = async (db) => {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS public.u_parent_students (
+      id SERIAL PRIMARY KEY,
+      parent_user_id INT NOT NULL REFERENCES public.u_users(id) ON DELETE CASCADE,
+      homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+      student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+      relationship VARCHAR(50),
+      is_primary BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (parent_user_id, student_id)
+    )
+  `);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'uq_parent_student_owner'
+          AND conrelid = 'public.u_parent_students'::regclass
+      ) THEN
+        ALTER TABLE public.u_parent_students
+        DROP CONSTRAINT uq_parent_student_owner;
+      END IF;
+    END $$;
+  `);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'uq_parent_student'
+          AND conrelid = 'public.u_parent_students'::regclass
+      ) THEN
+        ALTER TABLE public.u_parent_students
+        ADD CONSTRAINT uq_parent_student UNIQUE (parent_user_id, student_id);
+      END IF;
+    END $$;
+  `);
+
+  await db.query(`
+    ALTER TABLE public.u_parent_students
+    ADD COLUMN IF NOT EXISTS homebase_id INT REFERENCES public.a_homebase(id) ON DELETE CASCADE
+  `);
+
+  await db.query(`
+    ALTER TABLE public.u_parent_students
+    ADD COLUMN IF NOT EXISTS relationship VARCHAR(50)
+  `);
+
+  await db.query(`
+    ALTER TABLE public.u_parent_students
+    ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT false
+  `);
+
+  await db.query(`
+    ALTER TABLE public.u_parent_students
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await db.query(`
+    ALTER TABLE public.u_parent_students
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await db.query(`
+    UPDATE public.u_parent_students ups
+    SET homebase_id = s.homebase_id
+    FROM public.u_students s
+    WHERE s.user_id = ups.student_id
+      AND (
+        ups.homebase_id IS NULL
+        OR ups.homebase_id <> s.homebase_id
+      )
+  `);
+
+  await db.query(`
+    UPDATE public.u_parent_students ups
+    SET
+      homebase_id = src.homebase_id,
+      relationship = COALESCE(ups.relationship, src.relationship),
+      is_primary = ups.is_primary OR src.is_primary,
+      updated_at = CURRENT_TIMESTAMP
+    FROM (
+      SELECT
+        p.user_id AS parent_user_id,
+        s.homebase_id,
+        p.student_id,
+        'wali'::varchar AS relationship,
+        true AS is_primary
+      FROM public.u_parents p
+      JOIN public.u_users parent_user ON parent_user.id = p.user_id
+      JOIN public.u_students s ON s.user_id = p.student_id
+      WHERE p.student_id IS NOT NULL
+        AND p.user_id IS NOT NULL
+    ) AS src
+    WHERE ups.parent_user_id = src.parent_user_id
+      AND ups.student_id = src.student_id
+  `);
+
+  await db.query(`
+    INSERT INTO public.u_parent_students (
+      parent_user_id,
+      homebase_id,
+      student_id,
+      relationship,
+      is_primary
+    )
+    SELECT
+      p.user_id,
+      s.homebase_id,
+      p.student_id,
+      'wali',
+      true
+    FROM public.u_parents p
+    JOIN public.u_users parent_user ON parent_user.id = p.user_id
+    JOIN public.u_students s ON s.user_id = p.student_id
+    WHERE p.student_id IS NOT NULL
+      AND p.user_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.u_parent_students ups
+        WHERE ups.parent_user_id = p.user_id
+          AND ups.student_id = p.student_id
+      )
+  `);
+
   await db.query(`CREATE SCHEMA IF NOT EXISTS finance`);
 
   await db.query(`
@@ -505,8 +636,12 @@ export const getOrCreateComponent = async (
 export const getParentPayerUserId = async (client, studentId, fallbackUserId) => {
   const result = await client.query(
     `
+      SELECT parent_user_id AS user_id
+      FROM public.u_parent_students
+      WHERE student_id = $1
+      UNION
       SELECT user_id
-      FROM u_parents
+      FROM public.u_parents
       WHERE student_id = $1
       ORDER BY user_id ASC
       LIMIT 1
@@ -515,6 +650,63 @@ export const getParentPayerUserId = async (client, studentId, fallbackUserId) =>
   );
 
   return result.rows[0]?.user_id || fallbackUserId;
+};
+
+export const getLinkedParentStudents = async (client, parentUserId) => {
+  const result = await client.query(
+    `
+      WITH parent_links AS (
+        SELECT
+          ups.parent_user_id,
+          ups.homebase_id,
+          ups.student_id,
+          ups.relationship,
+          ups.is_primary
+        FROM public.u_parent_students ups
+        WHERE ups.parent_user_id = $1
+
+        UNION
+
+        SELECT
+          p.user_id AS parent_user_id,
+          s.homebase_id,
+          p.student_id,
+          'wali'::varchar AS relationship,
+          true AS is_primary
+        FROM public.u_parents p
+        JOIN public.u_students s ON s.user_id = p.student_id
+        WHERE p.user_id = $1
+          AND p.student_id IS NOT NULL
+      )
+      SELECT DISTINCT ON (pl.student_id)
+        pl.parent_user_id,
+        pl.student_id,
+        pl.relationship,
+        pl.is_primary,
+        u.full_name AS student_name,
+        s.nis,
+        COALESCE(pl.homebase_id, s.homebase_id) AS homebase_id,
+        hb.name AS homebase_name,
+        s.current_periode_id,
+        current_per.name AS current_periode_name,
+        current_per.is_active AS current_periode_is_active,
+        s.current_class_id,
+        c.name AS current_class_name,
+        g.id AS current_grade_id,
+        g.name AS current_grade_name
+      FROM parent_links pl
+      JOIN public.u_students s ON s.user_id = pl.student_id
+      JOIN public.u_users u ON u.id = s.user_id
+      LEFT JOIN public.a_homebase hb ON hb.id = COALESCE(pl.homebase_id, s.homebase_id)
+      LEFT JOIN public.a_periode current_per ON current_per.id = s.current_periode_id
+      LEFT JOIN public.a_class c ON c.id = s.current_class_id
+      LEFT JOIN public.a_grade g ON g.id = c.grade_id
+      ORDER BY pl.student_id, pl.is_primary DESC, pl.parent_user_id ASC
+    `,
+    [parentUserId],
+  );
+
+  return result.rows;
 };
 
 export const getPaymentMethodId = async (
