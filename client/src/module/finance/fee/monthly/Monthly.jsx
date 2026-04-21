@@ -1,6 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import { Form, Space, Tabs, Typography, message } from "antd";
+import { Form, Card, Space, Tabs, Typography, message } from "antd";
+import { motion } from "framer-motion";
+import {
+  BarChart3,
+  CreditCard,
+  ReceiptText,
+  Sparkles,
+} from "lucide-react";
 
 import {
   useAddMonthlyTariffMutation,
@@ -25,6 +32,32 @@ import MonthlyReportPanel from "./components/MonthlyReportPanel";
 import MonthlyTariffModal from "./components/MonthlyTariffModal";
 
 const { Text } = Typography;
+const MotionDiv = motion.div;
+
+const containerVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.35,
+      ease: [0.22, 1, 0.36, 1],
+      staggerChildren: 0.07,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.3,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
 
 const Monthly = ({ initialTab = "tariffs" }) => {
   const { user } = useSelector((state) => state.auth);
@@ -97,12 +130,18 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const options = optionsResponse?.data || {};
   const tariffOptions = tariffOptionResponse?.data || options;
   const filterOptions = filterOptionsResponse?.data || {};
-  const homebases = options.homebases || [];
-  const periodes = options.periodes || [];
-  const grades = options.grades || [];
-  const months = options.months || [];
-  const mainClasses = filterOptions.classes || [];
-  const mainStudents = filterOptions.students || [];
+  const homebases = useMemo(() => options.homebases || [], [options.homebases]);
+  const periodes = useMemo(() => options.periodes || [], [options.periodes]);
+  const grades = useMemo(() => options.grades || [], [options.grades]);
+  const months = useMemo(() => options.months || [], [options.months]);
+  const mainClasses = useMemo(
+    () => filterOptions.classes || [],
+    [filterOptions.classes],
+  );
+  const mainStudents = useMemo(
+    () => filterOptions.students || [],
+    [filterOptions.students],
+  );
   const tariffs = tariffResponse?.data || [];
   const payments = paymentResponse?.data || [];
   const paymentSummary = paymentResponse?.summary || {};
@@ -219,7 +258,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     },
     {
       key: "amount",
-      title: "SPP",
+      title: "SPP Terkumpul",
       value: paymentSummary.paid_amount || 0,
       prefix: "Rp",
       note: "Akumulasi SPP yang sudah lunas",
@@ -408,7 +447,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       bill_months: values.bill_months || [],
     };
 
-    if (!payload.homebase_id || !payload.periode_id || !payload.student_id || !payload.grade_id) {
+    if (
+      !payload.homebase_id ||
+      !payload.periode_id ||
+      !payload.student_id ||
+      !payload.grade_id
+    ) {
       message.error(
         "Satuan, periode aktif, siswa, atau tingkat belum sinkron. Pilih siswa dari data yang tampil lalu coba lagi.",
       );
@@ -469,21 +513,63 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     return <LoadApp />;
   }
 
-  return (
-    <div style={{ width: "100%" }}>
-      <Space vertical size={24} style={{ width: "100%" }}>
-        <MonthlyHeader
-          onOpenTariff={() => {
-            setActiveTab("tariffs");
-            openTariffModal();
-          }}
-        />
+  const activeHomebaseName =
+    homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
+      ?.name ||
+    user?.homebase_name ||
+    user?.homebase_id ||
+    "-";
 
-        <div>
-          <MonthlySummaryCards items={summaryCards} />
+  const createTabLabel = (label, icon, count, caption) => (
+    <Space size={10}>
+      <span
+        style={{
+          width: 34,
+          height: 34,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
+          color: "#0369a1",
+          border: "1px solid rgba(148,163,184,0.14)",
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </span>
+      <div>
+        <div style={{ fontWeight: 600, lineHeight: 1.2 }}>
+          {label} {count !== undefined ? `(${count})` : ""}
         </div>
+        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
+          {caption}
+        </div>
+      </div>
+    </Space>
+  );
 
-        <div>
+  return (
+    <MotionDiv
+      variants={containerVariants}
+      initial='hidden'
+      animate='visible'
+      style={{ width: "100%" }}
+    >
+      <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
+        <MotionDiv variants={itemVariants}>
+          <MonthlyHeader
+            onOpenTariff={() => {
+              setActiveTab("tariffs");
+              openTariffModal();
+            }}
+          />
+        </MotionDiv>
+
+        <MotionDiv variants={itemVariants}>
+          <MonthlySummaryCards items={summaryCards} />
+        </MotionDiv>
+
+        <MotionDiv variants={itemVariants}>
           <MonthlyFilters
             filters={filters}
             setFilters={setFilters}
@@ -493,71 +579,104 @@ const Monthly = ({ initialTab = "tariffs" }) => {
             classes={mainClasses}
             months={months}
           />
-        </div>
+        </MotionDiv>
 
-        <div>
-          <Tabs
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            items={[
-              {
-                key: "tariffs",
-                label: `Tarif SPP (${tariffs.length})`,
-                children: (
-                  <MonthlyTariffTable
-                    tariffs={tariffs}
-                    loading={isFetchingTariffs}
-                    onEdit={openTariffModal}
-                    onDelete={handleDeleteTariff}
-                    isDeletingTariff={isDeletingTariff}
-                    onCreate={() => openTariffModal()}
-                  />
-                ),
-              },
-              {
-                key: "payments",
-                label: `Pembayaran SPP (${payments.length})`,
-                children: (
-                  <MonthlyPaymentTable
-                    payments={payments}
-                    loading={isFetchingPayments}
-                    selectedMonth={months.find(
-                      (item) => Number(item.value) === Number(filters.bill_month),
-                    )?.label}
-                    homebaseName={
-                      homebases.find(
-                        (item) => Number(item.id) === Number(filters.homebase_id),
-                      )?.name || user?.homebase_name
-                    }
-                    onCreatePayment={openCreatePaymentModal}
-                    onEditPayment={openEditPaymentModal}
-                    onDeletePayment={handleDeletePayment}
-                    isDeletingPayment={isDeletingPayment}
-                  />
-                ),
-              },
+        <MotionDiv variants={itemVariants}>
+          <Card
+            variant='borderless'
+            style={{
+              borderRadius: 28,
+              border: "1px solid rgba(148, 163, 184, 0.14)",
+              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.07)",
+            }}
+            styles={{ body: { padding: 12 } }}
+          >
+            <Tabs
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              tabBarGutter={14}
+              tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+              items={[
+                {
+                  key: "tariffs",
+                  label: createTabLabel(
+                    "Tarif SPP",
+                    <ReceiptText size={16} />,
+                    tariffs.length,
+                    "Pengaturan tarif per periode",
+                  ),
+                  children: (
+                    <MonthlyTariffTable
+                      tariffs={tariffs}
+                      loading={isFetchingTariffs}
+                      onEdit={openTariffModal}
+                      onDelete={handleDeleteTariff}
+                      isDeletingTariff={isDeletingTariff}
+                      onCreate={() => openTariffModal()}
+                    />
+                  ),
+                },
+                {
+                  key: "payments",
+                  label: createTabLabel(
+                    "Pembayaran SPP",
+                    <CreditCard size={16} />,
+                    payments.length,
+                    "Monitoring status pelunasan",
+                  ),
+                  children: (
+                    <MonthlyPaymentTable
+                      payments={payments}
+                      loading={isFetchingPayments}
+                      selectedMonth={months.find(
+                        (item) => Number(item.value) === Number(filters.bill_month),
+                      )?.label}
+                      homebaseName={
+                        homebases.find(
+                          (item) => Number(item.id) === Number(filters.homebase_id),
+                        )?.name || user?.homebase_name
+                      }
+                      onCreatePayment={openCreatePaymentModal}
+                      onEditPayment={openEditPaymentModal}
+                      onDeletePayment={handleDeletePayment}
+                      isDeletingPayment={isDeletingPayment}
+                    />
+                  ),
+                },
+                {
+                  key: "report",
+                  label: createTabLabel(
+                    "Laporan SPP",
+                    <BarChart3 size={16} />,
+                    undefined,
+                    "Ringkasan capaian per kelas",
+                  ),
+                  children: <MonthlyReportPanel payments={payments} />,
+                },
+              ]}
+            />
+          </Card>
+        </MotionDiv>
 
-              {
-                key: "report",
-                label: "Laporan SPP",
-                children: <MonthlyReportPanel payments={payments} />,
-              },
-            ]}
-          />
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <Text type='secondary'>
-            Satuan aktif:{" "}
-            {homebases.find(
-              (item) => Number(item.id) === Number(filters.homebase_id),
-            )?.name ||
-              user?.homebase_name ||
-              user?.homebase_id ||
-              "-"}
-            .
-          </Text>
-        </div>
+        <MotionDiv variants={itemVariants}>
+          <Card
+            variant='borderless'
+            style={{
+              borderRadius: 20,
+              border: "1px solid rgba(148,163,184,0.14)",
+              background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+            }}
+            styles={{ body: { padding: "14px 16px" } }}
+          >
+            <Space align='center' size={8}>
+              <Sparkles size={14} color='#64748b' />
+              <Text type='secondary'>
+                Satuan aktif: {activeHomebaseName}. Gunakan filter untuk
+                mempersempit pemantauan SPP per periode, tingkat, kelas, dan siswa.
+              </Text>
+            </Space>
+          </Card>
+        </MotionDiv>
       </Space>
 
       <MonthlyTariffModal
@@ -610,7 +729,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
         }
         confirmLoading={isAddingPayment || isUpdatingPayment}
       />
-    </div>
+    </MotionDiv>
   );
 };
 

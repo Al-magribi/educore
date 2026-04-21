@@ -134,6 +134,18 @@ CREATE TABLE u_parents (
     email text
 );
 
+CREATE TABLE u_parent_students (
+    id SERIAL PRIMARY KEY,
+    parent_user_id integer NOT NULL REFERENCES u_users(id) ON DELETE CASCADE,
+    homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
+    student_id integer NOT NULL REFERENCES u_students(user_id) ON DELETE CASCADE,
+    relationship varchar(50),
+    is_primary boolean NOT NULL DEFAULT false,
+    created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_parent_student UNIQUE (parent_user_id, student_id)
+);
+
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (
     id SERIAL PRIMARY KEY,

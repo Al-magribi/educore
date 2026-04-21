@@ -1,6 +1,6 @@
 import { Tag } from "antd";
 
-import FinanceFeaturePage from "../components/FinanceFeaturePage";
+import FinanceFeaturePage from "./FinanceFeaturePage";
 
 const columns = [
   {

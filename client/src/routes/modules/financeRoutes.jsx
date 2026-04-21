@@ -26,7 +26,7 @@ const StudentContribution = lazy(
   () => import("../../module/finance/student/contribution/StudentContribution"),
 );
 const ParentPayment = lazy(
-  () => import("../../module/finance/fee/transaction/Transaction"),
+  () => import("../../module/finance/parent/transaction/ParentTransaction"),
 );
 const ParentSavingReport = lazy(
   () => import("../../module/finance/report/SavingReport"),
@@ -46,69 +46,66 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         }
       >
         <Route
-          path="/finance-dashboard"
-          element={<Page title="Dashboard Keuangan" Component={FinanceDash} />}
+          path='/finance-dashboard'
+          element={<Page title='Dashboard Keuangan' Component={FinanceDash} />}
         />
         <Route
-          path="/finance/pembayaran-spp"
-          element={<Page title="Pembayaran SPP" Component={Monthly} />}
+          path='/finance/pembayaran-spp'
+          element={<Page title='Pembayaran SPP' Component={Monthly} />}
         />
         <Route
-          path="/finance/pembayaran-lainnya"
-          element={<Page title="Pembayaran Lainnya" Component={Others} />}
+          path='/finance/pembayaran-lainnya'
+          element={<Page title='Pembayaran Lainnya' Component={Others} />}
         />
         <Route
-          path="/finance/transaksi"
-          element={<Page title="Transaksi Keuangan" Component={Transaction} />}
+          path='/finance/transaksi'
+          element={<Page title='Transaksi Keuangan' Component={Transaction} />}
         />
         <Route
-          path="/finance/laporan-tabungan"
-          element={<Page title="Laporan Tabungan" Component={SavingReport} />}
+          path='/finance/laporan-tabungan'
+          element={<Page title='Laporan Tabungan' Component={SavingReport} />}
         />
         <Route
-          path="/finance/laporan-kas-kelas"
-          element={<Page title="Laporan Kas Kelas" Component={CashReport} />}
+          path='/finance/laporan-kas-kelas'
+          element={<Page title='Laporan Kas Kelas' Component={CashReport} />}
         />
         <Route
-          path="/finance/pengaturan"
-          element={<Page title="Pengaturan Keuangan" Component={Setting} />}
+          path='/finance/pengaturan'
+          element={<Page title='Pengaturan Keuangan' Component={Setting} />}
         />
       </Route>
 
       <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
         <Route
-          path="/guru/keuangan-kelas"
+          path='/guru/keuangan-kelas'
           element={
-            <Page title="Keuangan Kelas" Component={TeacherContribution} />
+            <Page title='Keuangan Kelas' Component={TeacherContribution} />
           }
         />
         <Route
-          path="/guru/tabungan"
-          element={<Page title="Tabungan Kelas" Component={TeacherSaving} />}
+          path='/guru/tabungan'
+          element={<Page title='Tabungan Kelas' Component={TeacherSaving} />}
         />
       </Route>
 
       <Route element={<RouteProtection allowedRoles={["student"]} />}>
         <Route
-          path="/siswa/laporan-uang-kas"
+          path='/siswa/laporan-uang-kas'
           element={
-            <Page title="Laporan Uang Kas" Component={StudentContribution} />
+            <Page title='Laporan Uang Kas' Component={StudentContribution} />
           }
         />
       </Route>
 
       <Route element={<RouteProtection allowedRoles={["parent"]} />}>
         <Route
-          path="/orangtua/pembayaran"
-          element={<Page title="Pembayaran" Component={ParentPayment} />}
+          path='/orangtua/pembayaran'
+          element={<Page title='Pembayaran' Component={ParentPayment} />}
         />
         <Route
-          path="/orangtua/laporan-tabungan"
+          path='/orangtua/laporan-tabungan'
           element={
-            <Page
-              title="Laporan Tabungan"
-              Component={ParentSavingReport}
-            />
+            <Page title='Laporan Tabungan' Component={ParentSavingReport} />
           }
         />
       </Route>

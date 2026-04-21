@@ -1,95 +1,248 @@
-import { Tag } from "antd";
+import { Select, Space, Tag, Typography } from "antd";
+import { useState } from "react";
+import { useSelector } from "react-redux";
 
-import FinanceFeaturePage from "../components/FinanceFeaturePage";
+import { LoadApp } from "../../../components";
+import {
+  useGetMySavingOverviewQuery,
+  useGetSavingStudentsQuery,
+} from "../../../service/finance/ApiSaving";
+import FinanceFeaturePage from "./FinanceFeaturePage";
 
-const columns = [
-  {
-    title: "Siswa",
-    dataIndex: "student",
-    key: "student",
-  },
-  {
-    title: "Setoran Bulan Ini",
-    dataIndex: "deposit",
-    key: "deposit",
-  },
-  {
-    title: "Saldo",
-    dataIndex: "balance",
-    key: "balance",
-  },
-  {
-    title: "Status",
-    dataIndex: "status",
-    key: "status",
-    render: (status) => <Tag color={status.color}>{status.label}</Tag>,
-  },
-];
+const { Text } = Typography;
 
-const dataSource = [
-  {
-    key: 1,
-    student: "Naila Putri",
-    deposit: "Rp400.000",
-    balance: "Rp2.350.000",
-    status: { label: "Aktif", color: "green" },
-  },
-  {
-    key: 2,
-    student: "Ahmad Rafi",
-    deposit: "Rp250.000",
-    balance: "Rp1.780.000",
-    status: { label: "Aktif", color: "blue" },
-  },
-  {
-    key: 3,
-    student: "Salma Khasanah",
-    deposit: "Rp0",
-    balance: "Rp925.000",
-    status: { label: "Pasif", color: "gold" },
-  },
-];
+const toCurrency = (value) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
 
-const SavingReport = () => (
-  <FinanceFeaturePage
-    badge='Laporan Tabungan'
-    title='Rekap tabungan siswa dan mutasi setoran'
-    description='Halaman ini digunakan untuk melihat perkembangan saldo tabungan siswa, intensitas setoran, dan akun yang perlu diingatkan.'
-    highlight='Sebagian besar setoran datang dari kelas XI, sementara akun pasif meningkat pada siswa kelas akhir.'
-    summary={{
-      title: "1.286 akun tabungan",
-      description: "Total siswa dengan rekening tabungan aktif di sekolah.",
-      percent: 74,
-    }}
-    stats={[
-      { title: "Saldo Tabungan", value: 126320000, prefix: "Rp", note: "Akumulasi dana titipan siswa" },
-      { title: "Setoran Minggu Ini", value: 28950000, prefix: "Rp", note: "Transaksi setoran tervalidasi" },
-      { title: "Akun Aktif", value: 1108, note: "Setor minimal sekali bulan ini" },
-      { title: "Akun Pasif", value: 178, note: "Belum ada setoran terbaru" },
-    ]}
-    actions={[
-      { label: "Buka transaksi keuangan", to: "/finance/transaksi", type: "primary" },
-      { label: "Lihat laporan kas kelas", to: "/finance/laporan-kas-kelas" },
-      { label: "Lihat pembayaran SPP", to: "/finance/pembayaran-spp" },
-    ]}
-    notes={[
+const SavingReport = () => {
+  const { user } = useSelector((state) => state.auth);
+  const isParent = user?.role === "parent";
+  const [selectedStudentId, setSelectedStudentId] = useState();
+
+  const { data: savingStudentsResponse, isLoading: isLoadingStudents } =
+    useGetSavingStudentsQuery(undefined, {
+      skip: isParent,
+    });
+  const { data: mySavingResponse, isLoading: isLoadingMySaving } =
+    useGetMySavingOverviewQuery(
+      selectedStudentId ? { student_id: selectedStudentId } : undefined,
       {
-        title: "Pisahkan tabungan dari pendapatan",
-        description: "Saldo tabungan harus diperlakukan sebagai dana titipan, bukan pemasukan sekolah.",
-        type: "document",
+        skip: !isParent,
+      },
+    );
+
+  if ((isParent && isLoadingMySaving) || (!isParent && isLoadingStudents)) {
+    return <LoadApp />;
+  }
+
+  const columns = [
+    {
+      title: "Siswa",
+      dataIndex: "student",
+      key: "student",
+    },
+    {
+      title: "Kelas",
+      dataIndex: "classroom",
+      key: "classroom",
+    },
+    {
+      title: "Total Setoran",
+      dataIndex: "deposit",
+      key: "deposit",
+    },
+    {
+      title: "Saldo",
+      dataIndex: "balance",
+      key: "balance",
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (status) => (
+        <Tag
+          color={status.color}
+          style={{ borderRadius: 999, fontWeight: 600 }}
+        >
+          {status.label}
+        </Tag>
+      ),
+    },
+  ];
+
+  let dataSource = [];
+  let stats = [];
+  let headerExtra = null;
+  let summary = {
+    title: "0 akun tabungan",
+    description: "Belum ada data tabungan yang dapat ditampilkan.",
+  };
+  let description =
+    "Halaman ini menampilkan perkembangan saldo tabungan siswa, intensitas setoran, dan akun yang perlu dipantau lebih dekat.";
+
+  if (isParent) {
+    const payload = mySavingResponse?.data || {};
+    const children = payload.children || [];
+    const resolvedStudentId = selectedStudentId || payload.selected_student_id;
+    const student = payload.student || {};
+    const reportSummary = payload.summary || {};
+    const transactions = payload.transactions || [];
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const thisMonthDeposit = transactions
+      .filter((item) => {
+        const date = item.transaction_date
+          ? new Date(item.transaction_date)
+          : null;
+        return (
+          item.transaction_type === "deposit" &&
+          date &&
+          date.getMonth() === currentMonth &&
+          date.getFullYear() === currentYear
+        );
+      })
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    const isActiveAccount = Number(reportSummary.transaction_count || 0) > 0;
+
+    dataSource = [
+      {
+        key: student.student_id || 1,
+        student: student.student_name || "-",
+        classroom: student.class_name || "-",
+        deposit: toCurrency(thisMonthDeposit),
+        balance: toCurrency(reportSummary.balance),
+        status: {
+          label: isActiveAccount ? "Aktif" : "Pasif",
+          color: isActiveAccount ? "green" : "gold",
+        },
+      },
+    ];
+
+    stats = [
+      {
+        title: "Saldo Tabungan",
+        value: reportSummary.balance || 0,
+        prefix: "Rp",
+        note: "Saldo tabungan anak yang sedang tercatat.",
       },
       {
-        title: "Sorot akun pasif",
-        description: "Akun tanpa setoran baru bisa dijadikan target pengingat berkala.",
+        title: "Setoran Bulan Ini",
+        value: thisMonthDeposit,
+        prefix: "Rp",
+        note: "Total setoran pada bulan berjalan.",
       },
       {
-        title: "Cek mutasi harian",
-        description: "Setoran dan penarikan perlu direkonsiliasi setiap hari kerja.",
+        title: "Total Setoran",
+        value: reportSummary.total_deposit || 0,
+        prefix: "Rp",
+        note: "Akumulasi seluruh setoran yang sudah masuk.",
       },
-    ]}
-    columns={columns}
-    dataSource={dataSource}
-  />
-);
+      {
+        title: "Total Penarikan",
+        value: reportSummary.total_withdrawal || 0,
+        prefix: "Rp",
+        note: "Akumulasi penarikan tabungan yang tercatat.",
+      },
+    ];
+
+    summary = {
+      title: `${children.length || 1} akun tabungan`,
+      description: "Ringkasan tabungan anak yang terhubung ke akun orang tua.",
+    };
+    description =
+      "Halaman ini menampilkan perkembangan tabungan anak, riwayat transaksi, dan saldo terkini yang tercatat pada sekolah.";
+
+    headerExtra =
+      children.length > 1 ? (
+        <Space
+          wrap
+          size={10}
+          style={{
+            marginTop: 14,
+            padding: "10px 12px",
+            borderRadius: 16,
+            background: "rgba(255,255,255,0.12)",
+            border: "1px solid rgba(255,255,255,0.14)",
+          }}
+        >
+          <Text style={{ color: "rgba(255,255,255,0.84)" }}>Anak aktif</Text>
+          <Select
+            value={resolvedStudentId}
+            onChange={setSelectedStudentId}
+            style={{ minWidth: 240 }}
+            options={children.map((item) => ({
+              value: item.student_id,
+              label: `${item.student_name}${item.nis ? ` • ${item.nis}` : ""}`,
+            }))}
+          />
+        </Space>
+      ) : null;
+  } else {
+    const rows = savingStudentsResponse?.data || [];
+    const reportSummary = savingStudentsResponse?.summary || {};
+    const totalStudents = Number(reportSummary.total_students || 0);
+
+    dataSource = rows.map((item) => ({
+      key: item.student_id,
+      student: item.student_name || "-",
+      classroom: item.class_name || "-",
+      deposit: toCurrency(item.deposit_total),
+      balance: toCurrency(item.balance),
+      status: {
+        label: Number(item.transaction_count || 0) > 0 ? "Aktif" : "Pasif",
+        color: Number(item.transaction_count || 0) > 0 ? "green" : "gold",
+      },
+    }));
+
+    stats = [
+      {
+        title: "Saldo Tabungan",
+        value: reportSummary.total_balance || 0,
+        prefix: "Rp",
+      },
+      {
+        title: "Total Setoran",
+        value: reportSummary.total_deposit || 0,
+        prefix: "Rp",
+      },
+      {
+        title: "Akun Aktif",
+        value: reportSummary.active_students || 0,
+      },
+      {
+        title: "Total Penarikan",
+        value: reportSummary.total_withdrawal || 0,
+        prefix: "Rp",
+      },
+    ];
+
+    summary = {
+      title: `${totalStudents} akun tabungan`,
+      description:
+        "Total siswa yang masuk dalam cakupan laporan tabungan aktif.",
+    };
+  }
+
+  return (
+    <FinanceFeaturePage
+      badge='Laporan Tabungan'
+      title='Rekap tabungan siswa dan mutasi setoran'
+      description={description}
+      summary={summary}
+      stats={stats}
+      headerExtra={headerExtra}
+      actions={[]}
+      notes={[]}
+      columns={columns}
+      dataSource={dataSource}
+    />
+  );
+};
 
 export default SavingReport;
