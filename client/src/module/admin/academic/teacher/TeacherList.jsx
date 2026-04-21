@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { motion } from "framer-motion";
 import {
   Table,
   Button,
@@ -16,6 +17,7 @@ import {
   List,
   Pagination,
   Empty,
+  Statistic,
 } from "antd";
 import {
   EditOutlined,
@@ -27,6 +29,7 @@ import {
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const TeachingAllocations = ({ allocations, compact = false }) => {
   const groupedData = useMemo(() => {
@@ -194,15 +197,17 @@ const TeacherList = ({
     <Card
       bordered={false}
       styles={{ body: { padding: isMobile ? 12 : 16 } }}
-      style={{ borderRadius: 12 }}
+      style={{ borderRadius: 22, boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)" }}
     >
       <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-        <Space size="small">
-          <Tag color="blue">{total} Guru</Tag>
-          <Text type="secondary">
+        <Flex gap={12} wrap="wrap">
+          <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "12px 14px" } }}>
+            <Statistic title="Total Guru" value={total} />
+          </Card>
+          <Tag color="blue" style={{ alignSelf: "center", borderRadius: 999, padding: "8px 14px" }}>
             Halaman {current} dari {Math.max(1, Math.ceil(total / pageSize))}
-          </Text>
-        </Space>
+          </Tag>
+        </Flex>
       </Flex>
       <Divider style={{ margin: "14px 0" }} />
 
@@ -214,7 +219,8 @@ const TeacherList = ({
             locale={{ emptyText: <Empty description="Data guru belum tersedia" /> }}
             renderItem={(record) => (
               <List.Item style={{ padding: 0, marginBottom: 10 }}>
-                <Card size="small" style={{ width: "100%" }}>
+                <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.18 }} style={{ width: "100%" }}>
+                <Card size="small" style={{ width: "100%", borderRadius: 18 }}>
                   <Flex justify="space-between" align="start" gap={10}>
                     <Space align="start">
                       <Avatar src={record.img_url} icon={<UserOutlined />} />
@@ -262,6 +268,7 @@ const TeacherList = ({
                     <TeachingAllocations allocations={record.allocations} compact />
                   </Flex>
                 </Card>
+                </MotionDiv>
               </List.Item>
             )}
           />

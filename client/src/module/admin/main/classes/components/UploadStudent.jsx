@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   Drawer,
   Button,
@@ -17,6 +18,7 @@ import {
   Tooltip,
   Collapse,
   Divider,
+  Flex,
 } from "antd";
 import {
   InboxOutlined,
@@ -27,6 +29,7 @@ import {
   DownloadOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
+import { UploadCloud, X, Sparkles, School, CalendarRange } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   useGetClassesQuery,
@@ -37,6 +40,7 @@ import { useUploadStudentsMutation } from "../../../../../service/main/ApiClass"
 const { Dragger } = Upload;
 const { Title, Text } = Typography;
 const { Option } = Select;
+const MotionDiv = motion.div;
 
 const UploadStudent = ({ open, onClose }) => {
   // --- STATE ---
@@ -170,6 +174,12 @@ const UploadStudent = ({ open, onClose }) => {
   const totalData = tableData.length;
   const validCount = tableData.filter((i) => i.selectedClassId).length;
   const errorCount = totalData - validCount;
+  const readinessLabel =
+    totalData === 0
+      ? "Menunggu File"
+      : errorCount === 0
+        ? "Siap Diunggah"
+        : "Perlu Review";
 
   // --- TABLE COLUMNS ---
   const columns = [
@@ -262,193 +272,377 @@ const UploadStudent = ({ open, onClose }) => {
 
   return (
     <Drawer
-      title={
-        <Space>
-          <FileExcelOutlined />
-          <span>Import Data Siswa</span>
-        </Space>
-      }
-      size={1000}
+      title={null}
+      width={1100}
       onClose={onClose}
       open={open}
-      // TWEAK UI 1: Flex layout agar Table mengisi sisa ruang & scroll rapi
+      closable={false}
+      destroyOnHidden
       styles={{
+        header: {
+          display: "none",
+        },
         body: {
           display: "flex",
           flexDirection: "column",
           height: "100%",
           overflow: "hidden",
-          paddingBottom: 80,
+          padding: 0,
+          background: "#f8fafc",
         },
       }}
-      extra={
-        <Space>
-          <Button onClick={onClose}>Batal</Button>
-          <Button
-            onClick={handleUploadSubmit}
-            type='primary'
-            loading={isUploading}
-            disabled={validCount === 0 || !selectedPeriodeId}
-          >
-            Upload {validCount > 0 ? `(${validCount})` : ""}
-          </Button>
-        </Space>
-      }
     >
-      {/* SECTION 1: INSTRUKSI & PERIODE (Fixed at Top) */}
-      <div style={{ flexShrink: 0, marginBottom: 16 }}>
-        <Collapse
-          size='small'
-          items={[
-            {
-              key: "1",
-              label: (
-                <Space>
-                  <InfoCircleOutlined />{" "}
-                  <span>Panduan Format & Template Excel</span>
-                </Space>
-              ),
-              children: (
-                <div>
-                  <Alert
-                    title='Aturan Pengisian Data'
-                    description={
-                      <ul style={{ paddingLeft: 20, margin: 0 }}>
-                        <li>
-                          <b>NIS:</b> Wajib diisi (unik).
-                        </li>
-                        <li>
-                          <b>Nama:</b> Nama lengkap siswa.
-                        </li>
-                        <li>
-                          <b>L/P:</b> Jenis kelamin, isi dengan huruf 'L' atau
-                          'P'.
-                        </li>
-                        <li>
-                          <b>Kelas:</b> Nama kelas (Misal: X IPA 1). Jika nama
-                          di Excel beda dengan sistem, Anda bisa memperbaikinya
-                          di tabel bawah.
-                        </li>
-                      </ul>
-                    }
-                    type='info'
-                    showIcon
-                    style={{ marginBottom: 12 }}
-                  />
-                  <Button
-                    icon={<DownloadOutlined />}
-                    onClick={downloadTemplate}
-                    size='small'
+      <MotionDiv
+        initial={{ opacity: 0, x: 24 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.24, ease: "easeOut" }}
+        style={{ height: "100%", display: "flex", flexDirection: "column" }}
+      >
+        <div
+          style={{
+            padding: 24,
+            background:
+              "linear-gradient(135deg, rgba(240,253,244,1), rgba(239,246,255,0.98))",
+            borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
+          }}
+        >
+          <Flex justify="space-between" align="flex-start" gap={16}>
+            <Flex align="flex-start" gap={16}>
+              <div
+                style={{
+                  width: 58,
+                  height: 58,
+                  borderRadius: 20,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "linear-gradient(135deg, #0f766e, #0284c7)",
+                  color: "#fff",
+                  boxShadow: "0 18px 32px rgba(2, 132, 199, 0.24)",
+                  flexShrink: 0,
+                }}
+              >
+                <UploadCloud size={24} />
+              </div>
+
+              <div>
+                <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 6 }}>
+                  <Title level={3} style={{ margin: 0 }}>
+                    Import Data Siswa
+                  </Title>
+                  <Tag
+                    bordered={false}
+                    style={{
+                      marginInlineEnd: 0,
+                      borderRadius: 999,
+                      padding: "6px 12px",
+                      background:
+                        errorCount > 0
+                          ? "rgba(245, 158, 11, 0.12)"
+                          : "rgba(3, 105, 161, 0.10)",
+                      color: errorCount > 0 ? "#b45309" : "#0369a1",
+                      fontWeight: 600,
+                    }}
                   >
-                    Download Template Kosong
-                  </Button>
-                </div>
-              ),
-            },
-          ]}
-        />
+                    {readinessLabel}
+                  </Tag>
+                </Flex>
+                <Text type="secondary" style={{ display: "block", maxWidth: 620 }}>
+                  Upload file Excel, tinjau hasil mapping kelas, lalu sinkronkan
+                  siswa ke sistem dengan alur yang lebih jelas dan aman.
+                </Text>
+              </div>
+            </Flex>
 
-        <Divider style={{ margin: "12px 0" }} />
+            <Flex gap={10} wrap="wrap" justify="flex-end">
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={downloadTemplate}
+                style={{ borderRadius: 14 }}
+              >
+                Template
+              </Button>
+              <Button
+                onClick={onClose}
+                icon={<X size={16} />}
+                style={{ borderRadius: 14 }}
+              >
+                Tutup
+              </Button>
+              <Button
+                onClick={handleUploadSubmit}
+                type="primary"
+                loading={isUploading}
+                disabled={validCount === 0 || !selectedPeriodeId}
+                style={{
+                  borderRadius: 14,
+                  boxShadow: "0 12px 24px rgba(2, 132, 199, 0.20)",
+                }}
+              >
+                Upload {validCount > 0 ? `(${validCount})` : ""}
+              </Button>
+            </Flex>
+          </Flex>
 
-        <Row gutter={16} align='middle'>
-          <Col span={12}>
-            <Text strong>Pilih Periode Masuk / Tahun Ajaran:</Text>
-            <Select
-              style={{ width: "100%", marginTop: 4 }}
-              placeholder='Pilih Periode (Wajib)'
-              onChange={setSelectedPeriodeId}
-              value={selectedPeriodeId}
-              options={refPeriode?.map((p) => ({ label: p.name, value: p.id }))}
-              allowClear
-              virtual={false}
-            />
-          </Col>
-          <Col span={12}>
-            {/* Statistics Box */}
-            {tableData.length > 0 && (
-              <Space separator={<Divider vertical />}>
-                <Statistic
-                  title='Data'
-                  value={totalData}
-                  styles={{ content: { fontSize: 16 } }}
+          <Row gutter={[12, 12]} style={{ marginTop: 20 }}>
+            <Col xs={24} md={12}>
+              <Card
+                size="small"
+                style={{
+                  borderRadius: 18,
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+                }}
+                styles={{ body: { padding: "14px 16px" } }}
+              >
+                <Flex align="center" gap={10} style={{ marginBottom: 10 }}>
+                  <CalendarRange size={18} color="#0369a1" />
+                  <Text strong>Pilih Periode Masuk / Tahun Ajaran</Text>
+                </Flex>
+                <Select
+                  size="large"
+                  style={{ width: "100%" }}
+                  placeholder="Pilih Periode (Wajib)"
+                  onChange={setSelectedPeriodeId}
+                  value={selectedPeriodeId}
+                  options={refPeriode?.map((p) => ({ label: p.name, value: p.id }))}
+                  allowClear
+                  virtual={false}
                 />
-                <Statistic
-                  title='Valid'
-                  value={validCount}
-                  styles={{ content: { fontSize: 16, color: "#3f8600" } }}
-                />
-                <Statistic
-                  title='Error'
-                  value={errorCount}
-                  styles={{ content: { fontSize: 16, color: "#cf1322" } }}
-                />
-              </Space>
-            )}
-          </Col>
-        </Row>
-      </div>
+              </Card>
+            </Col>
 
-      {/* SECTION 2: UPLOAD AREA (Jika belum ada data) */}
-      {tableData.length === 0 && (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-          }}
-        >
-          <Dragger
-            accept='.xlsx, .xls'
-            beforeUpload={handleFile}
-            fileList={fileList}
-            showUploadList={false}
-            style={{
-              padding: 40,
-              border: "2px dashed #d9d9d9",
-              background: "#fafafa",
-            }}
+            <Col xs={24} md={12}>
+              <Row gutter={[12, 12]}>
+                <Col xs={24} sm={8}>
+                  <Card
+                    size="small"
+                    style={{
+                      borderRadius: 18,
+                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+                    }}
+                    styles={{ body: { padding: "14px 16px" } }}
+                  >
+                    <Statistic title="Data" value={totalData} />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card
+                    size="small"
+                    style={{
+                      borderRadius: 18,
+                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+                    }}
+                    styles={{ body: { padding: "14px 16px" } }}
+                  >
+                    <Statistic
+                      title="Valid"
+                      value={validCount}
+                      valueStyle={{ color: "#15803d" }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card
+                    size="small"
+                    style={{
+                      borderRadius: 18,
+                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+                    }}
+                    styles={{ body: { padding: "14px 16px" } }}
+                  >
+                    <Statistic
+                      title="Perlu Cek"
+                      value={errorCount}
+                      valueStyle={{ color: "#dc2626" }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            </Col>
+          </Row>
+        </div>
+
+        <div style={{ padding: 20, flex: 1, overflow: "auto" }}>
+          <MotionDiv
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.04 }}
+            style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: "100%" }}
           >
-            <p className='ant-upload-drag-icon'>
-              <InboxOutlined style={{ color: "#1677ff", fontSize: 48 }} />
-            </p>
-            <Title level={4}>Klik atau tarik file Excel ke sini</Title>
-            <Text type='secondary'>Format .xlsx atau .xls</Text>
-          </Dragger>
-        </div>
-      )}
-
-      {/* SECTION 3: TABLE AREA (Scrollable) */}
-      {tableData.length > 0 && (
-        <div
-          style={{
-            flex: 1,
-
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          {errorCount > 0 && (
-            <Alert
-              title={`Terdapat ${errorCount} data dengan kelas yang tidak dikenali.`}
-              type='warning'
-              banner
-              style={{ marginBottom: 8 }}
+            <Collapse
+              size="small"
+              style={{
+                borderRadius: 18,
+                overflow: "hidden",
+                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+              }}
+              items={[
+                {
+                  key: "1",
+                  label: (
+                    <Space>
+                      <InfoCircleOutlined />
+                      <span>Panduan Format & Template Excel</span>
+                    </Space>
+                  ),
+                  children: (
+                    <div>
+                      <Alert
+                        title="Aturan Pengisian Data"
+                        description={
+                          <ul style={{ paddingLeft: 20, margin: 0 }}>
+                            <li>
+                              <b>NIS:</b> Wajib diisi dan unik.
+                            </li>
+                            <li>
+                              <b>Nama:</b> Gunakan nama lengkap siswa.
+                            </li>
+                            <li>
+                              <b>L/P:</b> Isi dengan huruf `L` atau `P`.
+                            </li>
+                            <li>
+                              <b>Kelas:</b> Samakan nama kelas dengan data sistem,
+                              atau koreksi mapping di tabel review.
+                            </li>
+                          </ul>
+                        }
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 12 }}
+                      />
+                      <Flex gap={10} wrap="wrap">
+                        <Button
+                          icon={<DownloadOutlined />}
+                          onClick={downloadTemplate}
+                        >
+                          Download Template
+                        </Button>
+                        <Tag
+                          bordered={false}
+                          color="processing"
+                          style={{ borderRadius: 999, padding: "6px 12px" }}
+                        >
+                          Format .xlsx / .xls
+                        </Tag>
+                      </Flex>
+                    </div>
+                  ),
+                },
+              ]}
             />
-          )}
 
-          <Table
-            dataSource={tableData}
-            columns={columns}
-            rowKey='key'
-            pagination={false}
-            size='small'
-            bordered
-            // TWEAK UI 2: Kalkulasi tinggi agar header tetap sticky dan body bisa discroll
-            scroll={{ y: "calc(100vh - 290px)" }}
-          />
+            {tableData.length === 0 ? (
+              <Card
+                bordered={false}
+                style={{
+                  flex: 1,
+                  borderRadius: 24,
+                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+                }}
+                styles={{ body: { padding: 24, height: "100%" } }}
+              >
+                <Dragger
+                  accept=".xlsx, .xls"
+                  beforeUpload={handleFile}
+                  fileList={fileList}
+                  showUploadList={false}
+                  style={{
+                    minHeight: 360,
+                    padding: 40,
+                    border: "2px dashed #93c5fd",
+                    borderRadius: 22,
+                    background:
+                      "linear-gradient(135deg, rgba(239,246,255,0.85), rgba(240,253,250,0.85))",
+                  }}
+                >
+                  <p className="ant-upload-drag-icon">
+                    <InboxOutlined style={{ color: "#0284c7", fontSize: 52 }} />
+                  </p>
+                  <Title level={3}>Klik atau tarik file Excel ke sini</Title>
+                  <Text type="secondary">
+                    Sistem akan membaca file, melakukan auto-mapping kelas, lalu
+                    menampilkan hasil review sebelum upload.
+                  </Text>
+                  <div style={{ marginTop: 20 }}>
+                    <Tag
+                      bordered={false}
+                      style={{
+                        borderRadius: 999,
+                        padding: "8px 14px",
+                        background: "rgba(14, 165, 233, 0.10)",
+                        color: "#0369a1",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Flex align="center" gap={8}>
+                        <Sparkles size={14} />
+                        <span>Auto-match nama kelas dari file Excel</span>
+                      </Flex>
+                    </Tag>
+                  </div>
+                </Dragger>
+              </Card>
+            ) : (
+              <Card
+                bordered={false}
+                style={{
+                  borderRadius: 24,
+                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+                }}
+                styles={{ body: { padding: 18 } }}
+              >
+                <Flex justify="space-between" align="center" gap={12} wrap="wrap">
+                  <div>
+                    <Title level={4} style={{ margin: 0 }}>
+                      Review & Mapping Data
+                    </Title>
+                    <Text type="secondary">
+                      Periksa kecocokan kelas sebelum data disinkronkan ke server.
+                    </Text>
+                  </div>
+                  <Tag
+                    bordered={false}
+                    style={{
+                      borderRadius: 999,
+                      padding: "8px 14px",
+                      fontWeight: 600,
+                      color: "#0369a1",
+                      background: "rgba(3, 105, 161, 0.10)",
+                    }}
+                  >
+                    <Flex align="center" gap={8}>
+                      <School size={14} />
+                      <span>{classOptions.length} kelas tersedia</span>
+                    </Flex>
+                  </Tag>
+                </Flex>
+
+                <Divider style={{ margin: "16px 0" }} />
+
+                {errorCount > 0 && (
+                  <Alert
+                    title={`Terdapat ${errorCount} data dengan kelas yang belum dikenali.`}
+                    description="Perbaiki mapping pada kolom sistem sebelum menekan tombol upload."
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 14, borderRadius: 16 }}
+                  />
+                )}
+
+                <Table
+                  dataSource={tableData}
+                  columns={columns}
+                  rowKey="key"
+                  pagination={false}
+                  size="small"
+                  bordered
+                  scroll={{ y: "calc(100vh - 360px)", x: 980 }}
+                />
+              </Card>
+            )}
+          </MotionDiv>
         </div>
-      )}
+      </MotionDiv>
     </Drawer>
   );
 };

@@ -1,5 +1,13 @@
 import React, { Suspense, lazy } from "react";
-import { Calendar, Folders, GitBranch, GraduationCap } from "lucide-react";
+import {
+  Calendar,
+  Folders,
+  GitBranch,
+  GraduationCap,
+  Database,
+  Sparkles,
+  ChevronRight,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, Flex, Grid, Tabs, Typography, theme } from "antd";
 import { useSelector } from "react-redux";
@@ -93,39 +101,145 @@ const AdminMain = () => {
       >
         <MotionDiv variants={itemVariants}>
           <Card
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: token.borderRadiusXL,
               overflow: "hidden",
               background:
-                "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(248,250,252,0.98))",
-              boxShadow: token.boxShadowTertiary,
+                "radial-gradient(circle at top left, rgba(56,189,248,0.28), transparent 28%), radial-gradient(circle at right center, rgba(255,255,255,0.16), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
+              boxShadow: "0 26px 54px rgba(15, 23, 42, 0.20)",
+              position: "relative",
             }}
             styles={{ body: { padding: isMobile ? 20 : 28 } }}
           >
-            <Flex vertical gap={8}>
-              <Text
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
+                pointerEvents: "none",
+              }}
+            />
+
+            <Flex
+              justify='space-between'
+              align={isMobile ? "stretch" : "center"}
+              vertical={isMobile}
+              gap={isMobile ? 16 : 18}
+              style={{ position: "relative" }}
+            >
+              <Flex vertical gap={10} style={{ maxWidth: 760, flex: 1 }}>
+                <Flex align='center' gap={10} wrap='wrap'>
+                  <Flex
+                    align='center'
+                    gap={8}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.12)",
+                      border: "1px solid rgba(255,255,255,0.16)",
+                      color: "#e0f2fe",
+                      fontWeight: 700,
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    <Database size={16} />
+                    <span>MASTER DATA</span>
+                  </Flex>
+
+                  <Flex
+                    align='center'
+                    gap={6}
+                    style={{
+                      padding: "7px 12px",
+                      borderRadius: 999,
+                      background: "rgba(15,23,42,0.18)",
+                      color: "#dbeafe",
+                    }}
+                  >
+                    <Sparkles size={14} />
+                    <span>Pusat Pengelolaan Akademik</span>
+                  </Flex>
+                </Flex>
+
+                <Title
+                  level={isMobile ? 3 : 2}
+                  style={{
+                    margin: 0,
+                    color: "#f8fafc",
+                    lineHeight: 1.15,
+                  }}
+                >
+                  Kelola data pokok lebih cepat, rapi, dan konsisten.
+                </Title>
+
+                <Text
+                  style={{
+                    maxWidth: 640,
+                    color: "rgba(241,245,249,0.84)",
+                    fontSize: isMobile ? 14 : 15,
+                  }}
+                >
+                  Semua pengaturan inti seperti periode, jurusan, tingkat, dan
+                  kelas disusun dalam satu workspace agar administrasi lebih
+                  fokus dan mudah dipantau.
+                </Text>
+              </Flex>
+
+              <Flex
+                vertical
+                gap={10}
                 style={{
-                  color: token.colorPrimary,
-                  fontWeight: 700,
-                  letterSpacing: 0.4,
+                  display: isMobile ? "none" : "flex",
+                  minWidth: isMobile ? "100%" : 260,
+                  maxWidth: isMobile ? "100%" : 280,
+                  padding: isMobile ? 14 : 16,
+                  borderRadius: 20,
+                  background: "rgba(15, 23, 42, 0.18)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  backdropFilter: "blur(8px)",
                 }}
               >
-                MASTER DATA
-              </Text>
-              <Title level={isMobile ? 4 : 3} style={{ margin: 0 }}>
-                Kelola Data Pokok.
-              </Title>
-              <Text type='secondary' style={{ maxWidth: 760 }}>
-                Kelola periode, jurusan, tingkat, dan kelas.
-              </Text>
+                <Text
+                  style={{
+                    color: "#e0f2fe",
+                    fontWeight: 700,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  Area Yang Dikelola
+                </Text>
+
+                <Flex vertical gap={10}>
+                  {["Periode Akademik", "Jurusan & Program", "Tingkat & Kelas"].map(
+                    (item) => (
+                      <Flex
+                        key={item}
+                        justify='space-between'
+                        align='center'
+                        style={{
+                          padding: isMobile ? "9px 11px" : "10px 12px",
+                          borderRadius: 14,
+                          background: "rgba(255,255,255,0.10)",
+                          color: "#f8fafc",
+                          fontSize: isMobile ? 13 : 14,
+                        }}
+                      >
+                        <span>{item}</span>
+                        <ChevronRight size={16} color='rgba(248,250,252,0.88)' />
+                      </Flex>
+                    ),
+                  )}
+                </Flex>
+              </Flex>
             </Flex>
           </Card>
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
           <Card
-            bordered={false}
+            variant='borderless'
             style={{
               borderRadius: token.borderRadiusXL,
               boxShadow: token.boxShadowSecondary,
