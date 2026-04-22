@@ -16,7 +16,9 @@ const TransactionStepConfirm = ({
   selectedOtherTotal,
   grandTotal,
 }) => {
-  const monthMap = new Map(unpaidMonths.map((item) => [item.value, item.label]));
+  const monthMap = new Map(
+    unpaidMonths.map((item) => [Number(item.value), item.label]),
+  );
 
   return (
     <Flex vertical gap={18}>
@@ -50,7 +52,7 @@ const TransactionStepConfirm = ({
                     color='blue'
                     style={{ borderRadius: 999, fontWeight: 600 }}
                   >
-                    {monthMap.get(month) || `Bulan ${month}`}
+                    {monthMap.get(Number(month)) || `Bulan ${month}`}
                   </Tag>
                 ))}
               </Space>

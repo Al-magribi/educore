@@ -57,8 +57,7 @@ router.post(
         relationship VARCHAR(50),
         is_primary BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (parent_user_id, student_id)
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
 
@@ -80,16 +79,21 @@ router.post(
     await client.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (
+        IF EXISTS (
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'uq_parent_student'
             AND conrelid = 'public.u_parent_students'::regclass
         ) THEN
           ALTER TABLE public.u_parent_students
-          ADD CONSTRAINT uq_parent_student UNIQUE (parent_user_id, student_id);
+          DROP CONSTRAINT uq_parent_student;
         END IF;
       END $$;
+    `);
+
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_u_parent_students_parent_student
+      ON public.u_parent_students(parent_user_id, student_id)
     `);
 
     await client.query(`

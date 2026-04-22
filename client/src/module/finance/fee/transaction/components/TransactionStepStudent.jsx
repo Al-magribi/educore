@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Avatar, Card, Flex, Form, Input, Select, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
 import { Search, UserRound } from "lucide-react";
@@ -16,6 +17,7 @@ const TransactionStepStudent = ({
   periodes,
   students,
   student,
+  editingTransaction,
   currentStudentSearch,
   isStudentOptionsLoading,
   onStudentSelect,
@@ -29,6 +31,48 @@ const TransactionStepStudent = ({
   const watchedStudentSearch = Form.useWatch("student_search", form) || "";
   const studentSearchValue = currentStudentSearch ?? watchedStudentSearch;
   const canSearchStudent = Boolean(selectedHomebaseId && selectedPeriodeId);
+  const singleHomebaseId = homebases.length === 1 ? homebases[0]?.id : undefined;
+  const currentHomebaseOption =
+    homebases.find((item) => Number(item.id) === Number(selectedHomebaseId)) ||
+    (editingTransaction?.homebase_id
+      ? {
+          id: editingTransaction.homebase_id,
+          name: editingTransaction.homebase_name || `Satuan #${editingTransaction.homebase_id}`,
+        }
+      : null);
+  const currentPeriodeOption =
+    periodes.find((item) => Number(item.id) === Number(selectedPeriodeId)) ||
+    (editingTransaction?.periode_id
+      ? {
+          id: editingTransaction.periode_id,
+          name: editingTransaction.periode_name || `Periode #${editingTransaction.periode_id}`,
+          is_active: false,
+        }
+      : null);
+  const currentStudentOption =
+    student && selectedStudentId
+      ? {
+          id: student.student_id || student.id || selectedStudentId,
+          full_name: student.full_name || student.student_name || "-",
+          nis: student.nis,
+          grade_name: student.grade_name,
+          class_name: student.class_name,
+          periode_name: student.periode_name,
+          grade_id: student.grade_id,
+          class_id: student.class_id,
+        }
+      : editingTransaction?.student_id
+        ? {
+            id: editingTransaction.student_id,
+            full_name: editingTransaction.student_name || "-",
+            nis: editingTransaction.nis,
+            grade_name: editingTransaction.grade_name,
+            class_name: editingTransaction.class_name,
+            periode_name: editingTransaction.periode_name,
+            grade_id: editingTransaction.grade_id,
+            class_id: editingTransaction.class_id,
+          }
+        : null;
   const studentOptions = students.map((item) => ({
     value: item.id,
     plainLabel: formatStudentSearchLabel(item),
@@ -47,8 +91,82 @@ const TransactionStepStudent = ({
           {item.periode_name || "-"}
         </Tag>
       </Flex>
-    ),
+        ),
   }));
+  const mergedStudentOptions =
+    currentStudentOption &&
+    !studentOptions.some(
+      (item) => Number(item.value) === Number(currentStudentOption.id),
+    )
+      ? [
+          {
+            value: currentStudentOption.id,
+            plainLabel: formatStudentSearchLabel(currentStudentOption),
+            studentData: currentStudentOption,
+            label: (
+              <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
+                <Space direction='vertical' size={1}>
+                  <Text strong style={{ color: "#0f172a" }}>
+                    {currentStudentOption.full_name}
+                  </Text>
+                  <Text type='secondary'>
+                    {`NIS ${currentStudentOption.nis || "-"} | ${currentStudentOption.grade_name || "-"} | ${currentStudentOption.class_name || "-"}`}
+                  </Text>
+                </Space>
+                <Tag color='blue' style={{ borderRadius: 999 }}>
+                  {currentStudentOption.periode_name || "-"}
+                </Tag>
+              </Flex>
+            ),
+          },
+          ...studentOptions,
+        ]
+      : studentOptions;
+  const homebaseOptions = (
+    currentHomebaseOption &&
+    !homebases.some((item) => Number(item.id) === Number(currentHomebaseOption.id))
+      ? [currentHomebaseOption, ...homebases]
+      : homebases
+  ).map((item) => ({
+    value: item.id,
+    label: item.name,
+  }));
+  const periodeOptions = (
+    currentPeriodeOption &&
+    !periodes.some((item) => Number(item.id) === Number(currentPeriodeOption.id))
+      ? [currentPeriodeOption, ...periodes]
+      : periodes
+  ).map((item) => ({
+    value: item.id,
+    label: (
+      <Flex justify='space-between' align='center' gap={12}>
+        <span>{item.name}</span>
+        <Tag
+          color={getPeriodeTagColor(item.is_active)}
+          style={{ borderRadius: 999 }}
+        >
+          {item.is_active ? "Aktif" : "Tidak Aktif"}
+        </Tag>
+      </Flex>
+    ),
+    searchLabel: item.name,
+  }));
+
+  useEffect(() => {
+    if (!singleHomebaseId) {
+      return;
+    }
+
+    if (editingTransaction) {
+      return;
+    }
+
+    if (Number(selectedHomebaseId) === Number(singleHomebaseId)) {
+      return;
+    }
+
+    onHomebaseChange(singleHomebaseId);
+  }, [editingTransaction, onHomebaseChange, selectedHomebaseId, singleHomebaseId]);
 
   return (
     <Flex vertical gap={20}>
@@ -92,10 +210,7 @@ const TransactionStepStudent = ({
             <Select
               placeholder='Pilih satuan'
               size='large'
-              options={homebases.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
+              options={homebaseOptions}
               disabled={homebases.length <= 1}
               onChange={onHomebaseChange}
               virtual={false}
@@ -112,21 +227,7 @@ const TransactionStepStudent = ({
               size='large'
               onChange={onPeriodeChange}
               virtual={false}
-              options={periodes.map((item) => ({
-                value: item.id,
-                label: (
-                  <Flex justify='space-between' align='center' gap={12}>
-                    <span>{item.name}</span>
-                    <Tag
-                      color={getPeriodeTagColor(item.is_active)}
-                      style={{ borderRadius: 999 }}
-                    >
-                      {item.is_active ? "Aktif" : "Tidak Aktif"}
-                    </Tag>
-                  </Flex>
-                ),
-                searchLabel: item.name,
-              }))}
+              options={periodeOptions}
               optionFilterProp='searchLabel'
             />
           </Form.Item>
@@ -156,7 +257,7 @@ const TransactionStepStudent = ({
                     ? "Mencari siswa..."
                     : "Siswa tidak ditemukan"
             }
-            options={studentOptions}
+            options={mergedStudentOptions}
             loading={isStudentOptionsLoading}
             defaultActiveFirstOption={false}
             onSearch={onStudentSearchChange}

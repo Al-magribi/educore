@@ -198,10 +198,10 @@ const ParentPaymentCheckoutModal = ({
                       <div style={{ fontWeight: 700, color: "#0f172a" }}>
                         Transfer ke Rekening Satuan
                       </div>
-                      <Text type='secondary'>
-                        Pilih rekening aktif sesuai satuan siswa, lalu unggah
-                        bukti transfer agar tim keuangan dapat memverifikasi.
-                      </Text>
+                    <Text type='secondary'>
+                      Pilih rekening aktif sesuai satuan siswa, lalu unggah
+                      bukti transfer agar tim keuangan dapat memverifikasi pembayaran ini sebelum dikonfirmasi.
+                    </Text>
                     </div>
                   </Space>
 
@@ -261,7 +261,7 @@ const ParentPaymentCheckoutModal = ({
                     </div>
                     <Text type='secondary'>
                       File gambar atau PDF diterima. Bukti transfer wajib ada
-                      untuk metode rekening bank.
+                      untuk metode rekening bank. Setelah dikirim, status pembayaran akan menunggu verifikasi admin.
                     </Text>
                   </div>
 

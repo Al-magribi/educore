@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
@@ -18,6 +20,23 @@ import {
 } from "./financeHelpers.js";
 
 const router = Router();
+const financeAssetDir = path.join("server", "assets", "finance");
+
+const toCurrencyNumber = (value) => Number(value || 0);
+
+const formatInvoiceStatus = (status) => {
+  const normalized = String(status || "").toLowerCase();
+
+  if (normalized === "paid") {
+    return "paid";
+  }
+
+  if (normalized === "partial") {
+    return "partial";
+  }
+
+  return "unpaid";
+};
 
 const getTransactionStudentContext = async (
   db,
@@ -84,14 +103,14 @@ const getPaymentSourceLabel = (paymentSource) => {
 
 const getPaymentStatusLabel = (status) => {
   if (status === "pending") {
-    return "Menunggu Konfirmasi";
+    return "Menunggu Proses";
   }
 
-  if (status === "paid") {
-    return "Lunas";
+  if (status === "confirmed") {
+    return "Terkonfirmasi";
   }
 
-  if (status === "failed") {
+  if (status === "rejected") {
     return "Ditolak";
   }
 
@@ -146,7 +165,7 @@ const buildTransactionAllocations = async ({
               SELECT
                 ii.invoice_id,
                 ii.amount,
-                COALESCE(SUM(CASE WHEN p.status = 'paid' AND p.id <> $2 THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+                COALESCE(SUM(CASE WHEN p.status = 'confirmed' AND p.id <> $2 THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
               FROM finance.invoice_item ii
               LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
               LEFT JOIN finance.payment p ON p.id = pa.payment_id
@@ -196,7 +215,7 @@ const buildTransactionAllocations = async ({
             ii.amount,
             inv.student_id,
             inv.periode_id,
-            COALESCE(SUM(CASE WHEN p.status = 'paid' AND ($3::bigint IS NULL OR p.id <> $3) THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+            COALESCE(SUM(CASE WHEN p.status = 'confirmed' AND ($3::bigint IS NULL OR p.id <> $3) THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
           FROM finance.invoice_item ii
           JOIN finance.invoice inv ON inv.id = ii.invoice_id
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -328,6 +347,76 @@ const getOtherRule = async (db, homebaseId, periodeId, gradeId, componentId) => 
   return result.rows[0] || null;
 };
 
+const getExistingOtherItem = async ({
+  client,
+  homebaseId,
+  periodeId,
+  studentId,
+  componentId,
+}) => {
+  const result = await client.query(
+    `
+      SELECT
+        ii.id,
+        ii.invoice_id,
+        ii.amount,
+        COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+      FROM finance.invoice inv
+      JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
+      LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
+      LEFT JOIN finance.payment p ON p.id = pa.payment_id
+      WHERE inv.homebase_id = $1
+        AND inv.student_id = $2
+        AND COALESCE(inv.periode_id, 0) = COALESCE($3, 0)
+        AND inv.status <> 'cancelled'
+        AND ii.item_type = 'other'
+        AND ii.component_id = $4
+      GROUP BY ii.id
+      ORDER BY inv.created_at DESC, ii.id DESC
+      LIMIT 1
+    `,
+    [homebaseId, studentId, periodeId, componentId],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getExistingSppItem = async ({
+  client,
+  homebaseId,
+  periodeId,
+  studentId,
+  feeRuleId,
+  billMonth,
+}) => {
+  const result = await client.query(
+    `
+      SELECT
+        ii.id,
+        ii.invoice_id,
+        ii.amount,
+        COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+      FROM finance.invoice inv
+      JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
+      LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
+      LEFT JOIN finance.payment p ON p.id = pa.payment_id
+      WHERE inv.homebase_id = $1
+        AND inv.student_id = $2
+        AND COALESCE(inv.periode_id, 0) = COALESCE($3, 0)
+        AND inv.status <> 'cancelled'
+        AND ii.item_type = 'spp'
+        AND ii.fee_rule_id = $4
+        AND ii.bill_month = $5
+      GROUP BY ii.id
+      ORDER BY inv.created_at DESC, ii.id DESC
+      LIMIT 1
+    `,
+    [homebaseId, studentId, periodeId, feeRuleId, billMonth],
+  );
+
+  return result.rows[0] || null;
+};
+
 const getOrCreateOtherItem = async ({
   client,
   homebaseId,
@@ -337,37 +426,26 @@ const getOrCreateOtherItem = async ({
   rule,
   createdBy,
 }) => {
+  const existingItem = await getExistingOtherItem({
+    client,
+    homebaseId,
+    periodeId,
+    studentId,
+    componentId,
+  });
+
+  if (existingItem) {
+    return existingItem;
+  }
+
   const invoice = await getOrCreateInvoice(client, {
     homebaseId,
     studentId,
     periodeId,
-    sourceType: "other",
+    sourceType: "mixed",
     createdBy,
-    notes: "Invoice pembayaran lainnya",
+    notes: buildInvoiceNotesBySourceType("mixed"),
   });
-
-  const existing = await client.query(
-    `
-      SELECT
-        ii.id,
-        ii.invoice_id,
-        ii.amount,
-        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
-      FROM finance.invoice_item ii
-      LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
-      LEFT JOIN finance.payment p ON p.id = pa.payment_id
-      WHERE ii.invoice_id = $1
-        AND ii.item_type = 'other'
-        AND ii.component_id = $2
-      GROUP BY ii.id
-      LIMIT 1
-    `,
-    [invoice.id, componentId],
-  );
-
-  if (existing.rowCount > 0) {
-    return existing.rows[0];
-  }
 
   const created = await client.query(
     `
@@ -405,38 +483,27 @@ const getOrCreateSppItem = async ({
   rule,
   createdBy,
 }) => {
+  const existingItem = await getExistingSppItem({
+    client,
+    homebaseId,
+    periodeId,
+    studentId,
+    feeRuleId: rule.id,
+    billMonth,
+  });
+
+  if (existingItem) {
+    return existingItem;
+  }
+
   const invoice = await getOrCreateInvoice(client, {
     homebaseId,
     studentId,
     periodeId,
-    sourceType: "spp",
+    sourceType: "mixed",
     createdBy,
-    notes: "Invoice SPP",
+    notes: buildInvoiceNotesBySourceType("mixed"),
   });
-
-  const existing = await client.query(
-    `
-      SELECT
-        ii.id,
-        ii.invoice_id,
-        ii.amount,
-        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
-      FROM finance.invoice_item ii
-      LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
-      LEFT JOIN finance.payment p ON p.id = pa.payment_id
-      WHERE ii.invoice_id = $1
-        AND ii.item_type = 'spp'
-        AND ii.fee_rule_id = $2
-        AND ii.bill_month = $3
-      GROUP BY ii.id
-      LIMIT 1
-    `,
-    [invoice.id, rule.id, billMonth],
-  );
-
-  if (existing.rowCount > 0) {
-    return existing.rows[0];
-  }
 
   const created = await client.query(
     `
@@ -468,6 +535,148 @@ const getOrCreateSppItem = async ({
   return created.rows[0];
 };
 
+const buildInvoiceNotesBySourceType = (sourceType) => {
+  if (sourceType === "spp") {
+    return "Invoice SPP";
+  }
+
+  if (sourceType === "other") {
+    return "Invoice pembayaran lainnya";
+  }
+
+  return "Invoice gabungan";
+};
+
+const syncInvoiceMetadata = async (
+  client,
+  { invoiceId, homebaseId, studentId, periodeId },
+) => {
+  if (!invoiceId) {
+    return;
+  }
+
+  const itemResult = await client.query(
+    `
+      SELECT ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.item_type), NULL) AS item_types
+      FROM finance.invoice_item ii
+      WHERE ii.invoice_id = $1
+    `,
+    [invoiceId],
+  );
+
+  const itemTypes = itemResult.rows[0]?.item_types || [];
+  const sourceType =
+    itemTypes.length === 1 && itemTypes[0] === "spp"
+      ? "spp"
+      : itemTypes.length === 1 && itemTypes[0] === "other"
+        ? "other"
+        : "mixed";
+
+  await client.query(
+    `
+      UPDATE finance.invoice
+      SET
+        homebase_id = $1,
+        student_id = $2,
+        periode_id = $3,
+        source_type = $4,
+        notes = $5,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+    `,
+    [
+      homebaseId,
+      studentId,
+      periodeId,
+      sourceType,
+      buildInvoiceNotesBySourceType(sourceType),
+      invoiceId,
+    ],
+  );
+};
+
+const removeLocalFinanceProof = (proofUrl) => {
+  if (!proofUrl || !String(proofUrl).startsWith("/assets/finance/")) {
+    return;
+  }
+
+  const filePath = path.join(financeAssetDir, path.basename(proofUrl));
+
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
+const consolidateAllocationsToSingleInvoice = async ({
+  client,
+  homebaseId,
+  studentId,
+  periodeId,
+  userId,
+  allocations,
+}) => {
+  if (!allocations.length) {
+    return allocations;
+  }
+
+  const targetInvoice = await getOrCreateInvoice(client, {
+    homebaseId,
+    studentId,
+    periodeId,
+    sourceType: "mixed",
+    createdBy: userId,
+    notes: buildInvoiceNotesBySourceType("mixed"),
+  });
+
+  const targetInvoiceId = Number(targetInvoice.id);
+  const previousInvoiceIds = [
+    ...new Set(allocations.map((item) => Number(item.invoice_id || 0)).filter(Boolean)),
+  ];
+
+  for (const allocation of allocations) {
+    await client.query(
+      `
+        UPDATE finance.invoice_item
+        SET invoice_id = $1
+        WHERE id = $2
+      `,
+      [targetInvoiceId, allocation.invoice_item_id],
+    );
+    allocation.invoice_id = targetInvoiceId;
+  }
+
+  for (const invoiceId of previousInvoiceIds) {
+    if (invoiceId === targetInvoiceId) {
+      continue;
+    }
+
+    const remainingItems = await client.query(
+      `
+        SELECT 1
+        FROM finance.invoice_item
+        WHERE invoice_id = $1
+        LIMIT 1
+      `,
+      [invoiceId],
+    );
+
+    if (remainingItems.rowCount === 0) {
+      await client.query(`DELETE FROM finance.invoice WHERE id = $1`, [invoiceId]);
+    } else {
+      await upsertInvoiceStatus(client, invoiceId);
+    }
+  }
+
+  await syncInvoiceMetadata(client, {
+    invoiceId: targetInvoiceId,
+    homebaseId,
+    studentId,
+    periodeId,
+  });
+
+  return allocations;
+};
+
 router.get(
   "/transactions/options",
   authorize("satuan", "keuangan"),
@@ -475,35 +684,44 @@ router.get(
     await ensureFinalFinanceTables(db);
 
     const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
-    const homebaseId = await resolveScopedHomebaseId(
-      db,
-      req.user,
-      requestedHomebaseId,
-    );
+    const homebaseId = req.user.homebase_id
+      ? Number(req.user.homebase_id)
+      : requestedHomebaseId || null;
     const requestedPeriodeId = parseOptionalInt(req.query.periode_id);
     const studentId = parseOptionalInt(req.query.student_id);
     const search = (req.query.search || "").trim();
-
-    if (!homebaseId) {
-      return res
-        .status(400)
-        .json({ message: "Satuan belum dipilih atau tidak valid" });
-    }
 
     const [homebaseResult, periodeResult] = await Promise.all([
       req.user.homebase_id
         ? db.query(`SELECT id, name FROM a_homebase WHERE id = $1`, [homebaseId])
         : db.query(`SELECT id, name FROM a_homebase ORDER BY name ASC`),
-      db.query(
-        `
-          SELECT id, name, is_active
-          FROM a_periode
-          WHERE homebase_id = $1
-          ORDER BY is_active DESC, created_at DESC
-        `,
-        [homebaseId],
-      ),
+      homebaseId
+        ? db.query(
+            `
+              SELECT id, name, is_active
+              FROM a_periode
+              WHERE homebase_id = $1
+              ORDER BY is_active DESC, created_at DESC
+            `,
+            [homebaseId],
+          )
+        : Promise.resolve({ rows: [] }),
     ]);
+
+    if (!homebaseId) {
+      return res.json({
+        status: "success",
+        data: {
+          homebases: homebaseResult.rows,
+          selected_homebase_id: null,
+          periodes: [],
+          students: [],
+          student: null,
+          spp: { tariff_amount: 0, unpaid_months: [] },
+          other_charges: [],
+        },
+      });
+    }
 
     const effectivePeriodeId =
       requestedPeriodeId ||
@@ -606,7 +824,7 @@ router.get(
                   ii.id AS invoice_item_id,
                   ii.bill_month,
                   ii.amount,
-                  COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+                  COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
                 FROM finance.invoice inv
                 JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
                 LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -677,7 +895,7 @@ router.get(
                   ii.component_id,
                   ii.amount AS amount_due,
                   ii.description,
-                  COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+                  COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
                 FROM finance.invoice inv
                 JOIN finance.invoice_item ii ON ii.invoice_id = inv.id AND ii.item_type = 'other'
                 LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -784,11 +1002,9 @@ router.get(
     await ensureFinalFinanceTables(db);
 
     const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
-    const homebaseId = await resolveScopedHomebaseId(
-      db,
-      req.user,
-      requestedHomebaseId,
-    );
+    const homebaseId = req.user.homebase_id
+      ? Number(req.user.homebase_id)
+      : requestedHomebaseId || null;
     const periodeId = parseOptionalInt(req.query.periode_id);
     const page = Math.max(parseOptionalInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseOptionalInt(req.query.limit) || 10, 1), 100);
@@ -798,9 +1014,16 @@ router.get(
     const search = (req.query.search || "").trim();
 
     if (!homebaseId) {
-      return res
-        .status(400)
-        .json({ message: "Satuan belum dipilih atau tidak valid" });
+      return res.json({
+        status: "success",
+        data: [],
+        summary: {
+          page,
+          limit,
+          total_records: 0,
+          total_pages: 0,
+        },
+      });
     }
 
     const params = [homebaseId];
@@ -818,7 +1041,7 @@ router.get(
 
     if (
       statusFilter &&
-      ["pending", "paid", "failed", "expired", "cancelled", "refunded"].includes(
+      ["pending", "confirmed", "rejected", "expired", "cancelled", "refunded"].includes(
         statusFilter,
       )
     ) {
@@ -862,6 +1085,15 @@ router.get(
           enr.class_name,
           enr.grade_name,
           per.name AS periode_name,
+          COALESCE(
+            JSONB_AGG(
+              DISTINCT JSONB_BUILD_OBJECT(
+                'id', inv.id,
+                'invoice_no', inv.invoice_no
+              )
+            ) FILTER (WHERE inv.id IS NOT NULL),
+            '[]'::jsonb
+          ) AS invoices,
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.id ORDER BY ii.id), NULL) AS invoice_item_ids,
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.component_id ORDER BY ii.component_id), NULL) AS component_ids,
           ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.bill_month ORDER BY ii.bill_month), NULL) AS bill_months,
@@ -986,6 +1218,14 @@ router.get(
         description,
         bill_months: billMonths,
         item_names: itemNames,
+        invoices: Array.isArray(item.invoices)
+          ? item.invoices
+              .map((invoice) => ({
+                id: Number(invoice?.id || 0) || null,
+                invoice_no: invoice?.invoice_no || null,
+              }))
+              .filter((invoice) => invoice.id)
+          : [],
         payment_items: Array.isArray(item.payment_items)
           ? item.payment_items.map((paymentItem) => ({
               charge_id: Number(paymentItem?.charge_id || 0) || null,
@@ -997,8 +1237,11 @@ router.get(
               amount_paid: Number(paymentItem?.amount_paid || 0),
             }))
           : [],
-        can_manage: item.payment_source === "admin_manual" && item.status === "paid",
+        can_manage: item.payment_source === "admin_manual" && item.status === "confirmed",
         can_confirm: item.payment_source === "parent_manual" && item.status === "pending",
+        can_revoke:
+          item.payment_source === "parent_manual" &&
+          ["confirmed", "rejected"].includes(item.status),
       };
     });
 
@@ -1017,6 +1260,212 @@ router.get(
         limit,
         total_records: totalRecords,
         total_pages: Math.ceil(totalRecords / limit),
+      },
+    });
+  }),
+);
+
+router.get(
+  "/transactions/invoices/:invoiceId",
+  authorize("satuan", "keuangan"),
+  withQuery(async (req, res, db) => {
+    await ensureFinalFinanceTables(db);
+
+    const invoiceId = parseOptionalInt(req.params.invoiceId);
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
+
+    if (!invoiceId || !homebaseId) {
+      return res.status(400).json({ message: "Invoice tidak valid" });
+    }
+
+    const invoiceResult = await db.query(
+      `
+        SELECT
+          inv.id,
+          inv.invoice_no,
+          inv.issue_date,
+          inv.due_date,
+          inv.status,
+          inv.source_type,
+          inv.notes,
+          inv.homebase_id,
+          inv.student_id,
+          hb.name AS homebase_name,
+          per.id AS periode_id,
+          per.name AS periode_name,
+          u.full_name AS student_name,
+          s.nis,
+          enr.class_name,
+          enr.grade_name,
+          fs.officer_name,
+          fs.officer_signature_url
+        FROM finance.invoice inv
+        JOIN public.a_homebase hb ON hb.id = inv.homebase_id
+        JOIN public.u_students s ON s.user_id = inv.student_id
+        JOIN public.u_users u ON u.id = s.user_id
+        LEFT JOIN public.a_periode per ON per.id = inv.periode_id
+        LEFT JOIN finance.finance_setting fs ON fs.homebase_id = inv.homebase_id
+        LEFT JOIN LATERAL (
+          SELECT
+            c.name AS class_name,
+            g.name AS grade_name
+          FROM public.u_class_enrollments e
+          JOIN public.a_class c ON c.id = e.class_id
+          JOIN public.a_grade g ON g.id = c.grade_id
+          WHERE e.student_id = inv.student_id
+            AND e.homebase_id = inv.homebase_id
+            AND (
+              inv.periode_id IS NULL
+              OR e.periode_id = inv.periode_id
+            )
+          ORDER BY e.enrolled_at DESC, e.id DESC
+          LIMIT 1
+        ) AS enr ON true
+        WHERE inv.id = $1
+          AND inv.homebase_id = $2
+        LIMIT 1
+      `,
+      [invoiceId, homebaseId],
+    );
+
+    if (invoiceResult.rowCount === 0) {
+      return res.status(404).json({ message: "Invoice tidak ditemukan" });
+    }
+
+    const invoice = invoiceResult.rows[0];
+
+    const [itemResult, paymentResult] = await Promise.all([
+      db.query(
+        `
+          SELECT
+            ii.id,
+            ii.item_type,
+            ii.description,
+            ii.bill_month,
+            ii.qty,
+            ii.unit_amount,
+            ii.amount,
+            fc.name AS component_name,
+            COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+          FROM finance.invoice_item ii
+          LEFT JOIN finance.fee_component fc ON fc.id = ii.component_id
+          LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
+          LEFT JOIN finance.payment p ON p.id = pa.payment_id
+          WHERE ii.invoice_id = $1
+          GROUP BY ii.id, fc.name
+          ORDER BY
+            CASE WHEN ii.item_type = 'spp' THEN 0 ELSE 1 END,
+            ii.bill_month ASC NULLS LAST,
+            ii.id ASC
+        `,
+        [invoiceId],
+      ),
+      db.query(
+        `
+          SELECT
+            p.id,
+            p.payment_date,
+            p.amount,
+            p.payment_channel,
+            p.reference_no,
+            p.status,
+            p.proof_url,
+            p.notes,
+            COALESCE(SUM(pa.allocated_amount), 0) AS allocated_amount
+          FROM finance.payment p
+          JOIN finance.payment_allocation pa ON pa.payment_id = p.id
+          JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
+          WHERE ii.invoice_id = $1
+          GROUP BY p.id
+          ORDER BY p.payment_date DESC, p.id DESC
+        `,
+        [invoiceId],
+      ),
+    ]);
+
+    const items = itemResult.rows.map((item) => {
+      const amountDue = toCurrencyNumber(item.amount);
+      const paidAmount = toCurrencyNumber(item.paid_amount);
+
+      return {
+        id: Number(item.id),
+        item_type: item.item_type,
+        description: item.description || item.component_name || "-",
+        component_name: item.component_name || null,
+        bill_month: Number(item.bill_month || 0) || null,
+        billing_period_label: item.bill_month
+          ? formatBillingPeriod(Number(item.bill_month))
+          : null,
+        qty: Number(item.qty || 0),
+        unit_amount: toCurrencyNumber(item.unit_amount),
+        amount_due: amountDue,
+        paid_amount: paidAmount,
+        remaining_amount: Math.max(amountDue - paidAmount, 0),
+        status:
+          paidAmount >= amountDue && amountDue > 0
+            ? "paid"
+            : paidAmount > 0
+              ? "partial"
+              : "unpaid",
+      };
+    });
+
+    const payments = paymentResult.rows.map((payment) => ({
+      id: Number(payment.id),
+      payment_date: payment.payment_date,
+      amount: toCurrencyNumber(payment.amount),
+      allocated_amount: toCurrencyNumber(payment.allocated_amount),
+      payment_channel: payment.payment_channel || "Pembayaran manual",
+      reference_no: payment.reference_no || null,
+      status: payment.status,
+      proof_url: payment.proof_url || null,
+      notes: payment.notes || null,
+    }));
+
+    const totalDue = items.reduce(
+      (sum, item) => sum + toCurrencyNumber(item.amount_due),
+      0,
+    );
+    const totalPaid = items.reduce(
+      (sum, item) => sum + toCurrencyNumber(item.paid_amount),
+      0,
+    );
+
+    res.json({
+      status: "success",
+      data: {
+        invoice: {
+          id: Number(invoice.id),
+          invoice_no: invoice.invoice_no,
+          issue_date: invoice.issue_date,
+          due_date: invoice.due_date,
+          status: formatInvoiceStatus(invoice.status),
+          source_type: invoice.source_type,
+          notes: invoice.notes,
+          homebase_id: Number(invoice.homebase_id),
+          homebase_name: invoice.homebase_name,
+          periode_id: Number(invoice.periode_id || 0) || null,
+          periode_name: invoice.periode_name,
+          student_id: Number(invoice.student_id),
+          student_name: invoice.student_name,
+          nis: invoice.nis,
+          class_name: invoice.class_name,
+          grade_name: invoice.grade_name,
+          total_due: totalDue,
+          total_paid: totalPaid,
+          total_remaining: Math.max(totalDue - totalPaid, 0),
+        },
+        officer: {
+          name: invoice.officer_name || null,
+          signature_url: invoice.officer_signature_url || null,
+        },
+        items,
+        payments,
       },
     });
   }),
@@ -1107,6 +1556,14 @@ router.post(
         billMonths,
         otherPayments,
       });
+      allocations = await consolidateAllocationsToSingleInvoice({
+        client,
+        homebaseId,
+        studentId,
+        periodeId,
+        userId,
+        allocations,
+      });
     } catch (error) {
       return res.status(400).json({ message: error.message });
     }
@@ -1156,7 +1613,7 @@ router.put(
       return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
     }
 
-    if (!paymentId || !["approve", "reject"].includes(action)) {
+    if (!paymentId || !["approve", "reject", "revoke"].includes(action)) {
       return res.status(400).json({ message: "Permintaan konfirmasi pembayaran tidak valid" });
     }
 
@@ -1187,9 +1644,15 @@ router.put(
       });
     }
 
-    if (payment.status !== "pending") {
+    if (["approve", "reject"].includes(action) && payment.status !== "pending") {
       return res.status(400).json({
         message: "Pembayaran ini sudah diproses dan tidak bisa dikonfirmasi ulang",
+      });
+    }
+
+    if (action === "revoke" && !["confirmed", "rejected"].includes(payment.status)) {
+      return res.status(400).json({
+        message: "Hanya pembayaran yang sudah di-approve atau di-reject yang dapat direvoke",
       });
     }
 
@@ -1203,7 +1666,7 @@ router.put(
           COALESCE(
             SUM(
               CASE
-                WHEN p2.status = 'paid' AND p2.id <> $1 THEN pa2.allocated_amount
+                WHEN p2.status = 'confirmed' AND p2.id <> $1 THEN pa2.allocated_amount
                 ELSE 0
               END
             ),
@@ -1239,12 +1702,29 @@ router.put(
         SET
           status = $1,
           notes = COALESCE($2, notes),
-          verified_by = CASE WHEN $1 = 'paid' THEN $3 ELSE verified_by END,
-          verified_at = CASE WHEN $1 = 'paid' THEN CURRENT_TIMESTAMP ELSE verified_at END,
+          verified_by = CASE
+            WHEN $1 = 'confirmed' THEN $3
+            WHEN $1 = 'pending' THEN NULL
+            ELSE verified_by
+          END,
+          verified_at = CASE
+            WHEN $1 = 'confirmed' THEN CURRENT_TIMESTAMP
+            WHEN $1 = 'pending' THEN NULL
+            ELSE verified_at
+          END,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $4
       `,
-      [action === "approve" ? "paid" : "failed", notes, req.user.id, paymentId],
+      [
+        action === "approve"
+          ? "confirmed"
+          : action === "reject"
+            ? "rejected"
+            : "pending",
+        notes,
+        req.user.id,
+        paymentId,
+      ],
     );
 
     const invoiceIds = [
@@ -1262,7 +1742,9 @@ router.put(
       message:
         action === "approve"
           ? "Pembayaran berhasil dikonfirmasi"
-          : "Pembayaran berhasil ditolak",
+          : action === "reject"
+            ? "Pembayaran berhasil ditolak"
+            : "Status pembayaran berhasil dikembalikan ke pending",
     });
   }),
 );
@@ -1372,6 +1854,14 @@ router.put(
         otherPayments,
         excludePaymentId: transactionId,
       });
+      allocations = await consolidateAllocationsToSingleInvoice({
+        client,
+        homebaseId,
+        studentId,
+        periodeId,
+        userId,
+        allocations,
+      });
     } catch (error) {
       return res.status(400).json({ message: error.message });
     }
@@ -1444,9 +1934,7 @@ router.put(
       ],
     );
 
-    const nextInvoiceIds = allocations
-      .map((item) => item.invoice_id)
-      .filter(Boolean);
+    const nextInvoiceIds = allocations.map((item) => item.invoice_id).filter(Boolean);
     const affectedInvoiceIds = [...new Set([...previousInvoiceIds, ...nextInvoiceIds])];
     for (const invoiceId of affectedInvoiceIds) {
       await upsertInvoiceStatus(client, invoiceId);
@@ -1492,6 +1980,16 @@ router.delete(
       `,
       [transactionId, homebaseId],
     );
+    const paymentScope = await client.query(
+      `
+        SELECT proof_url
+        FROM finance.payment
+        WHERE id = $1
+          AND homebase_id = $2
+        LIMIT 1
+      `,
+      [transactionId, homebaseId],
+    );
 
     const result = await client.query(
       `DELETE FROM finance.payment WHERE id = $1 AND homebase_id = $2`,
@@ -1504,9 +2002,29 @@ router.delete(
 
     for (const item of invoiceResult.rows) {
       if (item.invoice_id) {
+        const remainingAllocation = await client.query(
+          `
+            SELECT 1
+            FROM finance.payment_allocation pa
+            JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
+            WHERE ii.invoice_id = $1
+            LIMIT 1
+          `,
+          [item.invoice_id],
+        );
+
+        if (remainingAllocation.rowCount === 0) {
+          await client.query(`DELETE FROM finance.invoice WHERE id = $1`, [
+            item.invoice_id,
+          ]);
+          continue;
+        }
+
         await upsertInvoiceStatus(client, item.invoice_id);
       }
     }
+
+    removeLocalFinanceProof(paymentScope.rows[0]?.proof_url || null);
 
     res.json({
       status: "success",

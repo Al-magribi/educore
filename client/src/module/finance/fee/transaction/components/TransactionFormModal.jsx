@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -11,6 +11,7 @@ import {
   Space,
   Spin,
   Steps,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -65,6 +66,10 @@ const TransactionFormModal = ({
   const [currentStep, setCurrentStep] = useState(0);
 
   const monthlySelection = Form.useWatch("bill_months", form) || [];
+  const normalizedMonthlySelection = useMemo(
+    () => monthlySelection.map((month) => Number(month)),
+    [monthlySelection],
+  );
 
   const steps = useMemo(
     () => [
@@ -119,6 +124,16 @@ const TransactionFormModal = ({
   const modalTitle = editingTransaction
     ? "Ubah Transaksi Pembayaran"
     : "Input Transaksi Pembayaran";
+  const modeTag = editingTransaction
+    ? { color: "gold", label: "Mode Edit" }
+    : { color: "cyan", label: "Transaksi Baru" };
+
+  useEffect(() => {
+    if (!open) {
+      setCurrentStep(0);
+    }
+  }, [open]);
+
   const handleReset = () => {
     setCurrentStep(0);
     onReset();
@@ -190,6 +205,17 @@ const TransactionFormModal = ({
                   style={{ position: "relative" }}
                 >
                   <Space direction='vertical' size={2}>
+                    <Tag
+                      color={modeTag.color}
+                      style={{
+                        borderRadius: 999,
+                        width: "fit-content",
+                        margin: 0,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {modeTag.label}
+                    </Tag>
                     <Text strong style={{ fontSize: 20, color: "#fff" }}>
                       {modalTitle}
                     </Text>
@@ -272,6 +298,7 @@ const TransactionFormModal = ({
                   periodes={periodes}
                   students={students}
                   student={student}
+                  editingTransaction={editingTransaction}
                   isStudentOptionsLoading={isStudentOptionsLoading}
                   onStudentSelect={onStudentSelect}
                   onHomebaseChange={onHomebaseChange}
@@ -287,6 +314,7 @@ const TransactionFormModal = ({
                   unpaidMonths={unpaidMonths}
                   tariffAmount={tariffAmount}
                   loading={isStudentContextLoading}
+                  editingTransaction={editingTransaction}
                 />
               </div>
 
@@ -303,7 +331,7 @@ const TransactionFormModal = ({
               <div style={stepVisibilityStyle(currentStep === 3)}>
                 <TransactionStepConfirm
                   student={student}
-                  monthlySelection={monthlySelection}
+                  monthlySelection={normalizedMonthlySelection}
                   unpaidMonths={unpaidMonths}
                   tariffAmount={tariffAmount}
                   selectedOtherPayments={selectedOtherPayments}

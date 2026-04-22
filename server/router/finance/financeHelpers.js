@@ -227,8 +227,7 @@ export const ensureFinalFinanceTables = async (db) => {
       relationship VARCHAR(50),
       is_primary BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (parent_user_id, student_id)
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
@@ -250,16 +249,21 @@ export const ensureFinalFinanceTables = async (db) => {
   await db.query(`
     DO $$
     BEGIN
-      IF NOT EXISTS (
+      IF EXISTS (
         SELECT 1
         FROM pg_constraint
         WHERE conname = 'uq_parent_student'
           AND conrelid = 'public.u_parent_students'::regclass
       ) THEN
         ALTER TABLE public.u_parent_students
-        ADD CONSTRAINT uq_parent_student UNIQUE (parent_user_id, student_id);
+        DROP CONSTRAINT uq_parent_student;
       END IF;
     END $$;
+  `);
+
+  await db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_u_parent_students_parent_student
+    ON public.u_parent_students(parent_user_id, student_id)
   `);
 
   await db.query(`
@@ -476,7 +480,7 @@ export const ensureFinalFinanceTables = async (db) => {
       payment_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
       status VARCHAR(20) NOT NULL
-        CHECK (status IN ('pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded')),
+        CHECK (status IN ('pending', 'confirmed', 'rejected', 'expired', 'cancelled', 'refunded')),
       reference_no VARCHAR(120),
       proof_url TEXT,
       notes TEXT,
@@ -540,6 +544,53 @@ export const ensureFinalFinanceTables = async (db) => {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (homebase_id, provider)
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE finance.payment
+    DROP CONSTRAINT IF EXISTS payment_status_check
+  `);
+
+  await db.query(`
+    ALTER TABLE finance.payment
+    DROP CONSTRAINT IF EXISTS finance_payment_status_check
+  `);
+
+  await db.query(`
+    DO $$
+    DECLARE
+      constraint_row RECORD;
+    BEGIN
+      FOR constraint_row IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'finance.payment'::regclass
+          AND contype = 'c'
+          AND (
+            conname ILIKE '%status%'
+            OR pg_get_constraintdef(oid) ILIKE '%status%'
+          )
+      LOOP
+        EXECUTE format(
+          'ALTER TABLE finance.payment DROP CONSTRAINT %I',
+          constraint_row.conname
+        );
+      END LOOP;
+
+      UPDATE finance.payment
+      SET status = CASE
+        WHEN status = 'paid' THEN 'confirmed'
+        WHEN status = 'failed' THEN 'rejected'
+        ELSE status
+      END
+      WHERE status IN ('paid', 'failed');
+
+      ALTER TABLE finance.payment
+      ADD CONSTRAINT finance_payment_status_check
+      CHECK (status IN ('pending', 'confirmed', 'rejected', 'expired', 'cancelled', 'refunded'));
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END $$;
   `);
 
   await db.query(`
@@ -800,7 +851,7 @@ export const upsertInvoiceStatus = async (client, invoiceId) => {
         COALESCE(SUM(pa.allocated_amount), 0) AS total_paid
       FROM finance.invoice_item ii
       LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
-      LEFT JOIN finance.payment p ON p.id = pa.payment_id AND p.status = 'paid'
+      LEFT JOIN finance.payment p ON p.id = pa.payment_id AND p.status = 'confirmed'
       WHERE ii.invoice_id = $1
     `,
     [invoiceId],
@@ -875,7 +926,7 @@ export const createManualPayment = async (
         verified_at
       )
       VALUES (
-        $1, $2, $3, $4, $5, $6, 'admin_manual', $7, $8, 'paid',
+        $1, $2, $3, $4, $5, $6, 'admin_manual', $7, $8, 'confirmed',
         $9, $10, $11, $12, $13, CURRENT_TIMESTAMP
       )
       RETURNING id

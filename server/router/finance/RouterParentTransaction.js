@@ -214,7 +214,7 @@ const getOrCreateSppInvoiceItem = async ({
         ii.id,
         ii.invoice_id,
         ii.amount,
-        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+        COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
       FROM finance.invoice_item ii
       LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
       LEFT JOIN finance.payment p ON p.id = pa.payment_id
@@ -286,7 +286,7 @@ const getOrCreateOtherInvoiceItem = async ({
         ii.id,
         ii.invoice_id,
         ii.amount,
-        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+        COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
       FROM finance.invoice_item ii
       LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
       LEFT JOIN finance.payment p ON p.id = pa.payment_id
@@ -475,10 +475,10 @@ const getSppItems = async ({ db, homebaseId, periodeId, studentId, gradeId }) =>
           MAX(inv.invoice_no) AS invoice_no,
           MAX(ii.description) AS description,
           MAX(ii.amount) AS amount_due,
-          COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount,
+          COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount,
           COALESCE(SUM(CASE WHEN p.status = 'pending' THEN pa.allocated_amount ELSE 0 END), 0) AS pending_amount,
           COUNT(DISTINCT p.id) FILTER (WHERE p.status = 'pending') AS pending_payment_count,
-          MAX(p.payment_date) FILTER (WHERE p.status = 'paid') AS last_paid_at,
+          MAX(p.payment_date) FILTER (WHERE p.status = 'confirmed') AS last_paid_at,
           MAX(p.payment_date) FILTER (WHERE p.status = 'pending') AS last_pending_at
         FROM finance.invoice inv
         JOIN finance.invoice_item ii
@@ -601,10 +601,10 @@ const getOtherItems = async ({
           ii.amount AS amount_due,
           inv.id AS invoice_id,
           inv.invoice_no,
-          COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount,
+          COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount,
           COALESCE(SUM(CASE WHEN p.status = 'pending' THEN pa.allocated_amount ELSE 0 END), 0) AS pending_amount,
           COUNT(DISTINCT p.id) FILTER (WHERE p.status = 'pending') AS pending_payment_count,
-          MAX(p.payment_date) FILTER (WHERE p.status = 'paid') AS last_paid_at,
+          MAX(p.payment_date) FILTER (WHERE p.status = 'confirmed') AS last_paid_at,
           MAX(p.payment_date) FILTER (WHERE p.status = 'pending') AS last_pending_at
         FROM finance.invoice inv
         JOIN finance.invoice_item ii
@@ -643,7 +643,7 @@ const getOtherItems = async ({
         LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
         LEFT JOIN finance.payment p
           ON p.id = pa.payment_id
-         AND p.status = 'paid'
+         AND p.status = 'confirmed'
         WHERE inv.homebase_id = $1
           AND inv.student_id = $2
           AND COALESCE(inv.periode_id, 0) = COALESCE($3, 0)
@@ -830,7 +830,7 @@ const ensureParentPayableItem = async ({
             ii.component_id,
             inv.student_id,
             inv.periode_id,
-            COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+            COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
           FROM finance.invoice_item ii
           JOIN finance.invoice inv ON inv.id = ii.invoice_id
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -1055,7 +1055,7 @@ const deriveFinancePaymentStatus = (midtransStatus, fraudStatus) => {
     ["capture", "settlement"].includes(normalizedStatus) &&
     (!normalizedFraud || normalizedFraud === "accept")
   ) {
-    return "paid";
+    return "confirmed";
   }
 
   if (normalizedStatus === "pending") {
@@ -1074,7 +1074,7 @@ const deriveFinancePaymentStatus = (midtransStatus, fraudStatus) => {
     return "refunded";
   }
 
-  return "failed";
+  return "rejected";
 };
 
 router.get(
@@ -1571,7 +1571,7 @@ router.post(
           status = $1,
           reference_no = $2,
           payment_channel = COALESCE($3, payment_channel),
-          verified_at = CASE WHEN $1 = 'paid' THEN CURRENT_TIMESTAMP ELSE verified_at END,
+          verified_at = CASE WHEN $1 = 'confirmed' THEN CURRENT_TIMESTAMP ELSE verified_at END,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $4
       `,
@@ -1698,7 +1698,7 @@ router.get(
             ii.unit_amount,
             ii.amount,
             fc.name AS component_name,
-            COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+            COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
           FROM finance.invoice_item ii
           LEFT JOIN finance.fee_component fc ON fc.id = ii.component_id
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -1823,5 +1823,4 @@ router.get(
     });
   }),
 );
-
 export default router;

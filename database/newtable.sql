@@ -142,9 +142,11 @@ CREATE TABLE u_parent_students (
     relationship varchar(50),
     is_primary boolean NOT NULL DEFAULT false,
     created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamptz DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_parent_student UNIQUE (parent_user_id, student_id)
+    updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_u_parent_students_parent_student
+ON u_parent_students (parent_user_id, student_id);
 
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (

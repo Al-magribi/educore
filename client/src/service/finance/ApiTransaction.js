@@ -15,7 +15,7 @@ const buildQueryString = (params = {}) => {
 export const ApiTransaction = createApi({
   reducerPath: "ApiTransaction",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/finance" }),
-  tagTypes: ["FinanceTransaction", "FinanceTransactionOption"],
+  tagTypes: ["FinanceTransaction", "FinanceTransactionOption", "FinanceTransactionInvoice"],
   endpoints: (builder) => ({
     getTransactionOptions: builder.query({
       query: (params) => `/transactions/options?${buildQueryString(params)}`,
@@ -44,6 +44,16 @@ export const ApiTransaction = createApi({
               { type: "FinanceTransaction", id: "LIST" },
             ]
           : [{ type: "FinanceTransaction", id: "LIST" }],
+    }),
+
+    getTransactionInvoice: builder.query({
+      query: ({ invoiceId, homebase_id }) =>
+        homebase_id
+          ? `/transactions/invoices/${invoiceId}?${buildQueryString({ homebase_id })}`
+          : `/transactions/invoices/${invoiceId}`,
+      providesTags: (result, error, { invoiceId }) => [
+        { type: "FinanceTransactionInvoice", id: invoiceId },
+      ],
     }),
 
     createTransaction: builder.mutation({
@@ -112,6 +122,7 @@ export const ApiTransaction = createApi({
 export const {
   useGetTransactionOptionsQuery,
   useGetTransactionsQuery,
+  useGetTransactionInvoiceQuery,
   useCreateTransactionMutation,
   useUpdateTransactionMutation,
   useDeleteTransactionMutation,

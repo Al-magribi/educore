@@ -11,9 +11,24 @@ CREATE TABLE IF NOT EXISTS public.u_parent_students (
     relationship VARCHAR(50),
     is_primary BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE (parent_user_id, student_id)
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'uq_parent_student'
+          AND conrelid = 'public.u_parent_students'::regclass
+    ) THEN
+        ALTER TABLE public.u_parent_students
+        DROP CONSTRAINT uq_parent_student;
+    END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_u_parent_students_parent_student
+    ON public.u_parent_students(parent_user_id, student_id);
 
 -- =================================================================================
 -- TABEL AKTIF: Billing & Pembayaran Final
@@ -149,7 +164,7 @@ CREATE TABLE IF NOT EXISTS finance.payment (
     payment_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
     status VARCHAR(20) NOT NULL
-      CHECK (status IN ('pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded')),
+      CHECK (status IN ('pending', 'confirmed', 'rejected', 'expired', 'cancelled', 'refunded')),
     reference_no VARCHAR(120),
     proof_url TEXT,
     notes TEXT,
