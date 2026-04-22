@@ -63,6 +63,53 @@ const getTransactionStudentContext = async (
   return result.rows[0] || null;
 };
 
+const normalizeBoolean = (value) =>
+  value === true || value === "true" || value === 1;
+
+const getPaymentSourceLabel = (paymentSource) => {
+  if (paymentSource === "admin_manual") {
+    return "Input Admin";
+  }
+
+  if (paymentSource === "parent_manual") {
+    return "Transfer Bank";
+  }
+
+  if (paymentSource === "midtrans") {
+    return "Midtrans";
+  }
+
+  return "Lainnya";
+};
+
+const getPaymentStatusLabel = (status) => {
+  if (status === "pending") {
+    return "Menunggu Konfirmasi";
+  }
+
+  if (status === "paid") {
+    return "Lunas";
+  }
+
+  if (status === "failed") {
+    return "Ditolak";
+  }
+
+  if (status === "cancelled") {
+    return "Dibatalkan";
+  }
+
+  if (status === "expired") {
+    return "Kedaluwarsa";
+  }
+
+  if (status === "refunded") {
+    return "Refund";
+  }
+
+  return status || "-";
+};
+
 const buildTransactionAllocations = async ({
   client,
   homebaseId,
@@ -746,6 +793,8 @@ router.get(
     const page = Math.max(parseOptionalInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseOptionalInt(req.query.limit) || 10, 1), 100);
     const categoryFilter = (req.query.category || "").trim().toLowerCase();
+    const statusFilter = (req.query.status || "").trim().toLowerCase();
+    const paymentSourceFilter = (req.query.payment_source || "").trim().toLowerCase();
     const search = (req.query.search || "").trim();
 
     if (!homebaseId) {
@@ -767,6 +816,24 @@ router.get(
       whereClause += ` AND (u.full_name ILIKE $${params.length} OR COALESCE(s.nis, '') ILIKE $${params.length})`;
     }
 
+    if (
+      statusFilter &&
+      ["pending", "paid", "failed", "expired", "cancelled", "refunded"].includes(
+        statusFilter,
+      )
+    ) {
+      params.push(statusFilter);
+      whereClause += ` AND p.status = $${params.length}`;
+    }
+
+    if (
+      paymentSourceFilter &&
+      ["admin_manual", "parent_manual", "midtrans"].includes(paymentSourceFilter)
+    ) {
+      params.push(paymentSourceFilter);
+      whereClause += ` AND p.payment_source = $${params.length}`;
+    }
+
     const result = await db.query(
       `
         SELECT
@@ -779,7 +846,17 @@ router.get(
           enr.grade_id,
           p.amount,
           p.notes,
+          p.status,
+          p.payment_source,
+          p.reference_no,
+          p.proof_url,
+          p.verified_at,
           p.payment_date AS paid_at,
+          pm.name AS payment_method_name,
+          pm.method_type,
+          ba.bank_name,
+          ba.account_name,
+          ba.account_number,
           u.full_name AS student_name,
           s.nis,
           enr.class_name,
@@ -808,6 +885,8 @@ router.get(
         JOIN a_homebase hb ON hb.id = p.homebase_id
         JOIN u_students s ON s.user_id = p.student_id
         JOIN u_users u ON u.id = s.user_id
+        LEFT JOIN finance.payment_method pm ON pm.id = p.method_id
+        LEFT JOIN finance.bank_account ba ON ba.id = p.bank_account_id
         LEFT JOIN finance.payment_allocation pa ON pa.payment_id = p.id
         LEFT JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
         LEFT JOIN finance.invoice inv ON inv.id = ii.invoice_id
@@ -832,7 +911,22 @@ router.get(
           LIMIT 1
         ) AS enr ON true
         ${whereClause}
-        GROUP BY p.id, hb.name, u.full_name, s.nis, enr.class_id, enr.class_name, enr.grade_id, enr.grade_name, per.name, inv.periode_id
+        GROUP BY
+          p.id,
+          hb.name,
+          u.full_name,
+          s.nis,
+          enr.class_id,
+          enr.class_name,
+          enr.grade_id,
+          enr.grade_name,
+          per.name,
+          inv.periode_id,
+          pm.name,
+          pm.method_type,
+          ba.bank_name,
+          ba.account_name,
+          ba.account_number
         ORDER BY p.payment_date DESC, p.id DESC
       `,
       params,
@@ -872,7 +966,19 @@ router.get(
         grade_name: item.grade_name,
         amount: Number(item.amount || 0),
         notes: item.notes,
+        status: item.status,
+        status_label: getPaymentStatusLabel(item.status),
+        payment_source: item.payment_source,
+        payment_source_label: getPaymentSourceLabel(item.payment_source),
         paid_at: item.paid_at,
+        verified_at: item.verified_at,
+        reference_no: item.reference_no || null,
+        proof_url: item.proof_url || null,
+        payment_method_name: item.payment_method_name || null,
+        method_type: item.method_type || null,
+        bank_name: item.bank_name || null,
+        account_name: item.account_name || null,
+        account_number: item.account_number || null,
         charge_id:
           category === "other" ? Number(item.invoice_item_ids?.[0] || 0) || null : null,
         type_id:
@@ -891,6 +997,8 @@ router.get(
               amount_paid: Number(paymentItem?.amount_paid || 0),
             }))
           : [],
+        can_manage: item.payment_source === "admin_manual" && item.status === "paid",
+        can_confirm: item.payment_source === "parent_manual" && item.status === "pending",
       };
     });
 
@@ -1024,6 +1132,137 @@ router.post(
       status: "success",
       message: "Transaksi pembayaran berhasil disimpan",
       data: { id: paymentId },
+    });
+  }),
+);
+
+router.put(
+  "/transactions/confirmations/:id",
+  authorize("satuan", "keuangan"),
+  withTransaction(async (req, res, client) => {
+    await ensureFinalFinanceTables(client);
+
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const paymentId = parseOptionalInt(req.params.id);
+    const action = String(req.body.action || "").trim().toLowerCase();
+    const notes = String(req.body.notes || "").trim() || null;
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    }
+
+    if (!paymentId || !["approve", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Permintaan konfirmasi pembayaran tidak valid" });
+    }
+
+    const paymentResult = await client.query(
+      `
+        SELECT
+          p.id,
+          p.status,
+          p.payment_source,
+          p.notes
+        FROM finance.payment p
+        WHERE p.id = $1
+          AND p.homebase_id = $2
+        LIMIT 1
+      `,
+      [paymentId, homebaseId],
+    );
+
+    if (paymentResult.rowCount === 0) {
+      return res.status(404).json({ message: "Pembayaran tidak ditemukan" });
+    }
+
+    const payment = paymentResult.rows[0];
+
+    if (payment.payment_source !== "parent_manual") {
+      return res.status(400).json({
+        message: "Hanya pembayaran transfer manual dari orang tua yang dapat dikonfirmasi dari tab ini",
+      });
+    }
+
+    if (payment.status !== "pending") {
+      return res.status(400).json({
+        message: "Pembayaran ini sudah diproses dan tidak bisa dikonfirmasi ulang",
+      });
+    }
+
+    const allocationResult = await client.query(
+      `
+        SELECT
+          pa.invoice_item_id,
+          pa.allocated_amount,
+          ii.invoice_id,
+          ii.amount,
+          COALESCE(
+            SUM(
+              CASE
+                WHEN p2.status = 'paid' AND p2.id <> $1 THEN pa2.allocated_amount
+                ELSE 0
+              END
+            ),
+            0
+          ) AS paid_amount_excluding_current
+        FROM finance.payment_allocation pa
+        JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
+        LEFT JOIN finance.payment_allocation pa2 ON pa2.invoice_item_id = pa.invoice_item_id
+        LEFT JOIN finance.payment p2 ON p2.id = pa2.payment_id
+        WHERE pa.payment_id = $1
+        GROUP BY pa.invoice_item_id, pa.allocated_amount, ii.invoice_id, ii.amount
+      `,
+      [paymentId],
+    );
+
+    if (action === "approve") {
+      for (const item of allocationResult.rows) {
+        const remainingAmount =
+          Number(item.amount || 0) - Number(item.paid_amount_excluding_current || 0);
+
+        if (Number(item.allocated_amount || 0) > remainingAmount) {
+          return res.status(400).json({
+            message:
+              "Salah satu tagihan sudah berubah atau telah dilunasi oleh pembayaran lain. Muat ulang daftar konfirmasi terlebih dahulu",
+          });
+        }
+      }
+    }
+
+    await client.query(
+      `
+        UPDATE finance.payment
+        SET
+          status = $1,
+          notes = COALESCE($2, notes),
+          verified_by = CASE WHEN $1 = 'paid' THEN $3 ELSE verified_by END,
+          verified_at = CASE WHEN $1 = 'paid' THEN CURRENT_TIMESTAMP ELSE verified_at END,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4
+      `,
+      [action === "approve" ? "paid" : "failed", notes, req.user.id, paymentId],
+    );
+
+    const invoiceIds = [
+      ...new Set(
+        allocationResult.rows.map((item) => Number(item.invoice_id || 0)).filter(Boolean),
+      ),
+    ];
+
+    for (const invoiceId of invoiceIds) {
+      await upsertInvoiceStatus(client, invoiceId);
+    }
+
+    res.json({
+      status: "success",
+      message:
+        action === "approve"
+          ? "Pembayaran berhasil dikonfirmasi"
+          : "Pembayaran berhasil ditolak",
     });
   }),
 );

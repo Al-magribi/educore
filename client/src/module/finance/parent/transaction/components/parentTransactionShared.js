@@ -29,6 +29,26 @@ export const statusMetaMap = {
     color: "green",
     label: "Lunas",
   },
+  pending: {
+    color: "processing",
+    label: "Menunggu Verifikasi",
+  },
+  failed: {
+    color: "red",
+    label: "Ditolak",
+  },
+  cancelled: {
+    color: "default",
+    label: "Dibatalkan",
+  },
+  expired: {
+    color: "orange",
+    label: "Kedaluwarsa",
+  },
+  refunded: {
+    color: "purple",
+    label: "Refund",
+  },
   partial: {
     color: "gold",
     label: "Cicilan",

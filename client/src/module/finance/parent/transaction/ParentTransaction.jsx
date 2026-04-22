@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Alert, Card, Space, Tabs, Typography } from "antd";
+import { Alert, Card, Space, Tabs, Typography, message } from "antd";
 import { motion } from "framer-motion";
-import { CreditCard, ReceiptText } from "lucide-react";
+import { Building2, CreditCard, Landmark, ReceiptText } from "lucide-react";
 
 import { LoadApp } from "../../../../components";
 import {
+  useCreateParentTransactionPaymentMutation,
   useGetParentTransactionInvoiceQuery,
   useGetParentTransactionOverviewQuery,
 } from "../../../../service/finance/ApiParentTransaction";
+import ParentPaymentCheckoutModal from "./components/ParentPaymentCheckoutModal";
 import ParentInvoiceModal from "./components/ParentInvoiceModal";
 import ParentPaymentList from "./components/ParentPaymentList";
 import ParentStudentSelector from "./components/ParentStudentSelector";
@@ -30,11 +32,42 @@ const containerVariants = {
   },
 };
 
+const getPaymentSetupAlert = (paymentSetup, student) => {
+  if (paymentSetup.mode === "midtrans") {
+    return {
+      type: "success",
+      icon: <CreditCard size={16} />,
+      title: "Pembayaran online aktif",
+      description: `Satuan ${student?.homebase_name || "siswa"} menggunakan Midtrans. Tombol Bayar akan mengarahkan ke checkout Midtrans secara otomatis.`,
+    };
+  }
+
+  if (paymentSetup.mode === "bank_transfer") {
+    const bankAccountCount = Number(paymentSetup?.bank_accounts?.length || 0);
+
+    return {
+      type: "info",
+      icon: <Landmark size={16} />,
+      title: "Pembayaran menggunakan rekening bank",
+      description: `Midtrans sedang tidak aktif. Pilih salah satu dari ${bankAccountCount} rekening aktif yang tersedia dan unggah bukti transfer agar admin keuangan dapat memverifikasi pembayaran.`,
+    };
+  }
+
+  return {
+    type: "warning",
+    icon: <Building2 size={16} />,
+    title: "Metode pembayaran belum tersedia",
+    description:
+      "Midtrans dan transfer bank sedang tidak tersedia untuk satuan siswa ini. Tombol bayar akan dinonaktifkan sampai pengaturan keuangan dilengkapi.",
+  };
+};
+
 const ParentTransaction = () => {
   const [selectedStudentId, setSelectedStudentId] = useState();
   const [selectedPeriodeId, setSelectedPeriodeId] = useState();
   const [activeTab, setActiveTab] = useState("spp");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
+  const [selectedPaymentItem, setSelectedPaymentItem] = useState(null);
 
   const {
     data: overviewResponse,
@@ -53,15 +86,17 @@ const ParentTransaction = () => {
   const summary = payload.summary || {};
   const sppItems = payload.spp_items || [];
   const otherItems = payload.other_items || [];
+  const paymentSetup = payload.payment_setup || { mode: "unavailable" };
+  const paymentSetupAlert = getPaymentSetupAlert(paymentSetup, student);
   const resolvedStudentId = selectedStudentId || payload.selected_student_id;
   const resolvedPeriodeId = selectedPeriodeId || payload.selected_periode_id;
+  const [createParentTransactionPayment, { isLoading: isSubmittingPayment }] =
+    useCreateParentTransactionPaymentMutation();
 
-  const {
-    data: invoiceResponse,
-    isFetching: isFetchingInvoice,
-  } = useGetParentTransactionInvoiceQuery(selectedInvoiceId, {
-    skip: !selectedInvoiceId,
-  });
+  const { data: invoiceResponse, isFetching: isFetchingInvoice } =
+    useGetParentTransactionInvoiceQuery(selectedInvoiceId, {
+      skip: !selectedInvoiceId,
+    });
 
   const invoiceData = invoiceResponse?.data || null;
 
@@ -75,7 +110,14 @@ const ParentTransaction = () => {
           description='Seluruh bulan aktif pada periode siswa ditampilkan lengkap dengan status pembayaran dan akses invoice.'
           items={sppItems}
           emptyTitle='Belum ada tagihan SPP pada periode ini.'
+          paymentEnabled={paymentSetup.mode !== "unavailable"}
           onOpenInvoice={setSelectedInvoiceId}
+          onPay={(item) =>
+            setSelectedPaymentItem({
+              ...item,
+              checkout_key: `${item.key || item.invoice_id || item.charge_id || item.bill_month}-${Date.now()}`,
+            })
+          }
         />
       ),
     },
@@ -88,7 +130,14 @@ const ParentTransaction = () => {
           description='Pantau tagihan non-SPP, progres cicilan, dan buka invoice resmi untuk item yang sudah diterbitkan.'
           items={otherItems}
           emptyTitle='Belum ada pembayaran lainnya pada periode ini.'
+          paymentEnabled={paymentSetup.mode !== "unavailable"}
           onOpenInvoice={setSelectedInvoiceId}
+          onPay={(item) =>
+            setSelectedPaymentItem({
+              ...item,
+              checkout_key: `${item.key || item.invoice_id || item.charge_id || item.bill_month}-${Date.now()}`,
+            })
+          }
         />
       ),
     },
@@ -100,6 +149,67 @@ const ParentTransaction = () => {
       (item) => Number(item.student_id) === Number(value),
     );
     setSelectedPeriodeId(selectedChild?.active_periode_id);
+  };
+
+  const handlePaymentSubmit = async ({
+    item,
+    paymentMode,
+    bankAccountId,
+    proofFile,
+    paymentAmount,
+  }) => {
+    const formData = new FormData();
+
+    formData.append("student_id", String(resolvedStudentId));
+    formData.append("periode_id", String(resolvedPeriodeId));
+    formData.append("item_type", String(item.item_type || ""));
+
+    if (item.item_type === "spp" && item.bill_month) {
+      formData.append("bill_month", String(item.bill_month));
+    }
+
+    if (item.charge_id) {
+      formData.append("charge_id", String(item.charge_id));
+    }
+
+    if (item.component_id) {
+      formData.append("component_id", String(item.component_id));
+    }
+
+    if (item.item_type === "other" && paymentAmount) {
+      formData.append("payment_amount", String(paymentAmount));
+    }
+
+    if (paymentMode === "bank_transfer") {
+      formData.append("bank_account_id", String(bankAccountId));
+      if (proofFile) {
+        formData.append("proof_file", proofFile);
+      }
+    }
+
+    try {
+      const response = await createParentTransactionPayment(formData).unwrap();
+      const paymentData = response?.data || {};
+
+      if (paymentData.method === "midtrans" && paymentData.snap_redirect_url) {
+        message.success("Checkout Midtrans berhasil dibuat");
+        window.open(
+          paymentData.snap_redirect_url,
+          "_blank",
+          "noopener,noreferrer",
+        );
+      } else if (paymentData.method === "bank_transfer") {
+        message.success("Bukti transfer berhasil dikirim");
+      } else {
+        message.success(response?.message || "Pembayaran berhasil diproses");
+      }
+
+      setSelectedPaymentItem(null);
+    } catch (paymentError) {
+      message.error(
+        paymentError?.data?.message || "Gagal memproses pembayaran tagihan",
+      );
+    }
   };
 
   if (isLoading && !overviewResponse) {
@@ -114,7 +224,7 @@ const ParentTransaction = () => {
         animate='visible'
         style={{ width: "100%" }}
       >
-        <Space direction='vertical' size={24} style={{ width: "100%", display: "flex" }}>
+        <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
           <ParentTransactionHero student={student} summary={summary} />
 
           <ParentStudentSelector
@@ -126,11 +236,20 @@ const ParentTransaction = () => {
             onPeriodeChange={setSelectedPeriodeId}
           />
 
+          <Alert
+            type={paymentSetupAlert.type}
+            showIcon
+            icon={paymentSetupAlert.icon}
+            title={paymentSetupAlert.title}
+            description={paymentSetupAlert.description}
+            style={{ borderRadius: 20 }}
+          />
+
           {error ? (
             <Alert
               type='error'
               showIcon
-              message='Gagal memuat data pembayaran'
+              title='Gagal memuat data pembayaran'
               description={
                 error?.data?.message ||
                 "Terjadi kendala saat mengambil data transaksi orang tua."
@@ -143,7 +262,7 @@ const ParentTransaction = () => {
             <Alert
               type='info'
               showIcon
-              message='Memperbarui data pembayaran'
+              title='Memperbarui data pembayaran'
               description='Ringkasan, daftar SPP, dan pembayaran lainnya sedang disegarkan sesuai anak atau periode yang dipilih.'
               style={{ borderRadius: 20 }}
             />
@@ -161,7 +280,7 @@ const ParentTransaction = () => {
             }}
             styles={{ body: { padding: 22 } }}
           >
-            <Space direction='vertical' size={18} style={{ width: "100%" }}>
+            <Space vertical size={18} style={{ width: "100%" }}>
               <div>
                 <div
                   style={{
@@ -204,6 +323,17 @@ const ParentTransaction = () => {
         invoiceData={invoiceData}
         loading={isFetchingInvoice}
         onClose={() => setSelectedInvoiceId(null)}
+      />
+
+      <ParentPaymentCheckoutModal
+        key={selectedPaymentItem?.checkout_key || "parent-payment-checkout"}
+        open={Boolean(selectedPaymentItem)}
+        item={selectedPaymentItem}
+        student={student}
+        paymentSetup={paymentSetup}
+        submitting={isSubmittingPayment}
+        onClose={() => setSelectedPaymentItem(null)}
+        onSubmit={handlePaymentSubmit}
       />
     </>
   );

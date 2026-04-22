@@ -20,6 +20,7 @@ import {
   useGetSettingOptionsQuery,
   useSaveFinanceProfileMutation,
   useSaveMidtransConfigMutation,
+  useUpdatePaymentMethodMutation,
   useUploadFinanceSignatureMutation,
   useUpdateBankAccountMutation,
 } from "../../../service/finance/ApiSetting";
@@ -106,6 +107,8 @@ const Setting = () => {
 
   const [saveMidtransConfig, { isLoading: isSavingMidtrans }] =
     useSaveMidtransConfigMutation();
+  const [updatePaymentMethod, { isLoading: isUpdatingPaymentMethod }] =
+    useUpdatePaymentMethodMutation();
   const [saveFinanceProfile, { isLoading: isSavingFinanceProfile }] =
     useSaveFinanceProfileMutation();
   const [uploadFinanceSignature, { isLoading: isUploadingSignature }] =
@@ -128,6 +131,12 @@ const Setting = () => {
   const financeSetting = settingsData.finance_setting || null;
   const bankAccounts = settingsData.bank_accounts || [];
   const paymentMethods = settingsData.payment_methods || [];
+  const manualBankMethod =
+    paymentMethods.find((item) => item.method_type === "manual_bank") || null;
+  const manualCashMethod =
+    paymentMethods.find((item) => item.method_type === "manual_cash") || null;
+  const midtransMethod =
+    paymentMethods.find((item) => item.method_type === "midtrans") || null;
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -248,6 +257,30 @@ const Setting = () => {
     }
   };
 
+  const handleTogglePaymentMethod = async (methodType, nextActive) => {
+    if (!hasSelectedHomebase) {
+      message.error("Satuan wajib dipilih terlebih dahulu");
+      return;
+    }
+
+    try {
+      await updatePaymentMethod({
+        homebase_id: effectiveSelectedHomebaseId,
+        method_type: methodType,
+        is_active: nextActive,
+      }).unwrap();
+      message.success(
+        nextActive
+          ? "Metode pembayaran berhasil diaktifkan"
+          : "Metode pembayaran berhasil dinonaktifkan",
+      );
+    } catch (error) {
+      message.error(
+        error?.data?.message || "Gagal memperbarui metode pembayaran",
+      );
+    }
+  };
+
   const handleUploadSignature = async ({ file, onSuccess, onError }) => {
     if (!hasSelectedHomebase) {
       const uploadError = new Error("Satuan wajib dipilih terlebih dahulu");
@@ -338,7 +371,7 @@ const Setting = () => {
     },
     {
       title: "Gateway Midtrans",
-      value: gatewayConfig?.is_active ? "Aktif" : "Belum aktif",
+      value: midtransMethod?.is_active ? "Aktif" : "Belum aktif",
       caption: gatewayConfig?.is_production ? "Mode production" : "Mode sandbox",
     },
   ];
@@ -439,9 +472,21 @@ const Setting = () => {
       label: createTabLabel(
         "Metode Pembayaran",
         <Building2 size={16} />,
-        "Ringkasan kanal aktif",
+        "Aktif atau nonaktifkan kanal",
       ),
-      children: <PaymentMethodsCard paymentMethods={paymentMethods} />,
+      children: (
+        <PaymentMethodsCard
+          paymentMethods={paymentMethods}
+          manualBankMethod={manualBankMethod}
+          manualCashMethod={manualCashMethod}
+          midtransMethod={midtransMethod}
+          bankAccounts={bankAccounts}
+          isUpdatingPaymentMethod={isUpdatingPaymentMethod}
+          onTogglePaymentMethod={handleTogglePaymentMethod}
+          onOpenMidtransTab={() => setActiveTab("midtrans")}
+          onOpenBankTab={() => setActiveTab("banks")}
+        />
+      ),
     },
   ];
 
