@@ -1,6 +1,6 @@
 import { Button, Card, Empty, Flex, Progress, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
-import { CalendarClock, ReceiptText } from "lucide-react";
+import { CalendarClock, CreditCard, ReceiptText } from "lucide-react";
 import {
   currencyFormatter,
   dateFormatter,
@@ -16,6 +16,8 @@ const ParentPaymentList = ({
   items,
   emptyTitle,
   onOpenInvoice,
+  onPay,
+  paymentEnabled = true,
 }) => {
   if (!items?.length) {
     return (
@@ -154,6 +156,12 @@ const ParentPaymentList = ({
                     <Text type='secondary'>
                       Sisa {currencyFormatter.format(Number(item.remaining_amount || 0))}
                     </Text>
+                    {item.status === "pending" ? (
+                      <Text type='secondary' style={{ display: "block", marginTop: 8 }}>
+                        Pembayaran sedang diproses sejak{" "}
+                        {dateFormatter(item.last_pending_at, true)}.
+                      </Text>
+                    ) : null}
                   </div>
 
                   <Space direction='vertical' size={8} style={{ width: "100%" }}>
@@ -197,15 +205,33 @@ const ParentPaymentList = ({
                     ) : null}
                   </Space>
 
-                  <Button
-                    type='primary'
-                    icon={<ReceiptText size={16} />}
-                    onClick={() => onOpenInvoice(item.invoice_id)}
-                    disabled={!item.invoice_id}
-                    block
-                  >
-                    Lihat Invoice
-                  </Button>
+                  <Space direction='vertical' size={10} style={{ width: "100%" }}>
+                    <Button
+                      type='primary'
+                      icon={<CreditCard size={16} />}
+                      onClick={() => onPay(item)}
+                      disabled={
+                        !paymentEnabled ||
+                        !item.can_pay ||
+                        Number(item.remaining_amount || 0) <= 0
+                      }
+                      block
+                    >
+                      {item.status === "pending"
+                        ? "Menunggu Verifikasi"
+                        : paymentEnabled
+                          ? "Bayar"
+                          : "Metode Belum Tersedia"}
+                    </Button>
+                    <Button
+                      icon={<ReceiptText size={16} />}
+                      onClick={() => onOpenInvoice(item.invoice_id)}
+                      disabled={!item.can_view_invoice || !item.invoice_id}
+                      block
+                    >
+                      Lihat Invoice
+                    </Button>
+                  </Space>
                 </Flex>
               </Card>
             </MotionDiv>

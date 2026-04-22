@@ -89,6 +89,23 @@ export const ApiTransaction = createApi({
         { type: "FinanceTransaction", id: "LIST" },
       ],
     }),
+
+    confirmTransactionPayment: builder.mutation({
+      query: ({ id, homebase_id, action, notes }) => ({
+        url: `/transactions/confirmations/${id}`,
+        method: "PUT",
+        body: {
+          homebase_id,
+          action,
+          notes,
+        },
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        "FinanceTransactionOption",
+        { type: "FinanceTransaction", id },
+        { type: "FinanceTransaction", id: "LIST" },
+      ],
+    }),
   }),
 });
 
@@ -98,4 +115,5 @@ export const {
   useCreateTransactionMutation,
   useUpdateTransactionMutation,
   useDeleteTransactionMutation,
+  useConfirmTransactionPaymentMutation,
 } = ApiTransaction;

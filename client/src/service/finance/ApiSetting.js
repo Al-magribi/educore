@@ -15,7 +15,11 @@ const buildQueryString = (params = {}) => {
 export const ApiSetting = createApi({
   reducerPath: "ApiSetting",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/finance" }),
-  tagTypes: ["FinanceSettingOption", "FinanceSettingDetail", "FinanceBankAccount"],
+  tagTypes: [
+    "FinanceSettingOption",
+    "FinanceSettingDetail",
+    "FinanceBankAccount",
+  ],
   endpoints: (builder) => ({
     getSettingOptions: builder.query({
       query: (params) => {
@@ -46,6 +50,15 @@ export const ApiSetting = createApi({
     saveMidtransConfig: builder.mutation({
       query: (body) => ({
         url: "/settings/midtrans",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["FinanceSettingDetail", "FinanceSettingOption"],
+    }),
+
+    updatePaymentMethod: builder.mutation({
+      query: ({ method_type, ...body }) => ({
+        url: `/settings/payment-methods/${method_type}`,
         method: "PUT",
         body,
       }),
@@ -117,6 +130,7 @@ export const {
   useGetSettingOptionsQuery,
   useGetFinanceSettingsQuery,
   useSaveMidtransConfigMutation,
+  useUpdatePaymentMethodMutation,
   useSaveFinanceProfileMutation,
   useUploadFinanceSignatureMutation,
   useAddBankAccountMutation,

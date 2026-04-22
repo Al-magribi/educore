@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   CircleDollarSign,
   CreditCard,
+  ShieldAlert,
   WalletCards,
 } from "lucide-react";
 import { currencyFormatter } from "./parentTransactionShared";
@@ -46,6 +47,15 @@ const summaryStyles = [
     note: "Seluruh item pembayaran untuk periode ini.",
     bg: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)",
     color: "#475569",
+  },
+  {
+    title: "Menunggu Verifikasi",
+    key: "pending_count",
+    icon: <ShieldAlert size={18} />,
+    formatter: (value) => Number(value || 0),
+    note: "Tagihan dengan pembayaran yang masih diproses admin atau gateway.",
+    bg: "linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)",
+    color: "#0891b2",
   },
 ];
 

@@ -114,6 +114,86 @@ const sanitizeFinanceSetting = (setting) => {
   };
 };
 
+const normalizeBoolean = (value) =>
+  value === true || value === "true" || value === 1;
+
+const PAYMENT_METHOD_CATALOG = [
+  {
+    method_type: "manual_cash",
+    name: "Input Admin",
+    is_editable: false,
+    is_internal: true,
+    description:
+      "Dipakai admin keuangan untuk input transaksi internal yang langsung tercatat paid.",
+  },
+  {
+    method_type: "manual_bank",
+    name: "Transfer Bank",
+    is_editable: true,
+    is_internal: false,
+    description:
+      "Dipakai orang tua untuk upload bukti transfer dan menunggu konfirmasi admin.",
+  },
+  {
+    method_type: "midtrans",
+    name: "Midtrans",
+    is_editable: false,
+    is_internal: false,
+    description:
+      "Dipakai orang tua untuk pembayaran online otomatis melalui Midtrans.",
+  },
+];
+
+const syncManualBankMethodState = async (client, homebaseId) => {
+  const methodResult = await client.query(
+    `
+      SELECT id, is_active
+      FROM finance.payment_method
+      WHERE homebase_id = $1
+        AND method_type = 'manual_bank'
+      ORDER BY id ASC
+      LIMIT 1
+    `,
+    [homebaseId],
+  );
+
+  if (methodResult.rowCount === 0) {
+    return null;
+  }
+
+  const activeBankResult = await client.query(
+    `
+      SELECT COUNT(*)::int AS total
+      FROM finance.bank_account
+      WHERE homebase_id = $1
+        AND payment_method_id = $2
+        AND is_active = true
+    `,
+    [homebaseId, methodResult.rows[0].id],
+  );
+
+  const hasActiveBank = Number(activeBankResult.rows[0]?.total || 0) > 0;
+
+  if (!hasActiveBank && normalizeBoolean(methodResult.rows[0].is_active)) {
+    await client.query(
+      `
+        UPDATE finance.payment_method
+        SET
+          is_active = false,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `,
+      [methodResult.rows[0].id],
+    );
+  }
+
+  return {
+    id: Number(methodResult.rows[0].id),
+    is_active: hasActiveBank && normalizeBoolean(methodResult.rows[0].is_active),
+    has_active_bank: hasActiveBank,
+  };
+};
+
 const getSettingsPayload = async (db, homebaseId) => {
   const [gatewayResult, bankAccountsResult, paymentMethodsResult, financeSettingResult] =
     await Promise.all([
@@ -175,23 +255,56 @@ const getSettingsPayload = async (db, homebaseId) => {
       ),
     ]);
 
+  const bankAccounts = bankAccountsResult.rows.map((item) => ({
+    ...item,
+    is_active: normalizeBoolean(item.is_active),
+  }));
+  const paymentMethodRows = paymentMethodsResult.rows.map((item) => ({
+    ...item,
+    is_active: normalizeBoolean(item.is_active),
+  }));
+  const paymentMethodMap = new Map(
+    paymentMethodRows.map((item) => [
+      String(item.method_type || "").toLowerCase(),
+      item,
+    ]),
+  );
+  const gatewayConfig = sanitizeGatewayConfig(gatewayResult.rows[0] || null);
+  const activeBankAccounts = bankAccounts.filter((item) => item.is_active);
+
   return {
-    gateway_config: sanitizeGatewayConfig(gatewayResult.rows[0] || null),
+    gateway_config: gatewayConfig,
     finance_setting: sanitizeFinanceSetting(financeSettingResult.rows[0] || null),
-    bank_accounts: bankAccountsResult.rows.map((item) => ({
-      ...item,
-      is_active:
-        item.is_active === true ||
-        item.is_active === "true" ||
-        item.is_active === 1,
-    })),
-    payment_methods: paymentMethodsResult.rows.map((item) => ({
-      ...item,
-      is_active:
-        item.is_active === true ||
-        item.is_active === "true" ||
-        item.is_active === 1,
-    })),
+    bank_accounts: bankAccounts,
+    payment_methods: PAYMENT_METHOD_CATALOG.map((catalogItem) => {
+      const existingMethod = paymentMethodMap.get(catalogItem.method_type);
+
+      return {
+        id: existingMethod?.id || null,
+        method_type: catalogItem.method_type,
+        name: existingMethod?.name || catalogItem.name,
+        sort_order: existingMethod?.sort_order || 0,
+        is_active:
+          catalogItem.method_type === "manual_cash"
+            ? true
+            : catalogItem.method_type === "midtrans"
+              ? Boolean(gatewayConfig?.is_active)
+              : Boolean(existingMethod?.is_active),
+        is_editable: catalogItem.is_editable,
+        is_internal: catalogItem.is_internal,
+        is_configured:
+          catalogItem.method_type === "midtrans"
+            ? Boolean(gatewayConfig?.client_key && gatewayConfig?.has_server_key)
+            : catalogItem.method_type === "manual_bank"
+              ? activeBankAccounts.length > 0
+              : true,
+        active_bank_accounts:
+          catalogItem.method_type === "manual_bank" ? activeBankAccounts.length : 0,
+        description: catalogItem.description,
+        created_at: existingMethod?.created_at || null,
+        updated_at: existingMethod?.updated_at || null,
+      };
+    }),
   };
 };
 
@@ -333,6 +446,80 @@ router.put(
 );
 
 router.put(
+  "/settings/payment-methods/:methodType",
+  authorize("satuan", "keuangan", "pusat"),
+  withTransaction(async (req, res, client) => {
+    await ensureFinalFinanceTables(client);
+
+    const methodType = String(req.params.methodType || "").trim().toLowerCase();
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebase = await getScopedHomebase(client, req.user, requestedHomebaseId);
+
+    if (!homebase) {
+      return res.status(404).json({ message: "Satuan tidak ditemukan" });
+    }
+
+    if (methodType !== "manual_bank") {
+      return res.status(400).json({
+        message:
+          "Metode pembayaran ini tidak dapat diubah dari panel metode pembayaran",
+      });
+    }
+
+    const isActive = req.body.is_active === true;
+    const paymentMethodId = await getPaymentMethodId(client, {
+      homebaseId: homebase.id,
+      methodType: "manual_bank",
+      name: "Transfer Bank",
+    });
+
+    if (isActive) {
+      const activeBankResult = await client.query(
+        `
+          SELECT COUNT(*)::int AS total
+          FROM finance.bank_account
+          WHERE homebase_id = $1
+            AND payment_method_id = $2
+            AND is_active = true
+        `,
+        [homebase.id, paymentMethodId],
+      );
+
+      if (Number(activeBankResult.rows[0]?.total || 0) <= 0) {
+        return res.status(400).json({
+          message:
+            "Aktifkan minimal satu rekening bank sebelum membuka metode transfer bank",
+        });
+      }
+    }
+
+    await client.query(
+      `
+        UPDATE finance.payment_method
+        SET
+          is_active = $1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `,
+      [isActive, paymentMethodId],
+    );
+
+    const settings = await getSettingsPayload(client, homebase.id);
+
+    res.json({
+      status: "success",
+      message: isActive
+        ? "Metode transfer bank berhasil diaktifkan"
+        : "Metode transfer bank berhasil dinonaktifkan",
+      data: {
+        homebase,
+        ...settings,
+      },
+    });
+  }),
+);
+
+router.put(
   "/settings/midtrans",
   authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
@@ -456,6 +643,8 @@ router.put(
       [isActive, midtransMethodId],
     );
 
+    await syncManualBankMethodState(client, homebase.id);
+
     const settings = await getSettingsPayload(client, homebase.id);
 
     res.json({
@@ -494,22 +683,38 @@ router.post(
       });
     }
 
-    const paymentMethodId = await getPaymentMethodId(client, {
-      homebaseId: homebase.id,
-      methodType: "manual_bank",
-      name: "Transfer Bank",
-    });
-
-    await client.query(
+    const existingMethodResult = await client.query(
       `
-        UPDATE finance.payment_method
-        SET
-          is_active = true,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
+        SELECT id
+        FROM finance.payment_method
+        WHERE homebase_id = $1
+          AND method_type = 'manual_bank'
+          AND lower(name) = lower('Transfer Bank')
+        LIMIT 1
       `,
-      [paymentMethodId],
+      [homebase.id],
     );
+
+    const paymentMethodId =
+      existingMethodResult.rows[0]?.id ||
+      (await getPaymentMethodId(client, {
+        homebaseId: homebase.id,
+        methodType: "manual_bank",
+        name: "Transfer Bank",
+      }));
+
+    if (existingMethodResult.rowCount === 0) {
+      await client.query(
+        `
+          UPDATE finance.payment_method
+          SET
+            is_active = false,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+        `,
+        [paymentMethodId],
+      );
+    }
 
     const result = await client.query(
       `
@@ -535,6 +740,8 @@ router.post(
         isActive,
       ],
     );
+
+    await syncManualBankMethodState(client, homebase.id);
 
     res.status(201).json({
       status: "success",
@@ -596,6 +803,8 @@ router.put(
       return res.status(404).json({ message: "Rekening bank tidak ditemukan" });
     }
 
+    await syncManualBankMethodState(client, homebase.id);
+
     res.json({
       status: "success",
       message: "Rekening bank berhasil diperbarui",
@@ -633,6 +842,8 @@ router.delete(
     if (result.rowCount === 0) {
       return res.status(404).json({ message: "Rekening bank tidak ditemukan" });
     }
+
+    await syncManualBankMethodState(client, homebase.id);
 
     res.json({
       status: "success",

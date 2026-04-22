@@ -15,7 +15,11 @@ const buildQueryString = (params = {}) => {
 export const ApiParentTransaction = createApi({
   reducerPath: "ApiParentTransaction",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/finance" }),
-  tagTypes: ["ParentTransactionOverview", "ParentTransactionInvoice"],
+  tagTypes: [
+    "ParentTransactionOverview",
+    "ParentTransactionInvoice",
+    "ParentTransactionPayment",
+  ],
   endpoints: (builder) => ({
     getParentTransactionOverview: builder.query({
       query: (params) =>
@@ -29,10 +33,23 @@ export const ApiParentTransaction = createApi({
         { type: "ParentTransactionInvoice", id: invoiceId },
       ],
     }),
+
+    createParentTransactionPayment: builder.mutation({
+      query: (body) => ({
+        url: "/parent/transactions/payments",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [
+        "ParentTransactionOverview",
+        { type: "ParentTransactionPayment", id: "LIST" },
+      ],
+    }),
   }),
 });
 
 export const {
   useGetParentTransactionOverviewQuery,
   useGetParentTransactionInvoiceQuery,
+  useCreateParentTransactionPaymentMutation,
 } = ApiParentTransaction;

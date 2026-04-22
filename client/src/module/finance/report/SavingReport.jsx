@@ -129,7 +129,7 @@ const SavingReport = () => {
         title: "Saldo Tabungan",
         value: reportSummary.balance || 0,
         prefix: "Rp",
-        note: "Saldo tabungan anak yang sedang tercatat.",
+        note: "Saldo tabungan anak",
       },
       {
         title: "Setoran Bulan Ini",
@@ -141,13 +141,13 @@ const SavingReport = () => {
         title: "Total Setoran",
         value: reportSummary.total_deposit || 0,
         prefix: "Rp",
-        note: "Akumulasi seluruh setoran yang sudah masuk.",
+        note: "Akumulasi seluruh setoran",
       },
       {
         title: "Total Penarikan",
         value: reportSummary.total_withdrawal || 0,
         prefix: "Rp",
-        note: "Akumulasi penarikan tabungan yang tercatat.",
+        note: "Akumulasi penarikan tabungan",
       },
     ];
 
@@ -232,7 +232,7 @@ const SavingReport = () => {
   return (
     <FinanceFeaturePage
       badge='Laporan Tabungan'
-      title='Rekap tabungan siswa dan mutasi setoran'
+      title='Rekap tabungan siswa'
       description={description}
       summary={summary}
       stats={stats}

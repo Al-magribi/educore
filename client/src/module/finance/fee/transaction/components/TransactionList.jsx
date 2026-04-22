@@ -6,6 +6,7 @@ import {
   Dropdown,
   Flex,
   Input,
+  Popconfirm,
   Select,
   Space,
   Statistic,
@@ -23,7 +24,10 @@ import {
   Trash2,
   Wallet,
   Sparkles,
+  ShieldCheck,
+  ShieldX,
 } from "lucide-react";
+import { getPeriodeTagColor } from "./transactionFormShared.jsx";
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
@@ -33,6 +37,30 @@ const currencyFormatter = new Intl.NumberFormat("id-ID", {
   currency: "IDR",
   maximumFractionDigits: 0,
 });
+
+const getStatusColor = (status) => {
+  if (status === "paid") {
+    return "green";
+  }
+
+  if (status === "pending") {
+    return "processing";
+  }
+
+  if (status === "failed") {
+    return "red";
+  }
+
+  if (status === "expired") {
+    return "orange";
+  }
+
+  if (status === "refunded") {
+    return "purple";
+  }
+
+  return "default";
+};
 
 const summaryCardStyles = [
   {
@@ -55,15 +83,20 @@ const summaryCardStyles = [
 
 const TransactionList = ({
   user,
+  viewMode = "admin",
   homebases,
+  periodes,
   transactions,
   transactionSummary,
   transactionFilters,
   setTransactionFilters,
   loading,
   isDeletingTransaction,
+  isConfirmingTransaction,
   onEdit,
   onDelete,
+  onApprove,
+  onReject,
   onCreate,
 }) => {
   const activeHomebaseName =
@@ -92,10 +125,13 @@ const TransactionList = ({
   const mixedCount = transactions.filter(
     (item) => item.category === "mixed",
   ).length;
+  const pendingCount = transactions.filter((item) => item.status === "pending").length;
+  const paidCount = transactions.filter((item) => item.status === "paid").length;
 
   const summaryItems = [
     {
-      title: "Total transaksi",
+      title:
+        viewMode === "confirmation" ? "Menunggu konfirmasi" : "Total transaksi",
       value: totalRecords,
       prefix: <Receipt size={16} />,
     },
@@ -106,12 +142,13 @@ const TransactionList = ({
       formatter: (value) => currencyFormatter.format(Number(value || 0)),
     },
     {
-      title: "Transaksi SPP",
-      value: sppCount,
+      title: viewMode === "history" ? "Status paid" : "Transaksi SPP",
+      value: viewMode === "history" ? paidCount : sppCount,
     },
     {
-      title: "Non-SPP & gabungan",
-      value: otherCount + mixedCount,
+      title:
+        viewMode === "confirmation" ? "Tagihan pending" : "Non-SPP & gabungan",
+      value: viewMode === "confirmation" ? pendingCount : otherCount + mixedCount,
     },
   ];
 
@@ -169,6 +206,26 @@ const TransactionList = ({
       key: "description",
     },
     {
+      title: "Status",
+      key: "status",
+      width: 220,
+      render: (_, record) => {
+        return (
+          <Space direction='vertical' size={4}>
+            <Tag
+              color={getStatusColor(record.status)}
+              style={{ borderRadius: 999, margin: 0, fontWeight: 700 }}
+            >
+              {record.status_label || record.status || "-"}
+            </Tag>
+            <Text type='secondary' style={{ fontSize: 12, fontWeight: 500 }}>
+              {record.payment_source_label || record.payment_source || "-"}
+            </Text>
+          </Space>
+        );
+      },
+    },
+    {
       title: "Nominal",
       key: "amount",
       width: 220,
@@ -185,8 +242,23 @@ const TransactionList = ({
                   ? "Lainnya"
                   : "Gabungan"}
             </Tag>
+            {record.proof_url ? (
+              <Button
+                type='link'
+                size='small'
+                href={record.proof_url}
+                target='_blank'
+                rel='noreferrer'
+                style={{ paddingInline: 0 }}
+              >
+                Lihat bukti
+              </Button>
+            ) : null}
             <Text type='secondary' style={{ fontSize: 12 }}>
-              {record.notes || "Tidak ada catatan"}
+              {record.notes ||
+                (record.status === "pending"
+                  ? "Menunggu verifikasi admin"
+                  : "Tidak ada catatan")}
             </Text>
           </Flex>
         </Space>
@@ -195,8 +267,53 @@ const TransactionList = ({
     {
       title: "Aksi",
       key: "action",
-      width: 150,
+      width: viewMode === "confirmation" ? 260 : 150,
       render: (_, record) => {
+        if (viewMode === "confirmation") {
+          return (
+            <Space wrap>
+              {record.proof_url ? (
+                <Button
+                  href={record.proof_url}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  Bukti
+                </Button>
+              ) : null}
+              <Button
+                type='primary'
+                icon={<ShieldCheck size={14} />}
+                loading={isConfirmingTransaction}
+                onClick={() => onApprove?.(record)}
+              >
+                Approve
+              </Button>
+              <Popconfirm
+                title='Tolak pembayaran ini?'
+                description='Pembayaran transfer ini akan diberi status ditolak.'
+                onConfirm={() => onReject?.(record)}
+                okText='Tolak'
+                cancelText='Batal'
+              >
+                <Button danger icon={<ShieldX size={14} />}>
+                  Reject
+                </Button>
+              </Popconfirm>
+            </Space>
+          );
+        }
+
+        if (viewMode === "history") {
+          return record.proof_url ? (
+            <Button href={record.proof_url} target='_blank' rel='noreferrer'>
+              Bukti
+            </Button>
+          ) : (
+            <Text type='secondary'>Tidak ada aksi</Text>
+          );
+        }
+
         const items = [
           {
             key: "edit",
@@ -213,12 +330,12 @@ const TransactionList = ({
 
         const handleMenuClick = ({ key }) => {
           if (key === "edit") {
-            onEdit(record);
+            onEdit?.(record);
             return;
           }
 
           if (key === "delete") {
-            onDelete(record);
+            onDelete?.(record);
           }
         };
 
@@ -232,8 +349,9 @@ const TransactionList = ({
             trigger={["click"]}
             icon={<ChevronDown size={16} />}
             loading={isDeletingTransaction}
+            disabled={!record.can_manage}
             onClick={() => {
-              onEdit(record);
+              onEdit?.(record);
             }}
             style={{ borderRadius: 12 }}
           >
@@ -307,12 +425,18 @@ const TransactionList = ({
                 </Flex>
                 <div>
                   <Title level={3} style={{ margin: 0, color: "#fff" }}>
-                    Daftar Transaksi
+                    {viewMode === "admin"
+                      ? "Input Transaksi Admin"
+                      : viewMode === "confirmation"
+                        ? "Konfirmasi Pembayaran Orang Tua"
+                        : "Riwayat Transaksi"}
                   </Title>
                   <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                    Kelola transaksi pembayaran siswa, telusuri histori, dan
-                    buka wizard transaksi baru dari satu panel kerja yang lebih
-                    fokus.
+                    {viewMode === "admin"
+                      ? "Kelola pembayaran yang langsung diinput oleh admin keuangan."
+                      : viewMode === "confirmation"
+                        ? "Cek bukti transfer dari orang tua, lalu konfirmasi atau tolak pembayaran yang masih menunggu verifikasi."
+                        : "Telusuri seluruh pembayaran dari input admin, transfer bank, dan Midtrans dalam satu riwayat."}
                   </Text>
                 </div>
                 <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>
@@ -320,23 +444,25 @@ const TransactionList = ({
                 </Text>
               </Space>
 
-              <Button
-                type='primary'
-                onClick={onCreate}
-                icon={<ArrowUpRight size={16} />}
-                size='large'
-                style={{
-                  borderRadius: 14,
-                  height: 46,
-                  background: "#fff",
-                  color: "#0f172a",
-                  border: "none",
-                  fontWeight: 600,
-                  boxShadow: "0 12px 24px rgba(255,255,255,0.18)",
-                }}
-              >
-                Buat Transaksi
-              </Button>
+              {viewMode === "admin" ? (
+                <Button
+                  type='primary'
+                  onClick={onCreate}
+                  icon={<ArrowUpRight size={16} />}
+                  size='large'
+                  style={{
+                    borderRadius: 14,
+                    height: 46,
+                    background: "#fff",
+                    color: "#0f172a",
+                    border: "none",
+                    fontWeight: 600,
+                    boxShadow: "0 12px 24px rgba(255,255,255,0.18)",
+                  }}
+                >
+                  Buat Transaksi
+                </Button>
+              ) : null}
             </Flex>
           </Card>
 
@@ -391,8 +517,9 @@ const TransactionList = ({
                   Filter Transaksi
                 </Text>
                 <Text type='secondary' style={{ fontSize: 13 }}>
-                  Gunakan pencarian dan filter untuk mempercepat penelusuran
-                  data.
+                  {viewMode === "confirmation"
+                    ? "Filter daftar pembayaran pending dari orang tua."
+                    : "Gunakan pencarian dan filter untuk mempercepat penelusuran data."}
                 </Text>
               </Space>
               <Text type='secondary' style={{ fontSize: 13 }}>
@@ -420,11 +547,42 @@ const TransactionList = ({
                     ...previous,
                     page: 1,
                     homebase_id: value || undefined,
+                    periode_id: undefined,
                   }))
                 }
                 placeholder='Pilih satuan'
                 size='large'
                 disabled={(homebases || []).length <= 1}
+                virtual={false}
+              />
+              <Select
+                allowClear
+                placeholder='Filter periode'
+                value={transactionFilters.periode_id}
+                options={(periodes || []).map((item) => ({
+                  value: item.id,
+                  label: (
+                    <Flex justify='space-between' align='center' gap={12}>
+                      <span>{item.name}</span>
+                      <Tag
+                        color={getPeriodeTagColor(item.is_active)}
+                        style={{ margin: 0, borderRadius: 999 }}
+                      >
+                        {item.is_active ? "Aktif" : "Tidak Aktif"}
+                      </Tag>
+                    </Flex>
+                  ),
+                  searchLabel: item.name,
+                }))}
+                onChange={(value) =>
+                  setTransactionFilters((previous) => ({
+                    ...previous,
+                    page: 1,
+                    periode_id: value || undefined,
+                  }))
+                }
+                optionFilterProp='searchLabel'
+                size='large'
                 virtual={false}
               />
               <Input
@@ -459,6 +617,50 @@ const TransactionList = ({
                 size='large'
                 virtual={false}
               />
+              {viewMode === "history" ? (
+                <Select
+                  allowClear
+                  placeholder='Filter sumber pembayaran'
+                  value={transactionFilters.payment_source}
+                  options={[
+                    { value: "admin_manual", label: "Input Admin" },
+                    { value: "parent_manual", label: "Transfer Bank" },
+                    { value: "midtrans", label: "Midtrans" },
+                  ]}
+                  onChange={(value) =>
+                    setTransactionFilters((previous) => ({
+                      ...previous,
+                      page: 1,
+                      payment_source: value || undefined,
+                    }))
+                  }
+                  size='large'
+                  virtual={false}
+                />
+              ) : null}
+              {viewMode === "history" ? (
+                <Select
+                  allowClear
+                  placeholder='Filter status'
+                  value={transactionFilters.status}
+                  options={[
+                    { value: "pending", label: "Menunggu Konfirmasi" },
+                    { value: "paid", label: "Paid" },
+                    { value: "failed", label: "Ditolak" },
+                    { value: "cancelled", label: "Dibatalkan" },
+                    { value: "expired", label: "Kedaluwarsa" },
+                  ]}
+                  onChange={(value) =>
+                    setTransactionFilters((previous) => ({
+                      ...previous,
+                      page: 1,
+                      status: value || undefined,
+                    }))
+                  }
+                  size='large'
+                  virtual={false}
+                />
+              ) : null}
             </div>
           </div>
 

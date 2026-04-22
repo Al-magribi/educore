@@ -67,7 +67,10 @@ const ParentTransactionHero = ({ student, summary }) => (
             </Flex>
           </Flex>
 
-          <Title level={2} style={{ margin: 0, color: "#fff", lineHeight: 1.1 }}>
+          <Title
+            level={2}
+            style={{ margin: 0, color: "#fff", lineHeight: 1.1 }}
+          >
             Riwayat pembayaran sekolah dalam satu workspace yang rapi
           </Title>
 
@@ -80,8 +83,7 @@ const ParentTransactionHero = ({ student, summary }) => (
             }}
           >
             Pantau status SPP bulanan, pembayaran lainnya, cicilan, dan invoice
-            resmi untuk {student?.student_name || "anak Anda"} dengan tampilan
-            yang lebih jelas di desktop maupun mobile.
+            resmi untuk {student?.student_name || "anak Anda"}.
           </Paragraph>
         </Space>
 
@@ -111,7 +113,7 @@ const ParentTransactionHero = ({ student, summary }) => (
               {student?.grade_name || "-"} {student?.class_name || ""}
             </Text>
             <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-              {student?.homebase_name || "-"} • {student?.periode_name || "-"}
+              {student?.homebase_name || "-"} | {student?.periode_name || "-"}
             </Text>
             <Flex
               align='center'
@@ -125,6 +127,7 @@ const ParentTransactionHero = ({ student, summary }) => (
               <ShieldCheck size={16} color='#86efac' />
               <Text style={{ color: "#e2e8f0" }}>
                 {Number(summary?.paid_count || 0)} item lunas,{" "}
+                {Number(summary?.pending_count || 0)} menunggu verifikasi,{" "}
                 {Number(summary?.total_items || 0)} item terpantau
               </Text>
             </Flex>

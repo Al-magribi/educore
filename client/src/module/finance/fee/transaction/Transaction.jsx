@@ -1,12 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import dayjs from "dayjs";
-import { Form, Space, message } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Form,
+  Image,
+  Input,
+  Modal,
+  Space,
+  Tabs,
+  Tag,
+  Typography,
+  message,
+} from "antd";
 import { motion } from "framer-motion";
 
 import { LoadApp } from "../../../../components";
 import {
   useCreateTransactionMutation,
+  useConfirmTransactionPaymentMutation,
   useDeleteTransactionMutation,
   useGetTransactionOptionsQuery,
   useGetTransactionsQuery,
@@ -20,6 +35,7 @@ import {
 } from "./components/transactionFormShared.jsx";
 
 const MotionDiv = motion.div;
+const { Text } = Typography;
 
 const containerVariants = {
   hidden: { opacity: 0, y: 18 },
@@ -70,6 +86,13 @@ const Transaction = () => {
   const [form] = Form.useForm();
   const [modalRequestedOpen, setModalRequestedOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [activeView, setActiveView] = useState("admin");
+  const [confirmationState, setConfirmationState] = useState({
+    open: false,
+    action: null,
+    record: null,
+  });
+  const [confirmationNotes, setConfirmationNotes] = useState("");
   const [debouncedStudentSearch, setDebouncedStudentSearch] = useState("");
   const [selectedStudentOption, setSelectedStudentOption] = useState(null);
   const [otherPaymentSelectionsState, setOtherPaymentSelectionsState] =
@@ -77,10 +100,13 @@ const Transaction = () => {
   const pendingSelectedStudentSearchRef = useRef(null);
   const [transactionFilters, setTransactionFilters] = useState({
     homebase_id: undefined,
+    periode_id: undefined,
     page: 1,
     limit: 10,
     search: "",
     category: undefined,
+    status: undefined,
+    payment_source: undefined,
   });
 
   const formHomebaseId = Form.useWatch("homebase_id", form);
@@ -97,8 +123,20 @@ const Transaction = () => {
     () => ({
       ...transactionFilters,
       homebase_id: transactionFilters.homebase_id,
+      status:
+        activeView === "admin"
+          ? "paid"
+          : activeView === "confirmation"
+            ? "pending"
+            : transactionFilters.status,
+      payment_source:
+        activeView === "admin"
+          ? "admin_manual"
+          : activeView === "confirmation"
+            ? "parent_manual"
+            : transactionFilters.payment_source,
     }),
-    [transactionFilters],
+    [activeView, transactionFilters],
   );
 
   const effectiveOptionHomebaseId =
@@ -125,6 +163,8 @@ const Transaction = () => {
     useGetTransactionsQuery(effectiveTransactionFilters);
   const [createTransaction, { isLoading: isSubmitting }] =
     useCreateTransactionMutation();
+  const [confirmTransactionPayment, { isLoading: isConfirmingTransaction }] =
+    useConfirmTransactionPaymentMutation();
   const [updateTransaction, { isLoading: isUpdatingTransaction }] =
     useUpdateTransactionMutation();
   const [deleteTransaction, { isLoading: isDeletingTransaction }] =
@@ -347,6 +387,7 @@ const Transaction = () => {
   };
 
   const openCreateModal = () => {
+    setActiveView("admin");
     setEditingTransaction(null);
     resetForm();
     setModalRequestedOpen(true);
@@ -482,6 +523,61 @@ const Transaction = () => {
     }
   };
 
+  const openConfirmationModal = (record, action) => {
+    setConfirmationState({
+      open: true,
+      action,
+      record,
+    });
+    setConfirmationNotes(
+      action === "reject"
+        ? record?.notes || ""
+        : "",
+    );
+  };
+
+  const closeConfirmationModal = () => {
+    setConfirmationState({
+      open: false,
+      action: null,
+      record: null,
+    });
+    setConfirmationNotes("");
+  };
+
+  const handleConfirmTransaction = async () => {
+    if (!confirmationState.record || !confirmationState.action) {
+      return;
+    }
+
+    if (
+      confirmationState.action === "reject" &&
+      !String(confirmationNotes || "").trim()
+    ) {
+      message.error("Alasan penolakan wajib diisi");
+      return;
+    }
+
+    try {
+      await confirmTransactionPayment({
+        id: confirmationState.record.id,
+        homebase_id: confirmationState.record.homebase_id,
+        action: confirmationState.action,
+        notes: String(confirmationNotes || "").trim() || undefined,
+      }).unwrap();
+      message.success(
+        confirmationState.action === "approve"
+          ? "Pembayaran berhasil dikonfirmasi"
+          : "Pembayaran berhasil ditolak",
+      );
+      closeConfirmationModal();
+    } catch (error) {
+      message.error(
+        error?.data?.message || "Gagal memproses konfirmasi pembayaran",
+      );
+    }
+  };
+
   if (isLoadingOptions && !optionResponse) {
     return <LoadApp />;
   }
@@ -495,17 +591,44 @@ const Transaction = () => {
     >
       <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
         <MotionDiv variants={itemVariants}>
+          <Tabs
+            activeKey={activeView}
+            onChange={(nextKey) => {
+              setActiveView(nextKey);
+              setTransactionFilters((previous) => ({
+                ...previous,
+                page: 1,
+                category: undefined,
+                status: nextKey === "history" ? previous.status : undefined,
+                payment_source:
+                  nextKey === "history" ? previous.payment_source : undefined,
+              }));
+            }}
+            items={[
+              { key: "admin", label: "Input Admin" },
+              { key: "confirmation", label: "Konfirmasi" },
+              { key: "history", label: "Riwayat" },
+            ]}
+          />
+        </MotionDiv>
+
+        <MotionDiv variants={itemVariants}>
           <TransactionList
             user={user}
+            viewMode={activeView}
             homebases={homebases}
+            periodes={periodes}
             transactions={transactions}
             transactionSummary={transactionSummary}
             transactionFilters={effectiveTransactionFilters}
             setTransactionFilters={setTransactionFilters}
             loading={isLoadingTransactions}
             isDeletingTransaction={isDeletingTransaction}
+            isConfirmingTransaction={isConfirmingTransaction}
             onEdit={handleEditTransaction}
             onDelete={handleDeleteCurrentTransaction}
+            onApprove={(record) => openConfirmationModal(record, "approve")}
+            onReject={(record) => openConfirmationModal(record, "reject")}
             onCreate={openCreateModal}
           />
         </MotionDiv>
@@ -539,6 +662,12 @@ const Transaction = () => {
             pendingSelectedStudentSearchRef.current = null;
             setOtherPaymentSelectionsState({});
             setSelectedStudentOption(null);
+            setTransactionFilters((prev) => ({
+              ...prev,
+              homebase_id: value,
+              periode_id: undefined,
+              page: 1,
+            }));
             form.setFieldsValue({
               homebase_id: value,
               periode_id: undefined,
@@ -549,6 +678,12 @@ const Transaction = () => {
             pendingSelectedStudentSearchRef.current = null;
             setOtherPaymentSelectionsState({});
             setSelectedStudentOption(null);
+            setTransactionFilters((prev) => ({
+              ...prev,
+              homebase_id: form.getFieldValue("homebase_id"),
+              periode_id: value,
+              page: 1,
+            }));
             form.setFieldsValue({
               periode_id: value,
               ...resetStudentContextValue,
@@ -592,6 +727,162 @@ const Transaction = () => {
           grandTotal={grandTotal}
           onOtherPaymentAmountChange={handleOtherPaymentAmountChange}
         />
+
+        <Modal
+          open={confirmationState.open}
+          onCancel={closeConfirmationModal}
+          footer={null}
+          title={
+            confirmationState.action === "approve"
+              ? "Review Konfirmasi Pembayaran"
+              : "Review Penolakan Pembayaran"
+          }
+          width={760}
+          destroyOnHidden
+        >
+          {!confirmationState.record ? null : (
+            <Space vertical size={16} style={{ width: "100%" }}>
+              <Alert
+                type={
+                  confirmationState.action === "approve" ? "info" : "warning"
+                }
+                showIcon
+                message={
+                  confirmationState.action === "approve"
+                    ? "Periksa bukti transfer sebelum mengonfirmasi"
+                    : "Tambahkan alasan penolakan untuk memudahkan tindak lanjut"
+                }
+                description={
+                  confirmationState.action === "approve"
+                    ? "Pembayaran parent manual akan berubah menjadi paid setelah Anda menyetujui konfirmasi ini."
+                    : "Pembayaran parent manual akan diberi status ditolak dan tidak akan dihitung sebagai pelunasan."
+                }
+              />
+
+              <Card
+                size='small'
+                style={{
+                  borderRadius: 18,
+                  border: "1px solid rgba(148,163,184,0.14)",
+                }}
+              >
+                <Descriptions
+                  column={1}
+                  size='small'
+                  labelStyle={{ width: 180, fontWeight: 700 }}
+                >
+                  <Descriptions.Item label='Siswa'>
+                    {confirmationState.record.student_name || "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Tagihan'>
+                    {confirmationState.record.description || "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Nominal'>
+                    {Number(confirmationState.record.amount || 0).toLocaleString(
+                      "id-ID",
+                      {
+                        style: "currency",
+                        currency: "IDR",
+                        maximumFractionDigits: 0,
+                      },
+                    )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Status Saat Ini'>
+                    <Tag color='gold' style={{ borderRadius: 999 }}>
+                      {confirmationState.record.status_label || "Pending"}
+                    </Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Metode'>
+                    {confirmationState.record.payment_source_label || "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Kanal'>
+                    {confirmationState.record.payment_method_name ||
+                      confirmationState.record.payment_source_label ||
+                      "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Rekening Tujuan'>
+                    {confirmationState.record.bank_name
+                      ? `${confirmationState.record.bank_name} - ${confirmationState.record.account_number || "-"}`
+                      : "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Referensi'>
+                    {confirmationState.record.reference_no || "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label='Tanggal Upload'>
+                    {confirmationState.record.paid_at
+                      ? dayjs(confirmationState.record.paid_at).format(
+                          "DD MMM YYYY HH:mm",
+                        )
+                      : "-"}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+
+              {confirmationState.record.proof_url ? (
+                <Card
+                  size='small'
+                  title='Preview Bukti Transfer'
+                  style={{
+                    borderRadius: 18,
+                    border: "1px solid rgba(148,163,184,0.14)",
+                  }}
+                >
+                  {/\.(png|jpe?g|webp|gif)$/i.test(
+                    confirmationState.record.proof_url,
+                  ) ? (
+                    <Image
+                      src={confirmationState.record.proof_url}
+                      alt='Bukti transfer'
+                      style={{ maxHeight: 320, objectFit: "contain" }}
+                    />
+                  ) : (
+                    <Button
+                      href={confirmationState.record.proof_url}
+                      target='_blank'
+                      rel='noreferrer'
+                    >
+                      Buka Bukti Transfer
+                    </Button>
+                  )}
+                </Card>
+              ) : (
+                <Alert
+                  type='warning'
+                  showIcon
+                  message='Bukti transfer tidak tersedia'
+                  description='Tidak ditemukan file bukti transfer pada pembayaran ini.'
+                />
+              )}
+
+              {confirmationState.action === "reject" ? (
+                <div>
+                  <Text strong>Alasan Penolakan</Text>
+                  <Input.TextArea
+                    value={confirmationNotes}
+                    onChange={(event) => setConfirmationNotes(event.target.value)}
+                    placeholder='Contoh: nominal transfer tidak sesuai dengan tagihan atau bukti transfer tidak valid.'
+                    rows={4}
+                    style={{ marginTop: 8 }}
+                  />
+                </div>
+              ) : null}
+
+              <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+                <Button onClick={closeConfirmationModal}>Batal</Button>
+                <Button
+                  type='primary'
+                  danger={confirmationState.action === "reject"}
+                  loading={isConfirmingTransaction}
+                  onClick={handleConfirmTransaction}
+                >
+                  {confirmationState.action === "approve"
+                    ? "Konfirmasi Pembayaran"
+                    : "Tolak Pembayaran"}
+                </Button>
+              </Space>
+            </Space>
+          )}
+        </Modal>
       </Space>
     </MotionDiv>
   );
