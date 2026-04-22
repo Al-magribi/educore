@@ -25,6 +25,14 @@ export const dateFormatter = (value, withTime = false) => {
 };
 
 export const statusMetaMap = {
+  confirmed: {
+    color: "green",
+    label: "Terkonfirmasi",
+  },
+  rejected: {
+    color: "red",
+    label: "Ditolak",
+  },
   paid: {
     color: "green",
     label: "Lunas",

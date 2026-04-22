@@ -17,8 +17,24 @@ import { currencyFormatter } from "./transactionFormShared.jsx";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
-const TransactionStepSpp = ({ form, unpaidMonths, tariffAmount, loading }) => {
+const TransactionStepSpp = ({
+  form,
+  unpaidMonths,
+  tariffAmount,
+  loading,
+  editingTransaction,
+}) => {
   const selectedMonths = Form.useWatch("bill_months", form) || [];
+  const normalizedSelectedMonths = selectedMonths.map((month) => Number(month));
+  const displayedMonths =
+    unpaidMonths.length > 0
+      ? unpaidMonths
+      : normalizedSelectedMonths.map((month) => ({
+          value: month,
+          label: editingTransaction?.bill_months?.includes(month)
+            ? `Bulan ${month}`
+            : `Bulan ${month}`,
+        }));
 
   if (loading) {
     return (
@@ -28,7 +44,7 @@ const TransactionStepSpp = ({ form, unpaidMonths, tariffAmount, loading }) => {
     );
   }
 
-  if (unpaidMonths.length === 0) {
+  if (displayedMonths.length === 0) {
     return (
       <Card style={{ borderRadius: 18 }}>
         <Empty description='Tidak ada tagihan SPP yang belum dibayar' />
@@ -77,15 +93,9 @@ const TransactionStepSpp = ({ form, unpaidMonths, tariffAmount, loading }) => {
 
       <Form.Item name='bill_months' noStyle>
         <Checkbox.Group style={{ width: "100%" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 14,
-            }}
-          >
-            {unpaidMonths.map((month, index) => {
-              const active = selectedMonths.includes(month.value);
+          <Flex wrap gap='small'>
+            {displayedMonths.map((month, index) => {
+              const active = normalizedSelectedMonths.includes(Number(month.value));
 
               return (
                 <MotionDiv
@@ -119,7 +129,7 @@ const TransactionStepSpp = ({ form, unpaidMonths, tariffAmount, loading }) => {
                 </MotionDiv>
               );
             })}
-          </div>
+          </Flex>
         </Checkbox.Group>
       </Form.Item>
     </Flex>

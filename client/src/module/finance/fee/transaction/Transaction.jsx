@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import {
   Alert,
@@ -11,7 +12,6 @@ import {
   Input,
   Modal,
   Space,
-  Tabs,
   Tag,
   Typography,
   message,
@@ -23,11 +23,13 @@ import {
   useCreateTransactionMutation,
   useConfirmTransactionPaymentMutation,
   useDeleteTransactionMutation,
+  useGetTransactionInvoiceQuery,
   useGetTransactionOptionsQuery,
   useGetTransactionsQuery,
   useUpdateTransactionMutation,
 } from "../../../../service/finance/ApiTransaction";
 import TransactionFormModal from "./components/TransactionFormModal";
+import TransactionInvoicePanel from "./components/TransactionInvoicePanel.jsx";
 import TransactionList from "./components/TransactionList";
 import {
   buildOtherPaymentValue,
@@ -50,16 +52,10 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.28,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
+const branchMotionProps = {
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
 };
 
 const resetStudentContextValue = {
@@ -81,12 +77,17 @@ const formatStudentSearchLabel = (item) => {
 const getEditableOtherPaymentItems = (transaction) =>
   (transaction?.payment_items || []).filter((item) => item.item_type === "other");
 
+const getPrimaryInvoice = (record) =>
+  (record?.invoices || []).find((invoice) => invoice?.id) || null;
+
 const Transaction = () => {
   const { user } = useSelector((state) => state.auth);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialInvoiceId = Number(searchParams.get("invoice") || 0) || null;
   const [form] = Form.useForm();
   const [modalRequestedOpen, setModalRequestedOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
-  const [activeView, setActiveView] = useState("admin");
+  const [openedInvoiceId, setOpenedInvoiceId] = useState(initialInvoiceId);
   const [confirmationState, setConfirmationState] = useState({
     open: false,
     action: null,
@@ -118,27 +119,6 @@ const Transaction = () => {
     () => otherPaymentSelectionsState || {},
     [otherPaymentSelectionsState],
   );
-
-  const effectiveTransactionFilters = useMemo(
-    () => ({
-      ...transactionFilters,
-      homebase_id: transactionFilters.homebase_id,
-      status:
-        activeView === "admin"
-          ? "paid"
-          : activeView === "confirmation"
-            ? "pending"
-            : transactionFilters.status,
-      payment_source:
-        activeView === "admin"
-          ? "admin_manual"
-          : activeView === "confirmation"
-            ? "parent_manual"
-            : transactionFilters.payment_source,
-    }),
-    [activeView, transactionFilters],
-  );
-
   const effectiveOptionHomebaseId =
     formHomebaseId || transactionFilters.homebase_id;
 
@@ -159,8 +139,49 @@ const Transaction = () => {
     },
   );
 
+  const options = optionResponse?.data || {};
+  const homebases = useMemo(() => options.homebases || [], [options.homebases]);
+  const resolvedTransactionHomebaseId = transactionFilters.homebase_id ||
+    (homebases.length === 1 ? homebases[0]?.id : undefined) ||
+    (user?.homebase_id ? optionResponse?.data?.selected_homebase_id : undefined);
+
   const { data: transactionResponse, isLoading: isLoadingTransactions } =
-    useGetTransactionsQuery(effectiveTransactionFilters);
+    useGetTransactionsQuery(
+      {
+        ...transactionFilters,
+        homebase_id: resolvedTransactionHomebaseId,
+      },
+      {
+        skip: !resolvedTransactionHomebaseId,
+      },
+    );
+  const transactions = useMemo(
+    () => transactionResponse?.data || [],
+    [transactionResponse?.data],
+  );
+  const selectedInvoiceRecord = useMemo(
+    () =>
+      transactions.find(
+        (record) =>
+          Number(getPrimaryInvoice(record)?.id) === Number(openedInvoiceId),
+      ) || null,
+    [openedInvoiceId, transactions],
+  );
+  const activeInvoiceId =
+    openedInvoiceId &&
+    (!isLoadingTransactions ? (selectedInvoiceRecord ? openedInvoiceId : null) : openedInvoiceId);
+  const { data: invoiceResponse, isFetching: isFetchingInvoice } =
+    useGetTransactionInvoiceQuery(
+      {
+        invoiceId: activeInvoiceId,
+        homebase_id:
+          selectedInvoiceRecord?.homebase_id ||
+          resolvedTransactionHomebaseId,
+      },
+      {
+        skip: !activeInvoiceId,
+      },
+    );
   const [createTransaction, { isLoading: isSubmitting }] =
     useCreateTransactionMutation();
   const [confirmTransactionPayment, { isLoading: isConfirmingTransaction }] =
@@ -169,12 +190,7 @@ const Transaction = () => {
     useUpdateTransactionMutation();
   const [deleteTransaction, { isLoading: isDeletingTransaction }] =
     useDeleteTransactionMutation();
-
-  const options = optionResponse?.data || {};
-  const homebases = useMemo(() => options.homebases || [], [options.homebases]);
-  const selectedHomebaseId =
-    effectiveTransactionFilters.homebase_id ||
-    optionResponse?.data?.selected_homebase_id;
+  const selectedHomebaseId = resolvedTransactionHomebaseId;
   const periodes = useMemo(() => options.periodes || [], [options.periodes]);
   const students = useMemo(() => options.students || [], [options.students]);
   const student = options.student || null;
@@ -187,7 +203,7 @@ const Transaction = () => {
     () => options.other_charges || [],
     [options.other_charges],
   );
-  const transactions = transactionResponse?.data || [];
+  const invoiceData = invoiceResponse?.data || null;
   const transactionSummary = transactionResponse?.summary || {};
   const hasStudentKeyword = Boolean(String(studentSearch || "").trim());
 
@@ -218,6 +234,20 @@ const Transaction = () => {
       class_id: student.class_id,
     });
   }, [form, student]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (openedInvoiceId) {
+      nextParams.set("invoice", String(openedInvoiceId));
+    } else {
+      nextParams.delete("invoice");
+    }
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams);
+    }
+  }, [openedInvoiceId, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!modalRequestedOpen || !effectiveOptionHomebaseId) {
@@ -386,8 +416,11 @@ const Transaction = () => {
     resetForm();
   };
 
+  const closeInvoicePanel = () => {
+    setOpenedInvoiceId(null);
+  };
+
   const openCreateModal = () => {
-    setActiveView("admin");
     setEditingTransaction(null);
     resetForm();
     setModalRequestedOpen(true);
@@ -413,18 +446,11 @@ const Transaction = () => {
 
   const handleSubmit = async (values) => {
     const currentFormValues = form.getFieldsValue(true);
-    const rawOtherPayments =
-      currentFormValues.other_payments ||
-      values.other_payments ||
-      otherPaymentSelections ||
-      {};
-    const otherPayments = Object.values(rawOtherPayments)
-      .filter((item) => Number(item?.amount_paid) > 0)
-      .map((item) => ({
-        charge_id: item.charge_id ? Number(item.charge_id) : null,
-        type_id: item.type_id ? Number(item.type_id) : null,
-        amount_paid: Number(item.amount_paid),
-      }));
+    const otherPayments = selectedOtherPayments.map((item) => ({
+      charge_id: item.charge_id ? Number(item.charge_id) : null,
+      type_id: item.type_id ? Number(item.type_id) : null,
+      amount_paid: Number(item.amount_paid || 0),
+    }));
 
     const commonPayload = {
       homebase_id:
@@ -491,7 +517,10 @@ const Transaction = () => {
     form.setFieldsValue({
       homebase_id: record.homebase_id,
       periode_id: record.periode_id,
-      student_search: "",
+      student_search: formatStudentSearchLabel({
+        full_name: record.student_name,
+        nis: record.nis,
+      }),
       grade_id: record.grade_id,
       class_id: record.class_id,
       student_id: record.student_id,
@@ -511,6 +540,13 @@ const Transaction = () => {
         homebase_id: record.homebase_id,
       }).unwrap();
       message.success("Transaksi berhasil dihapus");
+
+      if (
+        activeInvoiceId &&
+        Number(getPrimaryInvoice(record)?.id) === Number(activeInvoiceId)
+      ) {
+        closeInvoicePanel();
+      }
 
       if (
         editingTransaction?.category === record.category &&
@@ -568,7 +604,9 @@ const Transaction = () => {
       message.success(
         confirmationState.action === "approve"
           ? "Pembayaran berhasil dikonfirmasi"
-          : "Pembayaran berhasil ditolak",
+          : confirmationState.action === "reject"
+            ? "Pembayaran berhasil ditolak"
+            : "Status pembayaran berhasil dikembalikan ke pending",
       );
       closeConfirmationModal();
     } catch (error) {
@@ -582,6 +620,8 @@ const Transaction = () => {
     return <LoadApp />;
   }
 
+  const isInvoiceOpen = Boolean(activeInvoiceId);
+
   return (
     <MotionDiv
       variants={containerVariants}
@@ -590,48 +630,48 @@ const Transaction = () => {
       style={{ width: "100%" }}
     >
       <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
-        <MotionDiv variants={itemVariants}>
-          <Tabs
-            activeKey={activeView}
-            onChange={(nextKey) => {
-              setActiveView(nextKey);
-              setTransactionFilters((previous) => ({
-                ...previous,
-                page: 1,
-                category: undefined,
-                status: nextKey === "history" ? previous.status : undefined,
-                payment_source:
-                  nextKey === "history" ? previous.payment_source : undefined,
-              }));
-            }}
-            items={[
-              { key: "admin", label: "Input Admin" },
-              { key: "confirmation", label: "Konfirmasi" },
-              { key: "history", label: "Riwayat" },
-            ]}
-          />
-        </MotionDiv>
+        {isInvoiceOpen ? (
+          <MotionDiv key='invoice-panel' {...branchMotionProps}>
+            <TransactionInvoicePanel
+              invoiceId={activeInvoiceId}
+              invoiceData={invoiceData}
+              loading={isFetchingInvoice}
+              onClose={closeInvoicePanel}
+            />
+          </MotionDiv>
+        ) : (
+          <MotionDiv key='transaction-list' {...branchMotionProps}>
+            <TransactionList
+              user={user}
+              homebases={homebases}
+              periodes={periodes}
+              transactions={transactions}
+              transactionSummary={transactionSummary}
+              transactionFilters={{
+                ...transactionFilters,
+                homebase_id: resolvedTransactionHomebaseId,
+              }}
+              setTransactionFilters={setTransactionFilters}
+              loading={isLoadingTransactions}
+              isDeletingTransaction={isDeletingTransaction}
+              isConfirmingTransaction={isConfirmingTransaction}
+              activeInvoiceId={activeInvoiceId}
+              onEdit={handleEditTransaction}
+              onDelete={handleDeleteCurrentTransaction}
+              onViewInvoice={(invoiceId) => {
+                if (!invoiceId) {
+                  return;
+                }
 
-        <MotionDiv variants={itemVariants}>
-          <TransactionList
-            user={user}
-            viewMode={activeView}
-            homebases={homebases}
-            periodes={periodes}
-            transactions={transactions}
-            transactionSummary={transactionSummary}
-            transactionFilters={effectiveTransactionFilters}
-            setTransactionFilters={setTransactionFilters}
-            loading={isLoadingTransactions}
-            isDeletingTransaction={isDeletingTransaction}
-            isConfirmingTransaction={isConfirmingTransaction}
-            onEdit={handleEditTransaction}
-            onDelete={handleDeleteCurrentTransaction}
-            onApprove={(record) => openConfirmationModal(record, "approve")}
-            onReject={(record) => openConfirmationModal(record, "reject")}
-            onCreate={openCreateModal}
-          />
-        </MotionDiv>
+                setOpenedInvoiceId(Number(invoiceId));
+              }}
+              onApprove={(record) => openConfirmationModal(record, "approve")}
+              onReject={(record) => openConfirmationModal(record, "reject")}
+              onRevoke={(record) => openConfirmationModal(record, "revoke")}
+              onCreate={openCreateModal}
+            />
+          </MotionDiv>
+        )}
 
         <TransactionFormModal
           open={modalOpen}
@@ -735,7 +775,9 @@ const Transaction = () => {
           title={
             confirmationState.action === "approve"
               ? "Review Konfirmasi Pembayaran"
-              : "Review Penolakan Pembayaran"
+              : confirmationState.action === "reject"
+                ? "Review Penolakan Pembayaran"
+                : "Review Revoke Pembayaran"
           }
           width={760}
           destroyOnHidden
@@ -750,12 +792,16 @@ const Transaction = () => {
                 message={
                   confirmationState.action === "approve"
                     ? "Periksa bukti transfer sebelum mengonfirmasi"
-                    : "Tambahkan alasan penolakan untuk memudahkan tindak lanjut"
+                    : confirmationState.action === "reject"
+                      ? "Tambahkan alasan penolakan untuk memudahkan tindak lanjut"
+                      : "Status pembayaran akan dikembalikan ke pending"
                 }
                 description={
                   confirmationState.action === "approve"
-                    ? "Pembayaran parent manual akan berubah menjadi paid setelah Anda menyetujui konfirmasi ini."
-                    : "Pembayaran parent manual akan diberi status ditolak dan tidak akan dihitung sebagai pelunasan."
+                    ? "Pembayaran transfer manual akan berubah menjadi terkonfirmasi setelah Anda menyetujui konfirmasi ini."
+                    : confirmationState.action === "reject"
+                      ? "Pembayaran parent manual akan diberi status ditolak dan tidak akan dihitung sebagai pelunasan."
+                      : "Pembayaran parent manual akan kembali ke status menunggu verifikasi agar dapat direview ulang."
                 }
               />
 
@@ -877,7 +923,9 @@ const Transaction = () => {
                 >
                   {confirmationState.action === "approve"
                     ? "Konfirmasi Pembayaran"
-                    : "Tolak Pembayaran"}
+                    : confirmationState.action === "reject"
+                      ? "Tolak Pembayaran"
+                      : "Revoke Pembayaran"}
                 </Button>
               </Space>
             </Space>
