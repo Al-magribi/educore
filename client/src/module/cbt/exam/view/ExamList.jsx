@@ -31,7 +31,7 @@ import {
   ShieldCheck,
   Calendar,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { createSearchParams, useLocation, useSearchParams } from "react-router-dom";
 import { InfiniteScrollList, LoadApp } from "../../../../components";
 import {
   useGetExamsQuery,
@@ -44,6 +44,7 @@ import StudentAnswers from "../report/components/StudentAnswers";
 const { Text, Title } = Typography;
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const containerVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -71,8 +72,9 @@ const ExamList = () => {
   const { token } = useToken();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const location = useLocation();
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const view = searchParams.get("view");
   const exam_id = searchParams.get("exam_id");
   const exam_name = searchParams.get("exam_name")?.replaceAll("-", " ");
@@ -155,13 +157,15 @@ const ExamList = () => {
     setPage(1);
   };
 
-  const handleReport = (item) => {
-    setSearchParams({
+  const buildReportUrl = (item) => {
+    const reportParams = createSearchParams({
       view: "report",
       exam_id: item.id,
       exam_name: item.name?.replaceAll(" ", "-"),
       token: item.token,
     });
+
+    return `${location.pathname}?${reportParams.toString()}`;
   };
 
   const toNumber = (value) => {
@@ -186,7 +190,7 @@ const ExamList = () => {
       item.class_count > 0 ? `${item.class_count} kelas` : "Belum ada kelas";
 
     return (
-      <motion.div
+      <MotionDiv
         variants={itemVariants}
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
@@ -235,7 +239,20 @@ const ExamList = () => {
           actions={[
             <Tooltip title='Laporan' key='report'>
               <div style={{ display: "flex", justifyContent: "center" }}>
-                <Folder size={16} onClick={() => handleReport(item)} />
+                <a
+                  href={buildReportUrl(item)}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "inherit",
+                  }}
+                  aria-label={`Buka laporan ${item.name} di tab baru`}
+                >
+                  <Folder size={16} />
+                </a>
               </div>
             </Tooltip>,
             <Tooltip title='Edit' key='edit'>
@@ -291,7 +308,7 @@ const ExamList = () => {
                 </Title>
               </Tooltip>
               <Tag
-                bordered={false}
+                variant='filled'
                 style={{
                   margin: 0,
                   paddingInline: 10,
@@ -360,7 +377,7 @@ const ExamList = () => {
             </div>
           </Flex>
         </Card>
-      </motion.div>
+      </MotionDiv>
     );
   };
 
@@ -422,13 +439,13 @@ const ExamList = () => {
 
   return (
     <Suspense fallback={<LoadApp />}>
-      <motion.div
+      <MotionDiv
         variants={containerVariants}
         initial='hidden'
         animate='show'
         style={{ width: "100%" }}
       >
-        <motion.div variants={itemVariants}>
+        <MotionDiv variants={itemVariants}>
           <Card
             style={{
               marginBottom: 20,
@@ -490,11 +507,11 @@ const ExamList = () => {
               </Flex>
             </Flex>
           </Card>
-        </motion.div>
+        </MotionDiv>
 
         <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
           {summaryCards.map((item) => (
-            <motion.div
+            <MotionDiv
               key={item.key}
               variants={itemVariants}
               style={{
@@ -532,11 +549,11 @@ const ExamList = () => {
                   </div>
                 </Flex>
               </Card>
-            </motion.div>
+            </MotionDiv>
           ))}
         </Flex>
 
-        <motion.div variants={itemVariants}>
+        <MotionDiv variants={itemVariants}>
           <Card
             style={{
               marginBottom: 18,
@@ -574,9 +591,9 @@ const ExamList = () => {
               </Flex>
             </Flex>
           </Card>
-        </motion.div>
+        </MotionDiv>
 
-        <motion.div variants={itemVariants}>
+        <MotionDiv variants={itemVariants}>
           <InfiniteScrollList
             data={allData}
             loading={isFetching}
@@ -594,8 +611,8 @@ const ExamList = () => {
             }}
             height={isMobile ? "calc(100vh - 300px)" : "calc(100vh - 360px)"}
           />
-        </motion.div>
-      </motion.div>
+        </MotionDiv>
+      </MotionDiv>
 
       <Modal
         title={

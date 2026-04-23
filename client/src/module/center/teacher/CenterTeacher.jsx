@@ -1,4 +1,4 @@
-import TeacherList from "../../../components/teacher/TeacherList";
+import TeacherList from "./TeacherList";
 
 const CenterTeacher = () => {
   return (

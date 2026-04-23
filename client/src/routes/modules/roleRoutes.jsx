@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
 import { AppLayout } from "../../components";
@@ -16,22 +16,31 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
     <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
       <Route
         path="/guru-dashboard"
-        element={<LazyPage title="Dashboard Guru" Component={TeacherDash} />}
+        element={createElement(LazyPage, {
+          title: "Dashboard Guru",
+          Component: TeacherDash,
+        })}
       />
     </Route>
 
     <Route element={<RouteProtection allowedRoles={["student"]} />}>
       <Route
         path="/siswa-dashboard"
-        element={<LazyPage title="Dashboard" Component={StudentDash} />}
+        element={createElement(LazyPage, {
+          title: "Dashboard",
+          Component: StudentDash,
+        })}
       />
       <Route
         path="/siswa/jadwal-ujian"
         element={
           isCbtEnabled ? (
-            <LazyPage title="Jadwal Ujian" Component={StudentExamList} />
+            createElement(LazyPage, {
+              title: "Jadwal Ujian",
+              Component: StudentExamList,
+            })
           ) : (
-            <NotFoundRedirect />
+            createElement(NotFoundRedirect)
           )
         }
       />
@@ -58,7 +67,10 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
     >
       <Route
         path="/profile"
-        element={<LazyPage title="Profile Saya" Component={Profile} />}
+        element={createElement(LazyPage, {
+          title: "Profile Saya",
+          Component: Profile,
+        })}
       />
     </Route>
   </>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -90,27 +90,14 @@ const QuestionContent = ({
   onAnswerChange,
   palette,
 }) => {
-  const [rightOrder, setRightOrder] = useState([]);
-  const [rightPool, setRightPool] = useState([]);
-  const [assignments, setAssignments] = useState({});
-  const lastQuestionIdRef = useRef(null);
-
-  if (!question) {
-    return (
-      <Card style={{ borderRadius: 16 }}>
-        <Empty description="Soal belum tersedia" />
-      </Card>
-    );
-  }
-
-  const isMulti = question.q_type === 2;
-  const isEssay = question.q_type === 3;
-  const isShortAnswer = question.q_type === 4;
-  const isTrueFalse = question.q_type === 5;
-  const isMatching = question.q_type === 6;
+  const isMulti = question?.q_type === 2;
+  const isEssay = question?.q_type === 3;
+  const isShortAnswer = question?.q_type === 4;
+  const isTrueFalse = question?.q_type === 5;
+  const isMatching = question?.q_type === 6;
   const isTextAnswer = isEssay || isShortAnswer;
-  const options = question.options || [];
-  const questionType = getQuestionType(question.q_type);
+  const options = useMemo(() => question?.options || [], [question?.options]);
+  const questionType = getQuestionType(question?.q_type);
 
   const leftItems = useMemo(
     () =>
@@ -121,47 +108,43 @@ const QuestionContent = ({
     [options],
   );
 
+  const initialRightOrder = useMemo(() => {
+    if (!question || !isMatching) return [];
+    const rightSource =
+      Array.isArray(question.right_options) && question.right_options.length > 0
+        ? question.right_options
+        : shuffleList(options);
+    return rightSource.map((opt) => ({
+      id: String(opt.id),
+      content: opt.content || "",
+    }));
+  }, [isMatching, options, question]);
+
+  const [rightOrder, setRightOrder] = useState(initialRightOrder);
+  const assignments = useMemo(
+    () => normalizeAssignments(answerValue),
+    [answerValue],
+  );
+  const rightPool = useMemo(() => {
+    const assignedIds = new Set(
+      Object.values(assignments).map((value) => String(value)),
+    );
+    return rightOrder.filter((item) => !assignedIds.has(item.id));
+  }, [assignments, rightOrder]);
+
   const rightItemsById = useMemo(() => {
     const map = new Map();
     rightOrder.forEach((item) => map.set(item.id, item));
     return map;
   }, [rightOrder]);
 
-  useEffect(() => {
-    if (!isMatching) return;
-    const baseOptions = question.options || [];
-    const initialAssignments = normalizeAssignments(answerValue);
-    const hasSameAssignments =
-      Object.keys(initialAssignments).length ===
-        Object.keys(assignments).length &&
-      Object.entries(initialAssignments).every(
-        ([leftId, rightId]) => assignments[leftId] === rightId,
-      );
-    const shouldRebuild =
-      question.id !== lastQuestionIdRef.current || rightOrder.length === 0;
-    if (!shouldRebuild && hasSameAssignments) return;
-    const rightSource =
-      Array.isArray(question.right_options) &&
-      question.right_options.length > 0
-        ? question.right_options
-        : shuffleList(baseOptions);
-    const nextRightOrder = rightSource.map((opt) => ({
-      id: String(opt.id),
-      content: opt.content || "",
-    }));
-    const resolvedRightOrder = shouldRebuild ? nextRightOrder : rightOrder;
-    const assignedIds = new Set(
-      Object.values(initialAssignments).map((value) => String(value)),
+  if (!question) {
+    return (
+      <Card style={{ borderRadius: 16 }}>
+        <Empty description="Soal belum tersedia" />
+      </Card>
     );
-    setAssignments(initialAssignments);
-    setRightPool(
-      resolvedRightOrder.filter((item) => !assignedIds.has(item.id)),
-    );
-    if (shouldRebuild) {
-      lastQuestionIdRef.current = question.id;
-      setRightOrder(nextRightOrder);
-    }
-  }, [isMatching, question, answerValue, assignments, rightOrder.length]);
+  }
 
   const getOptionBadgeLabel = (option, idx) => {
     if (isTrueFalse) {
@@ -179,37 +162,36 @@ const QuestionContent = ({
     const destDroppable = destination.droppableId;
 
     const nextAssignments = { ...assignments };
-    let nextRightPool = [...rightPool];
+    let nextRightOrder = [...rightOrder];
 
     const findLeftByRight = (rightId) =>
       Object.keys(nextAssignments).find(
         (leftId) => nextAssignments[leftId] === rightId,
       );
 
-    const returnToPool = (rightId, index) => {
-      const item = rightItemsById.get(rightId);
-      if (!item) return;
-      if (nextRightPool.some((poolItem) => poolItem.id === rightId)) return;
-      if (typeof index === "number") {
-        nextRightPool.splice(index, 0, item);
-      } else {
-        nextRightPool.push(item);
-      }
+    const reorderUnassignedItems = (nextPoolOrder) => {
+      let poolIndex = 0;
+      return nextRightOrder.map((item) => {
+        if (Object.values(nextAssignments).includes(item.id)) {
+          return item;
+        }
+        const nextItem = nextPoolOrder[poolIndex];
+        poolIndex += 1;
+        return nextItem || item;
+      });
     };
 
     if (destDroppable === "right-pool") {
       if (sourceDroppable === "right-pool") {
-        const reordered = [...nextRightPool];
+        const reordered = [...rightPool];
         const [moved] = reordered.splice(source.index, 1);
         reordered.splice(destination.index, 0, moved);
-        nextRightPool = reordered;
+        nextRightOrder = reorderUnassignedItems(reordered);
       } else if (sourceDroppable.startsWith("left-")) {
         const leftId = sourceDroppable.replace("left-", "");
         delete nextAssignments[leftId];
-        returnToPool(itemId, destination.index);
       }
-      setAssignments(nextAssignments);
-      setRightPool(nextRightPool);
+      setRightOrder(nextRightOrder);
       if (typeof onAnswerChange === "function") {
         onAnswerChange(toPairs(nextAssignments));
       }
@@ -224,12 +206,7 @@ const QuestionContent = ({
       }
 
       const replacedId = nextAssignments[leftId];
-      if (replacedId && replacedId !== itemId) {
-        returnToPool(replacedId);
-      }
-
       nextAssignments[leftId] = itemId;
-      nextRightPool = nextRightPool.filter((item) => item.id !== itemId);
 
       if (sourceDroppable.startsWith("left-")) {
         const sourceLeft = sourceDroppable.replace("left-", "");
@@ -238,8 +215,11 @@ const QuestionContent = ({
         }
       }
 
-      setAssignments(nextAssignments);
-      setRightPool(nextRightPool);
+      if (replacedId && replacedId !== itemId) {
+        nextAssignments[leftId] = itemId;
+      }
+
+      setRightOrder(nextRightOrder);
       if (typeof onAnswerChange === "function") {
         onAnswerChange(toPairs(nextAssignments));
       }
