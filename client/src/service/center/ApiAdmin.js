@@ -54,6 +54,7 @@ export const ApiAdmin = createApi({
 
 export const {
   useGetAdminsQuery,
+  useLazyGetAdminsQuery,
   useAddAdminMutation,
   useUpdateAdminMutation,
   useDeleteAdminMutation,

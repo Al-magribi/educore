@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button, Form, Space, Typography, message } from "antd";
 import { useSelector } from "react-redux";
 import {
@@ -27,7 +27,7 @@ const GroupBankForm = ({ onClose, onSuccess }) => {
   );
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
-  const [questionPointMap, setQuestionPointMap] = useState({});
+  const [questionPointOverrides, setQuestionPointOverrides] = useState({});
 
   const { data: teachers, isLoading: loadingTeachers } = useGetTeachersQuery(
     undefined,
@@ -42,11 +42,11 @@ const GroupBankForm = ({ onClose, onSuccess }) => {
   const [createGroupedBank, { isLoading: isCreating }] =
     useCreateGroupedBankMutation();
 
-  useEffect(() => {
+  const resetSelections = () => {
     setSelectedRowKeys([]);
     setSelectedQuestionIds([]);
-    setQuestionPointMap({});
-  }, [selectedTeacherId]);
+    setQuestionPointOverrides({});
+  };
 
   const selectedBanks = useMemo(
     () => banks.filter((b) => selectedRowKeys.includes(b.id)),
@@ -64,21 +64,14 @@ const GroupBankForm = ({ onClose, onSuccess }) => {
       { skip: !bankIdsParam },
     );
 
-  useEffect(() => {
-    setSelectedQuestionIds([]);
-    setQuestionPointMap({});
-  }, [bankIdsParam]);
-
-  useEffect(() => {
-    if (!questions.length) return;
-    setQuestionPointMap((prev) => {
-      const next = { ...prev };
-      questions.forEach((q) => {
-        if (!next[q.id]) next[q.id] = q.score_point || 1;
-      });
-      return next;
+  const questionPointMap = useMemo(() => {
+    const next = {};
+    questions.forEach((question) => {
+      next[question.id] =
+        questionPointOverrides[question.id] ?? (question.score_point || 1);
     });
-  }, [questions]);
+    return next;
+  }, [questionPointOverrides, questions]);
 
   const totalPoints = useMemo(
     () =>
@@ -133,6 +126,7 @@ const GroupBankForm = ({ onClose, onSuccess }) => {
       await createGroupedBank(payload).unwrap();
       message.success("Bank soal gabungan berhasil dibuat");
       form.resetFields();
+      resetSelections();
       if (onSuccess) onSuccess();
     } catch (error) {
       message.error(error?.data?.message || "Gagal membuat bank gabungan");
@@ -151,7 +145,10 @@ const GroupBankForm = ({ onClose, onSuccess }) => {
             teachers={teachers}
             loading={loadingTeachers}
             selectedTeacherId={selectedTeacherId}
-            onChange={setSelectedTeacherId}
+            onChange={(teacherId) => {
+              resetSelections();
+              setSelectedTeacherId(teacherId);
+            }}
           />
         )}
 
@@ -160,7 +157,11 @@ const GroupBankForm = ({ onClose, onSuccess }) => {
           isFetching={isFetching}
           selectedBanksCount={selectedBanks.length}
           selectedRowKeys={selectedRowKeys}
-          onSelectionChange={setSelectedRowKeys}
+          onSelectionChange={(keys) => {
+            setSelectedRowKeys(keys);
+            setSelectedQuestionIds([]);
+            setQuestionPointOverrides({});
+          }}
         />
 
         <QuestionSelectionTable
@@ -170,7 +171,7 @@ const GroupBankForm = ({ onClose, onSuccess }) => {
           totalPoints={totalPoints}
           questionPointMap={questionPointMap}
           onQuestionSelectionChange={setSelectedQuestionIds}
-          onPointChange={setQuestionPointMap}
+          onPointChange={setQuestionPointOverrides}
           showCoverageWarning={
             !selectedBankCoverageOk && selectedQuestionIds.length > 0
           }

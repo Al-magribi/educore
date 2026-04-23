@@ -19,6 +19,7 @@ import { BookOpen, CalendarCheck, ClipboardList, Layers } from "lucide-react";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -232,7 +233,7 @@ const TeacherDash = () => {
   const exams = data?.exams || [];
 
   return (
-    <motion.div
+    <MotionDiv
       initial='hidden'
       animate='show'
       variants={containerVariants}
@@ -243,14 +244,14 @@ const TeacherDash = () => {
         gap: 20,
       }}
     >
-      <motion.div variants={itemVariants}>
+      <MotionDiv variants={itemVariants}>
         <Card style={heroStyle} bodyStyle={{ padding: isMobile ? 20 : 28 }}>
           <Flex
             vertical={isMobile ? true : false}
             justify={isMobile ? "center" : "space-between"}
           >
             <Flex gap={"middle"} align='center'>
-              <motion.div
+              <MotionDiv
                 initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.35 }}
@@ -269,7 +270,7 @@ const TeacherDash = () => {
                 >
                   {teacherInitial}
                 </Avatar>
-              </motion.div>
+              </MotionDiv>
 
               <Space vertical>
                 <Text
@@ -339,13 +340,13 @@ const TeacherDash = () => {
             </Space>
           </Flex>
         </Card>
-      </motion.div>
+      </MotionDiv>
 
-      <motion.div variants={itemVariants}>
+      <MotionDiv variants={itemVariants}>
         <Row gutter={[16, 16]}>
           {stats.map((item) => (
             <Col xs={24} sm={12} xl={6} key={item.key}>
-              <motion.div
+              <MotionDiv
                 whileHover={isMobile ? undefined : { y: -4 }}
                 transition={{ duration: 0.18 }}
               >
@@ -373,13 +374,13 @@ const TeacherDash = () => {
                     </Space>
                   </Space>
                 </Card>
-              </motion.div>
+              </MotionDiv>
             </Col>
           ))}
         </Row>
-      </motion.div>
+      </MotionDiv>
 
-      <motion.div variants={itemVariants}>
+      <MotionDiv variants={itemVariants}>
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={12}>
             <Card
@@ -486,9 +487,9 @@ const TeacherDash = () => {
             </Card>
           </Col>
         </Row>
-      </motion.div>
+      </MotionDiv>
 
-      <motion.div variants={itemVariants}>
+      <MotionDiv variants={itemVariants}>
         <Card
           title={renderSectionTitle(
             <span style={iconWrapStyle("#ffedd5", "#c2410c")}>
@@ -536,8 +537,8 @@ const TeacherDash = () => {
             )}
           </Space>
         </Card>
-      </motion.div>
-    </motion.div>
+      </MotionDiv>
+    </MotionDiv>
   );
 };
 

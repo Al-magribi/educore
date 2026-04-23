@@ -4,6 +4,44 @@ import { authorize } from "../../middleware/authorize.js";
 
 const router = Router();
 
+const buildStudentSegmentQueryParts = ({ search = "", age, gender }) => {
+  let ageCondition = "";
+  const defaultAgeRange =
+    "AND EXTRACT(YEAR FROM AGE(CURRENT_DATE, sib.birth_date))::integer BETWEEN 6 AND 18";
+
+  if (age) {
+    ageCondition =
+      "AND EXTRACT(YEAR FROM AGE(CURRENT_DATE, sib.birth_date))::integer = $2";
+  } else {
+    ageCondition = defaultAgeRange;
+  }
+
+  let genderCondition = "";
+  if (gender) {
+    genderCondition = `AND sib.gender = $${age ? "3" : "2"}`;
+  }
+
+  const baseJoin = `
+    FROM u_student_siblings sib
+    JOIN u_students s ON sib.student_id = s.user_id
+    JOIN u_users u ON s.user_id = u.id
+    LEFT JOIN u_student_families sf ON s.user_id = sf.student_id
+    LEFT JOIN a_homebase h ON s.homebase_id = h.id
+    LEFT JOIN db_city c ON s.city_id = c.id
+  `;
+
+  const queryParams = [`%${search}%`];
+  if (age) queryParams.push(age);
+  if (gender) queryParams.push(gender);
+
+  return {
+    ageCondition,
+    genderCondition,
+    baseJoin,
+    queryParams,
+  };
+};
+
 // ==================================================================
 // ANALISIS SEGMENTASI SAUDARA (SIBLING MARKET ANALYSIS)
 // ------------------------------------------------------------------
@@ -21,32 +59,12 @@ router.get(
     const gender_target = req.query.gender;
 
     const offset = (page - 1) * limit;
-
-    let ageCondition = "";
-    // Default rentang umur potensial (6-18 tahun)
-    let defaultAgeRange =
-      "AND EXTRACT(YEAR FROM AGE(CURRENT_DATE, sib.birth_date))::integer BETWEEN 6 AND 18";
-
-    if (age_target) {
-      ageCondition = `AND EXTRACT(YEAR FROM AGE(CURRENT_DATE, sib.birth_date))::integer = $2`;
-    } else {
-      ageCondition = defaultAgeRange;
-    }
-
-    let genderCondition = "";
-    if (gender_target) {
-      genderCondition = `AND sib.gender = $${age_target ? "3" : "2"}`;
-    }
-
-    // QUERY UTAMA
-    // Pastikan u.full_name di-alias menjadi linked_student_name
-    const baseJoin = `
-      FROM u_student_siblings sib
-      JOIN u_students s ON sib.student_id = s.user_id
-      JOIN u_users u ON s.user_id = u.id
-      LEFT JOIN a_homebase h ON s.homebase_id = h.id
-      LEFT JOIN db_city c ON s.city_id = c.id
-    `;
+    const { ageCondition, genderCondition, baseJoin, queryParams } =
+      buildStudentSegmentQueryParts({
+        search,
+        age: age_target,
+        gender: gender_target,
+      });
 
     const countQuery = `
       SELECT COUNT(*)
@@ -55,10 +73,6 @@ router.get(
       ${ageCondition}
       ${genderCondition}
     `;
-
-    const queryParams = [`%${search}%`];
-    if (age_target) queryParams.push(age_target);
-    if (gender_target) queryParams.push(gender_target);
 
     const countResult = await db.query(countQuery, queryParams);
     const totalData = parseInt(countResult.rows[0].count);
@@ -74,6 +88,10 @@ router.get(
         
         -- ALIAS PENTING: Nama Siswa Penghubung
         u.full_name as linked_student_name,
+        sf.father_name,
+        sf.father_phone,
+        sf.mother_name,
+        sf.mother_phone,
         h.name as homebase_name,
         c.name as city_name
       
@@ -92,6 +110,60 @@ router.get(
       success: true,
       data: dataResult.rows,
       meta: { page, limit, totalData, totalPages },
+    });
+  }),
+);
+
+router.get(
+  "/download-student-segment",
+  authorize("pusat"),
+  withQuery(async (req, res, db) => {
+    const search = req.query.search || "";
+    const age_target = req.query.age;
+    const gender_target = req.query.gender;
+
+    const { ageCondition, genderCondition, baseJoin, queryParams } =
+      buildStudentSegmentQueryParts({
+        search,
+        age: age_target,
+        gender: gender_target,
+      });
+
+    const dataQuery = `
+      SELECT 
+        sib.id as sibling_id,
+        sib.name as full_name,
+        sib.gender,
+        sib.birth_date,
+        EXTRACT(YEAR FROM AGE(CURRENT_DATE, sib.birth_date))::integer as age,
+        u.full_name as linked_student_name,
+        sf.father_name,
+        sf.father_phone,
+        sf.mother_name,
+        sf.mother_phone,
+        h.name as homebase_name,
+        c.name as city_name
+      ${baseJoin}
+      WHERE (sib.name ILIKE $1 OR u.full_name ILIKE $1)
+      ${ageCondition}
+      ${genderCondition}
+      ORDER BY sib.name ASC
+    `;
+
+    const dataResult = await db.query(dataQuery, queryParams);
+
+    res.status(200).json({
+      success: true,
+      data: dataResult.rows,
+      meta: {
+        totalData: dataResult.rows.length,
+        filters: {
+          search,
+          age: age_target || null,
+          gender: gender_target || null,
+        },
+      },
+      message: "Data segmentasi saudara berhasil disiapkan untuk download",
     });
   }),
 );

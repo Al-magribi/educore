@@ -1,16 +1,24 @@
-import { lazy } from "react";
+import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
 
-const CenterDash = lazy(() => import("../../module/center/dashboard/CenterDash"));
-const CenterHome = lazy(() => import("../../module/center/homebase/CenterHome"));
+const CenterDash = lazy(
+  () => import("../../module/center/dashboard/CenterDash"),
+);
+const CenterHome = lazy(
+  () => import("../../module/center/homebase/CenterHome"),
+);
 const CenterAdmin = lazy(() => import("../../module/center/admin/CenterAdmin"));
 const CenterTeacher = lazy(
   () => import("../../module/center/teacher/CenterTeacher"),
 );
-const CenterMarket = lazy(() => import("../../module/center/market/CenterMarket"));
-const CenterConfig = lazy(() => import("../../module/center/config/CenterConfig"));
+const CenterMarket = lazy(
+  () => import("../../module/center/market/CenterMarket"),
+);
+const CenterConfig = lazy(
+  () => import("../../module/center/config/CenterConfig"),
+);
 
 const renderCenterRoutes = (routeHelpers) => (
   <Route
@@ -19,54 +27,50 @@ const renderCenterRoutes = (routeHelpers) => (
     }
   >
     <Route
-      path="/center-dashboard"
-      element={
-        <routeHelpers.LazyPage title="Dashboard Center" Component={CenterDash} />
-      }
+      path='/center-dashboard'
+      element={createElement(LazyPage, {
+        title: "Dashboard Center",
+        Component: CenterDash,
+      })}
     />
     <Route
-      path="/center-homebase"
-      element={
-        <routeHelpers.LazyPage
-          title="Manajemen Satuan Pendidikan"
-          Component={CenterHome}
-        />
-      }
+      path='/center-homebase'
+      element={createElement(LazyPage, {
+        title: "Manajemen Satuan Pendidikan",
+        Component: CenterHome,
+      })}
     />
     <Route
-      path="/center-admin"
-      element={
-        <routeHelpers.LazyPage title="Manajemen Admin" Component={CenterAdmin} />
-      }
+      path='/center-admin'
+      element={createElement(LazyPage, {
+        title: "Manajemen Admin",
+        Component: CenterAdmin,
+      })}
     />
     <Route
-      path="/center-teacher"
-      element={
-        <routeHelpers.LazyPage
-          title="Manajement Guru"
-          Component={CenterTeacher}
-        />
-      }
+      path='/center-teacher'
+      element={createElement(LazyPage, {
+        title: "Manajement Guru",
+        Component: CenterTeacher,
+      })}
     />
     <Route
-      path="/center-market"
-      element={
-        <routeHelpers.LazyPage
-          title="Analisis Pasar & Demografi"
-          Component={CenterMarket}
-        />
-      }
+      path='/center-analysis'
+      element={createElement(LazyPage, {
+        title: "Analisis Pasar & Demografi",
+        Component: CenterMarket,
+      })}
     />
     <Route
-      path="/center-config"
+      path='/center-config'
       element={
-        routeHelpers.isDbEnabled ? (
-          <routeHelpers.LazyPage
-            title="Manjemen Database"
-            Component={CenterConfig}
-          />
+        isDbEnabled ? (
+          createElement(LazyPage, {
+            title: "Manjemen Database",
+            Component: CenterConfig,
+          })
         ) : (
-          <routeHelpers.NotFoundRedirect />
+          createElement(NotFoundRedirect)
         )
       }
     />

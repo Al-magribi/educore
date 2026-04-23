@@ -1,34 +1,36 @@
 import React, { useEffect, useState } from "react";
 import {
+  Avatar,
   Button,
   Card,
-  Form,
+  Grid,
   Input,
-  message,
   Popconfirm,
   Space,
   Tag,
   Tooltip,
   Typography,
-  Grid,
+  message,
 } from "antd";
 import {
   PlusOutlined,
+  SearchOutlined,
   EditOutlined,
   DeleteOutlined,
-  HomeOutlined,
-  SearchOutlined,
-  InfoCircleOutlined,
-  CalendarOutlined,
+  UserOutlined,
+  BookOutlined,
+  MailOutlined,
+  PhoneOutlined,
+  IdcardOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import { InfiniteScrollList } from "../../../components";
 import {
-  useLazyGetHomebaseQuery,
-  useDeleteHomebaseMutation,
-} from "../../../service/center/ApiHomebase";
-import ModalHome from "./ModalHome";
-import DetailHomebase from "./DetailHomebase";
+  useDeleteTeacherMutation,
+  useLazyGetTeachersQuery,
+} from "../../../service/main/ApiTeacher";
+import useDebounced from "../../../utils/useDebounced.jsx";
+import ModalTeacher from "./ModalTeacher";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -56,19 +58,7 @@ const itemVariants = {
   },
 };
 
-const formatDate = (date) => {
-  if (!date) {
-    return "-";
-  }
-
-  return new Date(date).toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const CenterHome = () => {
+const TeacherList = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -76,25 +66,23 @@ const CenterHome = () => {
   const [search, setSearch] = useState("");
   const [listData, setListData] = useState([]);
   const [hasMore, setHasMore] = useState(false);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedHomebaseId, setSelectedHomebaseId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [form] = Form.useForm();
 
-  const [triggerGetHomebase, { isFetching }] = useLazyGetHomebaseQuery();
-  const [deleteHomebase, { isLoading: isDeleting }] =
-    useDeleteHomebaseMutation();
+  const debounced = useDebounced(search, 500);
+  const [triggerGetTeachers, { isFetching }] = useLazyGetTeachersQuery();
+  const [deleteTeacher, { isLoading: isDeleting }] =
+    useDeleteTeacherMutation();
 
   useEffect(() => {
     let isActive = true;
 
-    const fetchHomebase = async () => {
+    const fetchTeachers = async () => {
       try {
-        const result = await triggerGetHomebase({
+        const result = await triggerGetTeachers({
           page,
-          limit: 10,
-          search,
+          limit: 16,
+          search: debounced,
         }).unwrap();
 
         if (!isActive) {
@@ -115,29 +103,27 @@ const CenterHome = () => {
         });
       } catch {
         if (isActive && page === 1) {
-          setListData([]);
           setHasMore(false);
+          setListData([]);
         }
       }
     };
 
-    fetchHomebase();
+    fetchTeachers();
 
     return () => {
       isActive = false;
     };
-  }, [page, search, triggerGetHomebase]);
-
-  const handleLoadMore = () => {
-    if (hasMore && !isFetching) {
-      setPage((prev) => prev + 1);
-    }
-  };
+  }, [page, debounced, triggerGetTeachers]);
 
   const refreshFirstPage = async () => {
     try {
-      const result = await triggerGetHomebase(
-        { page: 1, limit: 10, search },
+      const result = await triggerGetTeachers(
+        {
+          page: 1,
+          limit: 16,
+          search: debounced,
+        },
         true,
       ).unwrap();
 
@@ -149,66 +135,47 @@ const CenterHome = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await deleteHomebase(id).unwrap();
-      message.success("Berhasil dihapus");
-      setPage(1);
-      await refreshFirstPage();
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus");
+  const handleLoadMore = () => {
+    if (hasMore && !isFetching) {
+      setPage((prev) => prev + 1);
     }
   };
 
   const openModal = (item = null) => {
     setEditingItem(item);
-    if (item) {
-      form.setFieldsValue(item);
-    } else {
-      form.resetFields();
-    }
     setIsModalOpen(true);
   };
 
-  const handleModalSuccess = async () => {
+  const handleDelete = async (id) => {
+    try {
+      await deleteTeacher(id).unwrap();
+      message.success("Guru berhasil dihapus");
+      setPage(1);
+      await refreshFirstPage();
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus data");
+    }
+  };
+
+  const handleSuccess = async () => {
     setIsModalOpen(false);
     setEditingItem(null);
     setPage(1);
     await refreshFirstPage();
   };
 
-  const openDetailDashboard = (id) => {
-    setSelectedHomebaseId(id);
-    setIsDetailOpen(true);
-  };
-
-  const closeDetailDashboard = () => {
-    setSelectedHomebaseId(null);
-    setIsDetailOpen(false);
-  };
-
-  const renderHomebaseItem = (item) => (
+  const renderItem = (item) => (
     <MotionDiv
       key={item.id}
       variants={itemVariants}
       whileHover={{ y: -4 }}
       transition={{ duration: 0.2 }}
-      style={{ marginBottom: 18 }}
     >
       <Card
         variant="borderless"
+        hoverable
         actions={[
-          <Tooltip title="Lihat dashboard detail" key="detail">
-            <Button
-              type="link"
-              icon={<InfoCircleOutlined />}
-              onClick={() => openDetailDashboard(item.id)}
-              style={{ fontWeight: 600 }}
-            >
-              Detail
-            </Button>
-          </Tooltip>,
-          <Tooltip title="Edit homebase" key="edit">
+          <Tooltip title="Edit data guru" key="edit">
             <Button
               type="link"
               icon={<EditOutlined />}
@@ -220,8 +187,8 @@ const CenterHome = () => {
           </Tooltip>,
           <Popconfirm
             key="delete"
-            title="Hapus Homebase ini?"
-            description="Data yang terhubung seperti kelas dan guru bisa terdampak."
+            title="Hapus Guru?"
+            description="Data mengajar, nilai, dan absensi terkait mungkin akan hilang."
             onConfirm={() => handleDelete(item.id)}
             okText="Ya, Hapus"
             cancelText="Batal"
@@ -238,113 +205,113 @@ const CenterHome = () => {
           </Popconfirm>,
         ]}
         styles={{
-          body: {
-            padding: isMobile ? 18 : 22,
-          },
+          body: { padding: 18 },
           actions: {
-            background: "#fff",
             borderTop: "1px solid #e2e8f0",
+            background: "#fff",
           },
         }}
         style={{
+          height: "100%",
           borderRadius: 24,
           overflow: "hidden",
-          border: "1px solid rgba(148, 163, 184, 0.18)",
-          boxShadow: "0 24px 60px rgba(15, 23, 42, 0.08)",
+          border: "1px solid rgba(148, 163, 184, 0.16)",
+          boxShadow: "0 22px 50px rgba(15, 23, 42, 0.08)",
           background:
-            "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94))",
+            "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
         }}
       >
         <Space align="start" size={16} style={{ width: "100%" }}>
-          <div
+          <Avatar
+            size={56}
+            src={item.img_url}
+            icon={<UserOutlined />}
             style={{
-              width: 54,
-              height: 54,
-              borderRadius: 18,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
               background:
-                "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(59,130,246,0.18))",
-              color: "#1d4ed8",
-              fontSize: 22,
+                "linear-gradient(135deg, rgba(59,130,246,0.18), rgba(34,197,94,0.18))",
+              color: "#2563eb",
               flexShrink: 0,
             }}
-          >
-            <HomeOutlined />
-          </div>
+          />
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <Space
-              wrap
-              size={[10, 10]}
-              style={{ marginBottom: 10, width: "100%" }}
-            >
+          <Space orientation="vertical" size={10} style={{ flex: 1, minWidth: 0 }}>
+            <div>
               <Title
-                level={4}
+                level={5}
+                style={{ margin: 0, color: "#0f172a", fontSize: 17 }}
+                ellipsis={{ tooltip: item.full_name }}
+              >
+                {item.full_name}
+              </Title>
+              <Text
+                type="secondary"
+                style={{ display: "block", marginTop: 4, fontSize: 13 }}
+              >
+                @{item.username}
+              </Text>
+            </div>
+
+            <Space wrap size={[8, 8]}>
+              <Tag
+                icon={<BookOutlined />}
+                color="cyan"
                 style={{
                   margin: 0,
-                  color: "#0f172a",
-                  fontSize: isMobile ? 18 : 20,
-                  lineHeight: 1.25,
-                }}
-              >
-                {item.name}
-              </Title>
-              <Tag
-                color="blue"
-                style={{
                   borderRadius: 999,
-                  paddingInline: 12,
+                  paddingInline: 10,
                   fontWeight: 600,
-                  marginInlineEnd: 0,
                 }}
               >
-                {item.level || "Jenjang belum diatur"}
+                {item.homebase_name || "Belum ada Homebase"}
+              </Tag>
+              <Tag
+                color={item.is_active ? "success" : "error"}
+                style={{
+                  margin: 0,
+                  borderRadius: 999,
+                  paddingInline: 10,
+                  fontWeight: 600,
+                }}
+              >
+                {item.is_active ? "Aktif" : "Nonaktif"}
               </Tag>
             </Space>
 
-            <Text
-              type="secondary"
-              style={{
-                display: "block",
-                fontSize: 13.5,
-                lineHeight: 1.7,
-                color: "#475569",
-                marginBottom: 14,
-              }}
-            >
-              {item.description || "Belum ada deskripsi untuk homebase ini."}
-            </Text>
+            <div style={{ display: "grid", gap: 8 }}>
+              <Space size={8} style={{ color: "#64748b", width: "100%" }}>
+                <IdcardOutlined />
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, minWidth: 0 }}
+                  ellipsis={{ tooltip: item.nip || "Non-NIP" }}
+                >
+                  {item.nip || "Non-NIP"}
+                </Text>
+              </Space>
 
-            <Space wrap size={[12, 10]}>
-              <Tag
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  marginInlineEnd: 0,
-                  color: "#0f172a",
-                  background: "#f8fafc",
-                  borderColor: "#e2e8f0",
-                }}
-              >
-                ID: {item.id}
-              </Tag>
-              <Tag
-                icon={<CalendarOutlined />}
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  marginInlineEnd: 0,
-                  color: "#475569",
-                  background: "#fff",
-                  borderColor: "#e2e8f0",
-                }}
-              >
-                Dibuat {formatDate(item.created_at)}
-              </Tag>
-            </Space>
-          </div>
+              <Space size={8} style={{ color: "#64748b", width: "100%" }}>
+                <MailOutlined />
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, minWidth: 0 }}
+                  ellipsis={{ tooltip: item.email || "-" }}
+                >
+                  {item.email || "-"}
+                </Text>
+              </Space>
+
+              <Space size={8} style={{ color: "#64748b", width: "100%" }}>
+                <PhoneOutlined />
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, minWidth: 0 }}
+                  ellipsis={{ tooltip: item.phone || "-" }}
+                >
+                  {item.phone || "-"}
+                </Text>
+              </Space>
+            </div>
+          </Space>
         </Space>
       </Card>
     </MotionDiv>
@@ -369,11 +336,7 @@ const CenterHome = () => {
                 "radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 30%), linear-gradient(135deg, #0f172a, #1e3a8a 58%, #0f766e)",
               boxShadow: "0 22px 50px rgba(15, 23, 42, 0.18)",
             }}
-            styles={{
-              body: {
-                padding: isMobile ? 18 : 20,
-              },
-            }}
+            styles={{ body: { padding: isMobile ? 18 : 20 } }}
           >
             <Space orientation="vertical" size={14} style={{ width: "100%" }}>
               <Tag
@@ -388,7 +351,7 @@ const CenterHome = () => {
                   fontWeight: 600,
                 }}
               >
-                Center Homebase
+                Center Teacher
               </Tag>
 
               <div>
@@ -401,7 +364,7 @@ const CenterHome = () => {
                     lineHeight: 1.2,
                   }}
                 >
-                  Kelola Satuan Pendidikan
+                  Kelola data guru dengan tampilan yang lebih rapi.
                 </Title>
                 <Text
                   style={{
@@ -413,8 +376,8 @@ const CenterHome = () => {
                     maxWidth: 680,
                   }}
                 >
-                  Cari satuan pendidikan, buka dashboard detail, dan kelola data
-                  satuan dari workspace yang tetap ringkas dan nyaman dipakai.
+                  Cari guru, perbarui penempatan, dan tambah data guru baru dari
+                  workspace yang tetap nyaman dipakai di desktop maupun mobile.
                 </Text>
               </div>
 
@@ -424,7 +387,7 @@ const CenterHome = () => {
                 style={{ width: "100%", justifyContent: "space-between" }}
               >
                 <Input
-                  placeholder="Cari homebase..."
+                  placeholder="Cari nama, username, atau NIP..."
                   prefix={<SearchOutlined style={{ color: "#64748b" }} />}
                   allowClear
                   onChange={(e) => {
@@ -432,7 +395,7 @@ const CenterHome = () => {
                     setSearch(e.target.value);
                   }}
                   style={{
-                    maxWidth: isMobile ? "100%" : 320,
+                    maxWidth: isMobile ? "100%" : 340,
                     width: "100%",
                     height: 42,
                     borderRadius: 999,
@@ -454,7 +417,7 @@ const CenterHome = () => {
                     fontWeight: 600,
                   }}
                 >
-                  Tambah Homebase
+                  Tambah Guru
                 </Button>
               </Space>
             </Space>
@@ -467,27 +430,30 @@ const CenterHome = () => {
             loading={isFetching}
             hasMore={hasMore}
             onLoadMore={handleLoadMore}
-            renderItem={renderHomebaseItem}
-            height="68vh"
-            emptyText="Belum ada data satuan pendidikan"
+            renderItem={renderItem}
+            height="75vh"
+            emptyText="Belum ada data guru"
+            grid={{
+              gutter: [16, 16],
+              xs: 24,
+              sm: 24,
+              md: 12,
+              lg: 8,
+              xl: 6,
+              xxl: 6,
+            }}
           />
         </MotionDiv>
       </MotionDiv>
 
-      <ModalHome
+      <ModalTeacher
         open={isModalOpen}
         initialData={editingItem}
         onCancel={() => setIsModalOpen(false)}
-        onSuccess={handleModalSuccess}
-      />
-
-      <DetailHomebase
-        open={isDetailOpen}
-        homebaseId={selectedHomebaseId}
-        onCancel={closeDetailDashboard}
+        onSuccess={handleSuccess}
       />
     </>
   );
 };
 
-export default CenterHome;
+export default TeacherList;

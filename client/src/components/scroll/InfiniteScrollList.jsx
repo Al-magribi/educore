@@ -52,6 +52,7 @@ const InfiniteScrollList = ({
       ref={scrollContainerRef}
       style={{
         padding: "4px",
+        minHeight: height,
         position: "relative", // Penting untuk konteks scrolling
         maxHeight: useContainerScroll ? height : "unset",
         overflowY: useContainerScroll ? "auto" : "visible",

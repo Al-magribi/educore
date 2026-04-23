@@ -1,28 +1,45 @@
 import React, { useEffect, useMemo } from "react";
 import {
+  Alert,
+  Button,
+  Card,
+  Form,
+  Space,
+  Spin,
+  Tabs,
+  Tag,
+  Typography,
+  message,
+} from "antd";
+import { SaveOutlined, SettingOutlined } from "@ant-design/icons";
+import { motion } from "framer-motion";
+import {
   useGetConfigsQuery,
   useUpdateConfigsMutation,
 } from "../../../../service/center/ApiApp";
-import { Form, Button, Card, Tabs, message, Spin, Alert } from "antd";
-import { SaveOutlined, SettingOutlined } from "@ant-design/icons";
-import ConfigCategoryPanel from "./ConfigCategoryPanel"; // Import panel kategori
+import ConfigCategoryPanel from "./ConfigCategoryPanel";
+
+const { Title, Text } = Typography;
+const MotionDiv = motion.div;
 
 const App = () => {
   const normalizeDomainInput = (rawValue) => {
-    if (typeof rawValue !== "string") return rawValue;
+    if (typeof rawValue !== "string") {
+      return rawValue;
+    }
+
     const trimmed = rawValue.trim();
-    if (!trimmed) return "";
+    if (!trimmed) {
+      return "";
+    }
+
     return trimmed.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
   };
 
-  // 1. Redux Hooks
   const { data: configs, isLoading, isError } = useGetConfigsQuery();
   const [updateConfigs, { isLoading: isUpdating }] = useUpdateConfigsMutation();
-
-  // 2. Form Instance
   const [form] = Form.useForm();
 
-  // 3. Effect: Set Initial Values saat data dimuat
   useEffect(() => {
     if (configs) {
       const initialValues = {};
@@ -33,12 +50,10 @@ const App = () => {
     }
   }, [configs, form]);
 
-  // 4. Handle Submit
   const onFinish = async (values) => {
     try {
-      // Transform { key: value } -> [{ key, value }]
       const payload = Object.keys(values).map((key) => ({
-        key: key,
+        key,
         value: key === "domain" ? normalizeDomainInput(values[key]) : values[key],
       }));
 
@@ -50,31 +65,40 @@ const App = () => {
     }
   };
 
-  // 5. Generate Tab Items (Menggunakan useMemo agar tidak re-render berat)
   const tabItems = useMemo(() => {
-    if (!configs) return [];
+    if (!configs) {
+      return [];
+    }
 
-    // Ambil daftar kategori unik
     const uniqueCategories = [...new Set(configs.map((c) => c.category))];
 
     return uniqueCategories.map((cat) => ({
       key: cat,
       label: cat.toUpperCase(),
-      // Filter config sesuai kategori dan render ke komponen Panel
       children: (
-        <ConfigCategoryPanel
-          configs={configs.filter((c) => c.category === cat)}
-        />
+        <ConfigCategoryPanel configs={configs.filter((c) => c.category === cat)} />
       ),
     }));
   }, [configs]);
 
-  // 6. Render Loading/Error States
   if (isLoading) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 50 }}>
-        <Spin size="large" />
-      </div>
+      <Card
+        variant="borderless"
+        style={{ borderRadius: 22 }}
+        styles={{ body: { padding: 28 } }}
+      >
+        <div
+          style={{
+            minHeight: 260,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Spin size="large" />
+        </div>
+      </Card>
     );
   }
 
@@ -84,30 +108,93 @@ const App = () => {
     );
   }
 
-  // 7. Render Main UI (Tanpa AppLayout)
   return (
-    <Card
-      title={
-        <span>
-          <SettingOutlined /> Pengaturan Sistem
-        </span>
-      }
-      extra={
-        <Button
-          type="primary"
-          icon={<SaveOutlined />}
-          loading={isUpdating}
-          onClick={() => form.submit()}
-        >
-          Simpan Perubahan
-        </Button>
-      }
-      style={{ borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
+    <MotionDiv
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      style={{ display: "grid", gap: 18 }}
     >
-      <Form form={form} layout="vertical" onFinish={onFinish}>
-        <Tabs defaultActiveKey="metadata" items={tabItems} type="card" />
-      </Form>
-    </Card>
+      <Card
+        variant="borderless"
+        style={{
+          borderRadius: 22,
+          overflow: "hidden",
+          border: "1px solid rgba(148, 163, 184, 0.14)",
+          background:
+            "linear-gradient(135deg, rgba(59,130,246,0.1), rgba(14,165,233,0.08), rgba(16,185,129,0.08))",
+        }}
+        styles={{ body: { padding: 20 } }}
+      >
+        <Space
+          wrap
+          size={[14, 14]}
+          style={{ width: "100%", justifyContent: "space-between" }}
+        >
+          <Space orientation="vertical" size={10}>
+            <Tag
+              icon={<SettingOutlined />}
+              style={{
+                width: "fit-content",
+                margin: 0,
+                borderRadius: 999,
+                paddingInline: 12,
+                fontWeight: 600,
+              }}
+              color="blue"
+            >
+              Pengaturan Sistem
+            </Tag>
+            <div>
+              <Title level={3} style={{ margin: 0, color: "#0f172a" }}>
+                Atur identitas aplikasi dan preferensi utama sistem.
+              </Title>
+              <Text
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  color: "#475569",
+                  maxWidth: 760,
+                  lineHeight: 1.7,
+                }}
+              >
+                Perubahan konfigurasi akan langsung digunakan oleh sistem, jadi
+                pastikan nilai yang disimpan sudah sesuai kebutuhan operasional.
+              </Text>
+            </div>
+          </Space>
+
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={isUpdating}
+            onClick={() => form.submit()}
+            size="large"
+            style={{
+              borderRadius: 999,
+              paddingInline: 20,
+              fontWeight: 600,
+            }}
+          >
+            Simpan Perubahan
+          </Button>
+        </Space>
+      </Card>
+
+      <Card
+        variant="borderless"
+        style={{
+          borderRadius: 22,
+          border: "1px solid rgba(148, 163, 184, 0.14)",
+          boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
+        }}
+        styles={{ body: { padding: 18 } }}
+      >
+        <Form form={form} layout="vertical" onFinish={onFinish}>
+          <Tabs defaultActiveKey={tabItems[0]?.key} items={tabItems} />
+        </Form>
+      </Card>
+    </MotionDiv>
   );
 };
 

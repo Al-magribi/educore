@@ -63,6 +63,7 @@ export const ApiHomebase = createApi({
 
 export const {
   useGetHomebaseQuery,
+  useLazyGetHomebaseQuery,
   useAddHomebaseMutation,
   useUpdateHomebaseMutation,
   useDeleteHomebaseMutation,
