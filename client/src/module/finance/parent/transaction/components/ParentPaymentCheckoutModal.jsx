@@ -150,21 +150,22 @@ const ParentPaymentCheckoutModal = ({
                   >
                     <CreditCard size={20} />
                   </span>
-                  <div>
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                      Pembayaran Online dengan Midtrans
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                        Pembayaran Online dengan Midtrans
+                      </div>
+                      <Text type='secondary'>
+                        Tagihan ini akan diarahkan ke Midtrans Snap karena kanal
+                        Midtrans sedang aktif. Jika transfer bank juga tersedia,
+                        prioritas checkout parent tetap mengikuti Midtrans.
+                      </Text>
                     </div>
-                    <Text type='secondary'>
-                      Tagihan ini akan diarahkan ke Midtrans Snap sesuai
-                      pengaturan satuan siswa.
-                    </Text>
-                  </div>
-                </Space>
+                  </Space>
                 <Alert
                   type='success'
                   showIcon
                   message='Checkout aman dan terverifikasi'
-                  description='Setelah menekan tombol bayar, Anda akan diarahkan ke halaman Midtrans untuk menyelesaikan pembayaran.'
+                  description='Setelah menekan tombol bayar, Anda akan diarahkan ke halaman Midtrans. Tagihan baru dianggap sedang diproses setelah Anda memilih metode bayar di Midtrans.'
                 />
               </Space>
             </Card>
@@ -198,10 +199,13 @@ const ParentPaymentCheckoutModal = ({
                       <div style={{ fontWeight: 700, color: "#0f172a" }}>
                         Transfer ke Rekening Satuan
                       </div>
-                    <Text type='secondary'>
-                      Pilih rekening aktif sesuai satuan siswa, lalu unggah
-                      bukti transfer agar tim keuangan dapat memverifikasi pembayaran ini sebelum dikonfirmasi.
-                    </Text>
+                      <Text type='secondary'>
+                        Midtrans sedang tidak aktif untuk satuan ini, sehingga
+                        pembayaran dialihkan ke transfer bank manual. Pilih
+                        rekening aktif lalu unggah bukti transfer agar tim
+                        keuangan dapat memverifikasi pembayaran ini sebelum
+                        dikonfirmasi.
+                      </Text>
                     </div>
                   </Space>
 
@@ -285,7 +289,7 @@ const ParentPaymentCheckoutModal = ({
               type='warning'
               showIcon
               message='Metode pembayaran belum tersedia'
-              description='Satuan siswa ini belum memiliki konfigurasi Midtrans atau rekening bank aktif.'
+              description='Midtrans dan transfer bank sedang nonaktif atau belum lengkap pada satuan siswa ini.'
             />
           ) : null}
 
