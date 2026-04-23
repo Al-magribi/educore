@@ -86,6 +86,10 @@ jobs:
         run: npm ci
         working-directory: client
 
+      - name: Lint route modules
+        run: npm exec eslint src/routes/modules/*.jsx
+        working-directory: client
+
       - name: Build composed branch
         run: npm run build
         working-directory: client
@@ -124,6 +128,10 @@ jobs:
 
       - name: Install client dependencies
         run: npm ci
+        working-directory: client
+
+      - name: Lint route modules
+        run: npm exec eslint src/routes/modules/*.jsx
         working-directory: client
 
       - name: Build client

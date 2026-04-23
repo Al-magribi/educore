@@ -100,17 +100,10 @@ const buildFinanceMenus = () => {
   return {
     center: [],
     admin: [],
-    finance: [
-      {
-        label: "Keuangan",
-        key: "/finance",
-        icon: <WalletOutlined />,
-        children: financeMenus,
-      },
-    ],
-    teacher: [teacherFinanceNode],
-    student: [studentFinanceNode],
-    parent: [parentFinanceNode],
+    finance: [],
+    teacher: [],
+    student: [],
+    parent: [],
     tahfiz: [],
   };
 };

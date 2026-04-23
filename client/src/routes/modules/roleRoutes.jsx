@@ -11,7 +11,7 @@ const StudentExamList = lazy(
   () => import("../../module/cbt/student/view/StudentExamList"),
 );
 
-const renderRoleRoutes = (routeHelpers) => (
+const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
   <>
     <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
       <Route

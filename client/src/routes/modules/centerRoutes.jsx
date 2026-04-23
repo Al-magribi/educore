@@ -20,7 +20,7 @@ const CenterConfig = lazy(
   () => import("../../module/center/config/CenterConfig"),
 );
 
-const renderCenterRoutes = (routeHelpers) => (
+const renderCenterRoutes = ({ LazyPage, NotFoundRedirect, isDbEnabled }) => (
   <Route
     element={
       <RouteProtection allowedRoles={["admin"]} allowedLevels={["pusat"]} />
