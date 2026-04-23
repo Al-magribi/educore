@@ -8,7 +8,7 @@ import {
 } from "@ant-design/icons";
 import { Landmark } from "lucide-react";
 
-const buildFinanceMenus = () => {
+const buildFinanceMenus = (user = {}) => {
   const financeMenus = [
     {
       label: "Pembayaran SPP",
@@ -89,26 +89,14 @@ const buildFinanceMenus = () => {
         key: "/orangtua/laporan-tabungan",
         icon: <BookOutlined />,
       },
-      {
-        label: "Laporan Uang Kas",
-        key: "/orangtua/laporan-uang-kas",
-        icon: <ReadOutlined />,
-      },
     ],
   };
 
   return {
     center: [],
     admin: [],
-    finance: [
-      {
-        label: "Keuangan",
-        key: "/finance",
-        icon: <WalletOutlined />,
-        children: financeMenus,
-      },
-    ],
-    teacher: [teacherFinanceNode],
+    finance: financeMenus,
+    teacher: user?.is_homeroom ? [teacherFinanceNode] : [],
     student: [studentFinanceNode],
     parent: [parentFinanceNode],
     tahfiz: [],
