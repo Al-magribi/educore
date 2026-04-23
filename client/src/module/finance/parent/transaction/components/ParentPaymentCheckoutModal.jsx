@@ -164,8 +164,8 @@ const ParentPaymentCheckoutModal = ({
                 <Alert
                   type='success'
                   showIcon
-                  message='Checkout aman dan terverifikasi'
-                  description='Setelah menekan tombol bayar, Anda akan diarahkan ke halaman Midtrans. Tagihan baru dianggap sedang diproses setelah Anda memilih metode bayar di Midtrans.'
+                  message='Checkout Midtrans siap digunakan'
+                  description='Setelah menekan tombol bayar, Anda akan diarahkan ke halaman Midtrans. Status tagihan akan menunggu verifikasi Midtrans sampai notifikasi pembayaran diterima sistem.'
                 />
               </Space>
             </Card>

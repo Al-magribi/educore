@@ -1352,17 +1352,15 @@ router.post(
         payerUserId,
         methodType: "midtrans",
         methodName: "Midtrans",
-        paymentChannel: "Midtrans Snap",
+        paymentChannel: "Verifikasi Midtrans",
         amount: payableAmount,
-        notes,
+        notes: notes || "Menunggu verifikasi Midtrans",
         allocation: {
           invoice_item_id: payableItem.invoice_item_id,
           allocated_amount: payableAmount,
         },
         paymentSource: "midtrans",
-        // Snap created != customer has chosen a payment method.
-        // Keep this non-blocking until Midtrans confirms a real transaction state.
-        initialStatus: "expired",
+        initialStatus: "pending",
       });
 
       const orderId = `PARENT-${paymentId}-${Date.now()}`;
@@ -1393,7 +1391,7 @@ router.post(
             raw_response,
             last_synced_at
           )
-          VALUES ($1, 'midtrans', $2, NULL, 'created', $3, $4, $5, 'IDR', $6::jsonb, CURRENT_TIMESTAMP)
+          VALUES ($1, 'midtrans', $2, NULL, 'pending', $3, $4, $5, 'IDR', $6::jsonb, CURRENT_TIMESTAMP)
         `,
         [
           paymentId,
@@ -1530,9 +1528,8 @@ router.post(
       )
       .digest("hex");
 
-    if (providedSignature && providedSignature !== expectedSignature) {
-      return res.status(400).json({ message: "Signature Midtrans tidak valid" });
-    }
+    const signatureMatches =
+      !providedSignature || providedSignature === expectedSignature;
 
     const verifiedStatus = await fetchMidtransTransactionStatus({
       gatewayConfig: {
@@ -1557,10 +1554,15 @@ router.post(
           payment_type = $4,
           gross_amount = $5,
           raw_response = $6::jsonb,
-          webhook_payload = $7::jsonb,
+          webhook_payload = jsonb_set(
+            COALESCE($7::jsonb, '{}'::jsonb),
+            '{signature_verified}',
+            to_jsonb($8::boolean),
+            true
+          ),
           last_synced_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $8
+        WHERE id = $9
       `,
       [
         verifiedStatus?.transaction_id || null,
@@ -1570,6 +1572,7 @@ router.post(
         verifiedStatus?.gross_amount || null,
         JSON.stringify(verifiedStatus || {}),
         JSON.stringify(req.body || {}),
+        signatureMatches,
         gateway.gateway_transaction_id,
       ],
     );
@@ -1581,6 +1584,12 @@ router.post(
           status = $1,
           reference_no = $2,
           payment_channel = COALESCE($3, payment_channel),
+          notes = CASE
+            WHEN $1 = 'confirmed' THEN 'Pembayaran terverifikasi melalui Midtrans'
+            WHEN $1 = 'pending' THEN 'Menunggu verifikasi Midtrans'
+            WHEN $1 IN ('expired', 'cancelled', 'rejected', 'refunded') THEN 'Status transaksi diperbarui dari Midtrans'
+            ELSE notes
+          END,
           verified_at = CASE WHEN $1 = 'confirmed' THEN CURRENT_TIMESTAMP ELSE verified_at END,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $4
