@@ -358,12 +358,12 @@ const ParentAccountManager = ({ scope = "all" }) => {
   ];
 
   const scopeLabel =
-    scope === "homeroom" ? "Akun orang tua kelas wali" : "Akun orang tua seluruh siswa";
+    scope === "homeroom"
+      ? "Akun orang tua Wali Kelas"
+      : "Akun orang tua seluruh siswa";
 
   const heroTitle =
-    scope === "homeroom"
-      ? "Kelola akun orang tua untuk kelas wali dengan lebih tertata."
-      : "Manajemen akun orang tua yang lebih rapi dan siap operasional.";
+    scope === "homeroom" ? "Kelola akun orang tua" : "Manajemen akun orang tua";
 
   const heroDescription =
     "Atur akun login orang tua, hubungan ke siswa, dan proses impor data dari satu panel yang lebih mudah dipakai untuk kebutuhan administrasi harian.";
@@ -415,17 +415,6 @@ const ParentAccountManager = ({ scope = "all" }) => {
                       <span>{scopeLabel}</span>
                     </Flex>
                   </Flex>
-
-                  <div
-                    style={{
-                      ...iconWrapStyle("rgba(255,255,255,0.16)", "#ffffff"),
-                      width: isSmallMobile ? 48 : 56,
-                      height: isSmallMobile ? 48 : 56,
-                      borderRadius: 18,
-                    }}
-                  >
-                    <ShieldCheck size={isSmallMobile ? 20 : 24} />
-                  </div>
 
                   <div>
                     <Title
@@ -642,8 +631,8 @@ const ParentAccountManager = ({ scope = "all" }) => {
                   Workspace akun orang tua
                 </Text>
                 <Text type='secondary' style={{ fontSize: 12 }}>
-                  Gunakan pencarian untuk menemukan akun lebih cepat, lalu lanjutkan
-                  ke edit, impor, atau penambahan akun baru.
+                  Gunakan pencarian untuk menemukan akun lebih cepat, lalu
+                  lanjutkan ke edit, impor, atau penambahan akun baru.
                 </Text>
               </div>
               <Tag
@@ -675,8 +664,8 @@ const ParentAccountManager = ({ scope = "all" }) => {
                     Daftar Akun Orang Tua
                   </Text>
                   <Text type='secondary' style={{ fontSize: 12 }}>
-                    Lihat relasi siswa, ubah akun, atau hapus akun yang tidak lagi
-                    digunakan.
+                    Lihat relasi siswa, ubah akun, atau hapus akun yang tidak
+                    lagi digunakan.
                   </Text>
                 </Space>
                 <Tag
@@ -727,7 +716,10 @@ const ParentAccountManager = ({ scope = "all" }) => {
                         <Link2 size={18} />
                       </div>
                       <div>
-                        <Text strong style={{ display: "block", color: "#0f172a" }}>
+                        <Text
+                          strong
+                          style={{ display: "block", color: "#0f172a" }}
+                        >
                           Siswa Terhubung
                         </Text>
                         <Text type='secondary' style={{ fontSize: 12 }}>
