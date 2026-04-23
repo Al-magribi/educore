@@ -198,6 +198,30 @@ const loadFinanceFeatureAvailability = async (client) => {
   };
 };
 
+const getTableColumnPresence = async (
+  client,
+  tableName,
+  columnNames = [],
+  schemaName = "public",
+) => {
+  if (!columnNames.length) return {};
+
+  const result = await client.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = $1
+       AND table_name = $2
+       AND column_name = ANY($3::text[])`,
+    [schemaName, tableName, columnNames],
+  );
+
+  const existing = new Set(result.rows.map((row) => String(row.column_name)));
+  return columnNames.reduce((acc, columnName) => {
+    acc[columnName] = existing.has(columnName);
+    return acc;
+  }, {});
+};
+
 const toAcademicYears = (periodeName, now = new Date()) => {
   const raw = String(periodeName || "");
   const rangeMatch = raw.match(/(\d{4})\s*\/\s*(\d{4})/);
@@ -353,11 +377,44 @@ router.get(
       ]),
     );
 
+    const attendanceColumns = await getTableColumnPresence(pool, "l_attendance", [
+      "periode_id",
+      "class_id",
+    ]);
+
     const studentCards = await Promise.all(
       students.map(async (student) => {
         const studentId = Number(student.student_id);
         const classId = Number(student.class_id);
         const periodeId = Number(student.periode_id);
+        const attendanceQuery = attendanceColumns.periode_id
+          ? {
+              sql: `SELECT
+                      COUNT(*)::int AS total_sessions,
+                      COUNT(*) FILTER (WHERE status IN ('Hadir', 'Telat'))::int AS hadir_sessions
+                    FROM l_attendance
+                    WHERE student_id = $1
+                      AND ($2::int IS NULL OR periode_id = $2)`,
+              params: [studentId, Number.isInteger(periodeId) ? periodeId : null],
+            }
+          : attendanceColumns.class_id
+            ? {
+                sql: `SELECT
+                        COUNT(*)::int AS total_sessions,
+                        COUNT(*) FILTER (WHERE status IN ('Hadir', 'Telat'))::int AS hadir_sessions
+                      FROM l_attendance
+                      WHERE student_id = $1
+                        AND ($2::int IS NULL OR class_id = $2)`,
+                params: [studentId, Number.isInteger(classId) ? classId : null],
+              }
+            : {
+                sql: `SELECT
+                        COUNT(*)::int AS total_sessions,
+                        COUNT(*) FILTER (WHERE status IN ('Hadir', 'Telat'))::int AS hadir_sessions
+                      FROM l_attendance
+                      WHERE student_id = $1`,
+                params: [studentId],
+              };
 
         const [lmsRes, attendanceRes] = await Promise.all([
           Number.isInteger(classId)
@@ -379,15 +436,7 @@ router.get(
             : Promise.resolve({
                 rows: [{ subjects_total: 0, materials_total: 0 }],
               }),
-          pool.query(
-            `SELECT
-               COUNT(*)::int AS total_sessions,
-               COUNT(*) FILTER (WHERE status IN ('Hadir', 'Telat'))::int AS hadir_sessions
-             FROM l_attendance
-             WHERE student_id = $1
-               AND ($2::int IS NULL OR periode_id = $2)`,
-            [studentId, Number.isInteger(periodeId) ? periodeId : null],
-          ),
+          pool.query(attendanceQuery.sql, attendanceQuery.params),
         ]);
 
         const lms = lmsRes.rows[0] || {};
