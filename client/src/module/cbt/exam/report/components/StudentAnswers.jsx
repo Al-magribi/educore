@@ -1,19 +1,24 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
   Divider,
+  Empty,
   Flex,
+  Grid,
   InputNumber,
   Space,
   Tag,
   Typography,
 } from "antd";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   CheckCircle2,
   ClipboardList,
   Download,
+  FileText,
+  Sparkles,
   XCircle,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -22,7 +27,9 @@ import {
   useSaveExamStudentScoreMutation,
 } from "../../../../../service/cbt/ApiExam";
 
-const { Text, Title } = Typography;
+const { Text, Title, Paragraph } = Typography;
+const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const TYPE_LABELS = {
   single: "PG Jawaban Tunggal",
@@ -99,10 +106,12 @@ const normalizeAnswerType = (item) => {
 };
 
 const TypeTag = ({ type }) => (
-  <Tag color='blue'>{TYPE_LABELS[type] || type}</Tag>
+  <Tag color='blue' style={{ borderRadius: 999, margin: 0 }}>
+    {TYPE_LABELS[type] || type}
+  </Tag>
 );
 
-const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
+const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
   const isCorrect = item.correct === true;
   const normalizedType = normalizeAnswerType(item);
   const selectedValues = Array.isArray(item.selected)
@@ -145,23 +154,64 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
         key={key}
         color={color}
         icon={icon}
-        style={{ maxWidth: "100%", whiteSpace: "normal" }}
+        style={{ maxWidth: "100%", whiteSpace: "normal", borderRadius: 12 }}
       >
         <span dangerouslySetInnerHTML={createMarkup(rawValue)} />
       </Tag>
     );
   };
 
+  const scoreControls =
+    normalizedType === "short" ||
+    normalizedType === "essay" ||
+    normalizedType === "match" ? (
+      <Flex
+        align={isMobile ? "stretch" : "center"}
+        gap={8}
+        wrap='wrap'
+        style={{ flexDirection: isMobile ? "column" : "row" }}
+      >
+        <Text type='secondary'>Poin:</Text>
+        <InputNumber
+          min={0}
+          max={maxAllow}
+          value={item.points}
+          onChange={(value) => onPointChange(item.id, value)}
+          style={{ width: isMobile ? "100%" : 120 }}
+        />
+        <Tag color='gold' style={{ borderRadius: 999, margin: 0 }}>
+          Maks {item.maxPoints}
+        </Tag>
+        {saveState === "saving" && <Tag color='gold'>Menyimpan...</Tag>}
+        {saveState === "saved" && <Tag color='green'>Tersimpan</Tag>}
+        {saveState === "error" && <Tag color='red'>Gagal menyimpan</Tag>}
+      </Flex>
+    ) : null;
+
   return (
-    <Card size='small' style={{ borderRadius: 12 }}>
+    <Card
+      size='small'
+      bordered={false}
+      style={{
+        borderRadius: 18,
+        boxShadow: "0 14px 28px rgba(15, 23, 42, 0.05)",
+        background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+      }}
+    >
       <Flex justify='space-between' align='center' wrap='wrap' gap={8}>
         <Space size={8} align='center' wrap>
           <Text type='secondary'>Soal #{item.no}</Text>
+          <TypeTag type={normalizedType} />
         </Space>
         <Space size={6} wrap style={{ rowGap: 4 }}>
-          <Tag color='gold'>Poin: {item.maxPoints}</Tag>
+          <Tag color='gold' style={{ borderRadius: 999, margin: 0 }}>
+            Poin: {item.maxPoints}
+          </Tag>
           {typeof item.correct === "boolean" ? (
-            <Tag color={isCorrect ? "green" : "red"}>
+            <Tag
+              color={isCorrect ? "green" : "red"}
+              style={{ borderRadius: 999, margin: 0 }}
+            >
               {isCorrect ? "Benar" : "Salah"}
             </Tag>
           ) : null}
@@ -169,14 +219,14 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
       </Flex>
 
       {renderHtmlBlock(item.question, {
-        margin: "8px 0",
+        margin: "10px 0 14px",
         fontSize: 16,
         fontWeight: 600,
         color: "rgba(0, 0, 0, 0.88)",
       })}
 
       {normalizedType === "single" && (
-        <Space orientation='vertical' size={8} style={{ width: "100%" }}>
+        <Space direction='vertical' size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
@@ -208,18 +258,16 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Benar</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {correctValues.length ? (
-                correctValues.map((opt) => renderOptionTag(opt, "blue"))
-              ) : (
-                <Tag color='default'>-</Tag>
-              )}
+              {correctValues.length
+                ? correctValues.map((opt) => renderOptionTag(opt, "blue"))
+                : <Tag color='default'>-</Tag>}
             </Space>
           </div>
         </Space>
       )}
 
       {normalizedType === "true_false" && (
-        <Space orientation='vertical' size={8} style={{ width: "100%" }}>
+        <Space direction='vertical' size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
@@ -244,18 +292,16 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Benar</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {correctValues.length ? (
-                correctValues.map((opt) => renderOptionTag(opt, "blue"))
-              ) : (
-                <Tag color='default'>-</Tag>
-              )}
+              {correctValues.length
+                ? correctValues.map((opt) => renderOptionTag(opt, "blue"))
+                : <Tag color='default'>-</Tag>}
             </Space>
           </div>
         </Space>
       )}
 
       {normalizedType === "multi" && (
-        <Space orientation='vertical' size={8} style={{ width: "100%" }}>
+        <Space direction='vertical' size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
@@ -280,71 +326,39 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Benar</Text>
             <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {correctValues.length ? (
-                correctValues.map((opt) => renderOptionTag(opt, "blue"))
-              ) : (
-                <Tag color='default'>-</Tag>
-              )}
+              {correctValues.length
+                ? correctValues.map((opt) => renderOptionTag(opt, "blue"))
+                : <Tag color='default'>-</Tag>}
             </Space>
           </div>
         </Space>
       )}
 
       {normalizedType === "short" && (
-        <Space orientation='vertical' size={8} style={{ width: "100%" }}>
+        <Space direction='vertical' size={10} style={{ width: "100%" }}>
           <div>
             <Text>Jawaban Siswa:</Text>
             {renderHtmlBlock(item.answer || "-")}
           </div>
-          <Flex align='center' gap={8} wrap='wrap'>
-            <Text type='secondary'>Poin:</Text>
-            <InputNumber
-              min={0}
-              max={maxAllow}
-              value={item.points}
-              onChange={(value) => onPointChange(item.id, value)}
-              style={{ width: 120 }}
-            />
-            <Tag color='gold'>Maks {item.maxPoints}</Tag>
-            {saveState === "saving" && <Tag color='gold'>Menyimpan...</Tag>}
-            {saveState === "saved" && <Tag color='green'>Tersimpan</Tag>}
-            {saveState === "error" && <Tag color='red'>Gagal menyimpan</Tag>}
-          </Flex>
+          {scoreControls}
         </Space>
       )}
 
       {normalizedType === "essay" && (
-        <Space orientation='vertical' size={8} style={{ width: "100%" }}>
+        <Space direction='vertical' size={10} style={{ width: "100%" }}>
           <Text>Jawaban Siswa:</Text>
           <Card size='small' style={{ background: "#fafafa" }}>
             {renderHtmlBlock(item.answer || "-")}
           </Card>
-          <Flex align='center' gap={8} wrap='wrap'>
-            <Text type='secondary'>Poin:</Text>
-            <InputNumber
-              min={0}
-              max={maxAllow}
-              value={item.points}
-              onChange={(value) => onPointChange(item.id, value)}
-              style={{ width: 120 }}
-            />
-            <Tag color='gold'>Maks {item.maxPoints}</Tag>
-            {saveState === "saving" && <Tag color='gold'>Menyimpan...</Tag>}
-            {saveState === "saved" && <Tag color='green'>Tersimpan</Tag>}
-            {saveState === "error" && <Tag color='red'>Gagal menyimpan</Tag>}
-          </Flex>
+          {scoreControls}
         </Space>
       )}
 
       {normalizedType === "match" && (
-        <Space orientation='vertical' size={12} style={{ width: "100%" }}>
+        <Space direction='vertical' size={12} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
-            <Space
-              orientation='vertical'
-              size={6}
-              style={{ marginTop: 6, width: "100%" }}
-            >
+            <Space direction='vertical' size={6} style={{ marginTop: 6, width: "100%" }}>
               {item.matches.map((pair, idx) => (
                 <Flex
                   key={`${pair.left}-${pair.right}-${idx}`}
@@ -373,11 +387,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
           </div>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Pasangan Benar</Text>
-            <Space
-              orientation='vertical'
-              size={6}
-              style={{ marginTop: 6, width: "100%" }}
-            >
+            <Space direction='vertical' size={6} style={{ marginTop: 6, width: "100%" }}>
               {item.correctMatches?.length ? (
                 item.correctMatches.map((pair, idx) => (
                   <Flex
@@ -390,13 +400,8 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
                       <span dangerouslySetInnerHTML={createMarkup(pair.left)} />
                     </Tag>
                     <Text type='secondary'>→</Text>
-                    <Tag
-                      color='blue'
-                      style={{ maxWidth: "100%", whiteSpace: "normal" }}
-                    >
-                      <span
-                        dangerouslySetInnerHTML={createMarkup(pair.right)}
-                      />
+                    <Tag color='blue' style={{ maxWidth: "100%", whiteSpace: "normal" }}>
+                      <span dangerouslySetInnerHTML={createMarkup(pair.right)} />
                     </Tag>
                   </Flex>
                 ))
@@ -405,20 +410,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
               )}
             </Space>
           </div>
-          <Flex align='center' gap={8} wrap='wrap'>
-            <Text type='secondary'>Poin:</Text>
-            <InputNumber
-              min={0}
-              max={maxAllow}
-              value={item.points}
-              onChange={(value) => onPointChange(item.id, value)}
-              style={{ width: 120 }}
-            />
-            <Tag color='gold'>Maks {item.maxPoints}</Tag>
-            {saveState === "saving" && <Tag color='gold'>Menyimpan...</Tag>}
-            {saveState === "saved" && <Tag color='green'>Tersimpan</Tag>}
-            {saveState === "error" && <Tag color='red'>Gagal menyimpan</Tag>}
-          </Flex>
+          {scoreControls}
         </Space>
       )}
     </Card>
@@ -426,19 +418,14 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState }) => {
 };
 
 const StudentAnswers = () => {
-  const [isMobile, setIsMobile] = useState(false);
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [searchParams, setSearchParams] = useSearchParams();
   const examId = searchParams.get("exam_id");
   const examName = searchParams.get("exam_name");
   const studentId = searchParams.get("student_id");
-  const studentName = (searchParams.get("student_name") || "-").replaceAll(
-    "-",
-    " ",
-  );
-  const studentClass = (searchParams.get("student_class") || "-").replaceAll(
-    "-",
-    " ",
-  );
+  const studentName = (searchParams.get("student_name") || "-").replaceAll("-", " ");
+  const studentClass = (searchParams.get("student_class") || "-").replaceAll("-", " ");
   const studentNis = searchParams.get("student_nis") || "-";
 
   const { data: fetchedAnswers = [] } = useGetExamStudentAnswersQuery(
@@ -448,33 +435,31 @@ const StudentAnswers = () => {
   const [saveScore] = useSaveExamStudentScoreMutation();
   const scoreTimersRef = useRef({});
 
-  const [localAnswers, setLocalAnswers] = useState([]);
+  const [manualPoints, setManualPoints] = useState({});
   const [saveStates, setSaveStates] = useState({});
 
-  useEffect(() => {
-    setLocalAnswers(
-      (fetchedAnswers || []).map((item) => ({
-        ...item,
-        type: normalizeAnswerType(item),
-      })),
-    );
-    setSaveStates({});
-  }, [fetchedAnswers]);
+  const localAnswers = useMemo(
+    () =>
+      (fetchedAnswers || []).map((item) => {
+        const normalized = {
+          ...item,
+          type: normalizeAnswerType(item),
+        };
+        if (Object.prototype.hasOwnProperty.call(manualPoints, item.id)) {
+          return { ...normalized, points: manualPoints[item.id] };
+        }
+        return normalized;
+      }),
+    [fetchedAnswers, manualPoints],
+  );
 
   const totalScore = useMemo(() => {
     const total = localAnswers.reduce((acc, item) => {
-      if (item.type === "short" || item.type === "essay") {
+      if (item.type === "short" || item.type === "essay" || item.type === "match") {
         return acc + (Number(item.points) || 0);
       }
-      if (
-        item.type === "single" ||
-        item.type === "multi" ||
-        item.type === "true_false"
-      ) {
+      if (item.type === "single" || item.type === "multi" || item.type === "true_false") {
         return acc + (item.correct ? item.maxPoints || 0 : 0);
-      }
-      if (item.type === "match") {
-        return acc + (Number(item.points) || 0);
       }
       return acc;
     }, 0);
@@ -483,22 +468,13 @@ const StudentAnswers = () => {
 
   const updatePoints = (id, value) => {
     const safeValue = Number.isFinite(value) ? value : 0;
-    const currentMax =
-      localAnswers.find((item) => item.id === id)?.maxPoints ?? safeValue;
+    const currentMax = localAnswers.find((item) => item.id === id)?.maxPoints ?? safeValue;
     const cappedValue = Math.max(0, Math.min(safeValue, currentMax));
 
-    setLocalAnswers((prev) => {
-      const next = prev.map((item) => {
-        if (item.id !== id) return item;
-        return { ...item, points: cappedValue };
-      });
-      return next;
-    });
+    setManualPoints((prev) => ({ ...prev, [id]: cappedValue }));
 
     if (!examId || !studentId) return;
-    if (scoreTimersRef.current[id]) {
-      clearTimeout(scoreTimersRef.current[id]);
-    }
+    if (scoreTimersRef.current[id]) clearTimeout(scoreTimersRef.current[id]);
     scoreTimersRef.current[id] = setTimeout(() => {
       setSaveStates((prev) => ({ ...prev, [id]: "saving" }));
       saveScore({
@@ -508,23 +484,15 @@ const StudentAnswers = () => {
         score: cappedValue,
       })
         .unwrap()
-        .then(() => {
-          setSaveStates((prev) => ({ ...prev, [id]: "saved" }));
-        })
-        .catch(() => {
-          setSaveStates((prev) => ({ ...prev, [id]: "error" }));
-        });
+        .then(() => setSaveStates((prev) => ({ ...prev, [id]: "saved" })))
+        .catch(() => setSaveStates((prev) => ({ ...prev, [id]: "error" })));
     }, 400);
   };
 
   const getRemainingCap = (targetId, maxPoints) => {
     const totalWithout = localAnswers.reduce((acc, item) => {
       if (item.id === targetId) return acc;
-      if (
-        item.type === "short" ||
-        item.type === "essay" ||
-        item.type === "match"
-      ) {
+      if (item.type === "short" || item.type === "essay" || item.type === "match") {
         return acc + (Number(item.points) || 0);
       }
       return acc;
@@ -541,26 +509,14 @@ const StudentAnswers = () => {
     return map;
   }, [localAnswers]);
 
-  const sections = Object.entries(grouped).map(([type, items]) => ({
-    type,
-    items,
-  }));
+  const sections = Object.entries(grouped).map(([type, items]) => ({ type, items }));
 
   useEffect(
     () => () => {
-      Object.values(scoreTimersRef.current).forEach((timerId) =>
-        clearTimeout(timerId),
-      );
+      Object.values(scoreTimersRef.current).forEach((timerId) => clearTimeout(timerId));
     },
     [],
   );
-
-  useEffect(() => {
-    const updateIsMobile = () => setIsMobile(window.innerWidth <= 480);
-    updateIsMobile();
-    window.addEventListener("resize", updateIsMobile);
-    return () => window.removeEventListener("resize", updateIsMobile);
-  }, []);
 
   const handleBack = () => {
     setSearchParams({
@@ -587,7 +543,7 @@ const StudentAnswers = () => {
           </style>
         </head>
         <body>
-          <h1>Jawaban Siswa | ${examName.replaceAll("-", " ")}</h1>
+          <h1>Jawaban Siswa | ${String(examName || "").replaceAll("-", " ")}</h1>
           <div class="meta">${studentName} • NIS ${studentNis} • ${studentClass}</div>
           <div class="meta">Total Skor: ${totalScore} / 100</div>
           ${sections
@@ -603,9 +559,7 @@ const StudentAnswers = () => {
                   <div>${item.question}</div>
                   ${item.answer ? `<div>Jawaban: ${item.answer}</div>` : ""}
                   ${
-                    item.type === "short" ||
-                    item.type === "essay" ||
-                    item.type === "match"
+                    item.type === "short" || item.type === "essay" || item.type === "match"
                       ? `<div>Poin: ${item.points || 0}/${item.maxPoints}</div>`
                       : ""
                   }
@@ -627,109 +581,202 @@ const StudentAnswers = () => {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 16,
-      }}
+    <MotionDiv
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ display: "flex", flexDirection: "column", gap: 18 }}
     >
-      <Card size='small'>
-        <Space vertical size={16} style={{ width: "100%" }}>
-          <Flex
-            align={isMobile ? "stretch" : "center"}
-            justify='space-between'
-            wrap='wrap'
-            gap={12}
-            style={{ flexDirection: isMobile ? "column" : "row" }}
-          >
-            <Space
-              size={10}
-              align='center'
-              wrap
-              style={{ width: isMobile ? "100%" : "auto" }}
-            >
-              <Button icon={<ArrowLeft size={16} />} onClick={handleBack}>
+      <Card
+        bordered={false}
+        style={{
+          borderRadius: 28,
+          overflow: "hidden",
+          background:
+            "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)",
+          boxShadow: "0 24px 52px rgba(15, 23, 42, 0.18)",
+        }}
+        styles={{ body: { padding: isMobile ? 20 : 28 } }}
+      >
+        <Flex
+          align={isMobile ? "stretch" : "flex-start"}
+          justify='space-between'
+          gap={18}
+          wrap='wrap'
+          style={{ flexDirection: isMobile ? "column" : "row" }}
+        >
+          <Space direction='vertical' size={12} style={{ maxWidth: 760 }}>
+            <Space wrap size={10}>
+              <Button
+                icon={<ArrowLeft size={16} />}
+                onClick={handleBack}
+                style={{
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.12)",
+                  borderColor: "rgba(255,255,255,0.16)",
+                  color: "#fff",
+                }}
+              >
                 Kembali
               </Button>
-              <Space size={8} align='center'>
-                <ClipboardList size={18} />
-                <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
-                  Jawaban Siswa
-                </Title>
-              </Space>
-            </Space>
-            <Button
-              icon={<Download size={14} />}
-              onClick={handleExportPdf}
-              block={isMobile}
-            >
-              Export PDF
-            </Button>
-          </Flex>
-
-          <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
-            wrap='wrap'
-            gap={8}
-            style={{ flexDirection: isMobile ? "column" : "row" }}
-          >
-            <div style={{ width: isMobile ? "100%" : "auto" }}>
-              <Text strong>{studentName}</Text>
-              <div style={{ color: "#667085", fontSize: 12 }}>
-                NIS {studentNis} • {studentClass}
-              </div>
-            </div>
-            <Space
-              size={8}
-              align='center'
-              wrap
-              style={{
-                width: isMobile ? "100%" : "auto",
-                justifyContent: isMobile ? "space-between" : "flex-start",
-              }}
-            >
-              <Tag color='blue'>Total Soal: {localAnswers.length}</Tag>
-              <Tag color={totalScore >= 75 ? "green" : "gold"}>
-                Total Skor: {totalScore}/100
+              <Tag
+                style={{
+                  margin: 0,
+                  borderRadius: 999,
+                  paddingInline: 12,
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  borderColor: "rgba(255,255,255,0.16)",
+                }}
+                icon={<Sparkles size={12} />}
+              >
+                Review Jawaban Siswa
               </Tag>
             </Space>
-          </Flex>
-        </Space>
+
+            <Space align='center' size={8}>
+              <ClipboardList size={20} color='#fff' />
+              <Title level={isMobile ? 4 : 2} style={{ margin: 0, color: "#fff" }}>
+                Jawaban Siswa
+              </Title>
+            </Space>
+
+            <Paragraph style={{ marginBottom: 0, color: "rgba(255,255,255,0.82)" }}>
+              Tinjau jawaban peserta, lakukan penilaian manual untuk soal uraian,
+              dan ekspor ringkasan jawaban ke PDF bila diperlukan.
+            </Paragraph>
+          </Space>
+
+          <Card
+            bordered={false}
+            style={{
+              width: 340,
+              maxWidth: "100%",
+              borderRadius: 24,
+              background: "rgba(255,255,255,0.14)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              backdropFilter: "blur(10px)",
+            }}
+            styles={{ body: { padding: 22 } }}
+          >
+            <Space direction='vertical' size={10} style={{ width: "100%" }}>
+              <Text style={{ color: "rgba(255,255,255,0.72)" }}>Peserta aktif</Text>
+              <Title level={4} style={{ margin: 0, color: "#fff" }}>
+                {studentName}
+              </Title>
+              <Text style={{ color: "rgba(255,255,255,0.82)" }}>
+                NIS {studentNis} • {studentClass}
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.82)" }}>
+                Total Skor: {totalScore}/100
+              </Text>
+              <Button icon={<Download size={14} />} onClick={handleExportPdf} block={isMobile}>
+                Export PDF
+              </Button>
+            </Space>
+          </Card>
+        </Flex>
       </Card>
 
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+          gap: 16,
+        }}
+      >
+        {[
+          {
+            key: "questions",
+            label: "Total Soal",
+            value: localAnswers.length,
+            color: "#1d4ed8",
+          },
+          {
+            key: "sections",
+            label: "Kelompok Soal",
+            value: sections.length,
+            color: "#15803d",
+          },
+          {
+            key: "score",
+            label: "Total Skor",
+            value: `${totalScore}/100`,
+            color: totalScore >= 75 ? "#16a34a" : "#d97706",
+          },
+        ].map((item) => (
+          <Card
+            key={item.key}
+            bordered={false}
+            style={{
+              borderRadius: 22,
+              boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
+            }}
+            styles={{ body: { padding: 18 } }}
+          >
+            <Text type='secondary'>{item.label}</Text>
+            <Title level={isMobile ? 4 : 3} style={{ margin: "4px 0 0", color: item.color }}>
+              {item.value}
+            </Title>
+          </Card>
+        ))}
+      </div>
+
       {sections.length === 0 ? (
-        <Card size='small' style={{ borderRadius: 12 }}>
-          <Text type='secondary'>Belum ada jawaban.</Text>
+        <Card
+          bordered={false}
+          style={{ borderRadius: 24, boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)" }}
+          styles={{ body: { padding: isMobile ? 24 : 32 } }}
+        >
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description='Belum ada jawaban.'
+          />
         </Card>
       ) : (
-        <Space orientation='vertical' size={16} style={{ width: "100%" }}>
-          {sections.map((section) => (
-            <Card key={section.type} style={{ borderRadius: 12 }}>
-              <Flex align='center' gap={8} style={{ marginBottom: 8 }}>
-                <TypeTag type={section.type} />
-                <Text type='secondary'>{section.items.length} soal</Text>
-              </Flex>
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 12 }}
+        <Space direction='vertical' size={16} style={{ width: "100%" }}>
+          {sections.map((section, index) => (
+            <MotionDiv
+              key={section.type}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.04 }}
+            >
+              <Card
+                bordered={false}
+                style={{
+                  borderRadius: 24,
+                  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+                }}
               >
-                {section.items.map((item) => (
-                  <AnswerCard
-                    key={item.id}
-                    item={item}
-                    onPointChange={updatePoints}
-                    maxAllow={getRemainingCap(item.id, item.maxPoints || 0)}
-                    saveState={saveStates[item.id]}
-                  />
-                ))}
-              </div>
-              <Divider style={{ margin: "16px 0 0" }} />
-            </Card>
+                <Flex align='center' justify='space-between' wrap='wrap' gap={8} style={{ marginBottom: 12 }}>
+                  <Space align='center' size={8} wrap>
+                    <TypeTag type={section.type} />
+                    <Text type='secondary'>{section.items.length} soal</Text>
+                  </Space>
+                  <Tag color='default' style={{ borderRadius: 999, margin: 0 }}>
+                    <FileText size={12} style={{ marginRight: 6, verticalAlign: "text-bottom" }} />
+                    Review manual tersedia
+                  </Tag>
+                </Flex>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {section.items.map((item) => (
+                    <AnswerCard
+                      key={item.id}
+                      item={item}
+                      onPointChange={updatePoints}
+                      maxAllow={getRemainingCap(item.id, item.maxPoints || 0)}
+                      saveState={saveStates[item.id]}
+                      isMobile={isMobile}
+                    />
+                  ))}
+                </div>
+                <Divider style={{ margin: "16px 0 0" }} />
+              </Card>
+            </MotionDiv>
           ))}
         </Space>
       )}
-    </div>
+    </MotionDiv>
   );
 };
 

@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
@@ -17,11 +17,17 @@ const renderCbtShellRoutes = ({ LazyPage }) => (
   >
     <Route
       path="/computer-based-test/bank"
-      element={<LazyPage title="Manajemen Bank Soal" Component={BankList} />}
+      element={createElement(LazyPage, {
+        title: "Manajemen Bank Soal",
+        Component: BankList,
+      })}
     />
     <Route
       path="/computer-based-test/jadwal-ujian"
-      element={<LazyPage title="Manajemen Jadwal Ujian" Component={ExamList} />}
+      element={createElement(LazyPage, {
+        title: "Manajemen Jadwal Ujian",
+        Component: ExamList,
+      })}
     />
   </Route>
 );
@@ -30,7 +36,7 @@ const renderCbtStandaloneRoutes = ({ LazyRoute }) => (
   <Route element={<RouteProtection allowedRoles={["student"]} />}>
     <Route
       path="/computer-based-test/start"
-      element={<LazyRoute Component={ExamInterface} />}
+      element={createElement(LazyRoute, { Component: ExamInterface })}
     />
   </Route>
 );

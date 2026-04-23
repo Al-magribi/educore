@@ -34,6 +34,8 @@ Audio.tagName = "audio";
 Audio.className = "ql-audio";
 Quill.register(Audio);
 
+const MotionDiv = motion.div;
+
 class Editor extends Component {
   constructor(props) {
     super(props);
@@ -131,7 +133,7 @@ class Editor extends Component {
     const wrapperHeight = height || (isShortAnswer ? "160px" : "350px");
 
     return (
-      <motion.div
+      <MotionDiv
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
@@ -200,7 +202,7 @@ class Editor extends Component {
             }}
           />
         )}
-      </motion.div>
+      </MotionDiv>
     );
   }
 }

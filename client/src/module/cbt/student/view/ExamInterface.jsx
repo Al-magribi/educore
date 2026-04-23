@@ -43,28 +43,56 @@ const formatTime = (seconds) => {
   return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
 };
 
+const isStandaloneDisplayMode = () => {
+  if (typeof window === "undefined") return false;
+  const standaloneMatch = window.matchMedia?.("(display-mode: standalone)")
+    ?.matches;
+  const fullscreenMatch = window.matchMedia?.("(display-mode: fullscreen)")
+    ?.matches;
+  return Boolean(
+    standaloneMatch || fullscreenMatch || window.navigator?.standalone,
+  );
+};
+
 const isFullscreenActive = () =>
-  typeof document !== "undefined" && Boolean(document.fullscreenElement);
+  typeof document !== "undefined" &&
+  Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+
+const isAppleSafariBrowser = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const isAppleDevice = /iPad|iPhone|iPod|Macintosh/i.test(ua);
+  const isSafariEngine =
+    /Safari/i.test(ua) &&
+    !/Chrome|Chromium|CriOS|Edg|EdgiOS|OPR|Firefox|FxiOS/i.test(ua);
+  return isAppleDevice && isSafariEngine;
+};
 
 const requestFullscreenExam = async () => {
   if (typeof document === "undefined") return false;
-  if (document.fullscreenElement) return true;
+  if (isFullscreenActive()) return true;
   const rootElement = document.documentElement;
-  if (!rootElement?.requestFullscreen) return false;
+  const requestMethod =
+    rootElement?.requestFullscreen ||
+    rootElement?.webkitRequestFullscreen?.bind(rootElement);
+  if (!requestMethod) return false;
   try {
-    await rootElement.requestFullscreen();
+    await requestMethod();
     return true;
-  } catch (_error) {
+  } catch {
     return false;
   }
 };
 
 const exitFullscreenExam = async () => {
   if (typeof document === "undefined") return;
-  if (!document.fullscreenElement || !document.exitFullscreen) return;
+  if (!isFullscreenActive()) return;
+  const exitMethod =
+    document.exitFullscreen || document.webkitExitFullscreen?.bind(document);
+  if (!exitMethod) return;
   try {
-    await document.exitFullscreen();
-  } catch (_error) {
+    await exitMethod();
+  } catch {
     // ignore
   }
 };
@@ -161,7 +189,15 @@ const ExamInterface = () => {
   const [isAutoFinishing, setIsAutoFinishing] = useState(false);
   const [isRequestingFullscreen, setIsRequestingFullscreen] = useState(false);
   const [fullScreenNotice, setFullScreenNotice] = useState("");
-  const [fullScreenOn, setFullScreenOn] = useState(isFullscreenActive());
+  const [fullScreenOn, setFullScreenOn] = useState(
+    isFullscreenActive() || isStandaloneDisplayMode(),
+  );
+  const [fallbackExamLockOn, setFallbackExamLockOn] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window === "undefined"
+      ? null
+      : window.visualViewport?.height || window.innerHeight,
+  );
   const violationLockRef = useRef(false);
   const finishLockRef = useRef(false);
   const autoFullscreenAttemptedRef = useRef(false);
@@ -226,16 +262,64 @@ const ExamInterface = () => {
   const requestFullscreen = useCallback(async () => {
     setIsRequestingFullscreen(true);
     const ok = await requestFullscreenExam();
-    if (!ok) {
-      setFullScreenNotice(
-        "Browser menolak mode layar penuh. Klik tombol untuk masuk fullscreen sebelum melanjutkan ujian.",
-      );
-    } else {
+    const standaloneMode = isStandaloneDisplayMode();
+    if (ok || standaloneMode) {
       setFullScreenNotice("");
+      setFallbackExamLockOn(false);
       setFullScreenOn(true);
+      setIsRequestingFullscreen(false);
+      return;
     }
+    setFallbackExamLockOn(true);
+    setFullScreenOn(true);
+    setFullScreenNotice(
+      isAppleSafariBrowser()
+        ? "Safari Apple membatasi fullscreen halaman. Sistem memakai mode ujian terkunci sebagai pengganti agar aturan tetap berlaku."
+        : "Browser menolak fullscreen native. Sistem memakai mode ujian terkunci agar ujian tetap berjalan dengan pembatasan yang sama.",
+    );
     setIsRequestingFullscreen(false);
   }, []);
+
+  useEffect(() => {
+    if (!isCountdownReady || !fallbackExamLockOn) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyPosition = document.body.style.position;
+    const previousBodyInset = document.body.style.inset;
+    const previousBodyWidth = document.body.style.width;
+    const previousBodyHeight = document.body.style.height;
+    const previousBodyTouchAction = document.body.style.touchAction;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    const syncViewportHeight = () => {
+      const nextHeight =
+        window.visualViewport?.height || window.innerHeight || null;
+      setViewportHeight(nextHeight);
+    };
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.inset = "0";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
+    document.body.style.touchAction = "none";
+    syncViewportHeight();
+
+    window.addEventListener("resize", syncViewportHeight);
+    window.visualViewport?.addEventListener("resize", syncViewportHeight);
+
+    return () => {
+      document.documentElement.style.overflow = previousRootOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.position = previousBodyPosition;
+      document.body.style.inset = previousBodyInset;
+      document.body.style.width = previousBodyWidth;
+      document.body.style.height = previousBodyHeight;
+      document.body.style.touchAction = previousBodyTouchAction;
+      window.removeEventListener("resize", syncViewportHeight);
+      window.visualViewport?.removeEventListener("resize", syncViewportHeight);
+    };
+  }, [fallbackExamLockOn, isCountdownReady]);
 
   const markViolationAndLeave = useCallback(
     async (reason) => {
@@ -243,7 +327,7 @@ const ExamInterface = () => {
       violationLockRef.current = true;
       try {
         await markViolation({ exam_id: examId, reason }).unwrap();
-      } catch (_error) {
+      } catch {
         // ignore, redirect tetap dijalankan
       } finally {
         await exitFullscreenExam();
@@ -258,19 +342,24 @@ const ExamInterface = () => {
 
   useEffect(() => {
     if (!isCountdownReady) return;
-    setFullScreenOn(isFullscreenActive());
+    setFullScreenOn(
+      isFullscreenActive() || isStandaloneDisplayMode() || fallbackExamLockOn,
+    );
     if (autoFullscreenAttemptedRef.current) return;
     autoFullscreenAttemptedRef.current = true;
     requestFullscreen();
-  }, [isCountdownReady, requestFullscreen]);
+  }, [fallbackExamLockOn, isCountdownReady, requestFullscreen]);
 
   useEffect(() => {
     if (!isCountdownReady || !examId) return;
 
     const onFullscreenChange = () => {
-      const active = isFullscreenActive();
+      const active =
+        isFullscreenActive() ||
+        isStandaloneDisplayMode() ||
+        fallbackExamLockOn;
       setFullScreenOn(active);
-      if (!active) {
+      if (!active && !violationLockRef.current) {
         markViolationAndLeave("exit_fullscreen");
       }
     };
@@ -285,6 +374,10 @@ const ExamInterface = () => {
       if (!document.hidden) {
         markViolationAndLeave("window_blur");
       }
+    };
+
+    const onPageHide = () => {
+      markViolationAndLeave("page_hide");
     };
 
     const blockedCtrlKeys = new Set(["tab", "t", "w", "n", "r"]);
@@ -303,19 +396,23 @@ const ExamInterface = () => {
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", onFullscreenChange);
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("pagehide", onPageHide);
     window.addEventListener("keydown", onKeyDown, true);
 
     return () => {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [examId, isCountdownReady, markViolationAndLeave]);
+  }, [examId, fallbackExamLockOn, isCountdownReady, markViolationAndLeave]);
 
-  const questions = examData?.questions || [];
+  const questions = useMemo(() => examData?.questions || [], [examData?.questions]);
   const totalQuestions = questions.length;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -334,6 +431,8 @@ const ExamInterface = () => {
     violationLockRef.current = false;
     finishLockRef.current = false;
     autoFullscreenAttemptedRef.current = false;
+    setFallbackExamLockOn(false);
+    setFullScreenOn(isFullscreenActive() || isStandaloneDisplayMode());
     setFullScreenNotice("");
   }, [examId]);
 
@@ -363,14 +462,17 @@ const ExamInterface = () => {
     [],
   );
 
-  const getStatusForQuestion = (questionId) => {
-    if (doubts[questionId]) return "ragu";
-    const answer = answers[questionId];
-    if (Array.isArray(answer) ? answer.length > 0 : answer) {
-      return "terjawab";
-    }
-    return "belum";
-  };
+  const getStatusForQuestion = useCallback(
+    (questionId) => {
+      if (doubts[questionId]) return "ragu";
+      const answer = answers[questionId];
+      if (Array.isArray(answer) ? answer.length > 0 : answer) {
+        return "terjawab";
+      }
+      return "belum";
+    },
+    [answers, doubts],
+  );
 
   const questionMap = useMemo(
     () =>
@@ -379,7 +481,7 @@ const ExamInterface = () => {
         number: index + 1,
         status: getStatusForQuestion(question.id),
       })),
-    [questions, answers, doubts],
+    [questions, getStatusForQuestion],
   );
 
   const answeredCount = questionMap.filter(
@@ -480,7 +582,10 @@ const ExamInterface = () => {
   return (
     <Layout
       style={{
-        minHeight: "100vh",
+        minHeight: viewportHeight ? `${viewportHeight}px` : "100vh",
+        height:
+          fallbackExamLockOn && viewportHeight ? `${viewportHeight}px` : "auto",
+        overflow: fallbackExamLockOn ? "hidden" : "visible",
         background:
           "radial-gradient(circle at 10% 10%, rgba(30, 94, 255, 0.16), transparent 45%), radial-gradient(circle at 90% 0%, rgba(20, 184, 166, 0.18), transparent 40%), linear-gradient(160deg, #f6f8ff 0%, #f9fbff 50%, #ffffff 100%)",
       }}
@@ -660,6 +765,7 @@ const ExamInterface = () => {
                 ) : (
                   <Space vertical size={18} style={{ width: "100%" }}>
                     <QuestionContent
+                      key={currentQuestion?.id || "empty-question"}
                       question={currentQuestion}
                       totalQuestions={totalQuestions}
                       index={currentIndex}
@@ -719,20 +825,24 @@ const ExamInterface = () => {
           >
             <Space direction="vertical" size={14} style={{ width: "100%" }}>
               <Title level={4} style={{ margin: 0 }}>
-                Mode Ujian Wajib Fullscreen
+                Mode Ujian Terkunci
               </Title>
               <Text>
-                Ujian dikunci pada mode layar penuh. Jika keluar fullscreen atau
-                berpindah tab, status akan menjadi pelanggaran.
+                Ujian harus berjalan dalam mode terkunci. Jika browser mendukung
+                fullscreen maka sistem akan memakainya. Jika tidak, halaman akan
+                dikunci memenuhi layar dan perpindahan tab/aplikasi tetap
+                dianggap pelanggaran.
               </Text>
-              {fullScreenNotice ? <Text type="danger">{fullScreenNotice}</Text> : null}
+              {fullScreenNotice ? (
+                <Text type="danger">{fullScreenNotice}</Text>
+              ) : null}
               <Button
                 type="primary"
                 size="large"
                 loading={isRequestingFullscreen}
                 onClick={requestFullscreen}
               >
-                Masuk Fullscreen
+                Aktifkan Mode Ujian
               </Button>
             </Space>
           </Card>
