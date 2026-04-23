@@ -15,8 +15,9 @@ import {
 } from "antd";
 import {
   UserOutlined,
-  MailOutlined,
+  IdcardOutlined,
   PhoneOutlined,
+  MailOutlined,
   LockOutlined,
   HomeOutlined,
   SafetyCertificateOutlined,
@@ -25,9 +26,9 @@ import {
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import {
-  useAddAdminMutation,
-  useUpdateAdminMutation,
-} from "../../../service/center/ApiAdmin";
+  useAddTeacherMutation,
+  useUpdateTeacherMutation,
+} from "../../../service/main/ApiTeacher";
 import { useGetHomebaseQuery } from "../../../service/center/ApiHomebase";
 
 const { Title, Text } = Typography;
@@ -44,7 +45,7 @@ const modalVariants = {
   },
 };
 
-const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
+const ModalTeacher = ({ open, onCancel, onSuccess, initialData }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [form] = Form.useForm();
@@ -55,8 +56,8 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
       limit: 100,
     });
 
-  const [addAdmin, { isLoading: isAdding }] = useAddAdminMutation();
-  const [updateAdmin, { isLoading: isUpdating }] = useUpdateAdminMutation();
+  const [addTeacher, { isLoading: isAdding }] = useAddTeacherMutation();
+  const [updateTeacher, { isLoading: isUpdating }] = useUpdateTeacherMutation();
 
   useEffect(() => {
     if (open) {
@@ -74,17 +75,12 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
 
   const handleFinish = async (values) => {
     try {
-      const payload = {
-        ...values,
-        homebase_id: values.level === "satuan" ? values.homebase_id : null,
-      };
-
       if (initialData) {
-        await updateAdmin({ id: initialData.id, ...payload }).unwrap();
-        message.success("Data admin diperbarui");
+        await updateTeacher({ id: initialData.id, ...values }).unwrap();
+        message.success("Data guru diperbarui");
       } else {
-        await addAdmin(payload).unwrap();
-        message.success("Admin baru ditambahkan");
+        await addTeacher(values).unwrap();
+        message.success("Guru berhasil ditambahkan");
       }
 
       form.resetFields();
@@ -102,25 +98,29 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
       onOk={form.submit}
       confirmLoading={isAdding || isUpdating}
       destroyOnHidden
-      centered
-      closable={false}
       width={760}
-      okText={initialData ? "Simpan Perubahan" : "Simpan Admin"}
-      cancelText='Batal'
+      okText={initialData ? "Simpan Perubahan" : "Simpan Guru"}
+      cancelText="Batal"
+      styles={{
+        body: {
+          padding: isMobile ? 16 : 20,
+          background: "#f8fafc",
+        },
+      }}
       modalRender={(node) => (
         <MotionDiv
           variants={modalVariants}
-          initial='hidden'
-          animate='show'
+          initial="hidden"
+          animate="show"
           style={{ borderRadius: 28, overflow: "hidden" }}
         >
           {node}
         </MotionDiv>
       )}
     >
-      <Space orientation='vertical' size={18} style={{ width: "100%" }}>
+      <Space orientation="vertical" size={18} style={{ width: "100%" }}>
         <Card
-          variant='borderless'
+          variant="borderless"
           style={{
             borderRadius: 24,
             background:
@@ -129,7 +129,7 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
           }}
           styles={{ body: { padding: isMobile ? 20 : 26 } }}
         >
-          <Space orientation='vertical' size={12} style={{ width: "100%" }}>
+          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
             <div
               style={{
                 width: 52,
@@ -147,7 +147,7 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
             </div>
             <div>
               <Title level={3} style={{ margin: 0, color: "#f8fafc" }}>
-                {initialData ? "Edit Admin" : "Tambah Admin Baru"}
+                {initialData ? "Edit Data Guru" : "Tambah Guru Baru"}
               </Title>
               <Text
                 style={{
@@ -157,15 +157,15 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
                   lineHeight: 1.7,
                 }}
               >
-                Lengkapi data akun admin dengan struktur yang lebih rapi agar
-                pengelolaan akses tetap konsisten dan mudah dipantau.
+                Lengkapi informasi guru dan penempatannya dengan struktur yang
+                lebih rapi agar pengelolaan data tetap konsisten.
               </Text>
             </div>
           </Space>
         </Card>
 
         <Card
-          variant='borderless'
+          variant="borderless"
           style={{
             borderRadius: 24,
             border: "1px solid rgba(148, 163, 184, 0.14)",
@@ -173,17 +173,17 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
           }}
           styles={{ body: { padding: isMobile ? 18 : 24 } }}
         >
-          <Form form={form} layout='vertical' onFinish={handleFinish}>
+          <Form form={form} layout="vertical" onFinish={handleFinish}>
             <Row gutter={[16, 0]}>
               <Col xs={24} md={12}>
                 <Form.Item
-                  name='full_name'
-                  label='Nama Lengkap'
-                  rules={[{ required: true, message: "Wajib diisi" }]}
+                  name="full_name"
+                  label="Nama Lengkap (dengan gelar)"
+                  rules={[{ required: true, message: "Nama wajib diisi" }]}
                 >
                   <Input
-                    size='large'
-                    placeholder='Nama Admin'
+                    size="large"
+                    placeholder="Contoh: Budi Santoso, S.Pd."
                     prefix={<UserOutlined style={{ color: "#64748b" }} />}
                     style={{ borderRadius: 14 }}
                   />
@@ -191,14 +191,69 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
               </Col>
               <Col xs={24} md={12}>
                 <Form.Item
-                  name='username'
-                  label='Username'
-                  rules={[{ required: true, message: "Wajib diisi" }]}
+                  name="username"
+                  label="Username Login"
+                  rules={[{ required: true, message: "Username wajib diisi" }]}
                 >
                   <Input
-                    size='large'
-                    placeholder='Username Login'
+                    size="large"
+                    placeholder="Username unik"
                     disabled={!!initialData}
+                    style={{ borderRadius: 14 }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item
+              name="password"
+              label={initialData ? "Password Baru (Opsional)" : "Password"}
+              rules={[
+                { required: !initialData, message: "Password wajib diisi" },
+                { min: 6, message: "Minimal 6 karakter" },
+              ]}
+            >
+              <Input.Password
+                size="large"
+                prefix={<LockOutlined style={{ color: "#64748b" }} />}
+                placeholder={
+                  initialData
+                    ? "Biarkan kosong jika tidak diubah"
+                    : "Password akun"
+                }
+                style={{ borderRadius: 14 }}
+              />
+            </Form.Item>
+
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="homebase_id"
+                  label="Penempatan (Homebase)"
+                  rules={[
+                    { required: true, message: "Guru wajib memiliki Homebase" },
+                  ]}
+                >
+                  <Select
+                    size="large"
+                    placeholder="Pilih Satuan Pendidikan"
+                    loading={loadingHomebase}
+                    showSearch
+                    optionFilterProp="label"
+                    suffixIcon={<HomeOutlined style={{ color: "#64748b" }} />}
+                    options={(homebaseData?.data || []).map((hb) => ({
+                      value: hb.id,
+                      label: hb.name,
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="nip" label="NIP / NIY">
+                  <Input
+                    size="large"
+                    placeholder="Nomor Induk"
+                    prefix={<IdcardOutlined style={{ color: "#64748b" }} />}
                     style={{ borderRadius: 14 }}
                   />
                 </Form.Item>
@@ -207,117 +262,40 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
 
             <Row gutter={[16, 0]}>
               <Col xs={24} md={12}>
-                <Form.Item
-                  name='level'
-                  label='Level Akses'
-                  initialValue='admin'
-                  rules={[{ required: true, message: "Pilih level akses" }]}
-                >
-                  <Select
-                    size='large'
-                    placeholder='Pilih Level'
-                    style={{ width: "100%" }}
-                    options={[
-                      { value: "pusat", label: "Pusat" },
-                      { value: "satuan", label: "Satuan (Sekolah)" },
-                      { value: "tahfiz", label: "Tahfiz" },
-                      { value: "keuangan", label: "Keuangan" },
-                    ]}
+                <Form.Item name="phone" label="No. Telepon / WhatsApp">
+                  <Input
+                    size="large"
+                    placeholder="08xxx"
+                    prefix={<PhoneOutlined style={{ color: "#64748b" }} />}
+                    style={{ borderRadius: 14 }}
                   />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item name='phone' label='No. Telepon'>
+                <Form.Item name="email" label="Email">
                   <Input
-                    size='large'
-                    placeholder='08xxx'
-                    prefix={<PhoneOutlined style={{ color: "#64748b" }} />}
+                    size="large"
+                    type="email"
+                    placeholder="email@sekolah.sch.id"
+                    prefix={<MailOutlined style={{ color: "#64748b" }} />}
                     style={{ borderRadius: 14 }}
                   />
                 </Form.Item>
               </Col>
             </Row>
 
-            <Form.Item
-              noStyle
-              shouldUpdate={(prevValues, currentValues) =>
-                prevValues.level !== currentValues.level
-              }
-            >
-              {({ getFieldValue }) =>
-                getFieldValue("level") === "satuan" ? (
-                  <Form.Item
-                    name='homebase_id'
-                    label='Pilih Satuan Pendidikan (Homebase)'
-                    rules={[
-                      {
-                        required: true,
-                        message: "Admin Satuan wajib memilih Homebase",
-                      },
-                    ]}
-                  >
-                    <Select
-                      size='large'
-                      placeholder='Pilih Homebase'
-                      loading={loadingHomebase}
-                      allowClear
-                      showSearch
-                      optionFilterProp='label'
-                      suffixIcon={<HomeOutlined style={{ color: "#64748b" }} />}
-                      options={(homebaseData?.data || []).map((hb) => ({
-                        value: hb.id,
-                        label: hb.name,
-                      }))}
-                    />
-                  </Form.Item>
-                ) : null
-              }
-            </Form.Item>
-
-            <Form.Item name='email' label='Email'>
-              <Input
-                size='large'
-                placeholder='email@sekolah.com'
-                prefix={<MailOutlined style={{ color: "#64748b" }} />}
-                style={{ borderRadius: 14 }}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name='password'
-              label={initialData ? "Password Baru (Opsional)" : "Password"}
-              rules={[
-                {
-                  required: !initialData,
-                  message: "Password wajib diisi untuk admin baru",
-                },
-                { min: 6, message: "Minimal 6 karakter" },
-              ]}
-            >
-              <Input.Password
-                size='large'
-                prefix={<LockOutlined style={{ color: "#64748b" }} />}
-                placeholder={
-                  initialData
-                    ? "Isi jika ingin mengganti password"
-                    : "Password akun"
-                }
-                style={{ borderRadius: 14 }}
-              />
-            </Form.Item>
-
             {initialData ? (
               <Form.Item
-                name='is_active'
-                label='Status Akun'
-                valuePropName='checked'
+                name="is_active"
+                label="Status Akun"
+                valuePropName="checked"
               >
-                <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
+                <Switch checkedChildren="Aktif" unCheckedChildren="Nonaktif" />
               </Form.Item>
             ) : null}
 
             <Card
-              variant='borderless'
+              variant="borderless"
               style={{
                 borderRadius: 18,
                 background:
@@ -326,7 +304,7 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
               }}
               styles={{ body: { padding: 16 } }}
             >
-              <Space align='start' size={12}>
+              <Space align="start" size={12}>
                 <div
                   style={{
                     width: 40,
@@ -345,7 +323,7 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
                 </div>
                 <div>
                   <Text style={{ color: "#0f172a", fontWeight: 600 }}>
-                    Catatan akses
+                    Catatan data guru
                   </Text>
                   <Text
                     style={{
@@ -355,8 +333,9 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
                       lineHeight: 1.65,
                     }}
                   >
-                    Pilih level akses sesuai tanggung jawab admin. Jika level
-                    adalah satuan, hubungkan akun dengan homebase yang tepat.
+                    Pastikan penempatan homebase, identitas, dan kontak guru
+                    terisi dengan benar agar proses akademik dan administrasi
+                    tetap sinkron.
                   </Text>
                 </div>
               </Space>
@@ -368,4 +347,4 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
   );
 };
 
-export default ModalAdmin;
+export default ModalTeacher;

@@ -28,6 +28,7 @@ import { useGetStudentDashQuery } from "../../../service/main/ApiDash";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const SUBJECTS_PER_PAGE = 4;
 
@@ -192,7 +193,7 @@ const StudentDash = () => {
   ];
 
   return (
-    <motion.div
+    <MotionDiv
       initial='hidden'
       animate='show'
       variants={containerVariants}
@@ -202,7 +203,7 @@ const StudentDash = () => {
         gap: isMobile ? 16 : 20,
       }}
     >
-      <motion.div variants={itemVariants}>
+      <MotionDiv variants={itemVariants}>
         <Card
           bordered={false}
           style={heroStyle}
@@ -219,7 +220,7 @@ const StudentDash = () => {
                   justifyContent: isMobile ? "center" : "flex-start",
                 }}
               >
-                <motion.div
+                <MotionDiv
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.35 }}
@@ -236,7 +237,7 @@ const StudentDash = () => {
                   >
                     {studentInitial}
                   </Avatar>
-                </motion.div>
+                </MotionDiv>
 
                 <Space
                   direction='vertical'
@@ -324,13 +325,13 @@ const StudentDash = () => {
             </Col>
           </Row>
         </Card>
-      </motion.div>
+      </MotionDiv>
 
-      <motion.div variants={itemVariants}>
+      <MotionDiv variants={itemVariants}>
         <Row gutter={[16, 16]}>
           {stats.map((item) => (
             <Col key={item.key} xs={24} md={8}>
-              <motion.div whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
+              <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
                 <Card bordered={false} style={statCardStyle}>
                   <Space direction='vertical' size={10}>
                     <div style={iconWrapStyle(item.bg, item.color)}>
@@ -349,13 +350,13 @@ const StudentDash = () => {
                     />
                   </Space>
                 </Card>
-              </motion.div>
+              </MotionDiv>
             </Col>
           ))}
         </Row>
-      </motion.div>
+      </MotionDiv>
 
-      <motion.div variants={itemVariants}>
+      <MotionDiv variants={itemVariants}>
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={14}>
             <Card
@@ -525,8 +526,8 @@ const StudentDash = () => {
             </Card>
           </Col>
         </Row>
-      </motion.div>
-    </motion.div>
+      </MotionDiv>
+    </MotionDiv>
   );
 };
 

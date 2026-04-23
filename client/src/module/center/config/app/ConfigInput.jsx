@@ -1,29 +1,25 @@
 import React, { useState } from "react";
-import { Input, Upload, Button, Image, message } from "antd";
-import { UploadOutlined, LoadingOutlined } from "@ant-design/icons";
+import { Button, Card, Image, Input, Space, Typography, Upload, message } from "antd";
+import { LoadingOutlined, PictureOutlined, UploadOutlined } from "@ant-design/icons";
+import { motion } from "framer-motion";
 import { useUploadConfigImageMutation } from "../../../../service/center/ApiApp";
 
 const { TextArea } = Input;
+const { Text } = Typography;
+const MotionDiv = motion.div;
 
-// Props 'value' dan 'onChange' otomatis dikirim oleh Form.Item Ant Design
 const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
   const [uploadImage] = useUploadConfigImageMutation();
   const [loading, setLoading] = useState(false);
 
-  // --- LOGIKA UPLOAD ---
   const handleUpload = async ({ file, onSuccess, onError }) => {
     setLoading(true);
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-      // 1. Kirim file ke backend
       const response = await uploadImage(formData).unwrap();
-
-      // 2. Jika sukses, panggil onChange parent (Form.Item) dengan URL baru
-      // Ini akan memperbarui value di form "App.jsx" secara otomatis
       onChange(response.url);
-
       message.success("Upload berhasil!");
       onSuccess("Ok");
     } catch (err) {
@@ -35,91 +31,110 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
     }
   };
 
-  // --- RENDER COMPONENT BERDASARKAN TIPE ---
-
-  // 1. Tipe IMAGE (Logo, Favicon, OG Image)
   if (type === "image") {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        {/* Preview Image */}
-        <div
+      <MotionDiv
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Card
+          variant="borderless"
           style={{
-            width: 80,
-            height: 80,
-            border: "1px dashed #d9d9d9",
-            borderRadius: 8,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            overflow: "hidden",
-            background: "#fafafa",
-            flexShrink: 0, // Mencegah gambar mengecil
+            borderRadius: 18,
+            border: "1px dashed #cbd5e1",
+            background: "#f8fafc",
           }}
+          styles={{ body: { padding: 16 } }}
         >
-          {loading ? (
-            <LoadingOutlined style={{ fontSize: 24, color: "#1890ff" }} />
-          ) : value ? (
-            <Image
-              src={value}
-              alt="preview"
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              fallback="https://via.placeholder.com/80?text=Error"
-            />
-          ) : (
-            <span style={{ fontSize: 10, color: "#ccc" }}>No Image</span>
-          )}
-        </div>
-
-        {/* Tombol Upload (Input text URL dihapus) */}
-        <div>
-          <Upload
-            customRequest={handleUpload}
-            showUploadList={false}
-            accept="image/*"
+          <Space
+            wrap
+            size={[16, 16]}
+            style={{ width: "100%", alignItems: "center" }}
           >
-            <Button icon={<UploadOutlined />} loading={loading}>
-              {value ? "Ganti Gambar" : "Pilih Gambar"}
-            </Button>
-          </Upload>
-          <div style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
-            Format: PNG, JPG, WEBP
-          </div>
-        </div>
-      </div>
+            <div
+              style={{
+                width: 92,
+                height: 92,
+                borderRadius: 18,
+                border: "1px solid #dbeafe",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                overflow: "hidden",
+                background: "#fff",
+                flexShrink: 0,
+              }}
+            >
+              {loading ? (
+                <LoadingOutlined style={{ fontSize: 24, color: "#2563eb" }} />
+              ) : value ? (
+                <Image
+                  src={value}
+                  alt="preview"
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  fallback="https://via.placeholder.com/80?text=Error"
+                />
+              ) : (
+                <PictureOutlined style={{ fontSize: 24, color: "#94a3b8" }} />
+              )}
+            </div>
+
+            <Space orientation="vertical" size={8}>
+              <Upload
+                customRequest={handleUpload}
+                showUploadList={false}
+                accept="image/*"
+              >
+                <Button
+                  icon={<UploadOutlined />}
+                  loading={loading}
+                  style={{ borderRadius: 999 }}
+                >
+                  {value ? "Ganti Gambar" : "Pilih Gambar"}
+                </Button>
+              </Upload>
+              <Text style={{ fontSize: 12, color: "#64748b" }}>
+                Format yang disarankan: PNG, JPG, atau WEBP.
+              </Text>
+            </Space>
+          </Space>
+        </Card>
+      </MotionDiv>
     );
   }
 
-  // 2. Tipe TEXT/TEXTAREA
   if (type === "text") {
     return (
       <TextArea
-        rows={3}
+        rows={4}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        style={{ borderRadius: 14 }}
         {...props}
       />
     );
   }
 
-  // 3. Tipe PASSWORD
   if (type === "password") {
     return (
       <Input.Password
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        style={{ borderRadius: 14 }}
         {...props}
       />
     );
   }
 
-  // Default Input (String, Number, dll)
   return (
     <Input
       placeholder={placeholder}
       value={value}
       onChange={onChange}
+      style={{ borderRadius: 14 }}
       {...props}
     />
   );

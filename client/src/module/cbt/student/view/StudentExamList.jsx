@@ -29,6 +29,7 @@ import {
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
 
 const containerVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -123,13 +124,6 @@ const StudentExamList = () => {
     );
   });
   const examCount = exams.length;
-  const durationTotal = exams.reduce(
-    (sum, item) => sum + Number(item.duration_minutes || 0),
-    0,
-  );
-  const subjectCount = new Set(
-    exams.map((item) => item.subject_name).filter(Boolean),
-  ).size;
   const className = exams[0]?.class_name || "Kelas belum tersedia";
 
   const openJoinModal = (exam) => {
@@ -141,33 +135,6 @@ const StudentExamList = () => {
     setIsJoinOpen(false);
     setActiveExam(null);
   };
-
-  const summaryCards = [
-    {
-      key: "class",
-      title: "Kelas Aktif",
-      value: className,
-      icon: <GraduationCap size={20} />,
-      bg: "#dbeafe",
-      color: "#1d4ed8",
-    },
-    {
-      key: "subjects",
-      title: "Total Mapel",
-      value: `${subjectCount} mapel`,
-      icon: <BookOpen size={20} />,
-      bg: "#dcfce7",
-      color: "#15803d",
-    },
-    {
-      key: "duration",
-      title: "Akumulasi Durasi",
-      value: `${durationTotal} menit`,
-      icon: <Timer size={20} />,
-      bg: "#fef3c7",
-      color: "#b45309",
-    },
-  ];
 
   if (isLoading) {
     return (
@@ -199,13 +166,13 @@ const StudentExamList = () => {
 
   return (
     <>
-      <motion.div
+      <MotionDiv
         initial='hidden'
         animate='show'
         variants={containerVariants}
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
-        <motion.div variants={itemVariants}>
+        <MotionDiv variants={itemVariants}>
           <Card
             bordered={false}
             style={heroStyle}
@@ -286,9 +253,9 @@ const StudentExamList = () => {
               </Col>
             </Row>
           </Card>
-        </motion.div>
+        </MotionDiv>
 
-        <motion.div variants={itemVariants}>
+        <MotionDiv variants={itemVariants}>
           <Card
             bordered={false}
             style={surfaceCardStyle}
@@ -330,7 +297,7 @@ const StudentExamList = () => {
                 <AnimatePresence>
                   {filteredExams.map((item, index) => (
                     <Col key={item.id} xs={24} md={12} xl={8}>
-                      <motion.div
+                      <MotionDiv
                         variants={itemVariants}
                         initial='hidden'
                         animate='show'
@@ -448,7 +415,7 @@ const StudentExamList = () => {
                             </Button>
                           </div>
                         </Card>
-                      </motion.div>
+                      </MotionDiv>
                     </Col>
                   ))}
                 </AnimatePresence>
@@ -463,8 +430,8 @@ const StudentExamList = () => {
               />
             )}
           </Card>
-        </motion.div>
-      </motion.div>
+        </MotionDiv>
+      </MotionDiv>
 
       <JoinExamModal
         open={isJoinOpen}

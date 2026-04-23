@@ -430,7 +430,12 @@ const BankList = () => {
                 style={{ position: "relative" }}
               >
                 <div style={{ color: "#fff", maxWidth: 720, flex: 1 }}>
-                  <Flex align='center' gap={10} wrap='wrap' style={{ marginBottom: 10 }}>
+                  <Flex
+                    align='center'
+                    gap={10}
+                    wrap='wrap'
+                    style={{ marginBottom: 10 }}
+                  >
                     <Text
                       style={{
                         color: "rgba(255,255,255,0.86)",
@@ -460,7 +465,7 @@ const BankList = () => {
                     level={isMobile ? 4 : 3}
                     style={{ color: "#fff", margin: "0 0 6px" }}
                   >
-                    Kelola bank soal lebih cepat, rapi, dan siap dipakai.
+                    Kelola Bank Soal.
                   </Title>
                   <Text
                     style={{
@@ -562,34 +567,38 @@ const BankList = () => {
             ))}
           </Flex>
 
-        <MotionDiv variants={itemVariants}>
-          <Card
-            style={{
-              marginBottom: 18,
-              borderRadius: 24,
+          <MotionDiv variants={itemVariants}>
+            <Card
+              style={{
+                marginBottom: 18,
+                borderRadius: 24,
                 border: "1px solid #eef2ff",
                 boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
               }}
               styles={{ body: { padding: screens.md ? 20 : 16 } }}
             >
               <Flex vertical gap={14}>
-              <Flex
-                vertical={isMobile}
-                justify='space-between'
-                align={isMobile ? "stretch" : "center"}
-                gap={12}
-              >
-                <div>
-                  <Title level={5} style={{ margin: 0 }}>
-                    Daftar Bank Soal
-                  </Title>
-                  <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
-                    Menampilkan {loadedBanks} dari {totalBanks} data tersedia
-                  </Text>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    Gunakan pencarian untuk mempersempit hasil berdasarkan judul, mapel, atau penyusun.
-                  </Text>
-                </div>
+                <Flex
+                  vertical={isMobile}
+                  justify='space-between'
+                  align={isMobile ? "stretch" : "center"}
+                  gap={12}
+                >
+                  <div>
+                    <Title level={5} style={{ margin: 0 }}>
+                      Daftar Bank Soal
+                    </Title>
+                    <Text
+                      type='secondary'
+                      style={{ fontSize: 12, display: "block" }}
+                    >
+                      Menampilkan {loadedBanks} dari {totalBanks} data tersedia
+                    </Text>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      Gunakan pencarian untuk mempersempit hasil berdasarkan
+                      judul, mapel, atau penyusun.
+                    </Text>
+                  </div>
 
                   <Input
                     prefix={<Search size={16} color='rgba(0,0,0,.25)' />}

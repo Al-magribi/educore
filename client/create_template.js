@@ -1,5 +1,4 @@
-/* global require */
-const XLSX = require("xlsx");
+import XLSX from "xlsx";
 
 const data = [
   ["NIP", "Nama", "L/P", "Telepon", "Email"],
@@ -9,4 +8,7 @@ const data = [
 const ws = XLSX.utils.aoa_to_sheet(data);
 const wb = XLSX.utils.book_new();
 XLSX.utils.book_append_sheet(wb, ws, "Template");
-XLSX.writeFile(wb, "d:/projects/educore/client/public/template/template_guru.xlsx");
+XLSX.writeFile(
+  wb,
+  "d:/projects/educore/client/public/template/template_guru.xlsx",
+);
