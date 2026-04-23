@@ -1121,6 +1121,7 @@ router.get(
             }))
           : [],
         can_manage: item.payment_source === "admin_manual" && item.status === "confirmed",
+        can_delete: true,
         can_confirm: item.payment_source === "parent_manual" && item.status === "pending",
         can_revoke:
           item.payment_source === "parent_manual" &&

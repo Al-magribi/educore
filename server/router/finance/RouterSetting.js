@@ -459,62 +459,187 @@ router.put(
       return res.status(404).json({ message: "Satuan tidak ditemukan" });
     }
 
-    if (methodType !== "manual_bank") {
-      return res.status(400).json({
-        message:
-          "Metode pembayaran ini tidak dapat diubah dari panel metode pembayaran",
+    const isActive = req.body.is_active === true;
+
+    if (methodType === "manual_bank") {
+      const paymentMethodId = await getPaymentMethodId(client, {
+        homebaseId: homebase.id,
+        methodType: "manual_bank",
+        name: "Transfer Bank",
+      });
+
+      if (isActive) {
+        const activeBankResult = await client.query(
+          `
+            SELECT COUNT(*)::int AS total
+            FROM finance.bank_account
+            WHERE homebase_id = $1
+              AND payment_method_id = $2
+              AND is_active = true
+          `,
+          [homebase.id, paymentMethodId],
+        );
+
+        if (Number(activeBankResult.rows[0]?.total || 0) <= 0) {
+          return res.status(400).json({
+            message:
+              "Aktifkan minimal satu rekening bank sebelum membuka metode transfer bank",
+          });
+        }
+      }
+
+      await client.query(
+        `
+          UPDATE finance.payment_method
+          SET
+            is_active = $1,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+        `,
+        [isActive, paymentMethodId],
+      );
+
+      if (isActive) {
+        const midtransMethodId = await getPaymentMethodId(client, {
+          homebaseId: homebase.id,
+          methodType: "midtrans",
+          name: "Midtrans",
+        });
+
+        await client.query(
+          `
+            UPDATE finance.payment_method
+            SET
+              is_active = false,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+          `,
+          [midtransMethodId],
+        );
+
+        await client.query(
+          `
+            UPDATE finance.payment_gateway_config
+            SET
+              is_active = false,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE homebase_id = $1
+              AND provider = 'midtrans'
+          `,
+          [homebase.id],
+        );
+      }
+
+      const settings = await getSettingsPayload(client, homebase.id);
+
+      return res.json({
+        status: "success",
+        message: isActive
+          ? "Metode transfer bank berhasil diaktifkan"
+          : "Metode transfer bank berhasil dinonaktifkan",
+        data: {
+          homebase,
+          ...settings,
+        },
       });
     }
 
-    const isActive = req.body.is_active === true;
-    const paymentMethodId = await getPaymentMethodId(client, {
-      homebaseId: homebase.id,
-      methodType: "manual_bank",
-      name: "Transfer Bank",
-    });
-
-    if (isActive) {
-      const activeBankResult = await client.query(
+    if (methodType === "midtrans") {
+      const gatewayResult = await client.query(
         `
-          SELECT COUNT(*)::int AS total
-          FROM finance.bank_account
+          SELECT id, client_key, server_key_encrypted, snap_enabled
+          FROM finance.payment_gateway_config
           WHERE homebase_id = $1
-            AND payment_method_id = $2
-            AND is_active = true
+            AND provider = 'midtrans'
+          LIMIT 1
         `,
-        [homebase.id, paymentMethodId],
+        [homebase.id],
       );
 
-      if (Number(activeBankResult.rows[0]?.total || 0) <= 0) {
+      const gatewayConfig = gatewayResult.rows[0] || null;
+
+      if (
+        isActive &&
+        (!gatewayConfig?.client_key ||
+          !gatewayConfig?.server_key_encrypted ||
+          gatewayConfig?.snap_enabled !== true)
+      ) {
         return res.status(400).json({
           message:
-            "Aktifkan minimal satu rekening bank sebelum membuka metode transfer bank",
+            "Lengkapi konfigurasi Midtrans dan aktifkan Snap terlebih dahulu sebelum membuka metode ini",
         });
       }
+
+      if (gatewayConfig) {
+        await client.query(
+          `
+            UPDATE finance.payment_gateway_config
+            SET
+              is_active = $1,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+          `,
+          [isActive, gatewayConfig.id],
+        );
+      } else if (isActive) {
+        return res.status(400).json({
+          message: "Konfigurasi Midtrans belum tersedia untuk satuan ini",
+        });
+      }
+
+      const paymentMethodId = await getPaymentMethodId(client, {
+        homebaseId: homebase.id,
+        methodType: "midtrans",
+        name: "Midtrans",
+      });
+
+      await client.query(
+        `
+          UPDATE finance.payment_method
+          SET
+            is_active = $1,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+        `,
+        [isActive, paymentMethodId],
+      );
+
+      if (isActive) {
+        const manualBankMethodId = await getPaymentMethodId(client, {
+          homebaseId: homebase.id,
+          methodType: "manual_bank",
+          name: "Transfer Bank",
+        });
+
+        await client.query(
+          `
+            UPDATE finance.payment_method
+            SET
+              is_active = false,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+          `,
+          [manualBankMethodId],
+        );
+      }
+
+      const settings = await getSettingsPayload(client, homebase.id);
+
+      return res.json({
+        status: "success",
+        message: isActive
+          ? "Metode Midtrans berhasil diaktifkan"
+          : "Metode Midtrans berhasil dinonaktifkan",
+        data: {
+          homebase,
+          ...settings,
+        },
+      });
     }
 
-    await client.query(
-      `
-        UPDATE finance.payment_method
-        SET
-          is_active = $1,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-      `,
-      [isActive, paymentMethodId],
-    );
-
-    const settings = await getSettingsPayload(client, homebase.id);
-
-    res.json({
-      status: "success",
-      message: isActive
-        ? "Metode transfer bank berhasil diaktifkan"
-        : "Metode transfer bank berhasil dinonaktifkan",
-      data: {
-        homebase,
-        ...settings,
-      },
+    return res.status(400).json({
+      message:
+        "Metode pembayaran ini tidak dapat diubah dari panel metode pembayaran",
     });
   }),
 );
@@ -642,6 +767,25 @@ router.put(
       `,
       [isActive, midtransMethodId],
     );
+
+    if (isActive) {
+      const manualBankMethodId = await getPaymentMethodId(client, {
+        homebaseId: homebase.id,
+        methodType: "manual_bank",
+        name: "Transfer Bank",
+      });
+
+      await client.query(
+        `
+          UPDATE finance.payment_method
+          SET
+            is_active = false,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+        `,
+        [manualBankMethodId],
+      );
+    }
 
     await syncManualBankMethodState(client, homebase.id);
 

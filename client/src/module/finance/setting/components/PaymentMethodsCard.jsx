@@ -38,6 +38,9 @@ const PaymentMethodsCard = ({
   onOpenBankTab,
 }) => {
   const activeBankAccounts = (bankAccounts || []).filter((item) => item.is_active);
+  const isMidtransConfigured = Boolean(midtransMethod?.is_configured);
+  const isMidtransSwitchDisabled = isUpdatingPaymentMethod || !isMidtransConfigured;
+  const isManualBankSwitchDisabled = isUpdatingPaymentMethod;
 
   return (
     <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -83,9 +86,9 @@ const PaymentMethodsCard = ({
                     type='secondary'
                     style={{ margin: "6px 0 0", maxWidth: 720 }}
                   >
-                    Tentukan jalur pembayaran yang dibuka untuk orang tua.
-                    Prioritas parent mengikuti Midtrans terlebih dahulu, lalu
-                    transfer bank manual jika Midtrans tidak aktif.
+                    Tentukan satu jalur pembayaran yang dibuka untuk orang tua.
+                    Midtrans dan transfer bank bersifat saling eksklusif:
+                    mengaktifkan salah satunya akan otomatis menonaktifkan yang lain.
                   </Paragraph>
                 </div>
               </Flex>
@@ -210,6 +213,7 @@ const PaymentMethodsCard = ({
                           <Switch
                             checked={item.is_active}
                             loading={isUpdatingPaymentMethod}
+                            disabled={isManualBankSwitchDisabled}
                             onChange={(checked) =>
                               onTogglePaymentMethod?.("manual_bank", checked)
                             }
@@ -228,6 +232,31 @@ const PaymentMethodsCard = ({
                             ? "Kredensial Midtrans sudah tersedia"
                             : "Kredensial Midtrans belum lengkap"}
                         </div>
+                        <Flex justify='space-between' align='center' gap={12}>
+                          <div>
+                            <Text strong>Aktifkan Midtrans</Text>
+                            <div style={{ fontSize: 12, color: "#64748b" }}>
+                              Parent diarahkan ke checkout Midtrans jika metode ini aktif
+                            </div>
+                          </div>
+                          <Switch
+                            checked={item.is_active}
+                            loading={isUpdatingPaymentMethod}
+                            disabled={isMidtransSwitchDisabled}
+                            onChange={(checked) =>
+                              onTogglePaymentMethod?.("midtrans", checked)
+                            }
+                          />
+                        </Flex>
+                        {!item.is_configured ? (
+                          <Alert
+                            type='warning'
+                            showIcon
+                            message='Midtrans belum siap diaktifkan'
+                            description='Lengkapi merchant ID, client key, server key, dan aktifkan Snap di tab Midtrans.'
+                            style={{ borderRadius: 14 }}
+                          />
+                        ) : null}
                         <Button type='primary' ghost onClick={onOpenMidtransTab} block>
                           Buka Pengaturan Midtrans
                         </Button>

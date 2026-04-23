@@ -218,7 +218,7 @@ const getOrCreateSppInvoiceItem = async ({
         AND ii.fee_rule_id = $4
         AND ii.bill_month = $5
       GROUP BY ii.id
-      ORDER BY inv.created_at DESC, ii.id DESC
+      ORDER BY MAX(inv.created_at) DESC, ii.id DESC
       LIMIT 1
     `,
     [homebaseId, studentId, periodeId, rule.id, billMonth],
@@ -920,6 +920,7 @@ const createPendingParentPayment = async ({
   proofUrl = null,
   allocation,
   paymentSource = "parent_manual",
+  initialStatus = "pending",
 }) => {
   const methodId = await getPaymentMethodId(client, {
     homebaseId,
@@ -944,7 +945,7 @@ const createPendingParentPayment = async ({
         notes,
         created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, 'pending', $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12)
       RETURNING id
     `,
     [
@@ -956,6 +957,7 @@ const createPendingParentPayment = async ({
       paymentChannel,
       paymentSource,
       amount,
+      initialStatus,
       proofUrl,
       notes,
       payerUserId,
@@ -1358,6 +1360,9 @@ router.post(
           allocated_amount: payableAmount,
         },
         paymentSource: "midtrans",
+        // Snap created != customer has chosen a payment method.
+        // Keep this non-blocking until Midtrans confirms a real transaction state.
+        initialStatus: "expired",
       });
 
       const orderId = `PARENT-${paymentId}-${Date.now()}`;
@@ -1388,12 +1393,11 @@ router.post(
             raw_response,
             last_synced_at
           )
-          VALUES ($1, 'midtrans', $2, $3, 'pending', $4, $5, $6, 'IDR', $7::jsonb, CURRENT_TIMESTAMP)
+          VALUES ($1, 'midtrans', $2, NULL, 'created', $3, $4, $5, 'IDR', $6::jsonb, CURRENT_TIMESTAMP)
         `,
         [
           paymentId,
           orderId,
-          snapPayload?.token || null,
           snapPayload?.token || null,
           snapPayload?.redirect_url || null,
           payableAmount,

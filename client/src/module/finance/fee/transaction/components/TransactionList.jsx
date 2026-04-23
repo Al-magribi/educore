@@ -304,19 +304,20 @@ const TransactionList = ({
         }
 
         if (record.can_manage) {
-          menuItems.push(
-            {
-              key: "edit",
-              label: "Edit transaksi",
-              icon: <Pencil size={14} />,
-            },
-            {
-              key: "delete",
-              label: "Hapus transaksi",
-              danger: true,
-              icon: <Trash2 size={14} />,
-            },
-          );
+          menuItems.push({
+            key: "edit",
+            label: "Edit transaksi",
+            icon: <Pencil size={14} />,
+          });
+        }
+
+        if (record.can_delete) {
+          menuItems.push({
+            key: "delete",
+            label: "Hapus transaksi",
+            danger: true,
+            icon: <Trash2 size={14} />,
+          });
         }
 
         if (menuItems.length === 0) {
