@@ -36,11 +36,6 @@ const buildFinanceMenus = (user = {}) => {
       key: "/finance/pengaturan",
       icon: <SettingFilled />,
     },
-    {
-      label: "Pengaturan",
-      key: "/finance/pengaturan",
-      icon: <SettingFilled />,
-    },
   ];
 
   const teacherFinanceNode = {
