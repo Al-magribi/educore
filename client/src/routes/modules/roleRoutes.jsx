@@ -14,7 +14,7 @@ const StudentSaving = lazy(
   () => import("../../module/finance/student/saving/StudentSaving"),
 );
 
-const renderRoleRoutes = (routeHelpers) => (
+const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
   <>
     <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
       <Route
@@ -50,10 +50,7 @@ const renderRoleRoutes = (routeHelpers) => (
       <Route
         path="/siswa/laporan-tabungan"
         element={
-          <routeHelpers.LazyPage
-            title="Tabungan Saya"
-            Component={StudentSaving}
-          />
+          <LazyPage title="Tabungan Saya" Component={StudentSaving} />
         }
       />
     </Route>
