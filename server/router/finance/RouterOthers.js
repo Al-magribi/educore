@@ -18,6 +18,7 @@ import {
 } from "./financeHelpers.js";
 
 const router = Router();
+const SUCCESS_PAYMENT_STATUSES = ["confirmed", "paid"];
 
 const formatChargeStatus = (status) => {
   const statusMap = {
@@ -126,7 +127,15 @@ const getOrCreateOtherInvoiceItem = async ({
         ii.id,
         ii.invoice_id,
         ii.amount,
-        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+        COALESCE(
+          SUM(
+            CASE
+              WHEN p.status = ANY($3::text[]) THEN pa.allocated_amount
+              ELSE 0
+            END
+          ),
+          0
+        ) AS paid_amount
       FROM finance.invoice_item ii
       LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
       LEFT JOIN finance.payment p ON p.id = pa.payment_id
@@ -136,7 +145,7 @@ const getOrCreateOtherInvoiceItem = async ({
       GROUP BY ii.id
       LIMIT 1
     `,
-    [invoice.id, componentId],
+    [invoice.id, componentId, SUCCESS_PAYMENT_STATUSES],
   );
 
   if (existingItem.rowCount > 0) {
@@ -604,7 +613,15 @@ router.get(
             ii.component_id,
             ii.amount AS amount_due,
             ii.description,
-            COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN p.status = ANY($${scope.params.length + 1}::text[]) THEN pa.allocated_amount
+                  ELSE 0
+                END
+              ),
+              0
+            ) AS paid_amount
           FROM finance.invoice inv
           JOIN finance.invoice_item ii ON ii.invoice_id = inv.id AND ii.item_type = 'other'
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -637,7 +654,7 @@ router.get(
           AND item.component_id = ts.type_id
         ORDER BY es.grade_name ASC, es.class_name ASC, es.student_name ASC, ts.type_name ASC
       `,
-      scope.params,
+      [...scope.params, SUCCESS_PAYMENT_STATUSES],
     );
 
     const chargeIds = result.rows
@@ -661,10 +678,10 @@ router.get(
           LEFT JOIN finance.payment_method pm ON pm.id = p.method_id
           LEFT JOIN u_users processor ON processor.id = p.created_by
           WHERE pa.invoice_item_id = ANY($1::bigint[])
-            AND p.status = 'paid'
+            AND p.status = ANY($2::text[])
           ORDER BY p.payment_date DESC, p.id DESC
         `,
-        [chargeIds],
+        [chargeIds, SUCCESS_PAYMENT_STATUSES],
       );
 
       for (const item of installmentResult.rows) {
@@ -809,7 +826,15 @@ router.put(
           ii.id,
           ii.invoice_id,
           ii.amount,
-          COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+          COALESCE(
+            SUM(
+              CASE
+                WHEN p.status = ANY($3::text[]) THEN pa.allocated_amount
+                ELSE 0
+              END
+            ),
+            0
+          ) AS paid_amount
         FROM finance.invoice_item ii
         JOIN finance.invoice inv ON inv.id = ii.invoice_id
         LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -819,7 +844,7 @@ router.put(
         GROUP BY ii.id
         LIMIT 1
       `,
-      [chargeId, homebaseId],
+      [chargeId, homebaseId, SUCCESS_PAYMENT_STATUSES],
     );
 
     if (chargeResult.rowCount === 0) {
@@ -950,7 +975,15 @@ router.post(
           ii.invoice_id,
           ii.amount,
           inv.student_id,
-          COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+          COALESCE(
+            SUM(
+              CASE
+                WHEN p.status = ANY($3::text[]) THEN pa.allocated_amount
+                ELSE 0
+              END
+            ),
+            0
+          ) AS paid_amount
         FROM finance.invoice_item ii
         JOIN finance.invoice inv ON inv.id = ii.invoice_id
         LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -960,7 +993,7 @@ router.post(
         GROUP BY ii.id, inv.id
         LIMIT 1
       `,
-      [chargeId, homebaseId],
+      [chargeId, homebaseId, SUCCESS_PAYMENT_STATUSES],
     );
 
     if (chargeScope.rowCount === 0) {
@@ -1039,7 +1072,7 @@ router.put(
             FROM finance.payment_allocation pa2
             JOIN finance.payment p2 ON p2.id = pa2.payment_id
             WHERE pa2.invoice_item_id = pa.invoice_item_id
-              AND p2.status = 'paid'
+              AND p2.status = ANY($3::text[])
               AND p2.id <> p.id
           ), 0) AS paid_without_current
         FROM finance.payment p
@@ -1049,7 +1082,7 @@ router.put(
           AND p.homebase_id = $2
         LIMIT 1
       `,
-      [paymentId, homebaseId],
+      [paymentId, homebaseId, SUCCESS_PAYMENT_STATUSES],
     );
 
     if (paymentScope.rowCount === 0) {

@@ -206,6 +206,11 @@ const ParentPaymentList = ({
                   </Space>
 
                   <Space direction='vertical' size={10} style={{ width: "100%" }}>
+                    {item.invoice_no ? (
+                      <Text type='secondary' style={{ fontSize: 12 }}>
+                        Invoice: {item.invoice_no}
+                      </Text>
+                    ) : null}
                     <Button
                       type='primary'
                       icon={<CreditCard size={16} />}
@@ -225,7 +230,7 @@ const ParentPaymentList = ({
                     </Button>
                     <Button
                       icon={<ReceiptText size={16} />}
-                      onClick={() => onOpenInvoice(item.invoice_id)}
+                      onClick={() => onOpenInvoice(item)}
                       disabled={!item.can_view_invoice || !item.invoice_id}
                       block
                     >

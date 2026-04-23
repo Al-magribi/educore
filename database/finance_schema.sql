@@ -178,6 +178,16 @@ CREATE TABLE IF NOT EXISTS finance.payment (
 CREATE INDEX IF NOT EXISTS idx_payment_student
     ON finance.payment(student_id, status, payment_date DESC);
 
+DO $$
+BEGIN
+    UPDATE finance.payment
+    SET status = 'confirmed'
+    WHERE status = 'paid';
+EXCEPTION
+    WHEN undefined_table THEN NULL;
+    WHEN undefined_column THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS finance.payment_allocation (
     id BIGSERIAL PRIMARY KEY,
     payment_id BIGINT NOT NULL REFERENCES finance.payment(id) ON DELETE CASCADE,

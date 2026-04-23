@@ -75,7 +75,9 @@ const formatStudentSearchLabel = (item) => {
 };
 
 const getEditableOtherPaymentItems = (transaction) =>
-  (transaction?.payment_items || []).filter((item) => item.item_type === "other");
+  (transaction?.payment_items || []).filter(
+    (item) => item.item_type === "other",
+  );
 
 const getPrimaryInvoice = (record) =>
   (record?.invoices || []).find((invoice) => invoice?.id) || null;
@@ -141,9 +143,12 @@ const Transaction = () => {
 
   const options = optionResponse?.data || {};
   const homebases = useMemo(() => options.homebases || [], [options.homebases]);
-  const resolvedTransactionHomebaseId = transactionFilters.homebase_id ||
+  const resolvedTransactionHomebaseId =
+    transactionFilters.homebase_id ||
     (homebases.length === 1 ? homebases[0]?.id : undefined) ||
-    (user?.homebase_id ? optionResponse?.data?.selected_homebase_id : undefined);
+    (user?.homebase_id
+      ? optionResponse?.data?.selected_homebase_id
+      : undefined);
 
   const { data: transactionResponse, isLoading: isLoadingTransactions } =
     useGetTransactionsQuery(
@@ -169,14 +174,17 @@ const Transaction = () => {
   );
   const activeInvoiceId =
     openedInvoiceId &&
-    (!isLoadingTransactions ? (selectedInvoiceRecord ? openedInvoiceId : null) : openedInvoiceId);
+    (!isLoadingTransactions
+      ? selectedInvoiceRecord
+        ? openedInvoiceId
+        : null
+      : openedInvoiceId);
   const { data: invoiceResponse, isFetching: isFetchingInvoice } =
     useGetTransactionInvoiceQuery(
       {
         invoiceId: activeInvoiceId,
         homebase_id:
-          selectedInvoiceRecord?.homebase_id ||
-          resolvedTransactionHomebaseId,
+          selectedInvoiceRecord?.homebase_id || resolvedTransactionHomebaseId,
       },
       {
         skip: !activeInvoiceId,
@@ -284,7 +292,9 @@ const Transaction = () => {
       if (!monthMap.has(month)) {
         monthMap.set(month, {
           value: month,
-          label: dayjs().month(month - 1).format("MMMM"),
+          label: dayjs()
+            .month(month - 1)
+            .format("MMMM"),
         });
       }
     });
@@ -331,7 +341,9 @@ const Transaction = () => {
           currentPaidAmount,
         ),
         description:
-          existingCharge?.description || editingTransaction?.description || null,
+          existingCharge?.description ||
+          editingTransaction?.description ||
+          null,
         is_existing_charge:
           existingCharge?.is_existing_charge ?? Boolean(paymentItem.charge_id),
         status: existingCharge?.status || "unpaid",
@@ -454,7 +466,9 @@ const Transaction = () => {
 
     const commonPayload = {
       homebase_id:
-        currentFormValues.homebase_id || values.homebase_id || selectedHomebaseId,
+        currentFormValues.homebase_id ||
+        values.homebase_id ||
+        selectedHomebaseId,
       periode_id: currentFormValues.periode_id || values.periode_id,
       grade_id: currentFormValues.grade_id || values.grade_id,
       student_id: currentFormValues.student_id || values.student_id,
@@ -466,14 +480,16 @@ const Transaction = () => {
           category: editingTransaction.category,
           id: editingTransaction.id,
           ...commonPayload,
-          bill_months: currentFormValues.bill_months || values.bill_months || [],
+          bill_months:
+            currentFormValues.bill_months || values.bill_months || [],
           other_payments: otherPayments,
         }).unwrap();
         message.success("Transaksi pembayaran berhasil diperbarui");
       } else {
         await createTransaction({
           ...commonPayload,
-          bill_months: currentFormValues.bill_months || values.bill_months || [],
+          bill_months:
+            currentFormValues.bill_months || values.bill_months || [],
           other_payments: otherPayments,
         }).unwrap();
         message.success("Transaksi pembayaran berhasil disimpan");
@@ -489,15 +505,22 @@ const Transaction = () => {
 
   const handleEditTransaction = (record) => {
     const editingOtherItems = getEditableOtherPaymentItems(record);
-    const initialOtherPayments = editingOtherItems.reduce((accumulator, item) => {
-      const selectionKey = getOtherPaymentSelectionKey(item);
+    const initialOtherPayments = editingOtherItems.reduce(
+      (accumulator, item) => {
+        const selectionKey = getOtherPaymentSelectionKey(item);
 
-      accumulator[selectionKey] = buildOtherPaymentValue(item, {}, {
-        amount_paid: Number(item.amount_paid || 0),
-      });
+        accumulator[selectionKey] = buildOtherPaymentValue(
+          item,
+          {},
+          {
+            amount_paid: Number(item.amount_paid || 0),
+          },
+        );
 
-      return accumulator;
-    }, {});
+        return accumulator;
+      },
+      {},
+    );
 
     setEditingTransaction(record);
     setSelectedStudentOption({
@@ -565,11 +588,7 @@ const Transaction = () => {
       action,
       record,
     });
-    setConfirmationNotes(
-      action === "reject"
-        ? record?.notes || ""
-        : "",
-    );
+    setConfirmationNotes(action === "reject" ? record?.notes || "" : "");
   };
 
   const closeConfirmationModal = () => {
@@ -675,7 +694,9 @@ const Transaction = () => {
 
         <TransactionFormModal
           open={modalOpen}
-          loadingOpen={modalRequestedOpen && isLoadingOptions && !optionResponse}
+          loadingOpen={
+            modalRequestedOpen && isLoadingOptions && !optionResponse
+          }
           isStudentOptionsLoading={isFetchingStudentOptions}
           isStudentContextLoading={isResolvingStudentContext}
           isStudentContextReady={isSelectedStudentContextReady}
@@ -781,6 +802,7 @@ const Transaction = () => {
           }
           width={760}
           destroyOnHidden
+          centered
         >
           {!confirmationState.record ? null : (
             <Space vertical size={16} style={{ width: "100%" }}>
@@ -824,14 +846,13 @@ const Transaction = () => {
                     {confirmationState.record.description || "-"}
                   </Descriptions.Item>
                   <Descriptions.Item label='Nominal'>
-                    {Number(confirmationState.record.amount || 0).toLocaleString(
-                      "id-ID",
-                      {
-                        style: "currency",
-                        currency: "IDR",
-                        maximumFractionDigits: 0,
-                      },
-                    )}
+                    {Number(
+                      confirmationState.record.amount || 0,
+                    ).toLocaleString("id-ID", {
+                      style: "currency",
+                      currency: "IDR",
+                      maximumFractionDigits: 0,
+                    })}
                   </Descriptions.Item>
                   <Descriptions.Item label='Status Saat Ini'>
                     <Tag color='gold' style={{ borderRadius: 999 }}>
@@ -905,7 +926,9 @@ const Transaction = () => {
                   <Text strong>Alasan Penolakan</Text>
                   <Input.TextArea
                     value={confirmationNotes}
-                    onChange={(event) => setConfirmationNotes(event.target.value)}
+                    onChange={(event) =>
+                      setConfirmationNotes(event.target.value)
+                    }
                     placeholder='Contoh: nominal transfer tidak sesuai dengan tagihan atau bukti transfer tidak valid.'
                     rows={4}
                     style={{ marginTop: 8 }}

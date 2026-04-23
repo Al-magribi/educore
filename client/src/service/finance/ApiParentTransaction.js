@@ -28,9 +28,15 @@ export const ApiParentTransaction = createApi({
     }),
 
     getParentTransactionInvoice: builder.query({
-      query: (invoiceId) => `/parent/transactions/invoices/${invoiceId}`,
-      providesTags: (result, error, invoiceId) => [
-        { type: "ParentTransactionInvoice", id: invoiceId },
+      query: ({ invoiceId, invoiceItemId } = {}) =>
+        `/parent/transactions/invoices/${invoiceId}?${buildQueryString({
+          invoice_item_id: invoiceItemId,
+        })}`,
+      providesTags: (result, error, args) => [
+        {
+          type: "ParentTransactionInvoice",
+          id: `${args?.invoiceId || "unknown"}:${args?.invoiceItemId || "all"}`,
+        },
       ],
     }),
 
