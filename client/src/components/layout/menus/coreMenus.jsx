@@ -17,6 +17,11 @@ const buildCoreMenus = () => ({
     { label: "Satuan", key: "/center-homebase", icon: <HomeOutlined /> },
     { label: "Admin", key: "/center-admin", icon: <IdcardOutlined /> },
     { label: "Guru", key: "/center-teacher", icon: <UsersRound size={14} /> },
+    {
+      label: "Analisa",
+      key: "/center-analysis",
+      icon: <AreaChartOutlined size={14} />,
+    },
   ],
   admin: [
     { label: "Dashboard", key: "/admin-dashboard", icon: <WindowsOutlined /> },

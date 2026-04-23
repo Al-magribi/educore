@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Button,
@@ -23,7 +23,7 @@ const requestExamFullscreen = async () => {
   try {
     await element.requestFullscreen();
     return true;
-  } catch (_error) {
+  } catch {
     return false;
   }
 };
@@ -57,7 +57,7 @@ const fetchIpFromService = async (url, timeoutMs = 2500) => {
     return typeof candidate === "string" && candidate.trim()
       ? candidate.trim()
       : null;
-  } catch (_error) {
+  } catch {
     return null;
   } finally {
     clearTimeout(timeout);
@@ -89,15 +89,6 @@ const JoinExamModal = ({ open, onClose, exam }) => {
   const [enterExam, { isLoading }] = useEnterStudentExamMutation();
   const [statusInfo, setStatusInfo] = useState(null);
   const [studentIp, setStudentIp] = useState(null);
-
-  useEffect(() => {
-    if (open) {
-      form.resetFields();
-      setStatusInfo(null);
-      setStudentIp(null);
-      void resolveStudentPublicIp().then((ip) => setStudentIp(ip));
-    }
-  }, [open, form]);
 
   const handleSubmit = async (values) => {
     try {
@@ -139,6 +130,13 @@ const JoinExamModal = ({ open, onClose, exam }) => {
       footer={null}
       centered
       destroyOnHidden
+      afterOpenChange={(isOpen) => {
+        if (!isOpen) return;
+        form.resetFields();
+        setStatusInfo(null);
+        setStudentIp(null);
+        void resolveStudentPublicIp().then((ip) => setStudentIp(ip));
+      }}
     >
       <Space vertical size={12} style={{ width: "100%" }}>
         <Text type="secondary">

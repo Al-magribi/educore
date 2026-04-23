@@ -49,6 +49,7 @@ const InfiniteScrollList = ({
     <div
       style={{
         padding: "4px",
+        minHeight: height,
         position: "relative", // Penting untuk konteks scrolling
       }}
     >

@@ -7,7 +7,15 @@ export const ApiAnalysis = createApi({
     // 1. Segmentasi Siswa (List dengan Pagination & Filter)
     getStudentSegment: builder.query({
       query: ({ page = 1, limit = 10, search = "", age = "", gender = "" }) => {
-        let url = `/get-student-segment?page=${page}&limit=${limit}&search=${search}`;
+        let url = `/get-student-segment?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`;
+        if (age) url += `&age=${age}`;
+        if (gender) url += `&gender=${gender}`;
+        return url;
+      },
+    }),
+    downloadStudentSegment: builder.query({
+      query: ({ search = "", age = "", gender = "" }) => {
+        let url = `/download-student-segment?search=${encodeURIComponent(search)}`;
         if (age) url += `&age=${age}`;
         if (gender) url += `&gender=${gender}`;
         return url;
@@ -28,6 +36,8 @@ export const ApiAnalysis = createApi({
 
 export const {
   useGetStudentSegmentQuery,
+  useLazyGetStudentSegmentQuery,
+  useLazyDownloadStudentSegmentQuery,
   useGetGeoDistributionQuery,
   useGetParentJobsQuery,
 } = ApiAnalysis;

@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -10,11 +10,13 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { Download } from "lucide-react";
+import { motion } from "framer-motion";
+import { Download, Eye, Medal, Search, Users } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useSearchParams } from "react-router-dom";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
+const MotionDiv = motion.div;
 
 const PAGE_SIZE = 8;
 
@@ -41,16 +43,43 @@ const ScoreTable = ({
     return data.filter((item) => {
       const matchClass =
         classFilter === "all" ? true : item.className === classFilter;
-      const matchSearch = `${item.nis} ${item.name}`
+      const matchSearch = `${item.nis} ${item.name} ${item.className}`
         .toLowerCase()
         .includes(searchText.toLowerCase());
       return matchClass && matchSearch;
     });
   }, [data, classFilter, searchText]);
 
-  const slicedData = useMemo(() => {
-    return filteredData.slice(0, visibleCount);
-  }, [filteredData, visibleCount]);
+  const slicedData = useMemo(
+    () => filteredData.slice(0, visibleCount),
+    [filteredData, visibleCount],
+  );
+
+  const scoreStats = useMemo(() => {
+    if (!filteredData.length) {
+      return {
+        average: 0,
+        passed: 0,
+        highest: 0,
+      };
+    }
+
+    const total = filteredData.reduce(
+      (sum, item) => sum + Number(item.score || 0),
+      0,
+    );
+    const passed = filteredData.filter((item) => Number(item.score || 0) >= 75).length;
+    const highest = filteredData.reduce(
+      (max, item) => Math.max(max, Number(item.score || 0)),
+      0,
+    );
+
+    return {
+      average: Math.round((total / filteredData.length) * 10) / 10,
+      passed,
+      highest,
+    };
+  }, [filteredData]);
 
   const handleExportExcel = () => {
     const rows = filteredData.map((item, index) => ({
@@ -65,7 +94,7 @@ const ScoreTable = ({
     XLSX.utils.book_append_sheet(workbook, worksheet, "Nilai");
     const safeName = String(examName || "nilai-ujian")
       .trim()
-      .replace(/[\/:*?"<>|]+/g, "-");
+      .replace(/[/:*?"<>|]+/g, "-");
     XLSX.writeFile(workbook, `${safeName}.xlsx`);
   };
 
@@ -99,9 +128,16 @@ const ScoreTable = ({
     {
       title: "Nama Siswa",
       dataIndex: "name",
-      width: 220,
+      width: 240,
       ellipsis: true,
-      render: (value) => <Text strong>{value}</Text>,
+      render: (value, record) => (
+        <Space direction='vertical' size={0}>
+          <Text strong>{value}</Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.className || "-"}
+          </Text>
+        </Space>
+      ),
     },
     {
       title: "Kelas",
@@ -113,17 +149,27 @@ const ScoreTable = ({
       title: "Nilai",
       dataIndex: "score",
       width: 120,
-      render: (value) => (
-        <Tag color={value >= 75 ? "green" : "orange"}>{value}</Tag>
-      ),
+      render: (value) => {
+        const numericValue = Number(value || 0);
+        return (
+          <Tag
+            color={numericValue >= 75 ? "green" : "orange"}
+            style={{ borderRadius: 999, margin: 0, fontWeight: 700 }}
+          >
+            {numericValue}
+          </Tag>
+        );
+      },
     },
     {
       title: "Aksi",
       key: "action",
-      width: 140,
+      width: 160,
       render: (_, record) => (
         <Button
           size='small'
+          type='primary'
+          icon={<Eye size={14} />}
           onClick={() => handleOpenStudent(record)}
           block={isMobile}
         >
@@ -144,92 +190,178 @@ const ScoreTable = ({
   };
 
   return (
-    <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-      <Flex
-        justify='space-between'
-        align={isMobile ? "stretch" : "center"}
-        wrap='wrap'
-        gap={12}
+    <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+      <Card
+        variant='borderless'
         style={{
-          marginBottom: 16,
-          flexDirection: isMobile ? "column" : "row",
+          borderRadius: 24,
+          boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
         }}
+        styles={{ body: { padding: isMobile ? 16 : 20 } }}
       >
-        <Space
-          wrap
-          style={{
-            width: isMobile ? "100%" : "auto",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "stretch" : "center",
-          }}
-        >
-          <Input.Search
-            placeholder='Cari nama / NIS'
-            allowClear
-            onSearch={(value) => {
-              setSearchText(value);
-              setVisibleCount(PAGE_SIZE);
-            }}
-            style={{ width: isMobile ? "100%" : 260, maxWidth: "100%" }}
-          />
-          <Select
-            value={classFilter}
-            onChange={(value) => {
-              setClassFilter(value);
-              setVisibleCount(PAGE_SIZE);
-            }}
-            style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
-            options={[{ value: "all", label: "Semua Kelas" }, ...classOptions]}
-            virtual={false}
-          />
-        </Space>
-        <Space
-          wrap
-          style={{
-            width: isMobile ? "100%" : "auto",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "stretch" : "center",
-          }}
-        >
-          <div style={{ width: isMobile ? "100%" : "auto" }}>
-            <Tag color='blue'>Total Nilai: {filteredData.length}</Tag>
-          </div>
-          <Button
-            icon={<Download size={14} />}
-            onClick={handleExportExcel}
-            block={isMobile}
+        <Space orientation='vertical' size={18} style={{ width: "100%" }}>
+          <Flex
+            justify='space-between'
+            align={isMobile ? "stretch" : "center"}
+            wrap='wrap'
+            gap={12}
+            style={{ flexDirection: isMobile ? "column" : "row" }}
           >
-            Download Excel
-          </Button>
-        </Space>
-      </Flex>
+            <Space orientation='vertical' size={4} style={{ minWidth: 0 }}>
+              <Text type='secondary'>Analisis Nilai</Text>
+              <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
+                Rekap Hasil Ujian Peserta
+              </Title>
+              <Text type='secondary'>
+                Telusuri nilai siswa, filter per kelas, dan buka detail jawaban untuk peninjauan lebih lanjut.
+              </Text>
+            </Space>
+            <Tag color='blue' icon={<Users size={12} />} style={{ margin: 0, borderRadius: 999 }}>
+              Total Nilai: {filteredData.length}
+            </Tag>
+          </Flex>
 
-      <div style={{ maxHeight: 480, overflow: "auto" }} onScroll={handleScroll}>
-        <Table
-          rowKey='id'
-          columns={columns}
-          dataSource={slicedData}
-          loading={isLoading}
-          pagination={false}
-          sticky
-          size={isMobile ? "small" : "middle"}
-          tableLayout='fixed'
-          scroll={isMobile ? { x: 760 } : undefined}
-        />
-        {slicedData.length >= filteredData.length ? (
           <div
             style={{
-              textAlign: "center",
-              color: "#98a2b3",
-              padding: "8px 0 4px",
-              fontSize: 12,
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+              gap: 12,
             }}
           >
-            Semua data telah dimuat
+            {[
+              {
+                label: "Rata-rata",
+                value: scoreStats.average,
+                color: "#2563eb",
+                icon: <Medal size={18} />,
+              },
+              {
+                label: "Lulus >= 75",
+                value: scoreStats.passed,
+                color: "#16a34a",
+                icon: <Users size={18} />,
+              },
+              {
+                label: "Nilai Tertinggi",
+                value: scoreStats.highest,
+                color: "#d97706",
+                icon: <Medal size={18} />,
+              },
+            ].map((item) => (
+              <Card
+                key={item.label}
+                variant='borderless'
+                style={{ borderRadius: 18, background: "#f8fafc" }}
+                styles={{ body: { padding: 16 } }}
+              >
+                <Flex align='center' justify='space-between' gap={12}>
+                  <Space orientation='vertical' size={4}>
+                    <Text type='secondary'>{item.label}</Text>
+                    <Title level={4} style={{ margin: 0, color: item.color }}>
+                      {item.value}
+                    </Title>
+                  </Space>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#fff",
+                      color: item.color,
+                    }}
+                  >
+                    {item.icon}
+                  </div>
+                </Flex>
+              </Card>
+            ))}
           </div>
-        ) : null}
-      </div>
-    </Card>
+
+          <Flex
+            justify='space-between'
+            align={isMobile ? "stretch" : "center"}
+            wrap='wrap'
+            gap={12}
+            style={{ flexDirection: isMobile ? "column" : "row" }}
+          >
+            <Space
+              wrap
+              style={{
+                width: isMobile ? "100%" : "auto",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: isMobile ? "stretch" : "center",
+              }}
+            >
+              <Input
+                allowClear
+                prefix={<Search size={14} />}
+                placeholder='Cari nama / NIS / kelas'
+                value={searchText}
+                onChange={(event) => {
+                  setSearchText(event.target.value);
+                  setVisibleCount(PAGE_SIZE);
+                }}
+                style={{ width: isMobile ? "100%" : 260, maxWidth: "100%" }}
+              />
+              <Select
+                value={classFilter}
+                onChange={(value) => {
+                  setClassFilter(value);
+                  setVisibleCount(PAGE_SIZE);
+                }}
+                style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
+                options={[{ value: "all", label: "Semua Kelas" }, ...classOptions]}
+                virtual={false}
+              />
+            </Space>
+            <Button
+              icon={<Download size={14} />}
+              onClick={handleExportExcel}
+              block={isMobile}
+            >
+              Download Excel
+            </Button>
+          </Flex>
+
+          <div
+            style={{
+              maxHeight: 480,
+              overflow: "auto",
+              borderRadius: 18,
+              border: "1px solid rgba(148, 163, 184, 0.14)",
+            }}
+            onScroll={handleScroll}
+          >
+            <Table
+              rowKey='id'
+              columns={columns}
+              dataSource={slicedData}
+              loading={isLoading}
+              pagination={false}
+              sticky
+              size={isMobile ? "small" : "middle"}
+              tableLayout='fixed'
+              scroll={isMobile ? { x: 820 } : undefined}
+            />
+            {slicedData.length >= filteredData.length ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "#98a2b3",
+                  padding: "8px 0 4px",
+                  fontSize: 12,
+                }}
+              >
+                Semua data telah dimuat
+              </div>
+            ) : null}
+          </div>
+        </Space>
+      </Card>
+    </MotionDiv>
   );
 };
 
