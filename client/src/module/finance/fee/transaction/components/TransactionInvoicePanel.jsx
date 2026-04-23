@@ -140,7 +140,7 @@ const TransactionInvoicePanel = ({
               styles={{ body: { padding: 20 } }}
             >
               <Flex justify='space-between' align='start' gap={16} wrap='wrap'>
-                <Space direction='vertical' size={10} style={{ maxWidth: 640 }}>
+                <Space vertical size={10} style={{ maxWidth: 640 }}>
                   <Button
                     icon={<ArrowLeft size={16} />}
                     onClick={onClose}
@@ -177,7 +177,7 @@ const TransactionInvoicePanel = ({
                     </Tag>
                   </Flex>
 
-                  <Space direction='vertical' size={2}>
+                  <Space vertical size={2}>
                     <Text style={{ color: "rgba(255,255,255,0.72)" }}>
                       {invoice.invoice_no}
                     </Text>
@@ -223,7 +223,7 @@ const TransactionInvoicePanel = ({
                   }}
                   styles={{ body: { padding: 18 } }}
                 >
-                  <Space direction='vertical' size={10} style={{ width: "100%" }}>
+                  <Space vertical size={10} style={{ width: "100%" }}>
                     <Flex align='center' gap={8}>
                       <CalendarClock size={16} color='#bfdbfe' />
                       <Text style={{ color: "rgba(255,255,255,0.72)" }}>
@@ -235,7 +235,9 @@ const TransactionInvoicePanel = ({
                     </Title>
                     <Text style={{ color: "rgba(255,255,255,0.82)" }}>
                       Sudah dibayar:{" "}
-                      {currencyFormatter.format(Number(invoice.total_paid || 0))}
+                      {currencyFormatter.format(
+                        Number(invoice.total_paid || 0),
+                      )}
                     </Text>
                     <Text style={{ color: "rgba(255,255,255,0.82)" }}>
                       Sisa tagihan:{" "}
@@ -304,7 +306,11 @@ const TransactionInvoicePanel = ({
               }}
               styles={{ body: { padding: 20 } }}
             >
-              <Descriptions bordered column={{ xs: 1, md: 2 }} labelStyle={{ fontWeight: 700, width: 170 }}>
+              <Descriptions
+                bordered
+                column={{ xs: 1, md: 2 }}
+                labelStyle={{ fontWeight: 700, width: 170 }}
+              >
                 <Descriptions.Item label='Nama Siswa'>
                   {invoice.student_name}
                 </Descriptions.Item>
@@ -349,7 +355,9 @@ const TransactionInvoicePanel = ({
                 dataSource={items}
                 pagination={false}
                 scroll={{ x: 720 }}
-                locale={{ emptyText: "Belum ada item pembayaran pada invoice ini." }}
+                locale={{
+                  emptyText: "Belum ada item pembayaran pada invoice ini.",
+                }}
                 columns={[
                   {
                     title: "Item",
@@ -359,7 +367,9 @@ const TransactionInvoicePanel = ({
                       <Space vertical size={0}>
                         <Text strong>{record.description}</Text>
                         <Text type='secondary'>
-                          {record.billing_period_label || record.component_name || "-"}
+                          {record.billing_period_label ||
+                            record.component_name ||
+                            "-"}
                         </Text>
                       </Space>
                     ),
@@ -368,13 +378,15 @@ const TransactionInvoicePanel = ({
                     title: "Nominal",
                     dataIndex: "amount_due",
                     key: "amount_due",
-                    render: (value) => currencyFormatter.format(Number(value || 0)),
+                    render: (value) =>
+                      currencyFormatter.format(Number(value || 0)),
                   },
                   {
                     title: "Dibayar",
                     dataIndex: "paid_amount",
                     key: "paid_amount",
-                    render: (value) => currencyFormatter.format(Number(value || 0)),
+                    render: (value) =>
+                      currencyFormatter.format(Number(value || 0)),
                   },
                   {
                     title: "Status",
@@ -383,7 +395,14 @@ const TransactionInvoicePanel = ({
                     render: (value) => {
                       const meta = statusMetaMap[value] || statusMetaMap.unpaid;
                       return (
-                        <Tag color={meta.color} style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}>
+                        <Tag
+                          color={meta.color}
+                          style={{
+                            margin: 0,
+                            borderRadius: 999,
+                            fontWeight: 700,
+                          }}
+                        >
                           {meta.label}
                         </Tag>
                       );
@@ -427,7 +446,8 @@ const TransactionInvoicePanel = ({
                     title: "Alokasi ke Invoice",
                     dataIndex: "allocated_amount",
                     key: "allocated_amount",
-                    render: (value) => currencyFormatter.format(Number(value || 0)),
+                    render: (value) =>
+                      currencyFormatter.format(Number(value || 0)),
                   },
                   {
                     title: "Status",
@@ -436,7 +456,14 @@ const TransactionInvoicePanel = ({
                     render: (value) => {
                       const meta = statusMetaMap[value] || statusMetaMap.unpaid;
                       return (
-                        <Tag color={meta.color} style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}>
+                        <Tag
+                          color={meta.color}
+                          style={{
+                            margin: 0,
+                            borderRadius: 999,
+                            fontWeight: 700,
+                          }}
+                        >
                           {meta.label}
                         </Tag>
                       );
@@ -487,7 +514,8 @@ const TransactionInvoicePanel = ({
                           borderRadius: 14,
                           display: "grid",
                           placeItems: "center",
-                          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
+                          background:
+                            "linear-gradient(135deg, #dbeafe, #dcfce7)",
                           color: "#0f766e",
                         }}
                       >
@@ -496,7 +524,8 @@ const TransactionInvoicePanel = ({
                       <div>
                         <div style={{ fontWeight: 700 }}>Petugas Keuangan</div>
                         <Text type='secondary'>
-                          Nama dan tanda tangan resmi yang tercantum pada invoice.
+                          Nama dan tanda tangan resmi yang tercantum pada
+                          invoice.
                         </Text>
                       </div>
                     </Space>
@@ -509,7 +538,12 @@ const TransactionInvoicePanel = ({
                         description='Nama atau tanda tangan petugas keuangan belum tersedia pada pengaturan keuangan satuan.'
                       />
                     ) : (
-                      <Flex gap={20} wrap='wrap' justify='space-between' align='start'>
+                      <Flex
+                        gap={20}
+                        wrap='wrap'
+                        justify='space-between'
+                        align='start'
+                      >
                         <div>
                           <Text type='secondary'>Nama Petugas</Text>
                           <div style={{ marginTop: 4, fontWeight: 700 }}>

@@ -500,9 +500,10 @@ const getOrCreateSppItem = async ({
     homebaseId,
     studentId,
     periodeId,
-    sourceType: "mixed",
+    sourceType: "spp",
     createdBy,
-    notes: buildInvoiceNotesBySourceType("mixed"),
+    notes: `Invoice SPP ${formatBillingPeriod(billMonth)}`,
+    reuseExisting: false,
   });
 
   const created = await client.query(
@@ -547,54 +548,6 @@ const buildInvoiceNotesBySourceType = (sourceType) => {
   return "Invoice gabungan";
 };
 
-const syncInvoiceMetadata = async (
-  client,
-  { invoiceId, homebaseId, studentId, periodeId },
-) => {
-  if (!invoiceId) {
-    return;
-  }
-
-  const itemResult = await client.query(
-    `
-      SELECT ARRAY_REMOVE(ARRAY_AGG(DISTINCT ii.item_type), NULL) AS item_types
-      FROM finance.invoice_item ii
-      WHERE ii.invoice_id = $1
-    `,
-    [invoiceId],
-  );
-
-  const itemTypes = itemResult.rows[0]?.item_types || [];
-  const sourceType =
-    itemTypes.length === 1 && itemTypes[0] === "spp"
-      ? "spp"
-      : itemTypes.length === 1 && itemTypes[0] === "other"
-        ? "other"
-        : "mixed";
-
-  await client.query(
-    `
-      UPDATE finance.invoice
-      SET
-        homebase_id = $1,
-        student_id = $2,
-        periode_id = $3,
-        source_type = $4,
-        notes = $5,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
-    `,
-    [
-      homebaseId,
-      studentId,
-      periodeId,
-      sourceType,
-      buildInvoiceNotesBySourceType(sourceType),
-      invoiceId,
-    ],
-  );
-};
-
 const removeLocalFinanceProof = (proofUrl) => {
   if (!proofUrl || !String(proofUrl).startsWith("/assets/finance/")) {
     return;
@@ -605,76 +558,6 @@ const removeLocalFinanceProof = (proofUrl) => {
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }
-};
-
-const consolidateAllocationsToSingleInvoice = async ({
-  client,
-  homebaseId,
-  studentId,
-  periodeId,
-  userId,
-  allocations,
-}) => {
-  if (!allocations.length) {
-    return allocations;
-  }
-
-  const targetInvoice = await getOrCreateInvoice(client, {
-    homebaseId,
-    studentId,
-    periodeId,
-    sourceType: "mixed",
-    createdBy: userId,
-    notes: buildInvoiceNotesBySourceType("mixed"),
-  });
-
-  const targetInvoiceId = Number(targetInvoice.id);
-  const previousInvoiceIds = [
-    ...new Set(allocations.map((item) => Number(item.invoice_id || 0)).filter(Boolean)),
-  ];
-
-  for (const allocation of allocations) {
-    await client.query(
-      `
-        UPDATE finance.invoice_item
-        SET invoice_id = $1
-        WHERE id = $2
-      `,
-      [targetInvoiceId, allocation.invoice_item_id],
-    );
-    allocation.invoice_id = targetInvoiceId;
-  }
-
-  for (const invoiceId of previousInvoiceIds) {
-    if (invoiceId === targetInvoiceId) {
-      continue;
-    }
-
-    const remainingItems = await client.query(
-      `
-        SELECT 1
-        FROM finance.invoice_item
-        WHERE invoice_id = $1
-        LIMIT 1
-      `,
-      [invoiceId],
-    );
-
-    if (remainingItems.rowCount === 0) {
-      await client.query(`DELETE FROM finance.invoice WHERE id = $1`, [invoiceId]);
-    } else {
-      await upsertInvoiceStatus(client, invoiceId);
-    }
-  }
-
-  await syncInvoiceMetadata(client, {
-    invoiceId: targetInvoiceId,
-    homebaseId,
-    studentId,
-    periodeId,
-  });
-
-  return allocations;
 };
 
 router.get(
@@ -1556,14 +1439,6 @@ router.post(
         billMonths,
         otherPayments,
       });
-      allocations = await consolidateAllocationsToSingleInvoice({
-        client,
-        homebaseId,
-        studentId,
-        periodeId,
-        userId,
-        allocations,
-      });
     } catch (error) {
       return res.status(400).json({ message: error.message });
     }
@@ -1696,6 +1571,15 @@ router.put(
       }
     }
 
+    const nextStatus =
+      action === "approve"
+        ? "confirmed"
+        : action === "reject"
+          ? "rejected"
+          : "pending";
+    const nextVerifiedBy = nextStatus === "confirmed" ? req.user.id : null;
+    const shouldResetVerification = nextStatus === "pending";
+
     await client.query(
       `
         UPDATE finance.payment
@@ -1703,28 +1587,18 @@ router.put(
           status = $1,
           notes = COALESCE($2, notes),
           verified_by = CASE
-            WHEN $1 = 'confirmed' THEN $3
-            WHEN $1 = 'pending' THEN NULL
-            ELSE verified_by
+            WHEN $4 THEN NULL
+            ELSE COALESCE($3, verified_by)
           END,
           verified_at = CASE
-            WHEN $1 = 'confirmed' THEN CURRENT_TIMESTAMP
-            WHEN $1 = 'pending' THEN NULL
+            WHEN $4 THEN NULL
+            WHEN $3 IS NOT NULL THEN CURRENT_TIMESTAMP
             ELSE verified_at
           END,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $4
+        WHERE id = $5
       `,
-      [
-        action === "approve"
-          ? "confirmed"
-          : action === "reject"
-            ? "rejected"
-            : "pending",
-        notes,
-        req.user.id,
-        paymentId,
-      ],
+      [nextStatus, notes, nextVerifiedBy, shouldResetVerification, paymentId],
     );
 
     const invoiceIds = [
@@ -1853,14 +1727,6 @@ router.put(
         billMonths,
         otherPayments,
         excludePaymentId: transactionId,
-      });
-      allocations = await consolidateAllocationsToSingleInvoice({
-        client,
-        homebaseId,
-        studentId,
-        periodeId,
-        userId,
-        allocations,
       });
     } catch (error) {
       return res.status(400).json({ message: error.message });

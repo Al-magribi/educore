@@ -15,13 +15,14 @@ import {
   Table,
   Tag,
   Typography,
+  message,
 } from "antd";
 import { motion } from "framer-motion";
 import {
   BadgeCheck,
-  CalendarClock,
   CreditCard,
   FileSignature,
+  Printer,
   ReceiptText,
   WalletCards,
 } from "lucide-react";
@@ -71,6 +72,26 @@ const summaryCardStyle = {
   boxShadow: "0 18px 34px rgba(15,23,42,0.06)",
 };
 
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const toAbsoluteUrl = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value, window.location.origin).toString();
+  } catch (error) {
+    return value;
+  }
+};
+
 const ParentInvoiceModal = ({
   open,
   invoiceId,
@@ -85,6 +106,295 @@ const ParentInvoiceModal = ({
   const items = invoiceData?.items || [];
   const payments = invoiceData?.payments || [];
   const statusMeta = statusMetaMap[invoice?.status] || statusMetaMap.unpaid;
+
+  const handlePrint = () => {
+    if (!invoice) {
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=1024,height=768");
+
+    if (!printWindow) {
+      message.error("Popup cetak diblokir browser. Izinkan popup lalu coba lagi.");
+      return;
+    }
+
+    const officerSignatureUrl = toAbsoluteUrl(officer?.signature_url);
+    const itemRows = items.length
+      ? items
+          .map(
+            (item, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>
+                  <div class="item-title">${escapeHtml(item.description || "-")}</div>
+                  <div class="item-subtitle">${escapeHtml(
+                    item.billing_period_label || item.component_name || "-",
+                  )}</div>
+                </td>
+                <td>${escapeHtml(currencyFormatter.format(Number(item.amount_due || 0)))}</td>
+                <td>${escapeHtml(currencyFormatter.format(Number(item.paid_amount || 0)))}</td>
+                <td>${escapeHtml(currencyFormatter.format(Number(item.remaining_amount || 0)))}</td>
+                <td>${escapeHtml(
+                  (statusMetaMap[item.status] || statusMetaMap.unpaid).label,
+                )}</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `
+          <tr>
+            <td colspan="6" class="empty">Belum ada item pembayaran pada invoice ini.</td>
+          </tr>
+        `;
+
+    const paymentRows = payments.length
+      ? payments
+          .map(
+            (payment, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${escapeHtml(dateFormatter(payment.payment_date, true))}</td>
+                <td>${escapeHtml(payment.payment_channel || "-")}</td>
+                <td>${escapeHtml(currencyFormatter.format(Number(payment.allocated_amount || 0)))}</td>
+                <td>${escapeHtml(
+                  (statusMetaMap[payment.status] || statusMetaMap.unpaid).label,
+                )}</td>
+                <td>${escapeHtml(payment.reference_no || "-")}</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `
+          <tr>
+            <td colspan="6" class="empty">Belum ada pembayaran yang masuk.</td>
+          </tr>
+        `;
+
+    const printableHtml = `
+      <!DOCTYPE html>
+      <html lang="id">
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(invoice.invoice_no || "Invoice")}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 32px;
+              font-family: Arial, sans-serif;
+              color: #0f172a;
+              background: #fff;
+            }
+            .page {
+              max-width: 980px;
+              margin: 0 auto;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              gap: 24px;
+              padding-bottom: 24px;
+              border-bottom: 2px solid #0f766e;
+            }
+            .title {
+              margin: 0 0 8px;
+              font-size: 28px;
+              line-height: 1.1;
+            }
+            .subtitle {
+              margin: 0;
+              color: #475569;
+              line-height: 1.6;
+            }
+            .pill {
+              display: inline-block;
+              margin-right: 8px;
+              margin-bottom: 8px;
+              padding: 6px 12px;
+              border-radius: 999px;
+              font-size: 12px;
+              font-weight: 700;
+              background: #e2e8f0;
+            }
+            .meta-grid, .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 12px 18px;
+              margin-top: 24px;
+            }
+            .summary-grid {
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .panel {
+              border: 1px solid #cbd5e1;
+              border-radius: 16px;
+              padding: 16px;
+              background: #fff;
+            }
+            .label {
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+              color: #64748b;
+              margin-bottom: 6px;
+            }
+            .value {
+              font-size: 16px;
+              font-weight: 700;
+            }
+            .section {
+              margin-top: 24px;
+            }
+            .section h2 {
+              margin: 0 0 12px;
+              font-size: 18px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            th, td {
+              border: 1px solid #cbd5e1;
+              padding: 10px 12px;
+              text-align: left;
+              vertical-align: top;
+              font-size: 13px;
+            }
+            th {
+              background: #f8fafc;
+            }
+            .item-title {
+              font-weight: 700;
+              margin-bottom: 4px;
+            }
+            .item-subtitle {
+              color: #64748b;
+              font-size: 12px;
+            }
+            .empty {
+              text-align: center;
+              color: #64748b;
+            }
+            .signature {
+              margin-top: 32px;
+              display: flex;
+              justify-content: flex-end;
+            }
+            .signature-card {
+              width: 280px;
+              text-align: center;
+            }
+            .signature-image {
+              max-width: 180px;
+              max-height: 96px;
+              object-fit: contain;
+              display: block;
+              margin: 12px auto;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+              .page {
+                max-width: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="header">
+              <div>
+                <div class="pill">Invoice Pembayaran</div>
+                <div class="pill">${escapeHtml(statusMeta.label)}</div>
+                <h1 class="title">Invoice ${escapeHtml(invoice.student_name || "-")}</h1>
+                <p class="subtitle">
+                  No. Invoice: ${escapeHtml(invoice.invoice_no || "-")}<br />
+                  Tanggal Invoice: ${escapeHtml(dateFormatter(invoice.issue_date))}<br />
+                  Periode: ${escapeHtml(invoice.periode_name || "-")}
+                </p>
+              </div>
+              <div>
+                <div class="label">Satuan</div>
+                <div class="value">${escapeHtml(invoice.homebase_name || "-")}</div>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div class="panel"><div class="label">Nama Siswa</div><div class="value">${escapeHtml(invoice.student_name || "-")}</div></div>
+              <div class="panel"><div class="label">NIS</div><div class="value">${escapeHtml(invoice.nis || "-")}</div></div>
+              <div class="panel"><div class="label">Kelas</div><div class="value">${escapeHtml(
+                `${invoice.grade_name || "-"} ${invoice.class_name || ""}`.trim(),
+              )}</div></div>
+              <div class="panel"><div class="label">Status Invoice</div><div class="value">${escapeHtml(statusMeta.label)}</div></div>
+            </div>
+
+            <div class="summary-grid">
+              <div class="panel"><div class="label">Total Tagihan</div><div class="value">${escapeHtml(currencyFormatter.format(Number(invoice.total_due || 0)))}</div></div>
+              <div class="panel"><div class="label">Sudah Dibayar</div><div class="value">${escapeHtml(currencyFormatter.format(Number(invoice.total_paid || 0)))}</div></div>
+              <div class="panel"><div class="label">Sisa Tagihan</div><div class="value">${escapeHtml(currencyFormatter.format(Number(invoice.total_remaining || 0)))}</div></div>
+            </div>
+
+            <div class="section">
+              <h2>Rincian Item</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th>Item</th>
+                    <th>Nominal</th>
+                    <th>Dibayar</th>
+                    <th>Sisa</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>${itemRows}</tbody>
+              </table>
+            </div>
+
+            <div class="section">
+              <h2>Riwayat Pembayaran</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th>Tanggal</th>
+                    <th>Kanal</th>
+                    <th>Alokasi</th>
+                    <th>Status</th>
+                    <th>Referensi</th>
+                  </tr>
+                </thead>
+                <tbody>${paymentRows}</tbody>
+              </table>
+            </div>
+
+            <div class="signature">
+              <div class="signature-card">
+                <div class="label">Petugas Keuangan</div>
+                ${
+                  officerSignatureUrl
+                    ? `<img class="signature-image" src="${escapeHtml(officerSignatureUrl)}" alt="Tanda tangan petugas" />`
+                    : `<div class="item-subtitle">Tanda tangan belum diunggah</div>`
+                }
+                <div class="value">${escapeHtml(officer?.name || "-")}</div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(printableHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
 
   const summaryItems = [
     {
@@ -133,7 +443,9 @@ const ParentInvoiceModal = ({
           borderRadius: 30,
         },
       }}
-      modalRender={(node) => <MotionDiv {...modalMotionProps}>{node}</MotionDiv>}
+      modalRender={(node) => (
+        <MotionDiv {...modalMotionProps}>{node}</MotionDiv>
+      )}
     >
       {loading ? (
         <div style={{ padding: "56px 0", textAlign: "center" }}>
@@ -230,47 +542,17 @@ const ParentInvoiceModal = ({
                   </Paragraph>
                 </Space>
 
-                <Card
-                  variant='borderless'
+                <Button
+                  size='large'
+                  icon={<Printer size={16} />}
+                  onClick={handlePrint}
                   style={{
-                    width: 320,
-                    maxWidth: "100%",
-                    borderRadius: 24,
-                    background: "rgba(255,255,255,0.14)",
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    backdropFilter: "blur(10px)",
+                    borderRadius: 999,
+                    fontWeight: 700,
                   }}
-                  styles={{ body: { padding: 22 } }}
                 >
-                  <Space direction='vertical' size={12} style={{ width: "100%" }}>
-                    <Flex align='center' gap={8}>
-                      <CalendarClock size={16} color='#bfdbfe' />
-                      <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                        Ringkasan invoice
-                      </Text>
-                    </Flex>
-                    <Title level={4} style={{ margin: 0, color: "#fff" }}>
-                      {currencyFormatter.format(Number(invoice.total_due || 0))}
-                    </Title>
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                      Tanggal invoice: {dateFormatter(invoice.issue_date)}
-                    </Text>
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                      Periode: {invoice.periode_name || "-"}
-                    </Text>
-                    <div
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 18,
-                        background: "rgba(15,23,42,0.16)",
-                        color: "#e2e8f0",
-                      }}
-                    >
-                      {items.length} item pembayaran dan {payments.length} histori
-                      transaksi terhubung ke invoice ini.
-                    </div>
-                  </Space>
-                </Card>
+                  Print Invoice
+                </Button>
               </Flex>
             </Card>
           </MotionDiv>
@@ -279,7 +561,9 @@ const ParentInvoiceModal = ({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
                 gap: 16,
               }}
             >
@@ -305,7 +589,10 @@ const ParentInvoiceModal = ({
                     {item.icon}
                   </div>
                   <Text type='secondary'>{item.label}</Text>
-                  <Title level={isMobile ? 5 : 4} style={{ margin: "8px 0 4px" }}>
+                  <Title
+                    level={isMobile ? 5 : 4}
+                    style={{ margin: "8px 0 4px" }}
+                  >
                     {item.value}
                   </Title>
                   <Text type='secondary' style={{ fontSize: 12 }}>
@@ -375,7 +662,9 @@ const ParentInvoiceModal = ({
                 dataSource={items}
                 pagination={false}
                 scroll={{ x: 720 }}
-                locale={{ emptyText: "Belum ada item pembayaran pada invoice ini." }}
+                locale={{
+                  emptyText: "Belum ada item pembayaran pada invoice ini.",
+                }}
                 columns={[
                   {
                     title: "Item",
@@ -500,7 +789,9 @@ const ParentInvoiceModal = ({
                     render: (value, record) => {
                       if (value) {
                         return (
-                          <Text style={{ whiteSpace: "pre-wrap" }}>{value}</Text>
+                          <Text style={{ whiteSpace: "pre-wrap" }}>
+                            {value}
+                          </Text>
                         );
                       }
 
@@ -554,7 +845,8 @@ const ParentInvoiceModal = ({
                           borderRadius: 14,
                           display: "grid",
                           placeItems: "center",
-                          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
+                          background:
+                            "linear-gradient(135deg, #dbeafe, #dcfce7)",
                           color: "#0f766e",
                         }}
                       >
@@ -563,7 +855,8 @@ const ParentInvoiceModal = ({
                       <div>
                         <div style={{ fontWeight: 700 }}>Petugas Keuangan</div>
                         <Text type='secondary'>
-                          Nama dan tanda tangan resmi yang tercantum pada invoice.
+                          Nama dan tanda tangan resmi yang tercantum pada
+                          invoice.
                         </Text>
                       </div>
                     </Space>
@@ -622,7 +915,11 @@ const ParentInvoiceModal = ({
                         "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
                     }}
                   >
-                    <Space direction='vertical' size={10} style={{ width: "100%" }}>
+                    <Space
+                      direction='vertical'
+                      size={10}
+                      style={{ width: "100%" }}
+                    >
                       <Text type='secondary'>Catatan Invoice</Text>
                       <Title level={5} style={{ margin: 0 }}>
                         Dokumen pembayaran resmi

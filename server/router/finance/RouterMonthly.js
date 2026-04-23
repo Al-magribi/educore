@@ -18,6 +18,7 @@ import {
 } from "./financeHelpers.js";
 
 const router = Router();
+const SUCCESS_PAYMENT_STATUSES = ["confirmed", "paid"];
 
 const detectManualMethod = (paymentMethod, bankAccountId) => {
   if (bankAccountId) {
@@ -80,7 +81,15 @@ const getOrCreateSppInvoiceItem = async ({
         ii.id,
         ii.invoice_id,
         ii.amount,
-        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+        COALESCE(
+          SUM(
+            CASE
+              WHEN p.status = ANY($4::text[]) THEN pa.allocated_amount
+              ELSE 0
+            END
+          ),
+          0
+        ) AS paid_amount
       FROM finance.invoice_item ii
       LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
       LEFT JOIN finance.payment p ON p.id = pa.payment_id
@@ -91,7 +100,7 @@ const getOrCreateSppInvoiceItem = async ({
       GROUP BY ii.id
       LIMIT 1
     `,
-    [invoice.id, rule.id, billMonth],
+    [invoice.id, rule.id, billMonth, SUCCESS_PAYMENT_STATUSES],
   );
 
   if (existingItem.rowCount > 0) {
@@ -566,7 +575,15 @@ router.get(
             ii.id AS invoice_item_id,
             ii.bill_month,
             ii.amount,
-            COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN p.status = ANY($${scope.params.length + 1}::text[]) THEN pa.allocated_amount
+                  ELSE 0
+                END
+              ),
+              0
+            ) AS paid_amount
           FROM finance.invoice inv
           JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
@@ -626,14 +643,14 @@ router.get(
         LEFT JOIN item_scope item
           ON item.student_id = s.user_id
           AND item.periode_id = e.periode_id
-          AND item.bill_month = $${scope.params.length + 1}
+          AND item.bill_month = $${scope.params.length + 2}
         LEFT JOIN paid_history ph
           ON ph.student_id = s.user_id
           AND ph.periode_id = e.periode_id
         ${scope.whereClause}
         ORDER BY g.name ASC, c.name ASC, u.full_name ASC
       `,
-      [...scope.params, billMonth],
+      [...scope.params, SUCCESS_PAYMENT_STATUSES, billMonth],
     );
 
     const data = result.rows.map((item) => {
@@ -672,6 +689,7 @@ router.get(
       summary: {
         total_records: data.length,
         total_amount: data.reduce((sum, item) => sum + item.amount, 0),
+        paid_amount: data.reduce((sum, item) => sum + item.paid_amount, 0),
         paid_count: data.filter((item) => item.status === "paid").length,
         partial_count: data.filter((item) => item.status === "partial").length,
         unpaid_count: data.filter((item) => item.status === "unpaid").length,
@@ -861,9 +879,9 @@ router.put(
           FROM finance.payment_allocation pa
           JOIN finance.payment p ON p.id = pa.payment_id
           WHERE pa.invoice_item_id = $1
-            AND p.status = 'paid'
+            AND p.status = ANY($2::text[])
         `,
-        [item.id],
+        [item.id, SUCCESS_PAYMENT_STATUSES],
       );
 
       const outstanding =

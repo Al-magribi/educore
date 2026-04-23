@@ -794,25 +794,35 @@ export const getPaymentMethodId = async (
 
 export const getOrCreateInvoice = async (
   client,
-  { homebaseId, studentId, periodeId, sourceType, createdBy, notes = null },
+  {
+    homebaseId,
+    studentId,
+    periodeId,
+    sourceType,
+    createdBy,
+    notes = null,
+    reuseExisting = true,
+  },
 ) => {
-  const invoiceResult = await client.query(
-    `
-      SELECT id, source_type
-      FROM finance.invoice
-      WHERE homebase_id = $1
-        AND student_id = $2
-        AND COALESCE(periode_id, 0) = COALESCE($3, 0)
-        AND status <> 'cancelled'
-        AND source_type = $4
-      ORDER BY created_at DESC, id DESC
-      LIMIT 1
-    `,
-    [homebaseId, studentId, periodeId, sourceType],
-  );
+  if (reuseExisting) {
+    const invoiceResult = await client.query(
+      `
+        SELECT id, source_type
+        FROM finance.invoice
+        WHERE homebase_id = $1
+          AND student_id = $2
+          AND COALESCE(periode_id, 0) = COALESCE($3, 0)
+          AND status <> 'cancelled'
+          AND source_type = $4
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+      `,
+      [homebaseId, studentId, periodeId, sourceType],
+    );
 
-  if (invoiceResult.rowCount > 0) {
-    return invoiceResult.rows[0];
+    if (invoiceResult.rowCount > 0) {
+      return invoiceResult.rows[0];
+    }
   }
 
   const invoiceNo = buildInvoiceNo({

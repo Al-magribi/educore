@@ -199,15 +199,6 @@ const getOrCreateSppInvoiceItem = async ({
   rule,
   createdBy,
 }) => {
-  const invoice = await getOrCreateInvoice(client, {
-    homebaseId,
-    studentId,
-    periodeId,
-    sourceType: "spp",
-    createdBy,
-    notes: "Invoice SPP",
-  });
-
   const existing = await client.query(
     `
       SELECT
@@ -215,22 +206,37 @@ const getOrCreateSppInvoiceItem = async ({
         ii.invoice_id,
         ii.amount,
         COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
-      FROM finance.invoice_item ii
+      FROM finance.invoice inv
+      JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
       LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
       LEFT JOIN finance.payment p ON p.id = pa.payment_id
-      WHERE ii.invoice_id = $1
+      WHERE inv.homebase_id = $1
+        AND inv.student_id = $2
+        AND COALESCE(inv.periode_id, 0) = COALESCE($3, 0)
+        AND inv.status <> 'cancelled'
         AND ii.item_type = 'spp'
-        AND ii.fee_rule_id = $2
-        AND ii.bill_month = $3
+        AND ii.fee_rule_id = $4
+        AND ii.bill_month = $5
       GROUP BY ii.id
+      ORDER BY inv.created_at DESC, ii.id DESC
       LIMIT 1
     `,
-    [invoice.id, rule.id, billMonth],
+    [homebaseId, studentId, periodeId, rule.id, billMonth],
   );
 
   if (existing.rowCount > 0) {
     return existing.rows[0];
   }
+
+  const invoice = await getOrCreateInvoice(client, {
+    homebaseId,
+    studentId,
+    periodeId,
+    sourceType: "spp",
+    createdBy,
+    notes: `Invoice SPP ${formatBillingPeriod(billMonth)}`,
+    reuseExisting: false,
+  });
 
   const created = await client.query(
     `
@@ -1610,6 +1616,7 @@ router.get(
     await ensureFinalFinanceTables(db);
 
     const invoiceId = parseOptionalInt(req.params.invoiceId);
+    const invoiceItemId = parseOptionalInt(req.query.invoice_item_id);
 
     if (!invoiceId) {
       return res.status(400).json({ message: "Invoice tidak valid" });
@@ -1686,6 +1693,32 @@ router.get(
       });
     }
 
+    if (invoiceItemId) {
+      const scopedItemResult = await db.query(
+        `
+          SELECT
+            ii.id,
+            ii.invoice_id,
+            ii.item_type,
+            ii.bill_month,
+            ii.description,
+            fc.name AS component_name
+          FROM finance.invoice_item ii
+          LEFT JOIN finance.fee_component fc ON fc.id = ii.component_id
+          WHERE ii.id = $1
+            AND ii.invoice_id = $2
+          LIMIT 1
+        `,
+        [invoiceItemId, invoiceId],
+      );
+
+      if (scopedItemResult.rowCount === 0) {
+        return res.status(404).json({
+          message: "Item invoice tidak ditemukan pada invoice yang dipilih",
+        });
+      }
+    }
+
     const [itemResult, paymentResult] = await Promise.all([
       db.query(
         `
@@ -1704,13 +1737,14 @@ router.get(
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
           LEFT JOIN finance.payment p ON p.id = pa.payment_id
           WHERE ii.invoice_id = $1
+            AND ($2::bigint IS NULL OR ii.id = $2)
           GROUP BY ii.id, fc.name
           ORDER BY
             CASE WHEN ii.item_type = 'spp' THEN 0 ELSE 1 END,
             ii.bill_month ASC NULLS LAST,
             ii.id ASC
         `,
-        [invoiceId],
+        [invoiceId, invoiceItemId],
       ),
       db.query(
         `
@@ -1728,10 +1762,11 @@ router.get(
           JOIN finance.payment_allocation pa ON pa.payment_id = p.id
           JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
           WHERE ii.invoice_id = $1
+            AND ($2::bigint IS NULL OR ii.id = $2)
           GROUP BY p.id
           ORDER BY p.payment_date DESC, p.id DESC
         `,
-        [invoiceId],
+        [invoiceId, invoiceItemId],
       ),
     ]);
 
@@ -1782,6 +1817,19 @@ router.get(
       (sum, item) => sum + toCurrencyNumber(item.paid_amount),
       0,
     );
+    const scopedStatus =
+      totalPaid >= totalDue && totalDue > 0
+        ? "paid"
+        : totalPaid > 0
+          ? "partial"
+          : "unpaid";
+    const scopeItem = items[0] || null;
+    const scopedNotes =
+      invoiceItemId && scopeItem
+        ? scopeItem.item_type === "spp" && scopeItem.bill_month
+          ? `Invoice SPP ${formatBillingPeriod(scopeItem.bill_month)}`
+          : scopeItem.description || invoice.notes
+        : invoice.notes;
 
     if (totalPaid <= 0) {
       return res.status(404).json({
@@ -1797,9 +1845,9 @@ router.get(
           invoice_no: invoice.invoice_no,
           issue_date: invoice.issue_date,
           due_date: invoice.due_date,
-          status: formatStatus(invoice.status),
+          status: scopedStatus,
           source_type: invoice.source_type,
-          notes: invoice.notes,
+          notes: scopedNotes,
           homebase_id: Number(invoice.homebase_id),
           homebase_name: invoice.homebase_name,
           periode_id: Number(invoice.periode_id || 0) || null,
@@ -1812,6 +1860,7 @@ router.get(
           total_due: totalDue,
           total_paid: totalPaid,
           total_remaining: Math.max(totalDue - totalPaid, 0),
+          invoice_item_id: invoiceItemId || null,
         },
         officer: {
           name: invoice.officer_name || null,

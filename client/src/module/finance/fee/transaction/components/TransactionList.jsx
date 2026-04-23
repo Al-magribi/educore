@@ -326,10 +326,15 @@ const TransactionList = ({
         return (
           <Dropdown
             trigger={["click"]}
+            disabled={isDeletingTransaction || isConfirmingTransaction}
             menu={{
               items: menuItems,
               onClick: ({ key, domEvent }) => {
                 domEvent?.stopPropagation?.();
+
+                if (isDeletingTransaction || isConfirmingTransaction) {
+                  return;
+                }
 
                 if (key === "invoice") {
                   onViewInvoice?.(primaryInvoice?.id, record);

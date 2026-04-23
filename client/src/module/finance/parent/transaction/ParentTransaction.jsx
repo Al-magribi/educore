@@ -66,7 +66,7 @@ const ParentTransaction = () => {
   const [selectedStudentId, setSelectedStudentId] = useState();
   const [selectedPeriodeId, setSelectedPeriodeId] = useState();
   const [activeTab, setActiveTab] = useState("spp");
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedPaymentItem, setSelectedPaymentItem] = useState(null);
 
   const {
@@ -94,9 +94,17 @@ const ParentTransaction = () => {
     useCreateParentTransactionPaymentMutation();
 
   const { data: invoiceResponse, isFetching: isFetchingInvoice } =
-    useGetParentTransactionInvoiceQuery(selectedInvoiceId, {
-      skip: !selectedInvoiceId,
-    });
+    useGetParentTransactionInvoiceQuery(
+      selectedInvoice
+        ? {
+            invoiceId: selectedInvoice.invoice_id,
+            invoiceItemId: selectedInvoice.invoice_item_id,
+          }
+        : undefined,
+      {
+        skip: !selectedInvoice?.invoice_id,
+      },
+    );
 
   const invoiceData = invoiceResponse?.data || null;
 
@@ -111,7 +119,7 @@ const ParentTransaction = () => {
           items={sppItems}
           emptyTitle='Belum ada tagihan SPP pada periode ini.'
           paymentEnabled={paymentSetup.mode !== "unavailable"}
-          onOpenInvoice={setSelectedInvoiceId}
+          onOpenInvoice={setSelectedInvoice}
           onPay={(item) =>
             setSelectedPaymentItem({
               ...item,
@@ -131,7 +139,7 @@ const ParentTransaction = () => {
           items={otherItems}
           emptyTitle='Belum ada pembayaran lainnya pada periode ini.'
           paymentEnabled={paymentSetup.mode !== "unavailable"}
-          onOpenInvoice={setSelectedInvoiceId}
+          onOpenInvoice={setSelectedInvoice}
           onPay={(item) =>
             setSelectedPaymentItem({
               ...item,
@@ -318,11 +326,11 @@ const ParentTransaction = () => {
       </MotionDiv>
 
       <ParentInvoiceModal
-        open={Boolean(selectedInvoiceId)}
-        invoiceId={selectedInvoiceId}
+        open={Boolean(selectedInvoice)}
+        invoiceId={selectedInvoice?.invoice_id || null}
         invoiceData={invoiceData}
         loading={isFetchingInvoice}
-        onClose={() => setSelectedInvoiceId(null)}
+        onClose={() => setSelectedInvoice(null)}
       />
 
       <ParentPaymentCheckoutModal
