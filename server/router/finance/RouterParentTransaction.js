@@ -1581,16 +1581,19 @@ router.post(
       `
         UPDATE finance.payment
         SET
-          status = $1,
+          status = $1::varchar,
           reference_no = $2,
           payment_channel = COALESCE($3, payment_channel),
           notes = CASE
-            WHEN $1 = 'confirmed' THEN 'Pembayaran terverifikasi melalui Midtrans'
-            WHEN $1 = 'pending' THEN 'Menunggu verifikasi Midtrans'
-            WHEN $1 IN ('expired', 'cancelled', 'rejected', 'refunded') THEN 'Status transaksi diperbarui dari Midtrans'
+            WHEN $1::varchar = 'confirmed' THEN 'Pembayaran terverifikasi melalui Midtrans'
+            WHEN $1::varchar = 'pending' THEN 'Menunggu verifikasi Midtrans'
+            WHEN $1::varchar IN ('expired', 'cancelled', 'rejected', 'refunded') THEN 'Status transaksi diperbarui dari Midtrans'
             ELSE notes
           END,
-          verified_at = CASE WHEN $1 = 'confirmed' THEN CURRENT_TIMESTAMP ELSE verified_at END,
+          verified_at = CASE
+            WHEN $1::varchar = 'confirmed' THEN CURRENT_TIMESTAMP
+            ELSE verified_at
+          END,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $4
       `,
