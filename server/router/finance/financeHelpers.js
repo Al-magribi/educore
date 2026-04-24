@@ -13,6 +13,9 @@ export const MONTH_NAMES = [
   "Desember",
 ];
 
+let financeSchemaReady = false;
+let financeSchemaReadyPromise = null;
+
 export const parseOptionalInt = (value) => {
   if (value === undefined || value === null || value === "") {
     return null;
@@ -217,7 +220,7 @@ export const ensureStudentScope = async (
   return studentResult.rows[0];
 };
 
-export const ensureFinalFinanceTables = async (db) => {
+const runEnsureFinalFinanceTables = async (db) => {
   await db.query(`
     CREATE TABLE IF NOT EXISTS public.u_parent_students (
       id SERIAL PRIMARY KEY,
@@ -634,6 +637,25 @@ export const ensureFinalFinanceTables = async (db) => {
     ALTER TABLE finance.finance_setting
     ADD COLUMN IF NOT EXISTS officer_signature_url TEXT
   `);
+};
+
+export const ensureFinalFinanceTables = async (db) => {
+  if (financeSchemaReady) {
+    return;
+  }
+
+  if (!financeSchemaReadyPromise) {
+    financeSchemaReadyPromise = runEnsureFinalFinanceTables(db)
+      .then(() => {
+        financeSchemaReady = true;
+      })
+      .catch((error) => {
+        financeSchemaReadyPromise = null;
+        throw error;
+      });
+  }
+
+  await financeSchemaReadyPromise;
 };
 
 export const getOrCreateComponent = async (

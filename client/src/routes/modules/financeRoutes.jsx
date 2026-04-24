@@ -41,7 +41,7 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         element={
           <RouteProtection
             allowedRoles={["admin"]}
-            allowedLevels={["finance", "keuangan"]}
+            allowedLevels={["finance", "keuangan", "satuan"]}
           />
         }
       >

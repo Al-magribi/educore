@@ -74,6 +74,8 @@ const FinanceFeaturePage = ({
   notes = [],
   columns,
   dataSource,
+  children = null,
+  showDataTable = true,
 }) => {
   const navigate = useNavigate();
   const hasSidebar = actions.length > 0 || notes.length > 0;
@@ -229,91 +231,95 @@ const FinanceFeaturePage = ({
           ))}
         </Row>
 
-        <Row gutter={[16, 16]}>
-          <Col xs={24} xl={hasSidebar ? 16 : 24}>
-            <MotionDiv variants={itemVariants}>
-              <Card
-                title='Data Ringkas'
-                extra={
-                  <Tag
-                    color='geekblue'
-                    style={{ borderRadius: 999, fontWeight: 600 }}
-                  >
-                    {dataSource.length} item
-                  </Tag>
-                }
-                style={cardStyle}
-                bodyStyle={{ padding: 0 }}
-              >
-                <Table
-                  columns={columns}
-                  dataSource={dataSource}
-                  pagination={false}
-                  scroll={{ x: 720 }}
-                />
-              </Card>
-            </MotionDiv>
-          </Col>
+        {children ? <MotionDiv variants={itemVariants}>{children}</MotionDiv> : null}
 
-          {hasSidebar ? (
-            <Col xs={24} xl={8}>
-              <Space vertical size={16} style={{ width: "100%" }}>
-                {actions.length > 0 ? (
-                  <MotionDiv variants={itemVariants}>
-                    <Card title='Aksi Cepat' style={cardStyle}>
-                      <Space vertical size={12} style={{ width: "100%" }}>
-                        {actions.map((action) => (
-                          <Button
-                            key={action.label}
-                            type={action.type || "default"}
-                            icon={action.icon || <ArrowRightOutlined />}
-                            onClick={() => navigate(action.to)}
-                            block
-                          >
-                            {action.label}
-                          </Button>
-                        ))}
-                      </Space>
-                    </Card>
-                  </MotionDiv>
-                ) : null}
-
-                {notes.length > 0 ? (
-                  <MotionDiv variants={itemVariants}>
-                    <Card title='Catatan Operasional' style={cardStyle}>
-                      <List
-                        dataSource={notes}
-                        renderItem={(item) => (
-                          <List.Item style={{ paddingInline: 0 }}>
-                            <Flex align='flex-start' gap={12}>
-                              {item.type === "document" ? (
-                                <FileTextOutlined
-                                  style={{ color: "#2563eb", marginTop: 4 }}
-                                />
-                              ) : (
-                                <CheckCircleOutlined
-                                  style={{ color: "#16a34a", marginTop: 4 }}
-                                />
-                              )}
-                              <div>
-                                <Text strong>{item.title}</Text>
-                                <div>
-                                  <Text type='secondary'>
-                                    {item.description}
-                                  </Text>
-                                </div>
-                              </div>
-                            </Flex>
-                          </List.Item>
-                        )}
-                      />
-                    </Card>
-                  </MotionDiv>
-                ) : null}
-              </Space>
+        {showDataTable ? (
+          <Row gutter={[16, 16]}>
+            <Col xs={24} xl={hasSidebar ? 16 : 24}>
+              <MotionDiv variants={itemVariants}>
+                <Card
+                  title='Data Ringkas'
+                  extra={
+                    <Tag
+                      color='geekblue'
+                      style={{ borderRadius: 999, fontWeight: 600 }}
+                    >
+                      {dataSource.length} item
+                    </Tag>
+                  }
+                  style={cardStyle}
+                  bodyStyle={{ padding: 0 }}
+                >
+                  <Table
+                    columns={columns}
+                    dataSource={dataSource}
+                    pagination={false}
+                    scroll={{ x: 720 }}
+                  />
+                </Card>
+              </MotionDiv>
             </Col>
-          ) : null}
-        </Row>
+
+            {hasSidebar ? (
+              <Col xs={24} xl={8}>
+                <Space vertical size={16} style={{ width: "100%" }}>
+                  {actions.length > 0 ? (
+                    <MotionDiv variants={itemVariants}>
+                      <Card title='Aksi Cepat' style={cardStyle}>
+                        <Space vertical size={12} style={{ width: "100%" }}>
+                          {actions.map((action) => (
+                            <Button
+                              key={action.label}
+                              type={action.type || "default"}
+                              icon={action.icon || <ArrowRightOutlined />}
+                              onClick={() => navigate(action.to)}
+                              block
+                            >
+                              {action.label}
+                            </Button>
+                          ))}
+                        </Space>
+                      </Card>
+                    </MotionDiv>
+                  ) : null}
+
+                  {notes.length > 0 ? (
+                    <MotionDiv variants={itemVariants}>
+                      <Card title='Catatan Operasional' style={cardStyle}>
+                        <List
+                          dataSource={notes}
+                          renderItem={(item) => (
+                            <List.Item style={{ paddingInline: 0 }}>
+                              <Flex align='flex-start' gap={12}>
+                                {item.type === "document" ? (
+                                  <FileTextOutlined
+                                    style={{ color: "#2563eb", marginTop: 4 }}
+                                  />
+                                ) : (
+                                  <CheckCircleOutlined
+                                    style={{ color: "#16a34a", marginTop: 4 }}
+                                  />
+                                )}
+                                <div>
+                                  <Text strong>{item.title}</Text>
+                                  <div>
+                                    <Text type='secondary'>
+                                      {item.description}
+                                    </Text>
+                                  </div>
+                                </div>
+                              </Flex>
+                            </List.Item>
+                          )}
+                        />
+                      </Card>
+                    </MotionDiv>
+                  ) : null}
+                </Space>
+              </Col>
+            ) : null}
+          </Row>
+        ) : null}
       </Space>
     </MotionDiv>
   );

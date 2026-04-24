@@ -1,13 +1,22 @@
-import { Button, Card, Input, Popconfirm, Select, Space, Table, Tag, Typography } from "antd";
-
 import {
-  cardStyle,
-  currencyFormatter,
-  formatDateTime,
-  transactionTypeLabel,
-} from "../constants";
+  Button,
+  Card,
+  Dropdown,
+  Input,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import { EllipsisOutlined } from "@ant-design/icons";
+import { motion } from "framer-motion";
+import { SquarePen, Trash } from "lucide-react";
 
-const { Text } = Typography;
+import { cardStyle, currencyFormatter, formatDateTime } from "../constants";
+
+const { Text, Title } = Typography;
+const MotionDiv = motion.div;
 
 const StudentContributionTransactionsTab = ({
   access,
@@ -22,6 +31,8 @@ const StudentContributionTransactionsTab = ({
   onEdit,
   onDelete,
 }) => {
+  const isIncomeTab = variant === "income";
+
   const columns = [
     {
       title: "Tanggal",
@@ -29,22 +40,13 @@ const StudentContributionTransactionsTab = ({
       key: "transaction_date",
       render: (value) => formatDateTime(value),
     },
-    {
-      title: "Jenis",
-      dataIndex: "transaction_type",
-      key: "transaction_type",
-      render: (value) => (
-        <Tag color={value === "expense" ? "red" : "green"}>
-          {transactionTypeLabel(value)}
-        </Tag>
-      ),
-    },
+
     {
       title: "Siswa",
       key: "student",
       render: (_, record) =>
         record.student_name ? (
-          <Space direction='vertical' size={0}>
+          <Space orientation='vertical' size={0}>
             <Text strong>{record.student_name}</Text>
             <Text type='secondary'>{record.nis || "-"}</Text>
           </Space>
@@ -52,12 +54,7 @@ const StudentContributionTransactionsTab = ({
           <Text type='secondary'>Pengeluaran umum</Text>
         ),
     },
-    {
-      title: "Keterangan",
-      dataIndex: "description",
-      key: "description",
-      ellipsis: true,
-    },
+
     {
       title: "Input Oleh",
       dataIndex: "processed_by_name",
@@ -72,8 +69,9 @@ const StudentContributionTransactionsTab = ({
       render: (value, record) => (
         <Text
           style={{
-            color: record.transaction_type === "expense" ? "#dc2626" : "#15803d",
-            fontWeight: 600,
+            color:
+              record.transaction_type === "expense" ? "#dc2626" : "#15803d",
+            fontWeight: 700,
           }}
         >
           {record.transaction_type === "expense" ? "-" : "+"}
@@ -83,42 +81,107 @@ const StudentContributionTransactionsTab = ({
     },
   ];
 
-  const isIncomeTab = variant === "income";
-
   if (access?.is_officer) {
     columns.push({
       title: "Aksi",
       key: "action",
-      render: (_, record) => (
-        <Space>
-          <Button type='link' onClick={() => onEdit(record)}>
-            Edit
-          </Button>
-          <Popconfirm
-            title='Hapus transaksi ini?'
-            onConfirm={() => onDelete(record)}
-            okButtonProps={{
-              loading: deletingTransactionId === record.transaction_id,
+      align: "center",
+      render: (_, record) => {
+        const menuItems = [
+          {
+            key: "edit",
+            label: "Edit transaksi",
+            icon: <SquarePen size={14} />,
+          },
+          {
+            key: "delete",
+            label: "Hapus transaksi",
+            icon: <Trash size={14} />,
+            danger: true,
+          },
+        ];
+
+        return (
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: menuItems,
+              onClick: ({ key }) => {
+                if (key === "edit") {
+                  onEdit(record);
+                }
+
+                if (key === "delete") {
+                  onDelete(record);
+                }
+              },
             }}
           >
-            <Button type='link' danger>
-              Hapus
+            <Button
+              icon={<EllipsisOutlined />}
+              loading={deletingTransactionId === record.transaction_id}
+              style={{ borderRadius: 999 }}
+            >
+              Aksi
             </Button>
-          </Popconfirm>
-        </Space>
-      ),
+          </Dropdown>
+        );
+      },
     });
   }
 
   return (
-    <Card style={cardStyle}>
-      <Space direction='vertical' size={16} style={{ width: "100%" }}>
-        <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
-          <Space wrap>
+    <MotionDiv
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+    >
+      <Card
+        variant='borderless'
+        style={cardStyle}
+        styles={{ body: { padding: 18 } }}
+      >
+        <Space orientation='vertical' size={16} style={{ width: "100%" }}>
+          <Space
+            wrap
+            size={[14, 14]}
+            style={{ width: "100%", justifyContent: "space-between" }}
+          >
+            <Space orientation='vertical' size={4}>
+              <Title level={5} style={{ margin: 0 }}>
+                {isIncomeTab
+                  ? "Daftar Pemasukan Kas"
+                  : "Daftar Pengeluaran Kas"}
+              </Title>
+              <Text type='secondary'>
+                {isIncomeTab
+                  ? "Pantau pembayaran siswa dan cari transaksi berdasarkan siswa pembayar."
+                  : "Pantau pengeluaran kas kelas berdasarkan kebutuhan dan riwayat pencatatan."}
+              </Text>
+            </Space>
+
+            {access?.is_officer ? (
+              <Button
+                type='primary'
+                onClick={() =>
+                  onCreate(null, isIncomeTab ? "income" : "expense")
+                }
+                style={{ borderRadius: 999, fontWeight: 600 }}
+              >
+                {isIncomeTab ? "Catat Pembayaran" : "Catat Pengeluaran"}
+              </Button>
+            ) : null}
+          </Space>
+
+          <Space wrap size={[12, 12]} style={{ width: "100%" }}>
             <Input.Search
-              placeholder={isIncomeTab ? "Cari siswa pembayar" : "Cari keperluan pengeluaran"}
+              placeholder={
+                isIncomeTab
+                  ? "Cari siswa pembayar"
+                  : "Cari keperluan pengeluaran"
+              }
               allowClear
-              style={{ width: 280 }}
+              style={{ width: 280, maxWidth: "100%" }}
               onSearch={(value) =>
                 setFilters((previous) => ({
                   ...previous,
@@ -129,10 +192,10 @@ const StudentContributionTransactionsTab = ({
             {isIncomeTab ? (
               <Select
                 allowClear
-                showSearch
-                optionFilterProp='label'
+                showSearch={{ optionFilterProp: "label" }}
+                virtual={false}
                 placeholder='Filter siswa'
-                style={{ width: 280 }}
+                style={{ width: 280, maxWidth: "100%" }}
                 value={filters.student_id}
                 options={selectableStudents.map((item) => ({
                   value: item.student_id,
@@ -148,26 +211,16 @@ const StudentContributionTransactionsTab = ({
             ) : null}
           </Space>
 
-          {access?.is_officer ? (
-            <Button
-              type='primary'
-              onClick={() => onCreate(null, isIncomeTab ? "income" : "expense")}
-            >
-              {isIncomeTab ? "Catat Pembayaran" : "Catat Pengeluaran"}
-            </Button>
-          ) : null}
+          <Table
+            rowKey='transaction_id'
+            columns={columns}
+            dataSource={transactions}
+            loading={loading}
+            pagination={{ pageSize: 10 }}
+          />
         </Space>
-
-        <Table
-          rowKey='transaction_id'
-          columns={columns}
-          dataSource={transactions}
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 1100 }}
-        />
-      </Space>
-    </Card>
+      </Card>
+    </MotionDiv>
   );
 };
 

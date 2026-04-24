@@ -1,8 +1,10 @@
 import { Card, Col, Row, Table, Tag, Typography } from "antd";
+import { motion } from "framer-motion";
 
 import { cardStyle, currencyFormatter, formatDateTime } from "../constants";
 
-const { Paragraph, Text } = Typography;
+const { Paragraph, Text, Title } = Typography;
+const MotionDiv = motion.div;
 
 const StudentContributionSummaryTab = ({
   summary,
@@ -23,7 +25,7 @@ const StudentContributionSummaryTab = ({
         <>
           <Text strong>{record.student_name || "-"}</Text>
           <br />
-          <Text type='secondary'>{record.nis || "-"}</Text>
+          <Text type="secondary">{record.nis || "-"}</Text>
         </>
       ),
     },
@@ -68,51 +70,84 @@ const StudentContributionSummaryTab = ({
   return (
     <Row gutter={[16, 16]}>
       <Col xs={24} xl={8}>
-        <Card style={cardStyle} title='Ringkasan Dana'>
-          <Paragraph>
-            Ringkasan ini menampilkan total pemasukan, total pengeluaran, dan
-            saldo kas kelas yang sedang berjalan.
-          </Paragraph>
-          <Paragraph>
-            <Text strong>Total pemasukan:</Text>{" "}
-            {currencyFormatter.format(Number(summary.income_total || 0))}
-          </Paragraph>
-          <Paragraph>
-            <Text strong>Total pengeluaran:</Text>{" "}
-            {currencyFormatter.format(Number(summary.expense_total || 0))}
-          </Paragraph>
-          <Paragraph style={{ marginBottom: 0 }}>
-            <Text strong>Saldo akhir:</Text>{" "}
-            <Tag color='blue'>
-              {currencyFormatter.format(Number(summary.balance || 0))}
-            </Tag>
-          </Paragraph>
-        </Card>
+        <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
+          <Card
+            variant="borderless"
+            style={cardStyle}
+            styles={{ body: { padding: 18 } }}
+          >
+            <SpaceBlock title="Ringkasan Dana">
+              <Paragraph>
+                Ringkasan ini menampilkan total pemasukan, total pengeluaran,
+                dan saldo kas kelas yang sedang berjalan.
+              </Paragraph>
+              <Paragraph>
+                <Text strong>Total pemasukan:</Text>{" "}
+                {currencyFormatter.format(Number(summary.income_total || 0))}
+              </Paragraph>
+              <Paragraph>
+                <Text strong>Total pengeluaran:</Text>{" "}
+                {currencyFormatter.format(Number(summary.expense_total || 0))}
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 0 }}>
+                <Text strong>Saldo akhir:</Text>{" "}
+                <Tag color="blue">
+                  {currencyFormatter.format(Number(summary.balance || 0))}
+                </Tag>
+              </Paragraph>
+            </SpaceBlock>
+          </Card>
+        </MotionDiv>
       </Col>
 
       <Col xs={24} xl={16}>
-        <Card style={cardStyle} title='Detail Pemasukan Terbaru'>
-          <Table
-            rowKey='transaction_id'
-            columns={incomeColumns}
-            dataSource={incomeTransactions.slice(0, 10)}
-            pagination={false}
-          />
-        </Card>
+        <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
+          <Card
+            variant="borderless"
+            style={cardStyle}
+            styles={{ body: { padding: 18 } }}
+          >
+            <SpaceBlock title="Detail Pemasukan Terbaru">
+              <Table
+                rowKey="transaction_id"
+                columns={incomeColumns}
+                dataSource={incomeTransactions.slice(0, 10)}
+                pagination={false}
+              />
+            </SpaceBlock>
+          </Card>
+        </MotionDiv>
       </Col>
 
       <Col xs={24}>
-        <Card style={cardStyle} title='Detail Pengeluaran'>
-          <Table
-            rowKey='transaction_id'
-            columns={expenseColumns}
-            dataSource={expenseTransactions}
-            pagination={{ pageSize: 10 }}
-          />
-        </Card>
+        <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
+          <Card
+            variant="borderless"
+            style={cardStyle}
+            styles={{ body: { padding: 18 } }}
+          >
+            <SpaceBlock title="Detail Pengeluaran">
+              <Table
+                rowKey="transaction_id"
+                columns={expenseColumns}
+                dataSource={expenseTransactions}
+                pagination={{ pageSize: 10 }}
+              />
+            </SpaceBlock>
+          </Card>
+        </MotionDiv>
       </Col>
     </Row>
   );
 };
+
+const SpaceBlock = ({ title, children }) => (
+  <>
+    <Title level={5} style={{ marginTop: 0 }}>
+      {title}
+    </Title>
+    {children}
+  </>
+);
 
 export default StudentContributionSummaryTab;

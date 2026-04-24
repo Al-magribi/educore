@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Form, Tabs, message } from "antd";
+import { Flex, Form, Tabs, message } from "antd";
+import { motion } from "framer-motion";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 
@@ -15,7 +16,7 @@ import {
   useRemoveContributionOfficerMutation,
   useUpdateContributionTransactionMutation,
 } from "../../../../service/finance/ApiContribution";
-import { mapTransactionFormValues } from "./constants";
+import { mapTransactionFormValues, pageStyle } from "./constants";
 import ContributionHeader from "./components/ContributionHeader";
 import ContributionMetaCard from "./components/ContributionMetaCard";
 import ContributionOfficerModal from "./components/ContributionOfficerModal";
@@ -24,6 +25,8 @@ import ContributionStudentsTab from "./components/ContributionStudentsTab";
 import ContributionSummaryCards from "./components/ContributionSummaryCards";
 import ContributionTransactionModal from "./components/ContributionTransactionModal";
 import ContributionTransactionsTab from "./components/ContributionTransactionsTab";
+
+const MotionDiv = motion.div;
 
 const Contribution = () => {
   const { user } = useSelector((state) => state.auth);
@@ -192,101 +195,100 @@ const Contribution = () => {
   );
 
   return (
-    <div>
-      <ContributionHeader
-        activePeriode={activePeriode}
-        access={access}
-        onOpenOfficerModal={() => setOfficerModalOpen(true)}
-        onOpenTransactionModal={handleOpenCreateTransaction}
-      />
-
-      <div style={{ marginTop: 24 }}>
-        <ContributionSummaryCards summary={classSummary} />
-      </div>
-
-      <div style={{ marginTop: 24 }}>
-        <ContributionMetaCard
-          user={user}
+    <MotionDiv
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      style={pageStyle}
+    >
+      <Flex vertical gap="large">
+        <ContributionHeader
+          activePeriode={activePeriode}
           access={access}
-          summary={classSummary}
+          onOpenOfficerModal={() => setOfficerModalOpen(true)}
+          onOpenTransactionModal={handleOpenCreateTransaction}
         />
-      </div>
 
-      <Tabs
-        style={{ marginTop: 24 }}
-        items={[
-          {
-            key: "students",
-            label: `Siswa (${studentSummary.total_students || selectableStudents.length || 0})`,
-            children: (
-              <ContributionStudentsTab
-                filters={studentFilters}
-                setFilters={setStudentFilters}
-                summary={studentSummary}
-                students={students}
-                unpaidStudents={unpaidStudents}
-                loading={isFetchingStudents}
-                onCreatePayment={handleOpenCreateTransaction}
-              />
-            ),
-          },
-          {
-            key: "transactions",
-            label: `Transaksi (${transactionSummary.total_transactions || 0})`,
-            children: (
-              <ContributionTransactionsTab
-                selectableStudents={selectableStudents}
-                summary={transactionSummary}
-                transactions={transactions}
-                loading={isFetchingTransactions}
-                filters={transactionFilters}
-                setFilters={setTransactionFilters}
-                deletingTransactionId={deletingTransactionId}
-                onCreate={handleOpenCreateTransaction}
-                onEdit={handleOpenEditTransaction}
-                onDelete={handleDeleteTransaction}
-              />
-            ),
-          },
-          {
-            key: "officers",
-            label: `Petugas (${officers.filter((item) => item.is_active).length})`,
-            children: (
-              <ContributionOfficersTab
-                officers={officers}
-                loading={isFetchingOfficers}
-                removingOfficerId={removingOfficerId}
-                onOpenOfficerModal={() => setOfficerModalOpen(true)}
-                onRemoveOfficer={handleRemoveOfficer}
-              />
-            ),
-          },
-        ]}
-      />
+        <ContributionSummaryCards summary={classSummary} />
 
-      <ContributionTransactionModal
-        open={transactionModalOpen}
-        form={transactionForm}
-        editingTransaction={editingTransaction}
-        selectableStudents={selectableStudents}
-        transactionType={transactionType}
-        onCancel={handleCloseTransactionModal}
-        onSubmit={handleSubmitTransaction}
-        confirmLoading={isAddingTransaction || isUpdatingTransaction}
-      />
+        <ContributionMetaCard user={user} access={access} summary={classSummary} />
 
-      <ContributionOfficerModal
-        open={officerModalOpen}
-        form={officerForm}
-        officerCandidates={officerCandidates}
-        onCancel={() => {
-          setOfficerModalOpen(false);
-          officerForm.resetFields();
-        }}
-        onSubmit={handleAssignOfficer}
-        confirmLoading={isAssigningOfficer}
-      />
-    </div>
+        <Tabs
+          style={{ marginTop: 4 }}
+          items={[
+            {
+              key: "students",
+              label: `Siswa (${studentSummary.total_students || selectableStudents.length || 0})`,
+              children: (
+                <ContributionStudentsTab
+                  filters={studentFilters}
+                  setFilters={setStudentFilters}
+                  summary={studentSummary}
+                  students={students}
+                  unpaidStudents={unpaidStudents}
+                  loading={isFetchingStudents}
+                  onCreatePayment={handleOpenCreateTransaction}
+                />
+              ),
+            },
+            {
+              key: "transactions",
+              label: `Transaksi (${transactionSummary.total_transactions || 0})`,
+              children: (
+                <ContributionTransactionsTab
+                  selectableStudents={selectableStudents}
+                  summary={transactionSummary}
+                  transactions={transactions}
+                  loading={isFetchingTransactions}
+                  filters={transactionFilters}
+                  setFilters={setTransactionFilters}
+                  deletingTransactionId={deletingTransactionId}
+                  onCreate={handleOpenCreateTransaction}
+                  onEdit={handleOpenEditTransaction}
+                  onDelete={handleDeleteTransaction}
+                />
+              ),
+            },
+            {
+              key: "officers",
+              label: `Petugas (${officers.filter((item) => item.is_active).length})`,
+              children: (
+                <ContributionOfficersTab
+                  officers={officers}
+                  loading={isFetchingOfficers}
+                  removingOfficerId={removingOfficerId}
+                  onOpenOfficerModal={() => setOfficerModalOpen(true)}
+                  onRemoveOfficer={handleRemoveOfficer}
+                />
+              ),
+            },
+          ]}
+        />
+
+        <ContributionTransactionModal
+          open={transactionModalOpen}
+          form={transactionForm}
+          editingTransaction={editingTransaction}
+          selectableStudents={selectableStudents}
+          transactionType={transactionType}
+          onCancel={handleCloseTransactionModal}
+          onSubmit={handleSubmitTransaction}
+          confirmLoading={isAddingTransaction || isUpdatingTransaction}
+        />
+
+        <ContributionOfficerModal
+          open={officerModalOpen}
+          form={officerForm}
+          officerCandidates={officerCandidates}
+          onCancel={() => {
+            setOfficerModalOpen(false);
+            officerForm.resetFields();
+          }}
+          onSubmit={handleAssignOfficer}
+          confirmLoading={isAssigningOfficer}
+        />
+      </Flex>
+    </MotionDiv>
   );
 };
 
