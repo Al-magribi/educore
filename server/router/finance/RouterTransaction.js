@@ -360,6 +360,7 @@ const getExistingOtherItem = async ({
         ii.id,
         ii.invoice_id,
         ii.amount,
+        MAX(inv.created_at) AS invoice_created_at,
         COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
       FROM finance.invoice inv
       JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
@@ -372,7 +373,7 @@ const getExistingOtherItem = async ({
         AND ii.item_type = 'other'
         AND ii.component_id = $4
       GROUP BY ii.id
-      ORDER BY inv.created_at DESC, ii.id DESC
+      ORDER BY MAX(inv.created_at) DESC, ii.id DESC
       LIMIT 1
     `,
     [homebaseId, studentId, periodeId, componentId],
@@ -395,6 +396,7 @@ const getExistingSppItem = async ({
         ii.id,
         ii.invoice_id,
         ii.amount,
+        MAX(inv.created_at) AS invoice_created_at,
         COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
       FROM finance.invoice inv
       JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
@@ -408,7 +410,7 @@ const getExistingSppItem = async ({
         AND ii.fee_rule_id = $4
         AND ii.bill_month = $5
       GROUP BY ii.id
-      ORDER BY inv.created_at DESC, ii.id DESC
+      ORDER BY MAX(inv.created_at) DESC, ii.id DESC
       LIMIT 1
     `,
     [homebaseId, studentId, periodeId, feeRuleId, billMonth],

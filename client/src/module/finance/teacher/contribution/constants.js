@@ -2,8 +2,6 @@ import dayjs from "dayjs";
 
 export const pageStyle = {
   minHeight: "100%",
-  padding: 24,
-  borderRadius: 16,
   background:
     "radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 24%), linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%)",
 };

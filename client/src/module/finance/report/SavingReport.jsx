@@ -8,6 +8,7 @@ import {
   useGetSavingStudentsQuery,
 } from "../../../service/finance/ApiSaving";
 import FinanceFeaturePage from "./FinanceFeaturePage";
+import Saving from "../teacher/saving/Saving";
 
 const { Text } = Typography;
 
@@ -21,19 +22,24 @@ const toCurrency = (value) =>
 const SavingReport = () => {
   const { user } = useSelector((state) => state.auth);
   const isParent = user?.role === "parent";
+  const isAdmin = user?.role === "admin";
   const [selectedStudentId, setSelectedStudentId] = useState();
 
   const { data: savingStudentsResponse, isLoading: isLoadingStudents } =
     useGetSavingStudentsQuery(undefined, {
-      skip: isParent,
+      skip: isParent || isAdmin,
     });
   const { data: mySavingResponse, isLoading: isLoadingMySaving } =
     useGetMySavingOverviewQuery(
       selectedStudentId ? { student_id: selectedStudentId } : undefined,
       {
-        skip: !isParent,
+        skip: !isParent || isAdmin,
       },
     );
+
+  if (isAdmin) {
+    return <Saving pageVariant='admin' />;
+  }
 
   if ((isParent && isLoadingMySaving) || (!isParent && isLoadingStudents)) {
     return <LoadApp />;

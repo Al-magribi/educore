@@ -172,87 +172,91 @@ router.get(
   "/dashboard",
   authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
-    await ensureFinalFinanceTables(db);
+    const client = await db.connect();
 
-    const { homebase_id: userHomebaseId, admin_level: adminLevel, role } = req.user;
-    const targetHomebaseId = parseOptionalInt(req.query.homebase_id);
-    const includeAllUnits =
-      role === "admin" && (adminLevel === "pusat" || !userHomebaseId);
-    const selectedHomebaseId = includeAllUnits
-      ? targetHomebaseId || null
-      : Number(userHomebaseId || 0) || null;
+    try {
+      await ensureFinalFinanceTables(client);
 
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentMonthLabel = formatMonthLabel(currentMonth);
-    const scopeType = includeAllUnits && !targetHomebaseId ? "all_units" : "single_unit";
-    const basePayload = buildEmptyPayload({
-      now,
-      currentMonth,
-      currentMonthLabel,
-      scopeType,
-      selectedHomebaseId,
-    });
+      const { homebase_id: userHomebaseId, admin_level: adminLevel, role } = req.user;
+      const targetHomebaseId = parseOptionalInt(req.query.homebase_id);
+      const includeAllUnits =
+        role === "admin" && (adminLevel === "pusat" || !userHomebaseId);
+      const selectedHomebaseId = includeAllUnits
+        ? targetHomebaseId || null
+        : Number(userHomebaseId || 0) || null;
 
-    const availableScopeQuery = buildActiveScopeQuery({
-      includeAllUnits,
-      homebaseId: userHomebaseId,
-      targetHomebaseId: null,
-    });
-    const activeScopeQuery = buildActiveScopeQuery({
-      includeAllUnits,
-      homebaseId: userHomebaseId,
-      targetHomebaseId,
-    });
-
-    const availableScopeResult = await db.query(
-      availableScopeQuery.text,
-      availableScopeQuery.params,
-    );
-    const availableScopes = availableScopeResult.rows;
-
-    const activeScopeResult = await db.query(
-      activeScopeQuery.text,
-      activeScopeQuery.params,
-    );
-    const activeScopes = activeScopeResult.rows;
-
-    if (!activeScopes.length) {
-      return res.json({
-        status: "success",
-        data: {
-          ...basePayload,
-          meta: {
-            ...basePayload.meta,
-            available_homebases: availableScopes.map((item) => ({
-              homebase_id: Number(item.homebase_id),
-              homebase_name: item.homebase_name,
-              periode_id: Number(item.periode_id),
-              periode_name: item.periode_name,
-            })),
-          },
-        },
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentMonthLabel = formatMonthLabel(currentMonth);
+      const scopeType =
+        includeAllUnits && !targetHomebaseId ? "all_units" : "single_unit";
+      const basePayload = buildEmptyPayload({
+        now,
+        currentMonth,
+        currentMonthLabel,
+        scopeType,
+        selectedHomebaseId,
       });
-    }
 
-    const activeScopeSql = activeScopeQuery.text.trim();
-    const scopeParams = activeScopeQuery.params;
-    const activePeriode = activeScopes.length === 1 ? activeScopes[0] : null;
+      const availableScopeQuery = buildActiveScopeQuery({
+        includeAllUnits,
+        homebaseId: userHomebaseId,
+        targetHomebaseId: null,
+      });
+      const activeScopeQuery = buildActiveScopeQuery({
+        includeAllUnits,
+        homebaseId: userHomebaseId,
+        targetHomebaseId,
+      });
 
-    const [
-      populationResult,
-      activeSppRuleResult,
-      activeOtherTypeResult,
-      sppCurrentResult,
-      otherSummaryResult,
-      savingsSummaryResult,
-      cashSummaryResult,
-      recentPaymentResult,
-      recentSavingResult,
-      recentCashResult,
-      homebaseSummaryResult,
-    ] = await Promise.all([
-      db.query(
+      const availableScopeResult = await client.query(
+        availableScopeQuery.text,
+        availableScopeQuery.params,
+      );
+      const availableScopes = availableScopeResult.rows;
+
+      const activeScopeResult = await client.query(
+        activeScopeQuery.text,
+        activeScopeQuery.params,
+      );
+      const activeScopes = activeScopeResult.rows;
+
+      if (!activeScopes.length) {
+        return res.json({
+          status: "success",
+          data: {
+            ...basePayload,
+            meta: {
+              ...basePayload.meta,
+              available_homebases: availableScopes.map((item) => ({
+                homebase_id: Number(item.homebase_id),
+                homebase_name: item.homebase_name,
+                periode_id: Number(item.periode_id),
+                periode_name: item.periode_name,
+              })),
+            },
+          },
+        });
+      }
+
+      const activeScopeSql = activeScopeQuery.text.trim();
+      const scopeParams = activeScopeQuery.params;
+      const activePeriode = activeScopes.length === 1 ? activeScopes[0] : null;
+
+      const [
+        populationResult,
+        activeSppRuleResult,
+        activeOtherTypeResult,
+        sppCurrentResult,
+        otherSummaryResult,
+        savingsSummaryResult,
+        cashSummaryResult,
+        recentPaymentResult,
+        recentSavingResult,
+        recentCashResult,
+        homebaseSummaryResult,
+      ] = await Promise.all([
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql})
           SELECT
@@ -265,9 +269,9 @@ router.get(
             AND e.periode_id = scope.periode_id
           LEFT JOIN a_class c ON c.id = e.class_id
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql})
           SELECT COUNT(*)::int AS active_spp_tariffs
@@ -279,9 +283,9 @@ router.get(
           WHERE fr.is_active = true
             AND fc.category = 'spp'
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql})
           SELECT COUNT(*)::int AS active_other_types
@@ -290,9 +294,9 @@ router.get(
           WHERE fc.category = 'other'
             AND fc.is_active = true
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql}),
           expected_scope AS (
@@ -342,9 +346,9 @@ router.get(
           FROM expected_scope expected
           LEFT JOIN paid_scope paid ON paid.student_id = expected.student_id
         `,
-        [...scopeParams, currentMonth],
-      ),
-      db.query(
+          [...scopeParams, currentMonth],
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql}),
           item_summary AS (
@@ -373,9 +377,9 @@ router.get(
             COUNT(*) FILTER (WHERE paid_amount <= 0)::int AS unpaid_count
           FROM item_summary
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql})
           SELECT
@@ -388,9 +392,9 @@ router.get(
             ON scope.homebase_id = st.homebase_id
             AND scope.periode_id = st.periode_id
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql})
           SELECT
@@ -403,9 +407,9 @@ router.get(
             ON scope.homebase_id = tx.homebase_id
             AND scope.periode_id = tx.periode_id
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql}),
           payment_items AS (
@@ -448,9 +452,9 @@ router.get(
           )
           SELECT * FROM payment_items
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql})
           SELECT
@@ -471,9 +475,9 @@ router.get(
           ORDER BY st.transaction_date DESC, st.transaction_id DESC
           LIMIT 12
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql})
           SELECT
@@ -492,9 +496,9 @@ router.get(
           ORDER BY tx.transaction_date DESC, tx.transaction_id DESC
           LIMIT 12
         `,
-        scopeParams,
-      ),
-      db.query(
+          scopeParams,
+        ),
+        client.query(
         `
           WITH active_scope AS (${activeScopeSql}),
           population AS (
@@ -638,46 +642,35 @@ router.get(
             cash.balance
           ORDER BY scope.homebase_name ASC
         `,
-        [...scopeParams, currentMonth],
-      ),
-    ]);
+          [...scopeParams, currentMonth],
+        ),
+      ]);
 
-    const population = populationResult.rows[0] || {};
-    const sppCurrent = sppCurrentResult.rows[0] || {};
-    const others = otherSummaryResult.rows[0] || {};
-    const savings = savingsSummaryResult.rows[0] || {};
-    const cash = cashSummaryResult.rows[0] || {};
+      const population = populationResult.rows[0] || {};
+      const sppCurrent = sppCurrentResult.rows[0] || {};
+      const others = otherSummaryResult.rows[0] || {};
+      const savings = savingsSummaryResult.rows[0] || {};
+      const cash = cashSummaryResult.rows[0] || {};
 
-    const sppCollected = numberValue(
-      recentPaymentResult.rows.reduce((sum, item) => {
-        if (item.category === "spp") {
-          return sum + numberValue(item.amount);
-        }
-        if (item.category === "mixed") {
-          return sum + numberValue(item.amount);
-        }
-        return sum;
-      }, 0),
-    );
-    const otherCollected = numberValue(others.total_paid);
-    const savingsBalance = numberValue(savings.balance);
-    const classCashBalance = numberValue(cash.balance);
-    const expectedSppCurrentMonth = numberValue(sppCurrent.expected_amount);
-    const paidSppCurrentMonth = numberValue(sppCurrent.paid_amount);
-    const outstandingSppCurrentMonth = Math.max(
-      expectedSppCurrentMonth - paidSppCurrentMonth,
-      0,
-    );
-    const totalStudents = Number(
-      sppCurrent.total_students || population.total_students || 0,
-    );
-    const paidStudentsCurrentMonth = Number(sppCurrent.paid_students || 0);
-    const unpaidStudentsCurrentMonth = Math.max(
-      totalStudents - paidStudentsCurrentMonth,
-      0,
-    );
+      const otherCollected = numberValue(others.total_paid);
+      const savingsBalance = numberValue(savings.balance);
+      const classCashBalance = numberValue(cash.balance);
+      const expectedSppCurrentMonth = numberValue(sppCurrent.expected_amount);
+      const paidSppCurrentMonth = numberValue(sppCurrent.paid_amount);
+      const outstandingSppCurrentMonth = Math.max(
+        expectedSppCurrentMonth - paidSppCurrentMonth,
+        0,
+      );
+      const totalStudents = Number(
+        sppCurrent.total_students || population.total_students || 0,
+      );
+      const paidStudentsCurrentMonth = Number(sppCurrent.paid_students || 0);
+      const unpaidStudentsCurrentMonth = Math.max(
+        totalStudents - paidStudentsCurrentMonth,
+        0,
+      );
 
-    const recentTransactions = [
+      const recentTransactions = [
       ...recentPaymentResult.rows.map((item) => ({
         key: `payment-${item.id}`,
         subject: item.student_name,
@@ -729,7 +722,7 @@ router.get(
       .sort((left, right) => new Date(right.time) - new Date(left.time))
       .slice(0, 12);
 
-    const priorities = [
+      const priorities = [
       {
         key: "spp-current-month",
         title: `SPP ${currentMonthLabel} belum lunas`,
@@ -744,7 +737,7 @@ router.get(
       },
     ].filter((item) => item.amount > 0 || item.key === "spp-current-month");
 
-    const channels = [
+      const channels = [
       {
         key: "spp",
         label: "SPP",
@@ -805,110 +798,115 @@ router.get(
       },
     ];
 
-    const homebases = homebaseSummaryResult.rows.map((item) => {
-      const expectedCurrent = numberValue(item.expected_spp_current_month);
-      const paidCurrent = numberValue(item.paid_spp_current_month);
+      const homebases = homebaseSummaryResult.rows.map((item) => {
+        const expectedCurrent = numberValue(item.expected_spp_current_month);
+        const paidCurrent = numberValue(item.paid_spp_current_month);
 
-      return {
-        key: `homebase-${item.homebase_id}`,
-        homebase_id: Number(item.homebase_id),
-        homebase_name: item.homebase_name,
-        periode_id: Number(item.periode_id),
-        periode_name: item.periode_name,
-        total_students: Number(item.total_students || 0),
-        total_classes: Number(item.total_classes || 0),
-        expected_spp_current_month: expectedCurrent,
-        paid_spp_current_month: paidCurrent,
-        outstanding_spp_current_month: numberValue(
-          item.outstanding_spp_current_month,
-        ),
-        school_revenue:
-          numberValue(item.spp_collected) + numberValue(item.other_collected),
-        savings_balance: numberValue(item.savings_balance),
-        class_cash_balance: numberValue(item.class_cash_balance),
-        managed_funds:
-          numberValue(item.savings_balance) + numberValue(item.class_cash_balance),
-        other_remaining: numberValue(item.other_remaining),
-        collection_rate_current_month:
-          expectedCurrent > 0 ? Math.round((paidCurrent / expectedCurrent) * 100) : 0,
-      };
-    });
-
-    res.json({
-      status: "success",
-      data: {
-        meta: {
-          generated_at: now.toISOString(),
-          current_month: currentMonth,
-          current_month_label: currentMonthLabel,
-          scope_type: scopeType,
-          selected_homebase_id: selectedHomebaseId,
-          active_periode: activePeriode,
-          active_scope: activeScopes,
-          available_homebases: availableScopes.map((item) => ({
-            homebase_id: Number(item.homebase_id),
-            homebase_name: item.homebase_name,
-            periode_id: Number(item.periode_id),
-            periode_name: item.periode_name,
-          })),
-        },
-        summary: {
-          school_revenue: paidSppCurrentMonth + otherCollected,
-          spp_collected: paidSppCurrentMonth,
-          other_collected: otherCollected,
-          savings_balance: savingsBalance,
-          class_cash_balance: classCashBalance,
-          managed_funds: savingsBalance + classCashBalance,
-          total_students: Number(population.total_students || 0),
-          total_classes: Number(population.total_classes || 0),
-          total_grades: Number(population.total_grades || 0),
-          active_spp_tariffs: Number(
-            activeSppRuleResult.rows[0]?.active_spp_tariffs || 0,
+        return {
+          key: `homebase-${item.homebase_id}`,
+          homebase_id: Number(item.homebase_id),
+          homebase_name: item.homebase_name,
+          periode_id: Number(item.periode_id),
+          periode_name: item.periode_name,
+          total_students: Number(item.total_students || 0),
+          total_classes: Number(item.total_classes || 0),
+          expected_spp_current_month: expectedCurrent,
+          paid_spp_current_month: paidCurrent,
+          outstanding_spp_current_month: numberValue(
+            item.outstanding_spp_current_month,
           ),
-          active_other_types: Number(
-            activeOtherTypeResult.rows[0]?.active_other_types || 0,
-          ),
-          homebase_count: activeScopes.length,
-          active_periode_count: activeScopes.length,
-        },
-        spp: {
-          expected_current_month: expectedSppCurrentMonth,
-          paid_current_month: paidSppCurrentMonth,
-          outstanding_current_month: outstandingSppCurrentMonth,
-          paid_students_current_month: paidStudentsCurrentMonth,
-          unpaid_students_current_month: unpaidStudentsCurrentMonth,
+          school_revenue:
+            numberValue(item.spp_collected) + numberValue(item.other_collected),
+          savings_balance: numberValue(item.savings_balance),
+          class_cash_balance: numberValue(item.class_cash_balance),
+          managed_funds:
+            numberValue(item.savings_balance) + numberValue(item.class_cash_balance),
+          other_remaining: numberValue(item.other_remaining),
           collection_rate_current_month:
-            expectedSppCurrentMonth > 0
-              ? Math.round((paidSppCurrentMonth / expectedSppCurrentMonth) * 100)
+            expectedCurrent > 0
+              ? Math.round((paidCurrent / expectedCurrent) * 100)
               : 0,
+        };
+      });
+
+      res.json({
+        status: "success",
+        data: {
+          meta: {
+            generated_at: now.toISOString(),
+            current_month: currentMonth,
+            current_month_label: currentMonthLabel,
+            scope_type: scopeType,
+            selected_homebase_id: selectedHomebaseId,
+            active_periode: activePeriode,
+            active_scope: activeScopes,
+            available_homebases: availableScopes.map((item) => ({
+              homebase_id: Number(item.homebase_id),
+              homebase_name: item.homebase_name,
+              periode_id: Number(item.periode_id),
+              periode_name: item.periode_name,
+            })),
+          },
+          summary: {
+            school_revenue: paidSppCurrentMonth + otherCollected,
+            spp_collected: paidSppCurrentMonth,
+            other_collected: otherCollected,
+            savings_balance: savingsBalance,
+            class_cash_balance: classCashBalance,
+            managed_funds: savingsBalance + classCashBalance,
+            total_students: Number(population.total_students || 0),
+            total_classes: Number(population.total_classes || 0),
+            total_grades: Number(population.total_grades || 0),
+            active_spp_tariffs: Number(
+              activeSppRuleResult.rows[0]?.active_spp_tariffs || 0,
+            ),
+            active_other_types: Number(
+              activeOtherTypeResult.rows[0]?.active_other_types || 0,
+            ),
+            homebase_count: activeScopes.length,
+            active_periode_count: activeScopes.length,
+          },
+          spp: {
+            expected_current_month: expectedSppCurrentMonth,
+            paid_current_month: paidSppCurrentMonth,
+            outstanding_current_month: outstandingSppCurrentMonth,
+            paid_students_current_month: paidStudentsCurrentMonth,
+            unpaid_students_current_month: unpaidStudentsCurrentMonth,
+            collection_rate_current_month:
+              expectedSppCurrentMonth > 0
+                ? Math.round((paidSppCurrentMonth / expectedSppCurrentMonth) * 100)
+                : 0,
+          },
+          others: {
+            total_charges: Number(others.total_charges || 0),
+            total_due: numberValue(others.total_due),
+            total_paid: otherCollected,
+            total_remaining: numberValue(others.total_remaining),
+            paid_count: Number(others.paid_count || 0),
+            partial_count: Number(others.partial_count || 0),
+            unpaid_count: Number(others.unpaid_count || 0),
+          },
+          savings: {
+            balance: savingsBalance,
+            deposit_total: numberValue(savings.deposit_total),
+            withdrawal_total: numberValue(savings.withdrawal_total),
+            transaction_count: Number(savings.transaction_count || 0),
+          },
+          class_cash: {
+            balance: classCashBalance,
+            income_total: numberValue(cash.income_total),
+            expense_total: numberValue(cash.expense_total),
+            transaction_count: Number(cash.transaction_count || 0),
+          },
+          channels,
+          priorities,
+          recent_transactions: recentTransactions,
+          homebases,
         },
-        others: {
-          total_charges: Number(others.total_charges || 0),
-          total_due: numberValue(others.total_due),
-          total_paid: otherCollected,
-          total_remaining: numberValue(others.total_remaining),
-          paid_count: Number(others.paid_count || 0),
-          partial_count: Number(others.partial_count || 0),
-          unpaid_count: Number(others.unpaid_count || 0),
-        },
-        savings: {
-          balance: savingsBalance,
-          deposit_total: numberValue(savings.deposit_total),
-          withdrawal_total: numberValue(savings.withdrawal_total),
-          transaction_count: Number(savings.transaction_count || 0),
-        },
-        class_cash: {
-          balance: classCashBalance,
-          income_total: numberValue(cash.income_total),
-          expense_total: numberValue(cash.expense_total),
-          transaction_count: Number(cash.transaction_count || 0),
-        },
-        channels,
-        priorities,
-        recent_transactions: recentTransactions,
-        homebases,
-      },
-    });
+      });
+    } finally {
+      client.release();
+    }
   }),
 );
 

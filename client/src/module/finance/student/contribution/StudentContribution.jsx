@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Flex, Form, Tabs, message } from "antd";
+import { motion } from "framer-motion";
 import dayjs from "dayjs";
 
 import { LoadApp } from "../../../../components";
@@ -18,6 +19,8 @@ import StudentContributionSummaryCards from "./components/StudentContributionSum
 import StudentContributionSummaryTab from "./components/StudentContributionSummaryTab";
 import StudentContributionTransactionsTab from "./components/StudentContributionTransactionsTab";
 import StudentContributionTransactionModal from "./components/StudentContributionTransactionModal";
+
+const MotionDiv = motion.div;
 
 const StudentContribution = () => {
   const [transactionForm] = Form.useForm();
@@ -61,16 +64,14 @@ const StudentContribution = () => {
   const ownStudent = overview.own_student || null;
   const classSummary = overview.class_summary || {};
   const officers = overview.officers || [];
-  const students = useMemo(
-    () => studentsResponse?.data || [],
-    [studentsResponse],
-  );
+  const students = useMemo(() => studentsResponse?.data || [], [studentsResponse]);
   const transactions = useMemo(
     () => transactionsResponse?.data || [],
     [transactionsResponse],
   );
   const transactionSummary = transactionsResponse?.summary || {};
   const selectableStudents = students;
+
   const incomeTransactions = useMemo(
     () =>
       transactions.filter((item) => {
@@ -91,16 +92,13 @@ const StudentContribution = () => {
 
         const keyword = incomeFilters.search.toLowerCase();
         return (
-          String(item.student_name || "")
-            .toLowerCase()
-            .includes(keyword) ||
-          String(item.nis || "")
-            .toLowerCase()
-            .includes(keyword)
+          String(item.student_name || "").toLowerCase().includes(keyword) ||
+          String(item.nis || "").toLowerCase().includes(keyword)
         );
       }),
     [incomeFilters.search, incomeFilters.student_id, transactions],
   );
+
   const expenseTransactions = useMemo(
     () =>
       transactions.filter((item) => {
@@ -113,9 +111,7 @@ const StudentContribution = () => {
         }
 
         const keyword = expenseFilters.search.toLowerCase();
-        return String(item.description || "")
-          .toLowerCase()
-          .includes(keyword);
+        return String(item.description || "").toLowerCase().includes(keyword);
       }),
     [expenseFilters.search, transactions],
   );
@@ -201,8 +197,13 @@ const StudentContribution = () => {
   }
 
   return (
-    <div>
-      <Flex vertical gap={"middle"}>
+    <MotionDiv
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      style={pageStyle}
+    >
+      <Flex vertical gap="large">
         <StudentContributionHeader
           activePeriode={activePeriode}
           access={access}
@@ -214,7 +215,7 @@ const StudentContribution = () => {
         <StudentContributionSummaryCards summary={classSummary} />
 
         <Tabs
-          style={{ marginTop: 24 }}
+          style={{ marginTop: 4 }}
           items={[
             {
               key: "overview",
@@ -234,7 +235,7 @@ const StudentContribution = () => {
               children: (
                 <StudentContributionTransactionsTab
                   access={access}
-                  variant='income'
+                  variant="income"
                   selectableStudents={selectableStudents}
                   transactions={incomeTransactions}
                   loading={isFetchingTransactions}
@@ -253,7 +254,7 @@ const StudentContribution = () => {
               children: (
                 <StudentContributionTransactionsTab
                   access={access}
-                  variant='expense'
+                  variant="expense"
                   selectableStudents={selectableStudents}
                   transactions={expenseTransactions}
                   loading={isFetchingTransactions}
@@ -293,7 +294,7 @@ const StudentContribution = () => {
           />
         ) : null}
       </Flex>
-    </div>
+    </MotionDiv>
   );
 };
 

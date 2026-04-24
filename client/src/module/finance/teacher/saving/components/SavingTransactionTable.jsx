@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import { Button, Card, Dropdown, Modal, Space, Table, Tag, Typography } from "antd";
 import { ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
 
 import {
   cardStyle,
@@ -9,7 +10,8 @@ import {
   transactionTypeMeta,
 } from "../constants";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
+const MotionDiv = motion.div;
 
 const SavingTransactionTable = ({
   transactions,
@@ -33,9 +35,9 @@ const SavingTransactionTable = ({
         dataIndex: "student_name",
         key: "student_name",
         render: (_, record) => (
-          <Space direction='vertical' size={0}>
+          <Space orientation="vertical" size={0}>
             <Text strong>{record.student_name}</Text>
-            <Text type='secondary'>
+            <Text type="secondary">
               {record.nis || "-"} | {record.class_name || "-"}
             </Text>
           </Space>
@@ -62,9 +64,7 @@ const SavingTransactionTable = ({
             strong
             style={{
               color:
-                record.transaction_type === "withdrawal"
-                  ? "#d97706"
-                  : "#059669",
+                record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
             }}
           >
             {record.transaction_type === "withdrawal" ? "- " : "+ "}
@@ -79,7 +79,7 @@ const SavingTransactionTable = ({
         render: (value) => value || "-",
       },
       {
-        title: "Walas",
+        title: "Diproses Oleh",
         dataIndex: "processed_by_name",
         key: "processed_by_name",
         width: 180,
@@ -88,7 +88,8 @@ const SavingTransactionTable = ({
       {
         title: "Aksi",
         key: "action",
-        width: 140,
+        width: 160,
+        align: "center",
         render: (_, record) => {
           const items = [
             {
@@ -143,32 +144,54 @@ const SavingTransactionTable = ({
   );
 
   return (
-    <Card
-      style={cardStyle}
-      title='Riwayat Transaksi Tabungan'
-      extra={
-        <Space wrap size={16}>
-          <Text type='secondary'>
-            Setoran {currencyFormatter.format(summary?.total_deposit || 0)}
-          </Text>
-          <Text type='secondary'>
-            Penarikan {currencyFormatter.format(summary?.total_withdrawal || 0)}
-          </Text>
-        </Space>
-      }
+    <MotionDiv
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
     >
-      <Table
-        rowKey='transaction_id'
-        columns={columns}
-        dataSource={transactions}
-        loading={loading}
-        pagination={{ pageSize: 8 }}
-        scroll={{ x: 980 }}
-        locale={{
-          emptyText: "Belum ada transaksi tabungan pada filter saat ini.",
-        }}
-      />
-    </Card>
+      <Card
+        variant="borderless"
+        style={cardStyle}
+        styles={{ body: { padding: 18 } }}
+      >
+        <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+          <Space
+            wrap
+            size={[14, 14]}
+            style={{ width: "100%", justifyContent: "space-between" }}
+          >
+            <Space orientation="vertical" size={4}>
+              <Title level={5} style={{ margin: 0 }}>
+                Riwayat Transaksi Tabungan
+              </Title>
+              <Text type="secondary">
+                Pantau seluruh setoran dan penarikan siswa sesuai filter aktif.
+              </Text>
+            </Space>
+            <Space wrap size={16}>
+              <Text type="secondary">
+                Setoran {currencyFormatter.format(summary?.total_deposit || 0)}
+              </Text>
+              <Text type="secondary">
+                Penarikan {currencyFormatter.format(summary?.total_withdrawal || 0)}
+              </Text>
+            </Space>
+          </Space>
+
+          <Table
+            rowKey="transaction_id"
+            columns={columns}
+            dataSource={transactions}
+            loading={loading}
+            pagination={{ pageSize: 8 }}
+            scroll={{ x: 980 }}
+            locale={{
+              emptyText: "Belum ada transaksi tabungan pada filter saat ini.",
+            }}
+          />
+        </Space>
+      </Card>
+    </MotionDiv>
   );
 };
 

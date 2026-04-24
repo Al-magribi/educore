@@ -1,9 +1,12 @@
 import { memo, useMemo, useState } from "react";
 import { Card, Tabs } from "antd";
+import { motion } from "framer-motion";
 
 import { cardStyle } from "../constants";
 import SavingStudentsList from "./SavingStudentsList";
 import SavingTransactionTable from "./SavingTransactionTable";
+
+const MotionDiv = motion.div;
 
 const SavingTabs = ({
   students,
@@ -59,14 +62,24 @@ const SavingTabs = ({
   );
 
   return (
-    <Card style={cardStyle} styles={{ body: { paddingTop: 12 } }}>
-      <Tabs
-        activeKey={activeKey}
-        destroyInactiveTabPane
-        items={items}
-        onChange={setActiveKey}
-      />
-    </Card>
+    <MotionDiv
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+    >
+      <Card
+        variant="borderless"
+        style={cardStyle}
+        styles={{ body: { paddingTop: 12 } }}
+      >
+        <Tabs
+          activeKey={activeKey}
+          destroyInactiveTabPane
+          items={items}
+          onChange={setActiveKey}
+        />
+      </Card>
+    </MotionDiv>
   );
 };
 

@@ -5,9 +5,10 @@ const pool = new Pool({
   host: process.env.P_HOST,
   database: process.env.P_DB,
   password: process.env.P_PASSWORD,
+  port: Number.parseInt(process.env.P_PORT || "5432", 10),
   max: 100, // Maksimal 100 koneksi
   idleTimeoutMillis: 20000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 // --- 1. Monitoring Pool & Auto Restart Logic ---

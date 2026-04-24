@@ -238,7 +238,7 @@ const getSavingsAccessContext = async (db, user) => {
 
   if (
     user.role === "admin" &&
-    ["keuangan", "satuan"].includes(user.admin_level)
+    ["finance", "keuangan", "satuan"].includes(user.admin_level)
   ) {
     return {
       homebaseId,
@@ -682,7 +682,7 @@ router.get(
 
 router.get(
   "/saving/options",
-  authorize("satuan", "teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan", "finance"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -759,7 +759,7 @@ router.get(
 
 router.get(
   "/saving/students",
-  authorize("satuan", "teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan", "finance"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -868,7 +868,7 @@ router.get(
 
 router.get(
   "/saving/transactions",
-  authorize("satuan", "teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan", "finance"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -965,7 +965,7 @@ router.get(
 
 router.post(
   "/saving/transactions",
-  authorize("satuan", "teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan", "finance"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
@@ -1059,7 +1059,7 @@ router.post(
 
 router.put(
   "/saving/transactions/:id",
-  authorize("satuan", "teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan", "finance"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
@@ -1167,7 +1167,7 @@ router.put(
 
 router.delete(
   "/saving/transactions/:id",
-  authorize("satuan", "teacher", "keuangan"),
+  authorize("satuan", "teacher", "keuangan", "finance"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
