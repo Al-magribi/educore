@@ -433,6 +433,62 @@ CREATE TABLE l_daily_absence_report(
 );
 CREATE INDEX idx_daily_absence_report_lookup ON lms.l_daily_absence_report USING btree (homebase_id, periode_id, date, target_type, target_user_id);
 
+CREATE TABLE l_task(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    subject_id integer NOT NULL,
+    chapter_id integer NOT NULL,
+    teacher_id integer NOT NULL,
+    title text NOT NULL,
+    instruction text NOT NULL,
+    deadline_at timestamp without time zone NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_task_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_task_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_task_subject_id_fkey FOREIGN KEY(subject_id) REFERENCES public.a_subject(id),
+    CONSTRAINT l_task_chapter_id_fkey FOREIGN KEY(chapter_id) REFERENCES public.l_chapter(id),
+    CONSTRAINT l_task_teacher_id_fkey FOREIGN KEY(teacher_id) REFERENCES public.u_teachers(user_id),
+    CONSTRAINT l_task_title_check CHECK (length(btrim(title)) > 0),
+    CONSTRAINT l_task_instruction_check CHECK (length(btrim(instruction)) > 0)
+);
+CREATE INDEX idx_task_teacher_subject ON lms.l_task USING btree (teacher_id, subject_id, deadline_at ASC, created_at DESC);
+CREATE INDEX idx_task_homebase_periode ON lms.l_task USING btree (homebase_id, periode_id, deadline_at ASC);
+CREATE INDEX idx_task_chapter_lookup ON lms.l_task USING btree (chapter_id, deadline_at ASC);
+
+CREATE TABLE l_task_class(
+    id SERIAL NOT NULL,
+    task_id integer NOT NULL,
+    class_id integer NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_task_class_task_id_fkey FOREIGN KEY(task_id) REFERENCES lms.l_task(id) ON DELETE CASCADE,
+    CONSTRAINT l_task_class_class_id_fkey FOREIGN KEY(class_id) REFERENCES public.a_class(id)
+);
+CREATE UNIQUE INDEX uq_task_class_pair ON lms.l_task_class USING btree (task_id, class_id);
+CREATE INDEX idx_task_class_lookup ON lms.l_task_class USING btree (class_id, task_id);
+
+CREATE TABLE l_task_submission(
+    id SERIAL NOT NULL,
+    task_id integer NOT NULL,
+    student_id integer NOT NULL,
+    file_url text NOT NULL,
+    file_name text NOT NULL,
+    file_mime varchar(120),
+    submitted_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_task_submission_task_id_fkey FOREIGN KEY(task_id) REFERENCES lms.l_task(id) ON DELETE CASCADE,
+    CONSTRAINT l_task_submission_student_id_fkey FOREIGN KEY(student_id) REFERENCES public.u_students(user_id),
+    CONSTRAINT l_task_submission_file_url_check CHECK (length(btrim(file_url)) > 0),
+    CONSTRAINT l_task_submission_file_name_check CHECK (length(btrim(file_name)) > 0)
+);
+CREATE UNIQUE INDEX uq_task_submission_student ON lms.l_task_submission USING btree (task_id, student_id);
+CREATE INDEX idx_task_submission_student_lookup ON lms.l_task_submission USING btree (student_id, submitted_at DESC);
+CREATE INDEX idx_task_submission_task_lookup ON lms.l_task_submission USING btree (task_id, submitted_at DESC);
+
 ALTER TABLE lms.l_schedule_config
     ADD COLUMN IF NOT EXISTS name text,
     ADD COLUMN IF NOT EXISTS description text,
@@ -683,52 +739,6 @@ BEGIN
     END IF;
 END $$;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'l_schedule_day_template_config_group_id_fkey'
-          AND connamespace = 'lms'::regnamespace
-    ) THEN
-        EXECUTE 'ALTER TABLE lms.l_schedule_day_template
-            ADD CONSTRAINT l_schedule_day_template_config_group_id_fkey
-            FOREIGN KEY (config_group_id) REFERENCES lms.l_schedule_config_group(id) ON DELETE CASCADE';
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'l_time_slot_config_group_id_fkey'
-          AND connamespace = 'lms'::regnamespace
-    ) THEN
-        EXECUTE 'ALTER TABLE lms.l_time_slot
-            ADD CONSTRAINT l_time_slot_config_group_id_fkey
-            FOREIGN KEY (config_group_id) REFERENCES lms.l_schedule_config_group(id) ON DELETE CASCADE';
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'l_schedule_activity_config_id_fkey'
-          AND connamespace = 'lms'::regnamespace
-    ) THEN
-        EXECUTE 'ALTER TABLE lms.l_schedule_activity
-            ADD CONSTRAINT l_schedule_activity_config_id_fkey
-            FOREIGN KEY (config_id) REFERENCES lms.l_schedule_config(id)';
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'l_schedule_entry_config_id_fkey'
-          AND connamespace = 'lms'::regnamespace
-    ) THEN
-        EXECUTE 'ALTER TABLE lms.l_schedule_entry
-            ADD CONSTRAINT l_schedule_entry_config_id_fkey
-            FOREIGN KEY (config_id) REFERENCES lms.l_schedule_config(id)';
-    END IF;
-END $$;
 
 DROP INDEX IF EXISTS lms.uq_schedule_day_template;
 DROP INDEX IF EXISTS lms.idx_schedule_day_template_config;
@@ -753,6 +763,101 @@ CREATE INDEX IF NOT EXISTS idx_schedule_config_lookup ON lms.l_schedule_config U
 CREATE INDEX IF NOT EXISTS idx_schedule_config_group_lookup ON lms.l_schedule_config_group USING btree (config_id, sort_order, id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_schedule_config_group_default ON lms.l_schedule_config_group USING btree (config_id) WHERE (is_default = true);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_schedule_config_group_class ON lms.l_schedule_config_group_class USING btree (config_group_id, class_id);
+
+CREATE TABLE IF NOT EXISTS lms.l_point_config(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    show_balance boolean NOT NULL DEFAULT false,
+    allow_homeroom_manage boolean NOT NULL DEFAULT true,
+    created_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_point_config_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_point_config_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_point_config_created_by_fkey FOREIGN KEY(created_by) REFERENCES public.u_users(id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_point_config_homebase_periode ON lms.l_point_config USING btree (homebase_id, periode_id);
+CREATE INDEX IF NOT EXISTS idx_point_config_lookup ON lms.l_point_config USING btree (homebase_id, periode_id, show_balance);
+
+CREATE TABLE IF NOT EXISTS lms.l_point_rule(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    name text NOT NULL,
+    point_type varchar(20) NOT NULL,
+    point_value integer NOT NULL,
+    description text,
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_point_rule_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_point_rule_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_point_rule_created_by_fkey FOREIGN KEY(created_by) REFERENCES public.u_users(id),
+    CONSTRAINT l_point_rule_name_check CHECK (length(btrim(name)) > 0),
+    CONSTRAINT l_point_rule_type_check CHECK (((point_type)::text = ANY ((ARRAY['reward'::character varying, 'punishment'::character varying])::text[]))),
+    CONSTRAINT l_point_rule_value_check CHECK (((point_value >= 1) AND (point_value <= 100)))
+);
+CREATE INDEX IF NOT EXISTS idx_point_rule_lookup ON lms.l_point_rule USING btree (homebase_id, periode_id, point_type, is_active, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_point_rule_name_periode ON lms.l_point_rule USING btree (homebase_id, periode_id, lower(btrim(name)));
+
+CREATE TABLE IF NOT EXISTS lms.l_point_entry(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    student_id integer NOT NULL,
+    class_id integer NOT NULL,
+    rule_id integer NOT NULL,
+    point_type varchar(20) NOT NULL,
+    point_value integer NOT NULL,
+    title_snapshot text NOT NULL,
+    description text,
+    entry_date date NOT NULL DEFAULT CURRENT_DATE,
+    given_by integer NOT NULL,
+    updated_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_point_entry_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_point_entry_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_point_entry_student_id_fkey FOREIGN KEY(student_id) REFERENCES public.u_students(user_id),
+    CONSTRAINT l_point_entry_class_id_fkey FOREIGN KEY(class_id) REFERENCES public.a_class(id),
+    CONSTRAINT l_point_entry_rule_id_fkey FOREIGN KEY(rule_id) REFERENCES lms.l_point_rule(id),
+    CONSTRAINT l_point_entry_given_by_fkey FOREIGN KEY(given_by) REFERENCES public.u_users(id),
+    CONSTRAINT l_point_entry_updated_by_fkey FOREIGN KEY(updated_by) REFERENCES public.u_users(id),
+    CONSTRAINT l_point_entry_title_snapshot_check CHECK (length(btrim(title_snapshot)) > 0),
+    CONSTRAINT l_point_entry_type_check CHECK (((point_type)::text = ANY ((ARRAY['reward'::character varying, 'punishment'::character varying])::text[]))),
+    CONSTRAINT l_point_entry_value_check CHECK (((point_value >= 1) AND (point_value <= 100)))
+);
+CREATE INDEX IF NOT EXISTS idx_point_entry_student_period ON lms.l_point_entry USING btree (student_id, periode_id, entry_date DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_point_entry_class_period ON lms.l_point_entry USING btree (class_id, periode_id, entry_date DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_point_entry_rule_lookup ON lms.l_point_entry USING btree (rule_id, point_type, entry_date DESC);
+CREATE INDEX IF NOT EXISTS idx_point_entry_homebase_period ON lms.l_point_entry USING btree (homebase_id, periode_id, class_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_point_entry_given_by ON lms.l_point_entry USING btree (given_by, periode_id, entry_date DESC);
+
+CREATE OR REPLACE VIEW lms.v_point_student_summary AS
+SELECT
+    pe.homebase_id,
+    pe.periode_id,
+    pe.class_id,
+    pe.student_id,
+    COUNT(*) AS total_entries,
+    COUNT(*) FILTER (WHERE pe.point_type::text = 'reward'::text) AS reward_entries,
+    COUNT(*) FILTER (WHERE pe.point_type::text = 'punishment'::text) AS punishment_entries,
+    COALESCE(SUM(pe.point_value) FILTER (WHERE pe.point_type::text = 'reward'::text), 0) AS total_reward,
+    COALESCE(SUM(pe.point_value) FILTER (WHERE pe.point_type::text = 'punishment'::text), 0) AS total_punishment,
+    COALESCE(SUM(
+        CASE
+            WHEN pe.point_type::text = 'reward'::text THEN pe.point_value
+            WHEN pe.point_type::text = 'punishment'::text THEN -pe.point_value
+            ELSE 0
+        END
+    ), 0) AS balance
+FROM lms.l_point_entry pe
+GROUP BY pe.homebase_id, pe.periode_id, pe.class_id, pe.student_id;
 
 SET search_path TO public;
 COMMIT;

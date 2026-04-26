@@ -1,5 +1,16 @@
 import React, { useMemo } from "react";
-import { Button, Card, Col, Flex, Grid, Row, Space, Tabs, Tag, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Col,
+  Flex,
+  Grid,
+  Row,
+  Space,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -8,10 +19,12 @@ import {
   Building2,
   Hash,
   Layers3,
+  ListTodo,
   School,
 } from "lucide-react";
 import LearningTab from "./components/LearningTab";
 import ReportTab from "./components/ReportTab";
+import StudentTaskView from "../task/StudentTaskView";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -54,9 +67,15 @@ const Detail = ({ subject, classId, onBack }) => {
     () => [
       {
         key: "learning",
-        label: "Materi Pembelajaran",
+        label: "Pembelajaran",
         icon: <BookOpen size={16} />,
         children: <LearningTab subjectId={subject?.id} classId={classId} />,
+      },
+      {
+        key: "task",
+        label: "Tugas",
+        icon: <ListTodo size={16} />,
+        children: <StudentTaskView subjectId={subject?.id} classId={classId} />,
       },
       {
         key: "report",
@@ -165,9 +184,12 @@ const Detail = ({ subject, classId, onBack }) => {
                     >
                       {subject?.name || "Mata Pelajaran"}
                     </Title>
-                    <Text style={{ color: "rgba(255,255,255,0.82)", maxWidth: 720 }}>
-                      Materi pembelajaran dan laporan belajar disajikan dalam satu workspace
-                      yang rapi agar siswa lebih mudah menelusuri progres belajarnya.
+                    <Text
+                      style={{ color: "rgba(255,255,255,0.82)", maxWidth: 720 }}
+                    >
+                      Materi pembelajaran dan laporan belajar disajikan dalam
+                      satu workspace yang rapi agar siswa lebih mudah menelusuri
+                      progres belajarnya.
                     </Text>
                     <Space size={[8, 8]} wrap>
                       <Tag
@@ -229,11 +251,18 @@ const Detail = ({ subject, classId, onBack }) => {
                   }}
                   styles={{ body: { padding: isMobile ? 16 : 18 } }}
                 >
-                  <Space direction='vertical' size={10} style={{ width: "100%" }}>
+                  <Space
+                    direction='vertical'
+                    size={10}
+                    style={{ width: "100%" }}
+                  >
                     <Text style={{ color: "rgba(255,255,255,0.74)" }}>
                       Ringkasan akses
                     </Text>
-                    <Title level={isMobile ? 5 : 4} style={{ color: "#fff", margin: 0 }}>
+                    <Title
+                      level={isMobile ? 5 : 4}
+                      style={{ color: "#fff", margin: 0 }}
+                    >
                       {subject?.name || "Mapel Aktif"}
                     </Title>
                     <Text style={{ color: "rgba(255,255,255,0.82)" }}>
@@ -255,7 +284,11 @@ const Detail = ({ subject, classId, onBack }) => {
         <Row gutter={[16, 16]}>
           {infoCards.map((item) => (
             <Col key={item.key} xs={24} sm={12} xl={8}>
-              <Card bordered={false} style={infoCardStyle} styles={{ body: { padding: 18 } }}>
+              <Card
+                bordered={false}
+                style={infoCardStyle}
+                styles={{ body: { padding: 18 } }}
+              >
                 <Flex align='center' justify='space-between' gap={16}>
                   <Space direction='vertical' size={4} style={{ minWidth: 0 }}>
                     <Text type='secondary'>{item.label}</Text>

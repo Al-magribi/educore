@@ -1,5 +1,10 @@
 import { BranchesOutlined } from "@ant-design/icons";
-import { BookOpenText, CalendarCheck2, ClipboardClock } from "lucide-react";
+import {
+  BookOpenText,
+  CalendarCheck2,
+  ClipboardClock,
+  ShieldAlert,
+} from "lucide-react";
 
 const AdminLmsMenu = () => ({
   label: "LMS",
@@ -20,6 +25,11 @@ const AdminLmsMenu = () => ({
       label: "Manajemen Piket",
       key: "/manajemen-piket",
       icon: <CalendarCheck2 size={14} />,
+    },
+    {
+      label: "Manajemen Poin",
+      key: "/manajemen-poin",
+      icon: <ShieldAlert size={14} />,
     },
   ].filter(Boolean),
 });
@@ -44,6 +54,15 @@ const TeacherLmsMenu = ({ includeDuty = false } = {}) => ({
           label: "Manajemen Piket",
           key: "/manajemen-piket",
           icon: <CalendarCheck2 size={14} />,
+        }
+      : null,
+
+    includeDuty
+      ? {
+          label: "Manajemen Poin",
+          key: "/manajemen-poin-guru",
+          icon: <ShieldAlert size={14} />,
+          requiresHomeroom: true,
         }
       : null,
   ].filter(Boolean),

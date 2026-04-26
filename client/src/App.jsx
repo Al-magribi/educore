@@ -15,7 +15,9 @@ import {
   renderCbtStandaloneRoutes,
 } from "./routes/modules/cbtRoutes";
 import {
+  renderAdminOnlyLmsRoutes,
   renderLmsRoutes,
+  renderTeacherOnlyLmsRoutes,
   renderStudentLmsRoutes,
   renderParentLmsRoutes,
 } from "./routes/modules/lmsRoutes";
@@ -131,6 +133,16 @@ const App = () => {
 
             {isLmsEnabled &&
               renderLmsRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderAdminOnlyLmsRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderTeacherOnlyLmsRoutes({
                 LazyRoute,
               })}
 

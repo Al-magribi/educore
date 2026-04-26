@@ -326,25 +326,6 @@ const LmsManagement = () => {
                     background: "rgba(255,255,255,0.96)",
                   }}
                 />
-
-                <Flex
-                  justify='space-between'
-                  align={isMobile ? "flex-start" : "center"}
-                  wrap='wrap'
-                  gap={8}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 14,
-                    background: "rgba(15, 23, 42, 0.16)",
-                  }}
-                >
-                  <Text style={{ color: "rgba(255,255,255,0.75)" }}>
-                    Status tampilan
-                  </Text>
-                  <Text strong style={{ color: "#fff" }}>
-                    {view && subject_id ? "Detail aktif" : "Daftar mapel"}
-                  </Text>
-                </Flex>
               </Flex>
             </Col>
           </Row>

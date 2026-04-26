@@ -17,6 +17,17 @@ export const getLmsTeacherDir = (teacherId) => {
   return path.join(process.cwd(), "server", "assets", "lms", String(teacherId));
 };
 
+export const getLmsStudentSubmissionDir = (studentId) => {
+  return path.join(
+    process.cwd(),
+    "server",
+    "assets",
+    "lms",
+    "submissions",
+    String(studentId),
+  );
+};
+
 export const ensureDir = (dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });

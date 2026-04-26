@@ -11,6 +11,12 @@ const TeacherSchedule = lazy(
   () => import("../../module/lms/schedule/teacher/TeacherSchedule"),
 );
 const Duty = lazy(() => import("../../module/lms/duty/Duty"));
+const AdminPointView = lazy(
+  () => import("../../module/lms/point/view/AdminPointView"),
+);
+const TeacherPointView = lazy(
+  () => import("../../module/lms/point/view/TeacherPointView"),
+);
 const SubjectList = lazy(() => import("../../module/lms/student/SubjectList"));
 
 const ParentDash = lazy(
@@ -60,6 +66,35 @@ const renderLmsRoutes = ({ LazyRoute }) => (
         Component: Duty,
       })}
     />
+
+  </Route>
+);
+
+const renderAdminOnlyLmsRoutes = ({ LazyRoute }) => (
+  <Route
+    element={
+      <RouteProtection allowedRoles={["admin"]} allowedLevels={["satuan"]} />
+    }
+  >
+    <Route
+      path='/manajemen-poin'
+      element={createElement(LazyRoute, {
+        title: "Rule Poin",
+        Component: AdminPointView,
+      })}
+    />
+  </Route>
+);
+
+const renderTeacherOnlyLmsRoutes = ({ LazyRoute }) => (
+  <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
+    <Route
+      path='/manajemen-poin-guru'
+      element={createElement(LazyRoute, {
+        title: "Kelola Poin Siswa",
+        Component: TeacherPointView,
+      })}
+    />
   </Route>
 );
 
@@ -95,4 +130,10 @@ const renderParentLmsRoutes = ({ LazyRoute }) => (
   </Route>
 );
 
-export { renderLmsRoutes, renderStudentLmsRoutes, renderParentLmsRoutes };
+export {
+  renderAdminOnlyLmsRoutes,
+  renderLmsRoutes,
+  renderTeacherOnlyLmsRoutes,
+  renderStudentLmsRoutes,
+  renderParentLmsRoutes,
+};
