@@ -5,6 +5,7 @@ import RouteProtection from "../../utils/RouteProtection";
 
 const BankList = lazy(() => import("../../module/cbt/bank/view/BankList"));
 const ExamList = lazy(() => import("../../module/cbt/exam/view/ExamList"));
+const AiConfig = lazy(() => import("../../module/teacher/ai/AiConfig"));
 const ExamInterface = lazy(
   () => import("../../module/cbt/student/view/ExamInterface"),
 );
@@ -27,6 +28,13 @@ const renderCbtShellRoutes = ({ LazyPage }) => (
       element={createElement(LazyPage, {
         title: "Manajemen Jadwal Ujian",
         Component: ExamList,
+      })}
+    />
+    <Route
+      path="/guru/ai-config"
+      element={createElement(LazyPage, {
+        title: "Konfigurasi AI Guru",
+        Component: AiConfig,
       })}
     />
   </Route>

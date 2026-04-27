@@ -96,9 +96,9 @@ const buildFinanceMenus = (user = {}) => {
     center: [],
     admin: [],
     finance: financeMenus,
-    teacher: user?.is_homeroom ? [teacherFinanceNode] : [],
-    student: [studentFinanceNode],
-    parent: [parentFinanceNode],
+    teacher: [],
+    student: [],
+    parent: [],
     tahfiz: [],
   };
 };
