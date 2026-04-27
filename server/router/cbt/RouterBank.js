@@ -392,7 +392,7 @@ router.post(
 
     const questionResult = await client.query(
       `
-        SELECT id, bank_id, q_type, content, media_url, audio_url
+        SELECT id, bank_id, q_type, bloom_level, content, media_url, audio_url
         FROM cbt.c_question
         WHERE id = ANY($1::int[])
       `,
@@ -461,13 +461,14 @@ router.post(
       const forcedPoint = pointByQuestion.get(q.id) || 1;
       const insertQuestion = await client.query(
         `
-          INSERT INTO cbt.c_question (bank_id, q_type, content, media_url, audio_url, score_point)
-          VALUES ($1, $2, $3, $4, $5, $6)
+          INSERT INTO cbt.c_question (bank_id, q_type, bloom_level, content, media_url, audio_url, score_point)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
           RETURNING id
         `,
         [
           newBankId,
           q.q_type,
+          q.bloom_level,
           q.content,
           q.media_url,
           q.audio_url,
@@ -553,6 +554,7 @@ router.get(
         q.id,
         q.bank_id,
         q.q_type,
+        q.bloom_level,
         q.content,
         q.score_point,
         b.title as bank_title

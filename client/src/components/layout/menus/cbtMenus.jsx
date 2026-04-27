@@ -21,6 +21,11 @@ const cbtNode = {
 
 const TeacherMenus = [
   {
+    label: "AI Assistant",
+    key: "/guru/ai-config",
+    icon: <BrainCircuit size={14} />,
+  },
+  {
     label: "CBT",
     key: "/computer-based-test",
     icon: <DesktopOutlined />,
@@ -36,11 +41,6 @@ const TeacherMenus = [
         icon: <ClipboardClock size={14} />,
       },
     ],
-  },
-  {
-    label: "AI Assistant",
-    key: "/guru/ai-config",
-    icon: <BrainCircuit size={14} />,
   },
 ];
 

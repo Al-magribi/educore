@@ -10,13 +10,12 @@ import {
 } from "antd";
 import {
   ArrowLeft,
-  FileText,
+  Download,
   FileUp,
   Plus,
   Trash2,
   AlertCircle,
   Sparkles,
-  ClipboardList,
 } from "lucide-react";
 
 const { Text, Title } = Typography;
@@ -28,6 +27,8 @@ const QuestionHeader = ({
   totalCount,
   totalScore,
   onBack,
+  onDownload,
+  isDownloading,
   onImport,
   onAdd,
   onDeleteAll,
@@ -43,7 +44,7 @@ const QuestionHeader = ({
       transition={{ duration: 0.24, ease: "easeOut" }}
     >
       <Card
-        bordered={false}
+        variant="borderless"
         style={{
           borderRadius: 24,
           overflow: "hidden",
@@ -158,7 +159,7 @@ const QuestionHeader = ({
               <Statistic
                 title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Jumlah Soal</span>}
                 value={totalCount}
-                valueStyle={{ color: "#fff" }}
+                styles={{ content: { color: "#fff" } }}
               />
             </Card>
 
@@ -177,7 +178,9 @@ const QuestionHeader = ({
                 title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Bobot Total</span>}
                 value={totalScore}
                 suffix="/100"
-                valueStyle={{ color: isOverScore ? "#fecaca" : "#fff" }}
+                styles={{
+                  content: { color: isOverScore ? "#fecaca" : "#fff" },
+                }}
               />
             </Card>
           </Flex>
@@ -208,6 +211,22 @@ const QuestionHeader = ({
             </Tag>
           )}
 
+          <Button
+            icon={<Download size={16} />}
+            onClick={onDownload}
+            loading={isDownloading}
+            disabled={totalCount === 0}
+            className="res-btn-full"
+            style={{
+              borderRadius: 14,
+              minHeight: 42,
+              background: "rgba(255,255,255,0.12)",
+              color: "#fff",
+              borderColor: "rgba(255,255,255,0.24)",
+            }}
+          >
+            Download Soal
+          </Button>
           <Button
             danger
             icon={<Trash2 size={16} />}
