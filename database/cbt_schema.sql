@@ -46,6 +46,7 @@ CREATE TABLE cbt.c_question (
     id SERIAL PRIMARY KEY,
     bank_id integer REFERENCES cbt.c_bank(id) ON DELETE CASCADE,
     q_type smallint NOT NULL, -- 1=PG, 2=Essay, dll
+    bloom_level smallint DEFAULT NULL, -- 1=Remembering, 2=Understanding, 3=Applying, 4=Analyzing, 5=Evaluating, 6=Creating
     content text NOT NULL,
     media_url text,
     audio_url text,

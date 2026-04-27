@@ -5,6 +5,15 @@ import { authorize } from "../../middleware/authorize.js";
 
 const router = Router();
 
+const BLOOM_LEVEL_LABELS = {
+  1: "Remembering",
+  2: "Understanding",
+  3: "Applying",
+  4: "Analyzing",
+  5: "Evaluating",
+  6: "Creating",
+};
+
 const shuffleArray = (items) => {
   if (!Array.isArray(items)) return [];
   const result = [...items];
@@ -122,6 +131,87 @@ const getAllowAttendanceStatus = async (db) => {
     return "izin";
   }
   return "izinkan";
+};
+
+const normalizeBloomLevel = (value) => {
+  const parsed = parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const getBloomLevelLabel = (value) => {
+  const level = normalizeBloomLevel(value);
+  if (!level) return "Tanpa Level";
+  return `C${level} ${BLOOM_LEVEL_LABELS[level]}`;
+};
+
+const hasAnswerForQuestion = ({ question, answerRow }) => {
+  if (!answerRow) return false;
+
+  const answerValue = answerRow.answer_json;
+  const hasScore = answerRow.score_obtained !== null && answerRow.score_obtained !== undefined;
+
+  if (question.q_type === 1 || question.q_type === 5) {
+    return Number.isInteger(parseInt(answerValue, 10));
+  }
+
+  if (question.q_type === 2) {
+    return normalizeIdList(answerValue).length > 0;
+  }
+
+  if (question.q_type === 3 || question.q_type === 4) {
+    if (typeof answerValue === "string" && answerValue.trim() !== "") return true;
+    return hasScore;
+  }
+
+  if (question.q_type === 6) {
+    if (Array.isArray(answerValue) && answerValue.length > 0) return true;
+    return hasScore;
+  }
+
+  return false;
+};
+
+const getQuestionAnswerStatus = ({ question, answerRow, questionOptions = [] }) => {
+  const answered = hasAnswerForQuestion({ question, answerRow });
+  if (!answered) return "unanswered";
+
+  const answerValue = answerRow?.answer_json;
+
+  if (question.q_type === 1 || question.q_type === 5) {
+    const selectedId = parseInt(answerValue, 10);
+    const correctOptions = questionOptions.filter((opt) => opt.is_correct);
+    const isCorrect = correctOptions.some((opt) => opt.id === selectedId);
+    return isCorrect ? "correct" : "incorrect";
+  }
+
+  if (question.q_type === 2) {
+    const selectedIds = normalizeIdList(answerValue);
+    const correctIds = questionOptions
+      .filter((opt) => opt.is_correct)
+      .map((opt) => opt.id);
+    const correctSet = new Set(correctIds);
+    const isCorrect =
+      selectedIds.length > 0 &&
+      selectedIds.every((id) => correctSet.has(id)) &&
+      selectedIds.length === correctSet.size;
+    return isCorrect ? "correct" : "incorrect";
+  }
+
+  if (question.q_type === 3 || question.q_type === 4 || question.q_type === 6) {
+    if (answerRow?.score_obtained === null || answerRow?.score_obtained === undefined) {
+      return "pending_review";
+    }
+
+    return toNumber(answerRow.score_obtained) >= toNumber(question.score_point)
+      ? "correct"
+      : "incorrect";
+  }
+
+  return "incorrect";
 };
 
 const computeStudentScore = ({ questions, optionsByQuestion, answersByQuestion }) => {
@@ -729,7 +819,7 @@ router.get(
     exam.session = session;
     const questionResult = await pool.query(
       `
-        SELECT id, q_type, content, score_point, media_url, audio_url
+        SELECT id, q_type, bloom_level, content, score_point, media_url, audio_url
         FROM cbt.c_question
         WHERE bank_id = $1
         ORDER BY id ASC
@@ -1394,7 +1484,7 @@ router.get(
 
     const questionResult = await pool.query(
       `
-        SELECT q.id, q.q_type, q.score_point
+        SELECT q.id, q.q_type, q.bloom_level, q.score_point
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE e.id = $1
@@ -1504,7 +1594,7 @@ router.get(
 
     const questionResult = await pool.query(
       `
-        SELECT q.id, q.q_type, q.content, q.score_point
+        SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE e.id = $1
@@ -1565,6 +1655,8 @@ router.get(
         id: question.id,
         no: index + 1,
         q_type: question.q_type,
+        bloom_level: question.bloom_level,
+        bloom_label: getBloomLevelLabel(question.bloom_level),
         question: stripHtml(question.content),
         maxPoints: question.score_point || 0,
       };
@@ -1687,6 +1779,212 @@ router.get(
     });
 
     return res.json({ data: items });
+  }),
+);
+
+// 2.10.05 GET Exam Analysis by Question and Bloom Level
+router.get(
+  "/exam-analysis/:exam_id/bloom-level",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const examId = parseInt(req.params.exam_id, 10);
+    const user = req.user;
+
+    if (!Number.isInteger(examId)) {
+      return res.status(400).json({ message: "Exam ID tidak valid" });
+    }
+
+    const examCheck = await pool.query(
+      `
+        SELECT e.id, e.name, b.teacher_id, ut.homebase_id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
+        LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
+        WHERE e.id = $1
+        LIMIT 1
+      `,
+      [examId],
+    );
+
+    if (examCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Ujian tidak ditemukan" });
+    }
+
+    const examOwner = examCheck.rows[0];
+    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+
+    const rosterResult = await pool.query(
+      `
+        WITH student_class AS (
+          SELECT
+            s.user_id,
+            COALESCE(s.current_class_id, latest_enrollment.class_id) AS class_id
+          FROM u_students s
+          LEFT JOIN LATERAL (
+            SELECT class_id
+            FROM u_class_enrollments
+            WHERE student_id = s.user_id
+            ORDER BY id DESC
+            LIMIT 1
+          ) AS latest_enrollment ON true
+        )
+        SELECT DISTINCT sc.user_id as id
+        FROM cbt.c_exam_class ec
+        JOIN student_class sc ON sc.class_id = ec.class_id
+        WHERE ec.exam_id = $1
+      `,
+      [examId],
+    );
+
+    const students = rosterResult.rows;
+    const totalStudents = students.length;
+
+    const questionResult = await pool.query(
+      `
+        SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        WHERE e.id = $1
+        ORDER BY q.id ASC
+      `,
+      [examId],
+    );
+
+    const questions = questionResult.rows;
+    if (questions.length === 0) {
+      return res.json({
+        exam: { id: examOwner.id, name: examOwner.name },
+        total_students: totalStudents,
+        per_question: [],
+        by_bloom_level: [],
+      });
+    }
+
+    const questionIds = questions.map((q) => q.id);
+    const optionResult = await pool.query(
+      `
+        SELECT id, question_id, is_correct
+        FROM cbt.c_question_options
+        WHERE question_id = ANY($1::int[])
+        ORDER BY id ASC
+      `,
+      [questionIds],
+    );
+
+    const optionsByQuestion = optionResult.rows.reduce((acc, item) => {
+      if (!acc[item.question_id]) acc[item.question_id] = [];
+      acc[item.question_id].push(item);
+      return acc;
+    }, {});
+
+    const studentIds = students.map((student) => student.id);
+    let answers = [];
+    if (studentIds.length > 0) {
+      const answerResult = await pool.query(
+        `
+          SELECT student_id, question_id, answer_json, score_obtained
+          FROM cbt.c_student_answer
+          WHERE exam_id = $1 AND student_id = ANY($2::int[])
+        `,
+        [examId, studentIds],
+      );
+      answers = answerResult.rows;
+    }
+
+    const answersByQuestion = answers.reduce((acc, row) => {
+      if (!acc[row.question_id]) acc[row.question_id] = new Map();
+      acc[row.question_id].set(row.student_id, row);
+      return acc;
+    }, {});
+
+    const stripHtml = (value) =>
+      String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+    const perQuestion = questions.map((question, index) => {
+      const answerMap = answersByQuestion[question.id] || new Map();
+      const stats = {
+        correct_count: 0,
+        incorrect_count: 0,
+        unanswered_count: 0,
+        pending_review_count: 0,
+      };
+
+      students.forEach((student) => {
+        const status = getQuestionAnswerStatus({
+          question,
+          answerRow: answerMap.get(student.id),
+          questionOptions: optionsByQuestion[question.id] || [],
+        });
+
+        if (status === "correct") stats.correct_count += 1;
+        else if (status === "incorrect") stats.incorrect_count += 1;
+        else if (status === "pending_review") stats.pending_review_count += 1;
+        else stats.unanswered_count += 1;
+      });
+
+      return {
+        id: question.id,
+        no: index + 1,
+        q_type: question.q_type,
+        bloom_level: question.bloom_level,
+        bloom_label: getBloomLevelLabel(question.bloom_level),
+        question: stripHtml(question.content),
+        score_point: question.score_point || 0,
+        total_students: totalStudents,
+        ...stats,
+        correct_percentage:
+          totalStudents > 0
+            ? Number(((stats.correct_count / totalStudents) * 100).toFixed(2))
+            : 0,
+      };
+    });
+
+    const bloomSummaryMap = new Map();
+    perQuestion.forEach((item) => {
+      const key = item.bloom_level ?? "none";
+      if (!bloomSummaryMap.has(key)) {
+        bloomSummaryMap.set(key, {
+          bloom_level: item.bloom_level,
+          bloom_label: getBloomLevelLabel(item.bloom_level),
+          total_questions: 0,
+          total_students,
+          correct_count: 0,
+          incorrect_count: 0,
+          unanswered_count: 0,
+          pending_review_count: 0,
+        });
+      }
+
+      const current = bloomSummaryMap.get(key);
+      current.total_questions += 1;
+      current.correct_count += item.correct_count;
+      current.incorrect_count += item.incorrect_count;
+      current.unanswered_count += item.unanswered_count;
+      current.pending_review_count += item.pending_review_count;
+    });
+
+    const byBloomLevel = [...bloomSummaryMap.values()].map((item) => {
+      const totalAttempts = item.total_questions * item.total_students;
+      return {
+        ...item,
+        correct_percentage:
+          totalAttempts > 0
+            ? Number(((item.correct_count / totalAttempts) * 100).toFixed(2))
+            : 0,
+      };
+    });
+
+    return res.json({
+      exam: { id: examOwner.id, name: examOwner.name },
+      total_students: totalStudents,
+      per_question: perQuestion,
+      by_bloom_level: byBloomLevel,
+    });
   }),
 );
 

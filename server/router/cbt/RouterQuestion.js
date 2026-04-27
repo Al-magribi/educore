@@ -41,6 +41,19 @@ const uploadAudio = multer({ storage: audioStorage });
 
 const router = Router();
 
+const normalizeBloomLevel = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsed = parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) {
+    return null;
+  }
+
+  return parsed;
+};
+
 /**
  * TIPE SOAL MAPPING (Frontend & Backend Agreement):
  * 1: PG Tunggal (Single Choice)
@@ -60,7 +73,7 @@ router.get(
 
     // Ambil Soal
     const sqlQuestion = `
-      SELECT id, q_type, content, score_point 
+      SELECT id, q_type, bloom_level, content, score_point 
       FROM cbt.c_question
       WHERE bank_id = $1 
       ORDER BY id ASC
@@ -95,16 +108,19 @@ router.post(
   "/create-question",
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
-    const { bank_id, q_type, content, score_point, options } = req.body;
+    const { bank_id, q_type, content, score_point, bloom_level, options } =
+      req.body;
+    const normalizedBloomLevel = normalizeBloomLevel(bloom_level);
 
     // Insert Soal
     const sqlQ = `
-      INSERT INTO cbt.c_question (bank_id, q_type, content, score_point)
-      VALUES ($1, $2, $3, $4) RETURNING id
+      INSERT INTO cbt.c_question (bank_id, q_type, bloom_level, content, score_point)
+      VALUES ($1, $2, $3, $4, $5) RETURNING id
     `;
     const resQ = await client.query(sqlQ, [
       bank_id,
       q_type,
+      normalizedBloomLevel,
       content,
       score_point || 1,
     ]);
@@ -136,12 +152,13 @@ router.put(
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
-    const { q_type, content, score_point, options } = req.body;
+    const { q_type, content, score_point, bloom_level, options } = req.body;
+    const normalizedBloomLevel = normalizeBloomLevel(bloom_level);
 
     // Update Header Soal
     await client.query(
-      `UPDATE cbt.c_question SET content=$1, score_point=$2, q_type=$3 WHERE id=$4`,
-      [content, score_point, q_type, id],
+      `UPDATE cbt.c_question SET content=$1, score_point=$2, q_type=$3, bloom_level=$4 WHERE id=$5`,
+      [content, score_point, q_type, normalizedBloomLevel, id],
     );
 
     // Update Opsi: Strategi paling aman & mudah adalah Delete All -> Insert New
@@ -193,11 +210,18 @@ router.post(
     }
 
     for (const q of questions) {
+      const normalizedBloomLevel = normalizeBloomLevel(q.bloom_level);
       // 1. Insert Soal Utama
       const resQ = await client.query(
-        `INSERT INTO cbt.c_question (bank_id, q_type, content, score_point)
-         VALUES ($1, $2, $3, $4) RETURNING id`,
-        [q.bank_soal_id, q.q_type, q.content, q.score_point], // score_weight dari frontend
+        `INSERT INTO cbt.c_question (bank_id, q_type, bloom_level, content, score_point)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [
+          q.bank_soal_id,
+          q.q_type,
+          normalizedBloomLevel,
+          q.content,
+          q.score_point,
+        ], // score_weight dari frontend
       );
 
       const questionId = resQ.rows[0].id;
