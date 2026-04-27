@@ -7,7 +7,6 @@ import {
   Card,
   InputNumber,
   Space,
-  Divider,
   message,
   Alert,
   Flex,
@@ -27,6 +26,7 @@ import {
   Sparkles,
   X,
   Sigma,
+  BrainCircuit,
 } from "lucide-react";
 import {
   useCreateQuestionMutation,
@@ -52,7 +52,16 @@ const QUESTION_TYPES = [
   { label: "Menjodohkan", value: 6, icon: <GitMerge size={16} /> },
 ];
 
-const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
+const BLOOM_LEVELS = [
+  { value: 1, short: "C1", label: "Remembering" },
+  { value: 2, short: "C2", label: "Understanding" },
+  { value: 3, short: "C3", label: "Applying" },
+  { value: 4, short: "C4", label: "Analyzing" },
+  { value: 5, short: "C5", label: "Evaluating" },
+  { value: 6, short: "C6", label: "Creating" },
+];
+
+const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -65,34 +74,38 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
 
   const isLoading = isCreating || isUpdating;
 
-  const resetToDefault = useCallback((type) => {
-    let defaultOptions = [];
-    if (type === 1 || type === 2) {
-      defaultOptions = [
-        { content: "", is_correct: true },
-        { content: "", is_correct: false },
-        { content: "", is_correct: false },
-        { content: "", is_correct: false },
-      ];
-    } else if (type === 5) {
-      defaultOptions = [
-        { content: "Benar", is_correct: true },
-        { content: "Salah", is_correct: false },
-      ];
-    } else if (type === 6) {
-      defaultOptions = [{ label: "", content: "", is_correct: true }];
-    } else if (type === 4) {
-      defaultOptions = [{ content: "", is_correct: true }];
-    }
+  const resetToDefault = useCallback(
+    (type) => {
+      let defaultOptions = [];
+      if (type === 1 || type === 2) {
+        defaultOptions = [
+          { content: "", is_correct: true },
+          { content: "", is_correct: false },
+          { content: "", is_correct: false },
+          { content: "", is_correct: false },
+        ];
+      } else if (type === 5) {
+        defaultOptions = [
+          { content: "Benar", is_correct: true },
+          { content: "Salah", is_correct: false },
+        ];
+      } else if (type === 6) {
+        defaultOptions = [{ label: "", content: "", is_correct: true }];
+      } else if (type === 4) {
+        defaultOptions = [{ content: "", is_correct: true }];
+      }
 
-    form.setFieldsValue({
-      q_type: type,
-      content: "",
-      options: defaultOptions,
-      score_point: 1,
-    });
-    setQType(type);
-  }, [form]);
+      form.setFieldsValue({
+        q_type: type,
+        content: "",
+        options: defaultOptions,
+        score_point: 1,
+        bloom_level: null,
+      });
+      setQType(type);
+    },
+    [form],
+  );
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -113,7 +126,7 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
     try {
       const payload = {
         ...values,
-        bank_soal_id: bankSoalId,
+        bank_id: bankId,
       };
 
       if (initialData?.id) {
@@ -138,9 +151,9 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
       case 3:
         return (
           <Alert
-            message="Tipe Soal Uraian"
-            description="Untuk tipe soal uraian, sistem tidak menetapkan kunci jawaban otomatis. Pemeriksaan dilakukan secara manual oleh guru atau penilai."
-            type="warning"
+            message='Tipe Soal Uraian'
+            description='Untuk tipe soal uraian, sistem tidak menetapkan kunci jawaban otomatis. Pemeriksaan dilakukan secara manual oleh guru atau penilai.'
+            type='warning'
             showIcon
             style={{ borderRadius: 16 }}
           />
@@ -167,7 +180,7 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
     >
       <Form
         form={form}
-        layout="vertical"
+        layout='vertical'
         onFinish={onFinish}
         initialValues={{ q_type: 1, score_point: 1 }}
       >
@@ -179,7 +192,7 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
             borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
           }}
         >
-          <Flex align="flex-start" gap={16}>
+          <Flex align='flex-start' gap={16}>
             <div
               style={{
                 width: isMobile ? 48 : 56,
@@ -198,7 +211,7 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
 
             <div style={{ flex: 1 }}>
               <Flex
-                justify="space-between"
+                justify='space-between'
                 align={isMobile ? "flex-start" : "center"}
                 vertical={isMobile}
                 gap={10}
@@ -207,8 +220,13 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
                   <Title level={4} style={{ margin: 0 }}>
                     {initialData ? "Perbarui Soal" : "Buat Soal Baru"}
                   </Title>
-                  <Text type="secondary" style={{ display: "block", marginTop: 6 }}>
-                    Susun konten soal, tipe jawaban, dan bobot nilai dalam satu form yang lebih terstruktur untuk workflow produksi CBT.
+                  <Text
+                    type='secondary'
+                    style={{ display: "block", marginTop: 6 }}
+                  >
+                    Susun konten soal, tipe jawaban, bobot nilai, dan level
+                    kognitif dalam satu form yang lebih terstruktur untuk
+                    workflow produksi CBT.
                   </Text>
                 </div>
 
@@ -247,18 +265,26 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
               styles={{ body: { padding: isMobile ? 16 : 18 } }}
             >
               <Flex
-                justify="space-between"
+                justify='space-between'
                 align={screens.sm ? "center" : "stretch"}
                 gap={16}
                 wrap
               >
                 <Form.Item
-                  name="q_type"
-                  label="Tipe Soal"
+                  name='q_type'
+                  label='Tipe Soal'
                   rules={[{ required: true }]}
-                  style={{ flex: 1, minWidth: isMobile ? "100%" : 260, marginBottom: 0 }}
+                  style={{
+                    flex: 1,
+                    minWidth: isMobile ? "100%" : 260,
+                    marginBottom: 0,
+                  }}
                 >
-                  <Select onChange={handleTypeChange} size="large" virtual={false}>
+                  <Select
+                    onChange={handleTypeChange}
+                    size='large'
+                    virtual={false}
+                  >
                     {QUESTION_TYPES.map((t) => (
                       <Select.Option key={t.value} value={t.value}>
                         <Space>
@@ -271,17 +297,49 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
                 </Form.Item>
 
                 <Form.Item
-                  name="score_point"
-                  label="Bobot Skor"
+                  name='score_point'
+                  label='Bobot Skor'
                   rules={[{ required: true }]}
                   style={{ minWidth: isMobile ? "100%" : 180, marginBottom: 0 }}
                 >
                   <InputNumber
                     min={1}
                     style={{ width: "100%" }}
-                    size="large"
+                    size='large'
                     prefix={<Sigma size={14} />}
                   />
+                </Form.Item>
+
+                <Form.Item
+                  name='bloom_level'
+                  label='Bloom Level'
+                  style={{ minWidth: isMobile ? "100%" : 220, marginBottom: 0 }}
+                >
+                  <Select
+                    allowClear
+                    size='large'
+                    placeholder='Pemetaan Level Bloom'
+                    suffixIcon={<BrainCircuit size={16} />}
+                  >
+                    {BLOOM_LEVELS.map((level) => (
+                      <Select.Option
+                        key={level.value}
+                        value={level.value}
+                        label={`${level.short} ${level.label}`}
+                      >
+                        <Space size={10}>
+                          <Tag
+                            color='gold'
+                            bordered={false}
+                            style={{ margin: 0, borderRadius: 999 }}
+                          >
+                            {level.short}
+                          </Tag>
+                          <span>{level.label}</span>
+                        </Space>
+                      </Select.Option>
+                    ))}
+                  </Select>
                 </Form.Item>
               </Flex>
             </Card>
@@ -296,14 +354,18 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
               styles={{ body: { padding: isMobile ? 16 : 18 } }}
             >
               <Form.Item
-                name="content"
-                label={<span style={{ fontSize: 16, fontWeight: 600 }}>Pertanyaan</span>}
+                name='content'
+                label={
+                  <span style={{ fontSize: 16, fontWeight: 600 }}>
+                    Pertanyaan
+                  </span>
+                }
                 rules={[{ required: true, message: "Tulis pertanyaan soal" }]}
                 style={{ marginBottom: 0 }}
               >
                 <TextEditor
-                  placeholder="Tulis soal di sini. Gunakan toolbar untuk menyisipkan gambar, rumus, atau format teks yang dibutuhkan."
-                  height="300px"
+                  placeholder='Tulis soal di sini. Gunakan toolbar untuk menyisipkan gambar, rumus, atau format teks yang dibutuhkan.'
+                  height='300px'
                 />
               </Form.Item>
             </Card>
@@ -316,8 +378,8 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
               }}
               styles={{ body: { padding: isMobile ? 16 : 18 } }}
             >
-              <Flex align="center" gap={10} style={{ marginBottom: 14 }}>
-                <Sparkles size={18} color="#1d4ed8" />
+              <Flex align='center' gap={10} style={{ marginBottom: 14 }}>
+                <Sparkles size={18} color='#1d4ed8' />
                 <Title level={5} style={{ margin: 0 }}>
                   Kunci Jawaban & Opsi
                 </Title>
@@ -333,28 +395,34 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
                 border: "1px solid rgba(14, 165, 233, 0.16)",
               }}
             >
-              <Flex align="flex-start" gap={12}>
-                <CheckCircle2 size={18} color="#0284c7" style={{ marginTop: 2 }} />
+              <Flex align='flex-start' gap={12}>
+                <CheckCircle2
+                  size={18}
+                  color='#0284c7'
+                  style={{ marginTop: 2 }}
+                />
                 <div>
                   <Text strong style={{ display: "block", marginBottom: 4 }}>
                     Catatan penyusunan
                   </Text>
-                  <Text type="secondary">
-                    Pastikan tipe soal, opsi jawaban, dan bobot penilaian sudah sesuai sebelum menyimpan agar data siap dipakai pada sesi ujian.
+                  <Text type='secondary'>
+                    Pastikan tipe soal, opsi jawaban, bobot penilaian, dan level
+                    Bloom sudah sesuai sebelum menyimpan agar data siap dipakai
+                    pada sesi ujian dan analitik.
                   </Text>
                 </div>
               </Flex>
             </Card>
 
             <Flex
-              justify="flex-end"
+              justify='flex-end'
               gap={12}
               style={{ flexDirection: isMobile ? "column-reverse" : "row" }}
             >
               <Button
                 onClick={onCancel}
                 disabled={isLoading}
-                size="large"
+                size='large'
                 icon={<X size={16} />}
                 style={{
                   borderRadius: 14,
@@ -364,11 +432,11 @@ const QuestionForm = ({ initialData, bankSoalId, onSaveSuccess, onCancel }) => {
                 Batal
               </Button>
               <Button
-                type="primary"
-                htmlType="submit"
+                type='primary'
+                htmlType='submit'
                 icon={<Save size={18} />}
                 loading={isLoading}
-                size="large"
+                size='large'
                 style={{
                   borderRadius: 14,
                   minWidth: isMobile ? "100%" : 180,

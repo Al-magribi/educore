@@ -1,12 +1,14 @@
 import React, { useMemo } from "react";
 import { Card, Grid, Tabs } from "antd";
 import { motion } from "framer-motion";
-import { BarChart3, ClipboardCheck } from "lucide-react";
+import { BarChart3, BrainCircuit, ClipboardCheck } from "lucide-react";
 import AttendanceTable from "./components/AttendanceTable";
+import BloomAnalysis from "./components/BloomAnalysis";
 import ReportHeader from "./components/ReportHeader";
 import ScoreTable from "./components/ScoreTable";
 import {
   useGetExamAttendanceQuery,
+  useGetExamBloomAnalysisQuery,
   useGetExamScoresQuery,
 } from "../../../../service/cbt/ApiExam";
 
@@ -45,6 +47,11 @@ const Report = ({ exam_id, exam_name, token }) => {
     { exam_id },
     { skip: !exam_id },
   );
+  const { data: bloomResponse, isLoading: bloomLoading } =
+    useGetExamBloomAnalysisQuery(
+      { exam_id },
+      { skip: !exam_id },
+    );
 
   const attendanceData = useMemo(() => {
     const rows = attendanceResponse?.data || [];
@@ -116,6 +123,18 @@ const Report = ({ exam_id, exam_name, token }) => {
           examId={exam_id}
           isMobile={isMobile}
           isLoading={scoreLoading}
+        />
+      ),
+    },
+    {
+      key: "bloom-analysis",
+      label: "Bloom Level",
+      icon: <BrainCircuit size={16} />,
+      children: (
+        <BloomAnalysis
+          data={bloomResponse}
+          isMobile={isMobile}
+          isLoading={bloomLoading}
         />
       ),
     },
