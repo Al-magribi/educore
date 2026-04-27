@@ -61,7 +61,7 @@ router.get(
     // Ambil Soal
     const sqlQuestion = `
       SELECT id, q_type, content, score_point 
-      FROM c_question 
+      FROM cbt.c_question
       WHERE bank_id = $1 
       ORDER BY id ASC
     `;
@@ -73,7 +73,7 @@ router.get(
       const qIds = questions.map((q) => q.id);
       const sqlOptions = `
         SELECT id, question_id, label, content, is_correct 
-        FROM c_question_options 
+        FROM cbt.c_question_options
         WHERE question_id = ANY($1::int[]) 
         ORDER BY id ASC
       `;
@@ -99,7 +99,7 @@ router.post(
 
     // Insert Soal
     const sqlQ = `
-      INSERT INTO c_question (bank_id, q_type, content, score_point)
+      INSERT INTO cbt.c_question (bank_id, q_type, content, score_point)
       VALUES ($1, $2, $3, $4) RETURNING id
     `;
     const resQ = await client.query(sqlQ, [
@@ -114,7 +114,7 @@ router.post(
     // Essay Uraian mungkin tidak punya opsi, tapi Essay Singkat punya (kunci jawaban)
     if (options && options.length > 0) {
       const sqlOpt = `
-        INSERT INTO c_question_options (question_id, label, content, is_correct)
+        INSERT INTO cbt.c_question_options (question_id, label, content, is_correct)
         VALUES ($1, $2, $3, $4)
       `;
       for (const opt of options) {
@@ -140,19 +140,19 @@ router.put(
 
     // Update Header Soal
     await client.query(
-      `UPDATE c_question SET content=$1, score_point=$2, q_type=$3 WHERE id=$4`,
+      `UPDATE cbt.c_question SET content=$1, score_point=$2, q_type=$3 WHERE id=$4`,
       [content, score_point, q_type, id],
     );
 
     // Update Opsi: Strategi paling aman & mudah adalah Delete All -> Insert New
     // (Kecuali jika butuh tracking history ID opsi, tapi untuk CBT biasanya replace fine)
-    await client.query(`DELETE FROM c_question_options WHERE question_id=$1`, [
+    await client.query(`DELETE FROM cbt.c_question_options WHERE question_id=$1`, [
       id,
     ]);
 
     if (options && options.length > 0) {
       const sqlOpt = `
-        INSERT INTO c_question_options (question_id, label, content, is_correct)
+        INSERT INTO cbt.c_question_options (question_id, label, content, is_correct)
         VALUES ($1, $2, $3, $4)
       `;
       for (const opt of options) {
@@ -176,7 +176,7 @@ router.delete(
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
     // Opsi otomatis terhapus karena constraint ON DELETE CASCADE di database
-    await client.query(`DELETE FROM c_question WHERE id = $1`, [id]);
+    await client.query(`DELETE FROM cbt.c_question WHERE id = $1`, [id]);
     res.json({ message: "Soal berhasil dihapus" });
   }),
 );
@@ -195,7 +195,7 @@ router.post(
     for (const q of questions) {
       // 1. Insert Soal Utama
       const resQ = await client.query(
-        `INSERT INTO c_question (bank_id, q_type, content, score_point) 
+        `INSERT INTO cbt.c_question (bank_id, q_type, content, score_point)
          VALUES ($1, $2, $3, $4) RETURNING id`,
         [q.bank_soal_id, q.q_type, q.content, q.score_point], // score_weight dari frontend
       );
@@ -204,7 +204,7 @@ router.post(
 
       // 2. Insert Opsi/Jawaban
       if (q.options && q.options.length > 0) {
-        const optQuery = `INSERT INTO c_question_options (question_id, label, content, is_correct) VALUES ($1, $2, $3, $4)`;
+        const optQuery = `INSERT INTO cbt.c_question_options (question_id, label, content, is_correct) VALUES ($1, $2, $3, $4)`;
         for (const opt of q.options) {
           await client.query(optQuery, [
             questionId,
@@ -233,7 +233,7 @@ router.post(
       return res.status(400).json({ message: "Pilih soal yang akan dihapus" });
     }
 
-    await client.query(`DELETE FROM c_question WHERE id = ANY($1::int[])`, [
+    await client.query(`DELETE FROM cbt.c_question WHERE id = ANY($1::int[])`, [
       ids,
     ]);
 

@@ -1,4 +1,4 @@
-import React, { Component } from "react";
+import React, { useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import ReactQuill, { Quill } from "react-quill-new";
 import QuillResizeImage from "quill-resize-image";
@@ -36,38 +36,53 @@ Quill.register(Audio);
 
 const MotionDiv = motion.div;
 
-class Editor extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { editorHtml: props.value || "" };
-    this.reactQuillRef = React.createRef();
-  }
+const Editor = ({
+  placeholder,
+  value,
+  onChange,
+  height,
+  classname,
+  variant,
+  label,
+  helper,
+  maxLength,
+  showCount,
+}) => {
+  const isShortAnswer = variant === "short";
+  const wrapperHeight = height || (isShortAnswer ? "160px" : "350px");
 
-  handleChange = (html) => {
-    this.setState({ editorHtml: html });
-    this.props.onChange(html);
-  };
+  const editorHtml = value || "";
+  const reactQuillRef = useRef(null);
 
-  handlePlainChange = (event) => {
-    const value = event?.target?.value ?? "";
-    this.setState({ editorHtml: value });
-    this.props.onChange(value);
-  };
+  const syncValue = useCallback(
+    (nextValue) => {
+      onChange(nextValue);
+    },
+    [onChange],
+  );
 
-  componentDidUpdate(prevProps) {
-    if (prevProps.value !== this.props.value) {
-      this.setState({ editorHtml: this.props.value });
-    }
-  }
+  const handleChange = useCallback(
+    (html) => {
+      syncValue(html);
+    },
+    [syncValue],
+  );
 
-  handleImageUpload = () => {
+  const handlePlainChange = useCallback(
+    (event) => {
+      syncValue(event?.target?.value ?? "");
+    },
+    [syncValue],
+  );
+
+  const handleImageUpload = useCallback(() => {
     const input = document.createElement("input");
     input.setAttribute("type", "file");
     input.setAttribute("accept", "image/*");
     input.click();
 
     input.onchange = async () => {
-      const file = input.files[0];
+      const file = input.files?.[0];
       if (file) {
         const formData = new FormData();
         formData.append("file", file);
@@ -77,7 +92,7 @@ class Editor extends Component {
             body: formData,
           });
           const data = await response.json();
-          const editor = this.reactQuillRef.current?.getEditor();
+          const editor = reactQuillRef.current?.getEditor();
           if (editor) {
             const range = editor.getSelection(true);
             editor.insertEmbed(range.index, "image", data.url);
@@ -87,16 +102,16 @@ class Editor extends Component {
         }
       }
     };
-  };
+  }, []);
 
-  handleAudioUpload = () => {
+  const handleAudioUpload = useCallback(() => {
     const input = document.createElement("input");
     input.setAttribute("type", "file");
     input.setAttribute("accept", "audio/*");
     input.click();
 
     input.onchange = async () => {
-      const file = input.files[0];
+      const file = input.files?.[0];
       if (file) {
         const formData = new FormData();
         formData.append("file", file);
@@ -106,7 +121,7 @@ class Editor extends Component {
             body: formData,
           });
           const data = await response.json();
-          const editor = this.reactQuillRef.current?.getEditor();
+          const editor = reactQuillRef.current?.getEditor();
           if (editor) {
             const range = editor.getSelection(true);
             editor.insertEmbed(range.index, "audio", data.url);
@@ -116,127 +131,106 @@ class Editor extends Component {
         }
       }
     };
-  };
+  }, []);
 
-  render() {
-    const {
-      placeholder,
-      height,
-      classname,
-      variant,
-      label,
-      helper,
-      maxLength,
-      showCount,
-    } = this.props;
-    const isShortAnswer = variant === "short";
-    const wrapperHeight = height || (isShortAnswer ? "160px" : "350px");
+  return (
+    <MotionDiv
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className={`border-editor ${classname}`}
+      style={{
+        minHeight: wrapperHeight,
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        borderRadius: 12,
+        border: "1px solid #e6eaf2",
+        background: "#fff",
+        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+        padding: 12,
+        gap: 8,
+      }}
+    >
+      {(label || helper) && (
+        <Space direction='vertical' size={2}>
+          {label && (
+            <Typography.Text strong style={{ fontSize: 14 }}>
+              {label}
+            </Typography.Text>
+          )}
+          {helper && (
+            <Typography.Text type='secondary' style={{ fontSize: 12 }}>
+              {helper}
+            </Typography.Text>
+          )}
+        </Space>
+      )}
 
-    return (
-      <MotionDiv
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: "easeOut" }}
-        className={`border-editor ${classname}`}
-        style={{
-          minHeight: wrapperHeight,
-          display: "flex",
-          flexDirection: "column",
-          width: "100%",
-          borderRadius: 12,
-          border: "1px solid #e6eaf2",
-          background: "#fff",
-          boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
-          padding: 12,
-          gap: 8,
-        }}
-      >
-        {(label || helper) && (
-          <Space direction="vertical" size={2}>
-            {label && (
-              <Typography.Text strong style={{ fontSize: 14 }}>
-                {label}
-              </Typography.Text>
-            )}
-            {helper && (
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {helper}
-              </Typography.Text>
-            )}
-          </Space>
-        )}
-
-        {isShortAnswer ? (
-          <Input.TextArea
-            value={this.state.editorHtml}
-            onChange={this.handlePlainChange}
-            placeholder={placeholder}
-            autoSize={{ minRows: 4, maxRows: 8 }}
-            maxLength={maxLength}
-            showCount={showCount}
-            style={{
-              minHeight: wrapperHeight,
-              borderRadius: 10,
-              borderColor: "#e6eaf2",
-            }}
-          />
-        ) : (
-          <ReactQuill
-            ref={this.reactQuillRef}
-            theme="snow"
-            value={this.state.editorHtml}
-            onChange={this.handleChange}
-            modules={Editor.modules(
-              this.handleImageUpload,
-              this.handleAudioUpload,
-            )}
-            formats={Editor.formats}
-            placeholder={placeholder}
-            className="react-quill"
-            style={{
-              minHeight: wrapperHeight,
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 10,
-              overflow: "hidden",
-            }}
-          />
-        )}
-      </MotionDiv>
-    );
-  }
-}
-
-Editor.modules = (handleImageUpload, handleAudioUpload) => {
-  return {
-    toolbar: {
-      container: [
-        [{ header: "1" }, { header: "2" }, { font: [] }],
-        [{ size: [] }],
-        ["bold", "italic", "underline", "strike", "blockquote"],
-        [
-          { list: "ordered" },
-          { list: "bullet" },
-          { indent: "-1" },
-          { indent: "+1" },
-        ],
-        // Tombol 'formula' ditambahkan di sini
-        ["link", "image", "audio", "video", "formula"],
-        ["clean"],
-      ],
-      handlers: {
-        image: handleImageUpload,
-        audio: handleAudioUpload,
-      },
-    },
-    clipboard: {
-      matchVisual: false,
-    },
-    resize: {
-      modules: ["Resize"],
-    },
-  };
+      {isShortAnswer ? (
+        <Input.TextArea
+          value={editorHtml}
+          onChange={handlePlainChange}
+          placeholder={placeholder}
+          autoSize={{ minRows: 4, maxRows: 8 }}
+          maxLength={maxLength}
+          showCount={showCount}
+          style={{
+            minHeight: wrapperHeight,
+            borderRadius: 10,
+            borderColor: "#e6eaf2",
+          }}
+        />
+      ) : (
+        <ReactQuill
+          ref={reactQuillRef}
+          theme='snow'
+          value={editorHtml}
+          onChange={handleChange}
+          modules={Editor.modules(handleImageUpload, handleAudioUpload)}
+          formats={Editor.formats}
+          placeholder={placeholder}
+          className='react-quill'
+          style={{
+            minHeight: wrapperHeight,
+            display: "flex",
+            flexDirection: "column",
+            borderRadius: 10,
+            overflow: "hidden",
+          }}
+        />
+      )}
+    </MotionDiv>
+  );
 };
+
+Editor.modules = (handleImageUpload, handleAudioUpload) => ({
+  toolbar: {
+    container: [
+      [{ header: "1" }, { header: "2" }, { font: [] }],
+      [{ size: [] }],
+      ["bold", "italic", "underline", "strike", "blockquote"],
+      [
+        { list: "ordered" },
+        { list: "bullet" },
+        { indent: "-1" },
+        { indent: "+1" },
+      ],
+      ["link", "image", "audio", "video", "formula"],
+      ["clean"],
+    ],
+    handlers: {
+      image: handleImageUpload,
+      audio: handleAudioUpload,
+    },
+  },
+  clipboard: {
+    matchVisual: false,
+  },
+  resize: {
+    modules: ["Resize"],
+  },
+});
 
 Editor.formats = [
   "header",

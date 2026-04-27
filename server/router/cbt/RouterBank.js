@@ -60,7 +60,7 @@ router.get(
         s.name as subject_name,
         s.code as subject_code,
         t.full_name as teacher_name
-      FROM c_bank b
+      FROM cbt.c_bank b
       LEFT JOIN a_subject s ON b.subject_id = s.id
       LEFT JOIN u_users t ON b.teacher_id = t.id
       LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id 
@@ -71,7 +71,7 @@ router.get(
     // --- 3. Count Query ---
     const countSql = `
       SELECT COUNT(*) as total 
-      FROM c_bank b
+      FROM cbt.c_bank b
       LEFT JOIN a_subject s ON b.subject_id = s.id
       LEFT JOIN u_users t ON b.teacher_id = t.id
       LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
@@ -132,7 +132,7 @@ router.post(
     }
 
     const sql = `
-      INSERT INTO c_bank (teacher_id, subject_id, title, type)
+      INSERT INTO cbt.c_bank (teacher_id, subject_id, title, type)
       VALUES ($1, $2, $3, $4) RETURNING id
     `;
     const result = await client.query(sql, [
@@ -163,7 +163,7 @@ router.put(
     if (role === "admin") {
       // Admin bisa ganti teacher_id
       sql = `
-            UPDATE c_bank 
+            UPDATE cbt.c_bank
             SET title = $1, subject_id = $2, type = $3, teacher_id = $4
             WHERE id = $5
          `;
@@ -171,7 +171,7 @@ router.put(
     } else {
       // Guru TIDAK BISA ganti teacher_id (tetap punya dia)
       sql = `
-            UPDATE c_bank 
+            UPDATE cbt.c_bank
             SET title = $1, subject_id = $2, type = $3
             WHERE id = $4
          `;
@@ -189,7 +189,7 @@ router.delete(
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
-    await client.query(`DELETE FROM c_bank WHERE id = $1`, [id]);
+    await client.query(`DELETE FROM cbt.c_bank WHERE id = $1`, [id]);
     res.json({ message: "Bank soal berhasil dihapus" });
   }),
 );
@@ -275,8 +275,8 @@ router.get(
         t.full_name as teacher_name,
         COALESCE(COUNT(q.id), 0) as total_questions,
         COALESCE(SUM(q.score_point), 0) as total_points
-      FROM c_bank b
-      LEFT JOIN c_question q ON q.bank_id = b.id
+      FROM cbt.c_bank b
+      LEFT JOIN cbt.c_question q ON q.bank_id = b.id
       LEFT JOIN a_subject s ON b.subject_id = s.id
       LEFT JOIN u_users t ON b.teacher_id = t.id
       WHERE b.teacher_id = $1
@@ -343,7 +343,7 @@ router.post(
     }
 
     const bankCheck = await client.query(
-      `SELECT id, subject_id FROM c_bank WHERE id = ANY($1::int[]) AND teacher_id = $2`,
+      `SELECT id, subject_id FROM cbt.c_bank WHERE id = ANY($1::int[]) AND teacher_id = $2`,
       [bankIds, finalTeacherId],
     );
 
@@ -393,7 +393,7 @@ router.post(
     const questionResult = await client.query(
       `
         SELECT id, bank_id, q_type, content, media_url, audio_url
-        FROM c_question
+        FROM cbt.c_question
         WHERE id = ANY($1::int[])
       `,
       [questionIds],
@@ -430,7 +430,7 @@ router.post(
     const optionsResult = await client.query(
       `
         SELECT question_id, label, content, media_url, is_correct
-        FROM c_question_options
+        FROM cbt.c_question_options
         WHERE question_id = ANY($1::int[])
       `,
       [questionIds],
@@ -444,7 +444,7 @@ router.post(
 
     const insertBankResult = await client.query(
       `
-        INSERT INTO c_bank (teacher_id, subject_id, title, type)
+        INSERT INTO cbt.c_bank (teacher_id, subject_id, title, type)
         VALUES ($1, $2, $3, $4)
         RETURNING id
       `,
@@ -461,7 +461,7 @@ router.post(
       const forcedPoint = pointByQuestion.get(q.id) || 1;
       const insertQuestion = await client.query(
         `
-          INSERT INTO c_question (bank_id, q_type, content, media_url, audio_url, score_point)
+          INSERT INTO cbt.c_question (bank_id, q_type, content, media_url, audio_url, score_point)
           VALUES ($1, $2, $3, $4, $5, $6)
           RETURNING id
         `,
@@ -481,7 +481,7 @@ router.post(
       for (const opt of options) {
         await client.query(
           `
-            INSERT INTO c_question_options (question_id, label, content, media_url, is_correct)
+            INSERT INTO cbt.c_question_options (question_id, label, content, media_url, is_correct)
             VALUES ($1, $2, $3, $4, $5)
           `,
           [newQuestionId, opt.label, opt.content, opt.media_url, opt.is_correct],
@@ -521,7 +521,7 @@ router.get(
       const bankCheck = await pool.query(
         `
           SELECT b.id
-          FROM c_bank b
+          FROM cbt.c_bank b
           JOIN u_teachers t ON b.teacher_id = t.user_id
           WHERE b.id = ANY($1::int[]) AND t.homebase_id = $2
         `,
@@ -537,7 +537,7 @@ router.get(
 
     if (role === "teacher") {
       const bankCheck = await pool.query(
-        `SELECT id FROM c_bank WHERE id = ANY($1::int[]) AND teacher_id = $2`,
+        `SELECT id FROM cbt.c_bank WHERE id = ANY($1::int[]) AND teacher_id = $2`,
         [bankIds, teacherId],
       );
 
@@ -556,8 +556,8 @@ router.get(
         q.content,
         q.score_point,
         b.title as bank_title
-      FROM c_question q
-      JOIN c_bank b ON q.bank_id = b.id
+      FROM cbt.c_question q
+      JOIN cbt.c_bank b ON q.bank_id = b.id
       WHERE q.bank_id = ANY($1::int[])
       ORDER BY b.title ASC, q.id ASC
     `;
