@@ -262,44 +262,51 @@ CREATE INDEX idx_enrollment_history ON u_class_enrollments(student_id);
 -- Struktur Fixedtable lebih bagus (normalized), tapi fitur newtable diakomodir
 -- ================================================================
 
-CREATE TABLE c_bank (
+CREATE SCHEMA IF NOT EXISTS cbt;
+
+CREATE TABLE cbt.c_bank (
     id SERIAL PRIMARY KEY,
-    teacher_id integer REFERENCES u_teachers(user_id),
-    subject_id integer REFERENCES a_subject(id),
+    teacher_id integer REFERENCES public.u_teachers(user_id),
+    subject_id integer REFERENCES public.a_subject(id),
     title varchar(255) NOT NULL,
     type varchar(50), -- UH, PTS, PAS
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE c_exam (
+CREATE INDEX idx_c_bank_teacher_created
+ON cbt.c_bank (teacher_id, created_at DESC);
+
+CREATE TABLE cbt.c_exam (
     id SERIAL PRIMARY KEY,
-    bank_id integer REFERENCES c_bank(id),
+    bank_id integer REFERENCES cbt.c_bank(id),
     name varchar(255) NOT NULL,
     duration_minutes integer NOT NULL,
     token varchar(10),
     is_active boolean DEFAULT true,
     is_shuffle boolean DEFAULT false,
-    grade_id integer REFERENCES a_grade(id),
+    grade_id integer REFERENCES public.a_grade(id),
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE c_exam
-ADD COLUMN grade_id integer REFERENCES a_grade(id);
-
-ALTER TABLE c_exam
-ADD COLUMN created_at timestamp DEFAULT CURRENT_TIMESTAMP;
-
+CREATE INDEX idx_c_exam_bank
+ON cbt.c_exam (bank_id);
 
 -- RELASI UJIAN KE KELAS (Dari c_class newtable)
-CREATE TABLE c_exam_class (
+CREATE TABLE cbt.c_exam_class (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id) ON DELETE CASCADE,
-    class_id integer REFERENCES a_class(id) ON DELETE CASCADE
+    exam_id integer REFERENCES cbt.c_exam(id) ON DELETE CASCADE,
+    class_id integer REFERENCES public.a_class(id) ON DELETE CASCADE
 );
 
-CREATE TABLE c_question (
+CREATE INDEX idx_c_exam_class_exam
+ON cbt.c_exam_class (exam_id, class_id);
+
+CREATE INDEX idx_c_exam_class_class
+ON cbt.c_exam_class (class_id, exam_id);
+
+CREATE TABLE cbt.c_question (
     id SERIAL PRIMARY KEY,
-    bank_id integer REFERENCES c_bank(id) ON DELETE CASCADE,
+    bank_id integer REFERENCES cbt.c_bank(id) ON DELETE CASCADE,
     q_type smallint NOT NULL, -- 1=PG, 2=Essay, dll
     content text NOT NULL,
     media_url text,
@@ -307,33 +314,36 @@ CREATE TABLE c_question (
     score_point integer DEFAULT 1 -- Poin per soal
 );
 
-CREATE TABLE c_question_options (
+CREATE INDEX idx_c_question_bank
+ON cbt.c_question (bank_id, id);
+
+CREATE TABLE cbt.c_question_options (
     id SERIAL PRIMARY KEY,
-    question_id integer REFERENCES c_question(id) ON DELETE CASCADE,
-    label varchar(5), -- A, B, C, D
+    question_id integer REFERENCES cbt.c_question(id) ON DELETE CASCADE,
+    label text, -- A, B, C, D
     content text,
     media_url text,
     is_correct boolean DEFAULT false
 );
 
-ALTER TABLE c_question_options 
-ALTER COLUMN label TYPE TEXT;
+CREATE INDEX idx_c_question_options_question
+ON cbt.c_question_options (question_id, id);
 
-CREATE TABLE c_student_session (
+CREATE TABLE cbt.c_student_session (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id),
-    student_id integer REFERENCES u_students(user_id),
+    exam_id integer REFERENCES cbt.c_exam(id),
+    student_id integer REFERENCES public.u_students(user_id),
     start_time timestamp DEFAULT CURRENT_TIMESTAMP,
     finish_time timestamp,
     score_final numeric(5,2)
 );
 
 -- LOG KEHADIRAN CBT SISWA
-CREATE TABLE c_exam_attendance (
+CREATE TABLE cbt.c_exam_attendance (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
-    class_id integer REFERENCES a_class(id),
+    exam_id integer REFERENCES cbt.c_exam(id) ON DELETE CASCADE,
+    student_id integer REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    class_id integer REFERENCES public.a_class(id),
     status varchar(20) DEFAULT 'mengerjakan'
       CHECK (status IN ('belum_masuk', 'izin', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai')),
     ip_address text,
@@ -344,25 +354,25 @@ CREATE TABLE c_exam_attendance (
     CONSTRAINT unique_exam_student UNIQUE (exam_id, student_id)
 );
 
-CREATE INDEX idx_exam_attendance_exam ON c_exam_attendance (exam_id);
-CREATE INDEX idx_students_current_class ON u_students (current_class_id);
+CREATE INDEX idx_exam_attendance_exam ON cbt.c_exam_attendance (exam_id);
+CREATE INDEX idx_students_current_class ON public.u_students (current_class_id);
 
-CREATE TABLE c_answer (
+CREATE TABLE cbt.c_answer (
     id SERIAL PRIMARY KEY,
-    session_id integer REFERENCES c_student_session(id),
-    question_id integer REFERENCES c_question(id),
-    selected_option_id integer REFERENCES c_question_options(id),
+    session_id integer REFERENCES cbt.c_student_session(id),
+    question_id integer REFERENCES cbt.c_question(id),
+    selected_option_id integer REFERENCES cbt.c_question_options(id),
     essay_text text,
     is_correct boolean,
     score_obtained numeric(5,2)
 );
 
 -- Jawaban siswa untuk autosave (semua tipe soal)
-CREATE TABLE c_student_answer (
+CREATE TABLE cbt.c_student_answer (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
-    question_id integer REFERENCES c_question(id) ON DELETE CASCADE,
+    exam_id integer REFERENCES cbt.c_exam(id) ON DELETE CASCADE,
+    student_id integer REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    question_id integer REFERENCES cbt.c_question(id) ON DELETE CASCADE,
     answer_json jsonb,
     score_obtained numeric(6,2),
     is_doubt boolean DEFAULT false,
@@ -371,33 +381,11 @@ CREATE TABLE c_student_answer (
     CONSTRAINT unique_student_answer UNIQUE (exam_id, student_id, question_id)
 );
 
-ALTER TABLE c_student_answer ADD COLUMN score_obtained numeric(6,2);
-
 CREATE INDEX idx_student_answer_lookup
-ON c_student_answer (exam_id, student_id);
+ON cbt.c_student_answer (exam_id, student_id);
 
-
-ALTER TABLE c_exam_attendance
-  ALTER COLUMN start_at TYPE timestamptz USING start_at AT TIME ZONE 'Asia/Jakarta',
-  ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Jakarta',
-  ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'Asia/Jakarta';
-
--- Jika sebelumnya pernah dikonversi memakai AT TIME ZONE 'UTC' (dan waktu jadi maju +7 jam),
--- jalankan sekali secara manual (opsional) untuk koreksi data lama:
--- UPDATE c_exam_attendance
--- SET
---   start_at = (start_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta',
---   created_at = (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta',
---   updated_at = (updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta';
-
-
-
-  ALTER TABLE c_exam_attendance
-  DROP CONSTRAINT IF EXISTS c_exam_attendance_status_check;
-
-ALTER TABLE c_exam_attendance
-  ADD CONSTRAINT c_exam_attendance_status_check
-  CHECK (status IN ('belum_masuk', 'izin', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai'));
+CREATE INDEX idx_c_student_answer_question
+ON cbt.c_student_answer (question_id);
 
 
 
@@ -649,6 +637,96 @@ CREATE TABLE configurations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- =========================================
+-- AI CONFIGURATION (TEACHER LEVEL / BYOK)
+-- Dipakai lintas fitur: generator soal, penilaian essay, speech-to-text
+-- Secret key disimpan dalam bentuk terenkripsi oleh server
+-- =========================================
+
+CREATE TABLE ai_teacher_config (
+    id SERIAL PRIMARY KEY,
+    teacher_id integer NOT NULL REFERENCES u_teachers(user_id) ON DELETE CASCADE,
+    provider varchar(30) NOT NULL DEFAULT 'openai',
+    api_key_encrypted text NOT NULL,
+    api_key_hint varchar(30),
+    default_model_text varchar(100) DEFAULT 'gpt-4.1-mini',
+    default_model_audio varchar(100) DEFAULT 'gpt-4o-mini-transcribe',
+    default_language varchar(20) DEFAULT 'id',
+    default_mode varchar(20) DEFAULT 'live'
+      CHECK (default_mode IN ('live', 'ai')),
+    max_audio_duration_seconds integer DEFAULT 300
+      CHECK (max_audio_duration_seconds > 0),
+    max_audio_file_size_mb integer DEFAULT 20
+      CHECK (max_audio_file_size_mb > 0),
+    is_active boolean DEFAULT true,
+    last_test_at timestamp,
+    last_test_status varchar(20)
+      CHECK (last_test_status IN ('success', 'failed', 'pending') OR last_test_status IS NULL),
+    last_test_message text,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_ai_teacher_provider UNIQUE (teacher_id, provider)
+);
+
+CREATE INDEX idx_ai_teacher_config_teacher
+ON ai_teacher_config(teacher_id);
+
+CREATE INDEX idx_ai_teacher_config_provider
+ON ai_teacher_config(provider, is_active);
+
+CREATE TABLE ai_teacher_feature (
+    id SERIAL PRIMARY KEY,
+    teacher_config_id integer NOT NULL REFERENCES ai_teacher_config(id) ON DELETE CASCADE,
+    feature_code varchar(50) NOT NULL
+      CHECK (feature_code IN ('question_generator', 'essay_grader', 'speech_to_text')),
+    is_enabled boolean DEFAULT true,
+    model_override varchar(100),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_ai_teacher_feature UNIQUE (teacher_config_id, feature_code)
+);
+
+CREATE INDEX idx_ai_teacher_feature_lookup
+ON ai_teacher_feature(teacher_config_id, feature_code, is_enabled);
+
+CREATE TABLE ai_usage_log (
+    id BIGSERIAL PRIMARY KEY,
+    teacher_id integer NOT NULL REFERENCES u_teachers(user_id) ON DELETE CASCADE,
+    teacher_config_id integer REFERENCES ai_teacher_config(id) ON DELETE SET NULL,
+    feature_code varchar(50) NOT NULL
+      CHECK (feature_code IN ('question_generator', 'essay_grader', 'speech_to_text')),
+    provider varchar(30) NOT NULL DEFAULT 'openai',
+    model varchar(100),
+    request_type varchar(20) NOT NULL
+      CHECK (request_type IN ('text', 'audio')),
+    mode varchar(20)
+      CHECK (mode IN ('live', 'ai') OR mode IS NULL),
+    reference_table varchar(100),
+    reference_id bigint,
+    audio_url text,
+    audio_duration_seconds integer
+      CHECK (audio_duration_seconds IS NULL OR audio_duration_seconds >= 0),
+    input_units integer
+      CHECK (input_units IS NULL OR input_units >= 0),
+    output_units integer
+      CHECK (output_units IS NULL OR output_units >= 0),
+    transcript_text text,
+    response_text text,
+    estimated_cost_usd numeric(12,6)
+      CHECK (estimated_cost_usd IS NULL OR estimated_cost_usd >= 0),
+    status varchar(20) NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'processing', 'success', 'failed')),
+    error_message text,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_ai_usage_log_teacher_feature
+ON ai_usage_log(teacher_id, feature_code, created_at DESC);
+
+CREATE INDEX idx_ai_usage_log_status
+ON ai_usage_log(status, created_at DESC);
 
 
 
