@@ -1074,6 +1074,244 @@ router.get(
 );
 
 router.get(
+  "/recap/journal-summary",
+  authorize("satuan", "teacher", "admin"),
+  withQuery(async (req, res, pool) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { subject_id, teacher_id, class_id, date } = req.query;
+    let classHomebaseId = null;
+
+    if (!subject_id) {
+      return res.status(400).json({
+        status: "error",
+        message: "subject_id wajib diisi.",
+      });
+    }
+
+    if (class_id) {
+      classHomebaseId = await getClassHomebaseId(pool, class_id);
+      if (!classHomebaseId) {
+        return res.status(404).json({
+          status: "error",
+          message: "Kelas tidak ditemukan.",
+        });
+      }
+      if (homebase_id && Number(classHomebaseId) !== Number(homebase_id)) {
+        return res.status(403).json({
+          status: "error",
+          message: "Kelas tidak berada di homebase yang sama.",
+        });
+      }
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      pool,
+      classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const requestedTeacherId = Number(teacher_id || 0) || null;
+    const effectiveTeacherId = role === "teacher" ? userId : requestedTeacherId;
+
+    if (role === "teacher") {
+      const teacherAccessSql = class_id
+        ? `SELECT 1
+           FROM at_subject
+           WHERE teacher_id = $1 AND subject_id = $2 AND class_id = $3
+           LIMIT 1`
+        : `SELECT 1
+           FROM at_subject
+           WHERE teacher_id = $1 AND subject_id = $2
+           LIMIT 1`;
+      const teacherAccessParams = class_id
+        ? [userId, subject_id, class_id]
+        : [userId, subject_id];
+      const teacherAccess = await pool.query(teacherAccessSql, teacherAccessParams);
+      if (teacherAccess.rowCount === 0) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+    } else {
+      const subjectCheck = await pool.query(
+        `SELECT id, name
+         FROM a_subject
+         WHERE id = $1 AND homebase_id = $2
+         LIMIT 1`,
+        [subject_id, homebase_id],
+      );
+      if (subjectCheck.rowCount === 0) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+
+      if (effectiveTeacherId) {
+        const teacherFilterSql = class_id
+          ? `SELECT 1
+             FROM at_subject ats
+             JOIN a_class c ON c.id = ats.class_id
+             WHERE ats.teacher_id = $1
+               AND ats.subject_id = $2
+               AND ats.class_id = $3
+               AND c.homebase_id = $4
+             LIMIT 1`
+          : `SELECT 1
+             FROM at_subject ats
+             JOIN a_class c ON c.id = ats.class_id
+             WHERE ats.teacher_id = $1
+               AND ats.subject_id = $2
+               AND c.homebase_id = $3
+             LIMIT 1`;
+        const teacherFilterParams = class_id
+          ? [effectiveTeacherId, subject_id, class_id, homebase_id]
+          : [effectiveTeacherId, subject_id, homebase_id];
+        const teacherAccess = await pool.query(
+          teacherFilterSql,
+          teacherFilterParams,
+        );
+        if (teacherAccess.rowCount === 0) {
+          return res.status(403).json({
+            status: "error",
+            message: "Guru tidak mengampu mapel ini pada filter yang dipilih.",
+          });
+        }
+      }
+    }
+
+    const subjectMetaResult = await pool.query(
+      `SELECT id, name
+       FROM a_subject
+       WHERE id = $1
+       LIMIT 1`,
+      [subject_id],
+    );
+    const subjectMeta = subjectMetaResult.rows[0] || null;
+    if (!subjectMeta) {
+      return res.status(404).json({
+        status: "error",
+        message: "Mata pelajaran tidak ditemukan.",
+      });
+    }
+
+    const assignmentFilter = [];
+    const assignmentParams = [subject_id, homebase_id];
+    let assignmentParamIndex = assignmentParams.length + 1;
+
+    if (effectiveTeacherId) {
+      assignmentFilter.push(`AND ats.teacher_id = $${assignmentParamIndex}`);
+      assignmentParams.push(effectiveTeacherId);
+      assignmentParamIndex += 1;
+    }
+    if (class_id) {
+      assignmentFilter.push(`AND ats.class_id = $${assignmentParamIndex}`);
+      assignmentParams.push(class_id);
+    }
+
+    const assignmentResult = await pool.query(
+      `SELECT
+         ats.teacher_id,
+         u.full_name AS teacher_name,
+         ats.class_id,
+         c.name AS class_name
+       FROM at_subject ats
+       JOIN u_users u ON u.id = ats.teacher_id
+       JOIN a_class c ON c.id = ats.class_id
+       WHERE ats.subject_id = $1
+         AND c.homebase_id = $2
+         ${assignmentFilter.join("\n")}
+       ORDER BY u.full_name ASC, c.name ASC`,
+      assignmentParams,
+    );
+
+    const journalFilter = [
+      `j.subject_id = $1`,
+      `j.periode_id = $2`,
+    ];
+    const journalParams = [subject_id, activePeriode.id];
+    let journalParamIndex = journalParams.length + 1;
+
+    if (effectiveTeacherId) {
+      journalFilter.push(`j.teacher_id = $${journalParamIndex}`);
+      journalParams.push(effectiveTeacherId);
+      journalParamIndex += 1;
+    }
+
+    if (class_id) {
+      journalFilter.push(`j.class_id = $${journalParamIndex}`);
+      journalParams.push(class_id);
+      journalParamIndex += 1;
+    }
+
+    if (date) {
+      journalFilter.push(`j.journal_date = $${journalParamIndex}`);
+      journalParams.push(date);
+    }
+
+    const journalResult = await pool.query(
+      `SELECT
+         j.id,
+         j.teacher_id,
+         u.full_name AS teacher_name,
+         j.subject_id,
+         j.class_id,
+         c.name AS class_name,
+         j.journal_date,
+         j.meeting_no,
+         j.learning_material,
+         j.activity
+       FROM lms.l_teacher_journal j
+       JOIN u_users u ON u.id = j.teacher_id
+       JOIN a_class c ON c.id = j.class_id
+       WHERE ${journalFilter.join("\n         AND ")}
+      ORDER BY j.journal_date DESC, j.meeting_no DESC, j.id DESC`,
+      journalParams,
+    );
+    const items = journalResult.rows.map((row) => ({
+      id: Number(row.id),
+      teacher_id: Number(row.teacher_id),
+      teacher_name: row.teacher_name || "-",
+      subject_id: Number(row.subject_id),
+      class_id: Number(row.class_id),
+      class_name: row.class_name || "-",
+      journal_date: row.journal_date,
+      meeting_no: Number(row.meeting_no),
+      learning_material: row.learning_material || "-",
+      activity: row.activity || "",
+    }));
+
+    return res.json({
+      status: "success",
+      data: {
+        meta: {
+          subject_id: Number(subject_id),
+          subject_name: subjectMeta.name,
+          teacher_id: effectiveTeacherId,
+          class_id: class_id ? Number(class_id) : null,
+          total_rows: items.length,
+          total_journals: journalResult.rows.length,
+          total_teachers: new Set(
+            journalResult.rows.map((item) => Number(item.teacher_id)).filter(Boolean),
+          ).size,
+          periode_id: activePeriode?.id || null,
+          periode_name: activePeriode?.name || null,
+        },
+        teachers: Array.from(
+          new Map(
+            assignmentResult.rows.map((item) => [
+              Number(item.teacher_id),
+              { id: Number(item.teacher_id), full_name: item.teacher_name },
+            ]),
+          ).values(),
+        ),
+        items,
+      },
+    });
+  }),
+);
+
+router.get(
   "/recap/attendance",
   authorize("satuan", "teacher", "admin"),
   withQuery(async (req, res, pool) => {

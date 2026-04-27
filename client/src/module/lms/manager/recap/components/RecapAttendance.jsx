@@ -73,11 +73,7 @@ const RecapAttendance = ({
       teacherId,
     },
     {
-      skip:
-        !isActive ||
-        !subjectId ||
-        !classId ||
-        !semester,
+      skip: !isActive || !subjectId || !classId || !semester,
     },
   );
 
@@ -292,29 +288,30 @@ const RecapAttendance = ({
   return (
     <Flex vertical gap={16}>
       <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-          <Space direction="vertical" size={2}>
+        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
+          <Space vertical size={2}>
             <Title level={5} style={{ margin: 0 }}>
               Rekapitulasi Absensi
             </Title>
-            <Text type="secondary">
-              Rekap absensi dalam satu semester berdasarkan periode aktif dan kelas.
+            <Text type='secondary'>
+              Rekap absensi dalam satu semester berdasarkan periode aktif dan
+              kelas.
             </Text>
           </Space>
           <Space wrap>
-            <Tag color="blue">
+            <Tag color='blue'>
               {subject?.name || recapMeta.subject_name || "Mata Pelajaran"}
             </Tag>
-            <Tag color="processing">
+            <Tag color='processing'>
               {activePeriode?.name || recapMeta.periode_name || "Periode"}
             </Tag>
           </Space>
         </Flex>
 
         <Flex
-          justify="space-between"
-          align="center"
-          wrap="wrap"
+          justify='space-between'
+          align='center'
+          wrap='wrap'
           gap={12}
           style={{ marginTop: 16 }}
         >
@@ -334,7 +331,7 @@ const RecapAttendance = ({
                 value={teacherId}
                 onChange={(value) => setTeacherId(value || null)}
                 style={{ minWidth: 220 }}
-                placeholder="Semua guru"
+                placeholder='Semua guru'
                 allowClear
                 options={[
                   { value: "", label: "Semua guru" },
@@ -344,18 +341,20 @@ const RecapAttendance = ({
                   })),
                 ]}
                 loading={teacherLoading}
+                virtual={false}
               />
             )}
             <Select
               value={classId}
               onChange={setClassId}
               style={{ minWidth: 220 }}
-              placeholder="Pilih kelas"
+              placeholder='Pilih kelas'
               options={classes.map((item) => ({
                 value: item.id,
                 label: item.name,
               }))}
               loading={classLoading}
+              virtual={false}
             />
           </Space>
 
@@ -367,7 +366,7 @@ const RecapAttendance = ({
               Refresh
             </Button>
             <Button
-              type="primary"
+              type='primary'
               icon={<Download size={14} />}
               disabled={!attendanceRows.length}
               onClick={handleDownloadAttendanceExcel}
@@ -377,34 +376,32 @@ const RecapAttendance = ({
           </Space>
         </Flex>
 
-        <Flex wrap="wrap" gap={8} style={{ marginTop: 14 }}>
-          <Tag color="geekblue" icon={<Users size={12} />}>
+        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
+          <Tag color='geekblue' icon={<Users size={12} />}>
             Total Siswa: {recapMeta.total_students || 0}
           </Tag>
-          <Tag color="cyan">
+          <Tag color='cyan'>
             Total Pertemuan: {recapMeta.total_meetings || 0}
           </Tag>
-          <Tag color="purple">
-            Semester: {recapMeta.semester || semester}
-          </Tag>
+          <Tag color='purple'>Semester: {recapMeta.semester || semester}</Tag>
         </Flex>
       </Card>
 
       {!classId ? (
         <Alert
-          type="info"
+          type='info'
           showIcon
-          title="Pilih kelas untuk menampilkan rekap absensi."
+          title='Pilih kelas untuk menampilkan rekap absensi.'
         />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
           {!isFetchingAttendance && !attendanceRows.length ? (
             <div style={{ padding: 24 }}>
-              <Empty description="Belum ada data absensi pada filter ini." />
+              <Empty description='Belum ada data absensi pada filter ini.' />
             </div>
           ) : (
             <Table
-              rowKey="key"
+              rowKey='key'
               dataSource={attendanceRows}
               columns={attendanceColumns}
               loading={isFetchingAttendance}

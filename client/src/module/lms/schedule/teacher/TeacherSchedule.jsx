@@ -12,13 +12,11 @@ import {
   Skeleton,
   Space,
   Table,
-  Tabs,
   Tag,
   Typography,
 } from "antd";
 import { CalendarRange, Clock3, Layers3, RefreshCw } from "lucide-react";
 import { useGetScheduleBootstrapQuery } from "../../../../service/lms/ApiSchedule";
-import TeacherJournal from "./TeacherJournal";
 
 const { Text, Title } = Typography;
 
@@ -77,28 +75,6 @@ const TeacherSchedule = () => {
       (item) => Number(item.teacher_id) === Number(user?.id),
     );
   }, [payload.teacher_assignments, user?.id]);
-
-  const classOptions = useMemo(() => {
-    const classMap = new Map();
-
-    teacherEntries.forEach((item) => {
-      classMap.set(Number(item.class_id), {
-        value: Number(item.class_id),
-        label: item.class_name || `Kelas ${item.class_id}`,
-      });
-    });
-
-    teacherAssignments.forEach((item) => {
-      classMap.set(Number(item.class_id), {
-        value: Number(item.class_id),
-        label: item.class_name || `Kelas ${item.class_id}`,
-      });
-    });
-
-    return [...classMap.values()].sort((left, right) =>
-      String(left.label || "").localeCompare(String(right.label || "")),
-    );
-  }, [teacherAssignments, teacherEntries]);
 
   const subjectCount = useMemo(() => {
     return new Set(
@@ -227,8 +203,7 @@ const TeacherSchedule = () => {
               Workspace Guru
             </Title>
             <Text type='secondary'>
-              Kelola jurnal mengajar dan lihat jadwal mengajar khusus untuk{" "}
-              {user?.full_name || "guru"}.
+              Lihat jadwal mengajar khusus untuk {user?.full_name || "guru"}.
             </Text>
           </div>
 
@@ -242,175 +217,157 @@ const TeacherSchedule = () => {
         </Flex>
       </Card>
 
-      <Tabs
-        defaultActiveKey='journal'
-        items={[
-          {
-            key: "journal",
-            label: "Jurnal",
-            children: <TeacherJournal user={user} classOptions={classOptions} />,
-          },
-          {
-            key: "schedule",
-            label: "Jadwal",
-            children: (
-              <Flex vertical gap={16}>
-                <Row gutter={[12, 12]}>
-                  <Col xs={24} md={8}>
+      <Flex vertical gap={16}>
+        <Row gutter={[12, 12]}>
+          <Col xs={24} md={8}>
+            <Card
+              size='small'
+              bordered={false}
+              style={{ background: "#f5f9ff", borderRadius: 18 }}
+            >
+              <Space align='start'>
+                <CalendarRange size={18} />
+                <div>
+                  <Text type='secondary'>Total Jadwal</Text>
+                  <Title level={3} style={{ margin: 0 }}>
+                    {teacherEntries.length}
+                  </Title>
+                </div>
+              </Space>
+            </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <Card
+              size='small'
+              bordered={false}
+              style={{ background: "#fff8f1", borderRadius: 18 }}
+            >
+              <Space align='start'>
+                <Clock3 size={18} />
+                <div>
+                  <Text type='secondary'>Total Sesi</Text>
+                  <Title level={3} style={{ margin: 0 }}>
+                    {totalSessions}
+                  </Title>
+                </div>
+              </Space>
+            </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <Card
+              size='small'
+              bordered={false}
+              style={{ background: "#f6fff7", borderRadius: 18 }}
+            >
+              <Space align='start'>
+                <Layers3 size={18} />
+                <div>
+                  <Text type='secondary'>Kelas / Mapel</Text>
+                  <Title level={3} style={{ margin: 0 }}>
+                    {classCount} / {subjectCount}
+                  </Title>
+                </div>
+              </Space>
+            </Card>
+          </Col>
+        </Row>
+
+        {pendingAssignments.length ? (
+          <Alert
+            showIcon
+            type='warning'
+            message='Masih ada alokasi mengajar yang belum terpenuhi'
+            description={pendingAssignments
+              .map(
+                (item) =>
+                  `${item.subject_name} ${item.class_name}: ${item.allocated_sessions}/${item.required_sessions} sesi`,
+              )
+              .join(" | ")}
+          />
+        ) : null}
+
+        <Card
+          title='Agenda Hari Ini'
+          style={{ borderRadius: 20 }}
+          styles={{ body: { padding: 0 } }}
+        >
+          {todayEntries.length ? (
+            <Table
+              rowKey='key'
+              columns={scheduleColumns.filter(
+                (item) => item.dataIndex !== "day_name",
+              )}
+              dataSource={todayEntries}
+              pagination={false}
+              size='small'
+              scroll={{ x: 900 }}
+            />
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description='Tidak ada jadwal mengajar untuk hari ini.'
+            />
+          )}
+        </Card>
+
+        <Card
+          title='Jadwal Mingguan'
+          style={{ borderRadius: 20 }}
+          styles={{ body: { padding: 0 } }}
+        >
+          {teacherEntries.length ? (
+            <Table
+              rowKey='key'
+              columns={scheduleColumns}
+              dataSource={teacherEntries}
+              pagination={false}
+              scroll={{ x: 1000 }}
+            />
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description='Belum ada jadwal guru yang tersedia.'
+            />
+          )}
+        </Card>
+
+        <Row gutter={[16, 16]}>
+          {groupedByDay.map((day) => (
+            <Col xs={24} lg={12} key={day.value}>
+              <Card
+                title={day.label}
+                style={{ borderRadius: 20, height: "100%" }}
+                styles={{ body: { paddingTop: 8 } }}
+              >
+                <Space direction='vertical' size={12} style={{ width: "100%" }}>
+                  {day.items.map((item) => (
                     <Card
+                      key={`${day.value}-${item.id}`}
                       size='small'
-                      bordered={false}
-                      style={{ background: "#f5f9ff", borderRadius: 18 }}
+                      style={{ background: "#fafafa" }}
                     >
-                      <Space align='start'>
-                        <CalendarRange size={18} />
+                      <Flex justify='space-between' align='start' gap={12}>
                         <div>
-                          <Text type='secondary'>Total Jadwal</Text>
-                          <Title level={3} style={{ margin: 0 }}>
-                            {teacherEntries.length}
-                          </Title>
+                          <Text strong>{item.subject_name}</Text>
+                          <div>
+                            <Text type='secondary'>
+                              {item.class_name} | {item.time_label}
+                            </Text>
+                          </div>
                         </div>
-                      </Space>
-                    </Card>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Card
-                      size='small'
-                      bordered={false}
-                      style={{ background: "#fff8f1", borderRadius: 18 }}
-                    >
-                      <Space align='start'>
-                        <Clock3 size={18} />
-                        <div>
-                          <Text type='secondary'>Total Sesi</Text>
-                          <Title level={3} style={{ margin: 0 }}>
-                            {totalSessions}
-                          </Title>
-                        </div>
-                      </Space>
-                    </Card>
-                  </Col>
-                  <Col xs={24} md={8}>
-                    <Card
-                      size='small'
-                      bordered={false}
-                      style={{ background: "#f6fff7", borderRadius: 18 }}
-                    >
-                      <Space align='start'>
-                        <Layers3 size={18} />
-                        <div>
-                          <Text type='secondary'>Kelas / Mapel</Text>
-                          <Title level={3} style={{ margin: 0 }}>
-                            {classCount} / {subjectCount}
-                          </Title>
-                        </div>
-                      </Space>
-                    </Card>
-                  </Col>
-                </Row>
-
-                {pendingAssignments.length ? (
-                  <Alert
-                    showIcon
-                    type='warning'
-                    message='Masih ada alokasi mengajar yang belum terpenuhi'
-                    description={pendingAssignments
-                      .map(
-                        (item) =>
-                          `${item.subject_name} ${item.class_name}: ${item.allocated_sessions}/${item.required_sessions} sesi`,
-                      )
-                      .join(" | ")}
-                  />
-                ) : null}
-
-                <Card
-                  title='Agenda Hari Ini'
-                  style={{ borderRadius: 20 }}
-                  styles={{ body: { padding: 0 } }}
-                >
-                  {todayEntries.length ? (
-                    <Table
-                      rowKey='key'
-                      columns={scheduleColumns.filter(
-                        (item) => item.dataIndex !== "day_name",
-                      )}
-                      dataSource={todayEntries}
-                      pagination={false}
-                      size='small'
-                      scroll={{ x: 900 }}
-                    />
-                  ) : (
-                    <Empty
-                      image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      description='Tidak ada jadwal mengajar untuk hari ini.'
-                    />
-                  )}
-                </Card>
-
-                <Card
-                  title='Jadwal Mingguan'
-                  style={{ borderRadius: 20 }}
-                  styles={{ body: { padding: 0 } }}
-                >
-                  {teacherEntries.length ? (
-                    <Table
-                      rowKey='key'
-                      columns={scheduleColumns}
-                      dataSource={teacherEntries}
-                      pagination={false}
-                      scroll={{ x: 1000 }}
-                    />
-                  ) : (
-                    <Empty
-                      image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      description='Belum ada jadwal guru yang tersedia.'
-                    />
-                  )}
-                </Card>
-
-                <Row gutter={[16, 16]}>
-                  {groupedByDay.map((day) => (
-                    <Col xs={24} lg={12} key={day.value}>
-                      <Card
-                        title={day.label}
-                        style={{ borderRadius: 20, height: "100%" }}
-                        styles={{ body: { paddingTop: 8 } }}
-                      >
-                        <Space direction='vertical' size={12} style={{ width: "100%" }}>
-                          {day.items.map((item) => (
-                            <Card
-                              key={`${day.value}-${item.id}`}
-                              size='small'
-                              style={{ background: "#fafafa" }}
-                            >
-                              <Flex justify='space-between' align='start' gap={12}>
-                                <div>
-                                  <Text strong>{item.subject_name}</Text>
-                                  <div>
-                                    <Text type='secondary'>
-                                      {item.class_name} | {item.time_label}
-                                    </Text>
-                                  </div>
-                                </div>
-                                <Space wrap size={4}>
-                                  <Tag color='blue'>Jam {item.slot_label}</Tag>
-                                  <Tag color='purple'>
-                                    Pertemuan {item.meeting_no}
-                                  </Tag>
-                                </Space>
-                              </Flex>
-                            </Card>
-                          ))}
+                        <Space wrap size={4}>
+                          <Tag color='blue'>Jam {item.slot_label}</Tag>
+                          <Tag color='purple'>Pertemuan {item.meeting_no}</Tag>
                         </Space>
-                      </Card>
-                    </Col>
+                      </Flex>
+                    </Card>
                   ))}
-                </Row>
-              </Flex>
-            ),
-          },
-        ]}
-      />
+                </Space>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </Flex>
     </Flex>
   );
 };

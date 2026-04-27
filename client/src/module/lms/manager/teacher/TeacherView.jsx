@@ -6,6 +6,7 @@ import {
   ChartScatter,
   CheckCircle,
   ListTodo,
+  NotebookPen,
 } from "lucide-react";
 import LoadApp from "../../../../components/loader/LoadApp";
 
@@ -14,6 +15,7 @@ const Attendance = lazy(() => import("./attendance/Attendance"));
 const Grading = lazy(() => import("./grading/Grading"));
 const Recap = lazy(() => import("../recap/Recap"));
 const TaskView = lazy(() => import("./task/TaskView"));
+const TeacherJournal = lazy(() => import("./journal/TeacherJournal"));
 
 const TeacherView = ({ subjectId, subject }) => {
   const items = [
@@ -24,6 +26,17 @@ const TeacherView = ({ subjectId, subject }) => {
       children: (
         <Suspense fallback={<LoadApp />}>
           <Learning subjectId={subjectId} subject={subject} />
+        </Suspense>
+      ),
+    },
+
+    {
+      label: "Jurnal Pembelajaran",
+      icon: <NotebookPen size={16} />,
+      key: "6",
+      children: (
+        <Suspense fallback={<LoadApp />}>
+          <TeacherJournal subjectId={subjectId} subject={subject} />
         </Suspense>
       ),
     },

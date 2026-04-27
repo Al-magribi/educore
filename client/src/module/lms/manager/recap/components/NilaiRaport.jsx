@@ -80,7 +80,8 @@ const NilaiRaport = ({
         nis: item.nis || "-",
         full_name: item.full_name,
         summative_average:
-          item.summative_average === null || item.summative_average === undefined
+          item.summative_average === null ||
+          item.summative_average === undefined
             ? null
             : Number(item.summative_average),
         final_grade:
@@ -123,7 +124,7 @@ const NilaiRaport = ({
           value === null || value === undefined ? (
             "-"
           ) : (
-            <Tag color="cyan">{round2(value)}</Tag>
+            <Tag color='cyan'>{round2(value)}</Tag>
           ),
       },
       {
@@ -135,7 +136,7 @@ const NilaiRaport = ({
           value === null || value === undefined ? (
             "-"
           ) : (
-            <Tag color="blue">{round2(value)}</Tag>
+            <Tag color='blue'>{round2(value)}</Tag>
           ),
       },
       {
@@ -147,7 +148,7 @@ const NilaiRaport = ({
           value === null || value === undefined ? (
             "-"
           ) : (
-            <Tag color="green">{round2(value)}</Tag>
+            <Tag color='green'>{round2(value)}</Tag>
           ),
       },
     ],
@@ -176,27 +177,29 @@ const NilaiRaport = ({
   return (
     <Flex vertical gap={16}>
       <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
+        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
           <Space vertical size={2}>
             <Title level={5} style={{ margin: 0 }}>
               Rekapitulasi Nilai Raport
             </Title>
-            <Text type="secondary">
+            <Text type='secondary'>
               Nilai raport = rata-rata dari nilai sumatif dan nilai akhir
             </Text>
           </Space>
           <Space wrap>
-            <Tag color="blue">{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color="processing">
-              {activePeriode?.name || recapData?.meta?.periode_name || "Periode"}
+            <Tag color='blue'>{subject?.name || "Mata Pelajaran"}</Tag>
+            <Tag color='processing'>
+              {activePeriode?.name ||
+                recapData?.meta?.periode_name ||
+                "Periode"}
             </Tag>
           </Space>
         </Flex>
 
         <Flex
-          justify="space-between"
-          align="center"
-          wrap="wrap"
+          justify='space-between'
+          align='center'
+          wrap='wrap'
           gap={12}
           style={{ marginTop: 16 }}
         >
@@ -210,30 +213,39 @@ const NilaiRaport = ({
                 { value: 2, label: "Semester 2" },
               ]}
               suffixIcon={<Filter size={14} />}
+              virtual={false}
+              allowClear
+              showSearch={{ optionFilterProp: "label" }}
             />
             {isAdminView && (
               <Select
                 value={teacherId}
                 onChange={setTeacherId}
                 style={{ minWidth: 220 }}
-                placeholder="Pilih guru"
+                placeholder='Pilih guru'
                 options={teachers.map((item) => ({
                   value: item.id,
                   label: item.full_name,
                 }))}
                 loading={teacherLoading}
+                virtual={false}
+                allowClear
+                showSearch={{ optionFilterProp: "label" }}
               />
             )}
             <Select
               value={classId}
               onChange={setClassId}
               style={{ minWidth: 220 }}
-              placeholder="Pilih kelas"
+              placeholder='Pilih kelas'
               options={classes.map((item) => ({
                 value: item.id,
                 label: item.name,
               }))}
               loading={classLoading}
+              virtual={false}
+              allowClear
+              showSearch={{ optionFilterProp: "label" }}
             />
           </Space>
 
@@ -242,7 +254,7 @@ const NilaiRaport = ({
               Refresh
             </Button>
             <Button
-              type="primary"
+              type='primary'
               icon={<Download size={14} />}
               disabled={!rows.length}
               onClick={handleDownloadExcel}
@@ -252,17 +264,17 @@ const NilaiRaport = ({
           </Space>
         </Flex>
 
-        <Flex wrap="wrap" gap={8} style={{ marginTop: 14 }}>
-          <Tag color="geekblue" icon={<Users size={12} />}>
+        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
+          <Tag color='geekblue' icon={<Users size={12} />}>
             Total Siswa: {recapData?.meta?.total_students || 0}
           </Tag>
-          <Tag color="cyan">
+          <Tag color='cyan'>
             Avg Sumatif: {round2(summary.summative_average)}
           </Tag>
-          <Tag color="blue">
+          <Tag color='blue'>
             Avg Nilai Akhir: {round2(summary.final_average)}
           </Tag>
-          <Tag color="green">
+          <Tag color='green'>
             Avg Nilai Raport: {round2(summary.report_average)}
           </Tag>
         </Flex>
@@ -270,31 +282,31 @@ const NilaiRaport = ({
 
       {!classId ? (
         <Alert
-          type="info"
+          type='info'
           showIcon
-          message="Pilih kelas untuk menampilkan rekap nilai raport."
+          message='Pilih kelas untuk menampilkan rekap nilai raport.'
         />
       ) : isAdminView && !teacherId ? (
         <Alert
-          type="info"
+          type='info'
           showIcon
-          message="Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru."
+          message='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
         />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
-              <Empty description="Belum ada data nilai raport pada filter ini." />
+              <Empty description='Belum ada data nilai raport pada filter ini.' />
             </div>
           ) : (
             <Table
-              rowKey="key"
+              rowKey='key'
               dataSource={rows}
               columns={columns}
               loading={isFetching}
               pagination={false}
               size={screens.xs ? "small" : "middle"}
-              tableLayout="fixed"
+              tableLayout='fixed'
             />
           )}
         </Card>

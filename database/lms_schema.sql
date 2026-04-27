@@ -260,6 +260,7 @@ CREATE TABLE l_teacher_journal(
     homebase_id integer NOT NULL,
     periode_id integer NOT NULL,
     teacher_id integer NOT NULL,
+    subject_id integer NOT NULL,
     class_id integer NOT NULL,
     journal_date date NOT NULL,
     meeting_no integer NOT NULL,
@@ -272,11 +273,32 @@ CREATE TABLE l_teacher_journal(
     CONSTRAINT l_teacher_journal_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
     CONSTRAINT l_teacher_journal_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
     CONSTRAINT l_teacher_journal_teacher_id_fkey FOREIGN KEY(teacher_id) REFERENCES public.u_teachers(user_id),
+    CONSTRAINT l_teacher_journal_subject_id_fkey FOREIGN KEY(subject_id) REFERENCES public.a_subject(id),
     CONSTRAINT l_teacher_journal_class_id_fkey FOREIGN KEY(class_id) REFERENCES public.a_class(id),
     CONSTRAINT l_teacher_journal_created_by_fkey FOREIGN KEY(created_by) REFERENCES public.u_users(id),
     CONSTRAINT l_teacher_journal_meeting_no_check CHECK ((meeting_no > 0))
 );
-CREATE INDEX idx_teacher_journal_lookup ON lms.l_teacher_journal USING btree (teacher_id, periode_id, class_id, journal_date);
+CREATE INDEX idx_teacher_journal_lookup ON lms.l_teacher_journal USING btree (teacher_id, subject_id, periode_id, class_id, journal_date);
+
+ALTER TABLE lms.l_teacher_journal
+    ADD COLUMN IF NOT EXISTS subject_id integer;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE constraint_schema = 'lms'
+          AND table_name = 'l_teacher_journal'
+          AND constraint_name = 'l_teacher_journal_subject_id_fkey'
+    ) THEN
+        ALTER TABLE lms.l_teacher_journal
+            ADD CONSTRAINT l_teacher_journal_subject_id_fkey
+            FOREIGN KEY(subject_id) REFERENCES public.a_subject(id);
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_teacher_journal_lookup ON lms.l_teacher_journal USING btree (teacher_id, subject_id, periode_id, class_id, journal_date);
 
 CREATE TABLE l_schedule_entry(
     id SERIAL NOT NULL,

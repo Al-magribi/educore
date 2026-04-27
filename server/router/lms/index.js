@@ -8,6 +8,7 @@ import point from "./RouterPoint.js";
 import task from "./RouterTask.js";
 import schedule from "./RouterSchedule.js";
 import duty from "./RouterDuty.js";
+import journal from "./RouterJournal.js";
 
 const RouterLms = Router();
 
@@ -20,5 +21,6 @@ RouterLms.use(point);
 RouterLms.use(task);
 RouterLms.use(schedule);
 RouterLms.use(duty);
+RouterLms.use(journal);
 
 export default RouterLms;

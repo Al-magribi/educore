@@ -40,9 +40,9 @@ const levelSorter = (levelA, levelB) => {
 };
 
 const getPrimaryLevel = (classNames = []) => {
-  const levels = [...new Set(classNames.map((item) => extractClassLevel(item)))].sort(
-    levelSorter,
-  );
+  const levels = [
+    ...new Set(classNames.map((item) => extractClassLevel(item))),
+  ].sort(levelSorter);
   return levels[0] || "Lainnya";
 };
 
@@ -58,7 +58,8 @@ const RecapLearningSummary = ({
 
   const normalizedClassId =
     selectedClassId === "all" ? null : Number(selectedClassId) || null;
-  const normalizedTeacherId = teacherId === "all" ? null : Number(teacherId) || null;
+  const normalizedTeacherId =
+    teacherId === "all" ? null : Number(teacherId) || null;
 
   const { data: classRes, isLoading: classLoading } = useGetClassesQuery(
     { subjectId, gradeId: null },
@@ -66,10 +67,11 @@ const RecapLearningSummary = ({
   );
   const classes = classRes?.data || [];
 
-  const { data: teachersRes, isLoading: teacherLoading } = useGetRecapTeachersQuery(
-    { subjectId, classId: normalizedClassId },
-    { skip: !isActive || !subjectId },
-  );
+  const { data: teachersRes, isLoading: teacherLoading } =
+    useGetRecapTeachersQuery(
+      { subjectId, classId: normalizedClassId },
+      { skip: !isActive || !subjectId },
+    );
   const teachers = teachersRes?.data || [];
 
   const classOptions = useMemo(
@@ -83,7 +85,10 @@ const RecapLearningSummary = ({
   const teacherOptions = useMemo(
     () => [
       { value: "all", label: "Semua guru" },
-      ...teachers.map((item) => ({ value: String(item.id), label: item.full_name })),
+      ...teachers.map((item) => ({
+        value: String(item.id),
+        label: item.full_name,
+      })),
     ],
     [teachers],
   );
@@ -102,7 +107,11 @@ const RecapLearningSummary = ({
       : "all";
   }, [teacherId, teachers]);
 
-  const { data: summaryRes, isFetching, refetch } = useGetLearningSummaryRecapQuery(
+  const {
+    data: summaryRes,
+    isFetching,
+    refetch,
+  } = useGetLearningSummaryRecapQuery(
     {
       subjectId,
       teacherId: normalizedTeacherId,
@@ -119,7 +128,10 @@ const RecapLearningSummary = ({
 
     for (const item of items) {
       const chapterKey = String(
-        item.chapter_id ?? item.chapter_title ?? item.key ?? groupedRows.size + 1,
+        item.chapter_id ??
+          item.chapter_title ??
+          item.key ??
+          groupedRows.size + 1,
       );
 
       if (!groupedRows.has(chapterKey)) {
@@ -174,10 +186,14 @@ const RecapLearningSummary = ({
       const classCompare = classNameSorter(classA, classB);
       if (classCompare !== 0) return classCompare;
 
-      return String(a.chapter_title).localeCompare(String(b.chapter_title), "id", {
-        numeric: true,
-        sensitivity: "base",
-      });
+      return String(a.chapter_title).localeCompare(
+        String(b.chapter_title),
+        "id",
+        {
+          numeric: true,
+          sensitivity: "base",
+        },
+      );
     });
 
     return sortedRows.map((row, index) => ({
@@ -202,11 +218,12 @@ const RecapLearningSummary = ({
       title: "Subbab",
       dataIndex: "subchapters",
       render: (value) => {
-        if (!value?.length) return <Text type="secondary">Belum ada subbab</Text>;
+        if (!value?.length)
+          return <Text type='secondary'>Belum ada subbab</Text>;
         return (
           <Space size={[4, 4]} wrap>
             {value.map((item) => (
-              <Tag key={item.id} color="blue">
+              <Tag key={item.id} color='blue'>
                 {item.title}
               </Tag>
             ))}
@@ -232,7 +249,7 @@ const RecapLearningSummary = ({
       title: "Kelas Peruntukan",
       dataIndex: "class_names",
       render: (value) => {
-        if (!value?.length) return <Text type="secondary">-</Text>;
+        if (!value?.length) return <Text type='secondary'>-</Text>;
 
         const groupedByLevel = value.reduce((acc, className) => {
           const level = extractClassLevel(className);
@@ -241,21 +258,23 @@ const RecapLearningSummary = ({
           return acc;
         }, {});
 
-        const sortedEntries = Object.entries(groupedByLevel).sort(([levelA], [levelB]) =>
-          levelSorter(levelA, levelB),
+        const sortedEntries = Object.entries(groupedByLevel).sort(
+          ([levelA], [levelB]) => levelSorter(levelA, levelB),
         );
 
         return (
-          <Space direction="vertical" size={4}>
+          <Space direction='vertical' size={4}>
             {sortedEntries.map(([level, classNames]) => (
-              <Space key={level} align="start" wrap>
-                <Text type="secondary" style={{ minWidth: 72 }}>
+              <Space key={level} align='start' wrap>
+                <Text type='secondary' style={{ minWidth: 72 }}>
                   {level === "Lainnya" ? "Lainnya" : `Tingkat ${level}`}
                 </Text>
                 <Space size={[4, 4]} wrap>
-                  {[...new Set(classNames)].sort(classNameSorter).map((className) => (
-                    <Tag key={`${level}-${className}`}>{className}</Tag>
-                  ))}
+                  {[...new Set(classNames)]
+                    .sort(classNameSorter)
+                    .map((className) => (
+                      <Tag key={`${level}-${className}`}>{className}</Tag>
+                    ))}
                 </Space>
               </Space>
             ))}
@@ -273,27 +292,30 @@ const RecapLearningSummary = ({
   return (
     <Flex vertical gap={16}>
       <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
+        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
           <Space vertical size={2}>
             <Title level={5} style={{ margin: 0 }}>
               Ringkasan Pembelajaran
             </Title>
-            <Text type="secondary">
-              Bab dan subbab yang sudah dibuat guru pengampu sesuai peruntukan kelas
+            <Text type='secondary'>
+              Bab dan subbab yang sudah dibuat guru pengampu sesuai peruntukan
+              kelas
             </Text>
           </Space>
           <Space wrap>
-            <Tag color="blue">{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color="processing">
-              {activePeriode?.name || summaryData?.meta?.periode_name || "Periode"}
+            <Tag color='blue'>{subject?.name || "Mata Pelajaran"}</Tag>
+            <Tag color='processing'>
+              {activePeriode?.name ||
+                summaryData?.meta?.periode_name ||
+                "Periode"}
             </Tag>
           </Space>
         </Flex>
 
         <Flex
-          justify="space-between"
-          align="center"
-          wrap="wrap"
+          justify='space-between'
+          align='center'
+          wrap='wrap'
           gap={12}
           style={{ marginTop: 16 }}
         >
@@ -305,6 +327,10 @@ const RecapLearningSummary = ({
               options={classOptions}
               loading={classLoading}
               suffixIcon={<Filter size={14} />}
+              virtual={false}
+              allowClear
+              showSearch={{ optionFilterProp: "label" }}
+              placeholder='Filter kelas'
             />
             {teachers.length > 1 && (
               <Select
@@ -314,6 +340,10 @@ const RecapLearningSummary = ({
                 options={teacherOptions}
                 loading={teacherLoading}
                 suffixIcon={<Filter size={14} />}
+                virtual={false}
+                allowClear
+                showSearch={{ optionFilterProp: "label" }}
+                placeholder='Filter guru'
               />
             )}
           </Space>
@@ -322,25 +352,27 @@ const RecapLearningSummary = ({
           </Button>
         </Flex>
 
-        <Flex wrap="wrap" gap={8} style={{ marginTop: 14 }}>
-          <Tag color="geekblue" icon={<Users size={12} />}>
+        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
+          <Tag color='geekblue' icon={<Users size={12} />}>
             Total Bab: {summaryData?.meta?.total_chapters || 0}
           </Tag>
-          <Tag color="cyan">Total Subbab: {summaryData?.meta?.total_subchapters || 0}</Tag>
+          <Tag color='cyan'>
+            Total Subbab: {summaryData?.meta?.total_subchapters || 0}
+          </Tag>
         </Flex>
       </Card>
 
       {!subjectId ? (
-        <Alert type="info" showIcon message="Mata pelajaran belum dipilih." />
+        <Alert type='info' showIcon message='Mata pelajaran belum dipilih.' />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
-              <Empty description="Belum ada data bab/subbab pada filter ini." />
+              <Empty description='Belum ada data bab/subbab pada filter ini.' />
             </div>
           ) : (
             <Table
-              rowKey="key"
+              rowKey='key'
               dataSource={rows}
               columns={columns}
               loading={isFetching}

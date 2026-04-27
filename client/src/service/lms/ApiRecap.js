@@ -11,6 +11,7 @@ export const ApiRecap = createApi({
     "RecapFinalScore",
     "RecapReportScore",
     "RecapLearningSummary",
+    "RecapJournalSummary",
   ],
   endpoints: (builder) => ({
     getRecapTeachers: builder.query({
@@ -66,6 +67,13 @@ export const ApiRecap = createApi({
         }&class_id=${classId || ""}`,
       providesTags: ["RecapLearningSummary"],
     }),
+    getJournalSummaryRecap: builder.query({
+      query: ({ subjectId, teacherId, classId, date }) =>
+        `/journal-summary?subject_id=${subjectId || ""}&teacher_id=${
+          teacherId || ""
+        }&class_id=${classId || ""}&date=${date || ""}`,
+      providesTags: ["RecapJournalSummary"],
+    }),
   }),
 });
 
@@ -78,4 +86,5 @@ export const {
   useGetFinalScoreRecapQuery,
   useGetReportScoreRecapQuery,
   useGetLearningSummaryRecapQuery,
+  useGetJournalSummaryRecapQuery,
 } = ApiRecap;

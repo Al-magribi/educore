@@ -13,6 +13,7 @@ const NilaiRaport = lazy(() => import("./components/NilaiRaport"));
 const RecapLearningSummary = lazy(
   () => import("./components/RecapLearningSummary"),
 );
+const RecapJournal = lazy(() => import("./components/RecapJournal"));
 
 const { useBreakpoint } = Grid;
 
@@ -268,6 +269,21 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
         <Suspense fallback={recapFallback}>
           <RecapLearningSummary
             isActive={activeTab === "learning-summary"}
+            subjectId={subjectId}
+            subject={subject}
+            activePeriode={activePeriode}
+            screens={screens}
+          />
+        </Suspense>
+      ),
+    });
+    tabItems.push({
+      key: "journal-summary",
+      label: "Ringkasan Jurnal",
+      children: (
+        <Suspense fallback={recapFallback}>
+          <RecapJournal
+            isActive={activeTab === "journal-summary"}
             subjectId={subjectId}
             subject={subject}
             activePeriode={activePeriode}

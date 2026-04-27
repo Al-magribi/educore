@@ -116,7 +116,7 @@ const FinalScore = ({
           value === null || value === undefined ? (
             "-"
           ) : (
-            <Tag color="blue">{round2(value)}</Tag>
+            <Tag color='blue'>{round2(value)}</Tag>
           ),
       },
     ],
@@ -145,27 +145,29 @@ const FinalScore = ({
   return (
     <Flex vertical gap={16}>
       <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
+        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
           <Space vertical size={2}>
             <Title level={5} style={{ margin: 0 }}>
               Rekapitulasi Nilai Akhir
             </Title>
-            <Text type="secondary">
+            <Text type='secondary'>
               Rekap nilai akhir siswa dalam satu semester
             </Text>
           </Space>
           <Space wrap>
-            <Tag color="blue">{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color="processing">
-              {activePeriode?.name || recapData?.meta?.periode_name || "Periode"}
+            <Tag color='blue'>{subject?.name || "Mata Pelajaran"}</Tag>
+            <Tag color='processing'>
+              {activePeriode?.name ||
+                recapData?.meta?.periode_name ||
+                "Periode"}
             </Tag>
           </Space>
         </Flex>
 
         <Flex
-          justify="space-between"
-          align="center"
-          wrap="wrap"
+          justify='space-between'
+          align='center'
+          wrap='wrap'
           gap={12}
           style={{ marginTop: 16 }}
         >
@@ -179,30 +181,39 @@ const FinalScore = ({
                 { value: 2, label: "Semester 2" },
               ]}
               suffixIcon={<Filter size={14} />}
+              virtual={false}
+              allowClear
+              showSearch={{ optionFilterProp: "label" }}
             />
             {isAdminView && (
               <Select
                 value={teacherId}
                 onChange={setTeacherId}
                 style={{ minWidth: 220 }}
-                placeholder="Pilih guru"
+                placeholder='Pilih guru'
                 options={teachers.map((item) => ({
                   value: item.id,
                   label: item.full_name,
                 }))}
                 loading={teacherLoading}
+                virtual={false}
+                allowClear
+                showSearch={{ optionFilterProp: "label" }}
               />
             )}
             <Select
               value={classId}
               onChange={setClassId}
               style={{ minWidth: 220 }}
-              placeholder="Pilih kelas"
+              placeholder='Pilih kelas'
               options={classes.map((item) => ({
                 value: item.id,
                 label: item.name,
               }))}
               loading={classLoading}
+              virtual={false}
+              allowClear
+              showSearch={{ optionFilterProp: "label" }}
             />
           </Space>
 
@@ -211,7 +222,7 @@ const FinalScore = ({
               Refresh
             </Button>
             <Button
-              type="primary"
+              type='primary'
               icon={<Download size={14} />}
               disabled={!rows.length}
               onClick={handleDownloadExcel}
@@ -221,40 +232,38 @@ const FinalScore = ({
           </Space>
         </Flex>
 
-        <Flex wrap="wrap" gap={8} style={{ marginTop: 14 }}>
-          <Tag color="geekblue" icon={<Users size={12} />}>
+        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
+          <Tag color='geekblue' icon={<Users size={12} />}>
             Total Siswa: {recapData?.meta?.total_students || 0}
           </Tag>
-          <Tag color="cyan">
+          <Tag color='cyan'>
             Avg Nilai Akhir: {round2(summary.final_average)}
           </Tag>
-          <Tag color="purple">
-            Sudah Dinilai: {summary.total_graded || 0}
-          </Tag>
+          <Tag color='purple'>Sudah Dinilai: {summary.total_graded || 0}</Tag>
         </Flex>
       </Card>
 
       {!classId ? (
         <Alert
-          type="info"
+          type='info'
           showIcon
-          message="Pilih kelas untuk menampilkan rekap nilai akhir."
+          message='Pilih kelas untuk menampilkan rekap nilai akhir.'
         />
       ) : isAdminView && !teacherId ? (
         <Alert
-          type="info"
+          type='info'
           showIcon
-          message="Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru."
+          message='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
         />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
-              <Empty description="Belum ada data nilai akhir pada filter ini." />
+              <Empty description='Belum ada data nilai akhir pada filter ini.' />
             </div>
           ) : (
             <Table
-              rowKey="key"
+              rowKey='key'
               dataSource={rows}
               columns={columns}
               loading={isFetching}
