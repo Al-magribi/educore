@@ -53,7 +53,9 @@ const ROUTE_PRELOADERS = {
     import("../../module/cbt/bank/view/BankList"),
   "/computer-based-test/jadwal-ujian": () =>
     import("../../module/cbt/exam/view/ExamList"),
-  "/siswa-dashboard": () => import("../../module/student/dashboard/StudentDash"),
+  "/guru/ai-config": () => import("../../module/teacher/ai/AiConfig"),
+  "/siswa-dashboard": () =>
+    import("../../module/student/dashboard/StudentDash"),
   "/siswa/jadwal-ujian": () =>
     import("../../module/cbt/student/view/StudentExamList"),
   "/computer-based-test/start": () =>

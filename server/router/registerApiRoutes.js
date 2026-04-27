@@ -8,12 +8,14 @@ import RouterMain from "./main/index.js";
 import RouterMigrasi from "./migration/RouterMigration.js";
 import RouterAcademic from "./academic/index.js";
 import RouterCbt from "./cbt/index.js";
+import RouterAiConfig from "./ai/RouterAiConfig.js";
 
 const optionalRouteDefinitions = [
   { basePath: "/api/database", modulePath: "./database/RouterDatabase.js" },
   { basePath: "/api/lms", modulePath: "./lms/index.js" },
   { basePath: "/api/finance", modulePath: "./finance/index.js" },
   { basePath: "/api/tahfiz", modulePath: "./tahfiz/index.js" },
+  { basePath: "/api/ai", modulePath: "./ai/RouterAiConfig.js" },
 ];
 
 const loadOptionalRouter = async ({ basePath, modulePath }) => {
