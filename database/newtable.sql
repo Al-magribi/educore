@@ -276,44 +276,51 @@ CREATE INDEX idx_enrollment_history ON u_class_enrollments(student_id);
 -- Struktur Fixedtable lebih bagus (normalized), tapi fitur newtable diakomodir
 -- ================================================================
 
-CREATE TABLE c_bank (
+CREATE SCHEMA IF NOT EXISTS cbt;
+
+CREATE TABLE cbt.c_bank (
     id SERIAL PRIMARY KEY,
-    teacher_id integer REFERENCES u_teachers(user_id),
-    subject_id integer REFERENCES a_subject(id),
+    teacher_id integer REFERENCES public.u_teachers(user_id),
+    subject_id integer REFERENCES public.a_subject(id),
     title varchar(255) NOT NULL,
     type varchar(50), -- UH, PTS, PAS
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE c_exam (
+CREATE INDEX idx_c_bank_teacher_created
+ON cbt.c_bank (teacher_id, created_at DESC);
+
+CREATE TABLE cbt.c_exam (
     id SERIAL PRIMARY KEY,
-    bank_id integer REFERENCES c_bank(id),
+    bank_id integer REFERENCES cbt.c_bank(id),
     name varchar(255) NOT NULL,
     duration_minutes integer NOT NULL,
     token varchar(10),
     is_active boolean DEFAULT true,
     is_shuffle boolean DEFAULT false,
-    grade_id integer REFERENCES a_grade(id),
+    grade_id integer REFERENCES public.a_grade(id),
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE c_exam
-ADD COLUMN grade_id integer REFERENCES a_grade(id);
-
-ALTER TABLE c_exam
-ADD COLUMN created_at timestamp DEFAULT CURRENT_TIMESTAMP;
-
+CREATE INDEX idx_c_exam_bank
+ON cbt.c_exam (bank_id);
 
 -- RELASI UJIAN KE KELAS (Dari c_class newtable)
-CREATE TABLE c_exam_class (
+CREATE TABLE cbt.c_exam_class (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id) ON DELETE CASCADE,
-    class_id integer REFERENCES a_class(id) ON DELETE CASCADE
+    exam_id integer REFERENCES cbt.c_exam(id) ON DELETE CASCADE,
+    class_id integer REFERENCES public.a_class(id) ON DELETE CASCADE
 );
 
-CREATE TABLE c_question (
+CREATE INDEX idx_c_exam_class_exam
+ON cbt.c_exam_class (exam_id, class_id);
+
+CREATE INDEX idx_c_exam_class_class
+ON cbt.c_exam_class (class_id, exam_id);
+
+CREATE TABLE cbt.c_question (
     id SERIAL PRIMARY KEY,
-    bank_id integer REFERENCES c_bank(id) ON DELETE CASCADE,
+    bank_id integer REFERENCES cbt.c_bank(id) ON DELETE CASCADE,
     q_type smallint NOT NULL, -- 1=PG, 2=Essay, dll
     content text NOT NULL,
     media_url text,
@@ -321,33 +328,36 @@ CREATE TABLE c_question (
     score_point integer DEFAULT 1 -- Poin per soal
 );
 
-CREATE TABLE c_question_options (
+CREATE INDEX idx_c_question_bank
+ON cbt.c_question (bank_id, id);
+
+CREATE TABLE cbt.c_question_options (
     id SERIAL PRIMARY KEY,
-    question_id integer REFERENCES c_question(id) ON DELETE CASCADE,
-    label varchar(5), -- A, B, C, D
+    question_id integer REFERENCES cbt.c_question(id) ON DELETE CASCADE,
+    label text, -- A, B, C, D
     content text,
     media_url text,
     is_correct boolean DEFAULT false
 );
 
-ALTER TABLE c_question_options 
-ALTER COLUMN label TYPE TEXT;
+CREATE INDEX idx_c_question_options_question
+ON cbt.c_question_options (question_id, id);
 
-CREATE TABLE c_student_session (
+CREATE TABLE cbt.c_student_session (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id),
-    student_id integer REFERENCES u_students(user_id),
+    exam_id integer REFERENCES cbt.c_exam(id),
+    student_id integer REFERENCES public.u_students(user_id),
     start_time timestamp DEFAULT CURRENT_TIMESTAMP,
     finish_time timestamp,
     score_final numeric(5,2)
 );
 
 -- LOG KEHADIRAN CBT SISWA
-CREATE TABLE c_exam_attendance (
+CREATE TABLE cbt.c_exam_attendance (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
-    class_id integer REFERENCES a_class(id),
+    exam_id integer REFERENCES cbt.c_exam(id) ON DELETE CASCADE,
+    student_id integer REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    class_id integer REFERENCES public.a_class(id),
     status varchar(20) DEFAULT 'mengerjakan'
       CHECK (status IN ('belum_masuk', 'izin', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai')),
     ip_address text,
@@ -358,25 +368,25 @@ CREATE TABLE c_exam_attendance (
     CONSTRAINT unique_exam_student UNIQUE (exam_id, student_id)
 );
 
-CREATE INDEX idx_exam_attendance_exam ON c_exam_attendance (exam_id);
-CREATE INDEX idx_students_current_class ON u_students (current_class_id);
+CREATE INDEX idx_exam_attendance_exam ON cbt.c_exam_attendance (exam_id);
+CREATE INDEX idx_students_current_class ON public.u_students (current_class_id);
 
-CREATE TABLE c_answer (
+CREATE TABLE cbt.c_answer (
     id SERIAL PRIMARY KEY,
-    session_id integer REFERENCES c_student_session(id),
-    question_id integer REFERENCES c_question(id),
-    selected_option_id integer REFERENCES c_question_options(id),
+    session_id integer REFERENCES cbt.c_student_session(id),
+    question_id integer REFERENCES cbt.c_question(id),
+    selected_option_id integer REFERENCES cbt.c_question_options(id),
     essay_text text,
     is_correct boolean,
     score_obtained numeric(5,2)
 );
 
 -- Jawaban siswa untuk autosave (semua tipe soal)
-CREATE TABLE c_student_answer (
+CREATE TABLE cbt.c_student_answer (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES c_exam(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
-    question_id integer REFERENCES c_question(id) ON DELETE CASCADE,
+    exam_id integer REFERENCES cbt.c_exam(id) ON DELETE CASCADE,
+    student_id integer REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    question_id integer REFERENCES cbt.c_question(id) ON DELETE CASCADE,
     answer_json jsonb,
     score_obtained numeric(6,2),
     is_doubt boolean DEFAULT false,
@@ -385,33 +395,11 @@ CREATE TABLE c_student_answer (
     CONSTRAINT unique_student_answer UNIQUE (exam_id, student_id, question_id)
 );
 
-ALTER TABLE c_student_answer ADD COLUMN score_obtained numeric(6,2);
-
 CREATE INDEX idx_student_answer_lookup
-ON c_student_answer (exam_id, student_id);
+ON cbt.c_student_answer (exam_id, student_id);
 
-
-ALTER TABLE c_exam_attendance
-  ALTER COLUMN start_at TYPE timestamptz USING start_at AT TIME ZONE 'Asia/Jakarta',
-  ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'Asia/Jakarta',
-  ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'Asia/Jakarta';
-
--- Jika sebelumnya pernah dikonversi memakai AT TIME ZONE 'UTC' (dan waktu jadi maju +7 jam),
--- jalankan sekali secara manual (opsional) untuk koreksi data lama:
--- UPDATE c_exam_attendance
--- SET
---   start_at = (start_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta',
---   created_at = (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta',
---   updated_at = (updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta';
-
-
-
-  ALTER TABLE c_exam_attendance
-  DROP CONSTRAINT IF EXISTS c_exam_attendance_status_check;
-
-ALTER TABLE c_exam_attendance
-  ADD CONSTRAINT c_exam_attendance_status_check
-  CHECK (status IN ('belum_masuk', 'izin', 'izinkan', 'mengerjakan', 'pelanggaran', 'selesai'));
+CREATE INDEX idx_c_student_answer_question
+ON cbt.c_student_answer (question_id);
 
 
 
@@ -663,6 +651,293 @@ CREATE TABLE configurations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- =========================================
+-- AI CONFIGURATION (TEACHER LEVEL / BYOK)
+-- Dipakai lintas fitur: generator soal, penilaian essay, speech-to-text
+-- Secret key disimpan dalam bentuk terenkripsi oleh server
+-- =========================================
+
+CREATE TABLE ai_teacher_config (
+    id SERIAL PRIMARY KEY,
+    teacher_id integer NOT NULL REFERENCES u_teachers(user_id) ON DELETE CASCADE,
+    provider varchar(30) NOT NULL DEFAULT 'openai',
+    api_key_encrypted text NOT NULL,
+    api_key_hint varchar(30),
+    default_model_text varchar(100) DEFAULT 'gpt-4.1-mini',
+    default_model_audio varchar(100) DEFAULT 'gpt-4o-mini-transcribe',
+    default_language varchar(20) DEFAULT 'id',
+    default_mode varchar(20) DEFAULT 'live'
+      CHECK (default_mode IN ('live', 'ai')),
+    max_audio_duration_seconds integer DEFAULT 300
+      CHECK (max_audio_duration_seconds > 0),
+    max_audio_file_size_mb integer DEFAULT 20
+      CHECK (max_audio_file_size_mb > 0),
+    is_active boolean DEFAULT true,
+    last_test_at timestamp,
+    last_test_status varchar(20)
+      CHECK (last_test_status IN ('success', 'failed', 'pending') OR last_test_status IS NULL),
+    last_test_message text,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_ai_teacher_provider UNIQUE (teacher_id, provider)
+);
+
+CREATE INDEX idx_ai_teacher_config_teacher
+ON ai_teacher_config(teacher_id);
+
+CREATE INDEX idx_ai_teacher_config_provider
+ON ai_teacher_config(provider, is_active);
+
+CREATE TABLE ai_teacher_feature (
+    id SERIAL PRIMARY KEY,
+    teacher_config_id integer NOT NULL REFERENCES ai_teacher_config(id) ON DELETE CASCADE,
+    feature_code varchar(50) NOT NULL
+      CHECK (feature_code IN ('question_generator', 'essay_grader', 'speech_to_text')),
+    is_enabled boolean DEFAULT true,
+    model_override varchar(100),
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_ai_teacher_feature UNIQUE (teacher_config_id, feature_code)
+);
+
+CREATE INDEX idx_ai_teacher_feature_lookup
+ON ai_teacher_feature(teacher_config_id, feature_code, is_enabled);
+
+CREATE TABLE ai_usage_log (
+    id BIGSERIAL PRIMARY KEY,
+    teacher_id integer NOT NULL REFERENCES u_teachers(user_id) ON DELETE CASCADE,
+    teacher_config_id integer REFERENCES ai_teacher_config(id) ON DELETE SET NULL,
+    feature_code varchar(50) NOT NULL
+      CHECK (feature_code IN ('question_generator', 'essay_grader', 'speech_to_text')),
+    provider varchar(30) NOT NULL DEFAULT 'openai',
+    model varchar(100),
+    request_type varchar(20) NOT NULL
+      CHECK (request_type IN ('text', 'audio')),
+    mode varchar(20)
+      CHECK (mode IN ('live', 'ai') OR mode IS NULL),
+    reference_table varchar(100),
+    reference_id bigint,
+    audio_url text,
+    audio_duration_seconds integer
+      CHECK (audio_duration_seconds IS NULL OR audio_duration_seconds >= 0),
+    input_units integer
+      CHECK (input_units IS NULL OR input_units >= 0),
+    output_units integer
+      CHECK (output_units IS NULL OR output_units >= 0),
+    transcript_text text,
+    response_text text,
+    estimated_cost_usd numeric(12,6)
+      CHECK (estimated_cost_usd IS NULL OR estimated_cost_usd >= 0),
+    status varchar(20) NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'processing', 'success', 'failed')),
+    error_message text,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_ai_usage_log_teacher_feature
+ON ai_usage_log(teacher_id, feature_code, created_at DESC);
+
+CREATE INDEX idx_ai_usage_log_status
+ON ai_usage_log(status, created_at DESC);
+
+
+
+-- =========================================
+-- FINANCE SCHEMA
+-- =========================================
+create schema if not exists finance;
+
+-- =========================================
+-- 1) MASTER KOMPONEN BIAYA
+-- =========================================
+create table if not exists finance.fee_component (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  code varchar(50) not null,            -- SPP, UANG_GEDUNG, SERAGAM, BUKU, KAS_KELAS, TABUNGAN, dll
+  name varchar(120) not null,
+  charge_type varchar(20) not null check (charge_type in ('monthly','once','custom')),
+  is_savings boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (homebase_id, code)
+);
+
+create index if not exists idx_fee_component_homebase
+  on finance.fee_component(homebase_id);
+
+-- =========================================
+-- 2) RULE TARIF (PER SATUAN, TINGKAT, PERIODE)
+-- =========================================
+create table if not exists finance.fee_rule (
+  id bigserial primary key,
+  component_id bigint not null references finance.fee_component(id) on delete cascade,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  grade_id int references public.a_grade(id) on delete set null,       -- null = semua tingkat
+  periode_id int references public.a_periode(id) on delete set null,   -- null = lintas periode/default
+  billing_cycle varchar(20) not null check (billing_cycle in ('monthly','once','custom')),
+  amount numeric(14,2) not null check (amount >= 0),
+  valid_from date,
+  valid_to date,
+  is_active boolean not null default true,
+  created_by int references public.u_users(id),
+  created_at timestamptz not null default now(),
+  check (valid_to is null or valid_from is null or valid_to >= valid_from)
+);
+
+create index if not exists idx_fee_rule_lookup
+  on finance.fee_rule(homebase_id, grade_id, periode_id, component_id, is_active);
+
+-- Bulan aktif untuk rule monthly (supaya support tahun ajaran Jul-Jun)
+create table if not exists finance.fee_rule_month (
+  id bigserial primary key,
+  fee_rule_id bigint not null references finance.fee_rule(id) on delete cascade,
+  month_num smallint not null check (month_num between 1 and 12),
+  unique (fee_rule_id, month_num)
+);
+
+create index if not exists idx_fee_rule_month_rule
+  on finance.fee_rule_month(fee_rule_id);
+
+-- =========================================
+-- 3) TAGIHAN
+-- =========================================
+create table if not exists finance.invoice (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  periode_id int references public.a_periode(id),
+  invoice_no varchar(60) not null unique,
+  issue_date date not null default current_date,
+  due_date date,
+  status varchar(20) not null default 'draft'
+    check (status in ('draft','issued','partial','paid','cancelled')),
+  notes text,
+  created_by int not null references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_invoice_student
+  on finance.invoice(student_id, status);
+
+create table if not exists finance.invoice_item (
+  id bigserial primary key,
+  invoice_id bigint not null references finance.invoice(id) on delete cascade,
+  component_id bigint not null references finance.fee_component(id),
+  fee_rule_id bigint references finance.fee_rule(id),
+  bill_year smallint,                         -- contoh 2026
+  bill_month smallint check (bill_month between 1 and 12), -- untuk SPP bulanan
+  description text,
+  qty numeric(12,2) not null default 1 check (qty > 0),
+  unit_amount numeric(14,2) not null check (unit_amount >= 0),
+  amount numeric(14,2) generated always as (qty * unit_amount) stored
+);
+
+create index if not exists idx_invoice_item_invoice
+  on finance.invoice_item(invoice_id);
+
+-- Cegah duplikasi SPP bulan yang sama di student yang sama
+create unique index if not exists uq_invoice_item_monthly
+  on finance.invoice_item(component_id, fee_rule_id, bill_year, bill_month, invoice_id)
+  where bill_month is not null and bill_year is not null;
+
+-- =========================================
+-- 4) METODE PEMBAYARAN (MANUAL BANK / MIDTRANS)
+-- =========================================
+create table if not exists finance.payment_method (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id) on delete cascade,
+  method_type varchar(20) not null check (method_type in ('manual_bank','midtrans')),
+  name varchar(100) not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists finance.bank_account (
+  id bigserial primary key,
+  payment_method_id bigint not null references finance.payment_method(id) on delete cascade,
+  bank_name varchar(100) not null,
+  account_name varchar(120) not null,
+  account_number varchar(60) not null,
+  branch varchar(100),
+  is_active boolean not null default true
+);
+
+-- =========================================
+-- 5) PEMBAYARAN
+-- =========================================
+create table if not exists finance.payment (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  payer_user_id int not null references public.u_users(id), -- parent/siswa/admin
+  method_id bigint not null references finance.payment_method(id),
+  bank_account_id bigint references finance.bank_account(id),
+  payment_date timestamptz not null default now(),
+  amount numeric(14,2) not null check (amount > 0),
+  status varchar(20) not null
+    check (status in ('pending','paid','failed','expired','cancelled','refunded')),
+  reference_no varchar(120),
+  proof_url text, -- bukti transfer manual
+  notes text,
+  created_by int references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_payment_student
+  on finance.payment(student_id, status, payment_date desc);
+
+create table if not exists finance.payment_allocation (
+  id bigserial primary key,
+  payment_id bigint not null references finance.payment(id) on delete cascade,
+  invoice_item_id bigint not null references finance.invoice_item(id) on delete cascade,
+  allocated_amount numeric(14,2) not null check (allocated_amount > 0),
+  unique (payment_id, invoice_item_id)
+);
+
+create index if not exists idx_payment_alloc_item
+  on finance.payment_allocation(invoice_item_id);
+
+-- =========================================
+-- 6) GATEWAY TRANSACTION (MIDTRANS)
+-- =========================================
+create table if not exists finance.gateway_transaction (
+  id bigserial primary key,
+  payment_id bigint not null unique references finance.payment(id) on delete cascade,
+  provider varchar(30) not null default 'midtrans',
+  order_id varchar(120) not null unique,
+  transaction_id varchar(120),
+  transaction_status varchar(40),
+  snap_token text,
+  snap_redirect_url text,
+  gross_amount numeric(14,2),
+  raw_response jsonb,
+  webhook_payload jsonb,
+  last_synced_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- =========================================
+-- 7) TABUNGAN SISWA (MANUAL OLEH WALIKELAS/ADMIN FINANCE)
+-- =========================================
+create table if not exists finance.savings_ledger (
+  id bigserial primary key,
+  homebase_id int not null references public.a_homebase(id),
+  student_id int not null references public.u_students(user_id) on delete cascade,
+  component_id bigint not null references finance.fee_component(id), -- wajib komponen is_savings=true (validasi di service/trigger)
+  trx_date date not null default current_date,
+  direction varchar(10) not null check (direction in ('in','out')),
+  amount numeric(14,2) not null check (amount > 0),
+  note text,
+  recorded_by int not null references public.u_users(id),
+  approved_by int references public.u_users(id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_savings_student
+  on finance.savings_ledger(student_id, trx_date desc);
 
 -- ================================================================
 -- SECTION 9: LMS SCHEDULING

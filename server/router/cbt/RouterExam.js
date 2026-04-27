@@ -103,9 +103,13 @@ const resolveStudentIpAddress = (req, reportedIp) => {
 const getAllowAttendanceStatus = async (db) => {
   const constraintResult = await db.query(
     `
-      SELECT pg_get_constraintdef(oid) AS def
-      FROM pg_constraint
-      WHERE conname = 'c_exam_attendance_status_check'
+      SELECT pg_get_constraintdef(con.oid) AS def
+      FROM pg_constraint con
+      JOIN pg_class rel ON rel.oid = con.conrelid
+      JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+      WHERE con.conname = 'c_exam_attendance_status_check'
+        AND nsp.nspname = 'cbt'
+        AND rel.relname = 'c_exam_attendance'
       LIMIT 1
     `,
   );
@@ -204,7 +208,7 @@ const validateBankOwnership = async ({ pool, bankId, teacherId, user }) => {
   const bankCheck = await pool.query(
     `
       SELECT b.id
-      FROM c_bank b
+      FROM cbt.c_bank b
       LEFT JOIN u_teachers t ON b.teacher_id = t.user_id
       WHERE b.id = $1 AND b.teacher_id = $2
         AND ($3::text = 'teacher' OR t.homebase_id = $4)
@@ -337,13 +341,13 @@ router.get(
           '[]'
         ) as classes,
         COUNT(c.id) FILTER (WHERE c.id IS NOT NULL) as class_count
-      FROM c_exam e
-      JOIN c_bank b ON e.bank_id = b.id
+      FROM cbt.c_exam e
+      JOIN cbt.c_bank b ON e.bank_id = b.id
       LEFT JOIN a_subject s ON b.subject_id = s.id
       LEFT JOIN u_users t ON b.teacher_id = t.id
       LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
       LEFT JOIN a_grade g ON e.grade_id = g.id
-      LEFT JOIN c_exam_class ec ON ec.exam_id = e.id
+      LEFT JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
       LEFT JOIN a_class c ON ec.class_id = c.id
       ${whereClause}
       GROUP BY e.id, b.id, s.name, s.code, t.full_name, g.name
@@ -353,8 +357,8 @@ router.get(
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM c_exam e
-      JOIN c_bank b ON e.bank_id = b.id
+      FROM cbt.c_exam e
+      JOIN cbt.c_bank b ON e.bank_id = b.id
       LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
       LEFT JOIN a_subject s ON b.subject_id = s.id
       LEFT JOIN u_users t ON b.teacher_id = t.id
@@ -424,7 +428,7 @@ router.get(
         b.created_at,
         s.name as subject_name,
         s.code as subject_code
-      FROM c_bank b
+      FROM cbt.c_bank b
       LEFT JOIN a_subject s ON b.subject_id = s.id
       WHERE b.teacher_id = $1
       ORDER BY b.created_at DESC
@@ -480,12 +484,12 @@ router.get(
           t.full_name as teacher_name,
           g.name as grade_name,
           c.name as class_name
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN a_subject s ON b.subject_id = s.id
         LEFT JOIN u_users t ON b.teacher_id = t.id
         LEFT JOIN a_grade g ON e.grade_id = g.id
-        JOIN c_exam_class ec ON ec.exam_id = e.id
+        JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
         JOIN a_class c ON ec.class_id = c.id
         WHERE ec.class_id = $1 AND e.is_active = true
         ORDER BY e.created_at DESC
@@ -535,8 +539,8 @@ router.post(
     const examCheck = await pool.query(
       `
         SELECT e.id, e.duration_minutes
-        FROM c_exam e
-        JOIN c_exam_class ec ON ec.exam_id = e.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
         WHERE e.id = $1
           AND ec.class_id = $2
           AND e.is_active = true
@@ -552,7 +556,7 @@ router.post(
     const existingAttendance = await pool.query(
       `
         SELECT status
-        FROM c_exam_attendance
+        FROM cbt.c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
         LIMIT 1
       `,
@@ -589,7 +593,7 @@ router.post(
 
     const logResult = await pool.query(
       `
-        INSERT INTO c_exam_attendance
+        INSERT INTO cbt.c_exam_attendance AS attendance
           (
             exam_id,
             student_id,
@@ -607,7 +611,7 @@ router.post(
           status = 'mengerjakan',
           ip_address = EXCLUDED.ip_address,
           browser = EXCLUDED.browser,
-          start_at = COALESCE(c_exam_attendance.start_at, EXCLUDED.start_at),
+          start_at = COALESCE(attendance.start_at, EXCLUDED.start_at),
           updated_at = NOW()
         RETURNING id
       `,
@@ -667,10 +671,10 @@ router.get(
           b.title as bank_title,
           s.name as subject_name,
           s.code as subject_code
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN a_subject s ON b.subject_id = s.id
-        JOIN c_exam_class ec ON ec.exam_id = e.id
+        JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
         WHERE e.id = $1 AND e.is_active = true AND ec.class_id = $2
         LIMIT 1
       `,
@@ -699,7 +703,7 @@ router.get(
             )::int
           ) as remaining_seconds,
           status
-        FROM c_exam_attendance
+        FROM cbt.c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
         LIMIT 1
       `,
@@ -726,7 +730,7 @@ router.get(
     const questionResult = await pool.query(
       `
         SELECT id, q_type, content, score_point, media_url, audio_url
-        FROM c_question
+        FROM cbt.c_question
         WHERE bank_id = $1
         ORDER BY id ASC
       `,
@@ -739,7 +743,7 @@ router.get(
       const optionsResult = await pool.query(
         `
           SELECT id, question_id, label, content, media_url, is_correct
-          FROM c_question_options
+          FROM cbt.c_question_options
           WHERE question_id = ANY($1::int[])
           ORDER BY id ASC
         `,
@@ -779,7 +783,7 @@ router.get(
     const attendanceResult = await pool.query(
       `
         SELECT status
-        FROM c_exam_attendance
+        FROM cbt.c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
         LIMIT 1
       `,
@@ -796,7 +800,7 @@ router.get(
     const answerResult = await pool.query(
       `
         SELECT question_id, answer_json, is_doubt
-        FROM c_student_answer
+        FROM cbt.c_student_answer
         WHERE exam_id = $1 AND student_id = $2
         ORDER BY question_id ASC
       `,
@@ -834,7 +838,7 @@ router.post(
     const attendanceResult = await pool.query(
       `
         SELECT status
-        FROM c_exam_attendance
+        FROM cbt.c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
         LIMIT 1
       `,
@@ -861,8 +865,8 @@ router.post(
     const questionCheck = await pool.query(
       `
         SELECT 1
-        FROM c_question q
-        JOIN c_exam e ON e.bank_id = q.bank_id
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE q.id = $1 AND e.id = $2
         LIMIT 1
       `,
@@ -896,7 +900,7 @@ router.post(
 
     await pool.query(
       `
-        INSERT INTO c_student_answer (${insertFields.join(", ")})
+        INSERT INTO cbt.c_student_answer (${insertFields.join(", ")})
         VALUES (${insertPlaceholders.join(", ")})
         ON CONFLICT (exam_id, student_id, question_id)
         DO UPDATE SET ${updateSet.join(", ")}
@@ -923,7 +927,7 @@ router.post(
     const attendanceResult = await pool.query(
       `
         SELECT status
-        FROM c_exam_attendance
+        FROM cbt.c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
         LIMIT 1
       `,
@@ -961,7 +965,7 @@ router.post(
 
     await pool.query(
       `
-        UPDATE c_exam_attendance
+        UPDATE cbt.c_exam_attendance
         SET status = 'pelanggaran',
             updated_at = NOW()
         WHERE exam_id = $1 AND student_id = $2
@@ -988,7 +992,7 @@ router.post(
     const attendanceResult = await pool.query(
       `
         SELECT status
-        FROM c_exam_attendance
+        FROM cbt.c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
         LIMIT 1
       `,
@@ -1017,7 +1021,7 @@ router.post(
 
     await pool.query(
       `
-        UPDATE c_exam_attendance
+        UPDATE cbt.c_exam_attendance
         SET status = 'selesai',
             updated_at = NOW()
         WHERE exam_id = $1 AND student_id = $2
@@ -1044,8 +1048,8 @@ router.get(
     const examCheck = await pool.query(
       `
         SELECT e.id, e.duration_minutes, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
         LIMIT 1
@@ -1111,10 +1115,10 @@ router.get(
             '-'
           ) as start_at,
           COALESCE(a.status, 'belum_masuk') as status
-        FROM c_exam_class ec
+        FROM cbt.c_exam_class ec
         JOIN a_class c ON c.id = ec.class_id
         JOIN student_class sc ON sc.class_id = c.id
-        LEFT JOIN c_exam_attendance a
+        LEFT JOIN cbt.c_exam_attendance a
           ON a.exam_id = ec.exam_id AND a.student_id = sc.user_id
         WHERE ec.exam_id = $1
         ORDER BY c.name ASC, sc.full_name ASC
@@ -1149,8 +1153,8 @@ router.put(
     const examCheck = await client.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
         LIMIT 1
@@ -1173,7 +1177,7 @@ router.put(
     const allowStatus = await getAllowAttendanceStatus(client);
     const attendanceResult = await client.query(
       `
-        UPDATE c_exam_attendance
+        UPDATE cbt.c_exam_attendance
         SET status = $3, updated_at = NOW()
         WHERE exam_id = $1 AND student_id = $2
         RETURNING id
@@ -1189,7 +1193,7 @@ router.put(
     if (Number.isInteger(questionId)) {
       await client.query(
         `
-          DELETE FROM c_student_answer
+          DELETE FROM cbt.c_student_answer
           WHERE exam_id = $1 AND student_id = $2 AND question_id = $3
         `,
         [examId, studentId, questionId],
@@ -1216,8 +1220,8 @@ router.delete(
     const examCheck = await client.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
         LIMIT 1
@@ -1239,7 +1243,7 @@ router.delete(
 
     await client.query(
       `
-        DELETE FROM c_student_answer
+        DELETE FROM cbt.c_student_answer
         WHERE exam_id = $1 AND student_id = $2
       `,
       [examId, studentId],
@@ -1247,7 +1251,7 @@ router.delete(
 
     const deleteAttendance = await client.query(
       `
-        DELETE FROM c_exam_attendance
+        DELETE FROM cbt.c_exam_attendance
         WHERE exam_id = $1 AND student_id = $2
       `,
       [examId, studentId],
@@ -1277,8 +1281,8 @@ router.put(
     const examCheck = await pool.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
         LIMIT 1
@@ -1300,7 +1304,7 @@ router.put(
 
     const updateResult = await pool.query(
       `
-        UPDATE c_exam_attendance
+        UPDATE cbt.c_exam_attendance
         SET status = 'selesai', updated_at = NOW()
         WHERE exam_id = $1 AND student_id = $2
       `,
@@ -1330,8 +1334,8 @@ router.get(
     const examCheck = await pool.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
         LIMIT 1
@@ -1374,7 +1378,7 @@ router.get(
           sc.nis,
           sc.full_name as name,
           c.name as class_name
-        FROM c_exam_class ec
+        FROM cbt.c_exam_class ec
         JOIN a_class c ON c.id = ec.class_id
         JOIN student_class sc ON sc.class_id = c.id
         WHERE ec.exam_id = $1
@@ -1391,8 +1395,8 @@ router.get(
     const questionResult = await pool.query(
       `
         SELECT q.id, q.q_type, q.score_point
-        FROM c_question q
-        JOIN c_exam e ON e.bank_id = q.bank_id
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE e.id = $1
         ORDER BY q.id ASC
       `,
@@ -1407,7 +1411,7 @@ router.get(
       const optionResult = await pool.query(
         `
           SELECT id, question_id, is_correct
-          FROM c_question_options
+          FROM cbt.c_question_options
           WHERE question_id = ANY($1::int[])
           ORDER BY id ASC
         `,
@@ -1426,7 +1430,7 @@ router.get(
     const answerResult = await pool.query(
       `
         SELECT student_id, question_id, answer_json, score_obtained
-        FROM c_student_answer
+        FROM cbt.c_student_answer
         WHERE exam_id = $1 AND student_id = ANY($2::int[])
       `,
       [examId, studentIds],
@@ -1477,8 +1481,8 @@ router.get(
     const examCheck = await pool.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
         LIMIT 1
@@ -1501,8 +1505,8 @@ router.get(
     const questionResult = await pool.query(
       `
         SELECT q.id, q.q_type, q.content, q.score_point
-        FROM c_question q
-        JOIN c_exam e ON e.bank_id = q.bank_id
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE e.id = $1
         ORDER BY q.id ASC
       `,
@@ -1517,7 +1521,7 @@ router.get(
       const optionResult = await pool.query(
         `
           SELECT id, question_id, label, content, is_correct
-          FROM c_question_options
+          FROM cbt.c_question_options
           WHERE question_id = ANY($1::int[])
           ORDER BY id ASC
         `,
@@ -1529,7 +1533,7 @@ router.get(
     const answerResult = await pool.query(
       `
         SELECT question_id, answer_json, score_obtained
-        FROM c_student_answer
+        FROM cbt.c_student_answer
         WHERE exam_id = $1 AND student_id = $2
       `,
       [examId, studentId],
@@ -1713,8 +1717,8 @@ router.put(
     const examCheck = await pool.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
         LIMIT 1
@@ -1737,8 +1741,8 @@ router.put(
     const questionCheck = await pool.query(
       `
         SELECT 1
-        FROM c_question q
-        JOIN c_exam e ON e.bank_id = q.bank_id
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE q.id = $1 AND e.id = $2
         LIMIT 1
       `,
@@ -1751,7 +1755,7 @@ router.put(
 
     await pool.query(
       `
-        INSERT INTO c_student_answer (exam_id, student_id, question_id, score_obtained)
+        INSERT INTO cbt.c_student_answer (exam_id, student_id, question_id, score_obtained)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (exam_id, student_id, question_id)
         DO UPDATE SET score_obtained = EXCLUDED.score_obtained, updated_at = NOW()
@@ -1830,7 +1834,7 @@ router.post(
 
     const insertExam = await client.query(
       `
-        INSERT INTO c_exam 
+        INSERT INTO cbt.c_exam
           (bank_id, name, duration_minutes, token, is_active, is_shuffle, grade_id)
         VALUES 
           ($1, $2, $3, $4, $5, $6, $7)
@@ -1851,7 +1855,7 @@ router.post(
 
     await client.query(
       `
-        INSERT INTO c_exam_class (exam_id, class_id)
+        INSERT INTO cbt.c_exam_class (exam_id, class_id)
         SELECT $1, unnest($2::int[])
       `,
       [examId, classResult.classIds],
@@ -1884,8 +1888,8 @@ router.put(
     const examCheck = await client.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
       `,
@@ -1949,7 +1953,7 @@ router.put(
 
     await client.query(
       `
-        UPDATE c_exam
+        UPDATE cbt.c_exam
         SET bank_id = $1,
             name = $2,
             duration_minutes = $3,
@@ -1971,10 +1975,10 @@ router.put(
       ],
     );
 
-    await client.query(`DELETE FROM c_exam_class WHERE exam_id = $1`, [id]);
+    await client.query(`DELETE FROM cbt.c_exam_class WHERE exam_id = $1`, [id]);
     await client.query(
       `
-        INSERT INTO c_exam_class (exam_id, class_id)
+        INSERT INTO cbt.c_exam_class (exam_id, class_id)
         SELECT $1, unnest($2::int[])
       `,
       [id, classResult.classIds],
@@ -1995,8 +1999,8 @@ router.delete(
     const examCheck = await client.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
-        FROM c_exam e
-        JOIN c_bank b ON e.bank_id = b.id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
         WHERE e.id = $1
       `,
@@ -2017,7 +2021,7 @@ router.delete(
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
-    await client.query(`DELETE FROM c_exam WHERE id = $1`, [id]);
+    await client.query(`DELETE FROM cbt.c_exam WHERE id = $1`, [id]);
     res.json({ message: "Jadwal ujian berhasil dihapus" });
   }),
 );
