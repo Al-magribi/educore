@@ -29,7 +29,7 @@ router.get(
       db.query("SELECT COUNT(*) FROM u_teachers"),
 
       // 3. Ujian Aktif (CBT)
-      db.query("SELECT COUNT(*) FROM c_exam WHERE is_active = true"),
+      db.query("SELECT COUNT(*) FROM cbt.c_exam WHERE is_active = true"),
 
       // 4. Setoran Tahfiz Hari Ini
       db.query("SELECT COUNT(*) FROM t_daily_record WHERE date = CURRENT_DATE"),
