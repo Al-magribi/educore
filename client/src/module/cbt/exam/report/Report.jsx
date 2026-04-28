@@ -1,10 +1,16 @@
 import React, { useMemo } from "react";
-import { Card, Grid, Tabs } from "antd";
+import { Card, Flex, Grid, Tabs, theme } from "antd";
 import { motion } from "framer-motion";
-import { BarChart3, BrainCircuit, ClipboardCheck } from "lucide-react";
+import {
+  BarChart3,
+  BrainCircuit,
+  ClipboardCheck,
+  FileSpreadsheet,
+} from "lucide-react";
 import AttendanceTable from "./components/AttendanceTable";
 import BloomAnalysis from "./components/BloomAnalysis";
 import ReportHeader from "./components/ReportHeader";
+import ReportStudentAnswer from "./components/ReportStudentAnswer";
 import ScoreTable from "./components/ScoreTable";
 import {
   useGetExamAttendanceQuery,
@@ -40,18 +46,14 @@ const itemVariants = {
 const Report = ({ exam_id, exam_name, token }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const { token: themeToken } = theme.useToken();
 
   const { data: attendanceResponse, isLoading: attendanceLoading } =
     useGetExamAttendanceQuery({ exam_id }, { skip: !exam_id });
-  const { data: scoreResponse, isLoading: scoreLoading } = useGetExamScoresQuery(
-    { exam_id },
-    { skip: !exam_id },
-  );
+  const { data: scoreResponse, isLoading: scoreLoading } =
+    useGetExamScoresQuery({ exam_id }, { skip: !exam_id });
   const { data: bloomResponse, isLoading: bloomLoading } =
-    useGetExamBloomAnalysisQuery(
-      { exam_id },
-      { skip: !exam_id },
-    );
+    useGetExamBloomAnalysisQuery({ exam_id }, { skip: !exam_id });
 
   const attendanceData = useMemo(() => {
     const rows = attendanceResponse?.data || [];
@@ -98,11 +100,48 @@ const Report = ({ exam_id, exam_name, token }) => {
     };
   }, [attendanceData, attendanceResponse]);
 
+  const createTabLabel = (label, icon, caption) => (
+    <Flex align='center' gap={10}>
+      <span
+        style={{
+          width: 34,
+          height: 34,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
+          color: "#0369a1",
+          border: "1px solid rgba(148, 163, 184, 0.14)",
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </span>
+      <Flex vertical gap={0}>
+        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+        {!isMobile && (
+          <span
+            style={{
+              fontSize: 12,
+              color: themeToken.colorTextSecondary,
+              lineHeight: 1.2,
+            }}
+          >
+            {caption}
+          </span>
+        )}
+      </Flex>
+    </Flex>
+  );
+
   const tabItems = [
     {
       key: "attendance",
-      label: "Kehadiran",
-      icon: <ClipboardCheck size={16} />,
+      label: createTabLabel(
+        "Kehadiran",
+        <ClipboardCheck size={16} />,
+        "Pantau peserta",
+      ),
       children: (
         <AttendanceTable
           data={attendanceData}
@@ -113,9 +152,23 @@ const Report = ({ exam_id, exam_name, token }) => {
       ),
     },
     {
+      key: "student-answer-report",
+      label: createTabLabel(
+        "Jawaban Siswa",
+        <FileSpreadsheet size={16} />,
+        "Analisis jawaban",
+      ),
+      children: (
+        <ReportStudentAnswer
+          examId={exam_id}
+          examName={exam_name}
+          isMobile={isMobile}
+        />
+      ),
+    },
+    {
       key: "scores",
-      label: "Nilai",
-      icon: <BarChart3 size={16} />,
+      label: createTabLabel("Nilai", <BarChart3 size={16} />, "Rekap skor"),
       children: (
         <ScoreTable
           data={scoreData}
@@ -128,8 +181,11 @@ const Report = ({ exam_id, exam_name, token }) => {
     },
     {
       key: "bloom-analysis",
-      label: "Bloom Level",
-      icon: <BrainCircuit size={16} />,
+      label: createTabLabel(
+        "Bloom Level",
+        <BrainCircuit size={16} />,
+        "Level kognitif",
+      ),
       children: (
         <BloomAnalysis
           data={bloomResponse}
@@ -158,7 +214,7 @@ const Report = ({ exam_id, exam_name, token }) => {
 
       <MotionDiv variants={itemVariants}>
         <Card
-          bordered={false}
+          variant='borderless'
           style={{
             borderRadius: 24,
             boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
@@ -167,8 +223,9 @@ const Report = ({ exam_id, exam_name, token }) => {
         >
           <Tabs
             defaultActiveKey='attendance'
-            size={isMobile ? "small" : "middle"}
-            tabBarGutter={isMobile ? 8 : 16}
+            size={isMobile ? "middle" : "large"}
+            tabBarGutter={12}
+            tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
             items={tabItems}
           />
         </Card>

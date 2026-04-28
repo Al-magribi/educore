@@ -65,8 +65,8 @@ router.get(
       ]),
       pool.query(
         `SELECT COUNT(*) 
-         FROM c_exam e
-         JOIN c_bank b ON e.bank_id = b.id
+         FROM cbt.c_exam e
+         JOIN cbt.c_bank b ON e.bank_id = b.id
          JOIN a_subject s ON b.subject_id = s.id
          WHERE e.is_active = true AND s.homebase_id = $1`,
         [homebaseId],
@@ -183,10 +183,10 @@ router.get(
       classId
         ? pool.query(
             `SELECT e.id, e.name, e.duration_minutes, e.created_at, b.title as bank_title, s.name as subject_name
-             FROM c_exam e
-             JOIN c_bank b ON e.bank_id = b.id
+             FROM cbt.c_exam e
+             JOIN cbt.c_bank b ON e.bank_id = b.id
              JOIN a_subject s ON b.subject_id = s.id
-             JOIN c_exam_class ec ON ec.exam_id = e.id
+             JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
              WHERE ec.class_id = $1 AND e.is_active = true
              ORDER BY e.created_at DESC
              LIMIT 5`,
@@ -248,10 +248,12 @@ router.get(
       homebaseInfo,
       activePeriode,
       subjectCount,
+      taskCount,
       bankCount,
       examTotal,
       examActive,
       subjects,
+      tasks,
       banks,
       exams,
     ] = await Promise.all([
@@ -272,18 +274,36 @@ router.get(
          WHERE teacher_id = $1`,
         [userId],
       ),
-      pool.query(`SELECT COUNT(*) FROM c_bank WHERE teacher_id = $1`, [userId]),
+      pool.query(
+        `WITH active_periode AS (
+           SELECT id
+           FROM a_periode
+           WHERE homebase_id = $2 AND is_active = true
+           ORDER BY id DESC
+           LIMIT 1
+         )
+         SELECT COUNT(*)
+         FROM lms.l_task t
+         WHERE t.teacher_id = $1
+           AND t.homebase_id = $2
+           AND (
+             NOT EXISTS (SELECT 1 FROM active_periode)
+             OR t.periode_id = (SELECT id FROM active_periode)
+           )`,
+        [userId, homebaseId],
+      ),
+      pool.query(`SELECT COUNT(*) FROM cbt.c_bank WHERE teacher_id = $1`, [userId]),
       pool.query(
         `SELECT COUNT(*)
-         FROM c_exam e
-         JOIN c_bank b ON e.bank_id = b.id
+         FROM cbt.c_exam e
+         JOIN cbt.c_bank b ON e.bank_id = b.id
          WHERE b.teacher_id = $1`,
         [userId],
       ),
       pool.query(
         `SELECT COUNT(*)
-         FROM c_exam e
-         JOIN c_bank b ON e.bank_id = b.id
+         FROM cbt.c_exam e
+         JOIN cbt.c_bank b ON e.bank_id = b.id
          WHERE b.teacher_id = $1 AND e.is_active = true`,
         [userId],
       ),
@@ -308,6 +328,50 @@ router.get(
         [userId],
       ),
       pool.query(
+        `WITH active_periode AS (
+           SELECT id
+           FROM a_periode
+           WHERE homebase_id = $2 AND is_active = true
+           ORDER BY id DESC
+           LIMIT 1
+         )
+         SELECT
+           t.id,
+           t.title,
+           t.instruction,
+           t.deadline_at,
+           t.created_at,
+           t.updated_at,
+           t.subject_id,
+           s.name as subject_name,
+           s.code as subject_code,
+           t.chapter_id,
+           ch.title as chapter_title,
+           COALESCE(
+             json_agg(
+               DISTINCT jsonb_build_object('id', c.id, 'name', c.name)
+             ) FILTER (WHERE c.id IS NOT NULL),
+             '[]'
+           ) as classes,
+           COUNT(DISTINCT c.id) as class_count,
+           COUNT(DISTINCT sub.id) as submission_count
+         FROM lms.l_task t
+         JOIN a_subject s ON s.id = t.subject_id
+         JOIN l_chapter ch ON ch.id = t.chapter_id
+         LEFT JOIN lms.l_task_class tc ON tc.task_id = t.id
+         LEFT JOIN a_class c ON c.id = tc.class_id
+         LEFT JOIN lms.l_task_submission sub ON sub.task_id = t.id
+         WHERE t.teacher_id = $1
+           AND t.homebase_id = $2
+           AND (
+             NOT EXISTS (SELECT 1 FROM active_periode)
+             OR t.periode_id = (SELECT id FROM active_periode)
+           )
+         GROUP BY t.id, s.name, s.code, ch.title
+         ORDER BY t.deadline_at ASC, t.created_at DESC, t.id DESC`,
+        [userId, homebaseId],
+      ),
+      pool.query(
         `SELECT
            b.id,
            b.title,
@@ -316,13 +380,12 @@ router.get(
            s.name as subject_name,
            s.code as subject_code,
            COUNT(q.id) as question_count
-         FROM c_bank b
+         FROM cbt.c_bank b
          LEFT JOIN a_subject s ON b.subject_id = s.id
-         LEFT JOIN c_question q ON q.bank_id = b.id
+         LEFT JOIN cbt.c_question q ON q.bank_id = b.id
          WHERE b.teacher_id = $1
          GROUP BY b.id, s.name, s.code
-         ORDER BY b.created_at DESC
-         LIMIT 5`,
+         ORDER BY b.created_at DESC`,
         [userId],
       ),
       pool.query(
@@ -341,15 +404,14 @@ router.get(
              '[]'
            ) as classes,
            COUNT(DISTINCT c.id) as class_count
-         FROM c_exam e
-         JOIN c_bank b ON e.bank_id = b.id
+         FROM cbt.c_exam e
+         JOIN cbt.c_bank b ON e.bank_id = b.id
          LEFT JOIN a_subject s ON b.subject_id = s.id
-         LEFT JOIN c_exam_class ec ON ec.exam_id = e.id
+         LEFT JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
          LEFT JOIN a_class c ON ec.class_id = c.id
          WHERE b.teacher_id = $1
          GROUP BY e.id, b.title, s.name
-         ORDER BY e.created_at DESC
-         LIMIT 5`,
+         ORDER BY e.created_at DESC`,
         [userId],
       ),
     ]);
@@ -368,11 +430,13 @@ router.get(
         activePeriode: activePeriode.rows[0] || null,
         stats: {
           subjects: parseInt(subjectCount.rows[0].count, 10),
+          tasks: parseInt(taskCount.rows[0].count, 10),
           banks: parseInt(bankCount.rows[0].count, 10),
           examsTotal: parseInt(examTotal.rows[0].count, 10),
           examsActive: parseInt(examActive.rows[0].count, 10),
         },
         subjects: subjects.rows,
+        tasks: tasks.rows,
         banks: banks.rows,
         exams: exams.rows,
       },

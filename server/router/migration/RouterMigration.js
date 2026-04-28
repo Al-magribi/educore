@@ -3,6 +3,8 @@ import { poolSource, poolDest } from "../../config/migration.js";
 
 const router = Router();
 
+const DEFAULT_BATCH_SIZE = 500;
+
 // Helper untuk reset sequence setelah insert manual ID
 const resetSequence = async (client, tableName) => {
   try {
@@ -22,6 +24,46 @@ const resetSequence = async (client, tableName) => {
       `Skipping sequence reset for ${tableName} (No ID/Serial found)`,
     );
   }
+};
+
+const batchInsert = async ({
+  client,
+  table,
+  columns,
+  rows,
+  batchSize = DEFAULT_BATCH_SIZE,
+  conflictClause = "ON CONFLICT (id) DO NOTHING",
+}) => {
+  if (!rows.length) return 0;
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const values = [];
+    const placeholders = batch.map((row) => {
+      const rowPlaceholders = row.map((value) => {
+        values.push(value);
+        return `$${values.length}`;
+      });
+      return `(${rowPlaceholders.join(", ")})`;
+    });
+
+    await client.query(
+      `
+        INSERT INTO ${table} (${columns.join(", ")})
+        VALUES ${placeholders.join(", ")}
+        ${conflictClause}
+      `,
+      values,
+    );
+  }
+
+  return rows.length;
+};
+
+const normalizeNullableText = (value, maxLength = null) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value);
+  return maxLength ? text.slice(0, maxLength) : text;
 };
 
 /**
@@ -557,22 +599,6 @@ router.post("/migrate/step-3-cbt", async (req, res) => {
     await destClient.query("BEGIN");
     console.log("Migrating CBT Data...");
 
-    // Helper function (pastikan sudah ada di scope file ini, atau definisikan ulang)
-    const resetSequence = async (client, tableName) => {
-      try {
-        const res = await client.query(
-          `SELECT MAX(id) as max_id FROM ${tableName}`,
-        );
-        const maxId = res.rows[0].max_id || 1;
-        await client.query(
-          `SELECT setval(pg_get_serial_sequence('${tableName}', 'id'), $1)`,
-          [maxId],
-        );
-      } catch (e) {
-        console.log(`Skipping seq reset for ${tableName}`);
-      }
-    };
-
     // ==========================================
     // 1. BANK SOAL
     // ==========================================
@@ -583,26 +609,59 @@ router.post("/migrate/step-3-cbt", async (req, res) => {
       "SELECT b.*, t.username as teacher_username FROM c_bank b LEFT JOIN u_teachers t ON b.teacher = t.id",
     );
 
-    for (const row of banks.rows) {
-      // Cari ID baru guru
-      const teacherRes = await destClient.query(
-        "SELECT id FROM u_users WHERE username = $1",
-        [row.teacher_username],
+    const teacherUsernames = [
+      ...new Set(banks.rows.map((row) => row.teacher_username).filter(Boolean)),
+    ];
+    const teacherMap = new Map();
+    if (teacherUsernames.length > 0) {
+      const teacherResult = await destClient.query(
+        "SELECT id, username FROM u_users WHERE username = ANY($1::text[])",
+        [teacherUsernames],
       );
-      const newTeacherId = teacherRes.rows[0] ? teacherRes.rows[0].id : null;
-
-      // Insert Bank
-      await destClient.query(
-        `INSERT INTO c_bank (id, teacher_id, subject_id, title, type, created_at) 
-         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
-        [row.id, newTeacherId, row.subject, row.name, row.btype, row.createdat],
-      );
+      teacherResult.rows.forEach((row) => {
+        teacherMap.set(row.username, row.id);
+      });
     }
-    await resetSequence(destClient, "c_bank");
+
+    const subjectIds = [
+      ...new Set(
+        banks.rows
+          .map((row) => parseInt(row.subject, 10))
+          .filter((id) => Number.isInteger(id)),
+      ),
+    ];
+    const validSubjectIds = new Set();
+    if (subjectIds.length > 0) {
+      const subjectResult = await destClient.query(
+        "SELECT id FROM a_subject WHERE id = ANY($1::int[])",
+        [subjectIds],
+      );
+      subjectResult.rows.forEach((row) => validSubjectIds.add(row.id));
+    }
+
+    const bankRows = banks.rows.map((row) => {
+      const subjectId = parseInt(row.subject, 10);
+      return [
+        row.id,
+        teacherMap.get(row.teacher_username) || null,
+        validSubjectIds.has(subjectId) ? subjectId : null,
+        normalizeNullableText(row.name, 255) || "-",
+        normalizeNullableText(row.btype, 50),
+        row.createdat,
+      ];
+    });
+
+    await batchInsert({
+      client: destClient,
+      table: "cbt.c_bank",
+      columns: ["id", "teacher_id", "subject_id", "title", "type", "created_at"],
+      rows: bankRows,
+    });
+    await resetSequence(destClient, "cbt.c_bank");
 
     // [PENTING] Ambil Daftar Bank ID yang VALID (Berhasil Migrasi)
     // Gunakan ini untuk memfilter Soal & Ujian yang "Yatim Piatu" (Orphaned)
-    const validBankRes = await destClient.query("SELECT id FROM c_bank");
+    const validBankRes = await destClient.query("SELECT id FROM cbt.c_bank");
     const validBankIds = new Set(validBankRes.rows.map((r) => r.id));
     console.log(`Total Valid Banks: ${validBankIds.size}`);
 
@@ -613,6 +672,9 @@ router.post("/migrate/step-3-cbt", async (req, res) => {
     const questions = await sourceClient.query("SELECT * FROM c_question");
 
     let skippedQuestions = 0;
+    const questionRows = [];
+    const optionRows = [];
+
     for (const q of questions.rows) {
       // [VALIDASI] Cek apakah Bank ID ada di DB Baru?
       if (!validBankIds.has(q.bank)) {
@@ -620,12 +682,13 @@ router.post("/migrate/step-3-cbt", async (req, res) => {
         continue; // SKIP jika bank tidak ditemukan (Orphaned Question)
       }
 
-      // Insert Soal
-      await destClient.query(
-        `INSERT INTO c_question (id, bank_id, q_type, content, score_point) 
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
-        [q.id, q.bank, q.qtype, q.question, q.poin],
-      );
+      questionRows.push([
+        q.id,
+        q.bank,
+        q.qtype,
+        q.question || "",
+        q.poin ?? 1,
+      ]);
 
       // Insert Opsi (Transformasi Kolom -> Baris)
       if (q.qtype == 1) {
@@ -644,33 +707,47 @@ router.post("/migrate/step-3-cbt", async (req, res) => {
             const isCorrect =
               q.qkey && q.qkey.trim().toUpperCase() === opt.label;
 
-            await destClient.query(
-              `INSERT INTO c_question_options (question_id, label, content, is_correct) 
-               VALUES ($1, $2, $3, $4)`,
-              [q.id, opt.label, opt.content, isCorrect],
-            );
+            optionRows.push([q.id, opt.label, opt.content, Boolean(isCorrect)]);
           }
         }
       }
     }
+
+    await batchInsert({
+      client: destClient,
+      table: "cbt.c_question",
+      columns: ["id", "bank_id", "q_type", "content", "score_point"],
+      rows: questionRows,
+    });
+
+    await batchInsert({
+      client: destClient,
+      table: "cbt.c_question_options",
+      columns: ["question_id", "label", "content", "is_correct"],
+      rows: optionRows,
+      conflictClause: "",
+    });
+
     console.log(`Skipped Questions (Orphaned): ${skippedQuestions}`);
-    await resetSequence(destClient, "c_question");
+    await resetSequence(destClient, "cbt.c_question");
 
     // ==========================================
     // 3. EXAM (Jadwal Ujian)
     // ==========================================
     console.log("--- Migrating Exams ---");
     const exams = await sourceClient.query("SELECT * FROM c_exam");
+    const examBanks = await sourceClient.query(
+      "SELECT DISTINCT ON (exam) exam, bank FROM c_ebank WHERE exam IS NOT NULL ORDER BY exam, id ASC",
+    );
+    const bankByExamId = new Map(
+      examBanks.rows.map((row) => [row.exam, row.bank]),
+    );
 
     let skippedExams = 0;
+    const examRows = [];
+
     for (const ex of exams.rows) {
-      // Cari Bank ID dari tabel relasi lama (c_ebank)
-      const bankLink = await sourceClient.query(
-        "SELECT bank FROM c_ebank WHERE exam = $1 LIMIT 1",
-        [ex.id],
-      );
-      const sourceBankId =
-        bankLink.rows.length > 0 ? bankLink.rows[0].bank : null;
+      const sourceBankId = bankByExamId.get(ex.id) || null;
 
       // [VALIDASI] Cek apakah Bank ID valid?
       // Jika sourceBankId null atau tidak ada di validBankIds, exam ini tidak punya soal -> Skip atau set Null?
@@ -681,28 +758,105 @@ router.post("/migrate/step-3-cbt", async (req, res) => {
         continue; // Skip Exam tanpa Bank yang valid
       }
 
-      await destClient.query(
-        `INSERT INTO c_exam (id, bank_id, name, duration_minutes, is_active, is_shuffle, mc_score_weight, essay_score_weight, token) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
-        [
-          ex.id,
-          sourceBankId,
-          ex.name,
-          ex.duration,
-          ex.isactive,
-          ex.isshuffle,
-          ex.mc_score,
-          ex.essay_score,
-          ex.token,
-        ],
-      );
+      examRows.push([
+        ex.id,
+        sourceBankId,
+        normalizeNullableText(ex.name, 255) || "-",
+        ex.duration || 0,
+        normalizeNullableText(ex.token, 10),
+        ex.isactive ?? true,
+        ex.isshuffle ?? false,
+        ex.createdat,
+      ]);
     }
+
+    await batchInsert({
+      client: destClient,
+      table: "cbt.c_exam",
+      columns: [
+        "id",
+        "bank_id",
+        "name",
+        "duration_minutes",
+        "token",
+        "is_active",
+        "is_shuffle",
+        "created_at",
+      ],
+      rows: examRows,
+    });
+
     console.log(`Skipped Exams (Invalid Bank): ${skippedExams}`);
-    await resetSequence(destClient, "c_exam");
+    await resetSequence(destClient, "cbt.c_exam");
+
+    // ==========================================
+    // 4. RELASI UJIAN KE KELAS
+    // ==========================================
+    console.log("--- Migrating Exam Classes ---");
+    const validExamResult = await destClient.query("SELECT id FROM cbt.c_exam");
+    const validExamIds = new Set(validExamResult.rows.map((row) => row.id));
+    const oldExamClasses = await sourceClient.query(
+      "SELECT exam, classid FROM c_class WHERE exam IS NOT NULL AND classid IS NOT NULL",
+    );
+    const oldClassIds = [
+      ...new Set(
+        oldExamClasses.rows
+          .map((row) => parseInt(row.classid, 10))
+          .filter((id) => Number.isInteger(id)),
+      ),
+    ];
+    const validClassIds = new Set();
+    if (oldClassIds.length > 0) {
+      const classResult = await destClient.query(
+        "SELECT id FROM a_class WHERE id = ANY($1::int[])",
+        [oldClassIds],
+      );
+      classResult.rows.forEach((row) => validClassIds.add(row.id));
+    }
+
+    let skippedExamClasses = 0;
+    const seenExamClass = new Set();
+    const examClassRows = [];
+    oldExamClasses.rows.forEach((row) => {
+      const examId = parseInt(row.exam, 10);
+      const classId = parseInt(row.classid, 10);
+      const key = `${examId}:${classId}`;
+
+      if (
+        !validExamIds.has(examId) ||
+        !validClassIds.has(classId) ||
+        seenExamClass.has(key)
+      ) {
+        skippedExamClasses++;
+        return;
+      }
+
+      seenExamClass.add(key);
+      examClassRows.push([examId, classId]);
+    });
+
+    await batchInsert({
+      client: destClient,
+      table: "cbt.c_exam_class",
+      columns: ["exam_id", "class_id"],
+      rows: examClassRows,
+      conflictClause: "",
+    });
+    console.log(`Skipped Exam Classes: ${skippedExamClasses}`);
 
     await destClient.query("COMMIT");
     res.json({
       message: "Step 3: CBT Data Migrated & Transformed Successfully.",
+      data: {
+        banks: bankRows.length,
+        questions: questionRows.length,
+        question_options: optionRows.length,
+        exams: examRows.length,
+        exam_classes: examClassRows.length,
+        skipped_questions: skippedQuestions,
+        skipped_exams: skippedExams,
+        skipped_exam_classes: skippedExamClasses,
+      },
     });
   } catch (error) {
     await destClient.query("ROLLBACK");

@@ -49,44 +49,71 @@ const AdminMain = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const createLabel = (label, icon) => (
-    <Flex align='center' gap={8}>
+  const createTabLabel = (label, icon, caption) => (
+    <Flex align='center' gap={10}>
       <span
         style={{
-          width: 28,
-          height: 28,
+          width: 34,
+          height: 34,
           display: "grid",
           placeItems: "center",
-          borderRadius: 10,
-          background: "rgba(255,255,255,0.72)",
-          border: `1px solid ${token.colorBorderSecondary}`,
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #e0f2fe, #bae6fd)",
+          color: "#0369a1",
+          border: "1px solid rgba(148, 163, 184, 0.14)",
+          flexShrink: 0,
         }}
       >
         {icon}
       </span>
-      <span>{label}</span>
+      <Flex vertical gap={0}>
+        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+        {!isMobile && (
+          <span
+            style={{
+              fontSize: 12,
+              color: token.colorTextSecondary,
+              lineHeight: 1.2,
+            }}
+          >
+            {caption}
+          </span>
+        )}
+      </Flex>
     </Flex>
   );
 
   const items = [
     {
       key: "periode",
-      label: createLabel("Periode", <Calendar size={14} />),
+      label: createTabLabel("Periode", <Calendar size={16} />, "Tahun ajaran"),
       children: <Periode screens={screens} />,
     },
     user?.unit_level === "SMA / SMK / MA" && {
       key: "major",
-      label: createLabel("Jurusan", <GitBranch size={14} />),
+      label: createTabLabel(
+        "Jurusan",
+        <GitBranch size={16} />,
+        "Program studi",
+      ),
       children: <Major screens={screens} />,
     },
     {
       key: "grade",
-      label: createLabel("Tingkat", <GraduationCap size={14} />),
+      label: createTabLabel(
+        "Tingkat",
+        <GraduationCap size={16} />,
+        "Level jenjang",
+      ),
       children: <Grade screens={screens} />,
     },
     {
       key: "class",
-      label: createLabel("Kelas", <Folders size={14} />),
+      label: createTabLabel(
+        "Kelas",
+        <Folders size={16} />,
+        "Rombongan belajar",
+      ),
       children: <Classes screens={screens} />,
     },
   ].filter(Boolean);
@@ -212,25 +239,27 @@ const AdminMain = () => {
                 </Text>
 
                 <Flex vertical gap={10}>
-                  {["Periode Akademik", "Jurusan & Program", "Tingkat & Kelas"].map(
-                    (item) => (
-                      <Flex
-                        key={item}
-                        justify='space-between'
-                        align='center'
-                        style={{
-                          padding: isMobile ? "9px 11px" : "10px 12px",
-                          borderRadius: 14,
-                          background: "rgba(255,255,255,0.10)",
-                          color: "#f8fafc",
-                          fontSize: isMobile ? 13 : 14,
-                        }}
-                      >
-                        <span>{item}</span>
-                        <ChevronRight size={16} color='rgba(248,250,252,0.88)' />
-                      </Flex>
-                    ),
-                  )}
+                  {[
+                    "Periode Akademik",
+                    "Jurusan & Program",
+                    "Tingkat & Kelas",
+                  ].map((item) => (
+                    <Flex
+                      key={item}
+                      justify='space-between'
+                      align='center'
+                      style={{
+                        padding: isMobile ? "9px 11px" : "10px 12px",
+                        borderRadius: 14,
+                        background: "rgba(255,255,255,0.10)",
+                        color: "#f8fafc",
+                        fontSize: isMobile ? 13 : 14,
+                      }}
+                    >
+                      <span>{item}</span>
+                      <ChevronRight size={16} color='rgba(248,250,252,0.88)' />
+                    </Flex>
+                  ))}
                 </Flex>
               </Flex>
             </Flex>
