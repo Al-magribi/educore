@@ -93,7 +93,13 @@ const App = () => {
           element={
             <RouteProtection
               allowedRoles={["admin", "teacher", "student", "parent"]}
-              allowedLevels={["pusat", "satuan", "tahfiz", "finance", "keuangan"]}
+              allowedLevels={[
+                "pusat",
+                "satuan",
+                "tahfiz",
+                "finance",
+                "keuangan",
+              ]}
             />
           }
         >
@@ -130,7 +136,10 @@ const App = () => {
                 LazyPage,
               })}
 
-            {isTahfizEnabled && renderTahfizRoutes()}
+            {isTahfizEnabled &&
+              renderTahfizRoutes({
+                LazyPage,
+              })}
 
             {renderRoleRoutes({
               LazyPage,
