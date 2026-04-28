@@ -1555,6 +1555,471 @@ router.get(
   }),
 );
 
+// 2.9.2 GET Student Answer Matrix Report (Teacher/Admin)
+router.get(
+  "/exam-attendance/:exam_id/student-answer-report",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const examId = parseInt(req.params.exam_id, 10);
+    const user = req.user;
+
+    if (!Number.isInteger(examId)) {
+      return res.status(400).json({ message: "Exam ID tidak valid" });
+    }
+
+    const examCheck = await pool.query(
+      `
+        SELECT
+          e.id,
+          e.name,
+          e.duration_minutes,
+          b.id as bank_id,
+          b.title as bank_title,
+          b.type as bank_type,
+          b.teacher_id,
+          s.name as subject_name,
+          s.code as subject_code,
+          t.full_name as teacher_name,
+          g.name as grade_name,
+          ut.homebase_id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
+        LEFT JOIN a_subject s ON b.subject_id = s.id
+        LEFT JOIN u_users t ON b.teacher_id = t.id
+        LEFT JOIN a_grade g ON e.grade_id = g.id
+        LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
+        WHERE e.id = $1
+        LIMIT 1
+      `,
+      [examId],
+    );
+
+    if (examCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Ujian tidak ditemukan" });
+    }
+
+    const examOwner = examCheck.rows[0];
+    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+
+    const rosterResult = await pool.query(
+      `
+        WITH student_class AS (
+          SELECT
+            s.user_id,
+            s.nis,
+            u.full_name,
+            COALESCE(s.current_class_id, latest_enrollment.class_id) AS class_id
+          FROM u_students s
+          JOIN u_users u ON u.id = s.user_id
+          LEFT JOIN LATERAL (
+            SELECT class_id
+            FROM u_class_enrollments
+            WHERE student_id = s.user_id
+            ORDER BY id DESC
+            LIMIT 1
+          ) AS latest_enrollment ON true
+        )
+        SELECT DISTINCT
+          sc.user_id as id,
+          sc.nis,
+          sc.full_name as name,
+          sc.class_id,
+          c.name as class_name,
+          COALESCE(a.status, 'belum_masuk') as status
+        FROM cbt.c_exam_class ec
+        JOIN a_class c ON c.id = ec.class_id
+        JOIN student_class sc ON sc.class_id = c.id
+        LEFT JOIN cbt.c_exam_attendance a
+          ON a.exam_id = ec.exam_id AND a.student_id = sc.user_id
+        WHERE ec.exam_id = $1
+        ORDER BY c.name ASC, sc.full_name ASC
+      `,
+      [examId],
+    );
+
+    const students = rosterResult.rows.map((row) => ({
+      ...row,
+      status: normalizeAttendanceStatus(row.status),
+    }));
+
+    const questionResult = await pool.query(
+      `
+        SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        WHERE e.id = $1
+        ORDER BY q.id ASC
+      `,
+      [examId],
+    );
+
+    const questions = questionResult.rows;
+    const questionIds = questions.map((q) => q.id);
+
+    let options = [];
+    if (questionIds.length > 0) {
+      const optionResult = await pool.query(
+        `
+          SELECT id, question_id, label, content, is_correct
+          FROM cbt.c_question_options
+          WHERE question_id = ANY($1::int[])
+          ORDER BY id ASC
+        `,
+        [questionIds],
+      );
+      options = optionResult.rows;
+    }
+
+    const optionsByQuestion = options.reduce((acc, item) => {
+      if (!acc[item.question_id]) acc[item.question_id] = [];
+      acc[item.question_id].push(item);
+      return acc;
+    }, {});
+
+    const studentIds = students.map((item) => item.id);
+    let answers = [];
+    if (studentIds.length > 0) {
+      const answerResult = await pool.query(
+        `
+          SELECT student_id, question_id, answer_json, score_obtained
+          FROM cbt.c_student_answer
+          WHERE exam_id = $1 AND student_id = ANY($2::int[])
+        `,
+        [examId, studentIds],
+      );
+      answers = answerResult.rows;
+    }
+
+    const answersByStudent = new Map();
+    answers.forEach((row) => {
+      if (!answersByStudent.has(row.student_id)) {
+        answersByStudent.set(row.student_id, new Map());
+      }
+      answersByStudent.get(row.student_id).set(row.question_id, row);
+    });
+
+    const stripHtml = (value) =>
+      String(value || "")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const questionTypeLabels = {
+      1: "PG Jawaban Tunggal",
+      2: "PG Multi Jawaban",
+      3: "Uraian",
+      4: "Isian Singkat",
+      5: "Benar / Salah",
+      6: "Menjodohkan",
+    };
+
+    const createOptionView = (option, index, qType) => {
+      const content = stripHtml(option.content);
+      const rawLabel = stripHtml(option.label);
+      const marker = rawLabel || String.fromCharCode(65 + index);
+
+      if (qType === 5) {
+        return {
+          ...option,
+          marker: content || marker,
+          text: content || marker,
+          full: content || marker,
+        };
+      }
+
+      if (qType === 6) {
+        return {
+          ...option,
+          marker: String(index + 1),
+          text: content || "-",
+          label_text: rawLabel || `Premis ${index + 1}`,
+          full: `${rawLabel || `Premis ${index + 1}`} -> ${content || "-"}`,
+        };
+      }
+
+      return {
+        ...option,
+        marker,
+        text: content || "-",
+        full: `${marker}. ${content || "-"}`,
+      };
+    };
+
+    const getQuestionOptions = (question) =>
+      (optionsByQuestion[question.id] || []).map((option, index) =>
+        createOptionView(option, index, question.q_type),
+      );
+
+    const formatQuestionKey = (question, questionOptions) => {
+      if (question.q_type === 3) {
+        return {
+          display: "Manual",
+          detail: "Penilaian manual",
+        };
+      }
+
+      if (question.q_type === 6) {
+        const pairs = questionOptions.map((option) => option.full);
+        return {
+          display: pairs.join("; ") || "-",
+          detail: pairs.join("; ") || "-",
+        };
+      }
+
+      const correctOptions = questionOptions.filter((option) => option.is_correct);
+      if (question.q_type === 4) {
+        const answers = correctOptions.map((option) => option.text || "-");
+        return {
+          display: answers.join(" / ") || "-",
+          detail: answers.join(" / ") || "-",
+        };
+      }
+
+      const compact = correctOptions.map((option) => option.marker);
+      const detail = correctOptions.map((option) => option.full || option.marker);
+      return {
+        display: compact.join(", ") || "-",
+        detail: detail.join("; ") || "-",
+      };
+    };
+
+    const parsePairId = (pair, key) => {
+      const value =
+        pair?.[`${key}Id`] ??
+        pair?.[`${key}_id`] ??
+        pair?.[key];
+      const parsed = parseInt(value, 10);
+      return Number.isInteger(parsed) ? parsed : null;
+    };
+
+    const formatStudentAnswer = ({ question, answerRow, questionOptions }) => {
+      const status = getQuestionAnswerStatus({
+        question,
+        answerRow,
+        questionOptions,
+      });
+      const answerValue = answerRow?.answer_json;
+      const maxPoints = toNumber(question.score_point);
+      const isManualType = [3, 4, 6].includes(question.q_type);
+      const score = isManualType
+        ? toNumber(answerRow?.score_obtained)
+        : status === "correct"
+          ? maxPoints
+          : 0;
+      const emptyAnswer = {
+        display: "-",
+        detail: "Belum dijawab",
+        status,
+        score,
+      };
+
+      if (status === "unanswered") return emptyAnswer;
+
+      if (question.q_type === 1 || question.q_type === 5) {
+        const selectedId = parseInt(answerValue, 10);
+        const selectedOption = questionOptions.find(
+          (option) => option.id === selectedId,
+        );
+        return {
+          display: selectedOption?.marker || "-",
+          detail: selectedOption?.full || selectedOption?.marker || "-",
+          status,
+          score,
+        };
+      }
+
+      if (question.q_type === 2) {
+        const selectedIds = normalizeIdList(answerValue);
+        const selectedOptions = questionOptions.filter((option) =>
+          selectedIds.includes(option.id),
+        );
+        return {
+          display: selectedOptions.map((option) => option.marker).join(", ") || "-",
+          detail:
+            selectedOptions
+              .map((option) => option.full || option.marker)
+              .join("; ") || "-",
+          status,
+          score,
+        };
+      }
+
+      if (question.q_type === 3 || question.q_type === 4) {
+        const textAnswer =
+          typeof answerValue === "string" ? stripHtml(answerValue) : "";
+        return {
+          display: textAnswer || "-",
+          detail: textAnswer || "-",
+          status,
+          score,
+        };
+      }
+
+      if (question.q_type === 6) {
+        const pairs = Array.isArray(answerValue) ? answerValue : [];
+        const leftById = new Map(
+          questionOptions.map((option) => [option.id, option.label_text]),
+        );
+        const rightById = new Map(
+          questionOptions.map((option) => [option.id, option.text]),
+        );
+        const formattedPairs = pairs.map((pair) => {
+          const leftId = parsePairId(pair, "left");
+          const rightId = parsePairId(pair, "right");
+          return `${leftById.get(leftId) || "-"} -> ${rightById.get(rightId) || "-"}`;
+        });
+
+        return {
+          display: formattedPairs.join("; ") || "-",
+          detail: formattedPairs.join("; ") || "-",
+          status,
+          score,
+        };
+      }
+
+      return emptyAnswer;
+    };
+
+    const questionReports = questions.map((question, index) => {
+      const questionOptions = getQuestionOptions(question);
+      const key = formatQuestionKey(question, questionOptions);
+
+      return {
+        id: question.id,
+        no: index + 1,
+        q_type: question.q_type,
+        type_label: questionTypeLabels[question.q_type] || "Unknown",
+        bloom_level: question.bloom_level,
+        bloom_label: getBloomLevelLabel(question.bloom_level),
+        question: stripHtml(question.content),
+        max_points: question.score_point || 0,
+        key,
+        options: questionOptions.map((option) => ({
+          id: option.id,
+          marker: option.marker,
+          label: option.label_text || option.marker,
+          content: option.text,
+          full: option.full,
+          is_correct: option.is_correct,
+        })),
+      };
+    });
+
+    const questionById = new Map(questions.map((question) => [question.id, question]));
+
+    const reportStudents = students.map((student) => {
+      const answersByQuestion = answersByStudent.get(student.id) || new Map();
+      const cells = questionReports.map((questionReport) => {
+        const question = questionById.get(questionReport.id);
+        const cell = formatStudentAnswer({
+          question,
+          answerRow: answersByQuestion.get(questionReport.id),
+          questionOptions: getQuestionOptions(question),
+        });
+
+        return {
+          question_id: questionReport.id,
+          question_no: questionReport.no,
+          type_label: questionReport.type_label,
+          answer: cell.display,
+          detail: cell.detail,
+          status: cell.status,
+          score: cell.score,
+        };
+      });
+
+      const answersByQuestionObject = cells.reduce((acc, cell) => {
+        acc[cell.question_id] = cell;
+        return acc;
+      }, {});
+
+      const score = computeStudentScore({
+        questions,
+        optionsByQuestion,
+        answersByQuestion,
+      });
+
+      return {
+        id: student.id,
+        nis: student.nis,
+        name: student.name,
+        class_id: student.class_id,
+        class_name: student.class_name,
+        status: student.status,
+        score,
+        correct_count: cells.filter((cell) => cell.status === "correct").length,
+        incorrect_count: cells.filter((cell) => cell.status === "incorrect").length,
+        unanswered_count: cells.filter((cell) => cell.status === "unanswered").length,
+        pending_review_count: cells.filter((cell) => cell.status === "pending_review").length,
+        answers: cells,
+        answers_by_question: answersByQuestionObject,
+      };
+    });
+
+    const classes = [
+      ...students
+        .reduce((acc, student) => {
+          if (!student.class_id) return acc;
+          if (!acc.has(student.class_id)) {
+            acc.set(student.class_id, {
+              id: student.class_id,
+              name: student.class_name,
+              total_students: 0,
+            });
+          }
+          acc.get(student.class_id).total_students += 1;
+          return acc;
+        }, new Map())
+        .values(),
+    ];
+
+    const averageScore =
+      reportStudents.length > 0
+        ? Number(
+            (
+              reportStudents.reduce((sum, student) => sum + Number(student.score || 0), 0) /
+              reportStudents.length
+            ).toFixed(2),
+          )
+        : 0;
+
+    return res.json({
+      data: {
+        exam: {
+          id: examOwner.id,
+          name: examOwner.name,
+          duration_minutes: examOwner.duration_minutes,
+          bank_id: examOwner.bank_id,
+          bank_title: examOwner.bank_title,
+          bank_type: examOwner.bank_type,
+          subject_name: examOwner.subject_name,
+          subject_code: examOwner.subject_code,
+          teacher_name: examOwner.teacher_name,
+          grade_name: examOwner.grade_name,
+        },
+        questions: questionReports,
+        students: reportStudents,
+        classes,
+        summary: {
+          total_students: reportStudents.length,
+          total_questions: questionReports.length,
+          average_score: averageScore,
+          pending_review_count: reportStudents.reduce(
+            (sum, student) => sum + Number(student.pending_review_count || 0),
+            0,
+          ),
+        },
+      },
+    });
+  }),
+);
+
 // 2.10 GET Student Answers for Exam (Teacher/Admin)
 router.get(
   "/exam-attendance/:exam_id/student/:student_id/answers",
@@ -1823,8 +2288,11 @@ router.get(
         WITH student_class AS (
           SELECT
             s.user_id,
+            s.nis,
+            u.full_name,
             COALESCE(s.current_class_id, latest_enrollment.class_id) AS class_id
           FROM u_students s
+          JOIN u_users u ON u.id = s.user_id
           LEFT JOIN LATERAL (
             SELECT class_id
             FROM u_class_enrollments
@@ -1833,16 +2301,39 @@ router.get(
             LIMIT 1
           ) AS latest_enrollment ON true
         )
-        SELECT DISTINCT sc.user_id as id
+        SELECT DISTINCT
+          sc.user_id as id,
+          sc.nis,
+          sc.full_name as name,
+          sc.class_id,
+          c.name as class_name
         FROM cbt.c_exam_class ec
-        JOIN student_class sc ON sc.class_id = ec.class_id
+        JOIN a_class c ON c.id = ec.class_id
+        JOIN student_class sc ON sc.class_id = c.id
         WHERE ec.exam_id = $1
+        ORDER BY c.name ASC, sc.full_name ASC
       `,
       [examId],
     );
 
     const students = rosterResult.rows;
     const totalStudents = students.length;
+    const classes = [
+      ...students
+        .reduce((acc, student) => {
+          if (!student.class_id) return acc;
+          if (!acc.has(student.class_id)) {
+            acc.set(student.class_id, {
+              id: student.class_id,
+              name: student.class_name,
+              total_students: 0,
+            });
+          }
+          acc.get(student.class_id).total_students += 1;
+          return acc;
+        }, new Map())
+        .values(),
+    ];
 
     const questionResult = await pool.query(
       `
@@ -1860,6 +2351,9 @@ router.get(
       return res.json({
         exam: { id: examOwner.id, name: examOwner.name },
         total_students: totalStudents,
+        classes,
+        students,
+        student_question_results: [],
         per_question: [],
         by_bloom_level: [],
       });
@@ -1905,6 +2399,7 @@ router.get(
     const stripHtml = (value) =>
       String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
+    const studentQuestionResults = [];
     const perQuestion = questions.map((question, index) => {
       const answerMap = answersByQuestion[question.id] || new Map();
       const stats = {
@@ -1919,6 +2414,18 @@ router.get(
           question,
           answerRow: answerMap.get(student.id),
           questionOptions: optionsByQuestion[question.id] || [],
+        });
+
+        studentQuestionResults.push({
+          student_id: student.id,
+          student_name: student.name,
+          student_nis: student.nis,
+          class_id: student.class_id,
+          class_name: student.class_name,
+          question_id: question.id,
+          bloom_level: question.bloom_level,
+          bloom_label: getBloomLevelLabel(question.bloom_level),
+          status,
         });
 
         if (status === "correct") stats.correct_count += 1;
@@ -1952,7 +2459,7 @@ router.get(
           bloom_level: item.bloom_level,
           bloom_label: getBloomLevelLabel(item.bloom_level),
           total_questions: 0,
-          total_students,
+          total_students: totalStudents,
           correct_count: 0,
           incorrect_count: 0,
           unanswered_count: 0,
@@ -1982,6 +2489,9 @@ router.get(
     return res.json({
       exam: { id: examOwner.id, name: examOwner.name },
       total_students: totalStudents,
+      classes,
+      students,
+      student_question_results: studentQuestionResults,
       per_question: perQuestion,
       by_bloom_level: byBloomLevel,
     });

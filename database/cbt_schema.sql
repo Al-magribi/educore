@@ -1,5 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS cbt;
 
+SET search_path TO cbt, public;
+
 BEGIN;
 
 CREATE TABLE cbt.c_bank (
