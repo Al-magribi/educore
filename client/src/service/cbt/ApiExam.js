@@ -69,6 +69,12 @@ export const ApiExam = createApi({
       query: ({ exam_id }) => `/exam-analysis/${exam_id}/bloom-level`,
       providesTags: ["Exam"],
     }),
+    getExamStudentAnswerReport: builder.query({
+      query: ({ exam_id }) =>
+        `/exam-attendance/${exam_id}/student-answer-report`,
+      providesTags: ["Exam"],
+      transformResponse: (response) => response.data,
+    }),
     getExamStudentAnswers: builder.query({
       query: ({ exam_id, student_id }) =>
         `/exam-attendance/${exam_id}/student/${student_id}/answers`,
@@ -157,6 +163,7 @@ export const {
   useFinishExamStudentMutation,
   useGetExamScoresQuery,
   useGetExamBloomAnalysisQuery,
+  useGetExamStudentAnswerReportQuery,
   useGetExamStudentAnswersQuery,
   useSaveExamStudentScoreMutation,
   useGetStudentExamAnswersQuery,

@@ -7,6 +7,7 @@ import {
   Col,
   Flex,
   Grid,
+  Pagination,
   Row,
   Skeleton,
   Space,
@@ -15,11 +16,19 @@ import {
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
-import { BookOpen, CalendarCheck, ClipboardList, Layers } from "lucide-react";
+import {
+  BookOpen,
+  CalendarCheck,
+  ClipboardList,
+  FileText,
+  Layers,
+} from "lucide-react";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
+const CARD_PAGE_SIZE = 3;
+const SECTION_CARD_HEIGHT = 560;
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -64,12 +73,41 @@ const statCardStyle = {
   boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
   background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
   height: "100%",
+  width: "100%",
 };
 
 const sectionCardStyle = {
   ...cardStyle,
+  display: "flex",
+  flexDirection: "column",
   height: "100%",
+  width: "100%",
 };
+
+const getSectionCardStyle = (isMobile) => ({
+  ...sectionCardStyle,
+  height: isMobile ? "100%" : SECTION_CARD_HEIGHT,
+});
+
+const equalHeightColStyle = {
+  display: "flex",
+  flexDirection: "column",
+};
+
+const equalHeightWrapStyle = {
+  height: "100%",
+  width: "100%",
+};
+
+const getSectionBodyStyle = (isMobile) => ({
+  paddingTop: 8,
+  paddingInline: isMobile ? 12 : 24,
+  display: "flex",
+  flex: 1,
+  flexDirection: "column",
+  minHeight: 0,
+  overflow: "hidden",
+});
 
 const tableCardHeadStyle = {
   borderBottom: "1px solid #f1f5f9",
@@ -109,6 +147,20 @@ const formatDate = (value) => {
   });
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 const renderSectionTitle = (icon, title, subtitle) => (
   <Space align='center' size={10} wrap={false} style={{ width: "100%" }}>
     {icon}
@@ -139,10 +191,103 @@ const renderTagList = (items = [], emptyText = "Belum ada data") =>
     <Text type='secondary'>{emptyText}</Text>
   );
 
+const getLastPage = (total) => Math.max(1, Math.ceil(total / CARD_PAGE_SIZE));
+
+const clampPage = (page, total) =>
+  Math.min(Math.max(page, 1), getLastPage(total));
+
+const getPagedItems = (items, page) => {
+  const safePage = clampPage(page, items.length);
+  const start = (safePage - 1) * CARD_PAGE_SIZE;
+  return items.slice(start, start + CARD_PAGE_SIZE);
+};
+
+const renderPaginatedList = ({
+  items,
+  page,
+  onPageChange,
+  emptyText,
+  renderItem,
+  isMobile,
+}) => (
+  <div
+    style={{
+      display: "flex",
+      flex: 1,
+      flexDirection: "column",
+      minHeight: 0,
+      width: "100%",
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        flex: 1,
+        flexDirection: "column",
+        gap: 12,
+        minHeight: 0,
+        overflowY: "auto",
+        paddingRight: 2,
+      }}
+    >
+      {items.length ? (
+        getPagedItems(items, page).map(renderItem)
+      ) : (
+        <Text type='secondary'>{emptyText}</Text>
+      )}
+    </div>
+
+    {items.length > CARD_PAGE_SIZE ? (
+      <Flex justify='center' style={{ width: "100%", paddingTop: 4 }}>
+        <Pagination
+          current={clampPage(page, items.length)}
+          pageSize={CARD_PAGE_SIZE}
+          total={items.length}
+          onChange={onPageChange}
+          showSizeChanger={false}
+          size={isMobile ? "small" : "default"}
+        />
+      </Flex>
+    ) : null}
+  </div>
+);
+
 const TeacherDash = () => {
   const { data, isLoading, isError } = useGetTeacherDashQuery();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const subjects = data?.subjects || [];
+  const tasks = data?.tasks || [];
+  const banks = data?.banks || [];
+  const exams = data?.exams || [];
+  const [pageBySection, setPageBySection] = React.useState({
+    subjects: 1,
+    tasks: 1,
+    banks: 1,
+    exams: 1,
+  });
+
+  React.useEffect(() => {
+    setPageBySection((previous) => {
+      const next = {
+        subjects: clampPage(previous.subjects, subjects.length),
+        tasks: clampPage(previous.tasks, tasks.length),
+        banks: clampPage(previous.banks, banks.length),
+        exams: clampPage(previous.exams, exams.length),
+      };
+
+      return Object.keys(next).some((key) => next[key] !== previous[key])
+        ? next
+        : previous;
+    });
+  }, [subjects.length, tasks.length, banks.length, exams.length]);
+
+  const handlePageChange = (section) => (page) => {
+    setPageBySection((previous) => ({
+      ...previous,
+      [section]: page,
+    }));
+  };
 
   const stats = [
     {
@@ -154,6 +299,14 @@ const TeacherDash = () => {
       color: "#1d4ed8",
     },
     {
+      key: "tasks",
+      title: "Penugasan",
+      value: data?.stats?.tasks || 0,
+      icon: <ClipboardList style={iconStyle("#a16207")} />,
+      bg: "#fef3c7",
+      color: "#a16207",
+    },
+    {
       key: "banks",
       title: "Bank Soal",
       value: data?.stats?.banks || 0,
@@ -162,18 +315,10 @@ const TeacherDash = () => {
       color: "#0f766e",
     },
     {
-      key: "exams-active",
-      title: "Ujian Aktif",
-      value: data?.stats?.examsActive || 0,
-      icon: <CalendarCheck style={iconStyle("#15803d")} />,
-      bg: "#dcfce7",
-      color: "#15803d",
-    },
-    {
-      key: "exams-total",
-      title: "Total Ujian",
+      key: "exams",
+      title: "Jadwal Ujian",
       value: data?.stats?.examsTotal || 0,
-      icon: <ClipboardList style={iconStyle("#c2410c")} />,
+      icon: <CalendarCheck style={iconStyle("#c2410c")} />,
       bg: "#ffedd5",
       color: "#c2410c",
     },
@@ -181,7 +326,7 @@ const TeacherDash = () => {
 
   if (isLoading) {
     return (
-      <Space direction='vertical' size={16} style={{ width: "100%" }}>
+      <Space vertical size={16} style={{ width: "100%" }}>
         <Card style={heroStyle} bodyStyle={{ padding: isMobile ? 20 : 28 }}>
           <Skeleton
             active
@@ -228,9 +373,6 @@ const TeacherDash = () => {
     data?.homebase?.name || "Homebase",
     data?.homebase?.level || "Satuan",
   ].join(" / ");
-  const subjects = data?.subjects || [];
-  const banks = data?.banks || [];
-  const exams = data?.exams || [];
 
   return (
     <MotionDiv
@@ -343,12 +485,19 @@ const TeacherDash = () => {
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>
-        <Row gutter={[16, 16]}>
+        <Row gutter={[16, 16]} align='stretch'>
           {stats.map((item) => (
-            <Col xs={24} sm={12} xl={6} key={item.key}>
+            <Col
+              xs={24}
+              sm={12}
+              xl={6}
+              key={item.key}
+              style={equalHeightColStyle}
+            >
               <MotionDiv
                 whileHover={isMobile ? undefined : { y: -4 }}
                 transition={{ duration: 0.18 }}
+                style={equalHeightWrapStyle}
               >
                 <Card style={statCardStyle} bodyStyle={{ padding: 20 }}>
                   <Space
@@ -360,11 +509,7 @@ const TeacherDash = () => {
                       <span style={iconWrapStyle(item.bg, item.color)}>
                         {item.icon}
                       </span>
-                      <Space
-                        direction='vertical'
-                        size={2}
-                        style={{ minWidth: 0 }}
-                      >
+                      <Space vertical size={2} style={{ minWidth: 0 }}>
                         <Text type='secondary'>{item.title}</Text>
                         <Statistic
                           value={item.value}
@@ -381,8 +526,8 @@ const TeacherDash = () => {
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={12}>
+        <Row gutter={[16, 16]} align='stretch'>
+          <Col xs={24} lg={12} style={equalHeightColStyle}>
             <Card
               title={renderSectionTitle(
                 <span style={iconWrapStyle("#dbeafe", "#1d4ed8")}>
@@ -391,152 +536,205 @@ const TeacherDash = () => {
                 "Mata Pelajaran",
                 "Daftar mapel dan kelas yang diampu",
               )}
-              style={sectionCardStyle}
+              style={getSectionCardStyle(isMobile)}
               headStyle={tableCardHeadStyle}
-              bodyStyle={{ paddingTop: 8, paddingInline: isMobile ? 12 : 24 }}
+              bodyStyle={getSectionBodyStyle(isMobile)}
             >
-              <Space direction='vertical' size={12} style={{ width: "100%" }}>
-                {subjects.length ? (
-                  subjects.map((subject) => (
-                    <div key={subject.id} style={listItemStyle}>
-                      <Space
-                        direction='vertical'
-                        size={10}
-                        style={{ width: "100%" }}
-                      >
-                        <div>
-                          <Text strong style={{ fontSize: 15 }}>
-                            {subject.name}
-                          </Text>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#64748b",
-                              marginTop: 2,
-                            }}
-                          >
-                            {subject.code || "Tanpa kode"}
-                          </div>
+              {renderPaginatedList({
+                items: subjects,
+                page: pageBySection.subjects,
+                onPageChange: handlePageChange("subjects"),
+                emptyText: "Belum ada data mata pelajaran",
+                isMobile,
+                renderItem: (subject) => (
+                  <div key={subject.id} style={listItemStyle}>
+                    <Space vertical size={10} style={{ width: "100%" }}>
+                      <div>
+                        <Text strong style={{ fontSize: 15 }}>
+                          {subject.name}
+                        </Text>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginTop: 2,
+                          }}
+                        >
+                          {subject.code || "Tanpa kode"}
                         </div>
-                        <Space wrap size={[8, 8]}>
-                          <Tag color='blue'>
-                            Kelas: {subject.class_count || 0}
-                          </Tag>
-                        </Space>
-                        {renderTagList(subject.classes, "Belum ada kelas")}
+                      </div>
+                      <Space wrap size={[8, 8]}>
+                        <Tag color='blue'>
+                          Kelas: {subject.class_count || 0}
+                        </Tag>
                       </Space>
-                    </div>
-                  ))
-                ) : (
-                  <Text type='secondary'>Belum ada data mata pelajaran</Text>
-                )}
-              </Space>
+                      {renderTagList(subject.classes, "Belum ada kelas")}
+                    </Space>
+                  </div>
+                ),
+              })}
             </Card>
           </Col>
 
-          <Col xs={24} lg={12}>
+          <Col xs={24} lg={12} style={equalHeightColStyle}>
             <Card
               title={renderSectionTitle(
-                <span style={iconWrapStyle("#ccfbf1", "#0f766e")}>
-                  <Layers style={iconStyle("#0f766e")} />
+                <span style={iconWrapStyle("#fef3c7", "#a16207")}>
+                  <FileText style={iconStyle("#a16207")} />
                 </span>,
-                "Bank Soal Terbaru",
-                "Kumpulan soal terbaru per mata pelajaran",
+                "Penugasan",
+                "Tugas yang dibuat sesuai akun guru",
               )}
-              style={sectionCardStyle}
+              style={getSectionCardStyle(isMobile)}
               headStyle={tableCardHeadStyle}
-              bodyStyle={{ paddingTop: 8, paddingInline: isMobile ? 12 : 24 }}
+              bodyStyle={getSectionBodyStyle(isMobile)}
             >
-              <Space direction='vertical' size={12} style={{ width: "100%" }}>
-                {banks.length ? (
-                  banks.map((bank) => (
-                    <div key={bank.id} style={listItemStyle}>
-                      <Space
-                        direction='vertical'
-                        size={10}
-                        style={{ width: "100%" }}
-                      >
-                        <div>
-                          <Text strong style={{ fontSize: 15 }}>
-                            {bank.title}
-                          </Text>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#64748b",
-                              marginTop: 2,
-                            }}
-                          >
-                            {bank.subject_name || "Tanpa mapel"}
-                          </div>
+              {renderPaginatedList({
+                items: tasks,
+                page: pageBySection.tasks,
+                onPageChange: handlePageChange("tasks"),
+                emptyText: "Belum ada penugasan",
+                isMobile,
+                renderItem: (task) => (
+                  <div key={task.id} style={listItemStyle}>
+                    <Space vertical size={10} style={{ width: "100%" }}>
+                      <div>
+                        <Text strong style={{ fontSize: 15 }}>
+                          {task.title}
+                        </Text>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginTop: 2,
+                          }}
+                        >
+                          {task.subject_name || "Tanpa mapel"}
                         </div>
-                        <Space wrap size={[8, 8]}>
-                          <Tag color='geekblue'>{bank.type || "-"}</Tag>
-                          <Tag color='cyan'>
-                            Soal: {bank.question_count || 0}
-                          </Tag>
-                          <Tag>{formatDate(bank.created_at)}</Tag>
-                        </Space>
+                      </div>
+                      <Space wrap size={[8, 8]}>
+                        <Tag color='gold'>
+                          {task.chapter_title || "Tanpa bab"}
+                        </Tag>
+                        <Tag color='volcano'>
+                          Deadline: {formatDateTime(task.deadline_at)}
+                        </Tag>
+                        <Tag color='blue'>Kelas: {task.class_count || 0}</Tag>
+                        <Tag color='green'>
+                          Terkumpul: {task.submission_count || 0}
+                        </Tag>
                       </Space>
-                    </div>
-                  ))
-                ) : (
-                  <Text type='secondary'>Belum ada bank soal</Text>
-                )}
-              </Space>
+                      {renderTagList(task.classes, "Belum ada kelas")}
+                    </Space>
+                  </div>
+                ),
+              })}
             </Card>
           </Col>
         </Row>
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>
-        <Card
-          title={renderSectionTitle(
-            <span style={iconWrapStyle("#ffedd5", "#c2410c")}>
-              <ClipboardList style={iconStyle("#c2410c")} />
-            </span>,
-            "Jadwal Ujian Terbaru",
-            "Pantau ujian aktif dan distribusi kelasnya",
-          )}
-          style={sectionCardStyle}
-          headStyle={tableCardHeadStyle}
-          bodyStyle={{ paddingTop: 8, paddingInline: isMobile ? 12 : 24 }}
-        >
-          <Space direction='vertical' size={12} style={{ width: "100%" }}>
-            {exams.length ? (
-              exams.map((exam) => (
-                <div key={exam.id} style={listItemStyle}>
-                  <Space
-                    direction='vertical'
-                    size={10}
-                    style={{ width: "100%" }}
-                  >
-                    <div>
-                      <Text strong style={{ fontSize: 15 }}>
-                        {exam.name}
-                      </Text>
-                      <div
-                        style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}
-                      >
-                        {exam.subject_name || "Tanpa mapel"}
+        <Row gutter={[16, 16]} align='stretch'>
+          <Col xs={24} lg={12} style={equalHeightColStyle}>
+            <Card
+              title={renderSectionTitle(
+                <span style={iconWrapStyle("#ccfbf1", "#0f766e")}>
+                  <Layers style={iconStyle("#0f766e")} />
+                </span>,
+                "Bank Soal",
+                "Kumpulan soal per mata pelajaran",
+              )}
+              style={getSectionCardStyle(isMobile)}
+              headStyle={tableCardHeadStyle}
+              bodyStyle={getSectionBodyStyle(isMobile)}
+            >
+              {renderPaginatedList({
+                items: banks,
+                page: pageBySection.banks,
+                onPageChange: handlePageChange("banks"),
+                emptyText: "Belum ada bank soal",
+                isMobile,
+                renderItem: (bank) => (
+                  <div key={bank.id} style={listItemStyle}>
+                    <Space vertical size={10} style={{ width: "100%" }}>
+                      <div>
+                        <Text strong style={{ fontSize: 15 }}>
+                          {bank.title}
+                        </Text>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginTop: 2,
+                          }}
+                        >
+                          {bank.subject_name || "Tanpa mapel"}
+                        </div>
                       </div>
-                    </div>
-                    <Space wrap size={[8, 8]}>
-                      <Tag color={exam.is_active ? "green" : "default"}>
-                        {exam.is_active ? "Aktif" : "Nonaktif"}
-                      </Tag>
-                      <Tag color='blue'>{`${exam.duration_minutes || 0} mnt`}</Tag>
-                      <Tag>{formatDate(exam.created_at)}</Tag>
+                      <Space wrap size={[8, 8]}>
+                        <Tag color='geekblue'>{bank.type || "-"}</Tag>
+                        <Tag color='cyan'>Soal: {bank.question_count || 0}</Tag>
+                        <Tag>{formatDate(bank.created_at)}</Tag>
+                      </Space>
                     </Space>
-                    {renderTagList(exam.classes, "Belum ada kelas")}
-                  </Space>
-                </div>
-              ))
-            ) : (
-              <Text type='secondary'>Belum ada jadwal ujian</Text>
-            )}
-          </Space>
-        </Card>
+                  </div>
+                ),
+              })}
+            </Card>
+          </Col>
+
+          <Col xs={24} lg={12} style={equalHeightColStyle}>
+            <Card
+              title={renderSectionTitle(
+                <span style={iconWrapStyle("#ffedd5", "#c2410c")}>
+                  <CalendarCheck style={iconStyle("#c2410c")} />
+                </span>,
+                "Jadwal Ujian",
+                "Pantau ujian aktif dan distribusi kelasnya",
+              )}
+              style={getSectionCardStyle(isMobile)}
+              headStyle={tableCardHeadStyle}
+              bodyStyle={getSectionBodyStyle(isMobile)}
+            >
+              {renderPaginatedList({
+                items: exams,
+                page: pageBySection.exams,
+                onPageChange: handlePageChange("exams"),
+                emptyText: "Belum ada jadwal ujian",
+                isMobile,
+                renderItem: (exam) => (
+                  <div key={exam.id} style={listItemStyle}>
+                    <Space vertical size={10} style={{ width: "100%" }}>
+                      <div>
+                        <Text strong style={{ fontSize: 15 }}>
+                          {exam.name}
+                        </Text>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            marginTop: 2,
+                          }}
+                        >
+                          {exam.subject_name || "Tanpa mapel"} |{" "}
+                          {renderTagList(exam.classes, "Belum ada kelas")}
+                        </div>
+                      </div>
+                      <Space wrap size={[8, 8]}>
+                        <Tag color={exam.is_active ? "green" : "default"}>
+                          {exam.is_active ? "Aktif" : "Nonaktif"}
+                        </Tag>
+                        <Tag color='blue'>{`${exam.duration_minutes || 0} mnt`}</Tag>
+                        <Tag>{formatDate(exam.created_at)}</Tag>
+                      </Space>
+                    </Space>
+                  </div>
+                ),
+              })}
+            </Card>
+          </Col>
+        </Row>
       </MotionDiv>
     </MotionDiv>
   );
