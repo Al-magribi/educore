@@ -25,6 +25,190 @@ const DOCX_MIME =
 
 let htmlToDocxLoaderPromise;
 
+const toBrowserBuffer = (bytes) => {
+  const buffer = new Uint8Array(bytes);
+
+  buffer.toString = (encoding = "utf8") => {
+    const normalizedEncoding = String(encoding).toLowerCase();
+
+    if (normalizedEncoding === "base64") {
+      return bytesToBase64(buffer);
+    }
+
+    if (normalizedEncoding === "hex") {
+      return [...buffer]
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    if (
+      normalizedEncoding === "binary" ||
+      normalizedEncoding === "latin1" ||
+      normalizedEncoding === "ascii"
+    ) {
+      return bytesToBinaryString(buffer);
+    }
+
+    if (typeof TextDecoder !== "undefined") {
+      return new TextDecoder().decode(buffer);
+    }
+
+    return decodeURIComponent(escape(bytesToBinaryString(buffer)));
+  };
+
+  return buffer;
+};
+
+const bytesToBinaryString = (bytes) => {
+  const chunks = [];
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    chunks.push(
+      String.fromCharCode(...bytes.subarray(index, index + chunkSize)),
+    );
+  }
+
+  return chunks.join("");
+};
+
+const bytesToBase64 = (bytes) => btoa(bytesToBinaryString(bytes));
+
+const base64ToBytes = (value) => {
+  const normalizedValue = String(value)
+    .replace(/^data:[^,]*,/i, "")
+    .replace(/\s/g, "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const paddedValue = normalizedValue.padEnd(
+    Math.ceil(normalizedValue.length / 4) * 4,
+    "=",
+  );
+  const binary = atob(paddedValue);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+};
+
+const hexToBytes = (value) => {
+  const normalizedValue = String(value).replace(/\s/g, "");
+  const bytes = new Uint8Array(Math.floor(normalizedValue.length / 2));
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(
+      normalizedValue.slice(index * 2, index * 2 + 2),
+      16,
+    );
+  }
+
+  return bytes;
+};
+
+const stringToBytes = (value, encoding = "utf8") => {
+  const normalizedEncoding = String(encoding).toLowerCase();
+
+  if (normalizedEncoding === "base64") {
+    return base64ToBytes(value);
+  }
+
+  if (normalizedEncoding === "hex") {
+    return hexToBytes(value);
+  }
+
+  if (
+    normalizedEncoding === "binary" ||
+    normalizedEncoding === "latin1" ||
+    normalizedEncoding === "ascii"
+  ) {
+    return Uint8Array.from(String(value), (char) => char.charCodeAt(0) & 255);
+  }
+
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(String(value));
+  }
+
+  return Uint8Array.from(unescape(encodeURIComponent(String(value))), (char) =>
+    char.charCodeAt(0),
+  );
+};
+
+const createBrowserBufferPolyfill = () => {
+  const BrowserBuffer = {
+    from(data, encoding) {
+      if (typeof data === "string") {
+        return toBrowserBuffer(stringToBytes(data, encoding));
+      }
+
+      if (data instanceof ArrayBuffer) {
+        return toBrowserBuffer(data);
+      }
+
+      if (ArrayBuffer.isView(data)) {
+        return toBrowserBuffer(
+          data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
+        );
+      }
+
+      if (Array.isArray(data) || typeof data?.length === "number") {
+        return toBrowserBuffer(data);
+      }
+
+      return toBrowserBuffer([]);
+    },
+    isBuffer(value) {
+      return value instanceof Uint8Array;
+    },
+    alloc(size, fill = 0) {
+      const buffer = toBrowserBuffer(new Uint8Array(size));
+      buffer.fill(fill);
+      return buffer;
+    },
+    allocUnsafe(size) {
+      return toBrowserBuffer(new Uint8Array(size));
+    },
+    byteLength(data, encoding) {
+      return this.from(data, encoding).length;
+    },
+    concat(items, length) {
+      const buffers = items.map((item) => this.from(item));
+      const totalLength =
+        typeof length === "number"
+          ? length
+          : buffers.reduce((total, item) => total + item.length, 0);
+      const output = this.allocUnsafe(totalLength);
+      let offset = 0;
+
+      for (const buffer of buffers) {
+        output.set(buffer.subarray(0, totalLength - offset), offset);
+        offset += buffer.length;
+        if (offset >= totalLength) break;
+      }
+
+      return output;
+    },
+  };
+
+  return BrowserBuffer;
+};
+
+const installHtmlToDocxBrowserGlobals = () => {
+  if (typeof globalThis.global === "undefined") {
+    globalThis.global = globalThis;
+  }
+
+  if (typeof globalThis.process === "undefined") {
+    globalThis.process = { env: {} };
+  }
+
+  if (typeof globalThis.Buffer === "undefined") {
+    globalThis.Buffer = createBrowserBufferPolyfill();
+  }
+};
+
 const loadBrowserScript = (src) =>
   new Promise((resolve, reject) => {
     const existingScript = document.querySelector(
@@ -55,9 +239,7 @@ const loadBrowserScript = (src) =>
 const loadHtmlToDocx = async () => {
   if (!htmlToDocxLoaderPromise) {
     htmlToDocxLoaderPromise = (async () => {
-      if (typeof globalThis.global === "undefined") {
-        globalThis.global = globalThis;
-      }
+      installHtmlToDocxBrowserGlobals();
       await loadBrowserScript(htmlToDocxBrowserUrl);
       const resolved = resolveHtmlToDocx(globalThis.HTMLToDOCX);
 
@@ -104,9 +286,15 @@ const escapeHtml = (value = "") =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
+const replaceInvalidFileNameCharacters = (value) =>
+  [...String(value)]
+    .map((char) =>
+      char.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(char) ? " " : char,
+    )
+    .join("");
+
 const sanitizeFileName = (value = "bank-soal") =>
-  value
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, " ")
+  replaceInvalidFileNameCharacters(value)
     .replace(/\s+/g, " ")
     .trim()
     .replaceAll(" ", "-")
@@ -407,7 +595,7 @@ const buildAnswerKeyHtml = (question, preparedOptions) => {
   }
 
   const answers = correctOptions
-    .map((option, index) => {
+    .map((option) => {
       const actualIndex = preparedOptions.indexOf(option);
       return `${String.fromCharCode(65 + actualIndex)} (${option.content || "-"})`;
     })
