@@ -35,11 +35,21 @@ export const ApiAiConfig = createApi({
         body: formData,
       }),
     }),
+    getAiUsageReport: builder.query({
+      query: ({ limit = 50 } = {}) => ({
+        url: "/usage-report",
+        method: "GET",
+        params: { limit },
+      }),
+      transformResponse: (response) => response.data,
+      providesTags: ["AiConfig"],
+    }),
   }),
 });
 
 export const {
   useGetAiConfigQuery,
+  useGetAiUsageReportQuery,
   useTranscribeAudioMutation,
   useUpdateAiConfigMutation,
   useTestAiConnectionMutation,
