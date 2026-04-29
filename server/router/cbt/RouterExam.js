@@ -609,9 +609,15 @@ const getQuestionAnswerStatus = ({
   }
 
   if (question.q_type === 4) {
+    if (answerRow?.score_obtained !== null && answerRow?.score_obtained !== undefined) {
+      return toNumber(answerRow.score_obtained) >= toNumber(question.score_point)
+        ? "correct"
+        : "incorrect";
+    }
+
     return isShortAnswerCorrect(questionOptions, answerValue)
       ? "correct"
-      : "incorrect";
+      : "pending_review";
   }
 
   return "incorrect";
@@ -669,6 +675,11 @@ const computeStudentScore = ({
     }
 
     if (question.q_type === 4) {
+      if (answerRow?.score_obtained !== null && answerRow?.score_obtained !== undefined) {
+        total += toNumber(answerRow.score_obtained);
+        return;
+      }
+
       const questionOptions = optionsByQuestion[question.id] || [];
       if (isShortAnswerCorrect(questionOptions, answerValue)) {
         total += maxPoints;
@@ -2510,6 +2521,20 @@ router.get(
       options = optionResult.rows;
     }
 
+    let rubricRows = [];
+    if (questionIds.length > 0) {
+      const rubricResult = await pool.query(
+        `
+          SELECT id, question_id, criteria_name, criteria_description, max_score, order_no
+          FROM cbt.c_question_rubric
+          WHERE question_id = ANY($1::int[])
+          ORDER BY question_id ASC, order_no ASC, id ASC
+        `,
+        [questionIds],
+      );
+      rubricRows = rubricResult.rows;
+    }
+
     const answerResult = await pool.query(
       `
         SELECT question_id, answer_json, score_obtained
@@ -2523,12 +2548,47 @@ router.get(
       answerResult.rows.map((row) => [row.question_id, row]),
     );
 
+    const reviewRowsResult = await pool.query(
+      `
+        SELECT id, question_id, review_status, grading_source, total_score
+        FROM cbt.c_answer_review
+        WHERE exam_id = $1 AND student_id = $2
+      `,
+      [examId, studentId],
+    );
+    const reviewRows = reviewRowsResult.rows;
+    const reviewByQuestionId = new Map(
+      reviewRows.map((row) => [row.question_id, row]),
+    );
+    const reviewIds = reviewRows.map((row) => row.id);
+    let reviewDetailRows = [];
+    if (reviewIds.length > 0) {
+      const reviewDetailResult = await pool.query(
+        `
+          SELECT review_id, question_rubric_id, score, feedback, source
+          FROM cbt.c_answer_review_detail
+          WHERE review_id = ANY($1::bigint[])
+        `,
+        [reviewIds],
+      );
+      reviewDetailRows = reviewDetailResult.rows;
+    }
+
     const stripHtml = (value) =>
       String(value || "").replace(/<[^>]*>/g, "").trim();
 
     const optionByQuestion = options.reduce((acc, item) => {
       if (!acc[item.question_id]) acc[item.question_id] = [];
       acc[item.question_id].push(item);
+      return acc;
+    }, {});
+    const rubricByQuestion = rubricRows.reduce((acc, item) => {
+      if (!acc[item.question_id]) acc[item.question_id] = [];
+      acc[item.question_id].push(item);
+      return acc;
+    }, {});
+    const detailByReviewAndRubric = reviewDetailRows.reduce((acc, item) => {
+      acc[`${item.review_id}:${item.question_rubric_id}`] = item;
       return acc;
     }, {});
 
@@ -2576,6 +2636,12 @@ router.get(
         rawAnswerValue,
         optionAliasesByQuestion[question.id],
       );
+      const status = getQuestionAnswerStatus({
+        question,
+        answerRow,
+        questionOptions,
+        optionIdAliasMap: optionAliasesByQuestion[question.id],
+      });
       const base = {
         id: question.id,
         no: index + 1,
@@ -2585,6 +2651,7 @@ router.get(
         question: stripHtml(question.content),
         maxPoints: question.score_point || 0,
         rawAnswer: serializeRawAnswer(rawAnswerValue),
+        status,
       };
 
       if (question.q_type === 1) {
@@ -2644,18 +2711,38 @@ router.get(
       }
 
       if (question.q_type === 3) {
+        const review = reviewByQuestionId.get(question.id) || null;
+        const rubricItems = (rubricByQuestion[question.id] || []).map((rubric) => {
+          const detail = review
+            ? detailByReviewAndRubric[`${review.id}:${rubric.id}`]
+            : null;
+
+          return {
+            id: rubric.id,
+            criteriaName: rubric.criteria_name,
+            criteriaDescription: rubric.criteria_description || "",
+            maxScore: Number(rubric.max_score || 0),
+            orderNo: rubric.order_no,
+            score: detail ? Number(detail.score || 0) : 0,
+            feedback: detail?.feedback || "",
+            source: detail?.source || "manual",
+          };
+        });
         return {
           ...base,
           type: "essay",
           answer: typeof answerValue === "string" ? answerValue : "-",
           rawAnswerDisplay: serializeRawAnswer(answerValue),
           points: answerRow?.score_obtained ?? 0,
+          rubric: rubricItems,
+          reviewStatus: review?.review_status || "pending",
+          gradingSource: review?.grading_source || "manual",
+          correct: status === "correct" ? true : status === "incorrect" ? false : null,
         };
       }
 
       if (question.q_type === 4) {
         const correctOptions = questionOptions.filter((opt) => opt.is_correct);
-        const isCorrect = isShortAnswerCorrect(questionOptions, answerValue);
         return {
           ...base,
           type: "short",
@@ -2663,11 +2750,10 @@ router.get(
           correctAnswers: correctOptions.map((opt) => stripHtml(opt.content) || "-"),
           correctOptionIds: correctOptions.map((opt) => opt.id),
           rawAnswerDisplay: serializeRawAnswer(answerValue),
-          points: isCorrect ? question.score_point || 0 : 0,
-          correct:
-            typeof answerValue === "string" && answerValue.trim() !== ""
-              ? isCorrect
-              : null,
+          points:
+            answerRow?.score_obtained ??
+            (status === "correct" ? question.score_point || 0 : 0),
+          correct: status === "correct" ? true : status === "incorrect" ? false : null,
         };
       }
 
@@ -2713,10 +2799,7 @@ router.get(
                   .join("; ")
               : serializeRawAnswer(answerValue),
           points: answerRow?.score_obtained ?? 0,
-          correct:
-            pairs.length > 0
-              ? pairs.every((pair) => String(pair.leftId) === String(pair.rightId))
-              : null,
+          correct: status === "correct" ? true : status === "incorrect" ? false : null,
           matches: pairs.map((pair) => ({
             left: leftById.get(pair.leftId) || "-",
             right: rightById.get(pair.rightId) || "-",
@@ -3082,6 +3165,363 @@ router.put(
     );
 
     return res.json({ message: "Nilai tersimpan" });
+  }),
+);
+
+// 2.10.2 PUT Rubric Score for Student Essay Answer (Teacher/Admin)
+router.put(
+  "/exam-attendance/:exam_id/student/:student_id/answers/:question_id/rubric/:rubric_id",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const examId = parseInt(req.params.exam_id, 10);
+    const studentId = parseInt(req.params.student_id, 10);
+    const questionId = parseInt(req.params.question_id, 10);
+    const rubricId = parseInt(req.params.rubric_id, 10);
+    const { score, feedback = "", source = "manual" } = req.body || {};
+    const user = req.user;
+
+    if (
+      !Number.isInteger(examId) ||
+      !Number.isInteger(studentId) ||
+      !Number.isInteger(questionId) ||
+      !Number.isInteger(rubricId)
+    ) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    const numericScore = Number(score);
+    if (Number.isNaN(numericScore) || numericScore < 0) {
+      return res.status(400).json({ message: "Nilai rubric tidak valid" });
+    }
+
+    const normalizedSource = ["manual", "ai"].includes(source) ? source : "manual";
+
+    const examCheck = await client.query(
+      `
+        SELECT e.id, b.teacher_id, ut.homebase_id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
+        LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
+        WHERE e.id = $1
+        LIMIT 1
+      `,
+      [examId],
+    );
+
+    if (examCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Ujian tidak ditemukan" });
+    }
+
+    const examOwner = examCheck.rows[0];
+    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+
+    const questionCheck = await client.query(
+      `
+        SELECT q.id, q.q_type, q.score_point
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        WHERE q.id = $1 AND e.id = $2
+        LIMIT 1
+      `,
+      [questionId, examId],
+    );
+
+    if (questionCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Soal tidak ditemukan" });
+    }
+    const questionRow = questionCheck.rows[0];
+    if (Number(questionRow.q_type) !== 3) {
+      return res.status(400).json({ message: "Rubric hanya untuk soal uraian" });
+    }
+
+    const rubricCheck = await client.query(
+      `
+        SELECT id, max_score
+        FROM cbt.c_question_rubric
+        WHERE id = $1 AND question_id = $2
+        LIMIT 1
+      `,
+      [rubricId, questionId],
+    );
+
+    if (rubricCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Rubric tidak ditemukan" });
+    }
+    const rubricRow = rubricCheck.rows[0];
+    if (numericScore > Number(rubricRow.max_score || 0)) {
+      return res.status(400).json({
+        message: `Nilai rubric melebihi maksimum aspek (${rubricRow.max_score})`,
+      });
+    }
+
+    const existingReviewCheck = await client.query(
+      `
+        SELECT id, review_status
+        FROM cbt.c_answer_review
+        WHERE exam_id = $1 AND student_id = $2 AND question_id = $3
+        LIMIT 1
+      `,
+      [examId, studentId, questionId],
+    );
+    const existingReview = existingReviewCheck.rows[0];
+    if (existingReview?.review_status === "finalized") {
+      return res.status(409).json({
+        message: "Review sudah difinalisasi dan tidak dapat diubah",
+      });
+    }
+
+    const reviewResult = await client.query(
+      `
+        INSERT INTO cbt.c_answer_review (
+          exam_id,
+          student_id,
+          question_id,
+          review_status,
+          grading_source,
+          reviewer_id,
+          reviewed_at
+        )
+        VALUES ($1, $2, $3, 'reviewed', $4, $5, NOW())
+        ON CONFLICT (exam_id, student_id, question_id)
+        DO UPDATE SET
+          grading_source = CASE
+            WHEN cbt.c_answer_review.grading_source = 'ai' AND EXCLUDED.grading_source = 'manual'
+              THEN 'hybrid'
+            ELSE EXCLUDED.grading_source
+          END,
+          reviewer_id = EXCLUDED.reviewer_id,
+          reviewed_at = NOW(),
+          review_status = CASE
+            WHEN cbt.c_answer_review.review_status = 'finalized'
+              THEN cbt.c_answer_review.review_status
+            ELSE 'reviewed'
+          END,
+          updated_at = NOW()
+        RETURNING id
+      `,
+      [examId, studentId, questionId, normalizedSource, user.id],
+    );
+
+    const reviewId = reviewResult.rows[0].id;
+
+    await client.query(
+      `
+        INSERT INTO cbt.c_answer_review_detail (
+          review_id,
+          question_rubric_id,
+          score,
+          feedback,
+          source
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (review_id, question_rubric_id)
+        DO UPDATE SET
+          score = EXCLUDED.score,
+          feedback = EXCLUDED.feedback,
+          source = EXCLUDED.source,
+          updated_at = NOW()
+      `,
+      [reviewId, rubricId, numericScore, String(feedback || ""), normalizedSource],
+    );
+
+    const totalResult = await client.query(
+      `
+        SELECT total_score
+        FROM cbt.c_answer_review
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [reviewId],
+    );
+    const totalScore = Number(totalResult.rows[0]?.total_score || 0);
+    const clampedTotal = Math.max(
+      0,
+      Math.min(totalScore, Number(questionRow.score_point || 0)),
+    );
+
+    await client.query(
+      `
+        UPDATE cbt.c_answer_review
+        SET total_score = $1, updated_at = NOW()
+        WHERE id = $2
+      `,
+      [clampedTotal, reviewId],
+    );
+
+    await client.query(
+      `
+        INSERT INTO cbt.c_student_answer (exam_id, student_id, question_id, score_obtained)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (exam_id, student_id, question_id)
+        DO UPDATE SET score_obtained = EXCLUDED.score_obtained, updated_at = NOW()
+      `,
+      [examId, studentId, questionId, clampedTotal],
+    );
+
+    return res.json({
+      message: "Nilai rubric tersimpan",
+      data: {
+        review_id: reviewId,
+        review_status: "reviewed",
+        total_score: clampedTotal,
+      },
+    });
+  }),
+);
+
+// 2.10.3 PUT Finalize Essay Review (Teacher/Admin)
+router.put(
+  "/exam-attendance/:exam_id/student/:student_id/answers/:question_id/finalize",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const examId = parseInt(req.params.exam_id, 10);
+    const studentId = parseInt(req.params.student_id, 10);
+    const questionId = parseInt(req.params.question_id, 10);
+    const user = req.user;
+
+    if (
+      !Number.isInteger(examId) ||
+      !Number.isInteger(studentId) ||
+      !Number.isInteger(questionId)
+    ) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    const examCheck = await client.query(
+      `
+        SELECT e.id, b.teacher_id, ut.homebase_id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
+        LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
+        WHERE e.id = $1
+        LIMIT 1
+      `,
+      [examId],
+    );
+
+    if (examCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Ujian tidak ditemukan" });
+    }
+
+    const examOwner = examCheck.rows[0];
+    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+
+    const questionCheck = await client.query(
+      `
+        SELECT q.id, q.q_type, q.score_point
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        WHERE q.id = $1 AND e.id = $2
+        LIMIT 1
+      `,
+      [questionId, examId],
+    );
+    if (questionCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Soal tidak ditemukan" });
+    }
+
+    const questionRow = questionCheck.rows[0];
+    if (Number(questionRow.q_type) !== 3) {
+      return res.status(400).json({ message: "Finalisasi hanya untuk soal uraian" });
+    }
+
+    const reviewCheck = await client.query(
+      `
+        SELECT id, review_status, total_score
+        FROM cbt.c_answer_review
+        WHERE exam_id = $1 AND student_id = $2 AND question_id = $3
+        LIMIT 1
+      `,
+      [examId, studentId, questionId],
+    );
+    if (reviewCheck.rowCount === 0) {
+      return res.status(400).json({
+        message: "Belum ada hasil koreksi rubric untuk difinalisasi",
+      });
+    }
+
+    const reviewRow = reviewCheck.rows[0];
+    if (reviewRow.review_status === "finalized") {
+      return res.json({
+        message: "Review sudah difinalisasi",
+        data: {
+          review_id: reviewRow.id,
+          review_status: "finalized",
+          total_score: Number(reviewRow.total_score || 0),
+        },
+      });
+    }
+
+    const detailCountResult = await client.query(
+      `
+        SELECT COUNT(*)::int AS total
+        FROM cbt.c_answer_review_detail
+        WHERE review_id = $1
+      `,
+      [reviewRow.id],
+    );
+    const detailCount = Number(detailCountResult.rows[0]?.total || 0);
+    if (detailCount < 1) {
+      return res.status(400).json({
+        message: "Minimal isi satu aspek rubric sebelum finalisasi",
+      });
+    }
+
+    const finalTotal = Math.max(
+      0,
+      Math.min(
+        Number(reviewRow.total_score || 0),
+        Number(questionRow.score_point || 0),
+      ),
+    );
+
+    await client.query(
+      `
+        UPDATE cbt.c_answer_review
+        SET
+          total_score = $1,
+          review_status = 'finalized',
+          grading_source = CASE
+            WHEN grading_source = 'manual' THEN 'manual'
+            ELSE grading_source
+          END,
+          reviewer_id = $2,
+          finalized_at = NOW(),
+          reviewed_at = COALESCE(reviewed_at, NOW()),
+          updated_at = NOW()
+        WHERE id = $3
+      `,
+      [finalTotal, user.id, reviewRow.id],
+    );
+
+    await client.query(
+      `
+        INSERT INTO cbt.c_student_answer (exam_id, student_id, question_id, score_obtained)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (exam_id, student_id, question_id)
+        DO UPDATE SET score_obtained = EXCLUDED.score_obtained, updated_at = NOW()
+      `,
+      [examId, studentId, questionId, finalTotal],
+    );
+
+    return res.json({
+      message: "Review berhasil difinalisasi",
+      data: {
+        review_id: reviewRow.id,
+        review_status: "finalized",
+        total_score: finalTotal,
+      },
+    });
   }),
 );
 
