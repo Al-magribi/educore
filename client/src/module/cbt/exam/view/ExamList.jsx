@@ -39,7 +39,7 @@ import {
 } from "../../../../service/cbt/ApiExam";
 import ExamForm from "../components/ExamForm";
 import Report from "../report/Report";
-import StudentAnswers from "../report/components/StudentAnswers";
+import StudentAnswers from "../report/components/answer/StudentAnswers";
 
 const { Text, Title } = Typography;
 const { useToken } = theme;

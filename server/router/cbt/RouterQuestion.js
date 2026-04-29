@@ -54,6 +54,33 @@ const normalizeBloomLevel = (value) => {
   return parsed;
 };
 
+const normalizeRubricItems = (rubric = []) => {
+  if (!Array.isArray(rubric)) return [];
+
+  return rubric
+    .map((item, index) => {
+      const criteriaName = String(item?.criteria_name || "").trim();
+      const criteriaDescription = String(
+        item?.criteria_description || "",
+      ).trim();
+      const parsedScore = Number(item?.max_score);
+      const maxScore = Number.isFinite(parsedScore) ? parsedScore : 0;
+      const parsedTemplateId = parseInt(
+        item?.template_id ?? item?.rubric_template_id,
+        10,
+      );
+
+      return {
+        criteria_name: criteriaName,
+        criteria_description: criteriaDescription,
+        max_score: Math.max(0, maxScore),
+        order_no: index + 1,
+        template_id: Number.isInteger(parsedTemplateId) ? parsedTemplateId : null,
+      };
+    })
+    .filter((item) => item.criteria_name);
+};
+
 /**
  * TIPE SOAL MAPPING (Frontend & Backend Agreement):
  * 1: PG Tunggal (Single Choice)
@@ -63,6 +90,52 @@ const normalizeBloomLevel = (value) => {
  * 5: Benar / Salah (True/False)
  * 6: Mencocokkan (Matching)
  */
+
+// 1. GET Questions by Bank ID
+router.get(
+  "/rubric-templates",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const templateResult = await pool.query(
+      `
+        SELECT id, code, name, category, description
+        FROM cbt.c_rubric_template
+        WHERE is_active = true
+        ORDER BY id ASC
+      `,
+    );
+
+    const templates = templateResult.rows;
+    const templateIds = templates.map((item) => item.id);
+    let templateItems = [];
+
+    if (templateIds.length > 0) {
+      const itemResult = await pool.query(
+        `
+          SELECT id, template_id, criteria_name, criteria_description, default_weight, order_no
+          FROM cbt.c_rubric_template_item
+          WHERE template_id = ANY($1::int[])
+          ORDER BY template_id ASC, order_no ASC, id ASC
+        `,
+        [templateIds],
+      );
+      templateItems = itemResult.rows;
+    }
+
+    const itemsByTemplate = templateItems.reduce((acc, item) => {
+      if (!acc[item.template_id]) acc[item.template_id] = [];
+      acc[item.template_id].push(item);
+      return acc;
+    }, {});
+
+    res.json(
+      templates.map((template) => ({
+        ...template,
+        items: itemsByTemplate[template.id] || [],
+      })),
+    );
+  }),
+);
 
 // 1. GET Questions by Bank ID
 router.get(
@@ -99,6 +172,26 @@ router.get(
       });
     }
 
+    if (questions.length > 0) {
+      const qIds = questions.map((q) => q.id);
+      const rubricResult = await pool.query(
+        `
+          SELECT id, question_id, template_id, criteria_name, criteria_description, max_score, order_no
+          FROM cbt.c_question_rubric
+          WHERE question_id = ANY($1::int[])
+          ORDER BY question_id ASC, order_no ASC, id ASC
+        `,
+        [qIds],
+      );
+      const rubricRows = rubricResult.rows;
+
+      questions.forEach((q) => {
+        const rubric = rubricRows.filter((item) => item.question_id === q.id);
+        q.rubric = rubric;
+        q.rubric_template_id = rubric[0]?.template_id || null;
+      });
+    }
+
     res.json(questions);
   }),
 );
@@ -108,9 +201,19 @@ router.post(
   "/create-question",
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
-    const { bank_id, q_type, content, score_point, bloom_level, options } =
+    const {
+      bank_id,
+      q_type,
+      content,
+      score_point,
+      bloom_level,
+      options,
+      rubric_template_id,
+      rubric,
+    } =
       req.body;
     const normalizedBloomLevel = normalizeBloomLevel(bloom_level);
+    const normalizedRubric = q_type === 3 ? normalizeRubricItems(rubric) : [];
 
     // Insert Soal
     const sqlQ = `
@@ -142,6 +245,46 @@ router.post(
       }
     }
 
+    if (q_type === 3 && normalizedRubric.length > 0) {
+      const rubricTemplateId = parseInt(rubric_template_id, 10);
+      const questionScorePoint = Number(score_point || 1);
+      const rubricTotal = normalizedRubric.reduce(
+        (sum, item) => sum + Number(item.max_score || 0),
+        0,
+      );
+
+      if (Math.abs(rubricTotal - questionScorePoint) > 0.001) {
+        return res.status(400).json({
+          message: "Total poin rubric harus sama dengan bobot skor soal",
+        });
+      }
+
+      const sqlRubric = `
+        INSERT INTO cbt.c_question_rubric (
+          question_id,
+          template_id,
+          criteria_name,
+          criteria_description,
+          max_score,
+          order_no
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `;
+
+      for (const item of normalizedRubric) {
+        await client.query(sqlRubric, [
+          questionId,
+          Number.isInteger(rubricTemplateId)
+            ? rubricTemplateId
+            : item.template_id,
+          item.criteria_name,
+          item.criteria_description,
+          item.max_score,
+          item.order_no,
+        ]);
+      }
+    }
+
     res.json({ message: "Soal berhasil dibuat", id: questionId });
   }),
 );
@@ -152,8 +295,17 @@ router.put(
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
-    const { q_type, content, score_point, bloom_level, options } = req.body;
+    const {
+      q_type,
+      content,
+      score_point,
+      bloom_level,
+      options,
+      rubric_template_id,
+      rubric,
+    } = req.body;
     const normalizedBloomLevel = normalizeBloomLevel(bloom_level);
+    const normalizedRubric = q_type === 3 ? normalizeRubricItems(rubric) : [];
 
     // Update Header Soal
     await client.query(
@@ -178,6 +330,48 @@ router.put(
           opt.label || null,
           opt.content || "",
           opt.is_correct || false,
+        ]);
+      }
+    }
+
+    await client.query(`DELETE FROM cbt.c_question_rubric WHERE question_id=$1`, [id]);
+
+    if (q_type === 3 && normalizedRubric.length > 0) {
+      const rubricTemplateId = parseInt(rubric_template_id, 10);
+      const questionScorePoint = Number(score_point || 1);
+      const rubricTotal = normalizedRubric.reduce(
+        (sum, item) => sum + Number(item.max_score || 0),
+        0,
+      );
+
+      if (Math.abs(rubricTotal - questionScorePoint) > 0.001) {
+        return res.status(400).json({
+          message: "Total poin rubric harus sama dengan bobot skor soal",
+        });
+      }
+
+      const sqlRubric = `
+        INSERT INTO cbt.c_question_rubric (
+          question_id,
+          template_id,
+          criteria_name,
+          criteria_description,
+          max_score,
+          order_no
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `;
+
+      for (const item of normalizedRubric) {
+        await client.query(sqlRubric, [
+          id,
+          Number.isInteger(rubricTemplateId)
+            ? rubricTemplateId
+            : item.template_id,
+          item.criteria_name,
+          item.criteria_description,
+          item.max_score,
+          item.order_no,
         ]);
       }
     }

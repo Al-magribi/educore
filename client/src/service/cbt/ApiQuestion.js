@@ -5,6 +5,14 @@ export const ApiQuestion = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: "/api/cbt" }),
   tagTypes: ["Question"],
   endpoints: (builder) => ({
+    getRubricTemplates: builder.query({
+      query: () => ({
+        url: "/rubric-templates",
+        method: "GET",
+      }),
+      providesTags: ["Question"],
+    }),
+
     getQuestions: builder.query({
       query: ({ bankid }) => ({
         url: `/get-questions/${bankid}`,
@@ -58,6 +66,7 @@ export const ApiQuestion = createApi({
 });
 
 export const {
+  useGetRubricTemplatesQuery,
   useGetQuestionsQuery,
   useCreateQuestionMutation,
   useUpdateQuestionMutation,

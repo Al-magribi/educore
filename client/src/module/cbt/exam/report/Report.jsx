@@ -4,14 +4,17 @@ import { motion } from "framer-motion";
 import {
   BarChart3,
   BrainCircuit,
+  ClipboardList,
   ClipboardCheck,
   FileSpreadsheet,
 } from "lucide-react";
 import AttendanceTable from "./components/AttendanceTable";
 import BloomAnalysis from "./components/BloomAnalysis";
+import ManualReviewQueue from "./components/answer/ManualReviewQueue";
 import ReportHeader from "./components/ReportHeader";
-import ReportStudentAnswer from "./components/ReportStudentAnswer";
+import ReportStudentAnswer from "./components/answer/ReportStudentAnswer";
 import ScoreTable from "./components/ScoreTable";
+import { useSearchParams } from "react-router-dom";
 import {
   useGetExamAttendanceQuery,
   useGetExamBloomAnalysisQuery,
@@ -47,6 +50,8 @@ const Report = ({ exam_id, exam_name, token }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const { token: themeToken } = theme.useToken();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("active_tab") || "attendance";
 
   const { data: attendanceResponse, isLoading: attendanceLoading } =
     useGetExamAttendanceQuery({ exam_id }, { skip: !exam_id });
@@ -154,12 +159,27 @@ const Report = ({ exam_id, exam_name, token }) => {
     {
       key: "student-answer-report",
       label: createTabLabel(
-        "Jawaban Siswa",
+        "Jawaban",
         <FileSpreadsheet size={16} />,
         "Analisis jawaban",
       ),
       children: (
         <ReportStudentAnswer
+          examId={exam_id}
+          examName={exam_name}
+          isMobile={isMobile}
+        />
+      ),
+    },
+    {
+      key: "manual-review",
+      label: createTabLabel(
+        "Koreksi",
+        <ClipboardList size={16} />,
+        "Review manual",
+      ),
+      children: (
+        <ManualReviewQueue
           examId={exam_id}
           examName={exam_name}
           isMobile={isMobile}
@@ -173,7 +193,6 @@ const Report = ({ exam_id, exam_name, token }) => {
         <ScoreTable
           data={scoreData}
           examName={exam_name}
-          examId={exam_id}
           isMobile={isMobile}
           isLoading={scoreLoading}
         />
@@ -182,7 +201,7 @@ const Report = ({ exam_id, exam_name, token }) => {
     {
       key: "bloom-analysis",
       label: createTabLabel(
-        "Bloom Level",
+        "Bloom",
         <BrainCircuit size={16} />,
         "Level kognitif",
       ),
@@ -222,7 +241,15 @@ const Report = ({ exam_id, exam_name, token }) => {
           styles={{ body: { padding: isMobile ? 14 : 18 } }}
         >
           <Tabs
-            defaultActiveKey='attendance'
+            activeKey={activeTab}
+            onChange={(key) =>
+              setSearchParams({
+                view: "report",
+                exam_id: String(exam_id),
+                exam_name: exam_name,
+                active_tab: key,
+              })
+            }
             size={isMobile ? "middle" : "large"}
             tabBarGutter={12}
             tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
