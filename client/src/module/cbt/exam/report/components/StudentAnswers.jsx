@@ -57,7 +57,7 @@ const isTrueFalseOptionSet = (options = []) => {
       normalizeTagValue(
         typeof option === "string"
           ? option
-          : option?.content ?? option?.label ?? option?.value,
+          : (option?.content ?? option?.label ?? option?.value),
       ).toLowerCase(),
     )
     .filter(Boolean);
@@ -111,9 +111,22 @@ const TypeTag = ({ type }) => (
   </Tag>
 );
 
+const normalizeDisplayValue = (value) =>
+  normalizeTagValue(typeof value === "string" ? value : String(value ?? ""));
+
 const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
   const isCorrect = item.correct === true;
   const normalizedType = normalizeAnswerType(item);
+  const selectedOptionIds = Array.isArray(item.selectedOptionIds)
+    ? item.selectedOptionIds.map(String)
+    : item.selectedOptionIds !== undefined && item.selectedOptionIds !== null
+      ? [String(item.selectedOptionIds)]
+      : [];
+  const selectedMarkerValues = Array.isArray(item.selectedMarkers)
+    ? item.selectedMarkers
+    : item.selectedMarkers !== undefined && item.selectedMarkers !== null
+      ? [item.selectedMarkers]
+      : [];
   const selectedValues = Array.isArray(item.selected)
     ? item.selected.map(String)
     : item.selected !== undefined && item.selected !== null
@@ -125,6 +138,10 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
     : item.correctAnswers !== undefined && item.correctAnswers !== null
       ? [item.correctAnswers]
       : [];
+  const normalizedSelectedValues = selectedValues.map(normalizeDisplayValue);
+  const normalizedSelectedMarkers = selectedMarkerValues.map((value) =>
+    normalizeDisplayValue(value),
+  );
 
   const renderHtmlBlock = (value, style = {}) => (
     <div
@@ -142,10 +159,10 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
     const rawValue =
       typeof option === "string"
         ? option
-        : option?.content ?? option?.label ?? option?.value ?? option?.id;
+        : (option?.content ?? option?.label ?? option?.value ?? option?.id);
     const key = String(
       typeof option === "object" && option !== null
-        ? option.id ?? rawValue
+        ? (option.id ?? rawValue)
         : rawValue,
     );
 
@@ -161,10 +178,85 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
     );
   };
 
+  const isOptionSelected = (option) => {
+    if (typeof option === "object" && option !== null) {
+      if (
+        option.id !== undefined &&
+        option.id !== null &&
+        selectedOptionIds.includes(String(option.id))
+      ) {
+        return true;
+      }
+
+      const comparableValues = [
+        option.label,
+        option.content,
+        option.label && option.content
+          ? `${option.label}. ${option.content}`
+          : null,
+      ]
+        .map(normalizeDisplayValue)
+        .filter(Boolean);
+
+      return comparableValues.some(
+        (value) =>
+          normalizedSelectedValues.includes(value) ||
+          normalizedSelectedMarkers.includes(value),
+      );
+    }
+
+    return normalizedSelectedValues.includes(normalizeDisplayValue(option));
+  };
+
+  const renderAnswerSummary = (title, values, color) => (
+    <div style={{ width: "100%" }}>
+      <Text type='secondary'>{title}</Text>
+      <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
+        {values.length ? (
+          values.map((value) => renderOptionTag(value, color))
+        ) : (
+          <Tag color='default'>-</Tag>
+        )}
+      </Space>
+    </div>
+  );
+
+  const renderStudentTextAnswer = (value) => (
+    <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
+      <Tag
+        color='green'
+        icon={<CheckCircle2 size={12} />}
+        style={{ maxWidth: "100%", whiteSpace: "normal", borderRadius: 12 }}
+      >
+        <span dangerouslySetInnerHTML={createMarkup(value || "-")} />
+      </Tag>
+    </Space>
+  );
+
+  const renderStudentOptions = () => (
+    <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
+      {optionValues.length ? (
+        optionValues.map((opt) => {
+          const selected = isOptionSelected(opt);
+          return renderOptionTag(
+            selected && typeof opt === "object"
+              ? {
+                  ...opt,
+                  content: `${opt.content}`,
+                }
+              : opt,
+            selected ? "green" : "default",
+            selected ? <CheckCircle2 size={12} /> : null,
+          );
+        })
+      ) : (
+        <Tag color='default'>-</Tag>
+      )}
+    </Space>
+  );
+
   const scoreControls =
-    normalizedType === "short" ||
-    normalizedType === "essay" ||
-    normalizedType === "match" ? (
+    normalizedType === "essay" || normalizedType === "match" ? (
       <Flex
         align={isMobile ? "stretch" : "center"}
         gap={8}
@@ -191,7 +283,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
   return (
     <Card
       size='small'
-      bordered={false}
+      variant='borderless'
       style={{
         borderRadius: 18,
         boxShadow: "0 14px 28px rgba(15, 23, 42, 0.05)",
@@ -226,126 +318,47 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
       })}
 
       {normalizedType === "single" && (
-        <Space direction='vertical' size={8} style={{ width: "100%" }}>
+        <Space vertical size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
-            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {optionValues.map((opt) =>
-                renderOptionTag(
-                  opt,
-                  selectedValues.includes(
-                    String(
-                      typeof opt === "object" && opt !== null
-                        ? opt.id ?? opt.content ?? opt.label ?? opt.value
-                        : opt,
-                    ),
-                  )
-                    ? "green"
-                    : "default",
-                  selectedValues.includes(
-                    String(
-                      typeof opt === "object" && opt !== null
-                        ? opt.id ?? opt.content ?? opt.label ?? opt.value
-                        : opt,
-                    ),
-                  )
-                    ? <CheckCircle2 size={12} />
-                    : null,
-                ),
-              )}
-            </Space>
+            {renderStudentOptions()}
           </div>
-          <div style={{ width: "100%" }}>
-            <Text type='secondary'>Jawaban Benar</Text>
-            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {correctValues.length
-                ? correctValues.map((opt) => renderOptionTag(opt, "blue"))
-                : <Tag color='default'>-</Tag>}
-            </Space>
-          </div>
+          {renderAnswerSummary("Jawaban Benar", correctValues, "blue")}
         </Space>
       )}
 
       {normalizedType === "true_false" && (
-        <Space direction='vertical' size={8} style={{ width: "100%" }}>
+        <Space vertical size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
-            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {optionValues.map((opt) => {
-                const optionValue = String(
-                  typeof opt === "object" && opt !== null
-                    ? opt.id ?? opt.content ?? opt.label ?? opt.value
-                    : opt,
-                );
-                const isSelected =
-                  selectedValues.includes(optionValue) ||
-                  selectedValues.includes(normalizeTagValue(optionValue));
-
-                return renderOptionTag(
-                  opt,
-                  isSelected ? "green" : "default",
-                  isSelected ? <CheckCircle2 size={12} /> : null,
-                );
-              })}
-            </Space>
+            {renderStudentOptions()}
           </div>
-          <div style={{ width: "100%" }}>
-            <Text type='secondary'>Jawaban Benar</Text>
-            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {correctValues.length
-                ? correctValues.map((opt) => renderOptionTag(opt, "blue"))
-                : <Tag color='default'>-</Tag>}
-            </Space>
-          </div>
+          {renderAnswerSummary("Jawaban Benar", correctValues, "blue")}
         </Space>
       )}
 
       {normalizedType === "multi" && (
-        <Space direction='vertical' size={8} style={{ width: "100%" }}>
+        <Space vertical size={8} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
-            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {optionValues.map((opt) => {
-                const optionValue = String(
-                  typeof opt === "object" && opt !== null
-                    ? opt.id ?? opt.content ?? opt.label ?? opt.value
-                    : opt,
-                );
-                const selected =
-                  selectedValues.includes(optionValue) ||
-                  selectedValues.includes(normalizeTagValue(optionValue));
-
-                return renderOptionTag(
-                  opt,
-                  selected ? "green" : "default",
-                  selected ? <CheckCircle2 size={12} /> : null,
-                );
-              })}
-            </Space>
+            {renderStudentOptions()}
           </div>
-          <div style={{ width: "100%" }}>
-            <Text type='secondary'>Jawaban Benar</Text>
-            <Space wrap size={6} style={{ marginTop: 6, width: "100%" }}>
-              {correctValues.length
-                ? correctValues.map((opt) => renderOptionTag(opt, "blue"))
-                : <Tag color='default'>-</Tag>}
-            </Space>
-          </div>
+          {renderAnswerSummary("Jawaban Benar", correctValues, "blue")}
         </Space>
       )}
 
       {normalizedType === "short" && (
-        <Space direction='vertical' size={10} style={{ width: "100%" }}>
+        <Space vertical size={10} style={{ width: "100%" }}>
           <div>
-            <Text>Jawaban Siswa:</Text>
-            {renderHtmlBlock(item.answer || "-")}
+            <Text type='secondary'>Jawaban Siswa</Text>
+            {renderStudentTextAnswer(item.answer || "-")}
           </div>
-          {scoreControls}
+          {renderAnswerSummary("Jawaban Benar", correctValues, "blue")}
         </Space>
       )}
 
       {normalizedType === "essay" && (
-        <Space direction='vertical' size={10} style={{ width: "100%" }}>
+        <Space vertical size={10} style={{ width: "100%" }}>
           <Text>Jawaban Siswa:</Text>
           <Card size='small' style={{ background: "#fafafa" }}>
             {renderHtmlBlock(item.answer || "-")}
@@ -355,10 +368,10 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
       )}
 
       {normalizedType === "match" && (
-        <Space direction='vertical' size={12} style={{ width: "100%" }}>
+        <Space vertical size={12} style={{ width: "100%" }}>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
-            <Space direction='vertical' size={6} style={{ marginTop: 6, width: "100%" }}>
+            <Space vertical size={6} style={{ marginTop: 6, width: "100%" }}>
               {item.matches.map((pair, idx) => (
                 <Flex
                   key={`${pair.left}-${pair.right}-${idx}`}
@@ -387,7 +400,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
           </div>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Pasangan Benar</Text>
-            <Space direction='vertical' size={6} style={{ marginTop: 6, width: "100%" }}>
+            <Space vertical size={6} style={{ marginTop: 6, width: "100%" }}>
               {item.correctMatches?.length ? (
                 item.correctMatches.map((pair, idx) => (
                   <Flex
@@ -400,8 +413,13 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                       <span dangerouslySetInnerHTML={createMarkup(pair.left)} />
                     </Tag>
                     <Text type='secondary'>→</Text>
-                    <Tag color='blue' style={{ maxWidth: "100%", whiteSpace: "normal" }}>
-                      <span dangerouslySetInnerHTML={createMarkup(pair.right)} />
+                    <Tag
+                      color='blue'
+                      style={{ maxWidth: "100%", whiteSpace: "normal" }}
+                    >
+                      <span
+                        dangerouslySetInnerHTML={createMarkup(pair.right)}
+                      />
                     </Tag>
                   </Flex>
                 ))
@@ -424,11 +442,17 @@ const StudentAnswers = () => {
   const examId = searchParams.get("exam_id");
   const examName = searchParams.get("exam_name");
   const studentId = searchParams.get("student_id");
-  const studentName = (searchParams.get("student_name") || "-").replaceAll("-", " ");
-  const studentClass = (searchParams.get("student_class") || "-").replaceAll("-", " ");
+  const studentName = (searchParams.get("student_name") || "-").replaceAll(
+    "-",
+    " ",
+  );
+  const studentClass = (searchParams.get("student_class") || "-").replaceAll(
+    "-",
+    " ",
+  );
   const studentNis = searchParams.get("student_nis") || "-";
 
-  const { data: fetchedAnswers = [] } = useGetExamStudentAnswersQuery(
+  const { data: answerResponse = {} } = useGetExamStudentAnswersQuery(
     { exam_id: examId, student_id: studentId },
     { skip: !examId || !studentId },
   );
@@ -437,6 +461,14 @@ const StudentAnswers = () => {
 
   const [manualPoints, setManualPoints] = useState({});
   const [saveStates, setSaveStates] = useState({});
+  const fetchedAnswers = useMemo(
+    () => answerResponse?.data || [],
+    [answerResponse],
+  );
+  const paginationMeta = useMemo(
+    () => answerResponse?.meta || {},
+    [answerResponse],
+  );
 
   const localAnswers = useMemo(
     () =>
@@ -455,10 +487,18 @@ const StudentAnswers = () => {
 
   const totalScore = useMemo(() => {
     const total = localAnswers.reduce((acc, item) => {
-      if (item.type === "short" || item.type === "essay" || item.type === "match") {
+      if (
+        item.type === "short" ||
+        item.type === "essay" ||
+        item.type === "match"
+      ) {
         return acc + (Number(item.points) || 0);
       }
-      if (item.type === "single" || item.type === "multi" || item.type === "true_false") {
+      if (
+        item.type === "single" ||
+        item.type === "multi" ||
+        item.type === "true_false"
+      ) {
         return acc + (item.correct ? item.maxPoints || 0 : 0);
       }
       return acc;
@@ -468,7 +508,8 @@ const StudentAnswers = () => {
 
   const updatePoints = (id, value) => {
     const safeValue = Number.isFinite(value) ? value : 0;
-    const currentMax = localAnswers.find((item) => item.id === id)?.maxPoints ?? safeValue;
+    const currentMax =
+      localAnswers.find((item) => item.id === id)?.maxPoints ?? safeValue;
     const cappedValue = Math.max(0, Math.min(safeValue, currentMax));
 
     setManualPoints((prev) => ({ ...prev, [id]: cappedValue }));
@@ -492,7 +533,11 @@ const StudentAnswers = () => {
   const getRemainingCap = (targetId, maxPoints) => {
     const totalWithout = localAnswers.reduce((acc, item) => {
       if (item.id === targetId) return acc;
-      if (item.type === "short" || item.type === "essay" || item.type === "match") {
+      if (
+        item.type === "short" ||
+        item.type === "essay" ||
+        item.type === "match"
+      ) {
         return acc + (Number(item.points) || 0);
       }
       return acc;
@@ -509,11 +554,47 @@ const StudentAnswers = () => {
     return map;
   }, [localAnswers]);
 
-  const sections = Object.entries(grouped).map(([type, items]) => ({ type, items }));
+  const sections = Object.entries(grouped).map(([type, items]) => ({
+    type,
+    items,
+  }));
+  const totalQuestions = paginationMeta.totalItems || localAnswers.length;
+  const displayedScore = useMemo(() => {
+    if (
+      paginationMeta.totalScore === undefined ||
+      paginationMeta.totalScore === null
+    ) {
+      return totalScore;
+    }
+
+    const pageScoreDelta = localAnswers.reduce((acc, item) => {
+      if (
+        item.type !== "short" &&
+        item.type !== "essay" &&
+        item.type !== "match"
+      ) {
+        return acc;
+      }
+
+      const originalItem = fetchedAnswers.find(
+        (answer) => answer.id === item.id,
+      );
+      const originalPoints = Number(originalItem?.points) || 0;
+      const currentPoints = Number(item.points) || 0;
+      return acc + (currentPoints - originalPoints);
+    }, 0);
+
+    return Math.min(
+      100,
+      Math.max(0, Number(paginationMeta.totalScore) + pageScoreDelta),
+    );
+  }, [fetchedAnswers, localAnswers, paginationMeta.totalScore, totalScore]);
 
   useEffect(
     () => () => {
-      Object.values(scoreTimersRef.current).forEach((timerId) => clearTimeout(timerId));
+      Object.values(scoreTimersRef.current).forEach((timerId) =>
+        clearTimeout(timerId),
+      );
     },
     [],
   );
@@ -545,7 +626,7 @@ const StudentAnswers = () => {
         <body>
           <h1>Jawaban Siswa | ${String(examName || "").replaceAll("-", " ")}</h1>
           <div class="meta">${studentName} • NIS ${studentNis} • ${studentClass}</div>
-          <div class="meta">Total Skor: ${totalScore} / 100</div>
+          <div class="meta">Total Skor: ${displayedScore} / 100</div>
           ${sections
             .map(
               (section) => `
@@ -559,7 +640,9 @@ const StudentAnswers = () => {
                   <div>${item.question}</div>
                   ${item.answer ? `<div>Jawaban: ${item.answer}</div>` : ""}
                   ${
-                    item.type === "short" || item.type === "essay" || item.type === "match"
+                    item.type === "short" ||
+                    item.type === "essay" ||
+                    item.type === "match"
                       ? `<div>Poin: ${item.points || 0}/${item.maxPoints}</div>`
                       : ""
                   }
@@ -604,7 +687,7 @@ const StudentAnswers = () => {
           wrap='wrap'
           style={{ flexDirection: isMobile ? "column" : "row" }}
         >
-          <Space direction='vertical' size={12} style={{ maxWidth: 760 }}>
+          <Space vertical size={12} style={{ maxWidth: 760 }}>
             <Space wrap size={10}>
               <Button
                 icon={<ArrowLeft size={16} />}
@@ -635,14 +718,19 @@ const StudentAnswers = () => {
 
             <Space align='center' size={8}>
               <ClipboardList size={20} color='#fff' />
-              <Title level={isMobile ? 4 : 2} style={{ margin: 0, color: "#fff" }}>
+              <Title
+                level={isMobile ? 4 : 2}
+                style={{ margin: 0, color: "#fff" }}
+              >
                 Jawaban Siswa
               </Title>
             </Space>
 
-            <Paragraph style={{ marginBottom: 0, color: "rgba(255,255,255,0.82)" }}>
-              Tinjau jawaban peserta, lakukan penilaian manual untuk soal uraian,
-              dan ekspor ringkasan jawaban ke PDF bila diperlukan.
+            <Paragraph
+              style={{ marginBottom: 0, color: "rgba(255,255,255,0.82)" }}
+            >
+              Tinjau jawaban peserta, lakukan penilaian manual untuk soal
+              uraian, dan ekspor ringkasan jawaban ke PDF bila diperlukan.
             </Paragraph>
           </Space>
 
@@ -658,8 +746,10 @@ const StudentAnswers = () => {
             }}
             styles={{ body: { padding: 22 } }}
           >
-            <Space direction='vertical' size={10} style={{ width: "100%" }}>
-              <Text style={{ color: "rgba(255,255,255,0.72)" }}>Peserta aktif</Text>
+            <Space vertical size={10} style={{ width: "100%" }}>
+              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                Peserta aktif
+              </Text>
               <Title level={4} style={{ margin: 0, color: "#fff" }}>
                 {studentName}
               </Title>
@@ -667,9 +757,13 @@ const StudentAnswers = () => {
                 NIS {studentNis} • {studentClass}
               </Text>
               <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                Total Skor: {totalScore}/100
+                Total Skor: {displayedScore}/100
               </Text>
-              <Button icon={<Download size={14} />} onClick={handleExportPdf} block={isMobile}>
+              <Button
+                icon={<Download size={14} />}
+                onClick={handleExportPdf}
+                block={isMobile}
+              >
                 Export PDF
               </Button>
             </Space>
@@ -688,7 +782,7 @@ const StudentAnswers = () => {
           {
             key: "questions",
             label: "Total Soal",
-            value: localAnswers.length,
+            value: totalQuestions,
             color: "#1d4ed8",
           },
           {
@@ -700,8 +794,8 @@ const StudentAnswers = () => {
           {
             key: "score",
             label: "Total Skor",
-            value: `${totalScore}/100`,
-            color: totalScore >= 75 ? "#16a34a" : "#d97706",
+            value: `${displayedScore}/100`,
+            color: displayedScore >= 75 ? "#16a34a" : "#d97706",
           },
         ].map((item) => (
           <Card
@@ -714,7 +808,10 @@ const StudentAnswers = () => {
             styles={{ body: { padding: 18 } }}
           >
             <Text type='secondary'>{item.label}</Text>
-            <Title level={isMobile ? 4 : 3} style={{ margin: "4px 0 0", color: item.color }}>
+            <Title
+              level={isMobile ? 4 : 3}
+              style={{ margin: "4px 0 0", color: item.color }}
+            >
               {item.value}
             </Title>
           </Card>
@@ -724,7 +821,10 @@ const StudentAnswers = () => {
       {sections.length === 0 ? (
         <Card
           bordered={false}
-          style={{ borderRadius: 24, boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)" }}
+          style={{
+            borderRadius: 24,
+            boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
+          }}
           styles={{ body: { padding: isMobile ? 24 : 32 } }}
         >
           <Empty
@@ -733,7 +833,26 @@ const StudentAnswers = () => {
           />
         </Card>
       ) : (
-        <Space direction='vertical' size={16} style={{ width: "100%" }}>
+        <Space vertical size={16} style={{ width: "100%" }}>
+          <Card
+            bordered={false}
+            style={{
+              borderRadius: 20,
+              boxShadow: "0 14px 28px rgba(15, 23, 42, 0.05)",
+            }}
+            styles={{ body: { padding: isMobile ? 16 : 18 } }}
+          >
+            <Flex
+              justify='space-between'
+              align={isMobile ? "stretch" : "center"}
+              gap={12}
+              wrap='wrap'
+              style={{ flexDirection: isMobile ? "column" : "row" }}
+            >
+              <Text type='secondary'>{totalQuestions} soal</Text>
+            </Flex>
+          </Card>
+
           {sections.map((section, index) => (
             <MotionDiv
               key={section.type}
@@ -748,17 +867,28 @@ const StudentAnswers = () => {
                   boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
                 }}
               >
-                <Flex align='center' justify='space-between' wrap='wrap' gap={8} style={{ marginBottom: 12 }}>
+                <Flex
+                  align='center'
+                  justify='space-between'
+                  wrap='wrap'
+                  gap={8}
+                  style={{ marginBottom: 12 }}
+                >
                   <Space align='center' size={8} wrap>
                     <TypeTag type={section.type} />
                     <Text type='secondary'>{section.items.length} soal</Text>
                   </Space>
                   <Tag color='default' style={{ borderRadius: 999, margin: 0 }}>
-                    <FileText size={12} style={{ marginRight: 6, verticalAlign: "text-bottom" }} />
+                    <FileText
+                      size={12}
+                      style={{ marginRight: 6, verticalAlign: "text-bottom" }}
+                    />
                     Review manual tersedia
                   </Tag>
                 </Flex>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 12 }}
+                >
                   {section.items.map((item) => (
                     <AnswerCard
                       key={item.id}
