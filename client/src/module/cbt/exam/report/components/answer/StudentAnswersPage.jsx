@@ -43,7 +43,7 @@ const TYPE_LABELS = {
   match: "Mencocokkan",
 };
 
-const MANUAL_REVIEW_TYPES = new Set(["essay", "short", "match"]);
+const MANUAL_REVIEW_TYPES = new Set(["essay", "short"]);
 
 const createMarkup = (value) => ({
   __html: typeof value === "string" ? value : "",
@@ -277,12 +277,9 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
   const rubricRows = Array.isArray(item.rubric) ? item.rubric : [];
   const useRubricScoring = normalizedType === "essay" && rubricRows.length > 0;
   const reviewStatus = item.reviewStatus || "pending";
-  const isFinalized = reviewStatus === "finalized";
 
   const scoreControls =
-    normalizedType === "short" ||
-    normalizedType === "match" ||
-    (normalizedType === "essay" && !useRubricScoring) ? (
+    normalizedType === "short" || (normalizedType === "essay" && !useRubricScoring) ? (
       <Flex
         align={isMobile ? "stretch" : "center"}
         gap={8}
@@ -295,7 +292,6 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
           max={maxAllow}
           value={item.points}
           onChange={(value) => onPointChange(item.id, value)}
-          disabled={isFinalized}
           style={{ width: isMobile ? "100%" : 120 }}
         />
         <Tag color='gold' style={{ borderRadius: 999, margin: 0 }}>
@@ -304,6 +300,15 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
         {saveState === "saving" && <Tag color='gold'>Menyimpan...</Tag>}
         {saveState === "saved" && <Tag color='green'>Tersimpan</Tag>}
         {saveState === "error" && <Tag color='red'>Gagal menyimpan</Tag>}
+        <Button
+          type='primary'
+          loading={item.finalizeState === "saving"}
+          onClick={() => item.onFinalizeReview?.(item.id)}
+        >
+          {reviewStatus === "finalized"
+            ? "Finalisasi Ulang"
+            : "Finalisasi Koreksi"}
+        </Button>
       </Flex>
     ) : null;
 
@@ -470,7 +475,6 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                           min={0}
                           max={Number(rubricItem.maxScore || 0)}
                           value={rubricItem.score}
-                          disabled={isFinalized}
                           onChange={(value) =>
                             item.onRubricPointChange?.(
                               item.id,
@@ -492,7 +496,6 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                       rows={2}
                       value={rubricItem.feedback || ""}
                       placeholder='Feedback per aspek rubric'
-                      disabled={isFinalized}
                       onChange={(event) =>
                         item.onRubricFeedbackChange?.(
                           item.id,
@@ -519,11 +522,12 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                 <Flex justify='flex-end'>
                   <Button
                     type='primary'
-                    disabled={isFinalized}
                     loading={item.finalizeState === "saving"}
                     onClick={() => item.onFinalizeReview?.(item.id)}
                   >
-                    {isFinalized ? "Sudah Final" : "Finalisasi Koreksi"}
+                    {reviewStatus === "finalized"
+                      ? "Finalisasi Ulang"
+                      : "Finalisasi Koreksi"}
                   </Button>
                 </Flex>
               </Space>
@@ -626,6 +630,7 @@ const StudentAnswersPage = () => {
   );
   const studentNis = searchParams.get("student_nis") || "-";
   const manualOnly = searchParams.get("manual_only") === "1";
+  const manualStatus = searchParams.get("manual_status") || "review";
   const returnTab = searchParams.get("return_tab") || "manual-review";
 
   const { data: answerResponse = {} } = useGetExamStudentAnswersQuery(
@@ -717,13 +722,14 @@ const StudentAnswersPage = () => {
     if (!manualOnly) return localAnswers;
 
     return localAnswers.filter(
-      (item) =>
-        MANUAL_REVIEW_TYPES.has(item.type) &&
-        (item.status === "pending_review" ||
-          item.type === "essay" ||
-          item.type === "match"),
+      (item) => {
+        if (!MANUAL_REVIEW_TYPES.has(item.type)) return false;
+        const reviewStatus = String(item.reviewStatus || "").toLowerCase();
+        if (manualStatus === "finalisasi") return reviewStatus === "finalized";
+        return reviewStatus !== "finalized";
+      },
     );
-  }, [localAnswers, manualOnly]);
+  }, [localAnswers, manualOnly, manualStatus]);
 
   const totalScore = useMemo(() => {
     const total = visibleAnswers.reduce((acc, item) => {
@@ -773,7 +779,6 @@ const StudentAnswersPage = () => {
   const updateRubricPoint = (questionId, rubricId, value) => {
     const safeValue = Number.isFinite(value) ? value : 0;
     const question = localAnswers.find((item) => item.id === questionId);
-    if (question?.reviewStatus === "finalized") return;
     const rubricItem = (question?.rubric || []).find(
       (item) => item.id === rubricId,
     );
@@ -823,7 +828,6 @@ const StudentAnswersPage = () => {
     const localKey = `${questionId}:${rubricId}`;
     const question = localAnswers.find((item) => item.id === questionId);
     if (!question) return;
-    if (question.reviewStatus === "finalized") return;
 
     const rubricItem = (question.rubric || []).find(
       (item) => item.id === rubricId,
@@ -907,13 +911,13 @@ const StudentAnswersPage = () => {
     type,
     items,
   }));
-  const essayAnswers = useMemo(
-    () => visibleAnswers.filter((item) => item.type === "essay"),
+  const manualAnswers = useMemo(
+    () => visibleAnswers.filter((item) => ["essay", "short"].includes(item.type)),
     [visibleAnswers],
   );
   const reviewSummary = useMemo(
     () =>
-      essayAnswers.reduce(
+      manualAnswers.reduce(
         (acc, item) => {
           const status = item.reviewStatus || "pending";
           if (status === "finalized") acc.finalized += 1;
@@ -923,18 +927,18 @@ const StudentAnswersPage = () => {
         },
         { pending: 0, reviewed: 0, finalized: 0 },
       ),
-    [essayAnswers],
+    [manualAnswers],
   );
-  const finalizeableEssayIds = useMemo(
+  const finalizeableQuestionIds = useMemo(
     () =>
-      essayAnswers
+      manualAnswers
         .filter(
           (item) =>
             (item.reviewStatus || "pending") !== "finalized" &&
             item.finalizeState !== "saving",
         )
         .map((item) => item.id),
-    [essayAnswers],
+    [manualAnswers],
   );
   const totalQuestions = visibleAnswers.length;
   const displayedScore = useMemo(() => {
@@ -1078,18 +1082,18 @@ const StudentAnswersPage = () => {
     win.print();
   };
 
-  const handleFinalizeAllEssay = async () => {
-    if (!examId || !studentId || finalizeableEssayIds.length < 1) return;
+  const handleFinalizeAllQuestions = async () => {
+    if (!examId || !studentId || finalizeableQuestionIds.length < 1) return;
 
     setIsFinalizingAll(true);
     setFinalizeStates((prev) =>
-      finalizeableEssayIds.reduce((acc, id) => ({ ...acc, [id]: "saving" }), {
+      finalizeableQuestionIds.reduce((acc, id) => ({ ...acc, [id]: "saving" }), {
         ...prev,
       }),
     );
 
     const results = await Promise.allSettled(
-      finalizeableEssayIds.map((questionId) =>
+      finalizeableQuestionIds.map((questionId) =>
         finalizeReview({
           exam_id: examId,
           student_id: studentId,
@@ -1105,7 +1109,7 @@ const StudentAnswersPage = () => {
 
     const updates = {};
     results.forEach((result, index) => {
-      const questionId = finalizeableEssayIds[index];
+      const questionId = finalizeableQuestionIds[index];
       updates[questionId] = result.status === "fulfilled" ? "saved" : "error";
       if (result.status === "fulfilled") {
         const savedTotal = Number(result.value?.data?.total_score);
@@ -1118,10 +1122,10 @@ const StudentAnswersPage = () => {
     setIsFinalizingAll(false);
 
     if (successCount > 0) {
-      message.success(`${successCount} soal uraian berhasil difinalisasi`);
+      message.success(`${successCount} soal berhasil difinalisasi`);
     }
     if (errorCount > 0) {
-      message.error(`${errorCount} soal uraian gagal difinalisasi`);
+      message.error(`${errorCount} soal gagal difinalisasi`);
     }
   };
 
@@ -1148,7 +1152,7 @@ const StudentAnswersPage = () => {
         sectionsLength={sections.length}
         displayedScore={displayedScore}
         reviewSummary={reviewSummary}
-        essayCount={essayAnswers.length}
+        essayCount={manualAnswers.length}
       />
 
       {sections.length === 0 ? (
@@ -1164,20 +1168,22 @@ const StudentAnswersPage = () => {
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
               manualOnly
-                ? "Tidak ada jawaban yang perlu koreksi manual."
+                ? manualStatus === "finalisasi"
+                  ? "Tidak ada jawaban manual yang sudah final."
+                  : "Tidak ada jawaban manual yang belum final."
                 : "Belum ada jawaban."
             }
           />
         </Card>
       ) : (
         <Space vertical size={16} style={{ width: "100%" }}>
-          {manualOnly && essayAnswers.length > 0 ? (
+          {manualOnly && manualAnswers.length > 0 ? (
             <StudentAnswersManualAction
               isMobile={isMobile}
               reviewSummary={reviewSummary}
-              finalizeableEssayIds={finalizeableEssayIds}
+              finalizeableQuestionIds={finalizeableQuestionIds}
               isFinalizingAll={isFinalizingAll}
-              onFinalizeAllEssay={handleFinalizeAllEssay}
+              onFinalizeAllQuestions={handleFinalizeAllQuestions}
             />
           ) : null}
           {sections.map((section, index) => (
