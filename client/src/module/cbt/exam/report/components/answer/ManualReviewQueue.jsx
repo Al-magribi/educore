@@ -12,6 +12,7 @@ import {
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import {
+  useFinalizeExamStudentAnswerReviewMutation,
   useGetExamAiGradingLatestJobQuery,
   useGetExamStudentAnswerReportQuery,
   useStartExamAiGradingJobMutation,
@@ -47,14 +49,12 @@ const slugifyParam = (value = "-") =>
 const MANUAL_TYPE_META = {
   essay: { label: "Uraian", color: "magenta" },
   short: { label: "Jawaban Singkat", color: "cyan" },
-  match: { label: "Menjodohkan", color: "geekblue" },
 };
 
 const getManualTypeKey = (typeLabel = "") => {
   const normalized = String(typeLabel).toLowerCase();
   if (normalized.includes("uraian")) return "essay";
   if (normalized.includes("singkat")) return "short";
-  if (normalized.includes("cocok")) return "match";
   return "manual";
 };
 
@@ -138,14 +138,18 @@ const ManualReviewQueue = ({
   const [, setSearchParams] = useSearchParams();
   const [classFilter, setClassFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
+  const [activeTab, setActiveTab] = useState("review");
   const [notifiedAiJobKey, setNotifiedAiJobKey] = useState("");
+  const [isFinalizingAll, setIsFinalizingAll] = useState(false);
   const [startAiGrading, { isLoading: isStartingAiGrading }] =
     useStartExamAiGradingJobMutation();
+  const [finalizeReview] = useFinalizeExamStudentAnswerReviewMutation();
 
   const {
     data: report = {},
     isLoading,
     isFetching,
+    refetch: refetchReport,
   } = useGetExamStudentAnswerReportQuery(
     { exam_id: examId },
     { skip: !examId },
@@ -188,15 +192,33 @@ const ManualReviewQueue = ({
     ];
   }, [classes, students]);
 
-  const pendingStudents = useMemo(
+  const manualReviewStudents = useMemo(
     () =>
       students
-        .filter((student) => Number(student.pending_review_count || 0) > 0)
         .map((student, index) => {
-          const pendingAnswers = (student.answers || []).filter(
-            (answer) => answer.status === "pending_review",
+          const manualAnswers = (student.answers || []).filter((answer) =>
+            ["essay", "short"].includes(
+              getManualTypeKey(answer.type_label || answer.type),
+            ),
           );
-          const manualTypeCounts = pendingAnswers.reduce((acc, answer) => {
+          const reviewAnswers = manualAnswers.filter((answer) => {
+            const reviewStatus = String(
+              answer.reviewStatus || "",
+            ).toLowerCase();
+            return reviewStatus !== "finalized";
+          });
+          const finalizedAnswers = manualAnswers.filter((answer) => {
+            const reviewStatus = String(
+              answer.reviewStatus || "",
+            ).toLowerCase();
+            return reviewStatus === "finalized";
+          });
+          const reviewTypeCounts = reviewAnswers.reduce((acc, answer) => {
+            const key = getManualTypeKey(answer.type_label);
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+          }, {});
+          const finalizedTypeCounts = finalizedAnswers.reduce((acc, answer) => {
             const key = getManualTypeKey(answer.type_label);
             acc[key] = (acc[key] || 0) + 1;
             return acc;
@@ -206,21 +228,38 @@ const ManualReviewQueue = ({
             ...student,
             key: student.id,
             no: index + 1,
-            pending_types: manualTypeCounts,
-            pending_answers: pendingAnswers,
-            pending_score_total: pendingAnswers.reduce(
+            review_question_ids: reviewAnswers.map(
+              (answer) => answer.question_id,
+            ),
+            review_count: reviewAnswers.length,
+            review_types: reviewTypeCounts,
+            review_score_total: reviewAnswers.reduce(
+              (sum, answer) => sum + Number(answer.score || 0),
+              0,
+            ),
+            finalized_question_ids: finalizedAnswers.map(
+              (answer) => answer.question_id,
+            ),
+            finalized_count: finalizedAnswers.length,
+            finalized_types: finalizedTypeCounts,
+            finalized_score_total: finalizedAnswers.reduce(
               (sum, answer) => sum + Number(answer.score || 0),
               0,
             ),
           };
-        }),
+        })
+        .filter(
+          (student) =>
+            Number(student.review_count || 0) > 0 ||
+            Number(student.finalized_count || 0) > 0,
+        ),
     [students],
   );
 
   const filteredStudents = useMemo(() => {
     const query = searchText.trim().toLowerCase();
 
-    return pendingStudents.filter((student) => {
+    return manualReviewStudents.filter((student) => {
       const classValue = String(student.class_id || student.class_name || "");
       const matchClass =
         classFilter === "all" ? true : classValue === classFilter;
@@ -232,7 +271,17 @@ const ManualReviewQueue = ({
 
       return matchClass && matchSearch;
     });
-  }, [classFilter, pendingStudents, searchText]);
+  }, [classFilter, manualReviewStudents, searchText]);
+
+  const activeStudents = useMemo(
+    () =>
+      filteredStudents.filter((student) =>
+        activeTab === "finalisasi"
+          ? Number(student.finalized_count || 0) > 0
+          : Number(student.review_count || 0) > 0,
+      ),
+    [activeTab, filteredStudents],
+  );
 
   useEffect(() => {
     if (
@@ -244,23 +293,15 @@ const ManualReviewQueue = ({
   }, [classFilter, classOptions]);
 
   useEffect(() => {
-    if (!aiJobLatest?.id || !["completed", "failed"].includes(aiJobLatest.status)) {
+    if (
+      !aiJobLatest?.id ||
+      !["completed", "failed"].includes(aiJobLatest.status)
+    ) {
       return;
     }
 
     const notifyKey = `${aiJobLatest.id}-${aiJobLatest.status}-${aiJobLatest.updated_at || ""}`;
     if (notifyKey === notifiedAiJobKey) return;
-
-    if (aiJobLatest.status === "completed") {
-      const failed = Number(aiJobLatest.failed_items || 0);
-      if (failed > 0) {
-        message.warning(
-          `Koreksi AI selesai, tetapi ${failed} jawaban gagal diproses.`,
-        );
-      } else {
-        message.success("Koreksi AI berhasil diselesaikan.");
-      }
-    }
 
     if (aiJobLatest.status === "failed") {
       message.error(getFriendlyAiErrorMessage(aiJobLatest.error_message));
@@ -271,27 +312,35 @@ const ManualReviewQueue = ({
 
   const totalPendingAnswers = useMemo(
     () =>
-      filteredStudents.reduce(
-        (sum, student) => sum + Number(student.pending_review_count || 0),
+      activeStudents.reduce(
+        (sum, student) =>
+          sum +
+          Number(
+            activeTab === "finalisasi"
+              ? student.finalized_count || 0
+              : student.review_count || 0,
+          ),
         0,
       ),
-    [filteredStudents],
+    [activeStudents, activeTab],
   );
 
   const typeSummary = useMemo(
     () =>
-      filteredStudents.reduce(
+      activeStudents.reduce(
         (acc, student) => {
-          Object.entries(student.pending_types || {}).forEach(
-            ([key, count]) => {
-              acc[key] = (acc[key] || 0) + Number(count || 0);
-            },
-          );
+          const typeCounts =
+            activeTab === "finalisasi"
+              ? student.finalized_types
+              : student.review_types;
+          Object.entries(typeCounts || {}).forEach(([key, count]) => {
+            acc[key] = (acc[key] || 0) + Number(count || 0);
+          });
           return acc;
         },
-        { essay: 0, short: 0, match: 0 },
+        { essay: 0, short: 0 },
       ),
-    [filteredStudents],
+    [activeStudents, activeTab],
   );
 
   const openStudentReview = (student) => {
@@ -304,6 +353,7 @@ const ManualReviewQueue = ({
       student_class: slugifyParam(student.class_name),
       student_nis: String(student.nis || "-"),
       manual_only: "1",
+      manual_status: activeTab,
       return_tab: "manual-review",
     });
   };
@@ -317,6 +367,50 @@ const ManualReviewQueue = ({
     } catch (error) {
       message.error(getFriendlyAiErrorMessage(error?.data?.message));
     }
+  };
+
+  const handleFinalizeAll = async () => {
+    if (!examId || activeTab !== "review" || activeStudents.length < 1) return;
+
+    const targets = activeStudents.flatMap((student) =>
+      (student.review_question_ids || []).map((questionId) => ({
+        studentId: student.id,
+        questionId,
+      })),
+    );
+
+    if (targets.length < 1) {
+      message.warning("Tidak ada soal yang perlu difinalisasi.");
+      return;
+    }
+
+    setIsFinalizingAll(true);
+    const results = await Promise.allSettled(
+      targets.map((target) =>
+        finalizeReview({
+          exam_id: examId,
+          student_id: target.studentId,
+          question_id: target.questionId,
+        }).unwrap(),
+      ),
+    );
+    setIsFinalizingAll(false);
+
+    const successCount = results.filter(
+      (result) => result.status === "fulfilled",
+    ).length;
+    const errorCount = results.length - successCount;
+
+    if (successCount > 0) {
+      message.success(
+        `${successCount} soal berhasil difinalisasi untuk ${activeStudents.length} siswa.`,
+      );
+    }
+    if (errorCount > 0) {
+      message.error(`${errorCount} soal gagal difinalisasi.`);
+    }
+
+    refetchReport();
   };
 
   const columns = [
@@ -342,15 +436,22 @@ const ManualReviewQueue = ({
       ),
     },
     {
-      title: "Perlu Koreksi",
-      dataIndex: "pending_review_count",
-      key: "pending_review_count",
+      title: activeTab === "finalisasi" ? "Sudah Final" : "Perlu Koreksi",
+      dataIndex:
+        activeTab === "finalisasi" ? "finalized_count" : "review_count",
+      key: activeTab === "finalisasi" ? "finalized_count" : "review_count",
       width: 130,
       align: "center",
       render: (value) => (
         <Tag
-          color='gold'
-          icon={<Clock3 size={12} />}
+          color={activeTab === "finalisasi" ? "green" : "gold"}
+          icon={
+            activeTab === "finalisasi" ? (
+              <CheckCircle2 size={12} />
+            ) : (
+              <Clock3 size={12} />
+            )
+          }
           style={{ margin: 0, borderRadius: 999 }}
         >
           {value || 0} soal
@@ -359,10 +460,14 @@ const ManualReviewQueue = ({
     },
     {
       title: "Ringkasan Tipe",
-      key: "pending_types",
+      key: `${activeTab}_types`,
       render: (_, record) => (
         <Space wrap size={6}>
-          {Object.entries(record.pending_types || {}).map(([key, count]) => {
+          {Object.entries(
+            activeTab === "finalisasi"
+              ? record.finalized_types || {}
+              : record.review_types || {},
+          ).map(([key, count]) => {
             if (!count) return null;
             const meta = MANUAL_TYPE_META[key] || {
               label: key,
@@ -397,9 +502,15 @@ const ManualReviewQueue = ({
       ),
     },
     {
-      title: "Nilai Review",
-      dataIndex: "pending_score_total",
-      key: "pending_score_total",
+      title: activeTab === "finalisasi" ? "Nilai Final" : "Nilai Review",
+      dataIndex:
+        activeTab === "finalisasi"
+          ? "finalized_score_total"
+          : "review_score_total",
+      key:
+        activeTab === "finalisasi"
+          ? "finalized_score_total"
+          : "review_score_total",
       width: 120,
       align: "center",
       render: (value) => (
@@ -423,7 +534,7 @@ const ManualReviewQueue = ({
           onClick={() => openStudentReview(record)}
           style={{ borderRadius: 12 }}
         >
-          Koreksi
+          Nilai
         </Button>
       ),
     },
@@ -431,13 +542,14 @@ const ManualReviewQueue = ({
 
   const metricItems = [
     {
-      label: "Siswa Perlu Review",
-      value: filteredStudents.length,
+      label:
+        activeTab === "finalisasi" ? "Siswa Sudah Final" : "Siswa Perlu Review",
+      value: activeStudents.length,
       color: "#2563eb",
       icon: <Users size={18} />,
     },
     {
-      label: "Total Pending",
+      label: activeTab === "finalisasi" ? "Total Final" : "Total Pending",
       value: totalPendingAnswers,
       color: "#d97706",
       icon: <Clock3 size={18} />,
@@ -449,8 +561,8 @@ const ManualReviewQueue = ({
       icon: <ClipboardList size={18} />,
     },
     {
-      label: "Singkat + Match",
-      value: (typeSummary.short || 0) + (typeSummary.match || 0),
+      label: "Jawaban Singkat",
+      value: typeSummary.short || 0,
       color: "#0284c7",
       icon: <FileText size={18} />,
     },
@@ -477,21 +589,37 @@ const ManualReviewQueue = ({
             <Space vertical size={4} style={{ minWidth: 0 }}>
               <Text type='secondary'>Koreksi Manual</Text>
               <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
-                Daftar Jawaban Perlu Koreksi
+                Daftar Review dan Finalisasi Manual
               </Title>
               <Text type='secondary'>
-                Prioritaskan siswa dengan jawaban `pending review`, lalu buka
-                detail untuk memberi nilai manual.
+                Tab `Review` menampilkan soal yang belum final. Tab `Finalisasi`
+                menampilkan soal yang sudah final, dan guru tetap bisa memberi
+                nilai di keduanya.
               </Text>
             </Space>
             <Tag
-              color='gold'
+              color={activeTab === "finalisasi" ? "green" : "gold"}
               icon={<CheckCircle2 size={12} />}
               style={{ margin: 0, borderRadius: 999 }}
             >
-              {filteredStudents.length} siswa menunggu koreksi
+              {activeStudents.length} siswa
             </Tag>
           </Flex>
+
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={[
+              {
+                key: "review",
+                label: `Review (${manualReviewStudents.filter((student) => Number(student.review_count || 0) > 0).length})`,
+              },
+              {
+                key: "finalisasi",
+                label: `Finalisasi (${manualReviewStudents.filter((student) => Number(student.finalized_count || 0) > 0).length})`,
+              },
+            ]}
+          />
 
           <div
             style={{
@@ -574,33 +702,29 @@ const ManualReviewQueue = ({
               />
             </Space>
 
-            <Flex justify='flex-end'>
-              <Space align='center' wrap>
-                {aiJobFeedback ? (
-                  <Tag
-                    color={aiJobFeedback.color}
-                    icon={aiJobFeedback.icon}
-                    style={{ margin: 0, borderRadius: 999 }}
-                  >
-                    {aiJobFeedback.label} ({aiJobLatest.processed_items || 0}/
-                    {aiJobLatest.total_items || 0})
-                  </Tag>
-                ) : null}
-                <Button
-                  type='primary'
-                  icon={<Bot size={14} />}
-                  loading={isStartingAiGrading}
-                  disabled={
-                    isStartingAiGrading ||
-                    aiJobLatest?.status === "queued" ||
-                    aiJobLatest?.status === "running"
-                  }
-                  onClick={handleStartAiGrading}
-                >
-                  Koreksi AI
-                </Button>
-              </Space>
-            </Flex>
+            <Space>
+              <Button
+                type='primary'
+                icon={<Bot size={14} />}
+                loading={isStartingAiGrading}
+                disabled={
+                  isStartingAiGrading ||
+                  aiJobLatest?.status === "queued" ||
+                  aiJobLatest?.status === "running"
+                }
+                onClick={handleStartAiGrading}
+              >
+                Koreksi AI
+              </Button>
+
+              <Button
+                onClick={handleFinalizeAll}
+                loading={isFinalizingAll}
+                disabled={activeTab !== "review" || activeStudents.length < 1}
+              >
+                Finalisasi
+              </Button>
+            </Space>
           </Flex>
 
           {aiJobFeedback ? (
@@ -621,7 +745,9 @@ const ManualReviewQueue = ({
                   <Progress
                     percent={aiJobFeedback.progress}
                     size='small'
-                    status={aiJobLatest?.status === "failed" ? "exception" : undefined}
+                    status={
+                      aiJobLatest?.status === "failed" ? "exception" : undefined
+                    }
                     style={{ width: isMobile ? "100%" : 180 }}
                   />
                 </Flex>
@@ -630,10 +756,14 @@ const ManualReviewQueue = ({
             />
           ) : null}
 
-          {!tableLoading && filteredStudents.length === 0 ? (
+          {!tableLoading && activeStudents.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description='Belum ada jawaban yang perlu koreksi manual.'
+              description={
+                activeTab === "finalisasi"
+                  ? "Belum ada jawaban yang sudah final."
+                  : "Belum ada jawaban yang perlu koreksi manual."
+              }
             />
           ) : (
             <div
@@ -646,7 +776,7 @@ const ManualReviewQueue = ({
               <Table
                 rowKey='id'
                 columns={columns}
-                dataSource={filteredStudents}
+                dataSource={activeStudents}
                 loading={tableLoading}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
                 size={isMobile ? "small" : "middle"}

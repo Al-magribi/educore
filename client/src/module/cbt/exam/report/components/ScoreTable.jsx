@@ -34,6 +34,12 @@ const ScoreTable = ({
       data.map((item) => ({
         ...item,
         score: Number(item.score || 0),
+        scoreSingle: Number(item.scoreSingle || 0),
+        scoreMulti: Number(item.scoreMulti || 0),
+        scoreMatch: Number(item.scoreMatch || 0),
+        scoreTrueFalse: Number(item.scoreTrueFalse || 0),
+        scoreShort: Number(item.scoreShort || 0),
+        scoreEssay: Number(item.scoreEssay || 0),
       })),
     [data],
   );
@@ -90,7 +96,13 @@ const ScoreTable = ({
       NIS: item.nis,
       Nama: item.name,
       Kelas: item.className,
-      Nilai: item.score,
+      "PG Tunggal": item.scoreSingle,
+      "PG Multi": item.scoreMulti,
+      Mencocokan: item.scoreMatch,
+      "Benar / Salah": item.scoreTrueFalse,
+      "Jawaban Singkat": item.scoreShort,
+      Uraian: item.scoreEssay,
+      "Nilai Akhir": item.score,
     }));
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
@@ -109,12 +121,7 @@ const ScoreTable = ({
       align: "center",
       render: (_, __, index) => index + 1,
     },
-    {
-      title: "NIS",
-      dataIndex: "nis",
-      width: 120,
-      ellipsis: true,
-    },
+
     {
       title: "Nama Siswa",
       dataIndex: "name",
@@ -124,21 +131,59 @@ const ScoreTable = ({
         <Space direction='vertical' size={0}>
           <Text strong>{value}</Text>
           <Text type='secondary' style={{ fontSize: 12 }}>
-            {record.className || "-"}
+            {record.nis || "-"} | {record.className || "-"}
           </Text>
         </Space>
       ),
     },
+
     {
-      title: "Kelas",
-      dataIndex: "className",
-      width: 120,
-      ellipsis: true,
+      title: "PG Tunggal",
+      dataIndex: "scoreSingle",
+      width: 110,
+      align: "center",
+      render: (value) => Number(value || 0).toFixed(2),
     },
     {
-      title: "Nilai",
-      dataIndex: "score",
+      title: "PG Multi",
+      dataIndex: "scoreMulti",
+      width: 110,
+      align: "center",
+      render: (value) => Number(value || 0).toFixed(2),
+    },
+    {
+      title: "Mencocokan",
+      dataIndex: "scoreMatch",
       width: 120,
+      align: "center",
+      render: (value) => Number(value || 0).toFixed(2),
+    },
+    {
+      title: "Benar / Salah",
+      dataIndex: "scoreTrueFalse",
+      width: 120,
+      align: "center",
+      render: (value) => Number(value || 0).toFixed(2),
+    },
+    {
+      title: "Jawaban Singkat",
+      dataIndex: "scoreShort",
+      width: 130,
+      align: "center",
+      render: (value) => Number(value || 0).toFixed(2),
+    },
+    {
+      title: "Uraian",
+      dataIndex: "scoreEssay",
+      width: 100,
+      align: "center",
+      render: (value) => Number(value || 0).toFixed(2),
+    },
+    {
+      title: "Nilai Akhir",
+      dataIndex: "score",
+      width: 130,
+      align: "center",
       render: (value) => {
         return (
           <Tag
@@ -327,7 +372,7 @@ const ScoreTable = ({
               sticky
               size={isMobile ? "small" : "middle"}
               tableLayout='fixed'
-              scroll={isMobile ? { x: 820 } : undefined}
+              scroll={isMobile ? { x: 1260 } : undefined}
             />
             {slicedData.length >= filteredData.length ? (
               <div

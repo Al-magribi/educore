@@ -113,31 +113,6 @@ const ReportHeader = ({ examName, stats, isMobile = false, examToken }) => {
                 presisi.
               </Text>
             </Space>
-
-            <Card
-              variant='borderless'
-              style={{
-                width: 320,
-                maxWidth: "100%",
-                borderRadius: 24,
-                background: "rgba(255,255,255,0.14)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                backdropFilter: "blur(10px)",
-              }}
-              styles={{ body: { padding: 22 } }}
-            >
-              <Space orientation='vertical' size={10} style={{ width: "100%" }}>
-                <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                  Ringkasan ujian
-                </Text>
-                <Title level={4} style={{ margin: 0, color: "#fff" }}>
-                  {stats?.total || 0} peserta
-                </Title>
-                <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                  Durasi: {stats?.duration || "-"} menit
-                </Text>
-              </Space>
-            </Card>
           </Flex>
         </Card>
       </div>
