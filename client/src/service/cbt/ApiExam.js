@@ -76,10 +76,14 @@ export const ApiExam = createApi({
       transformResponse: (response) => response.data,
     }),
     getExamStudentAnswers: builder.query({
-      query: ({ exam_id, student_id }) =>
-        `/exam-attendance/${exam_id}/student/${student_id}/answers`,
+      query: ({ exam_id, student_id }) => ({
+        url: `/exam-attendance/${exam_id}/student/${student_id}/answers`,
+      }),
       providesTags: ["Exam"],
-      transformResponse: (response) => response.data,
+      transformResponse: (response) => ({
+        data: response.data || [],
+        meta: response.meta || {},
+      }),
     }),
     saveExamStudentScore: builder.mutation({
       query: ({ exam_id, student_id, question_id, score }) => ({
@@ -87,6 +91,7 @@ export const ApiExam = createApi({
         method: "PUT",
         body: { score },
       }),
+      invalidatesTags: ["Exam"],
     }),
     getStudentExamAnswers: builder.query({
       query: ({ exam_id }) => `/student-exams/${exam_id}/answers`,

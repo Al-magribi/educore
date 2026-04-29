@@ -52,6 +52,389 @@ const normalizeIdList = (value) => {
     .filter((id) => Number.isInteger(id));
 };
 
+const extractScalarAnswerId = (value) => {
+  if (value === null || value === undefined) return null;
+
+  if (Array.isArray(value)) {
+    const firstId = value
+      .map((item) => extractScalarAnswerId(item))
+      .find((item) => Number.isInteger(item));
+    return Number.isInteger(firstId) ? firstId : null;
+  }
+
+  if (typeof value === "object") {
+    const candidateKeys = [
+      "selectedOptionId",
+      "selected_option_id",
+      "optionId",
+      "option_id",
+      "selected",
+      "value",
+      "answer",
+      "id",
+    ];
+
+    for (const key of candidateKeys) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const parsed = extractScalarAnswerId(value[key]);
+        if (Number.isInteger(parsed)) return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  const parsed = parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const extractAnswerIdList = (value) => {
+  if (value === null || value === undefined) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((item) => {
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          const nestedId = extractScalarAnswerId(item);
+          return Number.isInteger(nestedId) ? [nestedId] : [];
+        }
+        const parsed = parseInt(item, 10);
+        return Number.isInteger(parsed) ? [parsed] : [];
+      })
+      .filter((id, index, array) => array.indexOf(id) === index);
+  }
+
+  if (typeof value === "object") {
+    const candidateKeys = [
+      "selectedOptionIds",
+      "selected_option_ids",
+      "selected",
+      "values",
+      "answers",
+      "answer",
+      "ids",
+      "options",
+    ];
+
+    for (const key of candidateKeys) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const parsed = extractAnswerIdList(value[key]);
+        if (parsed.length > 0) return parsed;
+      }
+    }
+
+    const scalar = extractScalarAnswerId(value);
+    return Number.isInteger(scalar) ? [scalar] : [];
+  }
+
+  if (typeof value === "string" && value.includes(",")) {
+    return value
+      .split(",")
+      .map((item) => parseInt(item.trim(), 10))
+      .filter((item, index, array) => Number.isInteger(item) && array.indexOf(item) === index);
+  }
+
+  const scalar = extractScalarAnswerId(value);
+  return Number.isInteger(scalar) ? [scalar] : [];
+};
+
+const parseMatchPairId = (pair, key) => {
+  const rawValue =
+    pair?.[`${key}Id`] ??
+    pair?.[`${key}_id`] ??
+    pair?.[key];
+  const parsed = parseInt(rawValue, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const extractMatchPairs = (value) => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .map((pair) => {
+        const leftId = parseMatchPairId(pair, "left");
+        const rightId = parseMatchPairId(pair, "right");
+        if (!Number.isInteger(leftId) || !Number.isInteger(rightId)) {
+          return null;
+        }
+        return { leftId, rightId };
+      })
+      .filter(Boolean);
+  }
+
+  if (typeof value === "object") {
+    const candidateKeys = ["pairs", "matches", "answer", "answers", "selected"];
+    for (const key of candidateKeys) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const parsed = extractMatchPairs(value[key]);
+        if (parsed.length > 0) return parsed;
+      }
+    }
+
+    return Object.entries(value)
+      .map(([leftId, rightId]) => {
+        const parsedLeft = parseInt(leftId, 10);
+        const parsedRight = parseInt(rightId, 10);
+        if (!Number.isInteger(parsedLeft) || !Number.isInteger(parsedRight)) {
+          return null;
+        }
+        return { leftId: parsedLeft, rightId: parsedRight };
+      })
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const normalizeAnswerText = (value) =>
+  String(value ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+const getOptionComparisonValues = (option) => {
+  const baseValues = [
+    option?.id,
+    option?.label,
+    option?.content,
+    option?.marker,
+    option?.label_text,
+    option?.text,
+    option?.full,
+  ]
+    .map((value) => normalizeAnswerText(value))
+    .filter(Boolean);
+
+  const contentValue = normalizeAnswerText(option?.content ?? option?.text);
+  if (contentValue === "benar") {
+    baseValues.push("true");
+  }
+  if (contentValue === "salah") {
+    baseValues.push("false");
+  }
+
+  return [...new Set(baseValues)];
+};
+
+const findOptionByAnswerValue = (questionOptions = [], answerValue) => {
+  const selectedId = extractScalarAnswerId(answerValue);
+  if (Number.isInteger(selectedId)) {
+    const byId = questionOptions.find((option) => option.id === selectedId);
+    if (byId) return byId;
+  }
+
+  const normalizedAnswer = normalizeAnswerText(answerValue);
+  if (!normalizedAnswer) return null;
+
+  return (
+    questionOptions.find((option) =>
+      getOptionComparisonValues(option).includes(normalizedAnswer),
+    ) || null
+  );
+};
+
+const findOptionsByAnswerValues = (questionOptions = [], answerValue) => {
+  const selectedIds = extractAnswerIdList(answerValue);
+  if (selectedIds.length > 0) {
+    const byIds = questionOptions.filter((option) =>
+      selectedIds.includes(option.id),
+    );
+    if (byIds.length > 0) return byIds;
+  }
+
+  const rawValues = Array.isArray(answerValue)
+    ? answerValue
+    : typeof answerValue === "object" && answerValue !== null
+      ? (
+          answerValue.selected ??
+          answerValue.values ??
+          answerValue.answers ??
+          answerValue.answer ??
+          answerValue.options ??
+          []
+        )
+      : typeof answerValue === "string" && answerValue.includes(",")
+        ? answerValue.split(",")
+        : [answerValue];
+
+  const normalizedValues = rawValues
+    .map((value) => normalizeAnswerText(value))
+    .filter(Boolean);
+
+  if (normalizedValues.length === 0) return [];
+
+  return questionOptions.filter((option) => {
+    const comparable = getOptionComparisonValues(option);
+    return normalizedValues.some((value) => comparable.includes(value));
+  });
+};
+
+const normalizeAnswerValueWithOptionAliases = (value, optionIdAliasMap) => {
+  if (!optionIdAliasMap || optionIdAliasMap.size === 0) return value;
+  if (value === null || value === undefined) return value;
+
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      normalizeAnswerValueWithOptionAliases(item, optionIdAliasMap),
+    );
+  }
+
+  if (typeof value === "object") {
+    return Object.entries(value).reduce((acc, [key, itemValue]) => {
+      acc[key] = normalizeAnswerValueWithOptionAliases(
+        itemValue,
+        optionIdAliasMap,
+      );
+      return acc;
+    }, {});
+  }
+
+  const parsed = parseInt(value, 10);
+  if (!Number.isInteger(parsed)) return value;
+  return optionIdAliasMap.get(parsed) ?? value;
+};
+
+const buildOptionAliasesByQuestion = ({
+  questions = [],
+  optionsByQuestion = {},
+  answerRows = [],
+}) => {
+  const answersByQuestion = answerRows.reduce((acc, row) => {
+    if (!row?.question_id) return acc;
+    if (!acc.has(row.question_id)) acc.set(row.question_id, []);
+    acc.get(row.question_id).push(row.answer_json);
+    return acc;
+  }, new Map());
+
+  const questionMeta = questions.map((question) => {
+    const questionOptions = optionsByQuestion[question.id] || [];
+    const currentIds = questionOptions.map((option) => option.id);
+    const currentIdSet = new Set(currentIds);
+    const answerValues = answersByQuestion.get(question.id) || [];
+    const legacyIds = new Set();
+
+    answerValues.forEach((answerValue) => {
+      if (question.q_type === 6) {
+        extractMatchPairs(answerValue).forEach((pair) => {
+          if (Number.isInteger(pair.leftId)) legacyIds.add(pair.leftId);
+          if (Number.isInteger(pair.rightId)) legacyIds.add(pair.rightId);
+        });
+        return;
+      }
+
+      if ([1, 2, 5].includes(question.q_type)) {
+        extractAnswerIdList(answerValue).forEach((id) => legacyIds.add(id));
+      }
+    });
+
+    return {
+      question,
+      currentIds,
+      legacyIds: [...legacyIds]
+      .filter((id) => !currentIdSet.has(id))
+        .sort((a, b) => a - b),
+    };
+  });
+
+  const startsByQuestion = new Map();
+  questionMeta.forEach((meta) => {
+    if (
+      meta.currentIds.length > 0 &&
+      meta.legacyIds.length === meta.currentIds.length
+    ) {
+      startsByQuestion.set(meta.question.id, meta.legacyIds[0]);
+    }
+  });
+
+  questionMeta.forEach((meta, index) => {
+    if (startsByQuestion.has(meta.question.id) || meta.currentIds.length === 0) {
+      return;
+    }
+
+    const previous = [...questionMeta]
+      .slice(0, index)
+      .reverse()
+      .find((item) => startsByQuestion.has(item.question.id));
+    const next = questionMeta
+      .slice(index + 1)
+      .find((item) => startsByQuestion.has(item.question.id));
+
+    const startFromPrevious =
+      previous &&
+      startsByQuestion.get(previous.question.id) +
+        questionMeta
+          .slice(
+            questionMeta.findIndex((item) => item.question.id === previous.question.id),
+            index,
+          )
+          .reduce((sum, item) => sum + item.currentIds.length, 0);
+
+    const startFromNext =
+      next &&
+      startsByQuestion.get(next.question.id) -
+        questionMeta
+          .slice(
+            index,
+            questionMeta.findIndex((item) => item.question.id === next.question.id),
+          )
+          .reduce((sum, item) => sum + item.currentIds.length, 0);
+
+    const candidateStart = startFromPrevious || startFromNext;
+    if (!Number.isInteger(candidateStart)) return;
+
+    const candidateEnd = candidateStart + meta.currentIds.length - 1;
+    const idsFitRange =
+      meta.legacyIds.length > 0 &&
+      meta.legacyIds.every(
+        (id) => id >= candidateStart && id <= candidateEnd,
+      );
+    if (idsFitRange) {
+      startsByQuestion.set(meta.question.id, candidateStart);
+    }
+  });
+
+  return questionMeta.reduce((acc, meta) => {
+    const legacyStart = startsByQuestion.get(meta.question.id);
+    if (!Number.isInteger(legacyStart) || meta.currentIds.length === 0) {
+      return acc;
+    }
+
+    acc[meta.question.id] = new Map(
+      meta.currentIds.map((currentId, index) => [
+        legacyStart + index,
+        currentId,
+      ]),
+    );
+    return acc;
+  }, {});
+};
+
+const isShortAnswerCorrect = (questionOptions = [], answerValue) => {
+  const normalizedAnswer = normalizeAnswerText(answerValue);
+  if (!normalizedAnswer) return false;
+
+  const correctOptions = questionOptions.filter((option) => option.is_correct);
+  if (correctOptions.length === 0) return false;
+
+  return correctOptions.some((option) =>
+    getOptionComparisonValues(option).includes(normalizedAnswer),
+  );
+};
+
+const serializeRawAnswer = (value) => {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "string") return value;
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
 const normalizeAttendanceStatus = (value) => {
   if (value === "izin") return "izinkan";
   return value;
@@ -155,41 +538,55 @@ const hasAnswerForQuestion = ({ question, answerRow }) => {
   const hasScore = answerRow.score_obtained !== null && answerRow.score_obtained !== undefined;
 
   if (question.q_type === 1 || question.q_type === 5) {
-    return Number.isInteger(parseInt(answerValue, 10));
+    return Number.isInteger(extractScalarAnswerId(answerValue));
   }
 
   if (question.q_type === 2) {
-    return normalizeIdList(answerValue).length > 0;
+    return extractAnswerIdList(answerValue).length > 0;
   }
 
-  if (question.q_type === 3 || question.q_type === 4) {
+  if (question.q_type === 3) {
     if (typeof answerValue === "string" && answerValue.trim() !== "") return true;
     return hasScore;
   }
 
+  if (question.q_type === 4) {
+    return typeof answerValue === "string" && answerValue.trim() !== "";
+  }
+
   if (question.q_type === 6) {
-    if (Array.isArray(answerValue) && answerValue.length > 0) return true;
+    if (extractMatchPairs(answerValue).length > 0) return true;
     return hasScore;
   }
 
   return false;
 };
 
-const getQuestionAnswerStatus = ({ question, answerRow, questionOptions = [] }) => {
+const getQuestionAnswerStatus = ({
+  question,
+  answerRow,
+  questionOptions = [],
+  optionIdAliasMap,
+}) => {
   const answered = hasAnswerForQuestion({ question, answerRow });
   if (!answered) return "unanswered";
 
-  const answerValue = answerRow?.answer_json;
+  const answerValue = normalizeAnswerValueWithOptionAliases(
+    answerRow?.answer_json,
+    optionIdAliasMap,
+  );
 
   if (question.q_type === 1 || question.q_type === 5) {
-    const selectedId = parseInt(answerValue, 10);
     const correctOptions = questionOptions.filter((opt) => opt.is_correct);
-    const isCorrect = correctOptions.some((opt) => opt.id === selectedId);
+    const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
+    const isCorrect = correctOptions.some((opt) => opt.id === selectedOption?.id);
     return isCorrect ? "correct" : "incorrect";
   }
 
   if (question.q_type === 2) {
-    const selectedIds = normalizeIdList(answerValue);
+    const selectedIds = findOptionsByAnswerValues(questionOptions, answerValue).map(
+      (option) => option.id,
+    );
     const correctIds = questionOptions
       .filter((opt) => opt.is_correct)
       .map((opt) => opt.id);
@@ -201,7 +598,7 @@ const getQuestionAnswerStatus = ({ question, answerRow, questionOptions = [] }) 
     return isCorrect ? "correct" : "incorrect";
   }
 
-  if (question.q_type === 3 || question.q_type === 4 || question.q_type === 6) {
+  if (question.q_type === 3 || question.q_type === 6) {
     if (answerRow?.score_obtained === null || answerRow?.score_obtained === undefined) {
       return "pending_review";
     }
@@ -211,32 +608,46 @@ const getQuestionAnswerStatus = ({ question, answerRow, questionOptions = [] }) 
       : "incorrect";
   }
 
+  if (question.q_type === 4) {
+    return isShortAnswerCorrect(questionOptions, answerValue)
+      ? "correct"
+      : "incorrect";
+  }
+
   return "incorrect";
 };
 
-const computeStudentScore = ({ questions, optionsByQuestion, answersByQuestion }) => {
+const computeStudentScore = ({
+  questions,
+  optionsByQuestion,
+  answersByQuestion,
+  optionAliasesByQuestion = {},
+}) => {
   let total = 0;
 
   questions.forEach((question) => {
     const answerRow = answersByQuestion.get(question.id);
-    const answerValue = answerRow?.answer_json;
+    const answerValue = normalizeAnswerValueWithOptionAliases(
+      answerRow?.answer_json,
+      optionAliasesByQuestion[question.id],
+    );
     const maxPoints = toNumber(question.score_point);
 
     if (question.q_type === 1) {
-      const selectedId = parseInt(answerValue, 10);
-      if (Number.isInteger(selectedId)) {
-        const correctOptions = (optionsByQuestion[question.id] || []).filter(
-          (opt) => opt.is_correct,
-        );
-        const isCorrect = correctOptions.some((opt) => opt.id === selectedId);
-        if (isCorrect) total += maxPoints;
-      }
+      const questionOptions = optionsByQuestion[question.id] || [];
+      const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
+      const correctOptions = questionOptions.filter((opt) => opt.is_correct);
+      const isCorrect = correctOptions.some((opt) => opt.id === selectedOption?.id);
+      if (isCorrect) total += maxPoints;
       return;
     }
 
     if (question.q_type === 2) {
-      const selectedIds = normalizeIdList(answerValue);
-      const correctIds = (optionsByQuestion[question.id] || [])
+      const questionOptions = optionsByQuestion[question.id] || [];
+      const selectedIds = findOptionsByAnswerValues(questionOptions, answerValue).map(
+        (option) => option.id,
+      );
+      const correctIds = questionOptions
         .filter((opt) => opt.is_correct)
         .map((opt) => opt.id);
       const correctSet = new Set(correctIds);
@@ -249,18 +660,23 @@ const computeStudentScore = ({ questions, optionsByQuestion, answersByQuestion }
     }
 
     if (question.q_type === 5) {
-      const selectedId = parseInt(answerValue, 10);
-      if (Number.isInteger(selectedId)) {
-        const correctOptions = (optionsByQuestion[question.id] || []).filter(
-          (opt) => opt.is_correct,
-        );
-        const isCorrect = correctOptions.some((opt) => opt.id === selectedId);
-        if (isCorrect) total += maxPoints;
+      const questionOptions = optionsByQuestion[question.id] || [];
+      const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
+      const correctOptions = questionOptions.filter((opt) => opt.is_correct);
+      const isCorrect = correctOptions.some((opt) => opt.id === selectedOption?.id);
+      if (isCorrect) total += maxPoints;
+      return;
+    }
+
+    if (question.q_type === 4) {
+      const questionOptions = optionsByQuestion[question.id] || [];
+      if (isShortAnswerCorrect(questionOptions, answerValue)) {
+        total += maxPoints;
       }
       return;
     }
 
-    if (question.q_type === 3 || question.q_type === 4 || question.q_type === 6) {
+    if (question.q_type === 3 || question.q_type === 6) {
       total += toNumber(answerRow?.score_obtained);
     }
   });
@@ -1500,7 +1916,7 @@ router.get(
     if (questionIds.length > 0) {
       const optionResult = await pool.query(
         `
-          SELECT id, question_id, is_correct
+          SELECT id, question_id, label, content, is_correct
           FROM cbt.c_question_options
           WHERE question_id = ANY($1::int[])
           ORDER BY id ASC
@@ -1534,6 +1950,12 @@ router.get(
       answersByStudent.get(row.student_id).set(row.question_id, row);
     });
 
+    const optionAliasesByQuestion = buildOptionAliasesByQuestion({
+      questions,
+      optionsByQuestion,
+      answerRows: answerResult.rows,
+    });
+
     const scores = students.map((student) => {
       const answersByQuestion =
         answersByStudent.get(student.id) || new Map();
@@ -1541,6 +1963,7 @@ router.get(
         questions,
         optionsByQuestion,
         answersByQuestion,
+        optionAliasesByQuestion,
       });
       return {
         id: student.id,
@@ -1703,6 +2126,12 @@ router.get(
       answersByStudent.get(row.student_id).set(row.question_id, row);
     });
 
+    const optionAliasesByQuestion = buildOptionAliasesByQuestion({
+      questions,
+      optionsByQuestion,
+      answerRows: answers,
+    });
+
     const stripHtml = (value) =>
       String(value || "")
         .replace(/<[^>]*>/g, " ")
@@ -1789,24 +2218,24 @@ router.get(
       };
     };
 
-    const parsePairId = (pair, key) => {
-      const value =
-        pair?.[`${key}Id`] ??
-        pair?.[`${key}_id`] ??
-        pair?.[key];
-      const parsed = parseInt(value, 10);
-      return Number.isInteger(parsed) ? parsed : null;
-    };
-
-    const formatStudentAnswer = ({ question, answerRow, questionOptions }) => {
+    const formatStudentAnswer = ({
+      question,
+      answerRow,
+      questionOptions,
+      optionIdAliasMap,
+    }) => {
       const status = getQuestionAnswerStatus({
         question,
         answerRow,
         questionOptions,
+        optionIdAliasMap,
       });
-      const answerValue = answerRow?.answer_json;
+      const answerValue = normalizeAnswerValueWithOptionAliases(
+        answerRow?.answer_json,
+        optionIdAliasMap,
+      );
       const maxPoints = toNumber(question.score_point);
-      const isManualType = [3, 4, 6].includes(question.q_type);
+      const isManualType = [3, 6].includes(question.q_type);
       const score = isManualType
         ? toNumber(answerRow?.score_obtained)
         : status === "correct"
@@ -1822,10 +2251,7 @@ router.get(
       if (status === "unanswered") return emptyAnswer;
 
       if (question.q_type === 1 || question.q_type === 5) {
-        const selectedId = parseInt(answerValue, 10);
-        const selectedOption = questionOptions.find(
-          (option) => option.id === selectedId,
-        );
+        const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
         return {
           display: selectedOption?.marker || "-",
           detail: selectedOption?.full || selectedOption?.marker || "-",
@@ -1835,10 +2261,7 @@ router.get(
       }
 
       if (question.q_type === 2) {
-        const selectedIds = normalizeIdList(answerValue);
-        const selectedOptions = questionOptions.filter((option) =>
-          selectedIds.includes(option.id),
-        );
+        const selectedOptions = findOptionsByAnswerValues(questionOptions, answerValue);
         return {
           display: selectedOptions.map((option) => option.marker).join(", ") || "-",
           detail:
@@ -1862,7 +2285,7 @@ router.get(
       }
 
       if (question.q_type === 6) {
-        const pairs = Array.isArray(answerValue) ? answerValue : [];
+        const pairs = extractMatchPairs(answerValue);
         const leftById = new Map(
           questionOptions.map((option) => [option.id, option.label_text]),
         );
@@ -1870,8 +2293,8 @@ router.get(
           questionOptions.map((option) => [option.id, option.text]),
         );
         const formattedPairs = pairs.map((pair) => {
-          const leftId = parsePairId(pair, "left");
-          const rightId = parsePairId(pair, "right");
+          const leftId = parseMatchPairId(pair, "left");
+          const rightId = parseMatchPairId(pair, "right");
           return `${leftById.get(leftId) || "-"} -> ${rightById.get(rightId) || "-"}`;
         });
 
@@ -1921,6 +2344,7 @@ router.get(
           question,
           answerRow: answersByQuestion.get(questionReport.id),
           questionOptions: getQuestionOptions(question),
+          optionIdAliasMap: optionAliasesByQuestion[question.id],
         });
 
         return {
@@ -1943,6 +2367,7 @@ router.get(
         questions,
         optionsByQuestion,
         answersByQuestion,
+        optionAliasesByQuestion,
       });
 
       return {
@@ -2107,15 +2532,50 @@ router.get(
       return acc;
     }, {});
 
+    const scoringOptionsByQuestion = options.reduce((acc, item) => {
+      if (!acc[item.question_id]) acc[item.question_id] = [];
+      acc[item.question_id].push(item);
+      return acc;
+    }, {});
+
+    let aliasAnswerRows = answerResult.rows;
+    if (questionIds.length > 0) {
+      const aliasAnswerResult = await pool.query(
+        `
+          SELECT question_id, answer_json
+          FROM cbt.c_student_answer
+          WHERE exam_id = $1 AND question_id = ANY($2::int[])
+        `,
+        [examId, questionIds],
+      );
+      aliasAnswerRows = aliasAnswerResult.rows;
+    }
+
+    const optionAliasesByQuestion = buildOptionAliasesByQuestion({
+      questions,
+      optionsByQuestion: optionByQuestion,
+      answerRows: aliasAnswerRows,
+    });
+
     const items = questions.map((question, index) => {
       const questionOptions = optionByQuestion[question.id] || [];
       const optionText = (opt) => {
         const label = opt.label ? `${opt.label}. ` : "";
         return `${label}${stripHtml(opt.content)}`.trim();
       };
+      const optionMarker = (opt) => stripHtml(opt.label) || stripHtml(opt.content) || "-";
+      const optionView = (opt) => ({
+        id: opt.id,
+        label: stripHtml(opt.label) || null,
+        content: stripHtml(opt.content) || "-",
+      });
 
       const answerRow = answerMap.get(question.id);
-      const answerValue = answerRow?.answer_json;
+      const rawAnswerValue = answerRow?.answer_json;
+      const answerValue = normalizeAnswerValueWithOptionAliases(
+        rawAnswerValue,
+        optionAliasesByQuestion[question.id],
+      );
       const base = {
         id: question.id,
         no: index + 1,
@@ -2124,20 +2584,23 @@ router.get(
         bloom_label: getBloomLevelLabel(question.bloom_level),
         question: stripHtml(question.content),
         maxPoints: question.score_point || 0,
+        rawAnswer: serializeRawAnswer(rawAnswerValue),
       };
 
       if (question.q_type === 1) {
-        const selectedId = Number(answerValue);
-        const selectedOption = questionOptions.find(
-          (opt) => opt.id === selectedId,
-        );
+        const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
         const correctOptions = questionOptions.filter((opt) => opt.is_correct);
         return {
           ...base,
           type: "single",
-          options: questionOptions.map(optionText),
+          options: questionOptions.map(optionView),
           selected: selectedOption ? optionText(selectedOption) : "-",
+          selectedOptionIds: selectedOption ? [selectedOption.id] : [],
+          selectedMarkers: selectedOption ? [optionMarker(selectedOption)] : [],
           correctAnswers: correctOptions.map(optionText),
+          correctOptionIds: correctOptions.map((opt) => opt.id),
+          correctMarkers: correctOptions.map(optionMarker),
+          rawAnswerDisplay: selectedOption ? optionMarker(selectedOption) : serializeRawAnswer(answerValue),
           correct:
             selectedOption && correctOptions.length > 0
               ? correctOptions.some((opt) => opt.id === selectedOption.id)
@@ -2146,17 +2609,12 @@ router.get(
       }
 
       if (question.q_type === 2) {
-        const selectedIds = Array.isArray(answerValue)
-          ? answerValue
-              .map((value) => parseInt(value, 10))
-              .filter((value) => Number.isInteger(value))
-          : [];
-        const selectedTexts = questionOptions
-          .filter((opt) => selectedIds.includes(opt.id))
-          .map(optionText);
+        const selectedOptions = findOptionsByAnswerValues(questionOptions, answerValue);
+        const selectedTexts = selectedOptions.map(optionText);
         const correctIds = new Set(
           questionOptions.filter((opt) => opt.is_correct).map((opt) => opt.id),
         );
+        const selectedIds = selectedOptions.map((opt) => opt.id);
         const isCorrect =
           selectedIds.length > 0 &&
           selectedIds.every((id) => correctIds.has(id)) &&
@@ -2164,11 +2622,23 @@ router.get(
         return {
           ...base,
           type: "multi",
-          options: questionOptions.map(optionText),
+          options: questionOptions.map(optionView),
           selected: selectedTexts,
+          selectedOptionIds: selectedIds,
+          selectedMarkers: selectedOptions.map(optionMarker),
           correctAnswers: questionOptions
             .filter((opt) => opt.is_correct)
             .map(optionText),
+          correctOptionIds: questionOptions
+            .filter((opt) => opt.is_correct)
+            .map((opt) => opt.id),
+          correctMarkers: questionOptions
+            .filter((opt) => opt.is_correct)
+            .map(optionMarker),
+          rawAnswerDisplay:
+            selectedOptions.length > 0
+              ? selectedOptions.map(optionMarker).join(", ")
+              : serializeRawAnswer(answerValue),
           correct: selectedIds.length > 0 ? isCorrect : null,
         };
       }
@@ -2178,34 +2648,46 @@ router.get(
           ...base,
           type: "essay",
           answer: typeof answerValue === "string" ? answerValue : "-",
+          rawAnswerDisplay: serializeRawAnswer(answerValue),
           points: answerRow?.score_obtained ?? 0,
         };
       }
 
       if (question.q_type === 4) {
+        const correctOptions = questionOptions.filter((opt) => opt.is_correct);
+        const isCorrect = isShortAnswerCorrect(questionOptions, answerValue);
         return {
           ...base,
           type: "short",
           answer: typeof answerValue === "string" ? answerValue : "-",
-          points: answerRow?.score_obtained ?? 0,
+          correctAnswers: correctOptions.map((opt) => stripHtml(opt.content) || "-"),
+          correctOptionIds: correctOptions.map((opt) => opt.id),
+          rawAnswerDisplay: serializeRawAnswer(answerValue),
+          points: isCorrect ? question.score_point || 0 : 0,
+          correct:
+            typeof answerValue === "string" && answerValue.trim() !== ""
+              ? isCorrect
+              : null,
         };
       }
 
       if (question.q_type === 5) {
-        const selectedId = Number(answerValue);
-        const selectedOption = questionOptions.find(
-          (opt) => opt.id === selectedId,
-        );
+        const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
         const correctOptions = questionOptions.filter((opt) => opt.is_correct);
 
         return {
           ...base,
           type: "true_false",
-          options: questionOptions.map((opt) => stripHtml(opt.content) || "-"),
+          options: questionOptions.map(optionView),
           selected: selectedOption ? stripHtml(selectedOption.content) : "-",
+          selectedOptionIds: selectedOption ? [selectedOption.id] : [],
+          selectedMarkers: selectedOption ? [optionMarker(selectedOption)] : [],
           correctAnswers: correctOptions.map(
             (opt) => stripHtml(opt.content) || "-",
           ),
+          correctOptionIds: correctOptions.map((opt) => opt.id),
+          correctMarkers: correctOptions.map(optionMarker),
+          rawAnswerDisplay: selectedOption ? optionMarker(selectedOption) : serializeRawAnswer(answerValue),
           correct:
             selectedOption && correctOptions.length > 0
               ? correctOptions.some((opt) => opt.id === selectedOption.id)
@@ -2214,7 +2696,7 @@ router.get(
       }
 
       if (question.q_type === 6) {
-        const pairs = Array.isArray(answerValue) ? answerValue : [];
+        const pairs = extractMatchPairs(answerValue);
         const leftById = new Map(
           questionOptions.map((opt) => [opt.id, stripHtml(opt.label) || "-"]),
         );
@@ -2224,13 +2706,22 @@ router.get(
         return {
           ...base,
           type: "match",
+          rawAnswerDisplay:
+            pairs.length > 0
+              ? pairs
+                  .map((pair) => `${leftById.get(pair.leftId) || "-"} -> ${rightById.get(pair.rightId) || "-"}`)
+                  .join("; ")
+              : serializeRawAnswer(answerValue),
           points: answerRow?.score_obtained ?? 0,
+          correct:
+            pairs.length > 0
+              ? pairs.every((pair) => String(pair.leftId) === String(pair.rightId))
+              : null,
           matches: pairs.map((pair) => ({
-            left: leftById.get(parseInt(pair.leftId, 10)) || "-",
-            right: rightById.get(parseInt(pair.rightId, 10)) || "-",
+            left: leftById.get(pair.leftId) || "-",
+            right: rightById.get(pair.rightId) || "-",
             correct:
-              pair?.rightId !== undefined &&
-              pair?.rightId !== null &&
+              Number.isInteger(pair?.rightId) &&
               String(pair.leftId) === String(pair.rightId),
           })),
           correctMatches: questionOptions.map((opt) => ({
@@ -2243,7 +2734,19 @@ router.get(
       return { ...base, type: "unknown", options: [], selected: "-" };
     });
 
-    return res.json({ data: items });
+    return res.json({
+      data: items,
+      meta: {
+        totalItems: questions.length,
+        totalPages: 1,
+        totalScore: computeStudentScore({
+          questions,
+          optionsByQuestion: scoringOptionsByQuestion,
+          answersByQuestion: answerMap,
+          optionAliasesByQuestion,
+        }),
+      },
+    });
   }),
 );
 
@@ -2362,7 +2865,7 @@ router.get(
     const questionIds = questions.map((q) => q.id);
     const optionResult = await pool.query(
       `
-        SELECT id, question_id, is_correct
+        SELECT id, question_id, label, content, is_correct
         FROM cbt.c_question_options
         WHERE question_id = ANY($1::int[])
         ORDER BY id ASC
@@ -2396,6 +2899,12 @@ router.get(
       return acc;
     }, {});
 
+    const optionAliasesByQuestion = buildOptionAliasesByQuestion({
+      questions,
+      optionsByQuestion,
+      answerRows: answers,
+    });
+
     const stripHtml = (value) =>
       String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -2414,6 +2923,7 @@ router.get(
           question,
           answerRow: answerMap.get(student.id),
           questionOptions: optionsByQuestion[question.id] || [],
+          optionIdAliasMap: optionAliasesByQuestion[question.id],
         });
 
         studentQuestionResults.push({
