@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  Button,
   Card,
   Flex,
   Input,
@@ -69,10 +70,7 @@ const ScoreTable = ({
       };
     }
 
-    const total = filteredData.reduce(
-      (sum, item) => sum + item.score,
-      0,
-    );
+    const total = filteredData.reduce((sum, item) => sum + item.score, 0);
     const passed = filteredData.filter((item) => item.score >= 75).length;
     const highest = filteredData.reduce(
       (max, item) => Math.max(max, item.score),
@@ -188,10 +186,15 @@ const ScoreTable = ({
                 Rekap Hasil Ujian Peserta
               </Title>
               <Text type='secondary'>
-                Telusuri nilai siswa dan filter per kelas untuk memantau capaian hasil ujian.
+                Telusuri nilai siswa dan filter per kelas untuk memantau capaian
+                hasil ujian.
               </Text>
             </Space>
-            <Tag color='blue' icon={<Users size={12} />} style={{ margin: 0, borderRadius: 999 }}>
+            <Tag
+              color='blue'
+              icon={<Users size={12} />}
+              style={{ margin: 0, borderRadius: 999 }}
+            >
               Total Nilai: {filteredData.length}
             </Tag>
           </Flex>
@@ -199,7 +202,9 @@ const ScoreTable = ({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(3, minmax(0, 1fr))",
               gap: 12,
             }}
           >
@@ -288,7 +293,10 @@ const ScoreTable = ({
                   setVisibleCount(PAGE_SIZE);
                 }}
                 style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
-                options={[{ value: "all", label: "Semua Kelas" }, ...classOptions]}
+                options={[
+                  { value: "all", label: "Semua Kelas" },
+                  ...classOptions,
+                ]}
                 virtual={false}
               />
             </Space>
