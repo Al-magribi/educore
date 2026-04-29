@@ -72,8 +72,105 @@ const toNumber = (value) => {
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const toIntegerOrNull = (value) => {
+  const n = Number(value);
+  return Number.isInteger(n) ? n : null;
+};
+
+const getFriendlyAiErrorMessage = (errorMessage) => {
+  const message = String(errorMessage || "").trim();
+  if (!message) return "Proses koreksi AI gagal.";
+  if (message.toLowerCase().includes("nan")) {
+    return "Proses koreksi AI gagal karena payload antrian tidak valid. Silakan jalankan ulang koreksi AI.";
+  }
+  return message;
+};
+
 const getModelPricing = (modelName = "gpt-4.1-mini") =>
   AI_MODEL_PRICING_USD_PER_1K[modelName] || { input: 0, output: 0 };
+
+const normalizeBossJobs = (jobs) => (Array.isArray(jobs) ? jobs : [jobs]).filter(Boolean);
+
+const getBossJobData = (job) => {
+  if (job?.data) return job.data;
+  if (job?.data_json) return job.data_json;
+  return {};
+};
+
+const getBossAiJobId = (job) => {
+  const data = getBossJobData(job);
+  return toIntegerOrNull(data?.jobId ?? data?.job_id);
+};
+
+const markAiGradingJobFailed = async ({ jobId, errorMessage }) => {
+  const normalizedJobId = toIntegerOrNull(jobId);
+  if (!normalizedJobId) return;
+  await pool.query(
+    `
+      UPDATE cbt.c_ai_grading_job
+      SET
+        status = 'failed',
+        error_message = $2,
+        finished_at = COALESCE(finished_at, NOW()),
+        updated_at = NOW()
+      WHERE id = $1 AND status IN ('queued', 'running')
+    `,
+    [normalizedJobId, getFriendlyAiErrorMessage(errorMessage)],
+  );
+};
+
+const syncFailedBossJobStatus = async ({ db, job }) => {
+  if (!job?.boss_job_id || !["queued", "running"].includes(job.status)) {
+    return job;
+  }
+
+  const bossJobResult = await db.query(
+    `
+      SELECT state, output
+      FROM pgboss.job
+      WHERE id = $1 AND name = $2
+      LIMIT 1
+    `,
+    [job.boss_job_id, AI_GRADING_QUEUE],
+  );
+  const bossJob = bossJobResult.rows[0];
+  if (bossJob?.state !== "failed") return job;
+
+  const output = bossJob.output || {};
+  const errorMessage =
+    output?.message ||
+    output?.error ||
+    "Proses koreksi AI gagal di background worker.";
+
+  const updateResult = await db.query(
+    `
+      UPDATE cbt.c_ai_grading_job
+      SET
+        status = 'failed',
+        error_message = $2,
+        finished_at = COALESCE(finished_at, NOW()),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `,
+    [job.id, getFriendlyAiErrorMessage(errorMessage).slice(0, 1000)],
+  );
+  return (
+    updateResult.rows[0] || {
+      ...job,
+      status: "failed",
+      error_message: getFriendlyAiErrorMessage(errorMessage),
+    }
+  );
+};
+
+const sanitizeAiGradingJobForResponse = (job) => {
+  if (!job) return null;
+  return {
+    ...job,
+    error_message: getFriendlyAiErrorMessage(job.error_message),
+  };
+};
 
 const validateExamOwnership = async ({ db, user, examId }) => {
   const examCheck = await db.query(
@@ -518,14 +615,19 @@ const upsertReviewResult = async ({ client, item, aiResult, userId }) => {
 };
 
 const processAiGradingJob = async ({ pool, jobId }) => {
+  const normalizedJobId = toIntegerOrNull(jobId);
+  if (!normalizedJobId) {
+    throw new Error("Payload job koreksi AI tidak valid.");
+  }
+
   await pool.query(
     `UPDATE cbt.c_ai_grading_job SET status='running', started_at=NOW(), updated_at=NOW() WHERE id=$1`,
-    [jobId],
+    [normalizedJobId],
   );
 
   const jobResult = await pool.query(
     `SELECT id, requested_by, exam_id, status FROM cbt.c_ai_grading_job WHERE id=$1 LIMIT 1`,
-    [jobId],
+    [normalizedJobId],
   );
   if (jobResult.rowCount === 0) return;
   const job = jobResult.rows[0];
@@ -551,7 +653,7 @@ const processAiGradingJob = async ({ pool, jobId }) => {
       WHERE job_id = $1 AND status IN ('queued', 'failed')
       ORDER BY id ASC
     `,
-    [jobId],
+    [normalizedJobId],
   );
 
   for (const item of itemsResult.rows) {
@@ -635,7 +737,7 @@ const processAiGradingJob = async ({ pool, jobId }) => {
         );
       }
 
-      await syncJobSummary(client, jobId);
+      await syncJobSummary(client, normalizedJobId);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -647,7 +749,7 @@ const processAiGradingJob = async ({ pool, jobId }) => {
         `,
         [item.id, error.message || "Internal error saat memproses item"],
       );
-      await syncJobSummary(pool, jobId);
+      await syncJobSummary(pool, normalizedJobId);
     } finally {
       client.release();
     }
@@ -665,7 +767,7 @@ const processAiGradingJob = async ({ pool, jobId }) => {
         updated_at = NOW()
       WHERE id = $1
     `,
-    [jobId],
+    [normalizedJobId],
   );
 };
 
@@ -690,11 +792,23 @@ const registerWorker = async () => {
   if (workerRegistered) return;
   const boss = await getPgBoss();
   await ensureAiQueue();
-  await boss.work(AI_GRADING_QUEUE, async (pgBossJob) => {
-    await processAiGradingJob({
-      pool,
-      jobId: Number(pgBossJob?.data?.jobId),
-    });
+  await boss.work(AI_GRADING_QUEUE, async (pgBossJobs) => {
+    for (const pgBossJob of normalizeBossJobs(pgBossJobs)) {
+      const jobId = getBossAiJobId(pgBossJob);
+      if (!Number.isInteger(jobId)) {
+        throw new Error("Payload job koreksi AI tidak valid.");
+      }
+
+      try {
+        await processAiGradingJob({ pool, jobId });
+      } catch (error) {
+        await markAiGradingJobFailed({
+          jobId,
+          errorMessage: error?.message || "Proses koreksi AI gagal.",
+        });
+        throw error;
+      }
+    }
   });
   workerRegistered = true;
   console.log(`[pg-boss] worker registered for queue "${AI_GRADING_QUEUE}"`);
@@ -721,7 +835,7 @@ router.post(
 
     const existingJob = await client.query(
       `
-        SELECT id, status
+        SELECT id, status, boss_job_id
         FROM cbt.c_ai_grading_job
         WHERE exam_id = $1 AND status IN ('queued', 'running')
         ORDER BY id DESC
@@ -730,10 +844,16 @@ router.post(
       [examId],
     );
     if (existingJob.rowCount > 0) {
-      return res.status(409).json({
-        message: "Masih ada proses koreksi AI yang berjalan untuk ujian ini",
-        data: existingJob.rows[0],
+      const syncedJob = await syncFailedBossJobStatus({
+        db: client,
+        job: existingJob.rows[0],
       });
+      if (["queued", "running"].includes(syncedJob.status)) {
+        return res.status(409).json({
+          message: "Masih ada proses koreksi AI yang berjalan untuk ujian ini",
+          data: sanitizeAiGradingJobForResponse(syncedJob),
+        });
+      }
     }
 
     const configResult = await client.query(
@@ -859,10 +979,12 @@ router.get(
       `,
       [examId],
     );
-    const job = result.rows[0] || null;
+    const job = result.rows[0]
+      ? await syncFailedBossJobStatus({ db: pool, job: result.rows[0] })
+      : null;
     return res.json({
       message: "OK",
-      data: job,
+      data: sanitizeAiGradingJobForResponse(job),
     });
   }),
 );

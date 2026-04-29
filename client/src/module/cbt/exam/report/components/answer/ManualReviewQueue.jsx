@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   Empty,
@@ -7,6 +8,7 @@ import {
   Grid,
   Input,
   message,
+  Progress,
   Select,
   Space,
   Table,
@@ -21,8 +23,10 @@ import {
   ClipboardList,
   Clock3,
   FileText,
+  LoaderCircle,
   Search,
   Users,
+  XCircle,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -54,6 +58,76 @@ const getManualTypeKey = (typeLabel = "") => {
   return "manual";
 };
 
+const getFriendlyAiErrorMessage = (errorMessage) => {
+  const message = String(errorMessage || "").trim();
+  if (!message) return "Koreksi AI gagal diproses.";
+  if (message.toLowerCase().includes("nan")) {
+    return "Koreksi AI gagal karena antrian sebelumnya tidak valid. Silakan jalankan ulang Koreksi AI.";
+  }
+  return message;
+};
+
+const getAiJobFeedback = (job) => {
+  if (!job) return null;
+
+  const total = Number(job.total_items || 0);
+  const processed = Number(job.processed_items || 0);
+  const success = Number(job.success_items || 0);
+  const failed = Number(job.failed_items || 0);
+  const progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+  if (job.status === "failed") {
+    return {
+      type: "error",
+      color: "red",
+      icon: <XCircle size={14} />,
+      label: "AI gagal",
+      title: "Koreksi AI gagal",
+      description: getFriendlyAiErrorMessage(job.error_message),
+      progress,
+    };
+  }
+
+  if (job.status === "completed") {
+    const hasFailedItems = failed > 0;
+    return {
+      type: hasFailedItems ? "warning" : "success",
+      color: hasFailedItems ? "orange" : "green",
+      icon: <CheckCircle2 size={14} />,
+      label: hasFailedItems ? "AI selesai sebagian" : "AI selesai",
+      title: hasFailedItems
+        ? "Koreksi AI selesai dengan beberapa gagal"
+        : "Koreksi AI berhasil",
+      description: `${success} jawaban berhasil dinilai${
+        failed ? `, ${failed} jawaban gagal` : ""
+      }.`,
+      progress: 100,
+    };
+  }
+
+  if (job.status === "running") {
+    return {
+      type: "info",
+      color: "blue",
+      icon: <LoaderCircle size={14} />,
+      label: "AI berjalan",
+      title: "Koreksi AI sedang berjalan",
+      description: `${processed}/${total} jawaban sudah diproses. Guru boleh menutup tab, proses tetap berjalan di server.`,
+      progress,
+    };
+  }
+
+  return {
+    type: "info",
+    color: "blue",
+    icon: <Clock3 size={14} />,
+    label: "AI antre",
+    title: "Koreksi AI masuk antrian",
+    description: `${processed}/${total} jawaban sudah diproses. Worker akan mengambil antrian dari server.`,
+    progress,
+  };
+};
+
 const ManualReviewQueue = ({
   examId,
   examName,
@@ -64,6 +138,7 @@ const ManualReviewQueue = ({
   const [, setSearchParams] = useSearchParams();
   const [classFilter, setClassFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
+  const [notifiedAiJobKey, setNotifiedAiJobKey] = useState("");
   const [startAiGrading, { isLoading: isStartingAiGrading }] =
     useStartExamAiGradingJobMutation();
 
@@ -85,6 +160,10 @@ const ManualReviewQueue = ({
       { skip: !examId, pollingInterval: 5000 },
     );
   const aiJobLatest = aiJobLatestResponse?.data || null;
+  const aiJobFeedback = useMemo(
+    () => getAiJobFeedback(aiJobLatest),
+    [aiJobLatest],
+  );
 
   const classOptions = useMemo(() => {
     if (classes.length > 0) {
@@ -164,6 +243,32 @@ const ManualReviewQueue = ({
     }
   }, [classFilter, classOptions]);
 
+  useEffect(() => {
+    if (!aiJobLatest?.id || !["completed", "failed"].includes(aiJobLatest.status)) {
+      return;
+    }
+
+    const notifyKey = `${aiJobLatest.id}-${aiJobLatest.status}-${aiJobLatest.updated_at || ""}`;
+    if (notifyKey === notifiedAiJobKey) return;
+
+    if (aiJobLatest.status === "completed") {
+      const failed = Number(aiJobLatest.failed_items || 0);
+      if (failed > 0) {
+        message.warning(
+          `Koreksi AI selesai, tetapi ${failed} jawaban gagal diproses.`,
+        );
+      } else {
+        message.success("Koreksi AI berhasil diselesaikan.");
+      }
+    }
+
+    if (aiJobLatest.status === "failed") {
+      message.error(getFriendlyAiErrorMessage(aiJobLatest.error_message));
+    }
+
+    setNotifiedAiJobKey(notifyKey);
+  }, [aiJobLatest, notifiedAiJobKey]);
+
   const totalPendingAnswers = useMemo(
     () =>
       filteredStudents.reduce(
@@ -210,7 +315,7 @@ const ManualReviewQueue = ({
       message.success(response?.message || "Koreksi AI dimulai");
       refetchAiLatestJob();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal memulai koreksi AI");
+      message.error(getFriendlyAiErrorMessage(error?.data?.message));
     }
   };
 
@@ -471,10 +576,14 @@ const ManualReviewQueue = ({
 
             <Flex justify='flex-end'>
               <Space align='center' wrap>
-                {aiJobLatest ? (
-                  <Tag color='blue' style={{ margin: 0, borderRadius: 999 }}>
-                    AI: {aiJobLatest.status} ({aiJobLatest.processed_items || 0}
-                    /{aiJobLatest.total_items || 0})
+                {aiJobFeedback ? (
+                  <Tag
+                    color={aiJobFeedback.color}
+                    icon={aiJobFeedback.icon}
+                    style={{ margin: 0, borderRadius: 999 }}
+                  >
+                    {aiJobFeedback.label} ({aiJobLatest.processed_items || 0}/
+                    {aiJobLatest.total_items || 0})
                   </Tag>
                 ) : null}
                 <Button
@@ -493,6 +602,33 @@ const ManualReviewQueue = ({
               </Space>
             </Flex>
           </Flex>
+
+          {aiJobFeedback ? (
+            <Alert
+              type={aiJobFeedback.type}
+              showIcon
+              message={
+                <Flex
+                  justify='space-between'
+                  align={isMobile ? "stretch" : "center"}
+                  gap={12}
+                  style={{ flexDirection: isMobile ? "column" : "row" }}
+                >
+                  <Space vertical size={2} style={{ minWidth: 0 }}>
+                    <Text strong>{aiJobFeedback.title}</Text>
+                    <Text type='secondary'>{aiJobFeedback.description}</Text>
+                  </Space>
+                  <Progress
+                    percent={aiJobFeedback.progress}
+                    size='small'
+                    status={aiJobLatest?.status === "failed" ? "exception" : undefined}
+                    style={{ width: isMobile ? "100%" : 180 }}
+                  />
+                </Flex>
+              }
+              style={{ borderRadius: 14 }}
+            />
+          ) : null}
 
           {!tableLoading && filteredStudents.length === 0 ? (
             <Empty
