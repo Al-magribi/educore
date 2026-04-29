@@ -578,23 +578,49 @@ router.get(
     const rowsResult = await db.query(
       `
         SELECT
-          id,
-          feature_code,
-          provider,
-          model,
-          request_type,
-          mode,
-          input_tokens,
-          output_tokens,
-          total_tokens,
-          total_cost_usd,
-          currency,
-          status,
-          error_message,
-          created_at
-        FROM ai_usage_log
-        WHERE teacher_id = $1
-        ORDER BY created_at DESC
+          log.job_id,
+          job.exam_id,
+          exam.name AS exam_name,
+          job.status,
+          job.error_message,
+          job.requested_at,
+          job.started_at,
+          job.finished_at,
+          job.total_students,
+          job.total_items,
+          job.processed_items,
+          job.success_items,
+          job.failed_items,
+          job.skipped_items,
+          COUNT(log.id)::int AS total_requests,
+          COALESCE(SUM(log.total_tokens), 0)::bigint AS total_tokens,
+          COALESCE(SUM(log.total_cost_usd), 0)::numeric(18,6) AS total_cost_usd,
+          COALESCE(
+            STRING_AGG(DISTINCT log.model, ', ' ORDER BY log.model)
+              FILTER (WHERE log.model IS NOT NULL AND log.model <> ''),
+            ''
+          ) AS models
+        FROM ai_usage_log log
+        JOIN cbt.c_ai_grading_job job ON job.id = log.job_id
+        LEFT JOIN cbt.c_exam exam ON exam.id = job.exam_id
+        WHERE log.teacher_id = $1
+          AND log.job_id IS NOT NULL
+        GROUP BY
+          log.job_id,
+          job.exam_id,
+          exam.name,
+          job.status,
+          job.error_message,
+          job.requested_at,
+          job.started_at,
+          job.finished_at,
+          job.total_students,
+          job.total_items,
+          job.processed_items,
+          job.success_items,
+          job.failed_items,
+          job.skipped_items
+        ORDER BY job.requested_at DESC, log.job_id DESC
         LIMIT $2
       `,
       [teacherId, limit],
@@ -603,13 +629,27 @@ router.get(
     const summaryResult = await db.query(
       `
         SELECT
-          COUNT(*)::int AS total_requests,
-          COUNT(*) FILTER (WHERE status = 'success')::int AS success_requests,
-          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_requests,
-          COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
-          COALESCE(SUM(total_cost_usd), 0)::numeric(18,6) AS total_cost_usd
-        FROM ai_usage_log
-        WHERE teacher_id = $1
+          COUNT(*)::int AS total_jobs,
+          COUNT(*) FILTER (WHERE job.status = 'completed')::int AS completed_jobs,
+          COUNT(*) FILTER (WHERE job.status = 'failed')::int AS failed_jobs,
+          COUNT(*) FILTER (WHERE job.status IN ('queued', 'running'))::int AS active_jobs,
+          COALESCE(SUM(job.total_items), 0)::bigint AS total_items,
+          COALESCE(SUM(job.processed_items), 0)::bigint AS processed_items,
+          COALESCE(SUM(job.success_items), 0)::bigint AS success_items,
+          COALESCE(SUM(job.failed_items), 0)::bigint AS failed_items,
+          COALESCE(SUM(usage.total_tokens), 0)::bigint AS total_tokens,
+          COALESCE(SUM(usage.total_cost_usd), 0)::numeric(18,6) AS total_cost_usd
+        FROM (
+          SELECT
+            job_id,
+            COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
+            COALESCE(SUM(total_cost_usd), 0)::numeric(18,6) AS total_cost_usd
+          FROM ai_usage_log
+          WHERE teacher_id = $1 AND job_id IS NOT NULL
+          GROUP BY job_id
+        ) usage
+        JOIN cbt.c_ai_grading_job job ON job.id = usage.job_id
+        WHERE job.requested_by = $1
       `,
       [teacherId],
     );
@@ -619,9 +659,14 @@ router.get(
       message: "OK",
       data: {
         summary: summaryResult.rows[0] || {
-          total_requests: 0,
-          success_requests: 0,
-          failed_requests: 0,
+          total_jobs: 0,
+          completed_jobs: 0,
+          failed_jobs: 0,
+          active_jobs: 0,
+          total_items: 0,
+          processed_items: 0,
+          success_items: 0,
+          failed_items: 0,
           total_tokens: 0,
           total_cost_usd: 0,
         },

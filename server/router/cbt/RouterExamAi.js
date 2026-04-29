@@ -305,24 +305,6 @@ const processItemWithAI = async ({ client, item, teacherApiKey }) => {
   );
   const answerJson = answerResult.rows[0]?.answer_json;
 
-  if (Number(question.q_type) === 6) {
-    const pairs = extractMatchPairs(answerJson);
-    const totalPairs = pairs.length;
-    const correctCount = pairs.filter((pair) => String(pair.leftId) === String(pair.rightId)).length;
-    const maxScore = Number(question.score_point || item.max_score || 0);
-    const score = totalPairs > 0 ? clamp((correctCount / totalPairs) * maxScore, 0, maxScore) : 0;
-    return {
-      ok: true,
-      score: Number(score.toFixed(2)),
-      confidence: totalPairs > 0 ? Number(((correctCount / totalPairs) * 100).toFixed(2)) : 0,
-      summaryFeedback: `Auto match: ${correctCount}/${totalPairs} pasangan benar.`,
-      rubricScores: [],
-      rawResponse: { mode: "match-auto", correctCount, totalPairs },
-      usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated: true },
-      model: "rule-based-match",
-    };
-  }
-
   if (Number(question.q_type) === 4) {
     const answerText = normalizeAnswerText(
       typeof answerJson === "string" ? answerJson : answerJson?.answer ?? answerJson?.value,
@@ -884,7 +866,7 @@ router.post(
         FROM cbt.c_student_answer sa
         JOIN cbt.c_question q ON q.id = sa.question_id
         WHERE sa.exam_id = $1
-          AND q.q_type IN (3, 4, 6)
+          AND q.q_type IN (3, 4)
       `,
       [examId],
     );

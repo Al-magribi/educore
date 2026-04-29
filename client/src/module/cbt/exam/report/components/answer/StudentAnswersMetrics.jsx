@@ -29,7 +29,7 @@ const StudentAnswersMetrics = ({ manualOnly, totalQuestions, sectionsLength, dis
     },
     {
       key: "review_status",
-      label: "Status Uraian",
+      label: manualOnly ? "Status Manual" : "Status Uraian",
       value: `${reviewSummary.finalized}/${essayCount || 0} Final`,
       color:
         reviewSummary.pending > 0

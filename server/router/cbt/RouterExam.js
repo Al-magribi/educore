@@ -424,6 +424,32 @@ const isShortAnswerCorrect = (questionOptions = [], answerValue) => {
   );
 };
 
+const getMatchAutoScore = ({ answerValue, maxPoints }) => {
+  const pairs = extractMatchPairs(answerValue);
+  const totalPairs = pairs.length;
+  if (totalPairs < 1) {
+    return {
+      totalPairs: 0,
+      correctCount: 0,
+      score: 0,
+    };
+  }
+
+  const correctCount = pairs.filter((pair) => {
+    if (!Number.isInteger(pair?.leftId) || !Number.isInteger(pair?.rightId)) {
+      return false;
+    }
+    return String(pair.leftId) === String(pair.rightId);
+  }).length;
+
+  const rawScore = (correctCount / totalPairs) * toNumber(maxPoints);
+  return {
+    totalPairs,
+    correctCount,
+    score: Number(rawScore.toFixed(2)),
+  };
+};
+
 const serializeRawAnswer = (value) => {
   if (value === null || value === undefined) return "-";
   if (typeof value === "string") return value;
@@ -598,7 +624,7 @@ const getQuestionAnswerStatus = ({
     return isCorrect ? "correct" : "incorrect";
   }
 
-  if (question.q_type === 3 || question.q_type === 6) {
+  if (question.q_type === 3) {
     if (answerRow?.score_obtained === null || answerRow?.score_obtained === undefined) {
       return "pending_review";
     }
@@ -606,6 +632,18 @@ const getQuestionAnswerStatus = ({
     return toNumber(answerRow.score_obtained) >= toNumber(question.score_point)
       ? "correct"
       : "incorrect";
+  }
+
+  if (question.q_type === 6) {
+    const score =
+      answerRow?.score_obtained !== null && answerRow?.score_obtained !== undefined
+        ? toNumber(answerRow.score_obtained)
+        : getMatchAutoScore({
+            answerValue,
+            maxPoints: question.score_point,
+          }).score;
+
+    return score >= toNumber(question.score_point) ? "correct" : "incorrect";
   }
 
   if (question.q_type === 4) {
@@ -687,12 +725,89 @@ const computeStudentScore = ({
       return;
     }
 
-    if (question.q_type === 3 || question.q_type === 6) {
+    if (question.q_type === 3) {
       total += toNumber(answerRow?.score_obtained);
+      return;
+    }
+
+    if (question.q_type === 6) {
+      const score =
+        answerRow?.score_obtained !== null && answerRow?.score_obtained !== undefined
+          ? toNumber(answerRow.score_obtained)
+          : getMatchAutoScore({
+              answerValue,
+              maxPoints,
+            }).score;
+      total += score;
     }
   });
 
   return Math.min(total, 100);
+};
+
+const getQuestionScore = ({
+  question,
+  answerRow,
+  questionOptions = [],
+  optionIdAliasMap,
+}) => {
+  const answerValue = normalizeAnswerValueWithOptionAliases(
+    answerRow?.answer_json,
+    optionIdAliasMap,
+  );
+  const maxPoints = toNumber(question.score_point);
+
+  if (question.q_type === 1) {
+    const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
+    const correctOptions = questionOptions.filter((opt) => opt.is_correct);
+    const isCorrect = correctOptions.some((opt) => opt.id === selectedOption?.id);
+    return isCorrect ? maxPoints : 0;
+  }
+
+  if (question.q_type === 2) {
+    const selectedIds = findOptionsByAnswerValues(questionOptions, answerValue).map(
+      (option) => option.id,
+    );
+    const correctIds = questionOptions
+      .filter((opt) => opt.is_correct)
+      .map((opt) => opt.id);
+    const correctSet = new Set(correctIds);
+    const isCorrect =
+      selectedIds.length > 0 &&
+      selectedIds.every((id) => correctSet.has(id)) &&
+      selectedIds.length === correctSet.size;
+    return isCorrect ? maxPoints : 0;
+  }
+
+  if (question.q_type === 5) {
+    const selectedOption = findOptionByAnswerValue(questionOptions, answerValue);
+    const correctOptions = questionOptions.filter((opt) => opt.is_correct);
+    const isCorrect = correctOptions.some((opt) => opt.id === selectedOption?.id);
+    return isCorrect ? maxPoints : 0;
+  }
+
+  if (question.q_type === 4) {
+    if (answerRow?.score_obtained !== null && answerRow?.score_obtained !== undefined) {
+      return toNumber(answerRow.score_obtained);
+    }
+    return isShortAnswerCorrect(questionOptions, answerValue) ? maxPoints : 0;
+  }
+
+  if (question.q_type === 3) {
+    return toNumber(answerRow?.score_obtained);
+  }
+
+  if (question.q_type === 6) {
+    if (answerRow?.score_obtained !== null && answerRow?.score_obtained !== undefined) {
+      return toNumber(answerRow.score_obtained);
+    }
+    return getMatchAutoScore({
+      answerValue,
+      maxPoints,
+    }).score;
+  }
+
+  return 0;
 };
 
 const ensureTeacherScope = async ({ pool, user, teacherId }) => {
@@ -1381,7 +1496,7 @@ router.post(
 
     const questionCheck = await pool.query(
       `
-        SELECT 1
+        SELECT q.id, q.q_type, q.score_point
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE q.id = $1 AND e.id = $2
@@ -1392,6 +1507,17 @@ router.post(
 
     if (questionCheck.rowCount === 0) {
       return res.status(404).json({ message: "Soal tidak ditemukan" });
+    }
+
+    const questionRow = questionCheck.rows[0];
+    let autoScore = null;
+
+    if (hasAnswer && Number(questionRow.q_type) === 6) {
+      const matchScore = getMatchAutoScore({
+        answerValue: answer,
+        maxPoints: questionRow.score_point,
+      });
+      autoScore = matchScore.score;
     }
 
     const insertFields = ["exam_id", "student_id", "question_id"];
@@ -1411,6 +1537,13 @@ router.post(
       insertValues.push(Boolean(is_doubt));
       insertPlaceholders.push(`$${insertValues.length}`);
       updateSet.push("is_doubt = EXCLUDED.is_doubt");
+    }
+
+    if (autoScore !== null) {
+      insertFields.push("score_obtained");
+      insertValues.push(autoScore);
+      insertPlaceholders.push(`$${insertValues.length}`);
+      updateSet.push("score_obtained = EXCLUDED.score_obtained");
     }
 
     updateSet.push("updated_at = NOW()");
@@ -1970,18 +2103,55 @@ router.get(
     const scores = students.map((student) => {
       const answersByQuestion =
         answersByStudent.get(student.id) || new Map();
-      const score = computeStudentScore({
-        questions,
-        optionsByQuestion,
-        answersByQuestion,
-        optionAliasesByQuestion,
+      const typeScores = {
+        single: 0,
+        multi: 0,
+        match: 0,
+        true_false: 0,
+        short: 0,
+        essay: 0,
+      };
+
+      questions.forEach((question) => {
+        const answerRow = answersByQuestion.get(question.id);
+        const questionOptions = optionsByQuestion[question.id] || [];
+        const points = getQuestionScore({
+          question,
+          answerRow,
+          questionOptions,
+          optionIdAliasMap: optionAliasesByQuestion[question.id],
+        });
+
+        if (question.q_type === 1) typeScores.single += points;
+        if (question.q_type === 2) typeScores.multi += points;
+        if (question.q_type === 6) typeScores.match += points;
+        if (question.q_type === 5) typeScores.true_false += points;
+        if (question.q_type === 4) typeScores.short += points;
+        if (question.q_type === 3) typeScores.essay += points;
       });
+
+      const score = Math.min(
+        100,
+        typeScores.single +
+          typeScores.multi +
+          typeScores.match +
+          typeScores.true_false +
+          typeScores.short +
+          typeScores.essay,
+      );
+
       return {
         id: student.id,
         nis: student.nis,
         name: student.name,
         class_name: student.class_name,
         score,
+        score_single: Number(typeScores.single.toFixed(2)),
+        score_multi: Number(typeScores.multi.toFixed(2)),
+        score_match: Number(typeScores.match.toFixed(2)),
+        score_true_false: Number(typeScores.true_false.toFixed(2)),
+        score_short: Number(typeScores.short.toFixed(2)),
+        score_essay: Number(typeScores.essay.toFixed(2)),
       };
     });
 
@@ -2129,6 +2299,19 @@ router.get(
       answers = answerResult.rows;
     }
 
+    let reviewRows = [];
+    if (studentIds.length > 0) {
+      const reviewResult = await pool.query(
+        `
+          SELECT student_id, question_id, review_status, grading_source, total_score
+          FROM cbt.c_answer_review
+          WHERE exam_id = $1 AND student_id = ANY($2::int[])
+        `,
+        [examId, studentIds],
+      );
+      reviewRows = reviewResult.rows;
+    }
+
     const answersByStudent = new Map();
     answers.forEach((row) => {
       if (!answersByStudent.has(row.student_id)) {
@@ -2136,6 +2319,11 @@ router.get(
       }
       answersByStudent.get(row.student_id).set(row.question_id, row);
     });
+
+    const reviewsByStudentQuestion = reviewRows.reduce((acc, row) => {
+      acc[`${row.student_id}:${row.question_id}`] = row;
+      return acc;
+    }, {});
 
     const optionAliasesByQuestion = buildOptionAliasesByQuestion({
       questions,
@@ -2246,9 +2434,18 @@ router.get(
         optionIdAliasMap,
       );
       const maxPoints = toNumber(question.score_point);
-      const isManualType = [3, 6].includes(question.q_type);
+      const isManualType = question.q_type === 3;
+      const autoMatchScore =
+        question.q_type === 6
+          ? getMatchAutoScore({
+              answerValue,
+              maxPoints,
+            }).score
+          : 0;
       const score = isManualType
         ? toNumber(answerRow?.score_obtained)
+        : question.q_type === 6
+          ? answerRow?.score_obtained ?? autoMatchScore
         : status === "correct"
           ? maxPoints
           : 0;
@@ -2366,6 +2563,12 @@ router.get(
           detail: cell.detail,
           status: cell.status,
           score: cell.score,
+          reviewStatus:
+            reviewsByStudentQuestion[`${student.id}:${questionReport.id}`]
+              ?.review_status || "pending",
+          gradingSource:
+            reviewsByStudentQuestion[`${student.id}:${questionReport.id}`]
+              ?.grading_source || "manual",
         };
       });
 
@@ -2742,6 +2945,7 @@ router.get(
       }
 
       if (question.q_type === 4) {
+        const review = reviewByQuestionId.get(question.id) || null;
         const correctOptions = questionOptions.filter((opt) => opt.is_correct);
         return {
           ...base,
@@ -2753,6 +2957,8 @@ router.get(
           points:
             answerRow?.score_obtained ??
             (status === "correct" ? question.score_point || 0 : 0),
+          reviewStatus: review?.review_status || "pending",
+          gradingSource: review?.grading_source || "manual",
           correct: status === "correct" ? true : status === "incorrect" ? false : null,
         };
       }
@@ -2789,6 +2995,10 @@ router.get(
         const rightById = new Map(
           questionOptions.map((opt) => [opt.id, stripHtml(opt.content) || "-"]),
         );
+        const autoMatchScore = getMatchAutoScore({
+          answerValue,
+          maxPoints: question.score_point,
+        }).score;
         return {
           ...base,
           type: "match",
@@ -2798,7 +3008,7 @@ router.get(
                   .map((pair) => `${leftById.get(pair.leftId) || "-"} -> ${rightById.get(pair.rightId) || "-"}`)
                   .join("; ")
               : serializeRawAnswer(answerValue),
-          points: answerRow?.score_obtained ?? 0,
+          points: answerRow?.score_obtained ?? autoMatchScore,
           correct: status === "correct" ? true : status === "incorrect" ? false : null,
           matches: pairs.map((pair) => ({
             left: leftById.get(pair.leftId) || "-",
@@ -3095,7 +3305,7 @@ router.get(
 router.put(
   "/exam-attendance/:exam_id/student/:student_id/answers/:question_id/score",
   authorize("satuan", "teacher"),
-  withQuery(async (req, res, pool) => {
+  withTransaction(async (req, res, client) => {
     const examId = parseInt(req.params.exam_id, 10);
     const studentId = parseInt(req.params.student_id, 10);
     const questionId = parseInt(req.params.question_id, 10);
@@ -3115,7 +3325,7 @@ router.put(
       return res.status(400).json({ message: "Nilai tidak valid" });
     }
 
-    const examCheck = await pool.query(
+    const examCheck = await client.query(
       `
         SELECT e.id, b.teacher_id, ut.homebase_id
         FROM cbt.c_exam e
@@ -3139,9 +3349,9 @@ router.put(
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
-    const questionCheck = await pool.query(
+    const questionCheck = await client.query(
       `
-        SELECT 1
+        SELECT q.id, q.q_type, q.score_point
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
         WHERE q.id = $1 AND e.id = $2
@@ -3154,17 +3364,59 @@ router.put(
       return res.status(404).json({ message: "Soal tidak ditemukan" });
     }
 
-    await pool.query(
+    const questionRow = questionCheck.rows[0];
+    const maxScore = Number(questionRow.score_point || 0);
+    const clampedScore = Math.max(0, Math.min(numericScore, maxScore || numericScore));
+
+    await client.query(
       `
         INSERT INTO cbt.c_student_answer (exam_id, student_id, question_id, score_obtained)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (exam_id, student_id, question_id)
         DO UPDATE SET score_obtained = EXCLUDED.score_obtained, updated_at = NOW()
       `,
-      [examId, studentId, questionId, numericScore],
+      [examId, studentId, questionId, clampedScore],
     );
 
-    return res.json({ message: "Nilai tersimpan" });
+    if ([3, 4].includes(Number(questionRow.q_type))) {
+      await client.query(
+        `
+          INSERT INTO cbt.c_answer_review (
+            exam_id,
+            student_id,
+            question_id,
+            review_status,
+            grading_source,
+            total_score,
+            reviewer_id,
+            reviewed_at
+          )
+          VALUES ($1, $2, $3, 'reviewed', 'manual', $4, $5, NOW())
+          ON CONFLICT (exam_id, student_id, question_id)
+          DO UPDATE SET
+            total_score = EXCLUDED.total_score,
+            grading_source = CASE
+              WHEN cbt.c_answer_review.grading_source = 'ai' THEN 'hybrid'
+              WHEN cbt.c_answer_review.grading_source = 'hybrid' THEN 'hybrid'
+              ELSE 'manual'
+            END,
+            reviewer_id = EXCLUDED.reviewer_id,
+            reviewed_at = NOW(),
+            review_status = CASE
+              WHEN cbt.c_answer_review.review_status = 'finalized'
+                THEN 'finalized'
+              ELSE 'reviewed'
+            END,
+            updated_at = NOW()
+        `,
+        [examId, studentId, questionId, clampedScore, user.id],
+      );
+    }
+
+    return res.json({
+      message: "Nilai tersimpan",
+      data: { score: clampedScore },
+    });
   }),
 );
 
@@ -3259,22 +3511,6 @@ router.put(
       });
     }
 
-    const existingReviewCheck = await client.query(
-      `
-        SELECT id, review_status
-        FROM cbt.c_answer_review
-        WHERE exam_id = $1 AND student_id = $2 AND question_id = $3
-        LIMIT 1
-      `,
-      [examId, studentId, questionId],
-    );
-    const existingReview = existingReviewCheck.rows[0];
-    if (existingReview?.review_status === "finalized") {
-      return res.status(409).json({
-        message: "Review sudah difinalisasi dan tidak dapat diubah",
-      });
-    }
-
     const reviewResult = await client.query(
       `
         INSERT INTO cbt.c_answer_review (
@@ -3301,13 +3537,15 @@ router.put(
               THEN cbt.c_answer_review.review_status
             ELSE 'reviewed'
           END,
+          total_score = COALESCE(cbt.c_answer_review.total_score, 0),
           updated_at = NOW()
-        RETURNING id
+        RETURNING id, review_status
       `,
       [examId, studentId, questionId, normalizedSource, user.id],
     );
 
     const reviewId = reviewResult.rows[0].id;
+    const reviewStatus = reviewResult.rows[0].review_status || "reviewed";
 
     await client.query(
       `
@@ -3367,14 +3605,14 @@ router.put(
       message: "Nilai rubric tersimpan",
       data: {
         review_id: reviewId,
-        review_status: "reviewed",
+        review_status: reviewStatus,
         total_score: clampedTotal,
       },
     });
   }),
 );
 
-// 2.10.3 PUT Finalize Essay Review (Teacher/Admin)
+// 2.10.3 PUT Finalize Manual Review (Teacher/Admin)
 router.put(
   "/exam-attendance/:exam_id/student/:student_id/answers/:question_id/finalize",
   authorize("satuan", "teacher"),
@@ -3431,9 +3669,22 @@ router.put(
     }
 
     const questionRow = questionCheck.rows[0];
-    if (Number(questionRow.q_type) !== 3) {
-      return res.status(400).json({ message: "Finalisasi hanya untuk soal uraian" });
+    if (![3, 4].includes(Number(questionRow.q_type))) {
+      return res.status(400).json({
+        message: "Finalisasi hanya untuk soal uraian atau jawaban singkat",
+      });
     }
+
+    const answerResult = await client.query(
+      `
+        SELECT score_obtained
+        FROM cbt.c_student_answer
+        WHERE exam_id = $1 AND student_id = $2 AND question_id = $3
+        LIMIT 1
+      `,
+      [examId, studentId, questionId],
+    );
+    const currentScore = Number(answerResult.rows[0]?.score_obtained || 0);
 
     const reviewCheck = await client.query(
       `
@@ -3444,13 +3695,28 @@ router.put(
       `,
       [examId, studentId, questionId],
     );
-    if (reviewCheck.rowCount === 0) {
-      return res.status(400).json({
-        message: "Belum ada hasil koreksi rubric untuk difinalisasi",
-      });
+    let reviewRow = reviewCheck.rows[0];
+    if (!reviewRow) {
+      const insertReviewResult = await client.query(
+        `
+          INSERT INTO cbt.c_answer_review (
+            exam_id,
+            student_id,
+            question_id,
+            review_status,
+            grading_source,
+            total_score,
+            reviewer_id,
+            reviewed_at
+          )
+          VALUES ($1, $2, $3, 'reviewed', 'manual', $4, $5, NOW())
+          RETURNING id, review_status, total_score
+        `,
+        [examId, studentId, questionId, currentScore, user.id],
+      );
+      reviewRow = insertReviewResult.rows[0];
     }
 
-    const reviewRow = reviewCheck.rows[0];
     if (reviewRow.review_status === "finalized") {
       return res.json({
         message: "Review sudah difinalisasi",
@@ -3462,25 +3728,14 @@ router.put(
       });
     }
 
-    const detailCountResult = await client.query(
-      `
-        SELECT COUNT(*)::int AS total
-        FROM cbt.c_answer_review_detail
-        WHERE review_id = $1
-      `,
-      [reviewRow.id],
-    );
-    const detailCount = Number(detailCountResult.rows[0]?.total || 0);
-    if (detailCount < 1) {
-      return res.status(400).json({
-        message: "Minimal isi satu aspek rubric sebelum finalisasi",
-      });
-    }
-
     const finalTotal = Math.max(
       0,
       Math.min(
-        Number(reviewRow.total_score || 0),
+        Number(
+          reviewRow.total_score !== null && reviewRow.total_score !== undefined
+            ? reviewRow.total_score
+            : currentScore,
+        ),
         Number(questionRow.score_point || 0),
       ),
     );
