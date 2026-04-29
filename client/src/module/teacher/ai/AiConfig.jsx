@@ -1,10 +1,25 @@
 import React, { useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
-import { Col, Form, Grid, Row, Skeleton, message, theme } from "antd";
+import {
+  Card,
+  Col,
+  Form,
+  Grid,
+  Row,
+  Skeleton,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+  message,
+  theme,
+} from "antd";
 import { motion } from "framer-motion";
 
 import {
   useGetAiConfigQuery,
+  useGetAiUsageReportQuery,
   useTestAiConnectionMutation,
   useUpdateAiConfigMutation,
 } from "../../../service/ai/ApiAiConfig";
@@ -25,6 +40,7 @@ import AiNotesCard from "./components/AiNotesCard";
 
 const MotionDiv = motion.div;
 const { useBreakpoint } = Grid;
+const { Text, Title } = Typography;
 
 const getErrorMessage = (error, fallback) =>
   error?.data?.message || error?.error || fallback;
@@ -63,6 +79,8 @@ const AiConfig = () => {
   const [updateAiConfig, { isLoading: isSaving }] = useUpdateAiConfigMutation();
   const [testAiConnection, { isLoading: isTesting }] =
     useTestAiConnectionMutation();
+  const { data: usageReport, isFetching: usageFetching } =
+    useGetAiUsageReportQuery({ limit: 50 });
 
   useEffect(() => {
     if (!config) return;
@@ -84,6 +102,61 @@ const AiConfig = () => {
   const summaryCards = useMemo(
     () => createSummaryCards(config, isMobile),
     [config, isMobile],
+  );
+  const usageSummary = usageReport?.summary || {};
+  const usageRows = usageReport?.rows || [];
+  const usageColumns = useMemo(
+    () => [
+      {
+        title: "Waktu",
+        dataIndex: "created_at",
+        key: "created_at",
+        width: 180,
+        render: (value) => (value ? new Date(value).toLocaleString("id-ID") : "-"),
+      },
+      {
+        title: "Fitur",
+        dataIndex: "feature_code",
+        key: "feature_code",
+        width: 140,
+        render: (value) => <Tag color='blue'>{value || "-"}</Tag>,
+      },
+      {
+        title: "Model",
+        dataIndex: "model",
+        key: "model",
+        width: 160,
+        render: (value) => value || "-",
+      },
+      {
+        title: "Token",
+        dataIndex: "total_tokens",
+        key: "total_tokens",
+        width: 120,
+        align: "right",
+        render: (value) => Number(value || 0).toLocaleString("id-ID"),
+      },
+      {
+        title: "Biaya (USD)",
+        dataIndex: "total_cost_usd",
+        key: "total_cost_usd",
+        width: 140,
+        align: "right",
+        render: (value) => Number(value || 0).toFixed(6),
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        width: 120,
+        render: (value) => (
+          <Tag color={value === "success" ? "green" : value === "failed" ? "red" : "gold"}>
+            {value || "-"}
+          </Tag>
+        ),
+      },
+    ],
+    [],
   );
 
   const handleSave = async (values) => {
@@ -182,6 +255,57 @@ const AiConfig = () => {
             </div>
           </MotionDiv>
         </Form>
+
+        <MotionDiv variants={itemVariants} style={{ marginTop: 20 }}>
+          <Card
+            style={{
+              borderRadius: 20,
+              background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+              border: "1px solid rgba(148, 163, 184, 0.14)",
+            }}
+          >
+            <Space direction='vertical' size={16} style={{ width: "100%" }}>
+              <div>
+                <Text type='secondary'>Riwayat Penggunaan AI</Text>
+                <Title level={5} style={{ margin: 0 }}>
+                  Laporan Token dan Biaya
+                </Title>
+              </div>
+
+              <Row gutter={[12, 12]}>
+                <Col xs={24} md={8}>
+                  <Statistic
+                    title='Total Request'
+                    value={Number(usageSummary.total_requests || 0)}
+                  />
+                </Col>
+                <Col xs={24} md={8}>
+                  <Statistic
+                    title='Total Token'
+                    value={Number(usageSummary.total_tokens || 0)}
+                  />
+                </Col>
+                <Col xs={24} md={8}>
+                  <Statistic
+                    title='Total Biaya (USD)'
+                    value={Number(usageSummary.total_cost_usd || 0)}
+                    precision={6}
+                  />
+                </Col>
+              </Row>
+
+              <Table
+                rowKey='id'
+                loading={usageFetching}
+                columns={usageColumns}
+                dataSource={usageRows}
+                pagination={{ pageSize: 10, showSizeChanger: false }}
+                size={isMobile ? "small" : "middle"}
+                scroll={{ x: 900 }}
+              />
+            </Space>
+          </Card>
+        </MotionDiv>
       </MotionDiv>
     </>
   );

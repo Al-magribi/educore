@@ -568,4 +568,67 @@ router.post(
   }),
 );
 
+router.get(
+  "/usage-report",
+  authorize("teacher"),
+  withQuery(async (req, res, db) => {
+    const teacherId = req.user.id;
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 50));
+
+    const rowsResult = await db.query(
+      `
+        SELECT
+          id,
+          feature_code,
+          provider,
+          model,
+          request_type,
+          mode,
+          input_tokens,
+          output_tokens,
+          total_tokens,
+          total_cost_usd,
+          currency,
+          status,
+          error_message,
+          created_at
+        FROM ai_usage_log
+        WHERE teacher_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+      `,
+      [teacherId, limit],
+    );
+
+    const summaryResult = await db.query(
+      `
+        SELECT
+          COUNT(*)::int AS total_requests,
+          COUNT(*) FILTER (WHERE status = 'success')::int AS success_requests,
+          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_requests,
+          COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
+          COALESCE(SUM(total_cost_usd), 0)::numeric(18,6) AS total_cost_usd
+        FROM ai_usage_log
+        WHERE teacher_id = $1
+      `,
+      [teacherId],
+    );
+
+    res.json({
+      code: 200,
+      message: "OK",
+      data: {
+        summary: summaryResult.rows[0] || {
+          total_requests: 0,
+          success_requests: 0,
+          failed_requests: 0,
+          total_tokens: 0,
+          total_cost_usd: 0,
+        },
+        rows: rowsResult.rows || [],
+      },
+    });
+  }),
+);
+
 export default router;
