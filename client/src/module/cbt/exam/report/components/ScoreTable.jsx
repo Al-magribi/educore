@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Button,
   Card,
   Flex,
   Input,
@@ -11,9 +10,8 @@ import {
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
-import { Download, Eye, Medal, Search, Users } from "lucide-react";
+import { Download, Medal, Search, Users } from "lucide-react";
 import * as XLSX from "xlsx";
-import { useSearchParams } from "react-router-dom";
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
@@ -23,11 +21,9 @@ const PAGE_SIZE = 8;
 const ScoreTable = ({
   data,
   examName,
-  examId,
   isMobile = false,
   isLoading = false,
 }) => {
-  const [, setSearchParams] = useSearchParams();
   const [classFilter, setClassFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -107,19 +103,6 @@ const ScoreTable = ({
     XLSX.writeFile(workbook, `${safeName}.xlsx`);
   };
 
-  const handleOpenStudent = (student) => {
-    if (!student || !examId) return;
-    setSearchParams({
-      view: "student_answers",
-      exam_id: examId,
-      exam_name: String(examName || "").replaceAll(" ", "-"),
-      student_id: student.id,
-      student_name: String(student.name || "-").replaceAll(" ", "-"),
-      student_class: String(student.className || "-").replaceAll(" ", "-"),
-      student_nis: String(student.nis || "-").replaceAll(" ", "-"),
-    });
-  };
-
   const columns = [
     {
       title: "No",
@@ -169,22 +152,6 @@ const ScoreTable = ({
         );
       },
     },
-    {
-      title: "Aksi",
-      key: "action",
-      width: 160,
-      render: (_, record) => (
-        <Button
-          size='small'
-          type='primary'
-          icon={<Eye size={14} />}
-          onClick={() => handleOpenStudent(record)}
-          block={isMobile}
-        >
-          Detail Jawaban
-        </Button>
-      ),
-    },
   ];
 
   const handleScroll = (event) => {
@@ -221,7 +188,7 @@ const ScoreTable = ({
                 Rekap Hasil Ujian Peserta
               </Title>
               <Text type='secondary'>
-                Telusuri nilai siswa, filter per kelas, dan buka detail jawaban untuk peninjauan lebih lanjut.
+                Telusuri nilai siswa dan filter per kelas untuk memantau capaian hasil ujian.
               </Text>
             </Space>
             <Tag color='blue' icon={<Users size={12} />} style={{ margin: 0, borderRadius: 999 }}>

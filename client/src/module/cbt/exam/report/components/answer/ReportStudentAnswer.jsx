@@ -18,18 +18,21 @@ import {
 } from "antd";
 import { motion } from "framer-motion";
 import {
+  ArrowRight,
   CheckCircle2,
   CircleDashed,
   Clock3,
   Download,
   FileSpreadsheet,
   ListChecks,
+  MoveUpRight,
   Search,
   Users,
   XCircle,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { useGetExamStudentAnswerReportQuery } from "../../../../../service/cbt/ApiExam";
+import { useSearchParams } from "react-router-dom";
+import { useGetExamStudentAnswerReportQuery } from "../../../../../../service/cbt/ApiExam";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -97,6 +100,16 @@ const createSheetFromAoA = (rows, widths = []) => {
   return worksheet;
 };
 
+const clickableNameStyle = {
+  cursor: "pointer",
+  color: "#1d4ed8",
+};
+
+const slugifyParam = (value = "-") =>
+  String(value || "-")
+    .trim()
+    .replace(/\s+/g, "-");
+
 const ReportStudentAnswer = ({
   examId,
   examName,
@@ -104,6 +117,7 @@ const ReportStudentAnswer = ({
 }) => {
   const screens = useBreakpoint();
   const isMobile = forcedMobile || !screens.md;
+  const [, setSearchParams] = useSearchParams();
   const [classFilter, setClassFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [matrixPage, setMatrixPage] = useState(1);
@@ -256,6 +270,21 @@ const ReportStudentAnswer = ({
     },
   ];
 
+  const handleOpenStudentAnswers = (student) => {
+    if (!student?.id || !examId) return;
+
+    setSearchParams({
+      view: "student_answers",
+      exam_id: String(examId),
+      exam_name: slugifyParam(examName),
+      student_id: String(student.id),
+      student_name: slugifyParam(student.name),
+      student_class: slugifyParam(student.class_name),
+      student_nis: String(student.nis || "-"),
+      return_tab: "student-answer-report",
+    });
+  };
+
   const renderAnswerCell = (question, record) => {
     if (record.row_type === "key") {
       const display = question.key?.display || "-";
@@ -287,7 +316,7 @@ const ReportStudentAnswer = ({
     return (
       <Tooltip
         title={
-          <Space direction='vertical' size={2}>
+          <Space vertical size={2}>
             <Text style={{ color: "#fff" }}>{detail || "-"}</Text>
             <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: 12 }}>
               {statusMeta.label} - Skor {cell?.score ?? 0}
@@ -340,7 +369,7 @@ const ReportStudentAnswer = ({
       {
         title: "Siswa",
         key: "student",
-        width: 280,
+        width: 200,
         fixed: isMobile ? undefined : "left",
         render: (_, record) => {
           if (record.row_type === "key") {
@@ -348,14 +377,24 @@ const ReportStudentAnswer = ({
           }
 
           return (
-            <Space direction='vertical' size={0} style={{ minWidth: 0 }}>
-              <Text strong ellipsis style={{ maxWidth: 240 }}>
-                {record.name || "-"}
-              </Text>
-              <Text type='secondary' style={{ fontSize: 12 }}>
-                {record.nis || "-"} - {record.class_name || "-"}
-              </Text>
-            </Space>
+            <Flex justify='space-between' align='center' gap={10}>
+              <Space vertical size={0} style={{ minWidth: 0 }}>
+                <Text
+                  strong
+                  ellipsis
+                  style={{ ...clickableNameStyle, maxWidth: 210 }}
+                  onClick={() => handleOpenStudentAnswers(record)}
+                >
+                  {record.name || "-"}{" "}
+                  <span>
+                    <MoveUpRight size={10} />
+                  </span>
+                </Text>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  {record.nis || "-"} - {record.class_name || "-"}
+                </Text>
+              </Space>
+            </Flex>
           );
         },
       },
@@ -742,7 +781,7 @@ const ReportStudentAnswer = ({
         }}
         styles={{ body: { padding: isMobile ? 16 : 20 } }}
       >
-        <Space direction='vertical' size={18} style={{ width: "100%" }}>
+        <Space vertical size={18} style={{ width: "100%" }}>
           <Flex
             justify='space-between'
             align={isMobile ? "stretch" : "center"}
@@ -750,7 +789,7 @@ const ReportStudentAnswer = ({
             gap={12}
             style={{ flexDirection: isMobile ? "column" : "row" }}
           >
-            <Space direction='vertical' size={4} style={{ minWidth: 0 }}>
+            <Space vertical size={4} style={{ minWidth: 0 }}>
               <Text type='secondary'>Analisis Jawaban</Text>
               <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
                 Laporan Jawaban Siswa
@@ -791,7 +830,7 @@ const ReportStudentAnswer = ({
                 styles={{ body: { padding: 16 } }}
               >
                 <Flex align='center' justify='space-between' gap={12}>
-                  <Space direction='vertical' size={4}>
+                  <Space vertical size={4}>
                     <Text type='secondary'>{item.label}</Text>
                     <Title level={4} style={{ margin: 0, color: item.color }}>
                       {item.value}

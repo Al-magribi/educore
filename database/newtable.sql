@@ -5,34 +5,7 @@
 
 SET search_path TO public, public;
 
--- ================================================================
--- SECTION 1: MASTER WILAYAH (Diambil dari newtable db_*)
--- Penting untuk biodata siswa
--- ================================================================
 
-CREATE TABLE db_province (
-    id char(2) PRIMARY KEY,
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_city (
-    id char(4) PRIMARY KEY,
-    province_id char(2) REFERENCES db_province(id),
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_district (
-    id char(7) PRIMARY KEY,
-    city_id char(4) REFERENCES db_city(id),
-    name varchar(255) NOT NULL
-);
-
-CREATE TABLE db_village (
-    id char(20) PRIMARY KEY,
-    district_id char(7) REFERENCES db_district(id),
-    name varchar(255) NOT NULL,
-    postal_code varchar(10)
-);
 
 -- ================================================================
 -- SECTION 2: USER MANAGEMENT (GABUNGAN u_users & db_student)
@@ -74,58 +47,7 @@ CREATE TABLE u_teachers (
     is_homeroom boolean DEFAULT false -- Wali kelas
 );
 
--- PROFIL SISWA (Digabung dengan db_student dari newtable agar terpusat)
-CREATE TABLE u_students (
-    user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
-    nis text,
-    nisn text,
-    homebase_id integer,
-    current_class_id integer, 
-    current_periode_id integer,
-    birth_place text,
-    birth_date date,
-    height text,
-    weight text,
-    head_circumference text,
-    order_number integer, -- anak ke berapa
-    siblings_count integer,
-    address text,
-    province_id char(2) REFERENCES db_province(id),
-    city_id char(4) REFERENCES db_city(id),
-    district_id char(7) REFERENCES db_district(id),
-    village_id char(20) REFERENCES db_village(id),
-    postal_code text
-);
 
--- DATA KELUARGA SISWA (Dari db_family & db_student parents info)
-CREATE TABLE u_student_families (
-    id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students(user_id) ON DELETE CASCADE,
-    father_nik varchar(50),
-    father_name varchar(255),
-    father_birth_place varchar(255),
-    father_birth_date date,
-    father_job text,
-    father_phone text,
-    mother_nik varchar(50),
-    mother_name varchar(255),
-    mother_birth_place varchar(255),
-    mother_birth_date date,
-    mother_job text,
-    mother_phone text,
-    guardian_name varchar(255),
-    guardian_phone text
-);
-
--- Membuat tabel khusus untuk saudara kandung
-CREATE TABLE u_student_siblings (
-    id SERIAL PRIMARY KEY,
-    student_id integer REFERENCES u_students ON DELETE CASCADE,
-    name text NOT NULL,
-    gender varchar(20),
-    birth_date date,
-    created_at timestamp DEFAULT CURRENT_TIMESTAMP
-);
 
 -- AKUN ORANG TUA (Login khusus ortu)
 CREATE TABLE u_parents (
@@ -670,6 +592,8 @@ CREATE TABLE ai_usage_log (
       CHECK (request_type IN ('text', 'audio')),
     mode varchar(20)
       CHECK (mode IN ('live', 'ai') OR mode IS NULL),
+    request_id varchar(100),
+    job_id bigint,
     reference_table varchar(100),
     reference_id bigint,
     audio_url text,
@@ -679,10 +603,29 @@ CREATE TABLE ai_usage_log (
       CHECK (input_units IS NULL OR input_units >= 0),
     output_units integer
       CHECK (output_units IS NULL OR output_units >= 0),
+    input_tokens integer
+      CHECK (input_tokens IS NULL OR input_tokens >= 0),
+    output_tokens integer
+      CHECK (output_tokens IS NULL OR output_tokens >= 0),
+    total_tokens integer
+      CHECK (total_tokens IS NULL OR total_tokens >= 0),
+    unit_price_input numeric(12,8)
+      CHECK (unit_price_input IS NULL OR unit_price_input >= 0),
+    unit_price_output numeric(12,8)
+      CHECK (unit_price_output IS NULL OR unit_price_output >= 0),
+    cost_input_usd numeric(12,6)
+      CHECK (cost_input_usd IS NULL OR cost_input_usd >= 0),
+    cost_output_usd numeric(12,6)
+      CHECK (cost_output_usd IS NULL OR cost_output_usd >= 0),
+    total_cost_usd numeric(12,6)
+      CHECK (total_cost_usd IS NULL OR total_cost_usd >= 0),
+    currency varchar(10) DEFAULT 'USD',
+    is_estimated boolean DEFAULT false,
     transcript_text text,
     response_text text,
     estimated_cost_usd numeric(12,6)
       CHECK (estimated_cost_usd IS NULL OR estimated_cost_usd >= 0),
+    usage_payload jsonb DEFAULT '{}'::jsonb,
     status varchar(20) NOT NULL DEFAULT 'pending'
       CHECK (status IN ('pending', 'processing', 'success', 'failed')),
     error_message text,
@@ -695,3 +638,9 @@ ON ai_usage_log(teacher_id, feature_code, created_at DESC);
 
 CREATE INDEX idx_ai_usage_log_status
 ON ai_usage_log(status, created_at DESC);
+
+CREATE INDEX idx_ai_usage_log_job
+ON ai_usage_log(job_id, created_at DESC);
+
+CREATE INDEX idx_ai_usage_log_request
+ON ai_usage_log(request_id);

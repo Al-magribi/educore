@@ -15,7 +15,6 @@ import {
 import { motion } from "framer-motion";
 import {
   CheckCircle2,
-  Eye,
   Globe,
   Monitor,
   RefreshCcw,
@@ -24,7 +23,6 @@ import {
   UserCheck,
   UserX,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
 import {
   useAllowExamStudentMutation,
   useFinishExamStudentMutation,
@@ -56,9 +54,6 @@ const AttendanceTable = ({
     useRepeatExamStudentMutation();
   const [finishExamStudent, { isLoading: finishLoading }] =
     useFinishExamStudentMutation();
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const examName = searchParams.get("exam_name");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [classFilter, setClassFilter] = useState("all");
@@ -110,23 +105,10 @@ const AttendanceTable = ({
   };
 
   const getActionDisabled = (status) => ({
-    jawaban: status === "belum_masuk",
     izinkan: status !== "mengerjakan" && status !== "pelanggaran",
     ulangi: status !== "selesai",
     selesaikan: status === "belum_masuk",
   });
-
-  const handleAnswers = (student) => {
-    setSearchParams({
-      view: "student_answers",
-      exam_id: examId,
-      exam_name: examName,
-      student_name: (student.name || "").replaceAll(" ", "-"),
-      student_id: student.id,
-      student_class: (student.className || "").replaceAll(" ", "-"),
-      student_nis: student.nis || "",
-    });
-  };
 
   const confirmAllow = (student) => {
     Modal.confirm({
@@ -217,8 +199,7 @@ const AttendanceTable = ({
         color: "#475569",
       },
     };
-    const tone =
-      statusToneMap[normalizedStatus] || statusToneMap.belum_masuk;
+    const tone = statusToneMap[normalizedStatus] || statusToneMap.belum_masuk;
 
     return (
       <MotionDiv
@@ -264,17 +245,20 @@ const AttendanceTable = ({
                     fontWeight: 700,
                   }}
                 >
-                  {String(item.name || "?").trim().charAt(0).toUpperCase() || "?"}
+                  {String(item.name || "?")
+                    .trim()
+                    .charAt(0)
+                    .toUpperCase() || "?"}
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <Text strong style={{ fontSize: 15, display: "block" }}>
                     {item.name}
                   </Text>
-                  <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
-                    {item.className || "-"}
-                  </Text>
-                  <Tag
+                  <Text
+                    type='secondary'
                     style={{
+                      fontSize: 12,
+                      display: "block",
                       margin: "8px 0 0",
                       borderRadius: 999,
                       background: tone.background,
@@ -283,8 +267,8 @@ const AttendanceTable = ({
                       fontWeight: 700,
                     }}
                   >
-                    NIS {item.nis}
-                  </Tag>
+                    {item.className || "-"} | NIS {item.nis}
+                  </Text>
                 </div>
               </Space>
             </Flex>
@@ -292,7 +276,9 @@ const AttendanceTable = ({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(2, minmax(0, 1fr))",
                 gap: 10,
               }}
             >
@@ -345,16 +331,6 @@ const AttendanceTable = ({
               gap={8}
               style={{ flexDirection: isMobile ? "column" : "row" }}
             >
-              <Button
-                size='small'
-                type='primary'
-                icon={<Eye size={14} />}
-                disabled={disabled.jawaban}
-                onClick={() => handleAnswers(item)}
-                block={isMobile}
-              >
-                Jawaban
-              </Button>
               <Button
                 size='small'
                 icon={<UserCheck size={14} />}

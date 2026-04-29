@@ -93,6 +93,43 @@ export const ApiExam = createApi({
       }),
       invalidatesTags: ["Exam"],
     }),
+    saveExamStudentRubricScore: builder.mutation({
+      query: ({
+        exam_id,
+        student_id,
+        question_id,
+        rubric_id,
+        score,
+        feedback,
+        source = "manual",
+      }) => ({
+        url: `/exam-attendance/${exam_id}/student/${student_id}/answers/${question_id}/rubric/${rubric_id}`,
+        method: "PUT",
+        body: { score, feedback, source },
+      }),
+      invalidatesTags: ["Exam"],
+    }),
+    finalizeExamStudentAnswerReview: builder.mutation({
+      query: ({ exam_id, student_id, question_id }) => ({
+        url: `/exam-attendance/${exam_id}/student/${student_id}/answers/${question_id}/finalize`,
+        method: "PUT",
+      }),
+      invalidatesTags: ["Exam"],
+    }),
+    startExamAiGradingJob: builder.mutation({
+      query: ({ exam_id }) => ({
+        url: `/exam-attendance/${exam_id}/ai-grading/start`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Exam"],
+    }),
+    getExamAiGradingLatestJob: builder.query({
+      query: ({ exam_id }) => ({
+        url: `/exam-attendance/${exam_id}/ai-grading/latest`,
+        method: "GET",
+      }),
+      providesTags: ["Exam"],
+    }),
     getStudentExamAnswers: builder.query({
       query: ({ exam_id }) => `/student-exams/${exam_id}/answers`,
       providesTags: ["Exam"],
@@ -171,6 +208,10 @@ export const {
   useGetExamStudentAnswerReportQuery,
   useGetExamStudentAnswersQuery,
   useSaveExamStudentScoreMutation,
+  useSaveExamStudentRubricScoreMutation,
+  useFinalizeExamStudentAnswerReviewMutation,
+  useStartExamAiGradingJobMutation,
+  useGetExamAiGradingLatestJobQuery,
   useGetStudentExamAnswersQuery,
   useSaveStudentExamAnswerMutation,
   useEnterStudentExamMutation,

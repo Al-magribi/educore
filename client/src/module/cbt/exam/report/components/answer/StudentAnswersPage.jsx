@@ -6,28 +6,31 @@ import {
   Empty,
   Flex,
   Grid,
+  Input,
   InputNumber,
+  message,
   Space,
   Tag,
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft,
   CheckCircle2,
-  ClipboardList,
-  Download,
   FileText,
-  Sparkles,
   XCircle,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import {
   useGetExamStudentAnswersQuery,
+  useFinalizeExamStudentAnswerReviewMutation,
+  useSaveExamStudentRubricScoreMutation,
   useSaveExamStudentScoreMutation,
-} from "../../../../../service/cbt/ApiExam";
+} from "../../../../../../service/cbt/ApiExam";
+import StudentAnswersHero from "./StudentAnswersHero";
+import StudentAnswersManualAction from "./StudentAnswersManualAction";
+import StudentAnswersMetrics from "./StudentAnswersMetrics";
 
-const { Text, Title, Paragraph } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -39,6 +42,8 @@ const TYPE_LABELS = {
   true_false: "Benar / Salah",
   match: "Mencocokkan",
 };
+
+const MANUAL_REVIEW_TYPES = new Set(["essay", "short", "match"]);
 
 const createMarkup = (value) => ({
   __html: typeof value === "string" ? value : "",
@@ -113,6 +118,19 @@ const TypeTag = ({ type }) => (
 
 const normalizeDisplayValue = (value) =>
   normalizeTagValue(typeof value === "string" ? value : String(value ?? ""));
+
+const getMatchAutoScore = (item) => {
+  if (!item || normalizeAnswerType(item) !== "match") return null;
+  const matches = Array.isArray(item.matches) ? item.matches : [];
+  const totalPairs = Array.isArray(item.correctMatches)
+    ? item.correctMatches.length
+    : matches.length;
+  const maxPoints = Number(item.maxPoints || 0);
+  if (totalPairs < 1 || maxPoints <= 0) return 0;
+  const correctCount = matches.filter((pair) => pair?.correct).length;
+  const rawScore = (correctCount / totalPairs) * maxPoints;
+  return Number(rawScore.toFixed(2));
+};
 
 const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
   const isCorrect = item.correct === true;
@@ -255,8 +273,16 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
     </Space>
   );
 
+  const rubricSaveState = item.rubricSavingState;
+  const rubricRows = Array.isArray(item.rubric) ? item.rubric : [];
+  const useRubricScoring = normalizedType === "essay" && rubricRows.length > 0;
+  const reviewStatus = item.reviewStatus || "pending";
+  const isFinalized = reviewStatus === "finalized";
+
   const scoreControls =
-    normalizedType === "essay" || normalizedType === "match" ? (
+    normalizedType === "short" ||
+    normalizedType === "match" ||
+    (normalizedType === "essay" && !useRubricScoring) ? (
       <Flex
         align={isMobile ? "stretch" : "center"}
         gap={8}
@@ -269,6 +295,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
           max={maxAllow}
           value={item.points}
           onChange={(value) => onPointChange(item.id, value)}
+          disabled={isFinalized}
           style={{ width: isMobile ? "100%" : 120 }}
         />
         <Tag color='gold' style={{ borderRadius: 999, margin: 0 }}>
@@ -299,6 +326,18 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
           <Tag color='gold' style={{ borderRadius: 999, margin: 0 }}>
             Poin: {item.maxPoints}
           </Tag>
+          {(normalizedType === "match" ||
+            normalizedType === "short" ||
+            normalizedType === "essay") && (
+            <Tag color='blue' style={{ borderRadius: 999, margin: 0 }}>
+              Nilai saat ini: {Number(item.points || 0)}/{item.maxPoints}
+            </Tag>
+          )}
+          {item.status === "pending_review" && (
+            <Tag color='gold' style={{ borderRadius: 999, margin: 0 }}>
+              Pending Review
+            </Tag>
+          )}
           {typeof item.correct === "boolean" ? (
             <Tag
               color={isCorrect ? "green" : "red"}
@@ -354,6 +393,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
             {renderStudentTextAnswer(item.answer || "-")}
           </div>
           {renderAnswerSummary("Jawaban Benar", correctValues, "blue")}
+          {scoreControls}
         </Space>
       )}
 
@@ -363,12 +403,146 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
           <Card size='small' style={{ background: "#fafafa" }}>
             {renderHtmlBlock(item.answer || "-")}
           </Card>
+          {rubricRows.length > 0 ? (
+            <Card
+              size='small'
+              style={{ background: "#f8fafc", borderRadius: 14 }}
+            >
+              <Space vertical size={10} style={{ width: "100%" }}>
+                <Flex
+                  justify='space-between'
+                  align='center'
+                  wrap='wrap'
+                  gap={8}
+                >
+                  <Text strong>Rubric Penilaian</Text>
+                  <Space size={6} wrap>
+                    <Tag color='blue' style={{ borderRadius: 999, margin: 0 }}>
+                      Total:{" "}
+                      {rubricRows.reduce(
+                        (sum, rubricItem) =>
+                          sum + Number(rubricItem.score || 0),
+                        0,
+                      )}
+                      /{item.maxPoints}
+                    </Tag>
+                    <Tag
+                      color={
+                        reviewStatus === "finalized"
+                          ? "green"
+                          : reviewStatus === "reviewed"
+                            ? "gold"
+                            : "default"
+                      }
+                      style={{ borderRadius: 999, margin: 0 }}
+                    >
+                      {reviewStatus === "finalized"
+                        ? "Finalized"
+                        : reviewStatus === "reviewed"
+                          ? "Reviewed"
+                          : "Pending"}
+                    </Tag>
+                  </Space>
+                </Flex>
+                {rubricRows.map((rubricItem) => (
+                  <div key={rubricItem.id}>
+                    <Flex
+                      justify='space-between'
+                      align={isMobile ? "stretch" : "center"}
+                      gap={10}
+                      wrap='wrap'
+                      style={{ flexDirection: isMobile ? "column" : "row" }}
+                    >
+                      <Space
+                        direction='vertical'
+                        size={2}
+                        style={{ minWidth: 0, flex: 1 }}
+                      >
+                        <Text strong>{rubricItem.criteriaName || "-"}</Text>
+                        {rubricItem.criteriaDescription ? (
+                          <Text type='secondary' style={{ fontSize: 12 }}>
+                            {rubricItem.criteriaDescription}
+                          </Text>
+                        ) : null}
+                      </Space>
+                      <Space align='center' size={8}>
+                        <InputNumber
+                          min={0}
+                          max={Number(rubricItem.maxScore || 0)}
+                          value={rubricItem.score}
+                          disabled={isFinalized}
+                          onChange={(value) =>
+                            item.onRubricPointChange?.(
+                              item.id,
+                              rubricItem.id,
+                              value,
+                            )
+                          }
+                          style={{ width: isMobile ? "100%" : 120 }}
+                        />
+                        <Tag
+                          color='blue'
+                          style={{ borderRadius: 999, margin: 0 }}
+                        >
+                          Maks {rubricItem.maxScore}
+                        </Tag>
+                      </Space>
+                    </Flex>
+                    <Input.TextArea
+                      rows={2}
+                      value={rubricItem.feedback || ""}
+                      placeholder='Feedback per aspek rubric'
+                      disabled={isFinalized}
+                      onChange={(event) =>
+                        item.onRubricFeedbackChange?.(
+                          item.id,
+                          rubricItem.id,
+                          event.target.value,
+                        )
+                      }
+                      onBlur={() =>
+                        item.onRubricFeedbackBlur?.(item.id, rubricItem.id)
+                      }
+                      style={{ marginTop: 8 }}
+                    />
+                  </div>
+                ))}
+                {rubricSaveState === "saving" && (
+                  <Tag color='gold'>Menyimpan rubric...</Tag>
+                )}
+                {rubricSaveState === "saved" && (
+                  <Tag color='green'>Rubric tersimpan</Tag>
+                )}
+                {rubricSaveState === "error" && (
+                  <Tag color='red'>Gagal simpan rubric</Tag>
+                )}
+                <Flex justify='flex-end'>
+                  <Button
+                    type='primary'
+                    disabled={isFinalized}
+                    loading={item.finalizeState === "saving"}
+                    onClick={() => item.onFinalizeReview?.(item.id)}
+                  >
+                    {isFinalized ? "Sudah Final" : "Finalisasi Koreksi"}
+                  </Button>
+                </Flex>
+              </Space>
+            </Card>
+          ) : null}
           {scoreControls}
         </Space>
       )}
 
       {normalizedType === "match" && (
         <Space vertical size={12} style={{ width: "100%" }}>
+          <Space wrap size={6}>
+            <Tag color='cyan' style={{ borderRadius: 999, margin: 0 }}>
+              Auto: {item.matchAutoCorrectCount || 0}/{item.matchAutoTotalCount || 0} benar
+            </Tag>
+            <Tag color='blue' style={{ borderRadius: 999, margin: 0 }}>
+              Saran poin: {item.matchAutoScore ?? 0}
+            </Tag>
+          </Space>
           <div style={{ width: "100%" }}>
             <Text type='secondary'>Jawaban Siswa</Text>
             <Space vertical size={6} style={{ marginTop: 6, width: "100%" }}>
@@ -435,7 +609,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
   );
 };
 
-const StudentAnswers = () => {
+const StudentAnswersPage = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -451,16 +625,27 @@ const StudentAnswers = () => {
     " ",
   );
   const studentNis = searchParams.get("student_nis") || "-";
+  const manualOnly = searchParams.get("manual_only") === "1";
+  const returnTab = searchParams.get("return_tab") || "manual-review";
 
   const { data: answerResponse = {} } = useGetExamStudentAnswersQuery(
     { exam_id: examId, student_id: studentId },
     { skip: !examId || !studentId },
   );
   const [saveScore] = useSaveExamStudentScoreMutation();
+  const [saveRubricScore] = useSaveExamStudentRubricScoreMutation();
+  const [finalizeReview] = useFinalizeExamStudentAnswerReviewMutation();
   const scoreTimersRef = useRef({});
+  const rubricTimersRef = useRef({});
+  const autoMatchScoredRef = useRef({});
 
   const [manualPoints, setManualPoints] = useState({});
   const [saveStates, setSaveStates] = useState({});
+  const [rubricPoints, setRubricPoints] = useState({});
+  const [rubricFeedbacks, setRubricFeedbacks] = useState({});
+  const [rubricSaveStates, setRubricSaveStates] = useState({});
+  const [finalizeStates, setFinalizeStates] = useState({});
+  const [isFinalizingAll, setIsFinalizingAll] = useState(false);
   const fetchedAnswers = useMemo(
     () => answerResponse?.data || [],
     [answerResponse],
@@ -473,20 +658,75 @@ const StudentAnswers = () => {
   const localAnswers = useMemo(
     () =>
       (fetchedAnswers || []).map((item) => {
+        const rubricKeyPrefix = `${item.id}:`;
+        const rubricDraft = Array.isArray(item.rubric)
+          ? item.rubric.map((rubricItem) => {
+              const localKey = `${rubricKeyPrefix}${rubricItem.id}`;
+              const localScore = Object.prototype.hasOwnProperty.call(
+                rubricPoints,
+                localKey,
+              )
+                ? rubricPoints[localKey]
+                : rubricItem.score;
+              const localFeedback = Object.prototype.hasOwnProperty.call(
+                rubricFeedbacks,
+                localKey,
+              )
+                ? rubricFeedbacks[localKey]
+                : rubricItem.feedback;
+
+              return {
+                ...rubricItem,
+                score: Number(localScore || 0),
+                feedback: String(localFeedback || ""),
+              };
+            })
+          : [];
+
         const normalized = {
           ...item,
           type: normalizeAnswerType(item),
+          rubric: rubricDraft,
+          rubricSavingState: rubricSaveStates[item.id],
+          finalizeState: finalizeStates[item.id],
         };
+        if (normalized.type === "match") {
+          const matches = Array.isArray(normalized.matches) ? normalized.matches : [];
+          normalized.matchAutoCorrectCount = matches.filter((pair) => pair?.correct).length;
+          normalized.matchAutoTotalCount = Array.isArray(normalized.correctMatches)
+            ? normalized.correctMatches.length
+            : matches.length;
+          normalized.matchAutoScore = getMatchAutoScore(normalized);
+        }
         if (Object.prototype.hasOwnProperty.call(manualPoints, item.id)) {
           return { ...normalized, points: manualPoints[item.id] };
         }
         return normalized;
       }),
-    [fetchedAnswers, manualPoints],
+    [
+      fetchedAnswers,
+      manualPoints,
+      rubricPoints,
+      rubricFeedbacks,
+      rubricSaveStates,
+      finalizeStates,
+    ],
   );
 
+  const visibleAnswers = useMemo(() => {
+    if (!manualOnly) return localAnswers;
+
+    return localAnswers.filter(
+      (item) =>
+        MANUAL_REVIEW_TYPES.has(item.type) &&
+        (item.status === "pending_review" ||
+          item.type === "essay" ||
+          item.type === "match"),
+    );
+  }, [localAnswers, manualOnly]);
+
   const totalScore = useMemo(() => {
-    const total = localAnswers.reduce((acc, item) => {
+    const total = visibleAnswers.reduce((acc, item) => {
       if (
         item.type === "short" ||
         item.type === "essay" ||
@@ -504,7 +744,7 @@ const StudentAnswers = () => {
       return acc;
     }, 0);
     return Math.min(total, 100);
-  }, [localAnswers]);
+  }, [visibleAnswers]);
 
   const updatePoints = (id, value) => {
     const safeValue = Number.isFinite(value) ? value : 0;
@@ -530,8 +770,117 @@ const StudentAnswers = () => {
     }, 400);
   };
 
+  const updateRubricPoint = (questionId, rubricId, value) => {
+    const safeValue = Number.isFinite(value) ? value : 0;
+    const question = localAnswers.find((item) => item.id === questionId);
+    if (question?.reviewStatus === "finalized") return;
+    const rubricItem = (question?.rubric || []).find(
+      (item) => item.id === rubricId,
+    );
+    const cappedValue = Math.max(
+      0,
+      Math.min(safeValue, Number(rubricItem?.maxScore || safeValue)),
+    );
+
+    const localKey = `${questionId}:${rubricId}`;
+    setRubricPoints((prev) => ({ ...prev, [localKey]: cappedValue }));
+
+    if (!examId || !studentId) return;
+    if (rubricTimersRef.current[localKey])
+      clearTimeout(rubricTimersRef.current[localKey]);
+
+    rubricTimersRef.current[localKey] = setTimeout(() => {
+      setRubricSaveStates((prev) => ({ ...prev, [questionId]: "saving" }));
+      saveRubricScore({
+        exam_id: examId,
+        student_id: studentId,
+        question_id: questionId,
+        rubric_id: rubricId,
+        score: cappedValue,
+        feedback: rubricFeedbacks[localKey] || "",
+        source: "manual",
+      })
+        .unwrap()
+        .then((response) => {
+          setRubricSaveStates((prev) => ({ ...prev, [questionId]: "saved" }));
+          const savedTotal = Number(response?.data?.total_score);
+          if (Number.isFinite(savedTotal)) {
+            setManualPoints((prev) => ({ ...prev, [questionId]: savedTotal }));
+          }
+        })
+        .catch(() =>
+          setRubricSaveStates((prev) => ({ ...prev, [questionId]: "error" })),
+        );
+    }, 450);
+  };
+
+  const updateRubricFeedback = (questionId, rubricId, value) => {
+    const localKey = `${questionId}:${rubricId}`;
+    setRubricFeedbacks((prev) => ({ ...prev, [localKey]: value }));
+  };
+
+  const saveRubricFeedbackOnBlur = (questionId, rubricId) => {
+    const localKey = `${questionId}:${rubricId}`;
+    const question = localAnswers.find((item) => item.id === questionId);
+    if (!question) return;
+    if (question.reviewStatus === "finalized") return;
+
+    const rubricItem = (question.rubric || []).find(
+      (item) => item.id === rubricId,
+    );
+    if (!rubricItem) return;
+    const score = Number(rubricItem.score || 0);
+    const feedback = rubricFeedbacks[localKey] || "";
+
+    setRubricSaveStates((prev) => ({ ...prev, [questionId]: "saving" }));
+    saveRubricScore({
+      exam_id: examId,
+      student_id: studentId,
+      question_id: questionId,
+      rubric_id: rubricId,
+      score,
+      feedback,
+      source: "manual",
+    })
+      .unwrap()
+      .then((response) => {
+        setRubricSaveStates((prev) => ({ ...prev, [questionId]: "saved" }));
+        const savedTotal = Number(response?.data?.total_score);
+        if (Number.isFinite(savedTotal)) {
+          setManualPoints((prev) => ({ ...prev, [questionId]: savedTotal }));
+        }
+      })
+      .catch(() =>
+        setRubricSaveStates((prev) => ({ ...prev, [questionId]: "error" })),
+      );
+  };
+
+  const handleFinalizeReview = (questionId) => {
+    if (!examId || !studentId) return;
+
+    setFinalizeStates((prev) => ({ ...prev, [questionId]: "saving" }));
+    finalizeReview({
+      exam_id: examId,
+      student_id: studentId,
+      question_id: questionId,
+    })
+      .unwrap()
+      .then((response) => {
+        setFinalizeStates((prev) => ({ ...prev, [questionId]: "saved" }));
+        const savedTotal = Number(response?.data?.total_score);
+        if (Number.isFinite(savedTotal)) {
+          setManualPoints((prev) => ({ ...prev, [questionId]: savedTotal }));
+        }
+        message.success("Koreksi berhasil difinalisasi");
+      })
+      .catch((error) => {
+        setFinalizeStates((prev) => ({ ...prev, [questionId]: "error" }));
+        message.error(error?.data?.message || "Gagal finalisasi koreksi");
+      });
+  };
+
   const getRemainingCap = (targetId, maxPoints) => {
-    const totalWithout = localAnswers.reduce((acc, item) => {
+    const totalWithout = visibleAnswers.reduce((acc, item) => {
       if (item.id === targetId) return acc;
       if (
         item.type === "short" ||
@@ -547,18 +896,47 @@ const StudentAnswers = () => {
 
   const grouped = useMemo(() => {
     const map = {};
-    localAnswers.forEach((item) => {
+    visibleAnswers.forEach((item) => {
       if (!map[item.type]) map[item.type] = [];
       map[item.type].push(item);
     });
     return map;
-  }, [localAnswers]);
+  }, [visibleAnswers]);
 
   const sections = Object.entries(grouped).map(([type, items]) => ({
     type,
     items,
   }));
-  const totalQuestions = paginationMeta.totalItems || localAnswers.length;
+  const essayAnswers = useMemo(
+    () => visibleAnswers.filter((item) => item.type === "essay"),
+    [visibleAnswers],
+  );
+  const reviewSummary = useMemo(
+    () =>
+      essayAnswers.reduce(
+        (acc, item) => {
+          const status = item.reviewStatus || "pending";
+          if (status === "finalized") acc.finalized += 1;
+          else if (status === "reviewed") acc.reviewed += 1;
+          else acc.pending += 1;
+          return acc;
+        },
+        { pending: 0, reviewed: 0, finalized: 0 },
+      ),
+    [essayAnswers],
+  );
+  const finalizeableEssayIds = useMemo(
+    () =>
+      essayAnswers
+        .filter(
+          (item) =>
+            (item.reviewStatus || "pending") !== "finalized" &&
+            item.finalizeState !== "saving",
+        )
+        .map((item) => item.id),
+    [essayAnswers],
+  );
+  const totalQuestions = visibleAnswers.length;
   const displayedScore = useMemo(() => {
     if (
       paginationMeta.totalScore === undefined ||
@@ -590,9 +968,45 @@ const StudentAnswers = () => {
     );
   }, [fetchedAnswers, localAnswers, paginationMeta.totalScore, totalScore]);
 
+  useEffect(() => {
+    const matchAnswers = localAnswers.filter((item) => item.type === "match");
+    if (matchAnswers.length < 1 || !examId || !studentId) return;
+
+    matchAnswers.forEach((item) => {
+      if (autoMatchScoredRef.current[item.id]) return;
+      if (Object.prototype.hasOwnProperty.call(manualPoints, item.id)) {
+        autoMatchScoredRef.current[item.id] = true;
+        return;
+      }
+
+      const suggestedScore = Number(item.matchAutoScore || 0);
+      const currentScore = Number(item.points || 0);
+      const hasAnswer = (item.matchAutoTotalCount || 0) > 0;
+      if (!hasAnswer) return;
+
+      autoMatchScoredRef.current[item.id] = true;
+      if (Math.abs(currentScore - suggestedScore) < 0.01) return;
+
+      setManualPoints((prev) => ({ ...prev, [item.id]: suggestedScore }));
+      setSaveStates((prev) => ({ ...prev, [item.id]: "saving" }));
+      saveScore({
+        exam_id: examId,
+        student_id: studentId,
+        question_id: item.id,
+        score: suggestedScore,
+      })
+        .unwrap()
+        .then(() => setSaveStates((prev) => ({ ...prev, [item.id]: "saved" })))
+        .catch(() => setSaveStates((prev) => ({ ...prev, [item.id]: "error" })));
+    });
+  }, [examId, studentId, localAnswers, manualPoints, saveScore]);
+
   useEffect(
     () => () => {
       Object.values(scoreTimersRef.current).forEach((timerId) =>
+        clearTimeout(timerId),
+      );
+      Object.values(rubricTimersRef.current).forEach((timerId) =>
         clearTimeout(timerId),
       );
     },
@@ -604,6 +1018,7 @@ const StudentAnswers = () => {
       view: "report",
       exam_id: examId,
       exam_name: examName,
+      active_tab: returnTab,
     });
   };
 
@@ -663,164 +1078,82 @@ const StudentAnswers = () => {
     win.print();
   };
 
+  const handleFinalizeAllEssay = async () => {
+    if (!examId || !studentId || finalizeableEssayIds.length < 1) return;
+
+    setIsFinalizingAll(true);
+    setFinalizeStates((prev) =>
+      finalizeableEssayIds.reduce((acc, id) => ({ ...acc, [id]: "saving" }), {
+        ...prev,
+      }),
+    );
+
+    const results = await Promise.allSettled(
+      finalizeableEssayIds.map((questionId) =>
+        finalizeReview({
+          exam_id: examId,
+          student_id: studentId,
+          question_id: questionId,
+        }).unwrap(),
+      ),
+    );
+
+    const successCount = results.filter(
+      (result) => result.status === "fulfilled",
+    ).length;
+    const errorCount = results.length - successCount;
+
+    const updates = {};
+    results.forEach((result, index) => {
+      const questionId = finalizeableEssayIds[index];
+      updates[questionId] = result.status === "fulfilled" ? "saved" : "error";
+      if (result.status === "fulfilled") {
+        const savedTotal = Number(result.value?.data?.total_score);
+        if (Number.isFinite(savedTotal)) {
+          setManualPoints((prev) => ({ ...prev, [questionId]: savedTotal }));
+        }
+      }
+    });
+    setFinalizeStates((prev) => ({ ...prev, ...updates }));
+    setIsFinalizingAll(false);
+
+    if (successCount > 0) {
+      message.success(`${successCount} soal uraian berhasil difinalisasi`);
+    }
+    if (errorCount > 0) {
+      message.error(`${errorCount} soal uraian gagal difinalisasi`);
+    }
+  };
+
   return (
     <MotionDiv
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       style={{ display: "flex", flexDirection: "column", gap: 18 }}
     >
-      <Card
-        bordered={false}
-        style={{
-          borderRadius: 28,
-          overflow: "hidden",
-          background:
-            "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)",
-          boxShadow: "0 24px 52px rgba(15, 23, 42, 0.18)",
-        }}
-        styles={{ body: { padding: isMobile ? 20 : 28 } }}
-      >
-        <Flex
-          align={isMobile ? "stretch" : "flex-start"}
-          justify='space-between'
-          gap={18}
-          wrap='wrap'
-          style={{ flexDirection: isMobile ? "column" : "row" }}
-        >
-          <Space vertical size={12} style={{ maxWidth: 760 }}>
-            <Space wrap size={10}>
-              <Button
-                icon={<ArrowLeft size={16} />}
-                onClick={handleBack}
-                style={{
-                  borderRadius: 14,
-                  background: "rgba(255,255,255,0.12)",
-                  borderColor: "rgba(255,255,255,0.16)",
-                  color: "#fff",
-                }}
-              >
-                Kembali
-              </Button>
-              <Tag
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  borderColor: "rgba(255,255,255,0.16)",
-                }}
-                icon={<Sparkles size={12} />}
-              >
-                Review Jawaban Siswa
-              </Tag>
-            </Space>
 
-            <Space align='center' size={8}>
-              <ClipboardList size={20} color='#fff' />
-              <Title
-                level={isMobile ? 4 : 2}
-                style={{ margin: 0, color: "#fff" }}
-              >
-                Jawaban Siswa
-              </Title>
-            </Space>
+      <StudentAnswersHero
+        isMobile={isMobile}
+        studentName={studentName}
+        studentNis={studentNis}
+        studentClass={studentClass}
+        onBack={handleBack}
+        onExportPdf={handleExportPdf}
+      />
 
-            <Paragraph
-              style={{ marginBottom: 0, color: "rgba(255,255,255,0.82)" }}
-            >
-              Tinjau jawaban peserta, lakukan penilaian manual untuk soal
-              uraian, dan ekspor ringkasan jawaban ke PDF bila diperlukan.
-            </Paragraph>
-          </Space>
 
-          <Card
-            bordered={false}
-            style={{
-              width: 340,
-              maxWidth: "100%",
-              borderRadius: 24,
-              background: "rgba(255,255,255,0.14)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              backdropFilter: "blur(10px)",
-            }}
-            styles={{ body: { padding: 22 } }}
-          >
-            <Space vertical size={10} style={{ width: "100%" }}>
-              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                Peserta aktif
-              </Text>
-              <Title level={4} style={{ margin: 0, color: "#fff" }}>
-                {studentName}
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                NIS {studentNis} • {studentClass}
-              </Text>
-              <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                Total Skor: {displayedScore}/100
-              </Text>
-              <Button
-                icon={<Download size={14} />}
-                onClick={handleExportPdf}
-                block={isMobile}
-              >
-                Export PDF
-              </Button>
-            </Space>
-          </Card>
-        </Flex>
-      </Card>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
-          gap: 16,
-        }}
-      >
-        {[
-          {
-            key: "questions",
-            label: "Total Soal",
-            value: totalQuestions,
-            color: "#1d4ed8",
-          },
-          {
-            key: "sections",
-            label: "Kelompok Soal",
-            value: sections.length,
-            color: "#15803d",
-          },
-          {
-            key: "score",
-            label: "Total Skor",
-            value: `${displayedScore}/100`,
-            color: displayedScore >= 75 ? "#16a34a" : "#d97706",
-          },
-        ].map((item) => (
-          <Card
-            key={item.key}
-            bordered={false}
-            style={{
-              borderRadius: 22,
-              boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
-            }}
-            styles={{ body: { padding: 18 } }}
-          >
-            <Text type='secondary'>{item.label}</Text>
-            <Title
-              level={isMobile ? 4 : 3}
-              style={{ margin: "4px 0 0", color: item.color }}
-            >
-              {item.value}
-            </Title>
-          </Card>
-        ))}
-      </div>
+      <StudentAnswersMetrics
+        manualOnly={manualOnly}
+        totalQuestions={totalQuestions}
+        sectionsLength={sections.length}
+        displayedScore={displayedScore}
+        reviewSummary={reviewSummary}
+        essayCount={essayAnswers.length}
+      />
 
       {sections.length === 0 ? (
         <Card
-          bordered={false}
+          variant='borderless'
           style={{
             borderRadius: 24,
             boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
@@ -829,30 +1162,24 @@ const StudentAnswers = () => {
         >
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description='Belum ada jawaban.'
+            description={
+              manualOnly
+                ? "Tidak ada jawaban yang perlu koreksi manual."
+                : "Belum ada jawaban."
+            }
           />
         </Card>
       ) : (
         <Space vertical size={16} style={{ width: "100%" }}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: 20,
-              boxShadow: "0 14px 28px rgba(15, 23, 42, 0.05)",
-            }}
-            styles={{ body: { padding: isMobile ? 16 : 18 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={isMobile ? "stretch" : "center"}
-              gap={12}
-              wrap='wrap'
-              style={{ flexDirection: isMobile ? "column" : "row" }}
-            >
-              <Text type='secondary'>{totalQuestions} soal</Text>
-            </Flex>
-          </Card>
-
+          {manualOnly && essayAnswers.length > 0 ? (
+            <StudentAnswersManualAction
+              isMobile={isMobile}
+              reviewSummary={reviewSummary}
+              finalizeableEssayIds={finalizeableEssayIds}
+              isFinalizingAll={isFinalizingAll}
+              onFinalizeAllEssay={handleFinalizeAllEssay}
+            />
+          ) : null}
           {sections.map((section, index) => (
             <MotionDiv
               key={section.type}
@@ -861,7 +1188,7 @@ const StudentAnswers = () => {
               transition={{ delay: index * 0.04 }}
             >
               <Card
-                bordered={false}
+                variant='borderless'
                 style={{
                   borderRadius: 24,
                   boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
@@ -892,7 +1219,13 @@ const StudentAnswers = () => {
                   {section.items.map((item) => (
                     <AnswerCard
                       key={item.id}
-                      item={item}
+                      item={{
+                        ...item,
+                        onRubricPointChange: updateRubricPoint,
+                        onRubricFeedbackChange: updateRubricFeedback,
+                        onRubricFeedbackBlur: saveRubricFeedbackOnBlur,
+                        onFinalizeReview: handleFinalizeReview,
+                      }}
                       onPointChange={updatePoints}
                       maxAllow={getRemainingCap(item.id, item.maxPoints || 0)}
                       saveState={saveStates[item.id]}
@@ -910,4 +1243,4 @@ const StudentAnswers = () => {
   );
 };
 
-export default StudentAnswers;
+export default StudentAnswersPage;
