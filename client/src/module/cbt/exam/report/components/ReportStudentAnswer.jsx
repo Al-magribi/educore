@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -6,6 +6,7 @@ import {
   Flex,
   Grid,
   Input,
+  Pagination,
   Select,
   Space,
   Table,
@@ -105,6 +106,8 @@ const ReportStudentAnswer = ({
   const isMobile = forcedMobile || !screens.md;
   const [classFilter, setClassFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
+  const [matrixPage, setMatrixPage] = useState(1);
+  const [matrixPageSize, setMatrixPageSize] = useState(10);
 
   const {
     data: report = {},
@@ -159,6 +162,10 @@ const ReportStudentAnswer = ({
     });
   }, [classFilter, searchText, students]);
 
+  useEffect(() => {
+    setMatrixPage(1);
+  }, [classFilter, searchText]);
+
   const summary = useMemo(() => {
     if (filteredStudents.length === 0) {
       return {
@@ -195,16 +202,32 @@ const ReportStudentAnswer = ({
       name: "Kunci Jawaban",
       class_name: "",
     };
+    const startIndex = (matrixPage - 1) * matrixPageSize;
+    const paginatedStudents = filteredStudents.slice(
+      startIndex,
+      startIndex + matrixPageSize,
+    );
 
     return [
       keyRow,
-      ...filteredStudents.map((student, index) => ({
+      ...paginatedStudents.map((student, index) => ({
         ...student,
         row_type: "student",
-        no: index + 1,
+        no: startIndex + index + 1,
       })),
     ];
-  }, [filteredStudents]);
+  }, [filteredStudents, matrixPage, matrixPageSize]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredStudents.length / matrixPageSize),
+    );
+
+    if (matrixPage > totalPages) {
+      setMatrixPage(totalPages);
+    }
+  }, [filteredStudents.length, matrixPage, matrixPageSize]);
 
   const metricItems = [
     {
@@ -372,7 +395,8 @@ const ReportStudentAnswer = ({
         key: "unanswered_count",
         width: 90,
         align: "center",
-        render: (value, record) => (record.row_type === "key" ? null : value || 0),
+        render: (value, record) =>
+          record.row_type === "key" ? null : value || 0,
       },
       {
         title: "Pending",
@@ -465,7 +489,13 @@ const ReportStudentAnswer = ({
 
     const workbook = XLSX.utils.book_new();
     const preHeaders = ["No", "NIS", "Nama Siswa", "Kelas"];
-    const resultHeaders = ["Benar", "Salah", "Kosong", "Pending", "Nilai Akhir"];
+    const resultHeaders = [
+      "Benar",
+      "Salah",
+      "Kosong",
+      "Pending",
+      "Nilai Akhir",
+    ];
     const questionCount = questions.length;
     const analysisStart = preHeaders.length;
     const resultStart = analysisStart + questionCount;
@@ -553,19 +583,15 @@ const ReportStudentAnswer = ({
         question.max_points || 0,
         question.question || "-",
         question.key?.detail || question.key?.display || "-",
-        (question.options || []).map((option) => option.full || option.content).join("\n") ||
-          "-",
+        (question.options || [])
+          .map((option) => option.full || option.content)
+          .join("\n") || "-",
       ]),
     ];
-    const questionSheet = createSheetFromAoA(questionRows, [
-      5,
-      22,
-      18,
-      8,
-      60,
-      42,
-      50,
-    ]);
+    const questionSheet = createSheetFromAoA(
+      questionRows,
+      [5, 22, 18, 8, 60, 42, 50],
+    );
     XLSX.utils.book_append_sheet(workbook, questionSheet, "Daftar Soal");
 
     const detailRows = [
@@ -603,19 +629,10 @@ const ReportStudentAnswer = ({
       });
     });
 
-    const detailSheet = createSheetFromAoA(detailRows, [
-      5,
-      14,
-      30,
-      18,
-      8,
-      22,
-      60,
-      42,
-      42,
-      12,
-      8,
-    ]);
+    const detailSheet = createSheetFromAoA(
+      detailRows,
+      [5, 14, 30, 18, 8, 22, 60, 42, 42, 12, 8],
+    );
     XLSX.utils.book_append_sheet(workbook, detailSheet, "Jawaban Detail");
 
     const fileName = `${sanitizeFileName(
@@ -624,9 +641,13 @@ const ReportStudentAnswer = ({
     XLSX.writeFile(workbook, fileName);
   };
 
-  const matrixScrollX = Math.max(
-    980,
-    64 + 280 + questions.length * 120 + 480,
+  const matrixScrollX = Math.max(980, 64 + 280 + questions.length * 120 + 480);
+  const matrixStart = filteredStudents.length
+    ? (matrixPage - 1) * matrixPageSize + 1
+    : 0;
+  const matrixEnd = Math.min(
+    matrixPage * matrixPageSize,
+    filteredStudents.length,
   );
 
   const tabItems = [
@@ -651,11 +672,38 @@ const ReportStudentAnswer = ({
             pagination={false}
             size={isMobile ? "small" : "middle"}
             sticky
-            scroll={{ x: matrixScrollX, y: 520 }}
+            scroll={{ x: matrixScrollX }}
             rowClassName={(record) =>
               record.row_type === "key" ? "cbt-answer-key-row" : ""
             }
           />
+          <Flex
+            justify='space-between'
+            align={isMobile ? "stretch" : "center"}
+            gap={12}
+            wrap='wrap'
+            style={{
+              padding: isMobile ? 12 : "12px 16px",
+              borderTop: "1px solid rgba(148, 163, 184, 0.14)",
+              flexDirection: isMobile ? "column" : "row",
+            }}
+          >
+            <Text type='secondary'>
+              {matrixStart}-{matrixEnd} dari {filteredStudents.length} peserta
+            </Text>
+            <Pagination
+              current={matrixPage}
+              pageSize={matrixPageSize}
+              total={filteredStudents.length}
+              onChange={(page, pageSize) => {
+                setMatrixPage(page);
+                setMatrixPageSize(pageSize);
+              }}
+              showSizeChanger
+              pageSizeOptions={["10", "20", "50", "100"]}
+              responsive
+            />
+          </Flex>
         </div>
       ),
     },
@@ -708,7 +756,8 @@ const ReportStudentAnswer = ({
                 Laporan Jawaban Siswa
               </Title>
               <Text type='secondary'>
-                {report.exam?.subject_name || "Mapel"} - {report.exam?.grade_name || "-"}
+                {report.exam?.subject_name || "Mapel"} -{" "}
+                {report.exam?.grade_name || "-"}
               </Text>
             </Space>
             <Button
@@ -724,7 +773,9 @@ const ReportStudentAnswer = ({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(4, minmax(0, 1fr))",
               gap: 12,
             }}
           >
