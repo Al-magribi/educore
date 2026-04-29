@@ -9,7 +9,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import AttendanceTable from "./components/AttendanceTable";
-import BloomAnalysis from "./components/BloomAnalysis";
+import BloomAnalysis from "./components/bloom/BloomAnalysis";
 import ManualReviewQueue from "./components/answer/ManualReviewQueue";
 import ReportHeader from "./components/ReportHeader";
 import ReportStudentAnswer from "./components/answer/ReportStudentAnswer";
@@ -45,6 +45,35 @@ const itemVariants = {
     transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] },
   },
 };
+
+const reportTabsCss = `
+  .cbt-report-tabs .ant-tabs-nav {
+    margin-bottom: 24px;
+  }
+  .cbt-report-tabs .ant-tabs-nav::before {
+    border-bottom-color: rgba(148, 163, 184, 0.22);
+  }
+  .cbt-report-tabs .ant-tabs-tab {
+    padding: 10px 0 14px;
+    margin: 0 22px 0 0;
+  }
+  .cbt-report-tabs .ant-tabs-tab-btn {
+    color: #0f172a;
+  }
+  .cbt-report-tabs .ant-tabs-tab-active .cbt-report-tab-label {
+    color: #2563eb;
+  }
+  .cbt-report-tabs .ant-tabs-tab-active .cbt-report-tab-icon {
+    background: linear-gradient(135deg, #dbeafe, #dcfce7);
+    color: #2563eb;
+    border-color: rgba(37, 99, 235, 0.18);
+  }
+  .cbt-report-tabs .ant-tabs-ink-bar {
+    background: #2563eb;
+    height: 3px !important;
+    border-radius: 999px;
+  }
+`;
 
 const Report = ({ exam_id, exam_name, token }) => {
   const screens = useBreakpoint();
@@ -82,6 +111,12 @@ const Report = ({ exam_id, exam_name, token }) => {
       name: item.name,
       className: item.class_name,
       score: item.score ?? 0,
+      scoreSingle: item.score_single ?? 0,
+      scoreMulti: item.score_multi ?? 0,
+      scoreMatch: item.score_match ?? 0,
+      scoreTrueFalse: item.score_true_false ?? 0,
+      scoreShort: item.score_short ?? 0,
+      scoreEssay: item.score_essay ?? 0,
     }));
   }, [scoreResponse]);
 
@@ -106,8 +141,9 @@ const Report = ({ exam_id, exam_name, token }) => {
   }, [attendanceData, attendanceResponse]);
 
   const createTabLabel = (label, icon, caption) => (
-    <Flex align='center' gap={10}>
+    <Flex align='center' gap={10} className='cbt-report-tab-label'>
       <span
+        className='cbt-report-tab-icon'
         style={{
           width: 34,
           height: 34,
@@ -222,6 +258,7 @@ const Report = ({ exam_id, exam_name, token }) => {
       variants={containerVariants}
       style={{ display: "flex", flexDirection: "column", gap: 18 }}
     >
+      <style>{reportTabsCss}</style>
       <MotionDiv variants={itemVariants}>
         <ReportHeader
           examName={exam_name}
@@ -241,6 +278,7 @@ const Report = ({ exam_id, exam_name, token }) => {
           styles={{ body: { padding: isMobile ? 14 : 18 } }}
         >
           <Tabs
+            className='cbt-report-tabs'
             activeKey={activeTab}
             onChange={(key) =>
               setSearchParams({
@@ -251,8 +289,6 @@ const Report = ({ exam_id, exam_name, token }) => {
               })
             }
             size={isMobile ? "middle" : "large"}
-            tabBarGutter={12}
-            tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
             items={tabItems}
           />
         </Card>
