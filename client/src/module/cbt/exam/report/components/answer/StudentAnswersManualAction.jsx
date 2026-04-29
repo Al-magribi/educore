@@ -4,9 +4,9 @@ import { Button, Card, Flex, Space, Tag } from "antd";
 const StudentAnswersManualAction = ({
   isMobile,
   reviewSummary,
-  finalizeableEssayIds,
+  finalizeableQuestionIds,
   isFinalizingAll,
-  onFinalizeAllEssay,
+  onFinalizeAllQuestions,
 }) => (
   <Card
     variant='borderless'
@@ -36,11 +36,11 @@ const StudentAnswersManualAction = ({
       </Space>
       <Button
         type='primary'
-        disabled={finalizeableEssayIds.length < 1}
+        disabled={finalizeableQuestionIds.length < 1}
         loading={isFinalizingAll}
-        onClick={onFinalizeAllEssay}
+        onClick={onFinalizeAllQuestions}
       >
-        Finalisasi Semua Uraian
+        Finalisasi Semua Soal
       </Button>
     </Flex>
   </Card>
