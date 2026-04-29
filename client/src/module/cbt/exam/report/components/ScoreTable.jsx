@@ -32,15 +32,24 @@ const ScoreTable = ({
   const [searchText, setSearchText] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  const normalizedData = useMemo(
+    () =>
+      data.map((item) => ({
+        ...item,
+        score: Number(item.score || 0),
+      })),
+    [data],
+  );
+
   const classOptions = useMemo(() => {
     const classes = Array.from(
-      new Set(data.map((item) => item.className).filter(Boolean)),
+      new Set(normalizedData.map((item) => item.className).filter(Boolean)),
     );
     return classes.map((cls) => ({ value: cls, label: cls }));
-  }, [data]);
+  }, [normalizedData]);
 
   const filteredData = useMemo(() => {
-    return data.filter((item) => {
+    return normalizedData.filter((item) => {
       const matchClass =
         classFilter === "all" ? true : item.className === classFilter;
       const matchSearch = `${item.nis} ${item.name} ${item.className}`
@@ -48,7 +57,7 @@ const ScoreTable = ({
         .includes(searchText.toLowerCase());
       return matchClass && matchSearch;
     });
-  }, [data, classFilter, searchText]);
+  }, [normalizedData, classFilter, searchText]);
 
   const slicedData = useMemo(
     () => filteredData.slice(0, visibleCount),
@@ -65,12 +74,12 @@ const ScoreTable = ({
     }
 
     const total = filteredData.reduce(
-      (sum, item) => sum + Number(item.score || 0),
+      (sum, item) => sum + item.score,
       0,
     );
-    const passed = filteredData.filter((item) => Number(item.score || 0) >= 75).length;
+    const passed = filteredData.filter((item) => item.score >= 75).length;
     const highest = filteredData.reduce(
-      (max, item) => Math.max(max, Number(item.score || 0)),
+      (max, item) => Math.max(max, item.score),
       0,
     );
 
@@ -87,7 +96,7 @@ const ScoreTable = ({
       NIS: item.nis,
       Nama: item.name,
       Kelas: item.className,
-      Nilai: item.score ?? 0,
+      Nilai: item.score,
     }));
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
@@ -150,13 +159,12 @@ const ScoreTable = ({
       dataIndex: "score",
       width: 120,
       render: (value) => {
-        const numericValue = Number(value || 0);
         return (
           <Tag
-            color={numericValue >= 75 ? "green" : "orange"}
+            color={value >= 75 ? "green" : "orange"}
             style={{ borderRadius: 999, margin: 0, fontWeight: 700 }}
           >
-            {numericValue}
+            {value}
           </Tag>
         );
       },
