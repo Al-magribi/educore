@@ -29,7 +29,7 @@ router.get(
     const query = `
       SELECT 
         u.id, u.username, u.full_name, u.img_url, u.is_active,
-        t.nip, t.phone, t.email, t.is_homeroom,
+        t.nip, rc.card_uid AS rfid_no, t.phone, t.email, t.is_homeroom,
         
         -- Ambil Info Wali Kelas
         (SELECT json_build_object('id', c.id, 'name', c.name) 
@@ -51,6 +51,13 @@ router.get(
 
       FROM u_users u
       JOIN u_teachers t ON u.id = t.user_id
+      LEFT JOIN LATERAL (
+        SELECT card_uid
+        FROM attendance.rfid_card
+        WHERE user_id = u.id AND is_active = true
+        ORDER BY is_primary DESC, id DESC
+        LIMIT 1
+      ) rc ON true
       WHERE ${whereClause} 
       ORDER BY u.full_name ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -88,6 +95,7 @@ router.post(
       password,
       full_name,
       nip,
+      rfid_no,
       phone,
       email,
       homeroom_class_id, // ID Kelas jika jadi wali kelas (nullable)
@@ -109,8 +117,24 @@ router.post(
     const isHomeroom = !!homeroom_class_id;
     await client.query(
       `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, nip, phone, email, isHomeroom, homebaseId],
+      [userId, nip || null, phone || null, email || null, isHomeroom, homebaseId],
     );
+
+    if (rfid_no && `${rfid_no}`.trim() !== "") {
+      const normalizedRfid = `${rfid_no}`.trim();
+      const existingCard = await client.query(
+        `SELECT user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+        [normalizedRfid],
+      );
+      if (existingCard.rowCount > 0) {
+        return res.status(400).json({ message: "No RFID sudah dipakai user lain." });
+      }
+      await client.query(
+        `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+         VALUES ($1, $2, 'rfid', true, true)`,
+        [userId, normalizedRfid],
+      );
+    }
 
     // 3. Handle Wali Kelas (Update a_class)
     if (homeroom_class_id) {
@@ -150,6 +174,7 @@ router.put(
       username,
       full_name,
       nip,
+      rfid_no,
       phone,
       email,
       homeroom_class_id,
@@ -165,8 +190,44 @@ router.put(
     // 2. Update u_teachers & Reset is_homeroom sementara
     await client.query(
       `UPDATE u_teachers SET nip = $1, phone = $2, email = $3, is_homeroom = false WHERE user_id = $4`,
-      [nip, phone, email, id],
+      [nip || null, phone || null, email || null, id],
     );
+
+    if (rfid_no !== undefined) {
+      const normalizedRfid = `${rfid_no || ""}`.trim();
+      if (!normalizedRfid) {
+        await client.query(
+          `UPDATE attendance.rfid_card
+           SET is_active = false
+           WHERE user_id = $1`,
+          [id],
+        );
+      } else {
+        const existingCard = await client.query(
+          `SELECT id, user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+          [normalizedRfid],
+        );
+
+        if (existingCard.rowCount > 0 && existingCard.rows[0].user_id !== Number(id)) {
+          return res.status(400).json({ message: "No RFID sudah dipakai user lain." });
+        }
+
+        if (existingCard.rowCount > 0) {
+          await client.query(
+            `UPDATE attendance.rfid_card
+             SET user_id = $1, is_active = true, is_primary = true
+             WHERE id = $2`,
+            [id, existingCard.rows[0].id],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+             VALUES ($1, $2, 'rfid', true, true)`,
+            [id, normalizedRfid],
+          );
+        }
+      }
+    }
 
     // 3. Handle Wali Kelas
     // Hapus kepemilikan kelas sebelumnya dari guru ini
@@ -257,6 +318,7 @@ router.post(
       const password = (teacher?.password || "123456").toString().trim();
       const fullName = (teacher?.full_name || teacher?.name || "").toString().trim();
       const nip = (teacher?.nip || "").toString().trim();
+      const rfidNo = (teacher?.rfid_no || teacher?.rfid || "").toString().trim();
       const phone = (teacher?.phone || "").toString().trim();
       const email = (teacher?.email || "").toString().trim();
       const homeroomClassId = teacher?.homeroom_class_id || null;
@@ -308,6 +370,22 @@ router.post(
           homebaseId,
         ],
       );
+
+      if (rfidNo) {
+        const existingCard = await client.query(
+          `SELECT user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+          [rfidNo],
+        );
+        if (existingCard.rowCount > 0) {
+          skippedDuplicate++;
+          continue;
+        }
+        await client.query(
+          `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+           VALUES ($1, $2, 'rfid', true, true)`,
+          [userId, rfidNo],
+        );
+      }
 
       if (homeroomClassId) {
         await client.query(

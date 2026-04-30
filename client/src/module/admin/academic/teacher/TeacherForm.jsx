@@ -254,6 +254,11 @@ const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={12}>
+                  <Form.Item name="rfid_no" label="No RFID (Opsional)">
+                    <Input placeholder="Nomor RFID kartu guru" size="large" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
                   <Form.Item name="phone" label="No. Telepon">
                     <Input placeholder="08..." size="large" />
                   </Form.Item>
