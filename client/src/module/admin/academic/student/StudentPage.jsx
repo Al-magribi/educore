@@ -125,6 +125,7 @@ const StudentPage = ({ screens }) => {
           full_name: values.full_name,
           nis: values.nis,
           nisn: values.nisn,
+          rfid_no: values.rfid_no,
           gender: values.gender,
           is_active: values.is_active,
           class_id: values.class_id,
@@ -144,6 +145,7 @@ const StudentPage = ({ screens }) => {
           full_name: values.full_name,
           nis: values.nis,
           nisn: values.nisn,
+          rfid_no: values.rfid_no,
           gender: values.gender,
           class_id: values.class_id,
         };

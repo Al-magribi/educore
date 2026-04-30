@@ -280,6 +280,15 @@ const StudentFormDrawer = ({
                       />
                     </Form.Item>
                   </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item name="rfid_no" label="No RFID (Opsional)">
+                      <Input
+                        placeholder="Nomor RFID kartu siswa"
+                        size="large"
+                        style={{ borderRadius: 14, paddingBlock: 8 }}
+                      />
+                    </Form.Item>
+                  </Col>
                 </Row>
 
                 <Form.Item
