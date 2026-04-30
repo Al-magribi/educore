@@ -187,6 +187,9 @@ const buildRow = ({ row, index, classes, subjects }) => {
   const nip = normalizeText(
     pickValue(row, ["NIP / NIY", "NIP", "NIY", "nip", "niy"]),
   );
+  const rfidNo = normalizeText(
+    pickValue(row, ["No RFID", "RFID", "rfid_no", "rfid"]),
+  );
   const phone = normalizeText(
     pickValue(row, ["No. Telepon", "Telepon", "phone", "No HP"]),
   );
@@ -223,6 +226,7 @@ const buildRow = ({ row, index, classes, subjects }) => {
     password: password || "123456",
     full_name: fullName,
     nip,
+    rfid_no: rfidNo,
     phone,
     email,
     homeroom_class_name: homeroomClassName,
@@ -351,6 +355,7 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
         password: item.password,
         full_name: item.full_name,
         nip: item.nip,
+        rfid_no: item.rfid_no,
         phone: item.phone,
         email: item.email,
         homeroom_class_id: item.homeroom_class_id,
@@ -425,6 +430,18 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
           value={text}
           placeholder='Opsional'
           onChange={(e) => updateRow(record.key, "nip", e.target.value)}
+        />
+      ),
+    },
+    {
+      title: "No RFID",
+      dataIndex: "rfid_no",
+      width: 170,
+      render: (text, record) => (
+        <Input
+          value={text}
+          placeholder='Opsional'
+          onChange={(e) => updateRow(record.key, "rfid_no", e.target.value)}
         />
       ),
     },

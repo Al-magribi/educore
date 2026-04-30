@@ -63,8 +63,20 @@ const UploadStudent = ({ open, onClose }) => {
   // --- HELPER: Download Template ---
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { NIS: "123456", Nama: "Contoh Siswa", "L/P": "L", Kelas: "X-RPL-1" },
-      { NIS: "123457", Nama: "Siti Aminah", "L/P": "P", Kelas: "X-TKJ-2" },
+      {
+        NIS: "123456",
+        Nama: "Contoh Siswa",
+        "L/P": "L",
+        Kelas: "X-RPL-1",
+        "No RFID": "RFID-SISWA-0001",
+      },
+      {
+        NIS: "123457",
+        Nama: "Siti Aminah",
+        "L/P": "P",
+        Kelas: "X-TKJ-2",
+        "No RFID": "",
+      },
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
@@ -95,6 +107,7 @@ const UploadStudent = ({ open, onClose }) => {
           nis: row["NIS"] || row.nis,
           name: row["Nama"] || row.name,
           gender: row["L/P"] || row.gender,
+          rfid_no: row["No RFID"] || row["RFID"] || row.rfid_no || row.rfid,
           excelClassName: excelClassName,
           selectedClassId: matchedClass ? matchedClass.id : null,
         };
@@ -141,6 +154,7 @@ const UploadStudent = ({ open, onClose }) => {
           nis: item.nis,
           name: item.name,
           gender: item.gender,
+          rfid_no: item.rfid_no || null,
           classId: item.selectedClassId,
         })),
       };
@@ -213,6 +227,12 @@ const UploadStudent = ({ open, onClose }) => {
       dataIndex: "excelClassName",
       width: 150,
       render: (text) => <Text type='secondary'>{text || "-"}</Text>,
+    },
+    {
+      title: "No RFID",
+      dataIndex: "rfid_no",
+      width: 170,
+      render: (text) => <Text>{text || "-"}</Text>,
     },
     {
       title: "Mapping Sistem",

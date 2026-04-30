@@ -378,6 +378,13 @@ router.get(
         LEFT JOIN a_class c ON e.class_id = c.id
         LEFT JOIN a_grade g ON c.grade_id = g.id
         LEFT JOIN a_major m ON c.major_id = m.id
+        LEFT JOIN LATERAL (
+            SELECT card_uid
+            FROM attendance.rfid_card
+            WHERE user_id = u.id AND is_active = true
+            ORDER BY is_primary DESC, id DESC
+            LIMIT 1
+        ) rc ON true
         WHERE e.class_id = $1
           AND e.periode_id = $2
           AND e.homebase_id = $3
@@ -390,6 +397,7 @@ router.get(
         SELECT 
             u.id as user_id, 
             s.nis, 
+            rc.card_uid AS rfid_no,
             u.full_name AS student_name,
             u.is_active,
             e.class_id,
@@ -499,7 +507,11 @@ router.post(
     }
 
     for (const item of students) {
-      const { nis, name, gender, classId } = item;
+      const { nis, name, gender, classId, rfid_no } = item;
+      const rfidNo =
+        rfid_no === undefined || rfid_no === null || `${rfid_no}`.trim() === ""
+          ? null
+          : `${rfid_no}`.trim();
 
       // 1. Validasi Data Dasar
       if (!nis || !name || !classId) {
@@ -540,6 +552,32 @@ router.post(
 
         // Opsional: Update nama jika diperlukan, tapi biasanya data master tidak diupdate via upload kelas
         // Tapi kita pastikan data di u_students lengkap
+        if (rfidNo) {
+          const existingCard = await client.query(
+            `SELECT id, user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+            [rfidNo],
+          );
+
+          if (existingCard.rowCount > 0 && existingCard.rows[0].user_id !== userId) {
+            invalidData.push({ nis, name, reason: "No RFID sudah dipakai user lain" });
+            continue;
+          }
+
+          if (existingCard.rowCount > 0) {
+            await client.query(
+              `UPDATE attendance.rfid_card
+               SET user_id = $1, is_active = true, is_primary = true
+               WHERE id = $2`,
+              [userId, existingCard.rows[0].id],
+            );
+          } else {
+            await client.query(
+              `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+               VALUES ($1, $2, 'rfid', true, true)`,
+              [userId, rfidNo],
+            );
+          }
+        }
       } else {
         // -- SISWA BARU --
         // A. Create User (Login)
@@ -557,6 +595,14 @@ router.post(
                  VALUES ($1, $2, $3, $4, $5)`,
           [userId, nis, homebaseId, classId, periodeId],
         );
+
+        if (rfidNo) {
+          await client.query(
+            `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+             VALUES ($1, $2, 'rfid', true, true)`,
+            [userId, rfidNo],
+          );
+        }
       }
 
       // 3. Cek Enrollment (Apakah sudah masuk kelas di periode ini?)
