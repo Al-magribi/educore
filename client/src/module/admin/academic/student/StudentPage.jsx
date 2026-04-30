@@ -9,6 +9,11 @@ import {
   Card,
   Grid,
   Statistic,
+  Table,
+  Avatar,
+  Tag,
+  Tooltip,
+  Popconfirm,
 } from "antd";
 import {
   Search as SearchIcon,
@@ -18,8 +23,10 @@ import {
   Layers3,
   GraduationCap,
   Sparkles,
+  User,
+  Pencil,
+  Trash2,
 } from "lucide-react";
-import { InfiniteScrollList } from "../../../../components";
 import {
   useGetStudentsQuery,
   useAddStudentMutation,
@@ -27,7 +34,6 @@ import {
   useDeleteStudentMutation,
 } from "../../../../service/academic/ApiStudent";
 
-import StudentCard from "./StudentCard";
 import StudentForm from "./StudentForm";
 
 const { Title, Text } = Typography;
@@ -191,6 +197,116 @@ const StudentPage = ({ screens }) => {
       icon: <Layers3 size={18} />,
       tint: "linear-gradient(135deg, #ede9fe, #dbeafe)",
       color: "#5b21b6",
+    },
+  ];
+
+  const columns = [
+    {
+      title: "Profil Siswa",
+      dataIndex: "full_name",
+      key: "profil",
+      render: (text, record) => (
+        <Flex align='center' gap={12}>
+          <Avatar
+            size={40}
+            icon={<User size={20} />}
+            style={{
+              background:
+                record.gender === "P"
+                  ? "linear-gradient(135deg, #fbcfe8, #f9a8d4)"
+                  : "linear-gradient(135deg, #bfdbfe, #93c5fd)",
+              color: record.gender === "P" ? "#9d174d" : "#1d4ed8",
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <Text strong ellipsis style={{ display: "block", maxWidth: 220 }}>
+              {text}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              @{record.username}
+            </Text>
+          </div>
+        </Flex>
+      ),
+    },
+    {
+      title: "Akademik",
+      key: "akademik",
+      render: (_, record) => {
+        const latestClass = record.class_history?.[0];
+        return (
+          <div>
+            <Text strong style={{ display: "block", fontSize: 13 }}>
+              {latestClass
+                ? `${latestClass.grade} - ${latestClass.class}`
+                : "Belum diatur"}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              NIS: {record.nis || "-"}{" "}
+              {record.nisn ? ` • NISN: ${record.nisn}` : ""}
+            </Text>
+          </div>
+        );
+      },
+    },
+    {
+      title: "Status",
+      key: "status",
+      width: 140,
+      render: (_, record) => (
+        <Flex gap={6} wrap='wrap'>
+          <Tag
+            color={record.is_active ? "success" : "error"}
+            style={{
+              borderRadius: 999,
+              margin: 0,
+              fontWeight: 600,
+              fontSize: 11,
+            }}
+          >
+            {record.is_active ? "AKTIF" : "NONAKTIF"}
+          </Tag>
+          <Tag
+            color={record.gender === "P" ? "magenta" : "blue"}
+            style={{
+              borderRadius: 999,
+              margin: 0,
+              fontWeight: 600,
+              fontSize: 11,
+            }}
+          >
+            {record.gender === "P" ? "PR" : "LK"}
+          </Tag>
+        </Flex>
+      ),
+    },
+    {
+      title: "Aksi",
+      key: "aksi",
+      width: 100,
+      align: "right",
+      render: (_, record) => (
+        <Flex gap={4} justify='flex-end'>
+          <Tooltip title='Edit Data'>
+            <Button
+              type='text'
+              icon={<Pencil size={16} color='#f59e0b' />}
+              onClick={() => handleOpenDrawer(record)}
+            />
+          </Tooltip>
+          <Popconfirm
+            title='Hapus Siswa?'
+            description='Riwayat akademik akan ikut terhapus.'
+            onConfirm={() => handleDelete(record.id)}
+            okButtonProps={{ danger: true, loading: isDeleting }}
+          >
+            <Tooltip title='Hapus Data'>
+              <Button type='text' danger icon={<Trash2 size={16} />} />
+            </Tooltip>
+          </Popconfirm>
+        </Flex>
+      ),
     },
   ];
 
@@ -374,25 +490,68 @@ const StudentPage = ({ screens }) => {
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
-          <InfiniteScrollList
-            data={accumulatedData}
-            loading={isFetching}
-            hasMore={hasMore}
-            onLoadMore={handleLoadMore}
-            height={
-              activeScreens.md ? "calc(100vh - 420px)" : "calc(100vh - 360px)"
-            }
-            emptyText='Belum ada data siswa yang dapat ditampilkan'
-            grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 6, xl: 6 }}
-            renderItem={(item) => (
-              <StudentCard
-                student={item}
-                onEdit={handleOpenDrawer}
-                onDelete={handleDelete}
-                isDeleting={isDeleting}
+          <Card
+            variant='borderless'
+            styles={{ body: { padding: 0 } }}
+            style={{
+              borderRadius: 22,
+              overflow: "hidden",
+              boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
+              border: "1px solid rgba(148, 163, 184, 0.16)",
+            }}
+          >
+            <div
+              id='student-scroll-container'
+              style={{
+                height: activeScreens.md
+                  ? "calc(100vh - 420px)"
+                  : "calc(100vh - 360px)",
+                overflow: "auto",
+              }}
+              onScroll={(e) => {
+                const { scrollTop, clientHeight, scrollHeight } =
+                  e.currentTarget;
+                if (scrollHeight - scrollTop <= clientHeight + 50) {
+                  handleLoadMore();
+                }
+              }}
+            >
+              <Table
+                dataSource={accumulatedData}
+                columns={columns}
+                pagination={false}
+                rowKey='id'
+                loading={isFetching && page === 1}
+                scroll={{ x: 700 }}
+                sticky={{
+                  getContainer: () =>
+                    document.getElementById("student-scroll-container"),
+                }}
+                locale={{
+                  emptyText: "Belum ada data siswa yang dapat ditampilkan",
+                }}
+                footer={() => {
+                  if (isFetching && page > 1) {
+                    return (
+                      <div style={{ textAlign: "center", padding: "16px 0" }}>
+                        <Text type='secondary'>Memuat data...</Text>
+                      </div>
+                    );
+                  }
+                  if (!hasMore && accumulatedData.length > 0) {
+                    return (
+                      <div style={{ textAlign: "center", padding: "16px 0" }}>
+                        <Text type='secondary'>
+                          Semua data siswa telah dimuat
+                        </Text>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
               />
-            )}
-          />
+            </div>
+          </Card>
         </MotionDiv>
       </MotionDiv>
 

@@ -51,7 +51,7 @@ const ImportInstruction = () => (
         type="info"
         showIcon
         icon={<Info size={18} />}
-        description="Gunakan kolom sesuai format template. Untuk tipe tertentu, isi kolom key atau option mengikuti struktur yang ditetapkan sistem."
+        description="Gunakan kolom sesuai format template. Kolom bloom_level bersifat opsional dengan nilai 1 sampai 6. Untuk tipe tertentu, isi kolom key atau option mengikuti struktur yang ditetapkan sistem."
         style={{ borderRadius: 16, marginBottom: 14 }}
       />
 
@@ -63,11 +63,11 @@ const ImportInstruction = () => (
           scroll={{ x: 420 }}
           style={{ marginTop: 4, minWidth: "420px" }}
           dataSource={[
-            { id: 1, tipe: "PG", key: "Huruf jawaban benar (A/B/C)", note: "Isi option_a sampai option_e sesuai kebutuhan" },
+            { id: 1, tipe: "PG", key: "Huruf jawaban benar (A/B/C)", note: "Isi option_a sampai option_e sesuai kebutuhan, bloom_level boleh diisi 1-6" },
             { id: 4, tipe: "Isian", key: "Daftar jawaban dipisahkan koma", note: "Contoh: 10, Sepuluh" },
             { id: 5, tipe: "B/S", key: "Tulis Benar atau Salah", note: "Gunakan penulisan yang konsisten" },
             { id: 6, tipe: "Menjodohkan", key: "Sisi Kiri | Sisi Kanan", note: "Format per option wajib dipisahkan karakter |" },
-            { id: 3, tipe: "Uraian", key: "-", note: "Tidak membutuhkan opsi jawaban" },
+            { id: 3, tipe: "Uraian", key: "-", note: "Tidak membutuhkan opsi jawaban, bloom_level boleh diisi 1-6" },
           ]}
           columns={[
             { title: "ID", dataIndex: "id", key: "id", width: 60 },

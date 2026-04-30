@@ -28,6 +28,29 @@ const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
+const getRowValue = (row, keys = []) => {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const parseInteger = (value) => {
+  const parsed = parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const normalizeBloomLevel = (value) => {
+  const parsed = parseInteger(value);
+  if (!parsed || parsed < 1 || parsed > 6) {
+    return null;
+  }
+  return parsed;
+};
+
 const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.sm;
@@ -42,7 +65,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
       try {
         const XLSX = await import("xlsx");
         const data = e.target.result;
-        const workbook = XLSX.read(data, { type: "binary" });
+        const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(sheet);
 
@@ -50,17 +73,52 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
           throw new Error("File Excel kosong atau format tidak sesuai.");
         }
 
-        const formattedQuestions = json.map((row) => {
-          const q_type = parseInt(row.type_id);
+        const formattedQuestions = json.map((row, index) => {
+          const q_type = parseInteger(
+            getRowValue(row, ["type_id", "Jenis", "jenis"]),
+          );
+          const content = getRowValue(row, [
+            "question_text",
+            "Pertanyaan",
+            "pertanyaan",
+          ]);
+          const scorePoint =
+            parseInteger(getRowValue(row, ["score_point", "Poin", "poin"])) || 1;
+          const answerKey = getRowValue(row, ["key", "Jawaban", "jawaban"]);
+          const bloomLevel = normalizeBloomLevel(
+            getRowValue(row, [
+              "bloom_level",
+              "Bloom Level",
+              "BLOOM_LEVEL",
+              "Bloom",
+              "bloom",
+            ]),
+          );
+
+          if (!q_type || q_type < 1 || q_type > 6) {
+            throw new Error(
+              `Tipe soal tidak valid pada baris ${index + 2}. Gunakan angka 1 sampai 6.`,
+            );
+          }
+
+          if (!content) {
+            throw new Error(`Pertanyaan wajib diisi pada baris ${index + 2}.`);
+          }
+
           let options = [];
 
           if ([1, 2].includes(q_type)) {
             ["a", "b", "c", "d", "e"].forEach((l) => {
-              if (row[`option_${l}`]) {
+              const optionValue = getRowValue(row, [
+                `option_${l}`,
+                l.toUpperCase(),
+                l,
+              ]);
+              if (optionValue) {
                 options.push({
                   label: l.toUpperCase(),
-                  content: row[`option_${l}`],
-                  is_correct: row.key
+                  content: optionValue,
+                  is_correct: answerKey
                     ?.toString()
                     .toUpperCase()
                     .includes(l.toUpperCase()),
@@ -68,31 +126,34 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
               }
             });
           } else if (q_type === 4) {
-            options = (row.key?.toString().split(",") || []).map((v) => ({
+            options = (answerKey?.toString().split(",") || []).map((v) => ({
               content: v.trim(),
               is_correct: true,
-            }));
+            }))
+              .filter((item) => item.content);
           } else if (q_type === 5) {
             options = [
               {
                 content: "Benar",
-                is_correct: row.key?.toString().toLowerCase() === "benar",
+                is_correct: answerKey?.toString().toLowerCase() === "benar",
               },
               {
                 content: "Salah",
-                is_correct: row.key?.toString().toLowerCase() === "salah",
+                is_correct: answerKey?.toString().toLowerCase() === "salah",
               },
             ];
           } else if (q_type === 6) {
             ["a", "b", "c", "d", "e"].forEach((l) => {
-              const val = row[`option_${l}`];
+              const val = getRowValue(row, [`option_${l}`, l.toUpperCase(), l]);
               if (val && val.includes("|")) {
                 const [left, right] = val.split("|").map((s) => s.trim());
-                options.push({
-                  label: left,
-                  content: right,
-                  is_correct: true,
-                });
+                if (left && right) {
+                  options.push({
+                    label: left,
+                    content: right,
+                    is_correct: true,
+                  });
+                }
               }
             });
           }
@@ -100,8 +161,9 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
           return {
             bank_soal_id: bankId,
             q_type,
-            content: row.question_text,
-            score_point: parseInt(row.score_point) || 1,
+            bloom_level: bloomLevel,
+            content,
+            score_point: scorePoint,
             options,
           };
         });
