@@ -12,6 +12,7 @@ export const downloadTeacherTemplate = ({ classes = [], subjects = [] }) => {
       Password: "123456",
       "Nama Lengkap": "Ahmad Fauzi, S.Pd",
       "NIP / NIY": "198901012015011001",
+      "No RFID": "RFID-GURU-0001",
       "No. Telepon": "081234567890",
       Email: "ahmad.fauzi@school.sch.id",
       "Wali Kelas": "X IPA 1",
@@ -38,6 +39,7 @@ export const downloadTeacherTemplate = ({ classes = [], subjects = [] }) => {
     ["Kolom wajib", "Username, Nama Lengkap"],
     ["Password", "Opsional. Jika kosong akan diisi 123456"],
     ["NIP / NIY", "Opsional, tapi sebaiknya diisi agar mudah sinkronisasi"],
+    ["No RFID", "Opsional, untuk sinkronisasi absensi RFID guru"],
     ["Wali Kelas", "Isi nama kelas persis seperti referensi kelas"],
     [
       "Alokasi Mengajar",
