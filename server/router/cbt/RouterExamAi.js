@@ -275,6 +275,45 @@ const buildEssayPrompt = ({ questionContent, answerText, rubricRows, maxScore })
   ],
 });
 
+const buildShortAnswerPrompt = ({
+  questionContent,
+  answerText,
+  acceptedAnswers,
+  maxScore,
+}) => ({
+  model: "gpt-4.1-mini",
+  temperature: 0.1,
+  messages: [
+    {
+      role: "system",
+      content:
+        "Anda adalah asisten penilai jawaban singkat. Toleransi typo kecil dan variasi frasa yang tetap bermakna sama. Kembalikan JSON valid saja.",
+    },
+    {
+      role: "user",
+      content: JSON.stringify(
+        {
+          instruction:
+            "Bandingkan jawaban siswa terhadap daftar kunci. Nilai akurasi 0-100. Jika makna sama, akurasi tinggi. Skor rekomendasi tidak boleh melebihi max_score.",
+          question: questionContent,
+          student_answer: answerText,
+          accepted_answers: acceptedAnswers,
+          max_score: maxScore,
+          output_schema: {
+            is_equivalent: "boolean",
+            matched_answer: "string",
+            accuracy: "number 0-100",
+            recommended_score: "number",
+            summary_feedback: "string",
+          },
+        },
+        null,
+        2,
+      ),
+    },
+  ],
+});
+
 const processItemWithAI = async ({ client, item, teacherApiKey }) => {
   if (!teacherApiKey) {
     return { ok: false, error: "API key OpenAI guru belum tersedia." };
@@ -306,9 +345,11 @@ const processItemWithAI = async ({ client, item, teacherApiKey }) => {
   const answerJson = answerResult.rows[0]?.answer_json;
 
   if (Number(question.q_type) === 4) {
-    const answerText = normalizeAnswerText(
-      typeof answerJson === "string" ? answerJson : answerJson?.answer ?? answerJson?.value,
-    );
+    const rawAnswerText =
+      typeof answerJson === "string"
+        ? answerJson
+        : answerJson?.answer ?? answerJson?.value ?? "";
+    const answerText = normalizeAnswerText(rawAnswerText);
     const optionsResult = await client.query(
       `
         SELECT content, label, is_correct
@@ -318,24 +359,128 @@ const processItemWithAI = async ({ client, item, teacherApiKey }) => {
       [item.question_id],
     );
     const correctOptions = optionsResult.rows.filter((row) => row.is_correct);
+    const acceptedAnswers = [
+      ...new Set(
+        correctOptions
+          .flatMap((row) => [row.content, row.label])
+          .map((value) => String(value || "").trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (acceptedAnswers.length < 1) {
+      return { ok: false, error: "Kunci jawaban singkat belum tersedia." };
+    }
+
     const isCorrect = correctOptions.some((row) => {
       const c1 = normalizeAnswerText(row.content);
       const c2 = normalizeAnswerText(row.label);
       return answerText && (answerText === c1 || answerText === c2);
     });
     const maxScore = Number(question.score_point || item.max_score || 0);
-    const score = isCorrect ? maxScore : 0;
+    if (!answerText) {
+      return {
+        ok: true,
+        score: 0,
+        confidence: 0,
+        summaryFeedback: "Jawaban singkat kosong.",
+        rubricScores: [],
+        rawResponse: { mode: "short-empty" },
+        usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated: true },
+        model: "rule-based-short",
+      };
+    }
+
+    if (isCorrect) {
+      return {
+        ok: true,
+        score: maxScore,
+        confidence: 100,
+        summaryFeedback: "Jawaban singkat sesuai kunci.",
+        rubricScores: [],
+        rawResponse: { mode: "short-exact", isCorrect: true, acceptedAnswers },
+        usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated: true },
+        model: "rule-based-short",
+      };
+    }
+
+    const payload = buildShortAnswerPrompt({
+      questionContent: question.content,
+      answerText: rawAnswerText,
+      acceptedAnswers,
+      maxScore,
+    });
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${teacherApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      return {
+        ok: false,
+        error: `OpenAI ${response.status}: ${errorBody.slice(0, 500)}`,
+      };
+    }
+
+    const responseJson = await response.json();
+    const content = responseJson?.choices?.[0]?.message?.content || "{}";
+    let parsed = {};
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return { ok: false, error: "Format respons AI jawaban singkat bukan JSON valid." };
+    }
+
+    const accuracy = clamp(toNumber(parsed.accuracy), 0, 100);
+    const recommendedScore = clamp(
+      toNumber(parsed.recommended_score),
+      0,
+      maxScore,
+    );
+    const finalScore =
+      accuracy >= 70
+        ? clamp(
+            recommendedScore > 0
+              ? recommendedScore
+              : (maxScore * accuracy) / 100,
+            0,
+            maxScore,
+          )
+        : 0;
+    const promptTokens = Number(responseJson?.usage?.prompt_tokens || 0);
+    const completionTokens = Number(responseJson?.usage?.completion_tokens || 0);
+    const totalTokens = Number(
+      responseJson?.usage?.total_tokens || promptTokens + completionTokens,
+    );
+
     return {
       ok: true,
-      score,
-      confidence: isCorrect ? 90 : 60,
-      summaryFeedback: isCorrect
-        ? "Jawaban singkat sesuai kunci."
-        : "Jawaban singkat tidak sesuai kunci.",
+      score: Number(finalScore.toFixed(2)),
+      confidence: Number(accuracy.toFixed(2)),
+      summaryFeedback:
+        String(parsed.summary_feedback || "").trim() ||
+        (accuracy >= 70
+          ? "Jawaban singkat dinilai cukup sesuai oleh AI."
+          : "Jawaban singkat dinilai belum cukup sesuai oleh AI."),
       rubricScores: [],
-      rawResponse: { mode: "short-auto", isCorrect },
-      usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated: true },
-      model: "rule-based-short",
+      rawResponse: {
+        mode: "short-ai",
+        acceptedAnswers,
+        parsed,
+        response: responseJson,
+      },
+      usage: {
+        input_tokens: promptTokens,
+        output_tokens: completionTokens,
+        total_tokens: totalTokens,
+        estimated: false,
+      },
+      model: payload.model || "gpt-4.1-mini",
     };
   }
 
