@@ -7,6 +7,11 @@ import pool from "../../config/connection.js";
 
 const router = Router();
 const AI_QUESTION_QUEUE = "cbt-ai-question-generator";
+const AI_MODEL_PRICING_USD_PER_1K = {
+  "gpt-4.1-mini": { input: 0.0004, output: 0.0016 },
+  "gpt-4.1": { input: 0.002, output: 0.008 },
+  "gpt-5.4": { input: 0.0, output: 0.0 },
+};
 
 const QUESTION_TYPE_META = {
   single: {
@@ -284,6 +289,18 @@ const getBossQuestionJobId = (job) => {
 
 const normalizeBossJobs = (jobs) =>
   (Array.isArray(jobs) ? jobs : [jobs]).filter(Boolean);
+
+const getModelPricing = (modelName = DEFAULT_TEXT_MODEL) => {
+  const direct = AI_MODEL_PRICING_USD_PER_1K[modelName];
+  if (direct) {
+    return { ...direct, is_estimated: false };
+  }
+  const fallback = AI_MODEL_PRICING_USD_PER_1K["gpt-4.1-mini"] || {
+    input: 0,
+    output: 0,
+  };
+  return { ...fallback, is_estimated: true };
+};
 
 const getRubricTemplateFallbackCode = (subjectName = "") => {
   const normalized = String(subjectName || "").toLowerCase();
@@ -725,6 +742,10 @@ const insertQuestionGeneratorUsageLog = async ({
     const totalTokens = Number(
       usage?.total_tokens || inputTokens + outputTokens,
     );
+    const pricing = getModelPricing(model);
+    const costInput = (inputTokens / 1000) * Number(pricing.input || 0);
+    const costOutput = (outputTokens / 1000) * Number(pricing.output || 0);
+    const totalCost = costInput + costOutput;
     const totalQuestions = Math.max(
       0,
       Math.round(Number(summary?.total_questions || 0)),
@@ -750,6 +771,13 @@ const insertQuestionGeneratorUsageLog = async ({
           input_tokens,
           output_tokens,
           total_tokens,
+          unit_price_input,
+          unit_price_output,
+          cost_input_usd,
+          cost_output_usd,
+          total_cost_usd,
+          currency,
+          is_estimated,
           response_text,
           usage_payload,
           status,
@@ -757,7 +785,7 @@ const insertQuestionGeneratorUsageLog = async ({
         ) VALUES (
           $1, $2, 'question_generator', $3, $4, 'text', 'ai',
           $5, $6, $7, $8, $9, $10, $11, $12, $13,
-          $14, $15::jsonb, $16, $17
+          $14, $15, $16, $17, $18, 'USD', $19, $20, $21::jsonb, $22, $23
         )
       `,
       [
@@ -774,6 +802,12 @@ const insertQuestionGeneratorUsageLog = async ({
         inputTokens,
         outputTokens,
         totalTokens,
+        Number(pricing.input || 0),
+        Number(pricing.output || 0),
+        Number(costInput.toFixed(6)),
+        Number(costOutput.toFixed(6)),
+        Number(totalCost.toFixed(6)),
+        Boolean(pricing.is_estimated),
         JSON.stringify({
           ai_summary: responseJson?.choices?.[0]?.message?.content || "",
           generated_summary: summary || {},
@@ -785,6 +819,12 @@ const insertQuestionGeneratorUsageLog = async ({
           request_payload: payload || {},
           response_usage: usage || {},
           generated_summary: summary || {},
+          pricing: {
+            input_per_1k_usd: Number(pricing.input || 0),
+            output_per_1k_usd: Number(pricing.output || 0),
+            is_estimated: Boolean(pricing.is_estimated),
+          },
+          calculated_cost_usd: Number(totalCost.toFixed(6)),
         }),
         status,
         errorMessage,
