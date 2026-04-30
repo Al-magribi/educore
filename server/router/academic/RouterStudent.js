@@ -25,7 +25,7 @@ router.get(
     const queryText = `
       SELECT 
         u.id, u.username, u.full_name, u.is_active, u.gender,
-        s.nis, s.nisn,
+        s.nis, s.nisn, rc.card_uid AS rfid_no,
         c.name AS current_class,
         g.name AS current_grade,
         
@@ -49,6 +49,13 @@ router.get(
 
       FROM u_users u
       JOIN u_students s ON u.id = s.user_id
+      LEFT JOIN LATERAL (
+        SELECT card_uid
+        FROM attendance.rfid_card
+        WHERE user_id = u.id AND is_active = true
+        ORDER BY is_primary DESC, id DESC
+        LIMIT 1
+      ) rc ON true
       -- Left Join agar siswa yang belum masuk kelas tetap muncul (opsional, tergantung kebutuhan)
       -- Disini pakai JOIN karena filter periode aktif
       JOIN u_class_enrollments ce ON s.user_id = ce.student_id
@@ -108,6 +115,7 @@ router.post(
       full_name,
       nis,
       nisn,
+      rfid_no,
       gender,
       class_id, // Input baru dari frontend
     } = req.body;
@@ -143,6 +151,22 @@ router.post(
       [newUserId, nis, nisn, homebaseId, class_id, activePeriodeId],
     );
 
+    if (rfid_no && `${rfid_no}`.trim() !== "") {
+      const normalizedRfid = `${rfid_no}`.trim();
+      const existingCard = await client.query(
+        `SELECT user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+        [normalizedRfid],
+      );
+      if (existingCard.rowCount > 0) {
+        return res.status(400).json({ message: "No RFID sudah dipakai user lain." });
+      }
+      await client.query(
+        `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+         VALUES ($1, $2, 'rfid', true, true)`,
+        [newUserId, normalizedRfid],
+      );
+    }
+
     // 5. Insert Class Enrollment (PENTING: Agar muncul di periode aktif)
     if (class_id) {
       await client.query(
@@ -164,7 +188,7 @@ router.put(
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params; // user_id
-    const { full_name, nis, nisn, gender, is_active, class_id } = req.body;
+    const { full_name, nis, nisn, rfid_no, gender, is_active, class_id } = req.body;
     const homebaseId = req.user.homebase_id;
 
     // 1. Ambil Periode Aktif untuk update enrollment
@@ -185,6 +209,42 @@ router.put(
        WHERE user_id = $5`,
       [nis, nisn, class_id, activePeriodeId, id],
     );
+
+    if (rfid_no !== undefined) {
+      const normalizedRfid = `${rfid_no || ""}`.trim();
+      if (!normalizedRfid) {
+        await client.query(
+          `UPDATE attendance.rfid_card
+           SET is_active = false
+           WHERE user_id = $1`,
+          [id],
+        );
+      } else {
+        const existingCard = await client.query(
+          `SELECT id, user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+          [normalizedRfid],
+        );
+
+        if (existingCard.rowCount > 0 && existingCard.rows[0].user_id !== Number(id)) {
+          return res.status(400).json({ message: "No RFID sudah dipakai user lain." });
+        }
+
+        if (existingCard.rowCount > 0) {
+          await client.query(
+            `UPDATE attendance.rfid_card
+             SET user_id = $1, is_active = true, is_primary = true
+             WHERE id = $2`,
+            [id, existingCard.rows[0].id],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+             VALUES ($1, $2, 'rfid', true, true)`,
+            [id, normalizedRfid],
+          );
+        }
+      }
+    }
 
     // 4. Update / Upsert Class Enrollment
     // Logika: Cek apakah siswa sudah punya kelas di periode ini?
