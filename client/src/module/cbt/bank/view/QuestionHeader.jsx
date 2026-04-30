@@ -16,6 +16,7 @@ import {
   Trash2,
   AlertCircle,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 
 const { Text, Title } = Typography;
@@ -32,6 +33,7 @@ const QuestionHeader = ({
   onImport,
   onAdd,
   onDeleteAll,
+  onGenerateAi,
 }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
@@ -239,6 +241,20 @@ const QuestionHeader = ({
             }}
           >
             Kosongkan
+          </Button>
+          <Button
+            icon={<Wand2 size={16} />}
+            onClick={onGenerateAi}
+            className="res-btn-full"
+            style={{
+              borderRadius: 14,
+              minHeight: 42,
+              background: "rgba(255,255,255,0.12)",
+              color: "#fff",
+              borderColor: "rgba(255,255,255,0.24)",
+            }}
+          >
+            Generate AI
           </Button>
           <Button
             icon={<FileUp size={16} />}

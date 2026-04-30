@@ -18,12 +18,22 @@ import {
   Tooltip,
   Empty,
   Grid,
+  Alert,
+  Progress,
 } from "antd";
-import { Edit3, Trash2, AlertTriangle, BrainCircuit } from "lucide-react";
+import {
+  Edit3,
+  Trash2,
+  AlertTriangle,
+  BrainCircuit,
+  Sparkles,
+  Eye,
+} from "lucide-react";
 import {
   useGetQuestionsQuery,
   useDeleteQuestionMutation,
   useBulkDeleteQuestionsMutation,
+  useGetAiQuestionGenerateLatestQuery,
 } from "../../../../service/cbt/ApiQuestion";
 
 import QuestionHeader from "./QuestionHeader";
@@ -35,6 +45,10 @@ import { InlineMath } from "react-katex";
 
 const QuestionForm = lazy(() => import("../components/question/QuestionForm"));
 const ImportExcelModal = lazy(() => import("./ImportExcelModal"));
+const AiGenerateQuestionModal = lazy(() => import("./AiGenerateQuestionModal"));
+const AiQuestionDraftPreviewModal = lazy(() =>
+  import("./AiQuestionDraftPreviewModal"),
+);
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -145,6 +159,9 @@ const QuestionsList = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isAiGenerateOpen, setIsAiGenerateOpen] = useState(false);
+  const [isAiPreviewOpen, setIsAiPreviewOpen] = useState(false);
+  const [activeAiJobId, setActiveAiJobId] = useState(null);
 
   const {
     data: questions = [],
@@ -153,6 +170,23 @@ const QuestionsList = () => {
   } = useGetQuestionsQuery({ bankid: bankId }, { skip: !bankId });
   const [deleteQuestion] = useDeleteQuestionMutation();
   const [bulkDelete] = useBulkDeleteQuestionsMutation();
+  const { data: latestAiJob, refetch: refetchLatestAiJob } =
+    useGetAiQuestionGenerateLatestQuery(
+      { bankId },
+      {
+        skip: !bankId,
+        pollingInterval:
+          activeAiJobId && isAiPreviewOpen ? 0 : 8000,
+      },
+    );
+  const aiAlertMeta = getAiJobAlertMeta(latestAiJob);
+  const aiProgressPercent = latestAiJob?.total_requested
+    ? Math.round(
+        (Number(latestAiJob.total_generated || 0) /
+          Number(latestAiJob.total_requested || 1)) *
+          100,
+      )
+    : 0;
 
   const totalScore = useMemo(
     () => questions.reduce((acc, curr) => acc + (curr.score_point || 0), 0),
@@ -280,7 +314,82 @@ const QuestionsList = () => {
           onImport={() => setIsImportModalOpen(true)}
           onAdd={openCreateForm}
           onDeleteAll={handleDeleteAll}
+          onGenerateAi={() => setIsAiGenerateOpen(true)}
         />
+
+        {latestAiJob && (
+          <Alert
+            type={aiAlertMeta.type}
+            showIcon
+            icon={
+              latestAiJob.status === "failed" ? (
+                <AlertTriangle size={16} />
+              ) : (
+                <Sparkles size={16} />
+              )
+            }
+            message={aiAlertMeta.title}
+            description={
+              <Flex
+                justify='space-between'
+                align='center'
+                gap={12}
+                wrap='wrap'
+                style={{ marginTop: 8 }}
+              >
+                <Space direction='vertical' size={6} style={{ flex: 1 }}>
+                  <Text>
+                    Job #{latestAiJob.id} berstatus{" "}
+                    <strong>{latestAiJob.status}</strong>.{" "}
+                    {aiAlertMeta.description}
+                  </Text>
+                  {aiAlertMeta.isProcessing ? (
+                    <>
+                      <Text type='secondary'>
+                        {Number(latestAiJob.total_generated || 0)} dari{" "}
+                        {Number(latestAiJob.total_requested || 0)} draft sudah
+                        tersimpan di database.
+                      </Text>
+                      <Progress
+                        percent={Math.max(
+                          0,
+                          Math.min(aiProgressPercent, 100),
+                        )}
+                        status='active'
+                        size='small'
+                        strokeColor='#1677ff'
+                      />
+                    </>
+                  ) : latestAiJob.total_generated ? (
+                    <Text type='secondary'>
+                      Total draft tersimpan: {latestAiJob.total_generated}.
+                    </Text>
+                  ) : null}
+                </Space>
+                <Space wrap>
+                  <Button
+                    icon={<Eye size={14} />}
+                    onClick={() => {
+                      setActiveAiJobId(latestAiJob.id);
+                      setIsAiPreviewOpen(true);
+                    }}
+                  >
+                    {aiAlertMeta.isProcessing ? "Lihat Progress" : "Buka Draft"}
+                  </Button>
+                  <Button
+                    disabled={aiAlertMeta.isProcessing}
+                    onClick={() => {
+                      setIsAiGenerateOpen(true);
+                    }}
+                  >
+                    Generate Ulang
+                  </Button>
+                </Space>
+              </Flex>
+            }
+            style={{ borderRadius: 18 }}
+          />
+        )}
 
         <QuestionBulkActions
           selectedCount={selectedIds.length}
@@ -568,8 +677,115 @@ const QuestionsList = () => {
           />
         </Suspense>
       )}
+
+      {isAiGenerateOpen && (
+        <Suspense fallback={null}>
+          <AiGenerateQuestionModal
+            open={isAiGenerateOpen}
+            bankId={bankId}
+            onCancel={() => setIsAiGenerateOpen(false)}
+            onStarted={(jobId) => {
+              setIsAiGenerateOpen(false);
+              if (jobId) {
+                setActiveAiJobId(jobId);
+                setIsAiPreviewOpen(true);
+              }
+              refetchLatestAiJob();
+            }}
+          />
+        </Suspense>
+      )}
+
+      {isAiPreviewOpen && activeAiJobId && (
+        <Suspense fallback={null}>
+          <AiQuestionDraftPreviewModal
+            open={isAiPreviewOpen}
+            bankId={bankId}
+            jobId={activeAiJobId}
+            onClose={() => setIsAiPreviewOpen(false)}
+            onRegenerate={() => {
+              setIsAiPreviewOpen(false);
+              setIsAiGenerateOpen(true);
+            }}
+            onQuestionsChanged={() => {
+              refetch();
+              refetchLatestAiJob();
+            }}
+          />
+        </Suspense>
+      )}
     </MotionDiv>
   );
+};
+
+const getAiJobAlertMeta = (job) => {
+  if (!job) {
+    return {
+      type: "info",
+      title: "Draft AI",
+      description: "",
+      isProcessing: false,
+    };
+  }
+
+  switch (job.status) {
+    case "queued":
+      return {
+        type: "info",
+        title: "Generate Soal AI Masuk Antrian",
+        description:
+          "Permintaan sudah diterima dan sedang menunggu giliran diproses.",
+        isProcessing: true,
+      };
+    case "running":
+      return {
+        type: "info",
+        title: "Generate Soal AI Sedang Berjalan",
+        description:
+          "AI sedang menyusun draft soal. Mohon tunggu, hasil akan muncul otomatis saat proses selesai.",
+        isProcessing: true,
+      };
+    case "completed":
+      return {
+        type: "success",
+        title: "Draft AI Siap Direview",
+        description:
+          "Draft soal AI sudah selesai dibuat. Silakan buka draft untuk review, edit, dan approve.",
+        isProcessing: false,
+      };
+    case "approved":
+      return {
+        type: "success",
+        title: "Draft AI Sudah Dipakai",
+        description:
+          "Semua draft pada job terakhir sudah di-approve ke bank soal.",
+        isProcessing: false,
+      };
+    case "discarded":
+      return {
+        type: "warning",
+        title: "Draft AI Sudah Dibuang",
+        description:
+          "Draft pada job terakhir sudah dibuang dan tidak akan dipakai.",
+        isProcessing: false,
+      };
+    case "failed":
+      return {
+        type: "error",
+        title: "Generate Soal AI Gagal",
+        description:
+          job.error_message ||
+          "Proses generate soal AI gagal. Silakan cek konfigurasi lalu coba lagi.",
+        isProcessing: false,
+      };
+    default:
+      return {
+        type: "info",
+        title: "Draft AI Terakhir",
+        description: `Job #${job.id} berstatus ${job.status}.`,
+        isProcessing: false,
+      };
+  }
 };
 
 export default QuestionsList;
