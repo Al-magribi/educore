@@ -2,7 +2,6 @@ import React, { Suspense, lazy, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  Collapse,
   Checkbox,
   message,
   Spin,
@@ -20,6 +19,7 @@ import {
   Grid,
   Alert,
   Progress,
+  Tabs,
 } from "antd";
 import {
   Edit3,
@@ -46,8 +46,8 @@ import { InlineMath } from "react-katex";
 const QuestionForm = lazy(() => import("../components/question/QuestionForm"));
 const ImportExcelModal = lazy(() => import("./ImportExcelModal"));
 const AiGenerateQuestionModal = lazy(() => import("./AiGenerateQuestionModal"));
-const AiQuestionDraftPreviewModal = lazy(() =>
-  import("./AiQuestionDraftPreviewModal"),
+const AiQuestionDraftPreviewModal = lazy(
+  () => import("./AiQuestionDraftPreviewModal"),
 );
 
 const { Text, Title } = Typography;
@@ -65,6 +65,8 @@ const getQuestionTypeName = (type) => {
   };
   return types[type] || { label: "Unknown", color: "default" };
 };
+
+const QUESTION_TYPE_ORDER = [1, 2, 3, 4, 5, 6];
 
 const getBloomLevelMeta = (level) => {
   const levels = {
@@ -175,8 +177,7 @@ const QuestionsList = () => {
       { bankId },
       {
         skip: !bankId,
-        pollingInterval:
-          activeAiJobId && isAiPreviewOpen ? 0 : 8000,
+        pollingInterval: activeAiJobId && isAiPreviewOpen ? 0 : 8000,
       },
     );
   const aiAlertMeta = getAiJobAlertMeta(latestAiJob);
@@ -191,6 +192,54 @@ const QuestionsList = () => {
   const totalScore = useMemo(
     () => questions.reduce((acc, curr) => acc + (curr.score_point || 0), 0),
     [questions],
+  );
+
+  const groupedQuestions = useMemo(
+    () =>
+      QUESTION_TYPE_ORDER.map((type) => ({
+        type,
+        meta: getQuestionTypeName(type),
+        questions: questions.filter(
+          (question) => Number(question.q_type) === type,
+        ),
+      })),
+    [questions],
+  );
+
+  const createTypeTabLabel = (meta, count) => (
+    <Flex align='center' gap={10}>
+      <span
+        style={{
+          width: isMobile ? 36 : 40,
+          height: isMobile ? 36 : 40,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 14,
+          background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
+          color: "#0369a1",
+          border: "1px solid rgba(148, 163, 184, 0.16)",
+          fontWeight: 700,
+          fontSize: 13,
+          flexShrink: 0,
+        }}
+      >
+        {count}
+      </span>
+      <Flex vertical gap={0}>
+        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{meta.label}</span>
+        {!isMobile && (
+          <span
+            style={{
+              fontSize: 12,
+              color: token.colorTextSecondary,
+              lineHeight: 1.2,
+            }}
+          >
+            {count ? `${count} soal tersedia` : "Belum ada soal"}
+          </span>
+        )}
+      </Flex>
+    </Flex>
   );
 
   const handleSelect = (id) => {
@@ -275,6 +324,133 @@ const QuestionsList = () => {
     }
   };
 
+  const renderQuestionCard = (question, indexInType) => {
+    const typeMeta = getQuestionTypeName(question.q_type);
+    const bloomMeta = getBloomLevelMeta(question.bloom_level);
+    const isSelected = selectedIds.includes(question.id);
+
+    return (
+      <Card
+        key={question.id}
+        variant='borderless'
+        style={{
+          borderRadius: 22,
+          border: isSelected
+            ? "1px solid rgba(59, 130, 246, 0.24)"
+            : "1px solid rgba(226, 232, 240, 0.92)",
+          boxShadow: isSelected
+            ? "0 20px 36px rgba(37, 99, 235, 0.12)"
+            : "0 10px 24px rgba(15, 23, 42, 0.05)",
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,0.94))",
+        }}
+        styles={{ body: { padding: isMobile ? 16 : 20 } }}
+      >
+        <Flex vertical gap={16}>
+          <Flex
+            justify='space-between'
+            align={isMobile ? "flex-start" : "center"}
+            gap={14}
+            wrap
+          >
+            <Flex align={isMobile ? "flex-start" : "center"} gap={12} flex={1}>
+              <Checkbox
+                checked={isSelected}
+                onChange={() => handleSelect(question.id)}
+                style={{ flexShrink: 0, marginTop: isMobile ? 4 : 0 }}
+              />
+
+              <Flex align='center' gap={8} wrap='wrap'>
+                <Text
+                  strong
+                  style={{ color: token.colorPrimary, fontSize: 15 }}
+                >
+                  {indexInType + 1}.
+                </Text>
+                <Tag
+                  color={typeMeta.color}
+                  style={{
+                    fontSize: 10,
+                    margin: 0,
+                    borderRadius: 999,
+                    paddingInline: 10,
+                  }}
+                >
+                  {typeMeta.label}
+                </Tag>
+                <Tag
+                  style={{
+                    fontSize: 10,
+                    margin: 0,
+                    borderRadius: 999,
+                    paddingInline: 10,
+                    borderColor: "rgba(37, 99, 235, 0.18)",
+                    color: "#1e3a8a",
+                    background: "rgba(219, 234, 254, 0.55)",
+                  }}
+                >
+                  {question.score_point} Pts
+                </Tag>
+                <Tooltip
+                  title={
+                    question.bloom_level
+                      ? `Bloom Level ${bloomMeta.short} ${bloomMeta.label}`
+                      : "Bloom level belum diisi"
+                  }
+                >
+                  <Tag
+                    color={bloomMeta.color}
+                    style={{
+                      fontSize: 10,
+                      margin: 0,
+                      borderRadius: 999,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      paddingInline: 10,
+                    }}
+                  >
+                    <BrainCircuit size={12} />
+                    {question.bloom_level
+                      ? `${bloomMeta.short} ${bloomMeta.label}`
+                      : "Tanpa Bloom"}
+                  </Tag>
+                </Tooltip>
+              </Flex>
+            </Flex>
+
+            <Space size={6} style={{ flexShrink: 0 }}>
+              <Button
+                type='text'
+                size='small'
+                icon={<Edit3 size={16} />}
+                style={{ borderRadius: 10 }}
+                onClick={() => {
+                  setEditingItem(question);
+                  setIsFormVisible(true);
+                }}
+              />
+              <Popconfirm
+                title='Hapus soal ini?'
+                onConfirm={() => handleDeleteSingle(question.id)}
+              >
+                <Button
+                  type='text'
+                  size='small'
+                  danger
+                  style={{ borderRadius: 10 }}
+                  icon={<Trash2 size={16} />}
+                />
+              </Popconfirm>
+            </Space>
+          </Flex>
+
+          <QuestionItem question={question} />
+        </Flex>
+      </Card>
+    );
+  };
+
   if (isFormVisible) {
     return (
       <Suspense
@@ -351,10 +527,7 @@ const QuestionsList = () => {
                         tersimpan di database.
                       </Text>
                       <Progress
-                        percent={Math.max(
-                          0,
-                          Math.min(aiProgressPercent, 100),
-                        )}
+                        percent={Math.max(0, Math.min(aiProgressPercent, 100))}
                         status='active'
                         size='small'
                         strokeColor='#1677ff'
@@ -399,7 +572,7 @@ const QuestionsList = () => {
 
         {isLoading ? (
           <Card
-            variant="borderless"
+            variant='borderless'
             style={{
               borderRadius: 24,
               boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
@@ -420,7 +593,7 @@ const QuestionsList = () => {
           </Card>
         ) : questions.length === 0 ? (
           <Card
-            variant="borderless"
+            variant='borderless'
             style={{
               borderRadius: 24,
               boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
@@ -466,7 +639,7 @@ const QuestionsList = () => {
           </Card>
         ) : (
           <Card
-            variant="borderless"
+            variant='borderless'
             style={{
               borderRadius: 24,
               boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
@@ -487,178 +660,104 @@ const QuestionsList = () => {
                 Daftar Pertanyaan
               </Text>
               <Text type='secondary'>
-                Tinjau, pilih, dan kelola soal dalam bank ini dari panel yang
-                lebih terstruktur.
+                Tinjau semua soal per tipe dalam tampilan tab yang lebih rapi,
+                terbuka, dan nyaman dipakai di berbagai ukuran layar.
               </Text>
             </Flex>
 
-            <Collapse
-              accordion
-              ghost
-              expandIconPlacement='end'
-              items={questions.map((q, index) => {
-                const typeMeta = getQuestionTypeName(q.q_type);
-                const bloomMeta = getBloomLevelMeta(q.bloom_level);
-                const isSelected = selectedIds.includes(q.id);
-
-                return {
-                  key: q.id,
-                  label: (
-                    <div style={{ width: "100%" }}>
-                      <Flex
-                        align={isMobile ? "flex-start" : "center"}
-                        gap={12}
-                        style={{ width: "100%" }}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={() => handleSelect(q.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ flexShrink: 0, marginTop: isMobile ? 4 : 0 }}
-                        />
-
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Flex vertical gap={8}>
-                            <Flex
-                              justify='space-between'
-                              align={isMobile ? "flex-start" : "center"}
-                              gap={10}
-                              wrap
-                            >
-                              <Flex gap={8} align='center' wrap='wrap'>
-                                <Text
-                                  strong
-                                  style={{
-                                    color: token.colorPrimary,
-                                    fontSize: 15,
-                                  }}
-                                >
-                                  {index + 1}.
-                                </Text>
-                                <Flex gap={6} wrap='wrap'>
-                                  <Tag
-                                    color={typeMeta.color}
-                                    style={{
-                                      fontSize: 10,
-                                      margin: 0,
-                                      borderRadius: 999,
-                                      paddingInline: 10,
-                                    }}
-                                  >
-                                    {typeMeta.label}
-                                  </Tag>
-                                  <Tag
-                                    style={{
-                                      fontSize: 10,
-                                      margin: 0,
-                                      borderRadius: 999,
-                                      paddingInline: 10,
-                                      borderColor: "rgba(37, 99, 235, 0.18)",
-                                      color: "#1e3a8a",
-                                      background: "rgba(219, 234, 254, 0.55)",
-                                    }}
-                                  >
-                                    {q.score_point} Pts
-                                  </Tag>
-                                  <Tooltip
-                                    title={
-                                      q.bloom_level
-                                        ? `Bloom Level ${bloomMeta.short} ${bloomMeta.label}`
-                                        : "Bloom level belum diisi"
-                                    }
-                                  >
-                                    <Tag
-                                      color={bloomMeta.color}
-                                      style={{
-                                        fontSize: 10,
-                                        margin: 0,
-                                        borderRadius: 999,
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 4,
-                                        paddingInline: 10,
-                                      }}
-                                    >
-                                      <BrainCircuit size={12} />
-                                      {q.bloom_level
-                                        ? `${bloomMeta.short} ${bloomMeta.label}`
-                                        : "Tanpa Bloom"}
-                                    </Tag>
-                                  </Tooltip>
-                                </Flex>
-                              </Flex>
-
-                              <Space
-                                size={4}
-                                onClick={(e) => e.stopPropagation()}
-                                style={{ flexShrink: 0 }}
-                              >
-                                <Button
-                                  type='text'
-                                  size='small'
-                                  icon={<Edit3 size={16} />}
-                                  style={{ borderRadius: 10 }}
-                                  onClick={() => {
-                                    setEditingItem(q);
-                                    setIsFormVisible(true);
-                                  }}
-                                />
-                                <Popconfirm
-                                  title='Hapus soal ini?'
-                                  onConfirm={() => handleDeleteSingle(q.id)}
-                                >
-                                  <Button
-                                    type='text'
-                                    size='small'
-                                    danger
-                                    style={{ borderRadius: 10 }}
-                                    icon={<Trash2 size={16} />}
-                                  />
-                                </Popconfirm>
-                              </Space>
-                            </Flex>
-
-                            <div
-                              style={{
-                                padding: isMobile ? "10px 12px" : "12px 14px",
-                                borderRadius: 16,
-                                background: isSelected
-                                  ? "rgba(219, 234, 254, 0.55)"
-                                  : "rgba(248, 250, 252, 0.92)",
-                                border: isSelected
-                                  ? "1px solid rgba(59, 130, 246, 0.24)"
-                                  : "1px solid rgba(226, 232, 240, 0.92)",
-                              }}
-                            >
-                              <QuestionPreviewText value={q.content} />
-                            </div>
-                          </Flex>
-                        </div>
-                      </Flex>
-                    </div>
-                  ),
-                  children: (
-                    <div
+            <Tabs
+              defaultActiveKey={String(
+                groupedQuestions.find((item) => item.questions.length)?.type ||
+                  1,
+              )}
+              size={isMobile ? "middle" : "large"}
+              tabBarGutter={12}
+              tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+              items={groupedQuestions.map((group) => ({
+                key: String(group.type),
+                label: createTypeTabLabel(group.meta, group.questions.length),
+                children: group.questions.length ? (
+                  <Flex vertical gap={16}>
+                    <Flex
+                      justify='space-between'
+                      align={isMobile ? "flex-start" : "center"}
+                      gap={12}
+                      wrap
                       style={{
-                        padding: isMobile ? "8px 0 8px 0" : "0 4px 12px 32px",
+                        padding: isMobile ? "10px 12px" : "14px 16px",
+                        borderRadius: 18,
+                        background:
+                          "linear-gradient(135deg, rgba(239,246,255,0.9), rgba(240,253,244,0.9))",
+                        border: "1px solid rgba(191, 219, 254, 0.85)",
                       }}
                     >
-                      <QuestionItem question={q} />
-                    </div>
-                  ),
-                  style: {
-                    background: "#fff",
-                    borderRadius: 20,
-                    marginBottom: 14,
-                    border: isSelected
-                      ? "1px solid rgba(59, 130, 246, 0.22)"
-                      : "1px solid rgba(226, 232, 240, 0.95)",
-                    boxShadow: isSelected
-                      ? "0 18px 36px rgba(37, 99, 235, 0.10)"
-                      : "0 8px 18px rgba(15, 23, 42, 0.04)",
-                  },
-                };
-              })}
+                      <Flex vertical gap={4}>
+                        <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
+                          {group.meta.label}
+                        </Text>
+                        <Text type='secondary'>
+                          {group.questions.length} soal siap ditinjau dalam
+                          kategori ini.
+                        </Text>
+                      </Flex>
+                      <Tag
+                        color={group.meta.color}
+                        style={{
+                          margin: 0,
+                          borderRadius: 999,
+                          paddingInline: 12,
+                          paddingBlock: 4,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Total {group.questions.length}
+                      </Tag>
+                    </Flex>
+
+                    {group.questions.map((question, index) =>
+                      renderQuestionCard(question, index),
+                    )}
+                  </Flex>
+                ) : (
+                  <Card
+                    variant='borderless'
+                    style={{
+                      borderRadius: 20,
+                      background:
+                        "linear-gradient(135deg, rgba(248,250,252,0.96), rgba(239,246,255,0.88))",
+                      border: "1px dashed rgba(148, 163, 184, 0.35)",
+                    }}
+                    styles={{ body: { padding: isMobile ? 24 : 32 } }}
+                  >
+                    <Flex
+                      vertical
+                      align='center'
+                      justify='center'
+                      gap={10}
+                      style={{ textAlign: "center", minHeight: 220 }}
+                    >
+                      <Empty
+                        description={false}
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      />
+                      <Title level={5} style={{ margin: 0 }}>
+                        Belum ada soal {group.meta.label}
+                      </Title>
+                      <Text type='secondary' style={{ maxWidth: 420 }}>
+                        Tambahkan soal baru pada tipe ini agar struktur bank
+                        soal lebih lengkap dan mudah dikelola.
+                      </Text>
+                      <Button
+                        type='primary'
+                        onClick={openCreateForm}
+                        style={{ borderRadius: 12 }}
+                      >
+                        Tambah Soal
+                      </Button>
+                    </Flex>
+                  </Card>
+                ),
+              }))}
             />
           </Card>
         )}

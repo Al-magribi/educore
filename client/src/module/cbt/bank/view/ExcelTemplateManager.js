@@ -3,6 +3,7 @@ export const downloadTemplate = async () => {
   const template = [
     {
       type_id: 1,
+      bloom_level: 2,
       question_text:
         "Perhatikan ciri-ciri bangun ruang: a. Memiliki 6 sisi sama besar... Bangun tersebut adalah? [cite: 15]",
       score_point: 2,
@@ -14,7 +15,34 @@ export const downloadTemplate = async () => {
       key: "A",
     },
     {
+      type_id: 2,
+      bloom_level: 3,
+      question_text:
+        "Pilih semua bilangan prima di bawah ini.",
+      score_point: 4,
+      option_a: "2",
+      option_b: "4",
+      option_c: "5",
+      option_d: "9",
+      option_e: "11",
+      key: "A,C,E",
+    },
+    {
+      type_id: 3,
+      bloom_level: 4,
+      question_text:
+        "Jelaskan perbedaan antara simbiosis mutualisme dan parasitisme, lalu berikan masing-masing satu contoh.",
+      score_point: 10,
+      option_a: "",
+      option_b: "",
+      option_c: "",
+      option_d: "",
+      option_e: "",
+      key: "",
+    },
+    {
       type_id: 4,
+      bloom_level: 1,
       question_text: "Banyak titik sudut pada bola adalah... [cite: 159]",
       score_point: 5,
       option_a: "",
@@ -25,7 +53,21 @@ export const downloadTemplate = async () => {
       key: "0, Kosong", // Variasi jawaban isian [cite: 156]
     },
     {
+      type_id: 5,
+      bloom_level: 2,
+      question_text:
+        "Benar atau Salah: Planet terdekat dari matahari adalah Merkurius.",
+      score_point: 2,
+      option_a: "",
+      option_b: "",
+      option_c: "",
+      option_d: "",
+      option_e: "",
+      key: "Benar",
+    },
+    {
       type_id: 6,
+      bloom_level: 3,
       question_text:
         "Pasangkan koordinat titik asal dengan hasil translasinya! ",
       score_point: 10,
@@ -44,6 +86,7 @@ export const downloadTemplate = async () => {
 
   worksheet["!cols"] = [
     { wch: 10 },
+    { wch: 12 },
     { wch: 50 },
     { wch: 12 },
     { wch: 25 },
