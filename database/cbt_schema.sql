@@ -344,6 +344,104 @@ ON cbt.c_student_answer (question_id);
 
 
 -- =========================================================
+-- DRAFT GENERATE SOAL AI
+-- Menyimpan hasil generate AI sebagai draft sebelum disetujui
+-- =========================================================
+
+CREATE TABLE cbt.c_ai_question_job (
+    id BIGSERIAL PRIMARY KEY,
+    bank_id integer NOT NULL REFERENCES cbt.c_bank(id) ON DELETE CASCADE,
+    requested_by integer NOT NULL REFERENCES public.u_users(id) ON DELETE RESTRICT,
+    ai_teacher_config_id bigint REFERENCES public.ai_teacher_config(id) ON DELETE SET NULL,
+
+    boss_job_id uuid,
+    boss_queue_name varchar(100) NOT NULL DEFAULT 'cbt-ai-question-generator',
+
+    feature_code varchar(50) NOT NULL DEFAULT 'question_generator',
+    status varchar(20) NOT NULL DEFAULT 'queued'
+      CHECK (status IN ('queued', 'running', 'completed', 'failed', 'approved', 'discarded', 'cancelled')),
+
+    provider varchar(30) NOT NULL DEFAULT 'openai',
+    model varchar(100),
+    temperature numeric(4,2),
+
+    grade_id integer REFERENCES public.a_grade(id) ON DELETE SET NULL,
+    subject_id integer REFERENCES public.a_subject(id) ON DELETE SET NULL,
+
+    total_requested integer NOT NULL DEFAULT 0 CHECK (total_requested >= 0),
+    total_generated integer NOT NULL DEFAULT 0 CHECK (total_generated >= 0),
+    total_approved integer NOT NULL DEFAULT 0 CHECK (total_approved >= 0),
+    total_discarded integer NOT NULL DEFAULT 0 CHECK (total_discarded >= 0),
+
+    requested_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at timestamptz,
+    finished_at timestamptz,
+    approved_at timestamptz,
+    discarded_at timestamptz,
+
+    request_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+    summary_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+    error_message text,
+
+    created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX uq_c_ai_question_job_boss_job
+ON cbt.c_ai_question_job (boss_job_id)
+WHERE boss_job_id IS NOT NULL;
+
+CREATE INDEX idx_c_ai_question_job_bank_status
+ON cbt.c_ai_question_job (bank_id, status, requested_at DESC);
+
+CREATE INDEX idx_c_ai_question_job_requested_by
+ON cbt.c_ai_question_job (requested_by, requested_at DESC);
+
+
+CREATE TABLE cbt.c_ai_question_draft (
+    id BIGSERIAL PRIMARY KEY,
+    job_id bigint NOT NULL REFERENCES cbt.c_ai_question_job(id) ON DELETE CASCADE,
+    bank_id integer NOT NULL REFERENCES cbt.c_bank(id) ON DELETE CASCADE,
+
+    q_type smallint NOT NULL
+      CHECK (q_type IN (1, 2, 3, 4, 5, 6)),
+    bloom_level smallint
+      CHECK (bloom_level IS NULL OR bloom_level BETWEEN 1 AND 6),
+
+    content text NOT NULL,
+    score_point numeric(6,2) NOT NULL DEFAULT 0
+      CHECK (score_point >= 0),
+
+    options_json jsonb NOT NULL DEFAULT '[]'::jsonb,
+    rubric_template_id integer REFERENCES cbt.c_rubric_template(id) ON DELETE SET NULL,
+    rubric_json jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+    sort_order integer NOT NULL DEFAULT 1,
+    source_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+
+    draft_status varchar(20) NOT NULL DEFAULT 'draft'
+      CHECK (draft_status IN ('draft', 'reviewed', 'approved', 'discarded')),
+    is_edited boolean NOT NULL DEFAULT false,
+
+    approved_question_id integer REFERENCES cbt.c_question(id) ON DELETE SET NULL,
+    approved_at timestamptz,
+    discarded_at timestamptz,
+
+    created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_c_ai_question_draft_job
+ON cbt.c_ai_question_draft (job_id, sort_order, id);
+
+CREATE INDEX idx_c_ai_question_draft_bank_status
+ON cbt.c_ai_question_draft (bank_id, draft_status, created_at DESC);
+
+CREATE INDEX idx_c_ai_question_draft_approved_question
+ON cbt.c_ai_question_draft (approved_question_id);
+
+
+-- =========================================================
 -- JOB KOREKSI AI MASSAL
 -- Tracking aplikasi untuk proses background via pg-boss
 -- =========================================================
