@@ -80,26 +80,26 @@ const applySpecialOrdering = (groups) => {
   merged.teacher = mergeRoleMenus(groups, "teacher", [
     "core",
     "db",
-    "finance",
-    "cbt",
     "lms",
+    "cbt",
     "tahfiz",
+    "finance",
   ]);
   merged.student = mergeRoleMenus(groups, "student", [
     "core",
-    "finance",
-    "cbt",
-    "lms",
-    "tahfiz",
     "db",
+    "lms",
+    "cbt",
+    "tahfiz",
+    "finance",
   ]);
   merged.parent = mergeRoleMenus(groups, "parent", [
     "core",
-    "finance",
     "db",
-    "cbt",
     "lms",
+    "cbt",
     "tahfiz",
+    "finance",
   ]);
   merged.tahfiz = mergeRoleMenus(groups, "tahfiz", [
     "core",
