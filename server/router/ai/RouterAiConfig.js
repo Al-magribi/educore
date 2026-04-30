@@ -577,50 +577,76 @@ router.get(
 
     const rowsResult = await db.query(
       `
+        WITH usage_per_job AS (
+          SELECT
+            log.feature_code,
+            log.job_id,
+            COUNT(log.id)::int AS total_requests,
+            COALESCE(SUM(log.total_tokens), 0)::bigint AS total_tokens,
+            COALESCE(SUM(log.total_cost_usd), 0)::numeric(18,6) AS total_cost_usd,
+            COALESCE(
+              STRING_AGG(DISTINCT log.model, ', ' ORDER BY log.model)
+                FILTER (WHERE log.model IS NOT NULL AND log.model <> ''),
+              ''
+            ) AS models
+          FROM ai_usage_log log
+          WHERE log.teacher_id = $1
+            AND log.feature_code IN ('question_generator', 'essay_grader')
+            AND log.job_id IS NOT NULL
+          GROUP BY log.feature_code, log.job_id
+        )
         SELECT
-          log.job_id,
-          job.exam_id,
-          exam.name AS exam_name,
-          job.status,
-          job.error_message,
-          job.requested_at,
-          job.started_at,
-          job.finished_at,
-          job.total_students,
-          job.total_items,
-          job.processed_items,
-          job.success_items,
-          job.failed_items,
-          job.skipped_items,
-          COUNT(log.id)::int AS total_requests,
-          COALESCE(SUM(log.total_tokens), 0)::bigint AS total_tokens,
-          COALESCE(SUM(log.total_cost_usd), 0)::numeric(18,6) AS total_cost_usd,
-          COALESCE(
-            STRING_AGG(DISTINCT log.model, ', ' ORDER BY log.model)
-              FILTER (WHERE log.model IS NOT NULL AND log.model <> ''),
-            ''
-          ) AS models
-        FROM ai_usage_log log
-        JOIN cbt.c_ai_grading_job job ON job.id = log.job_id
-        LEFT JOIN cbt.c_exam exam ON exam.id = job.exam_id
-        WHERE log.teacher_id = $1
-          AND log.job_id IS NOT NULL
-        GROUP BY
-          log.job_id,
-          job.exam_id,
-          exam.name,
-          job.status,
-          job.error_message,
-          job.requested_at,
-          job.started_at,
-          job.finished_at,
-          job.total_students,
-          job.total_items,
-          job.processed_items,
-          job.success_items,
-          job.failed_items,
-          job.skipped_items
-        ORDER BY job.requested_at DESC, log.job_id DESC
+          usage.feature_code,
+          usage.job_id,
+          CASE
+            WHEN usage.feature_code = 'essay_grader' THEN 'Koreksi Essay'
+            WHEN usage.feature_code = 'question_generator' THEN 'Generator Soal'
+            ELSE usage.feature_code
+          END AS task_name,
+          COALESCE(grade_job.status, question_job.status, 'unknown') AS status,
+          COALESCE(grade_job.error_message, question_job.error_message) AS error_message,
+          COALESCE(grade_job.requested_at, question_job.requested_at) AS requested_at,
+          COALESCE(grade_job.started_at, question_job.started_at) AS started_at,
+          COALESCE(grade_job.finished_at, question_job.finished_at) AS finished_at,
+          CASE
+            WHEN usage.feature_code = 'essay_grader'
+              THEN COALESCE(exam.name, CONCAT('Ujian #', grade_job.exam_id::text))
+            WHEN usage.feature_code = 'question_generator'
+              THEN COALESCE(bank.title, CONCAT('Bank #', question_job.bank_id::text))
+            ELSE '-'
+          END AS reference_name,
+          CASE
+            WHEN usage.feature_code = 'essay_grader'
+              THEN COALESCE(grade_job.total_items, 0)
+            WHEN usage.feature_code = 'question_generator'
+              THEN COALESCE(question_job.total_requested, 0)
+            ELSE 0
+          END::bigint AS total_units,
+          CASE
+            WHEN usage.feature_code = 'essay_grader'
+              THEN COALESCE(grade_job.processed_items, 0)
+            WHEN usage.feature_code = 'question_generator'
+              THEN COALESCE(question_job.total_generated, 0)
+            ELSE 0
+          END::bigint AS processed_units,
+          usage.total_requests,
+          usage.total_tokens,
+          usage.total_cost_usd,
+          usage.models
+        FROM usage_per_job usage
+        LEFT JOIN cbt.c_ai_grading_job grade_job
+          ON usage.feature_code = 'essay_grader'
+          AND grade_job.id = usage.job_id
+          AND grade_job.requested_by = $1
+        LEFT JOIN cbt.c_exam exam ON exam.id = grade_job.exam_id
+        LEFT JOIN cbt.c_ai_question_job question_job
+          ON usage.feature_code = 'question_generator'
+          AND question_job.id = usage.job_id
+          AND question_job.requested_by = $1
+        LEFT JOIN cbt.c_bank bank ON bank.id = question_job.bank_id
+        WHERE (usage.feature_code = 'essay_grader' AND grade_job.id IS NOT NULL)
+           OR (usage.feature_code = 'question_generator' AND question_job.id IS NOT NULL)
+        ORDER BY COALESCE(grade_job.requested_at, question_job.requested_at) DESC, usage.job_id DESC
         LIMIT $2
       `,
       [teacherId, limit],
@@ -628,28 +654,84 @@ router.get(
 
     const summaryResult = await db.query(
       `
-        SELECT
-          COUNT(*)::int AS total_jobs,
-          COUNT(*) FILTER (WHERE job.status = 'completed')::int AS completed_jobs,
-          COUNT(*) FILTER (WHERE job.status = 'failed')::int AS failed_jobs,
-          COUNT(*) FILTER (WHERE job.status IN ('queued', 'running'))::int AS active_jobs,
-          COALESCE(SUM(job.total_items), 0)::bigint AS total_items,
-          COALESCE(SUM(job.processed_items), 0)::bigint AS processed_items,
-          COALESCE(SUM(job.success_items), 0)::bigint AS success_items,
-          COALESCE(SUM(job.failed_items), 0)::bigint AS failed_items,
-          COALESCE(SUM(usage.total_tokens), 0)::bigint AS total_tokens,
-          COALESCE(SUM(usage.total_cost_usd), 0)::numeric(18,6) AS total_cost_usd
-        FROM (
+        WITH usage_per_job AS (
           SELECT
-            job_id,
+            log.feature_code,
+            log.job_id,
+            COALESCE(SUM(log.total_tokens), 0)::bigint AS total_tokens,
+            COALESCE(SUM(log.total_cost_usd), 0)::numeric(18,6) AS total_cost_usd
+          FROM ai_usage_log log
+          WHERE log.teacher_id = $1
+            AND log.feature_code IN ('question_generator', 'essay_grader')
+            AND log.job_id IS NOT NULL
+          GROUP BY log.feature_code, log.job_id
+        ),
+        usage_with_status AS (
+          SELECT
+            usage.feature_code,
+            usage.job_id,
+            usage.total_tokens,
+            usage.total_cost_usd,
+            CASE
+              WHEN usage.feature_code = 'essay_grader' THEN grade_job.status
+              WHEN usage.feature_code = 'question_generator' THEN question_job.status
+              ELSE 'unknown'
+            END AS status
+          FROM usage_per_job usage
+          LEFT JOIN cbt.c_ai_grading_job grade_job
+            ON usage.feature_code = 'essay_grader'
+            AND grade_job.id = usage.job_id
+            AND grade_job.requested_by = $1
+          LEFT JOIN cbt.c_ai_question_job question_job
+            ON usage.feature_code = 'question_generator'
+            AND question_job.id = usage.job_id
+            AND question_job.requested_by = $1
+          WHERE (usage.feature_code = 'essay_grader' AND grade_job.id IS NOT NULL)
+             OR (usage.feature_code = 'question_generator' AND question_job.id IS NOT NULL)
+        ),
+        feature_summary AS (
+          SELECT
+            feature_code,
+            COUNT(*)::int AS total_jobs,
+            COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_jobs,
+            COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_jobs,
+            COUNT(*) FILTER (WHERE status IN ('queued', 'running'))::int AS active_jobs,
             COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
-            COALESCE(SUM(total_cost_usd), 0)::numeric(18,6) AS total_cost_usd
-          FROM ai_usage_log
-          WHERE teacher_id = $1 AND job_id IS NOT NULL
-          GROUP BY job_id
-        ) usage
-        JOIN cbt.c_ai_grading_job job ON job.id = usage.job_id
-        WHERE job.requested_by = $1
+            COALESCE(SUM(total_cost_usd), 0)::numeric(18,6) AS total_cost_usd,
+            CASE
+              WHEN COUNT(*) > 0
+                THEN (COALESCE(SUM(total_cost_usd), 0) / COUNT(*))::numeric(18,6)
+              ELSE 0::numeric(18,6)
+            END AS avg_cost_per_run_usd
+          FROM usage_with_status
+          GROUP BY feature_code
+        )
+        SELECT
+          COALESCE(SUM(total_jobs), 0)::int AS total_jobs,
+          COALESCE(SUM(completed_jobs), 0)::int AS completed_jobs,
+          COALESCE(SUM(failed_jobs), 0)::int AS failed_jobs,
+          COALESCE(SUM(active_jobs), 0)::int AS active_jobs,
+          COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
+          COALESCE(SUM(total_cost_usd), 0)::numeric(18,6) AS total_cost_usd,
+          COALESCE(
+            (
+              SELECT jsonb_object_agg(
+                feature_code,
+                jsonb_build_object(
+                  'total_jobs', total_jobs,
+                  'completed_jobs', completed_jobs,
+                  'failed_jobs', failed_jobs,
+                  'active_jobs', active_jobs,
+                  'total_tokens', total_tokens,
+                  'total_cost_usd', total_cost_usd,
+                  'avg_cost_per_run_usd', avg_cost_per_run_usd
+                )
+              )
+              FROM feature_summary
+            ),
+            '{}'::jsonb
+          ) AS by_feature
+        FROM feature_summary
       `,
       [teacherId],
     );
@@ -663,12 +745,9 @@ router.get(
           completed_jobs: 0,
           failed_jobs: 0,
           active_jobs: 0,
-          total_items: 0,
-          processed_items: 0,
-          success_items: 0,
-          failed_items: 0,
           total_tokens: 0,
           total_cost_usd: 0,
+          by_feature: {},
         },
         rows: rowsResult.rows || [],
       },

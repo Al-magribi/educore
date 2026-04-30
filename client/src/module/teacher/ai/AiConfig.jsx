@@ -4,6 +4,7 @@ import {
   Card,
   Col,
   Form,
+  Flex,
   Grid,
   Row,
   Skeleton,
@@ -17,6 +18,7 @@ import {
   theme,
 } from "antd";
 import { motion } from "framer-motion";
+import { FileText, Settings } from "lucide-react";
 
 import {
   useGetAiConfigQuery,
@@ -42,10 +44,6 @@ import AiNotesCard from "./components/AiNotesCard";
 const MotionDiv = motion.div;
 const { useBreakpoint } = Grid;
 const { Text, Title } = Typography;
-const usageTabItems = [
-  { key: "config", label: "Konfigurasi" },
-  { key: "report", label: "Laporan" },
-];
 
 const getErrorMessage = (error, fallback) =>
   error?.data?.message || error?.error || fallback;
@@ -64,6 +62,11 @@ const initialValues = {
     essay_grader: true,
     speech_to_text: true,
   },
+};
+
+const FEATURE_LABELS = {
+  question_generator: "Generator Soal",
+  essay_grader: "Koreksi Essay",
 };
 
 const AiConfig = () => {
@@ -111,8 +114,32 @@ const AiConfig = () => {
   );
   const usageSummary = usageReport?.summary || {};
   const usageRows = usageReport?.rows || [];
+  const byFeature = usageSummary?.by_feature || {};
+  const questionGeneratorSummary = byFeature.question_generator || {};
+  const essayGraderSummary = byFeature.essay_grader || {};
+  const combinedTotalCost = Number(usageSummary?.total_cost_usd || 0);
+  const avgQuestionGeneratorCost = Number(
+    questionGeneratorSummary?.avg_cost_per_run_usd || 0,
+  );
+  const avgEssayGraderCost = Number(
+    essayGraderSummary?.avg_cost_per_run_usd || 0,
+  );
+  const combinedAvgCost = Number(
+    (avgQuestionGeneratorCost + avgEssayGraderCost).toFixed(6),
+  );
   const usageColumns = useMemo(
     () => [
+      {
+        title: "Task",
+        dataIndex: "feature_code",
+        key: "feature_code",
+        width: 170,
+        render: (value) => (
+          <Tag color={value === "question_generator" ? "geekblue" : "purple"}>
+            {FEATURE_LABELS[value] || value || "-"}
+          </Tag>
+        ),
+      },
       {
         title: "Job ID",
         dataIndex: "job_id",
@@ -121,24 +148,19 @@ const AiConfig = () => {
         render: (value) => `#${value || "-"}`,
       },
       {
-        title: "Ujian",
-        dataIndex: "exam_name",
-        key: "exam_name",
-        width: 220,
-        render: (value, record) => value || `Ujian #${record.exam_id || "-"}`,
+        title: "Referensi",
+        dataIndex: "reference_name",
+        key: "reference_name",
+        width: 240,
+        render: (value) => value || "-",
       },
       {
         title: "Waktu Request",
         dataIndex: "requested_at",
         key: "requested_at",
         width: 180,
-        render: (value) => (value ? new Date(value).toLocaleString("id-ID") : "-"),
-      },
-      {
-        title: "Fitur",
-        key: "feature_code",
-        width: 140,
-        render: () => <Tag color='blue'>essay_grader</Tag>,
+        render: (value) =>
+          value ? new Date(value).toLocaleString("id-ID") : "-",
       },
       {
         title: "Model",
@@ -148,14 +170,13 @@ const AiConfig = () => {
         render: (value) => value || "-",
       },
       {
-        title: "Item",
-        dataIndex: "total_items",
-        key: "total_items",
+        title: "Progress Task",
+        key: "total_units",
         width: 150,
         align: "right",
         render: (value, record) =>
-          `${Number(record.processed_items || 0).toLocaleString("id-ID")} / ${Number(
-            value || 0,
+          `${Number(record.processed_units || 0).toLocaleString("id-ID")} / ${Number(
+            record.total_units || 0,
           ).toLocaleString("id-ID")}`,
       },
       {
@@ -204,6 +225,59 @@ const AiConfig = () => {
     ],
     [],
   );
+
+  const createTabLabel = (label, icon, caption) => (
+    <Flex align='center' gap={10}>
+      <span
+        style={{
+          width: 34,
+          height: 34,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
+          color: "#0369a1",
+          border: "1px solid rgba(148, 163, 184, 0.14)",
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </span>
+      <Flex vertical gap={0}>
+        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+        {!isMobile && (
+          <span
+            style={{
+              fontSize: 12,
+              color: token.colorTextSecondary,
+              lineHeight: 1.2,
+            }}
+          >
+            {caption}
+          </span>
+        )}
+      </Flex>
+    </Flex>
+  );
+
+  const usageTabItems = [
+    {
+      key: "config",
+      label: createTabLabel(
+        "Konfigurasi",
+        <Settings size={16} />,
+        "Pengaturan & Model",
+      ),
+    },
+    {
+      key: "report",
+      label: createTabLabel(
+        "Laporan",
+        <FileText size={16} />,
+        "Riwayat & Biaya",
+      ),
+    },
+  ];
 
   const handleSave = async (values) => {
     try {
@@ -274,6 +348,9 @@ const AiConfig = () => {
                 activeKey={activeTab}
                 onChange={setActiveTab}
                 items={usageTabItems}
+                size={isMobile ? "middle" : "large"}
+                tabBarGutter={12}
+                tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
                 destroyInactiveTabPane={false}
               />
 
@@ -284,7 +361,10 @@ const AiConfig = () => {
                     gap: 20,
                   }}
                 >
-                  <AiFeaturePanel featureMeta={featureMeta} isMobile={isMobile} />
+                  <AiFeaturePanel
+                    featureMeta={featureMeta}
+                    isMobile={isMobile}
+                  />
 
                   <Row align='stretch' gutter={[20, 20]}>
                     <Col xs={24} xl={16}>
@@ -310,7 +390,10 @@ const AiConfig = () => {
                         }}
                       >
                         <AiOperationalSummary config={config} />
-                        <AiNotesCard isFetching={isFetching} isMobile={isMobile} />
+                        <AiNotesCard
+                          isFetching={isFetching}
+                          isMobile={isMobile}
+                        />
                       </div>
                     </Col>
                   </Row>
@@ -318,57 +401,103 @@ const AiConfig = () => {
               ) : (
                 <Space direction='vertical' size={16} style={{ width: "100%" }}>
                   <div>
-                    <Text type='secondary'>Riwayat Penggunaan AI</Text>
+                    <Text type='secondary'>Riwayat Penggunaan AI per Task</Text>
                     <Title level={5} style={{ margin: 0 }}>
-                      Laporan Token dan Biaya per Job
+                      Laporan Generator Soal + Koreksi Essay
                     </Title>
                   </div>
 
                   <Row gutter={[12, 12]}>
                     <Col xs={24} md={8}>
-                      <Statistic
-                        title='Total Job'
-                        value={Number(usageSummary.total_jobs || 0)}
-                      />
+                      <Card style={{ borderRadius: 16 }}>
+                        <Statistic
+                          title='Biaya 1x Generator Soal (USD)'
+                          value={avgQuestionGeneratorCost}
+                          precision={6}
+                        />
+                        <Text type='secondary'>
+                          Total run:{" "}
+                          {Number(
+                            questionGeneratorSummary?.total_jobs || 0,
+                          ).toLocaleString("id-ID")}
+                        </Text>
+                      </Card>
                     </Col>
                     <Col xs={24} md={8}>
-                      <Statistic
-                        title='Total Token'
-                        value={Number(usageSummary.total_tokens || 0)}
-                      />
+                      <Card style={{ borderRadius: 16 }}>
+                        <Statistic
+                          title='Biaya 1x Koreksi Essay (USD)'
+                          value={avgEssayGraderCost}
+                          precision={6}
+                        />
+                        <Text type='secondary'>
+                          Total run:{" "}
+                          {Number(
+                            essayGraderSummary?.total_jobs || 0,
+                          ).toLocaleString("id-ID")}
+                        </Text>
+                      </Card>
                     </Col>
                     <Col xs={24} md={8}>
-                      <Statistic
-                        title='Total Biaya (USD)'
-                        value={Number(usageSummary.total_cost_usd || 0)}
-                        precision={6}
-                      />
+                      <Card style={{ borderRadius: 16 }}>
+                        <Statistic
+                          title='Biaya 1x Kombinasi (USD)'
+                          value={combinedAvgCost}
+                          precision={6}
+                        />
+                        <Text type='secondary'>
+                          Estimasi 1x Generator + 1x Koreksi Essay
+                        </Text>
+                      </Card>
                     </Col>
                   </Row>
 
-                  <Row gutter={[12, 12]}>
-                    <Col xs={24} md={8}>
-                      <Statistic
-                        title='Job Selesai'
-                        value={Number(usageSummary.completed_jobs || 0)}
-                      />
-                    </Col>
-                    <Col xs={24} md={8}>
-                      <Statistic
-                        title='Job Aktif'
-                        value={Number(usageSummary.active_jobs || 0)}
-                      />
-                    </Col>
-                    <Col xs={24} md={8}>
-                      <Statistic
-                        title='Job Gagal'
-                        value={Number(usageSummary.failed_jobs || 0)}
-                      />
-                    </Col>
-                  </Row>
+                  <Card style={{ borderRadius: 16 }}>
+                    <Row gutter={[16, 16]}>
+                      <Col xs={12} sm={8} md={4}>
+                        <Statistic
+                          title='Total Job'
+                          value={Number(usageSummary.total_jobs || 0)}
+                        />
+                      </Col>
+                      <Col xs={12} sm={8} md={4}>
+                        <Statistic
+                          title='Total Token'
+                          value={Number(usageSummary.total_tokens || 0)}
+                        />
+                      </Col>
+                      <Col xs={12} sm={8} md={4}>
+                        <Statistic
+                          title='Total Biaya (USD)'
+                          value={combinedTotalCost}
+                          precision={6}
+                        />
+                      </Col>
+                      <Col xs={12} sm={8} md={4}>
+                        <Statistic
+                          title='Job Selesai'
+                          value={Number(usageSummary.completed_jobs || 0)}
+                        />
+                      </Col>
+                      <Col xs={12} sm={8} md={4}>
+                        <Statistic
+                          title='Job Aktif'
+                          value={Number(usageSummary.active_jobs || 0)}
+                        />
+                      </Col>
+                      <Col xs={12} sm={8} md={4}>
+                        <Statistic
+                          title='Job Gagal'
+                          value={Number(usageSummary.failed_jobs || 0)}
+                        />
+                      </Col>
+                    </Row>
+                  </Card>
 
                   <Table
-                    rowKey='job_id'
+                    rowKey={(row) =>
+                      `${row.feature_code || "task"}-${row.job_id || "0"}`
+                    }
                     loading={usageFetching}
                     columns={usageColumns}
                     dataSource={usageRows}
