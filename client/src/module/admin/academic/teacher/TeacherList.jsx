@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { motion } from "framer-motion";
+import { calcGeneratorDuration, motion } from "framer-motion";
 import {
   Table,
   Button,
@@ -46,34 +46,32 @@ const TeachingAllocations = ({ allocations, compact = false }) => {
   }, [allocations]);
 
   if (groupedData.length === 0) {
-    return <Text type="secondary">-</Text>;
+    return <Text type='secondary'>-</Text>;
   }
 
   const content = (
-    <Flex vertical gap="small" style={{ maxWidth: 250 }}>
+    <Flex vertical gap='small' style={{ maxWidth: 250 }}>
       {groupedData.map(([subject, classes]) => (
         <div key={subject}>
           <Text strong>{subject}</Text>
           <br />
-          <Text type="secondary">Mengajar di: {classes.join(", ")}</Text>
+          <Text type='secondary'>Mengajar di: {classes.join(", ")}</Text>
         </div>
       ))}
     </Flex>
   );
 
   return (
-    <Popover content={content} title="Detail Mengajar" trigger="hover">
-      <Flex vertical gap="small">
-        {groupedData
-          .slice(0, compact ? 1 : 2)
-          .map(([subject, classes]) => (
+    <Popover content={content} title='Detail Mengajar' trigger='hover'>
+      <Flex vertical gap='small'>
+        {groupedData.slice(0, compact ? 1 : 2).map(([subject, classes]) => (
           <Text key={subject} ellipsis>
             <ReadOutlined style={{ marginRight: 8, color: "#1677ff" }} />
             {subject} ({classes.length} kelas)
           </Text>
         ))}
         {groupedData.length > (compact ? 1 : 2) && (
-          <Text type="secondary">
+          <Text type='secondary'>
             +{groupedData.length - (compact ? 1 : 2)} mapel lainnya...
           </Text>
         )}
@@ -115,15 +113,13 @@ const TeacherList = ({
       width: 250,
       fixed: "left",
       render: (text, record) => (
-        <Flex align="center" gap={12}>
-          <Avatar
-            src={record.img_url}
-            icon={<UserOutlined />}
-            size={42}
-          />
+        <Flex align='center' gap={12}>
+          <Avatar src={record.img_url} icon={<UserOutlined />} size={42} />
           <Flex vertical>
             <Text strong>{text}</Text>
-            <Text type="secondary">NIP: {record.nip || "-"}</Text>
+            <Text type='secondary' style={{ fontSize: 11 }}>
+              NIP: {record.nip || "-"} | RFID : {record.rfid_no || "-"}
+            </Text>
           </Flex>
         </Flex>
       ),
@@ -135,7 +131,7 @@ const TeacherList = ({
       render: (_, record) => (
         <>
           {record.is_homeroom && (
-            <Tag icon={<TeamOutlined />} color="success">
+            <Tag icon={<TeamOutlined />} color='success'>
               Wali Kelas
             </Tag>
           )}
@@ -147,7 +143,9 @@ const TeacherList = ({
       dataIndex: "allocations",
       key: "allocations",
       width: 250,
-      render: (allocations) => <TeachingAllocations allocations={allocations} />,
+      render: (allocations) => (
+        <TeachingAllocations allocations={allocations} />
+      ),
     },
     {
       title: "Kontak",
@@ -156,7 +154,7 @@ const TeacherList = ({
       render: (_, record) => (
         <Flex vertical>
           <Text>{record.phone || "-"}</Text>
-          <Text type="secondary" ellipsis>
+          <Text type='secondary' ellipsis>
             {record.email || "-"}
           </Text>
         </Flex>
@@ -170,22 +168,22 @@ const TeacherList = ({
       fixed: "right",
       render: (_, record) => (
         <Space>
-          <Tooltip title="Edit">
+          <Tooltip title='Edit'>
             <Button
-              type="text"
+              type='text'
               icon={<EditOutlined />}
               onClick={() => onEdit(record)}
             />
           </Tooltip>
           <Popconfirm
-            title="Hapus Guru?"
-            description="Aksi ini tidak dapat dibatalkan."
+            title='Hapus Guru?'
+            description='Aksi ini tidak dapat dibatalkan.'
             onConfirm={() => onDelete(record.id)}
-            okText="Ya, Hapus"
-            cancelText="Batal"
+            okText='Ya, Hapus'
+            cancelText='Batal'
           >
-            <Tooltip title="Hapus">
-              <Button type="text" danger icon={<DeleteOutlined />} />
+            <Tooltip title='Hapus'>
+              <Button type='text' danger icon={<DeleteOutlined />} />
             </Tooltip>
           </Popconfirm>
         </Space>
@@ -195,84 +193,87 @@ const TeacherList = ({
 
   return (
     <Card
-      bordered={false}
+      variant='borderless'
       styles={{ body: { padding: isMobile ? 12 : 16 } }}
-      style={{ borderRadius: 22, boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)" }}
+      style={{
+        borderRadius: 22,
+        boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+      }}
     >
-      <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-        <Flex gap={12} wrap="wrap">
-          <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "12px 14px" } }}>
-            <Statistic title="Total Guru" value={total} />
-          </Card>
-          <Tag color="blue" style={{ alignSelf: "center", borderRadius: 999, padding: "8px 14px" }}>
-            Halaman {current} dari {Math.max(1, Math.ceil(total / pageSize))}
-          </Tag>
-        </Flex>
-      </Flex>
-      <Divider style={{ margin: "14px 0" }} />
-
       {isMobile ? (
         <>
           <List
             dataSource={data || []}
             loading={loading}
-            locale={{ emptyText: <Empty description="Data guru belum tersedia" /> }}
+            locale={{
+              emptyText: <Empty description='Data guru belum tersedia' />,
+            }}
             renderItem={(record) => (
               <List.Item style={{ padding: 0, marginBottom: 10 }}>
-                <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.18 }} style={{ width: "100%" }}>
-                <Card size="small" style={{ width: "100%", borderRadius: 18 }}>
-                  <Flex justify="space-between" align="start" gap={10}>
-                    <Space align="start">
-                      <Avatar src={record.img_url} icon={<UserOutlined />} />
-                      <Flex vertical>
-                        <Text strong>{record.full_name}</Text>
-                        <Text type="secondary">NIP: {record.nip || "-"}</Text>
-                      </Flex>
-                    </Space>
-                    <Space>
-                      <Tooltip title="Edit">
-                        <Button
-                          size="small"
-                          type="text"
-                          icon={<EditOutlined />}
-                          onClick={() => onEdit(record)}
-                        />
-                      </Tooltip>
-                      <Popconfirm
-                        title="Hapus Guru?"
-                        description="Aksi ini tidak dapat dibatalkan."
-                        onConfirm={() => onDelete(record.id)}
-                        okText="Ya"
-                        cancelText="Batal"
-                      >
-                        <Tooltip title="Hapus">
+                <MotionDiv
+                  whileHover={{ y: -3 }}
+                  transition={{ duration: 0.18 }}
+                  style={{ width: "100%" }}
+                >
+                  <Card
+                    size='small'
+                    style={{ width: "100%", borderRadius: 18 }}
+                  >
+                    <Flex justify='space-between' align='start' gap={10}>
+                      <Space align='start'>
+                        <Avatar src={record.img_url} icon={<UserOutlined />} />
+                        <Flex vertical>
+                          <Text strong>{record.full_name}</Text>
+                          <Text type='secondary'>NIP: {record.nip || "-"}</Text>
+                        </Flex>
+                      </Space>
+                      <Space>
+                        <Tooltip title='Edit'>
                           <Button
-                            size="small"
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
+                            size='small'
+                            type='text'
+                            icon={<EditOutlined />}
+                            onClick={() => onEdit(record)}
                           />
                         </Tooltip>
-                      </Popconfirm>
-                    </Space>
-                  </Flex>
-                  <Divider style={{ margin: "10px 0" }} />
-                  <Flex vertical gap={8}>
-                    {record.is_homeroom && (
-                      <Tag icon={<TeamOutlined />} color="success">
-                        Wali Kelas
-                      </Tag>
-                    )}
-                    <Text>{record.phone || "-"}</Text>
-                    <Text type="secondary">{record.email || "-"}</Text>
-                    <TeachingAllocations allocations={record.allocations} compact />
-                  </Flex>
-                </Card>
+                        <Popconfirm
+                          title='Hapus Guru?'
+                          description='Aksi ini tidak dapat dibatalkan.'
+                          onConfirm={() => onDelete(record.id)}
+                          okText='Ya'
+                          cancelText='Batal'
+                        >
+                          <Tooltip title='Hapus'>
+                            <Button
+                              size='small'
+                              type='text'
+                              danger
+                              icon={<DeleteOutlined />}
+                            />
+                          </Tooltip>
+                        </Popconfirm>
+                      </Space>
+                    </Flex>
+                    <Divider style={{ margin: "10px 0" }} />
+                    <Flex vertical gap={8}>
+                      {record.is_homeroom && (
+                        <Tag icon={<TeamOutlined />} color='success'>
+                          Wali Kelas
+                        </Tag>
+                      )}
+                      <Text>{record.phone || "-"}</Text>
+                      <Text type='secondary'>{record.email || "-"}</Text>
+                      <TeachingAllocations
+                        allocations={record.allocations}
+                        compact
+                      />
+                    </Flex>
+                  </Card>
                 </MotionDiv>
               </List.Item>
             )}
           />
-          <Flex justify="center" style={{ marginTop: 12 }}>
+          <Flex justify='center' style={{ marginTop: 12 }}>
             <Pagination
               current={current}
               pageSize={pageSize}
@@ -298,9 +299,9 @@ const TeacherList = ({
               `${range[0]}-${range[1]} dari ${items} guru`,
           }}
           onChange={handleDesktopChange}
-          rowKey="id"
+          rowKey='id'
           scroll={{ x: 1100 }}
-          size="middle"
+          size='middle'
         />
       )}
     </Card>

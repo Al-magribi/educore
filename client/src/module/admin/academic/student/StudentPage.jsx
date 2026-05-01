@@ -69,7 +69,6 @@ const StudentPage = ({ screens }) => {
   const [hasMore, setHasMore] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-
   const { data: apiData, isFetching } = useGetStudentsQuery({
     page,
     limit: 12,
@@ -226,7 +225,7 @@ const StudentPage = ({ screens }) => {
               {text}
             </Text>
             <Text type='secondary' style={{ fontSize: 12 }}>
-              @{record.username}
+              NIS : {record.username} | RFID : {record.rfid_no || "-"}
             </Text>
           </div>
         </Flex>
