@@ -361,30 +361,23 @@ const Teacher = () => {
                     setPagination((prev) => ({ ...prev, current: 1 }));
                   }}
                   style={{ width: !screens.md ? "100%" : 260 }}
-                  size='large'
                   allowClear
                 />
                 <Button
                   icon={<DownloadOutlined />}
                   onClick={handleDownloadTemplate}
-                  size='large'
                 >
-                  Download Template
+                  Template
                 </Button>
-                <Button
-                  icon={<UploadOutlined />}
-                  onClick={showUpload}
-                  size='large'
-                >
-                  Import Guru
+                <Button icon={<UploadOutlined />} onClick={showUpload}>
+                  Import
                 </Button>
                 <Button
                   type='primary'
                   icon={<UserPlus size={16} />}
                   onClick={showModal}
-                  size='large'
                 >
-                  Tambah Guru
+                  Guru
                 </Button>
               </Flex>
             </Flex>
