@@ -1,0 +1,267 @@
+import { useState } from "react";
+import dayjs from "dayjs";
+import {
+  Card,
+  DatePicker,
+  Empty,
+  Flex,
+  Grid,
+  Select,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import { motion } from "framer-motion";
+import {
+  BriefcaseBusiness,
+  Clock3,
+  TimerReset,
+  UsersRound,
+} from "lucide-react";
+import { useGetTeacherAttendanceReportQuery } from "../../../../../service/lms/ApiAttendance";
+
+const { RangePicker } = DatePicker;
+const { Text } = Typography;
+const { useBreakpoint } = Grid;
+const MotionDiv = motion.div;
+
+const surfaceCardStyle = {
+  borderRadius: 22,
+  border: "1px solid #e5edf6",
+  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+};
+
+const statCardStyle = {
+  borderRadius: 18,
+  border: "1px solid #e2ebf5",
+  background: "#ffffff",
+  boxShadow: "0 12px 28px rgba(15, 23, 42, 0.05)",
+};
+
+const formatDateCell = (value) => {
+  if (!value) return "-";
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("DD MMM YYYY") : value;
+};
+
+const formatDateTimeCell = (value) => {
+  if (!value) return "-";
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("DD MMM YYYY HH:mm:ss") : value;
+};
+
+const TeacherReport = () => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const [range, setRange] = useState([
+    dayjs().startOf("month"),
+    dayjs().endOf("month"),
+  ]);
+  const [status, setStatus] = useState();
+
+  const { data, isLoading, isFetching } = useGetTeacherAttendanceReportQuery({
+    startDate: range?.[0]?.format("YYYY-MM-DD"),
+    endDate: range?.[1]?.format("YYYY-MM-DD"),
+    status,
+  });
+
+  const summary = data?.data?.summary || {};
+  const sessionSummary = data?.data?.session_summary || {};
+  const rows = data?.data?.rows || [];
+
+  const statItems = [
+    {
+      key: "teachers",
+      title: "Total Guru",
+      value: Number(summary.total_teachers || 0),
+      icon: <UsersRound size={18} />,
+      color: "#1d4ed8",
+      bg: "#eff6ff",
+    },
+    {
+      key: "records",
+      title: "Catatan Harian",
+      value: Number(summary.total_records || 0),
+      icon: <BriefcaseBusiness size={18} />,
+      color: "#0f766e",
+      bg: "#ecfeff",
+    },
+    {
+      key: "sessions",
+      title: "Sesi Mengajar",
+      value: Number(sessionSummary.total_sessions || 0),
+      icon: <Clock3 size={18} />,
+      color: "#7c3aed",
+      bg: "#f5f3ff",
+    },
+    {
+      key: "issues",
+      title: "Perlu Tindak Lanjut",
+      value:
+        Number(summary.absent_count || 0) +
+        Number(summary.incomplete_count || 0) +
+        Number(summary.insufficient_hours_count || 0),
+      icon: <TimerReset size={18} />,
+      color: "#b91c1c",
+      bg: "#fef2f2",
+    },
+  ];
+
+  return (
+    <Flex vertical gap={18}>
+      <Card style={surfaceCardStyle} bordered={false}>
+        <Flex vertical gap={16}>
+          <div>
+            <Text strong style={{ color: "#0f172a", fontSize: 16 }}>
+              Laporan Presensi Guru
+            </Text>
+            <div>
+              <Text type='secondary'>
+                Rekap kehadiran harian guru dan ringkasan sesi mengajar.
+              </Text>
+            </div>
+          </div>
+
+          <Flex gap={12} wrap='wrap'>
+            <RangePicker
+              value={range}
+              onChange={(value) => setRange(value)}
+              format='YYYY-MM-DD'
+              style={{ minWidth: isMobile ? "100%" : 280 }}
+            />
+            <Select
+              showSearch
+              optionFilterProp='label'
+              virtual={false}
+              allowClear
+              value={status}
+              onChange={setStatus}
+              placeholder='Filter status'
+              style={{ minWidth: isMobile ? "100%" : 220 }}
+              options={[
+                { value: "present", label: "Present" },
+                { value: "late", label: "Late" },
+                { value: "absent", label: "Absent" },
+                { value: "incomplete", label: "Incomplete" },
+                { value: "insufficient_hours", label: "Insufficient Hours" },
+                { value: "not_scheduled", label: "Not Scheduled" },
+              ]}
+            />
+          </Flex>
+        </Flex>
+      </Card>
+
+      <Flex gap={12} wrap='wrap'>
+        {statItems.map((item, index) => (
+          <MotionDiv
+            key={item.key}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, delay: index * 0.04 }}
+            style={{ flex: "1 1 220px" }}
+          >
+            <Card bordered={false} style={statCardStyle}>
+              <Flex justify='space-between' align='start' gap={10}>
+                <Statistic title={item.title} value={item.value} />
+                <span
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 14,
+                    display: "grid",
+                    placeItems: "center",
+                    background: item.bg,
+                    color: item.color,
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.icon}
+                </span>
+              </Flex>
+            </Card>
+          </MotionDiv>
+        ))}
+      </Flex>
+
+      <Card style={surfaceCardStyle} bordered={false}>
+        {rows.length === 0 && !isLoading && !isFetching ? (
+          <Empty description='Belum ada data presensi guru pada rentang ini.' />
+        ) : (
+          <Table
+            rowKey='id'
+            loading={isLoading || isFetching}
+            dataSource={rows}
+            scroll={{ x: 980 }}
+            pagination={{ pageSize: 10 }}
+            columns={[
+              {
+                title: "Tanggal",
+                dataIndex: "attendance_date",
+                width: 120,
+                render: (value) => formatDateCell(value),
+              },
+              {
+                title: "Guru",
+                width: 240,
+                render: (_, row) => (
+                  <Flex vertical gap={2}>
+                    <Text strong>{row.full_name}</Text>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      NIP {row.nip || "-"}
+                    </Text>
+                  </Flex>
+                ),
+              },
+              {
+                title: "Status",
+                dataIndex: "attendance_status",
+                width: 150,
+                render: (value) => {
+                  const colorMap = {
+                    present: "green",
+                    late: "gold",
+                    absent: "red",
+                    incomplete: "orange",
+                    insufficient_hours: "volcano",
+                    not_scheduled: "blue",
+                  };
+                  return (
+                    <Tag color={colorMap[value] || "default"}>{value}</Tag>
+                  );
+                },
+              },
+              {
+                title: "Checkin",
+                dataIndex: "checkin_at",
+                width: 180,
+                render: (value) => formatDateTimeCell(value),
+              },
+              {
+                title: "Checkout",
+                dataIndex: "checkout_at",
+                width: 180,
+                render: (value) => formatDateTimeCell(value),
+              },
+              {
+                title: "Durasi Hadir",
+                dataIndex: "presence_minutes",
+                width: 130,
+                render: (value) => `${Number(value || 0)} mnt`,
+              },
+              {
+                title: "Min. Wajib",
+                dataIndex: "minimum_required_minutes",
+                width: 130,
+                render: (value) => `${Number(value || 0)} mnt`,
+              },
+            ]}
+          />
+        )}
+      </Card>
+    </Flex>
+  );
+};
+
+export default TeacherReport;

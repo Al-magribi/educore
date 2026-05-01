@@ -3,6 +3,7 @@ import {
   BookOpenText,
   CalendarCheck2,
   ClipboardClock,
+  ListCheck,
   ShieldAlert,
 } from "lucide-react";
 
@@ -30,6 +31,11 @@ const AdminLmsMenu = () => ({
       label: "Manajemen Poin",
       key: "/manajemen-poin",
       icon: <ShieldAlert size={14} />,
+    },
+    {
+      label: "Manajemen Presensi",
+      key: "/manajemen-presensi",
+      icon: <ListCheck size={14} />,
     },
   ].filter(Boolean),
 });

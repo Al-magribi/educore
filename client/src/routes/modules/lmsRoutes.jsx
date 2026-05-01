@@ -26,6 +26,11 @@ const AcademicReport = lazy(
   () => import("../../module/lms/report/AcademicReport"),
 );
 
+// Attendace
+const AttendanceConfig = lazy(
+  () => import("../../module/lms/attendace/admin/config/AttendanceConfig"),
+);
+
 const renderLmsRoutes = ({ LazyRoute }) => (
   <Route
     element={
@@ -67,6 +72,13 @@ const renderLmsRoutes = ({ LazyRoute }) => (
       })}
     />
 
+    <Route
+      path='/manajemen-presensi'
+      element={createElement(LazyRoute, {
+        title: "Manajemen Presensi",
+        Component: AttendanceConfig,
+      })}
+    />
   </Route>
 );
 
