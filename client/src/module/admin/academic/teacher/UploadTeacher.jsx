@@ -670,13 +670,46 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
                 <Alert
                   message='Aturan Pengisian Data'
                   description={
-                    <ul style={{ paddingLeft: 20, margin: 0 }}>
-                      <li>Kolom wajib: <strong>Username</strong> dan <strong>Nama Lengkap</strong>.</li>
-                      <li><strong>Password</strong> opsional. Jika kosong akan otomatis jadi <strong>123456</strong>.</li>
-                      <li><strong>Wali Kelas</strong> diisi dengan nama kelas persis seperti referensi kelas.</li>
-                      <li><strong>Alokasi Mengajar</strong> pakai format <strong>{buildTeacherAllocationExample()}</strong>.</li>
-                      <li>Gunakan <strong>kode mapel</strong> dari sheet referensi. Nama mapel persis sistem juga tetap didukung.</li>
-                    </ul>
+                    <div>
+                      <ol style={{ paddingLeft: 20, margin: "0 0 10px" }}>
+                        <li>
+                          Klik tombol <strong>Template</strong> untuk unduh file
+                          import terbaru.
+                        </li>
+                        <li>
+                          Isi data pada sheet <strong>Template Guru</strong> saja.
+                          Jangan ubah nama kolom.
+                        </li>
+                        <li>
+                          Cocokkan <strong>Wali Kelas</strong> dengan sheet{" "}
+                          <strong>Referensi Kelas</strong>.
+                        </li>
+                        <li>
+                          Isi <strong>Alokasi Mengajar</strong> dengan format{" "}
+                          <strong>{buildTeacherAllocationExample()}</strong> dan
+                          gunakan kode mapel dari sheet{" "}
+                          <strong>Referensi Mapel</strong>.
+                        </li>
+                        <li>
+                          Upload file, lalu perbaiki baris berikon merah sebelum
+                          klik <strong>Impor</strong>.
+                        </li>
+                      </ol>
+                      <ul style={{ paddingLeft: 20, margin: 0 }}>
+                        <li>
+                          Kolom wajib: <strong>Username</strong> dan{" "}
+                          <strong>Nama Lengkap</strong>.
+                        </li>
+                        <li>
+                          <strong>Password</strong> opsional. Jika kosong akan
+                          otomatis jadi <strong>123456</strong>.
+                        </li>
+                        <li>
+                          Nama mapel persis sistem juga didukung jika kode mapel
+                          belum tersedia.
+                        </li>
+                      </ul>
+                    </div>
                   }
                   type='info'
                   showIcon

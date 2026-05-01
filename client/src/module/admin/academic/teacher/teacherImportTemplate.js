@@ -36,6 +36,16 @@ export const downloadTeacherTemplate = ({ classes = [], subjects = [] }) => {
   const guideSheet = XLSX.utils.aoa_to_sheet([
     ["Panduan Upload Guru"],
     [],
+    ["Langkah 1", "Isi data pada sheet Template Guru (jangan ubah nama kolom)"],
+    [
+      "Langkah 2",
+      "Gunakan sheet Referensi Mapel dan Referensi Kelas untuk mencocokkan data",
+    ],
+    [
+      "Langkah 3",
+      "Upload kembali file ke sistem, cek baris error, lalu klik Impor",
+    ],
+    [],
     ["Kolom wajib", "Username, Nama Lengkap"],
     ["Password", "Opsional. Jika kosong akan diisi 123456"],
     ["NIP / NIY", "Opsional, tapi sebaiknya diisi agar mudah sinkronisasi"],
