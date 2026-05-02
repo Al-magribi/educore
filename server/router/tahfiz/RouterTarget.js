@@ -6,9 +6,9 @@ const router = Router();
 
 const hasColumn = async (db, tableName, columnName) => {
   const result = await db.query(
-    `SELECT 1
+     `SELECT 1
      FROM information_schema.columns
-     WHERE table_schema = 'public'
+     WHERE table_schema = 'tahfiz'
        AND table_name = $1
        AND column_name = $2
      LIMIT 1`,
@@ -165,12 +165,12 @@ router.get(
         gradesQuery,
         pool.query(
           `SELECT id, number, description, ${juzLineSelect}
-           FROM t_juz
+           FROM tahfiz.t_juz
            ORDER BY number ASC`,
         ),
         pool.query(
           `SELECT id, number, name_latin, total_ayat
-           FROM t_surah
+           FROM tahfiz.t_surah
            ORDER BY number ASC`,
         ),
       ]);
@@ -273,13 +273,13 @@ router.get(
            ) FILTER (WHERE i.id IS NOT NULL),
            '[]'::json
          ) AS items
-       FROM t_target_plan p
+       FROM tahfiz.t_target_plan p
        JOIN a_periode pe ON pe.id = p.periode_id
        JOIN a_grade g ON g.id = p.grade_id
        LEFT JOIN a_homebase hb ON hb.id = p.homebase_id
-       LEFT JOIN t_target_item i ON i.plan_id = p.id
-       LEFT JOIN t_juz j ON j.id = i.juz_id
-       LEFT JOIN t_surah s ON s.id = i.surah_id
+       LEFT JOIN tahfiz.t_target_item i ON i.plan_id = p.id
+       LEFT JOIN tahfiz.t_juz j ON j.id = i.juz_id
+       LEFT JOIN tahfiz.t_surah s ON s.id = i.surah_id
        ${whereClause}
        GROUP BY p.id, pe.name, g.name, hb.name
        ORDER BY p.is_active DESC, p.updated_at DESC, p.id DESC`,
@@ -290,7 +290,7 @@ router.get(
       `SELECT
          COUNT(*)::int AS total_plans,
          COUNT(*) FILTER (WHERE p.is_active = true)::int AS active_plans
-       FROM t_target_plan p
+       FROM tahfiz.t_target_plan p
        JOIN a_periode pe ON pe.id = p.periode_id
        JOIN a_grade g ON g.id = p.grade_id
        LEFT JOIN a_homebase hb ON hb.id = p.homebase_id
@@ -351,7 +351,7 @@ router.post(
 
     try {
       const planResult = await client.query(
-        `INSERT INTO t_target_plan
+        `INSERT INTO tahfiz.t_target_plan
          (periode_id, homebase_id, grade_id, title, notes, is_active, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id`,
@@ -362,7 +362,7 @@ router.post(
 
       for (const item of items) {
         await client.query(
-          `INSERT INTO t_target_item
+          `INSERT INTO tahfiz.t_target_item
            (plan_id, target_type, juz_id, surah_id, start_ayat, end_ayat, order_no, is_mandatory, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
@@ -419,9 +419,10 @@ router.put(
       });
     }
 
-    const existing = await client.query(`SELECT id, homebase_id FROM t_target_plan WHERE id = $1`, [
-      planId,
-    ]);
+    const existing = await client.query(
+      `SELECT id, homebase_id FROM tahfiz.t_target_plan WHERE id = $1`,
+      [planId],
+    );
 
     if (!existing.rows.length) {
       return res.status(404).json({ message: "Target plan tidak ditemukan." });
@@ -443,7 +444,7 @@ router.put(
 
     try {
       await client.query(
-        `UPDATE t_target_plan
+        `UPDATE tahfiz.t_target_plan
          SET periode_id = $1,
              homebase_id = $2,
              grade_id = $3,
@@ -455,11 +456,11 @@ router.put(
         [periodeId, homebaseId, gradeId, title, notes, isActive, planId],
       );
 
-      await client.query(`DELETE FROM t_target_item WHERE plan_id = $1`, [planId]);
+      await client.query(`DELETE FROM tahfiz.t_target_item WHERE plan_id = $1`, [planId]);
 
       for (const item of items) {
         await client.query(
-          `INSERT INTO t_target_item
+          `INSERT INTO tahfiz.t_target_item
            (plan_id, target_type, juz_id, surah_id, start_ayat, end_ayat, order_no, is_mandatory, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
@@ -502,9 +503,10 @@ router.delete(
 
     const scopedHomebaseId = req.user.homebase_id || null;
 
-    const existing = await client.query(`SELECT id, homebase_id FROM t_target_plan WHERE id = $1`, [
-      planId,
-    ]);
+    const existing = await client.query(
+      `SELECT id, homebase_id FROM tahfiz.t_target_plan WHERE id = $1`,
+      [planId],
+    );
 
     if (!existing.rows.length) {
       return res.status(404).json({ message: "Target plan tidak ditemukan." });
@@ -514,7 +516,7 @@ router.delete(
       return res.status(403).json({ message: "Akses ditolak untuk target plan ini." });
     }
 
-    await client.query(`DELETE FROM t_target_plan WHERE id = $1`, [planId]);
+    await client.query(`DELETE FROM tahfiz.t_target_plan WHERE id = $1`, [planId]);
 
     return res.json({
       code: 200,

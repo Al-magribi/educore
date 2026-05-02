@@ -225,7 +225,7 @@ const TahfizDashboard = () => {
                   </Text>
                 </Space>
                 <Select
-                  value={selectedHomebaseId}
+                  value={selectedHomebaseValue}
                   options={homebaseOptions}
                   onChange={(value) => {
                     setSelectedHomebaseId(value);

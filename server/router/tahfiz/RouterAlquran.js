@@ -10,9 +10,9 @@ const cache = new Map();
 
 const hasColumn = async (db, tableName, columnName) => {
   const result = await db.query(
-    `SELECT 1
+     `SELECT 1
      FROM information_schema.columns
-     WHERE table_schema = 'public'
+     WHERE table_schema = 'tahfiz'
        AND table_name = $1
        AND column_name = $2
      LIMIT 1`,
@@ -251,7 +251,7 @@ router.get(
       const juzLineSelect = hasJuzLineCount ? "line_count" : "NULL::integer AS line_count";
       const dbJuz = await pool.query(
         `SELECT number, ${juzLineSelect}
-         FROM t_juz`,
+         FROM tahfiz.t_juz`,
       );
       const lineMap = new Map(dbJuz.rows.map((row) => [row.number, row.line_count]));
 
@@ -308,7 +308,7 @@ router.put(
     }
 
     await client.query(
-      `INSERT INTO t_juz (number, line_count)
+      `INSERT INTO tahfiz.t_juz (number, line_count)
        VALUES ($1, $2)
        ON CONFLICT (number)
        DO UPDATE SET line_count = EXCLUDED.line_count`,

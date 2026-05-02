@@ -61,8 +61,8 @@ const ensurePeriodeScope = async (db, periodeId, homebaseId) => {
 
 const ensureMusyrifScope = async (db, musyrifId, homebaseId) => {
   const musyrif = await db.query(
-    `SELECT id, homebase_id
-     FROM t_musyrif
+     `SELECT id, homebase_id
+     FROM tahfiz.t_musyrif
      WHERE id = $1
      LIMIT 1`,
     [musyrifId],
@@ -142,14 +142,14 @@ router.get(
     const musyrifQuery = selectedHomebaseId
       ? pool.query(
           `SELECT id, homebase_id, full_name, phone, gender, is_active
-           FROM t_musyrif
+           FROM tahfiz.t_musyrif
            WHERE homebase_id = $1
            ORDER BY full_name ASC`,
           [selectedHomebaseId],
         )
       : pool.query(
           `SELECT id, homebase_id, full_name, phone, gender, is_active
-           FROM t_musyrif
+           FROM tahfiz.t_musyrif
            ORDER BY full_name ASC`,
         );
 
@@ -251,9 +251,9 @@ router.get(
          m.created_at,
          m.updated_at,
          COUNT(DISTINCT q.id) AS halaqoh_count
-       FROM t_musyrif m
+       FROM tahfiz.t_musyrif m
        LEFT JOIN a_homebase h ON h.id = m.homebase_id
-       LEFT JOIN t_halaqoh q ON q.musyrif_id = m.id
+       LEFT JOIN tahfiz.t_halaqoh q ON q.musyrif_id = m.id
        ${whereClause}
        GROUP BY m.id, h.name
        ORDER BY m.full_name ASC`,
@@ -291,7 +291,7 @@ router.post(
     }
 
     const created = await client.query(
-      `INSERT INTO t_musyrif (homebase_id, full_name, phone, gender, is_active, notes)
+      `INSERT INTO tahfiz.t_musyrif (homebase_id, full_name, phone, gender, is_active, notes)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
@@ -321,7 +321,10 @@ router.put(
       return res.status(400).json({ message: "ID musyrif tidak valid." });
     }
 
-    const musyrif = await client.query(`SELECT id, homebase_id FROM t_musyrif WHERE id = $1`, [id]);
+    const musyrif = await client.query(
+      `SELECT id, homebase_id FROM tahfiz.t_musyrif WHERE id = $1`,
+      [id],
+    );
     if (!musyrif.rows.length) {
       return res.status(404).json({ message: "Musyrif tidak ditemukan." });
     }
@@ -339,7 +342,7 @@ router.put(
     }
 
     const updated = await client.query(
-      `UPDATE t_musyrif
+      `UPDATE tahfiz.t_musyrif
        SET homebase_id = $1,
            full_name = $2,
            phone = $3,
@@ -377,7 +380,10 @@ router.delete(
       return res.status(400).json({ message: "ID musyrif tidak valid." });
     }
 
-    const musyrif = await client.query(`SELECT id, homebase_id FROM t_musyrif WHERE id = $1`, [id]);
+    const musyrif = await client.query(
+      `SELECT id, homebase_id FROM tahfiz.t_musyrif WHERE id = $1`,
+      [id],
+    );
     if (!musyrif.rows.length) {
       return res.status(404).json({ message: "Musyrif tidak ditemukan." });
     }
@@ -387,8 +393,8 @@ router.delete(
     }
 
     const usage = await client.query(
-      `SELECT EXISTS(SELECT 1 FROM t_halaqoh WHERE musyrif_id = $1) AS in_halaqoh,
-              EXISTS(SELECT 1 FROM t_daily_record WHERE musyrif_id = $1) AS in_daily_record`,
+      `SELECT EXISTS(SELECT 1 FROM tahfiz.t_halaqoh WHERE musyrif_id = $1) AS in_halaqoh,
+              EXISTS(SELECT 1 FROM tahfiz.t_daily_record WHERE musyrif_id = $1) AS in_daily_record`,
       [id],
     );
 
@@ -398,7 +404,7 @@ router.delete(
       });
     }
 
-    await client.query(`DELETE FROM t_musyrif WHERE id = $1`, [id]);
+    await client.query(`DELETE FROM tahfiz.t_musyrif WHERE id = $1`, [id]);
 
     return res.json({
       code: 200,
@@ -458,11 +464,11 @@ router.get(
            ) FILTER (WHERE u.id IS NOT NULL),
            '[]'::json
          ) AS students
-       FROM t_halaqoh h
+       FROM tahfiz.t_halaqoh h
        JOIN a_periode p ON p.id = h.periode_id
        LEFT JOIN a_homebase hb ON hb.id = p.homebase_id
-       LEFT JOIN t_musyrif m ON m.id = h.musyrif_id
-       LEFT JOIN t_halaqoh_students hs ON hs.halaqoh_id = h.id
+       LEFT JOIN tahfiz.t_musyrif m ON m.id = h.musyrif_id
+       LEFT JOIN tahfiz.t_halaqoh_students hs ON hs.halaqoh_id = h.id
        LEFT JOIN u_students s ON s.user_id = hs.student_id
        LEFT JOIN u_users u ON u.id = s.user_id
        ${whereClause}
@@ -510,7 +516,7 @@ router.post(
     }
 
     const created = await client.query(
-      `INSERT INTO t_halaqoh (periode_id, name, musyrif_id, is_active)
+      `INSERT INTO tahfiz.t_halaqoh (periode_id, name, musyrif_id, is_active)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [periodeId, name, musyrifId, toBool(req.body.is_active, true)],
@@ -520,7 +526,7 @@ router.post(
 
     if (studentIds.length) {
       await client.query(
-        `INSERT INTO t_halaqoh_students (halaqoh_id, student_id)
+        `INSERT INTO tahfiz.t_halaqoh_students (halaqoh_id, student_id)
          SELECT $1, unnest($2::int[])
          ON CONFLICT (halaqoh_id, student_id) DO NOTHING`,
         [halaqohId, studentIds],
@@ -551,7 +557,7 @@ router.put(
 
     const existing = await client.query(
       `SELECT h.id, p.homebase_id
-       FROM t_halaqoh h
+       FROM tahfiz.t_halaqoh h
        JOIN a_periode p ON p.id = h.periode_id
        WHERE h.id = $1`,
       [id],
@@ -583,7 +589,7 @@ router.put(
     }
 
     const updated = await client.query(
-      `UPDATE t_halaqoh
+      `UPDATE tahfiz.t_halaqoh
        SET periode_id = $1,
            name = $2,
            musyrif_id = $3,
@@ -593,11 +599,11 @@ router.put(
       [periodeId, name, musyrifId, toBool(req.body.is_active, true), id],
     );
 
-    await client.query(`DELETE FROM t_halaqoh_students WHERE halaqoh_id = $1`, [id]);
+    await client.query(`DELETE FROM tahfiz.t_halaqoh_students WHERE halaqoh_id = $1`, [id]);
 
     if (studentIds.length) {
       await client.query(
-        `INSERT INTO t_halaqoh_students (halaqoh_id, student_id)
+        `INSERT INTO tahfiz.t_halaqoh_students (halaqoh_id, student_id)
          SELECT $1, unnest($2::int[])
          ON CONFLICT (halaqoh_id, student_id) DO NOTHING`,
         [id, studentIds],
@@ -623,7 +629,7 @@ router.delete(
 
     const existing = await client.query(
       `SELECT h.id, p.homebase_id
-       FROM t_halaqoh h
+       FROM tahfiz.t_halaqoh h
        JOIN a_periode p ON p.id = h.periode_id
        WHERE h.id = $1`,
       [id],
@@ -639,7 +645,7 @@ router.delete(
 
     const recordUsage = await client.query(
       `SELECT COUNT(*)::int AS total
-       FROM t_daily_record
+       FROM tahfiz.t_daily_record
        WHERE halaqoh_id = $1`,
       [id],
     );
@@ -650,8 +656,8 @@ router.delete(
       });
     }
 
-    await client.query(`DELETE FROM t_halaqoh_students WHERE halaqoh_id = $1`, [id]);
-    await client.query(`DELETE FROM t_halaqoh WHERE id = $1`, [id]);
+    await client.query(`DELETE FROM tahfiz.t_halaqoh_students WHERE halaqoh_id = $1`, [id]);
+    await client.query(`DELETE FROM tahfiz.t_halaqoh WHERE id = $1`, [id]);
 
     return res.json({
       code: 200,

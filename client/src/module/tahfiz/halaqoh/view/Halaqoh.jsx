@@ -34,7 +34,8 @@ const Halaqoh = () => {
   const [editingData, setEditingData] = useState(null);
 
   const optionsQuery = useGetHalaqohOptionsQuery({ homebase_id: homebaseId });
-  const selectedHomebaseId = homebaseId ?? optionsQuery.data?.selected_homebase_id;
+  const selectedHomebaseId =
+    homebaseId ?? optionsQuery.data?.selected_homebase_id;
 
   const halaqohQuery = useGetHalaqohListQuery({
     homebase_id: selectedHomebaseId,
@@ -83,17 +84,20 @@ const Halaqoh = () => {
     setDrawerOpen(true);
   };
 
-  const openEdit = useCallback((record) => {
-    setEditingData(record);
-    form.setFieldsValue({
-      periode_id: record.periode_id,
-      name: record.name,
-      musyrif_id: record.musyrif_id,
-      is_active: record.is_active,
-      student_ids: (record.students || []).map((item) => item.id),
-    });
-    setDrawerOpen(true);
-  }, [form]);
+  const openEdit = useCallback(
+    (record) => {
+      setEditingData(record);
+      form.setFieldsValue({
+        periode_id: record.periode_id,
+        name: record.name,
+        musyrif_id: record.musyrif_id,
+        is_active: record.is_active,
+        student_ids: (record.students || []).map((item) => item.id),
+      });
+      setDrawerOpen(true);
+    },
+    [form],
+  );
 
   const handleSubmit = async (values) => {
     const payload = {
@@ -118,14 +122,17 @@ const Halaqoh = () => {
     }
   };
 
-  const handleDelete = useCallback(async (id) => {
-    try {
-      await deleteHalaqoh(id).unwrap();
-      message.success("Halaqoh berhasil dihapus.");
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus halaqoh.");
-    }
-  }, [deleteHalaqoh]);
+  const handleDelete = useCallback(
+    async (id) => {
+      try {
+        await deleteHalaqoh(id).unwrap();
+        message.success("Halaqoh berhasil dihapus.");
+      } catch (error) {
+        message.error(error?.data?.message || "Gagal menghapus halaqoh.");
+      }
+    },
+    [deleteHalaqoh],
+  );
 
   const columns = useMemo(
     () => [
@@ -155,7 +162,9 @@ const Halaqoh = () => {
         dataIndex: "is_active",
         width: 110,
         render: (value) => (
-          <Tag color={value ? "green" : "red"}>{value ? "Aktif" : "Nonaktif"}</Tag>
+          <Tag color={value ? "green" : "red"}>
+            {value ? "Aktif" : "Nonaktif"}
+          </Tag>
         ),
       },
       {
@@ -164,14 +173,23 @@ const Halaqoh = () => {
         width: 120,
         render: (_, record) => (
           <Space>
-            <Button type="text" icon={<Pencil size={16} />} onClick={() => openEdit(record)} />
+            <Button
+              type='text'
+              icon={<Pencil size={16} />}
+              onClick={() => openEdit(record)}
+            />
             <Popconfirm
-              title="Hapus halaqoh ini?"
-              okText="Hapus"
-              cancelText="Batal"
+              title='Hapus halaqoh ini?'
+              okText='Hapus'
+              cancelText='Batal'
               onConfirm={() => handleDelete(record.id)}
             >
-              <Button type="text" danger icon={<Trash2 size={16} />} loading={deleting} />
+              <Button
+                type='text'
+                danger
+                icon={<Trash2 size={16} />}
+                loading={deleting}
+              />
             </Popconfirm>
           </Space>
         ),
@@ -200,7 +218,7 @@ const Halaqoh = () => {
             }}
             options={homebaseOptions}
             disabled={isScopedHomebaseUser}
-            placeholder="Pilih Homebase"
+            placeholder='Pilih Homebase'
             style={{ width: 220 }}
           />
           <Select
@@ -208,10 +226,10 @@ const Halaqoh = () => {
             onChange={setPeriodeId}
             options={periodeOptions}
             allowClear
-            placeholder="Filter Periode"
+            placeholder='Filter Periode'
             style={{ width: 220 }}
           />
-          <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
+          <Button type='primary' icon={<Plus size={16} />} onClick={openCreate}>
             Tambah Halaqoh
           </Button>
         </Space>
@@ -219,24 +237,28 @@ const Halaqoh = () => {
     >
       {halaqohQuery.error ? (
         <Alert
-          type="error"
+          type='error'
           showIcon
           style={{ marginBottom: 16 }}
-          message="Gagal memuat data halaqoh."
-          description={halaqohQuery.error?.data?.message || "Silakan coba lagi."}
+          message='Gagal memuat data halaqoh.'
+          description={
+            halaqohQuery.error?.data?.message || "Silakan coba lagi."
+          }
         />
       ) : null}
 
       <Table
-        rowKey="id"
+        rowKey='id'
         loading={halaqohQuery.isFetching || optionsQuery.isFetching}
         columns={columns}
         dataSource={halaqohQuery.data || []}
         pagination={{ pageSize: 10, showSizeChanger: false }}
         expandable={{
           expandedRowRender: (record) => (
-            <Space direction="vertical" size={4}>
-              <Text type="secondary">Musyrif: {record.musyrif_name || "-"}</Text>
+            <Space direction='vertical' size={4}>
+              <Text type='secondary'>
+                Musyrif: {record.musyrif_name || "-"}
+              </Text>
               <Space wrap>
                 {(record.students || []).length ? (
                   record.students.map((student) => (
@@ -245,7 +267,7 @@ const Halaqoh = () => {
                     </Tag>
                   ))
                 ) : (
-                  <Text type="secondary">Belum ada siswa di halaqoh ini.</Text>
+                  <Text type='secondary'>Belum ada siswa di halaqoh ini.</Text>
                 )}
               </Space>
             </Space>
@@ -261,54 +283,62 @@ const Halaqoh = () => {
         destroyOnClose
         width={520}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout='vertical' onFinish={handleSubmit}>
           <Form.Item
-            label="Periode"
-            name="periode_id"
+            label='Periode'
+            name='periode_id'
             rules={[{ required: true, message: "Periode wajib dipilih." }]}
           >
-            <Select options={periodeOptions} placeholder="Pilih periode" />
+            <Select options={periodeOptions} placeholder='Pilih periode' />
           </Form.Item>
 
           <Form.Item
-            label="Nama Halaqoh"
-            name="name"
+            label='Nama Halaqoh'
+            name='name'
             rules={[{ required: true, message: "Nama halaqoh wajib diisi." }]}
           >
-            <Input placeholder="Contoh: Halaqoh Al-Fatih" />
+            <Input placeholder='Contoh: Halaqoh Al-Fatih' />
           </Form.Item>
 
           <Form.Item
-            label="Musyrif"
-            name="musyrif_id"
+            label='Musyrif'
+            name='musyrif_id'
             rules={[{ required: true, message: "Musyrif wajib dipilih." }]}
           >
             <Select
               showSearch
-              optionFilterProp="label"
+              optionFilterProp='label'
               options={musyrifOptions}
-              placeholder="Pilih musyrif"
+              placeholder='Pilih musyrif'
             />
           </Form.Item>
 
-          <Form.Item label="Anggota Siswa" name="student_ids">
+          <Form.Item label='Anggota Siswa' name='student_ids'>
             <Select
-              mode="multiple"
-              showSearch
-              optionFilterProp="label"
+              mode='multiple'
+              showSearch={{ optionFilterProp: "label" }}
+              virtual={false}
               options={studentOptions}
-              placeholder="Pilih siswa untuk halaqoh"
-              maxTagCount="responsive"
+              placeholder='Pilih siswa untuk halaqoh'
+              maxTagCount='responsive'
             />
           </Form.Item>
 
-          <Form.Item label="Status Aktif" name="is_active" valuePropName="checked">
+          <Form.Item
+            label='Status Aktif'
+            name='is_active'
+            valuePropName='checked'
+          >
             <Switch />
           </Form.Item>
 
           <Space>
             <Button onClick={() => setDrawerOpen(false)}>Batal</Button>
-            <Button type="primary" htmlType="submit" loading={creating || updating}>
+            <Button
+              type='primary'
+              htmlType='submit'
+              loading={creating || updating}
+            >
               Simpan
             </Button>
           </Space>

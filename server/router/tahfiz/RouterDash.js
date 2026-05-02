@@ -60,7 +60,7 @@ router.get(
     }
 
     const availableHomebaseIds = homebases.map((item) => item.id);
-    let selectedHomebaseId = homebases[0].id;
+    let selectedHomebaseId = Math.min(...availableHomebaseIds);
 
     if (
       requestedHomebaseId &&
@@ -136,7 +136,7 @@ router.get(
       ),
       pool.query(
         `SELECT COUNT(*) AS count
-         FROM t_halaqoh h
+         FROM tahfiz.t_halaqoh h
          JOIN a_periode p ON p.id = h.periode_id
          WHERE p.homebase_id = $1
            AND h.periode_id = $2`,
@@ -144,7 +144,7 @@ router.get(
       ),
       pool.query(
         `SELECT COUNT(DISTINCT h.musyrif_id) AS count
-         FROM t_halaqoh h
+         FROM tahfiz.t_halaqoh h
          JOIN a_periode p ON p.id = h.periode_id
          WHERE p.homebase_id = $1
            AND h.periode_id = $2`,
@@ -152,9 +152,9 @@ router.get(
       ),
       pool.query(
         `SELECT COUNT(*) AS count
-         FROM t_daily_record d
+         FROM tahfiz.t_daily_record d
          JOIN u_students s ON s.user_id = d.student_id
-         JOIN t_halaqoh h ON h.id = d.halaqoh_id
+         JOIN tahfiz.t_halaqoh h ON h.id = d.halaqoh_id
          WHERE s.homebase_id = $1
            AND h.periode_id = $2`,
         [selectedHomebaseId, selectedPeriodeId],
@@ -164,10 +164,10 @@ router.get(
            COALESCE(t.name, 'Tanpa Kategori') AS activity_type,
            COUNT(d.id) AS total_setoran,
            COALESCE(SUM(d.lines_count), 0) AS total_lines
-         FROM t_daily_record d
+         FROM tahfiz.t_daily_record d
          JOIN u_students s ON s.user_id = d.student_id
-         JOIN t_halaqoh h ON h.id = d.halaqoh_id
-         LEFT JOIN t_activity_type t ON t.id = d.type_id
+         JOIN tahfiz.t_halaqoh h ON h.id = d.halaqoh_id
+         LEFT JOIN tahfiz.t_activity_type t ON t.id = d.type_id
          WHERE s.homebase_id = $1
            AND h.periode_id = $2
          GROUP BY COALESCE(t.name, 'Tanpa Kategori')
@@ -212,15 +212,15 @@ router.get(
              COUNT(d.id) AS total_setoran,
              COALESCE(SUM(d.lines_count), 0) AS total_lines,
              MAX(d.date) AS last_setoran_date
-           FROM t_daily_record d
-           JOIN t_halaqoh h ON h.id = d.halaqoh_id
+           FROM tahfiz.t_daily_record d
+           JOIN tahfiz.t_halaqoh h ON h.id = d.halaqoh_id
            WHERE d.student_id = sb.student_id
              AND h.periode_id = $2
          ) sr ON true
          LEFT JOIN LATERAL (
            SELECT h.name AS halaqoh_name
-           FROM t_halaqoh_students hs
-           JOIN t_halaqoh h ON h.id = hs.halaqoh_id
+           FROM tahfiz.t_halaqoh_students hs
+           JOIN tahfiz.t_halaqoh h ON h.id = hs.halaqoh_id
            WHERE hs.student_id = sb.student_id
              AND h.periode_id = $2
            ORDER BY h.id DESC
