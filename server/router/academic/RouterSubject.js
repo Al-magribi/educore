@@ -140,6 +140,19 @@ router.get(
     const params = [homebase_id];
     let paramIndex = 2;
 
+    if (req.user.role === "teacher") {
+      baseQuery += `
+        AND EXISTS (
+          SELECT 1
+          FROM at_subject ats
+          WHERE ats.subject_id = s.id
+            AND ats.teacher_id = $${paramIndex}
+        )
+      `;
+      params.push(req.user.id);
+      paramIndex++;
+    }
+
     if (branch_id) {
       baseQuery += ` AND s.branch_id = $${paramIndex}`;
       params.push(branch_id);
@@ -174,6 +187,19 @@ router.get(
     `;
     const countParams = [homebase_id];
     let countIdx = 2;
+
+    if (req.user.role === "teacher") {
+      countQuery += `
+        AND EXISTS (
+          SELECT 1
+          FROM at_subject ats
+          WHERE ats.subject_id = s.id
+            AND ats.teacher_id = $${countIdx}
+        )
+      `;
+      countParams.push(req.user.id);
+      countIdx++;
+    }
 
     if (branch_id) {
       countQuery += ` AND s.branch_id = $${countIdx}`;
