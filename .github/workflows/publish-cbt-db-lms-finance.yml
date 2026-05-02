@@ -49,6 +49,26 @@ jobs:
         run: |
           set -euo pipefail
 
+          restore_lms_owned_paths() {
+            git checkout origin/feature/lms -- \
+              client/src/App.jsx \
+              client/src/components/editor \
+              client/src/components/index.js \
+              client/src/components/layout/menus/lmsMenus.jsx \
+              client/src/components/scroll/InfiniteScrollList.jsx \
+              client/src/module/lms \
+              client/src/routes/modules/lmsRoutes.jsx \
+              client/src/service/lms \
+              database/attendance_schema.sql \
+              database/attendance_seed.sql \
+              database/attendance_seed_full.sql \
+              database/attendance_seed_lite.sql \
+              database/lms_schema.sql \
+              docs/esp32_rfid_attendance_mfrc522.ino \
+              server/router/lms
+            git add -A
+          }
+
           # Compose always starts from `main`, then layers feature branches
           # in a fixed order so the release branch stays reproducible.
           merge_branch() {
@@ -71,6 +91,14 @@ jobs:
           merge_branch "feature/db"
           merge_branch "feature/lms"
           merge_branch "feature/finance"
+
+          # `feature/lms` owns the LMS subtree. Re-apply it after composition so
+          # later branches cannot silently roll those files back to older copies.
+          restore_lms_owned_paths
+
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(compose): restore LMS-owned paths from feature/lms"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
