@@ -1,21 +1,28 @@
 import { useState } from "react";
 import dayjs from "dayjs";
 import {
+  Button,
   Card,
   DatePicker,
   Empty,
   Flex,
   Grid,
+  Modal,
+  Popconfirm,
   Select,
-  Space,
   Statistic,
   Table,
   Tag,
   Typography,
+  message,
 } from "antd";
 import { motion } from "framer-motion";
-import { BookOpenCheck, CalendarRange, School, Users } from "lucide-react";
-import { useGetStudentAttendanceReportQuery } from "../../../../../service/lms/ApiAttendance";
+import { BookOpenCheck, CalendarRange, Pencil, School, Trash2, Users } from "lucide-react";
+import {
+  useDeleteDailyAttendanceRecordMutation,
+  useGetStudentAttendanceReportQuery,
+  useUpdateDailyAttendanceRecordMutation,
+} from "../../../../../service/lms/ApiAttendance";
 import {
   useGetClassesQuery,
   useGetGradesQuery,
@@ -40,12 +47,6 @@ const statCardStyle = {
   boxShadow: "0 12px 28px rgba(15, 23, 42, 0.05)",
 };
 
-const formatDateCell = (value) => {
-  if (!value) return "-";
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format("DD MMM YYYY") : value;
-};
-
 const formatDateTimeCell = (value) => {
   if (!value) return "-";
   const parsed = dayjs(value);
@@ -55,13 +56,23 @@ const formatDateTimeCell = (value) => {
 const StudentReport = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const [range, setRange] = useState([dayjs().startOf("month"), dayjs().endOf("month")]);
+  const [range, setRange] = useState([
+    dayjs().startOf("month"),
+    dayjs().endOf("month"),
+  ]);
   const [gradeId, setGradeId] = useState();
   const [classId, setClassId] = useState();
   const [status, setStatus] = useState();
+  const [editingRow, setEditingRow] = useState(null);
+  const [editCheckin, setEditCheckin] = useState(null);
+  const [editCheckout, setEditCheckout] = useState(null);
 
   const { data: gradesRes } = useGetGradesQuery();
   const { data: classesRes } = useGetClassesQuery({ gradeId });
+  const [updateDailyAttendance, { isLoading: savingEdit }] =
+    useUpdateDailyAttendanceRecordMutation();
+  const [deleteDailyAttendance, { isLoading: deletingRow }] =
+    useDeleteDailyAttendanceRecordMutation();
   const { data, isLoading, isFetching } = useGetStudentAttendanceReportQuery({
     startDate: range?.[0]?.format("YYYY-MM-DD"),
     endDate: range?.[1]?.format("YYYY-MM-DD"),
@@ -72,14 +83,54 @@ const StudentReport = () => {
 
   const summary = data?.data?.summary || {};
   const rows = data?.data?.rows || [];
-  const gradeOptions = (Array.isArray(gradesRes) ? gradesRes : []).map((item) => ({
-    value: Number(item.id),
-    label: item.name,
-  }));
-  const classOptions = (Array.isArray(classesRes) ? classesRes : []).map((item) => ({
-    value: Number(item.id),
-    label: item.name,
-  }));
+  const gradeOptions = (Array.isArray(gradesRes) ? gradesRes : []).map(
+    (item) => ({
+      value: Number(item.id),
+      label: item.name,
+    }),
+  );
+  const classOptions = (Array.isArray(classesRes) ? classesRes : []).map(
+    (item) => ({
+      value: Number(item.id),
+      label: item.name,
+    }),
+  );
+
+  const openEditModal = (row) => {
+    setEditingRow(row);
+    setEditCheckin(row.checkin_at ? dayjs(row.checkin_at) : null);
+    setEditCheckout(row.checkout_at ? dayjs(row.checkout_at) : null);
+  };
+
+  const closeEditModal = () => {
+    setEditingRow(null);
+    setEditCheckin(null);
+    setEditCheckout(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRow) return;
+    try {
+      await updateDailyAttendance({
+        id: editingRow.id,
+        checkin_at: editCheckin ? editCheckin.toISOString() : null,
+        checkout_at: editCheckout ? editCheckout.toISOString() : null,
+      }).unwrap();
+      message.success("Data absensi siswa berhasil diperbarui.");
+      closeEditModal();
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal memperbarui absensi siswa.");
+    }
+  };
+
+  const handleDeleteRow = async (id) => {
+    try {
+      await deleteDailyAttendance(id).unwrap();
+      message.success("Data absensi siswa berhasil dihapus.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus absensi siswa.");
+    }
+  };
 
   const statItems = [
     {
@@ -101,7 +152,8 @@ const StudentReport = () => {
     {
       key: "present",
       title: "Hadir/Telat",
-      value: Number(summary.present_count || 0) + Number(summary.late_count || 0),
+      value:
+        Number(summary.present_count || 0) + Number(summary.late_count || 0),
       icon: <CalendarRange size={18} />,
       color: "#166534",
       bg: "#f0fdf4",
@@ -135,7 +187,8 @@ const StudentReport = () => {
               </Text>
               <div>
                 <Text type='secondary'>
-                  Rekap kehadiran harian siswa berdasarkan data `daily_attendance`.
+                  Rekap kehadiran harian siswa berdasarkan data
+                  `daily_attendance`.
                 </Text>
               </div>
             </div>
@@ -234,15 +287,9 @@ const StudentReport = () => {
             rowKey='id'
             loading={isLoading || isFetching}
             dataSource={rows}
-            scroll={{ x: 980 }}
+            scroll={{ x: 840 }}
             pagination={{ pageSize: 10 }}
             columns={[
-              {
-                title: "Tanggal",
-                dataIndex: "attendance_date",
-                width: 120,
-                render: (value) => formatDateCell(value),
-              },
               {
                 title: "Siswa",
                 width: 220,
@@ -258,7 +305,8 @@ const StudentReport = () => {
               {
                 title: "Kelas",
                 width: 160,
-                render: (_, row) => `${row.grade_name || "-"} / ${row.class_name || "-"}`,
+                render: (_, row) =>
+                  `${row.grade_name || "-"} / ${row.class_name || "-"}`,
               },
               {
                 title: "Status",
@@ -272,20 +320,24 @@ const StudentReport = () => {
                     excused: "blue",
                     incomplete: "orange",
                   };
-                  return <Tag color={colorMap[value] || "default"}>{value}</Tag>;
+                  return (
+                    <Tag color={colorMap[value] || "default"}>{value}</Tag>
+                  );
                 },
               },
               {
-                title: "Checkin",
-                dataIndex: "checkin_at",
-                width: 180,
-                render: (value) => formatDateTimeCell(value),
-              },
-              {
-                title: "Checkout",
-                dataIndex: "checkout_at",
-                width: 180,
-                render: (value) => formatDateTimeCell(value),
+                title: "Checkin / Checkout",
+                width: 280,
+                render: (_, row) => (
+                  <Flex vertical gap={6}>
+                    <Tag color='green' style={{ marginInlineEnd: 0, width: "fit-content" }}>
+                      Checkin: {formatDateTimeCell(row.checkin_at)}
+                    </Tag>
+                    <Tag color='red' style={{ marginInlineEnd: 0, width: "fit-content" }}>
+                      Checkout: {formatDateTimeCell(row.checkout_at)}
+                    </Tag>
+                  </Flex>
+                ),
               },
               {
                 title: "Terlambat",
@@ -293,10 +345,58 @@ const StudentReport = () => {
                 width: 120,
                 render: (value) => `${Number(value || 0)} mnt`,
               },
+              {
+                title: "Aksi",
+                width: 130,
+                fixed: "right",
+                render: (_, row) => (
+                  <Flex gap={8}>
+                    <Button
+                      size='small'
+                      icon={<Pencil size={14} />}
+                      onClick={() => openEditModal(row)}
+                    />
+                    <Popconfirm
+                      title='Hapus data absensi ini?'
+                      onConfirm={() => handleDeleteRow(row.id)}
+                      okButtonProps={{ loading: deletingRow }}
+                    >
+                      <Button size='small' danger icon={<Trash2 size={14} />} />
+                    </Popconfirm>
+                  </Flex>
+                ),
+              },
             ]}
           />
         )}
       </Card>
+
+      <Modal
+        title='Edit Checkin / Checkout Siswa'
+        open={!!editingRow}
+        onCancel={closeEditModal}
+        onOk={handleSaveEdit}
+        confirmLoading={savingEdit}
+      >
+        <Flex vertical gap={12}>
+          <DatePicker
+            showTime
+            value={editCheckin}
+            onChange={setEditCheckin}
+            style={{ width: "100%" }}
+            placeholder='Checkin'
+            format='YYYY-MM-DD HH:mm:ss'
+          />
+          <DatePicker
+            showTime
+            value={editCheckout}
+            onChange={setEditCheckout}
+            style={{ width: "100%" }}
+            placeholder='Checkout'
+            format='YYYY-MM-DD HH:mm:ss'
+          />
+        </Flex>
+      </Modal>
     </Flex>
   );
 };

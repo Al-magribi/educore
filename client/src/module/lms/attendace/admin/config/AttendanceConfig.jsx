@@ -1,6 +1,13 @@
 import { Card, Flex, Grid, Skeleton, Tabs, Typography, theme } from "antd";
 import { motion } from "framer-motion";
-import { CalendarClock, ClipboardList, Cpu, Network, Settings2, Sparkles } from "lucide-react";
+import {
+  CalendarClock,
+  ClipboardList,
+  Cpu,
+  Network,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 import { useGetAttendanceConfigQuery } from "../../../../../service/lms/ApiAttendance";
 import FeatureSettingsTab from "./tabs/FeatureSettingsTab";
 import PolicySettingsTab from "./tabs/PolicySettingsTab";
@@ -104,7 +111,7 @@ const AttendanceConfig = () => {
       label: createTabLabel(
         "Assignment",
         <Network size={16} />,
-        "Pemetaan policy"
+        "Pemetaan policy",
       ),
       key: "assignment",
       children: <AssignmentPolicyTab />,
@@ -179,20 +186,6 @@ const AttendanceConfig = () => {
                 >
                   <CalendarClock size={16} />
                   <span>PRESENSI RFID</span>
-                </Flex>
-
-                <Flex
-                  align='center'
-                  gap={6}
-                  style={{
-                    padding: "7px 12px",
-                    borderRadius: 999,
-                    background: "rgba(15,23,42,0.18)",
-                    color: "#dcfce7",
-                  }}
-                >
-                  <Sparkles size={14} />
-                  <span>Tahap 1-5 aktif</span>
                 </Flex>
               </Flex>
 

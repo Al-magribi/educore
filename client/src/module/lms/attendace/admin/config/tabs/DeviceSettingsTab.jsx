@@ -17,6 +17,7 @@ import { Plus } from "lucide-react";
 import { useGetClassesQuery } from "../../../../../../service/public/ApiPublic";
 import {
   useGetRfidDevicesQuery,
+  useRotateRfidDeviceTokenMutation,
   useSaveRfidDeviceMutation,
 } from "../../../../../../service/lms/ApiAttendance";
 import { innerCardStyle, itemVariants } from "../configShared";
@@ -31,6 +32,8 @@ const DeviceSettingsTab = ({ fallbackDevices = [], loadingFallback = false }) =>
   const { data: devicesRes, isFetching: fetchingDevices } = useGetRfidDevicesQuery();
   const { data: classesRes } = useGetClassesQuery();
   const [saveRfidDevice, { isLoading: savingDevice }] = useSaveRfidDeviceMutation();
+  const [rotateDeviceToken, { isLoading: rotatingToken }] =
+    useRotateRfidDeviceTokenMutation();
 
   const deviceRows = devicesRes?.data || fallbackDevices;
   const classOptions = (classesRes?.data || []).map((item) => ({
@@ -88,6 +91,31 @@ const DeviceSettingsTab = ({ fallbackDevices = [], loadingFallback = false }) =>
     }
   };
 
+  const handleRotateToken = async (record) => {
+    try {
+      const response = await rotateDeviceToken(record.id).unwrap();
+      const token = response?.data?.api_token;
+      Modal.info({
+        title: "Token Baru Device",
+        content: (
+          <div>
+            <p>Token berhasil dirotasi untuk device {record.name}.</p>
+            <Input.Password
+              readOnly
+              value={token || ""}
+              visibilityToggle
+              style={{ marginTop: 8 }}
+            />
+          </div>
+        ),
+        width: 560,
+      });
+      message.success("Token device berhasil dirotasi.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal merotasi token device.");
+    }
+  };
+
   return (
     <>
       <Card
@@ -131,11 +159,20 @@ const DeviceSettingsTab = ({ fallbackDevices = [], loadingFallback = false }) =>
               },
               {
                 title: "Aksi",
-                width: 100,
+                width: 220,
                 render: (_, record) => (
-                  <Button size='small' onClick={() => openEditDeviceModal(record)}>
-                    Edit
-                  </Button>
+                  <Flex gap={8}>
+                    <Button size='small' onClick={() => openEditDeviceModal(record)}>
+                      Edit
+                    </Button>
+                    <Button
+                      size='small'
+                      onClick={() => handleRotateToken(record)}
+                      loading={rotatingToken}
+                    >
+                      Rotate Token
+                    </Button>
+                  </Flex>
                 ),
               },
             ]}

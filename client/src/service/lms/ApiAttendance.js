@@ -70,6 +70,16 @@ export const ApiAttendance = createApi({
         { type: "AttendanceConfig", id: "BOOTSTRAP" },
       ],
     }),
+    rotateRfidDeviceToken: builder.mutation({
+      query: (id) => ({
+        url: `/attendance/config/devices/${id}/rotate-token`,
+        method: "POST",
+      }),
+      invalidatesTags: [
+        { type: "AttendanceDevice", id: "LIST" },
+        { type: "AttendanceConfig", id: "BOOTSTRAP" },
+      ],
+    }),
     getPolicyAssignmentBootstrap: builder.query({
       query: () => "/attendance/config/policy-assignments/bootstrap",
       providesTags: [{ type: "AttendanceAssignment", id: "BOOTSTRAP" }],
@@ -128,6 +138,40 @@ export const ApiAttendance = createApi({
       }),
       providesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
+    getAttendanceScanLogReport: builder.query({
+      query: ({ startDate, endDate, deviceId, resultStatus, onlyFailed } = {}) => ({
+        url: "/attendance/reports/scan-logs",
+        params: {
+          start_date: startDate,
+          end_date: endDate,
+          device_id: deviceId,
+          result_status: resultStatus,
+          only_failed: onlyFailed,
+        },
+      }),
+      providesTags: [{ type: "Attendance", id: "SCAN_LOG_REPORT" }],
+    }),
+    updateDailyAttendanceRecord: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/attendance/reports/daily/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: [
+        { type: "Attendance", id: "STUDENT_REPORT" },
+        { type: "Attendance", id: "TEACHER_REPORT" },
+      ],
+    }),
+    deleteDailyAttendanceRecord: builder.mutation({
+      query: (id) => ({
+        url: `/attendance/reports/daily/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [
+        { type: "Attendance", id: "STUDENT_REPORT" },
+        { type: "Attendance", id: "TEACHER_REPORT" },
+      ],
+    }),
   }),
 });
 
@@ -140,10 +184,14 @@ export const {
   useSaveAttendancePolicyMutation,
   useGetRfidDevicesQuery,
   useSaveRfidDeviceMutation,
+  useRotateRfidDeviceTokenMutation,
   useGetPolicyAssignmentBootstrapQuery,
   useGetPolicyAssignmentsQuery,
   useSavePolicyAssignmentMutation,
   useDeletePolicyAssignmentMutation,
   useGetStudentAttendanceReportQuery,
   useGetTeacherAttendanceReportQuery,
+  useGetAttendanceScanLogReportQuery,
+  useUpdateDailyAttendanceRecordMutation,
+  useDeleteDailyAttendanceRecordMutation,
 } = ApiAttendance;

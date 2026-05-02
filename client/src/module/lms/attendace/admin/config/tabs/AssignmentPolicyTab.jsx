@@ -197,7 +197,7 @@ const AssignmentPolicyTab = () => {
             loading={loadingBootstrap || loadingList}
             dataSource={assignments}
             pagination={{ pageSize: 8 }}
-            scroll={{ x: 1020 }}
+            scroll={{ x: 500 }}
             columns={[
               { title: "Policy", dataIndex: "policy_name", width: 220 },
               {

@@ -1,25 +1,35 @@
 import { useState } from "react";
 import dayjs from "dayjs";
 import {
+  Button,
   Card,
   DatePicker,
   Empty,
   Flex,
   Grid,
+  Modal,
+  Popconfirm,
   Select,
   Statistic,
   Table,
   Tag,
   Typography,
+  message,
 } from "antd";
 import { motion } from "framer-motion";
 import {
   BriefcaseBusiness,
   Clock3,
+  Pencil,
   TimerReset,
+  Trash2,
   UsersRound,
 } from "lucide-react";
-import { useGetTeacherAttendanceReportQuery } from "../../../../../service/lms/ApiAttendance";
+import {
+  useDeleteDailyAttendanceRecordMutation,
+  useGetTeacherAttendanceReportQuery,
+  useUpdateDailyAttendanceRecordMutation,
+} from "../../../../../service/lms/ApiAttendance";
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -40,16 +50,17 @@ const statCardStyle = {
   boxShadow: "0 12px 28px rgba(15, 23, 42, 0.05)",
 };
 
-const formatDateCell = (value) => {
-  if (!value) return "-";
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format("DD MMM YYYY") : value;
-};
-
 const formatDateTimeCell = (value) => {
   if (!value) return "-";
   const parsed = dayjs(value);
   return parsed.isValid() ? parsed.format("DD MMM YYYY HH:mm:ss") : value;
+};
+
+const formatMinutesToHours = (value) => {
+  const minutes = Number(value || 0);
+  const hours = minutes / 60;
+
+  return `${hours.toFixed(2)} jam`;
 };
 
 const TeacherReport = () => {
@@ -60,7 +71,14 @@ const TeacherReport = () => {
     dayjs().endOf("month"),
   ]);
   const [status, setStatus] = useState();
+  const [editingRow, setEditingRow] = useState(null);
+  const [editCheckin, setEditCheckin] = useState(null);
+  const [editCheckout, setEditCheckout] = useState(null);
 
+  const [updateDailyAttendance, { isLoading: savingEdit }] =
+    useUpdateDailyAttendanceRecordMutation();
+  const [deleteDailyAttendance, { isLoading: deletingRow }] =
+    useDeleteDailyAttendanceRecordMutation();
   const { data, isLoading, isFetching } = useGetTeacherAttendanceReportQuery({
     startDate: range?.[0]?.format("YYYY-MM-DD"),
     endDate: range?.[1]?.format("YYYY-MM-DD"),
@@ -108,6 +126,42 @@ const TeacherReport = () => {
       bg: "#fef2f2",
     },
   ];
+
+  const openEditModal = (row) => {
+    setEditingRow(row);
+    setEditCheckin(row.checkin_at ? dayjs(row.checkin_at) : null);
+    setEditCheckout(row.checkout_at ? dayjs(row.checkout_at) : null);
+  };
+
+  const closeEditModal = () => {
+    setEditingRow(null);
+    setEditCheckin(null);
+    setEditCheckout(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRow) return;
+    try {
+      await updateDailyAttendance({
+        id: editingRow.id,
+        checkin_at: editCheckin ? editCheckin.toISOString() : null,
+        checkout_at: editCheckout ? editCheckout.toISOString() : null,
+      }).unwrap();
+      message.success("Data absensi guru berhasil diperbarui.");
+      closeEditModal();
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal memperbarui absensi guru.");
+    }
+  };
+
+  const handleDeleteRow = async (id) => {
+    try {
+      await deleteDailyAttendance(id).unwrap();
+      message.success("Data absensi guru berhasil dihapus.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus absensi guru.");
+    }
+  };
 
   return (
     <Flex vertical gap={18}>
@@ -193,15 +247,9 @@ const TeacherReport = () => {
             rowKey='id'
             loading={isLoading || isFetching}
             dataSource={rows}
-            scroll={{ x: 980 }}
+            scroll={{ x: 840 }}
             pagination={{ pageSize: 10 }}
             columns={[
-              {
-                title: "Tanggal",
-                dataIndex: "attendance_date",
-                width: 120,
-                render: (value) => formatDateCell(value),
-              },
               {
                 title: "Guru",
                 width: 240,
@@ -233,33 +281,83 @@ const TeacherReport = () => {
                 },
               },
               {
-                title: "Checkin",
-                dataIndex: "checkin_at",
-                width: 180,
-                render: (value) => formatDateTimeCell(value),
-              },
-              {
-                title: "Checkout",
-                dataIndex: "checkout_at",
-                width: 180,
-                render: (value) => formatDateTimeCell(value),
+                title: "Checkin / Checkout",
+                width: 280,
+                render: (_, row) => (
+                  <Flex vertical gap={6}>
+                    <Tag color='green' style={{ marginInlineEnd: 0, width: "fit-content" }}>
+                      Checkin: {formatDateTimeCell(row.checkin_at)}
+                    </Tag>
+                    <Tag color='red' style={{ marginInlineEnd: 0, width: "fit-content" }}>
+                      Checkout: {formatDateTimeCell(row.checkout_at)}
+                    </Tag>
+                  </Flex>
+                ),
               },
               {
                 title: "Durasi Hadir",
                 dataIndex: "presence_minutes",
                 width: 130,
-                render: (value) => `${Number(value || 0)} mnt`,
+                render: (value) => formatMinutesToHours(value),
               },
               {
                 title: "Min. Wajib",
                 dataIndex: "minimum_required_minutes",
                 width: 130,
-                render: (value) => `${Number(value || 0)} mnt`,
+                render: (value) => formatMinutesToHours(value),
+              },
+              {
+                title: "Aksi",
+                width: 130,
+                fixed: "right",
+                render: (_, row) => (
+                  <Flex gap={8}>
+                    <Button
+                      size='small'
+                      icon={<Pencil size={14} />}
+                      onClick={() => openEditModal(row)}
+                    />
+                    <Popconfirm
+                      title='Hapus data absensi ini?'
+                      onConfirm={() => handleDeleteRow(row.id)}
+                      okButtonProps={{ loading: deletingRow }}
+                    >
+                      <Button size='small' danger icon={<Trash2 size={14} />} />
+                    </Popconfirm>
+                  </Flex>
+                ),
               },
             ]}
           />
         )}
       </Card>
+
+      <Modal
+        title='Edit Checkin / Checkout Guru'
+        open={!!editingRow}
+        onCancel={closeEditModal}
+        onOk={handleSaveEdit}
+        confirmLoading={savingEdit}
+      >
+        <Flex vertical gap={12}>
+          <DatePicker
+            showTime
+            value={editCheckin}
+            onChange={setEditCheckin}
+            style={{ width: "100%" }}
+            placeholder='Checkin'
+            format='YYYY-MM-DD HH:mm:ss'
+          />
+          <DatePicker
+            showTime
+            value={editCheckout}
+            onChange={setEditCheckout}
+            style={{ width: "100%" }}
+            placeholder='Checkout'
+            format='YYYY-MM-DD HH:mm:ss'
+          />
+        </Flex>
+      </Modal>
     </Flex>
   );
 };

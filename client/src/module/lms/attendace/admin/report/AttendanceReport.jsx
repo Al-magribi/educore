@@ -1,8 +1,9 @@
 import { Card, Flex, Grid, Tabs, Typography, theme } from "antd";
 import { motion } from "framer-motion";
-import { GraduationCap, ScanSearch, UsersRound } from "lucide-react";
+import { GraduationCap, ScanLine, ScanSearch, UsersRound } from "lucide-react";
 import StudentReport from "./StudentReport";
 import TeacherReport from "./TeacherReport";
+import ScanLogReport from "./ScanLogReport";
 import { itemVariants } from "../config/configShared";
 
 const { Text } = Typography;
@@ -50,61 +51,62 @@ const AttendanceReport = () => {
 
   return (
     <MotionDiv variants={itemVariants}>
-      <Card
-        bordered={false}
-        style={{
-          borderRadius: token.borderRadiusXL,
-          boxShadow: token.boxShadowSecondary,
-        }}
-        styles={{ body: { padding: isMobile ? 14 : 18 } }}
-      >
-        <Flex vertical gap={18}>
-          <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
-            vertical={isMobile}
-            gap={12}
-          >
-            <div>
-              <Flex align='center' gap={10} wrap='wrap'>
-                <ScanSearch size={18} color='#0f766e' />
-                <Text strong style={{ color: "#0f172a", fontSize: 17 }}>
-                  Laporan Presensi
-                </Text>
-              </Flex>
-              <Text type='secondary'>
-                Pantau rekap harian siswa dan guru dari data absensi RFID yang sudah dievaluasi.
+      <Flex vertical gap={18}>
+        <Flex
+          justify='space-between'
+          align={isMobile ? "stretch" : "center"}
+          vertical={isMobile}
+          gap={12}
+        >
+          <div>
+            <Flex align='center' gap={10} wrap='wrap'>
+              <ScanSearch size={18} color='#0f766e' />
+              <Text strong style={{ color: "#0f172a", fontSize: 17 }}>
+                Laporan Presensi
               </Text>
-            </div>
-          </Flex>
-
-          <Tabs
-            defaultActiveKey='students'
-            size={isMobile ? "middle" : "large"}
-            tabBarGutter={8}
-            items={[
-              {
-                key: "students",
-                label: createTabLabel(
-                  "Presensi Siswa",
-                  <GraduationCap size={16} />,
-                  "Harian siswa",
-                ),
-                children: <StudentReport />,
-              },
-              {
-                key: "teachers",
-                label: createTabLabel(
-                  "Presensi Guru",
-                  <UsersRound size={16} />,
-                  "Harian & sesi",
-                ),
-                children: <TeacherReport />,
-              },
-            ]}
-          />
+            </Flex>
+            <Text type='secondary'>
+              Pantau rekap harian siswa dan guru dari data absensi RFID yang
+              sudah dievaluasi.
+            </Text>
+          </div>
         </Flex>
-      </Card>
+
+        <Tabs
+          defaultActiveKey='students'
+          size={isMobile ? "middle" : "large"}
+          tabBarGutter={8}
+          items={[
+            {
+              key: "scan-logs",
+              label: createTabLabel(
+                "Log Scan",
+                <ScanLine size={16} />,
+                "Monitoring",
+              ),
+              children: <ScanLogReport />,
+            },
+            {
+              key: "students",
+              label: createTabLabel(
+                "Presensi Siswa",
+                <GraduationCap size={16} />,
+                "Harian siswa",
+              ),
+              children: <StudentReport />,
+            },
+            {
+              key: "teachers",
+              label: createTabLabel(
+                "Presensi Guru",
+                <UsersRound size={16} />,
+                "Harian & sesi",
+              ),
+              children: <TeacherReport />,
+            },
+          ]}
+        />
+      </Flex>
     </MotionDiv>
   );
 };
