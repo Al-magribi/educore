@@ -200,6 +200,7 @@ CREATE INDEX idx_enrollment_history ON u_class_enrollments(student_id);
 CREATE TABLE l_chapter (
     id SERIAL PRIMARY KEY,
     subject_id integer REFERENCES a_subject(id),
+    teacher_id integer REFERENCES u_teachers(user_id),
     title text NOT NULL,
     description text,
     order_number integer

@@ -884,9 +884,9 @@ router.post("/migrate/step-4-lms", async (req, res) => {
     const chapters = await sourceClient.query("SELECT * FROM l_chapter");
     for (const r of chapters.rows) {
       await destClient.query(
-        `INSERT INTO l_chapter (id, subject_id, title, description, order_number) 
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
-        [r.id, r.subject, r.title, r.target, r.order_number],
+        `INSERT INTO l_chapter (id, subject_id, teacher_id, title, description, order_number) 
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
+        [r.id, r.subject, r.teacher, r.title, r.target, r.order_number],
       );
     }
     await resetSequence(destClient, "l_chapter");

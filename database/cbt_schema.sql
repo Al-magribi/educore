@@ -18,7 +18,7 @@ ON cbt.c_bank (teacher_id, created_at DESC);
 
 CREATE TABLE cbt.c_exam (
     id SERIAL PRIMARY KEY,
-    bank_id integer REFERENCES cbt.c_bank(id),
+    bank_id integer REFERENCES cbt.c_bank(id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     duration_minutes integer NOT NULL,
     token varchar(10),
@@ -72,7 +72,7 @@ ON cbt.c_question_options (question_id, id);
 
 CREATE TABLE cbt.c_student_session (
     id SERIAL PRIMARY KEY,
-    exam_id integer REFERENCES cbt.c_exam(id),
+    exam_id integer REFERENCES cbt.c_exam(id) ON DELETE CASCADE,
     student_id integer REFERENCES public.u_students(user_id),
     start_time timestamp DEFAULT CURRENT_TIMESTAMP,
     finish_time timestamp,
@@ -100,9 +100,9 @@ CREATE INDEX idx_students_current_class ON public.u_students (current_class_id);
 
 CREATE TABLE cbt.c_answer (
     id SERIAL PRIMARY KEY,
-    session_id integer REFERENCES cbt.c_student_session(id),
-    question_id integer REFERENCES cbt.c_question(id),
-    selected_option_id integer REFERENCES cbt.c_question_options(id),
+    session_id integer REFERENCES cbt.c_student_session(id) ON DELETE CASCADE,
+    question_id integer REFERENCES cbt.c_question(id) ON DELETE CASCADE,
+    selected_option_id integer REFERENCES cbt.c_question_options(id) ON DELETE CASCADE,
     essay_text text,
     is_correct boolean,
     score_obtained numeric(5,2)

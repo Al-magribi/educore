@@ -714,6 +714,125 @@ const getOwnedBankContext = async (db, bankId, teacherId) => {
   return result.rows[0] || null;
 };
 
+const getTeacherAssignedGradesBySubject = async (db, teacherId, subjectId) => {
+  const result = await db.query(
+    `
+      SELECT DISTINCT g.id, g.name
+      FROM at_subject ats
+      JOIN a_class c ON ats.class_id = c.id
+      JOIN a_grade g ON c.grade_id = g.id
+      WHERE ats.teacher_id = $1
+        AND ats.subject_id = $2
+      ORDER BY g.name ASC
+    `,
+    [teacherId, subjectId],
+  );
+  return result.rows;
+};
+
+const getChapterTeacherColumn = async (db) => {
+  const result = await db.query(
+    `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'l_chapter'
+        AND column_name IN ('teacher_id', 'teacher')
+      ORDER BY CASE
+        WHEN column_name = 'teacher_id' THEN 1
+        ELSE 2
+      END
+      LIMIT 1
+    `,
+  );
+  return result.rows[0]?.column_name || null;
+};
+
+const getTeacherFilteredChapters = async ({
+  db,
+  teacherId,
+  subjectId,
+  gradeId = null,
+}) => {
+  if (gradeId) {
+    const isAssigned = await isTeacherAssignedToGradeBySubject(
+      db,
+      teacherId,
+      subjectId,
+      gradeId,
+    );
+    if (!isAssigned) {
+      return [];
+    }
+  }
+
+  const chapterTeacherColumn = await getChapterTeacherColumn(db);
+  const params = [subjectId];
+  let query = `
+    SELECT id, title, description, order_number
+    FROM l_chapter
+    WHERE subject_id = $1
+  `;
+
+  if (chapterTeacherColumn) {
+    query += ` AND ${chapterTeacherColumn} = $2`;
+    params.push(teacherId);
+  }
+
+  query += ` ORDER BY order_number ASC NULLS LAST, id ASC`;
+  const result = await db.query(query, params);
+  return result.rows;
+};
+
+const areTeacherChaptersValid = async ({
+  db,
+  teacherId,
+  subjectId,
+  chapterIds,
+}) => {
+  if (chapterIds.length < 1) {
+    return true;
+  }
+
+  const chapterTeacherColumn = await getChapterTeacherColumn(db);
+  const params = [subjectId, chapterIds];
+  let query = `
+    SELECT id
+    FROM l_chapter
+    WHERE subject_id = $1
+      AND id = ANY($2::int[])
+  `;
+
+  if (chapterTeacherColumn) {
+    query += ` AND ${chapterTeacherColumn} = $3`;
+    params.push(teacherId);
+  }
+
+  const result = await db.query(query, params);
+  return result.rowCount === chapterIds.length;
+};
+
+const isTeacherAssignedToGradeBySubject = async (
+  db,
+  teacherId,
+  subjectId,
+  gradeId,
+) => {
+  const result = await db.query(
+    `
+      SELECT 1
+      FROM at_subject ats
+      JOIN a_class c ON ats.class_id = c.id
+      WHERE ats.teacher_id = $1
+        AND ats.subject_id = $2
+        AND c.grade_id = $3
+      LIMIT 1
+    `,
+    [teacherId, subjectId, gradeId],
+  );
+  return result.rowCount > 0;
+};
+
 const sanitizeQuestionJobForResponse = (job) => {
   if (!job) return null;
   return {
@@ -1342,31 +1461,46 @@ const processQuestionGenerationJob = async ({ pool, jobId }) => {
     `
       SELECT id, name
       FROM a_grade
-      WHERE id = $1 AND homebase_id = $2
+      WHERE id = $1
       LIMIT 1
     `,
-    [job.grade_id, bank.homebase_id],
+    [job.grade_id],
   );
   const grade = gradeResult.rows[0];
   if (!grade) {
     throw new Error("Tingkat yang dipilih tidak valid.");
   }
+  if (
+    !(await isTeacherAssignedToGradeBySubject(
+      pool,
+      job.requested_by,
+      bank.subject_id,
+      job.grade_id,
+    ))
+  ) {
+    throw new Error("Tingkat yang dipilih tidak termasuk kelas ajar guru.");
+  }
 
   let chapters = [];
   if (chapterIds.length > 0) {
-    const chapterResult = await pool.query(
-      `
-        SELECT id, title, description, order_number
-        FROM l_chapter
-        WHERE subject_id = $1 AND id = ANY($2::int[])
-        ORDER BY order_number ASC NULLS LAST, id ASC
-      `,
-      [bank.subject_id, chapterIds],
-    );
-    chapters = chapterResult.rows;
-    if (chapters.length !== chapterIds.length) {
-      throw new Error("Ada materi/chapter yang tidak sesuai mapel bank soal.");
+    const chaptersValid = await areTeacherChaptersValid({
+      db: pool,
+      teacherId: job.requested_by,
+      subjectId: bank.subject_id,
+      chapterIds,
+    });
+    if (!chaptersValid) {
+      throw new Error(
+        "Ada materi/chapter yang tidak sesuai mapel atau bukan milik guru.",
+      );
     }
+    chapters = await getTeacherFilteredChapters({
+      db: pool,
+      teacherId: job.requested_by,
+      subjectId: bank.subject_id,
+      gradeId: job.grade_id,
+    });
+    chapters = chapters.filter((chapter) => chapterIds.includes(chapter.id));
   }
 
   const rubricTemplateResult = await pool.query(
@@ -1794,6 +1928,7 @@ router.get(
   withQuery(async (req, res, db) => {
     const bankId = toIntegerOrNull(req.params.bank_id);
     const teacherId = req.user.id;
+    const gradeId = toIntegerOrNull(req.query.grade_id);
 
     if (!bankId) {
       return res.status(400).json({ message: "Parameter bank tidak valid" });
@@ -1806,26 +1941,17 @@ router.get(
         .json({ message: "Bank soal tidak ditemukan atau bukan milik guru" });
     }
 
-    const [gradesResult, chaptersResult, teacherBundle, latestJobResult] =
+    const [grades, chapters, teacherBundle, latestJobResult] =
       await Promise.all([
-        db.query(
-          `
-            SELECT id, name
-            FROM a_grade
-            WHERE homebase_id = $1
-            ORDER BY name ASC
-          `,
-          [bank.homebase_id],
-        ),
-        db.query(
-          `
-            SELECT id, title, description, order_number
-            FROM l_chapter
-            WHERE subject_id = $1
-            ORDER BY order_number ASC NULLS LAST, id ASC
-          `,
-          [bank.subject_id],
-        ),
+        getTeacherAssignedGradesBySubject(db, teacherId, bank.subject_id),
+        gradeId
+          ? getTeacherFilteredChapters({
+              db,
+              teacherId,
+              subjectId: bank.subject_id,
+              gradeId,
+            })
+          : Promise.resolve([]),
         getAiTeacherBundle(db, teacherId),
         db.query(
           `
@@ -1850,8 +1976,8 @@ router.get(
       message: "OK",
       data: {
         bank,
-        grades: gradesResult.rows,
-        chapters: chaptersResult.rows,
+        grades,
+        chapters,
         ai_config: {
           has_config: Boolean(teacherBundle.config),
           has_api_key: Boolean(teacherBundle.config?.api_key_encrypted),
@@ -1903,31 +2029,39 @@ router.post(
       `
         SELECT id, name
         FROM a_grade
-        WHERE id = $1 AND homebase_id = $2
+        WHERE id = $1
         LIMIT 1
       `,
-      [gradeId, bank.homebase_id],
+      [gradeId],
     );
     if (gradeResult.rowCount === 0) {
-      return res
-        .status(400)
-        .json({ message: "Tingkat tidak sesuai homebase guru" });
+      return res.status(400).json({ message: "Tingkat tidak valid" });
+    }
+    if (
+      !(await isTeacherAssignedToGradeBySubject(
+        client,
+        teacherId,
+        bank.subject_id,
+        gradeId,
+      ))
+    ) {
+      return res.status(400).json({
+        message: "Tingkat harus sesuai dengan kelas yang ditugaskan ke guru",
+      });
     }
 
     const normalizedChapters = normalizeIntegerArray(chapter_ids);
     if (normalizedChapters.length > 0) {
-      const chapterResult = await client.query(
-        `
-          SELECT id
-          FROM l_chapter
-          WHERE subject_id = $1 AND id = ANY($2::int[])
-        `,
-        [bank.subject_id, normalizedChapters],
-      );
-      if (chapterResult.rowCount !== normalizedChapters.length) {
+      const chaptersValid = await areTeacherChaptersValid({
+        db: client,
+        teacherId,
+        subjectId: bank.subject_id,
+        chapterIds: normalizedChapters,
+      });
+      if (!chaptersValid) {
         return res.status(400).json({
           message:
-            "Materi yang dipilih tidak sesuai dengan mata pelajaran bank soal",
+            "Materi yang dipilih harus sesuai mapel dan dibuat oleh guru login",
         });
       }
     }
