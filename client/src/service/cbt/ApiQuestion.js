@@ -64,9 +64,10 @@ export const ApiQuestion = createApi({
     }),
 
     getAiQuestionGenerateMeta: builder.query({
-      query: ({ bankId }) => ({
+      query: ({ bankId, gradeId }) => ({
         url: `/banks/${bankId}/ai-generate/meta`,
         method: "GET",
+        params: gradeId ? { grade_id: gradeId } : undefined,
       }),
       providesTags: (result, error, { bankId }) => [
         { type: "AiQuestionDraft", id: `META-${bankId}` },

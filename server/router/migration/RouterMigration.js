@@ -982,12 +982,7 @@ router.post("/migrate/step-4-lms", async (req, res) => {
       await destClient.query(
         `INSERT INTO l_chapter (id, subject_id, teacher_id, title, description, order_number) 
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
-        [r.id, subjectId, teacherId, r.title, r.target, r.order_number],
-      );
-    }
-    if (skippedChapters > 0) {
-      console.warn(
-        `Skipped subject for ${skippedChapters} chapters (subject not found).`,
+        [r.id, r.subject, r.teacher, r.title, r.target, r.order_number],
       );
     }
     await resetSequence(destClient, "l_chapter");
