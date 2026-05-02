@@ -428,13 +428,25 @@ router.post(
 // GET CLASSES
 router.get(
   "/classes",
-  authorize("satuan"),
+  authorize("satuan", "teacher"),
   withQuery(async (req, res, pool) => {
     const homebaseId = req.user.homebase_id;
-    const data = await pool.query(
-      `SELECT * FROM a_class WHERE homebase_id = $1`,
-      [homebaseId],
-    );
+    let query = `SELECT * FROM a_class WHERE homebase_id = $1`;
+    const params = [homebaseId];
+
+    if (req.user.role === "teacher") {
+      query += `
+        AND id IN (
+          SELECT DISTINCT ats.class_id
+          FROM at_subject ats
+          WHERE ats.teacher_id = $2
+        )
+      `;
+      params.push(req.user.id);
+    }
+
+    query += ` ORDER BY name ASC`;
+    const data = await pool.query(query, params);
 
     res.status(200).json(data.rows);
   }),
@@ -443,13 +455,25 @@ router.get(
 // GET SUBJECTS
 router.get(
   "/subjects",
-  authorize("satuan"),
+  authorize("satuan", "teacher"),
   withQuery(async (req, res, pool) => {
     const homebaseId = req.user.homebase_id;
-    const data = await pool.query(
-      `SELECT * FROM a_subject WHERE homebase_id = $1`,
-      [homebaseId],
-    );
+    let query = `SELECT * FROM a_subject WHERE homebase_id = $1`;
+    const params = [homebaseId];
+
+    if (req.user.role === "teacher") {
+      query += `
+        AND id IN (
+          SELECT DISTINCT ats.subject_id
+          FROM at_subject ats
+          WHERE ats.teacher_id = $2
+        )
+      `;
+      params.push(req.user.id);
+    }
+
+    query += ` ORDER BY name ASC`;
+    const data = await pool.query(query, params);
 
     res.status(200).json(data.rows);
   }),

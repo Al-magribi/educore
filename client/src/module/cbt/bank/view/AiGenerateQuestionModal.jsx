@@ -57,12 +57,13 @@ const initialValues = {
 
 const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
   const [form] = Form.useForm();
+  const selectedGradeId = Form.useWatch("grade_id", form);
   const {
     data: meta,
     isFetching,
     refetch,
   } = useGetAiQuestionGenerateMetaQuery(
-    { bankId },
+    { bankId, gradeId: selectedGradeId },
     {
       skip: !open || !bankId,
     },
@@ -82,6 +83,11 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
       form.setFieldValue("grade_id", meta.grades[0]?.id);
     }
   }, [form, meta, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    form.setFieldValue("chapter_ids", []);
+  }, [form, open, selectedGradeId]);
 
   const handleSubmit = async (values) => {
     try {
@@ -222,8 +228,13 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
               <Select
                 mode='multiple'
                 size='large'
-                placeholder='Pilih materi'
+                placeholder={
+                  selectedGradeId
+                    ? "Pilih materi"
+                    : "Pilih tingkat terlebih dahulu"
+                }
                 suffixIcon={<Layers3 size={16} />}
+                disabled={!selectedGradeId}
                 options={(meta?.chapters || []).map((chapter) => ({
                   value: chapter.id,
                   label: chapter.title,
