@@ -52,12 +52,7 @@ const buildCoreMenus = () => ({
       icon: <WindowsOutlined />,
     },
   ],
-  tahfiz: [
-    { label: "Dashboard", key: "/tahfiz-dashboard", icon: <WindowsOutlined /> },
-    { label: "Alqur'an", key: "/tahfiz-alquran", icon: <FolderAddOutlined /> },
-    { label: "Halaqoh", key: "/tahfiz-halaqoh", icon: <RiseOutlined /> },
-    { label: "Target", key: "/tahfiz-target", icon: <AuditOutlined /> },
-  ],
+  tahfiz: [],
 });
 
 export default buildCoreMenus;
