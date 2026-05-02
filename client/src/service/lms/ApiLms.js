@@ -24,10 +24,10 @@ export const ApiLms = createApi({
       providesTags: ["LmsMeta"],
     }),
     getChapters: builder.query({
-      query: ({ subjectId, gradeId, classId }) =>
+      query: ({ subjectId, gradeId, classId, teacherId }) =>
         `/subjects/${subjectId}/chapters?grade_id=${gradeId || ""}&class_id=${
           classId || ""
-        }`,
+        }&teacher_id=${teacherId || ""}`,
       providesTags: (result) =>
         result?.data
           ? [

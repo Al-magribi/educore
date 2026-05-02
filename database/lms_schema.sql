@@ -287,6 +287,20 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'lms'
+          AND table_name = 'l_teacher_journal'
+          AND column_name = 'subject_id'
+    ) THEN
+        ALTER TABLE lms.l_teacher_journal
+            ADD COLUMN subject_id integer;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
         FROM information_schema.table_constraints
         WHERE constraint_schema = 'lms'
           AND table_name = 'l_teacher_journal'
@@ -295,6 +309,24 @@ BEGIN
         ALTER TABLE lms.l_teacher_journal
             ADD CONSTRAINT l_teacher_journal_subject_id_fkey
             FOREIGN KEY(subject_id) REFERENCES public.a_subject(id);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'lms'
+          AND table_name = 'l_teacher_journal'
+          AND column_name = 'subject_id'
+          AND is_nullable = 'YES'
+    ) AND NOT EXISTS (
+        SELECT 1
+        FROM lms.l_teacher_journal
+        WHERE subject_id IS NULL
+    ) THEN
+        EXECUTE 'ALTER TABLE lms.l_teacher_journal ALTER COLUMN subject_id SET NOT NULL';
     END IF;
 END $$;
 

@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
 import { Card, Flex, Form, Skeleton, message } from "antd";
 import {
   useAddChapterMutation,
@@ -25,8 +26,10 @@ const toStringArray = (value) => {
 };
 
 const Learning = ({ subjectId, subject }) => {
+  const { user } = useSelector((state) => state.auth);
   const [filterGradeId, setFilterGradeId] = useState(null);
   const [filterClassId, setFilterClassId] = useState(null);
+  const teacherId = Number(user?.id || 0) || null;
 
   const { data: gradesRes } = useGetGradesQuery({ subjectId });
   const { data: classesRes } = useGetClassesQuery({
@@ -38,6 +41,7 @@ const Learning = ({ subjectId, subject }) => {
     subjectId,
     gradeId: filterGradeId,
     classId: filterClassId,
+    teacherId,
   });
 
   const chapters = chaptersRes?.data ?? EMPTY_LIST;
@@ -112,6 +116,7 @@ const Learning = ({ subjectId, subject }) => {
       const payload = {
         ...values,
         class_ids: values.class_ids || [],
+        teacher_id: teacherId,
       };
       if (editingChapter?.id) {
         await updateChapter({ id: editingChapter.id, ...payload }).unwrap();
@@ -245,6 +250,7 @@ const Learning = ({ subjectId, subject }) => {
             order_number: idx + 1,
             grade_id: item.grade_id,
             class_id: item.class_id,
+            teacher_id: teacherId,
           }).unwrap(),
         ),
       );

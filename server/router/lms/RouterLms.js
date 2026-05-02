@@ -82,6 +82,50 @@ const parseContentMedia = (row) => {
   };
 };
 
+const ensureChapterTeacherColumn = async (executor) => {
+  await executor.query(`
+    ALTER TABLE l_chapter
+    ADD COLUMN IF NOT EXISTS teacher_id integer REFERENCES u_teachers(user_id)
+  `);
+
+  await executor.query(`
+    CREATE INDEX IF NOT EXISTS idx_l_chapter_teacher_subject
+    ON l_chapter(teacher_id, subject_id)
+  `);
+
+  // Backfill legacy rows when a single teacher can be inferred from subject/class assignment.
+  await executor.query(`
+    WITH teacher_candidates AS (
+      SELECT
+        ch.id AS chapter_id,
+        CASE
+          WHEN COUNT(DISTINCT ats.teacher_id) = 1 THEN MAX(ats.teacher_id)
+          ELSE NULL
+        END AS inferred_teacher_id
+      FROM l_chapter ch
+      JOIN at_subject ats
+        ON ats.subject_id = ch.subject_id
+       AND (
+         ats.class_id IS NULL
+         OR ch.class_id IS NULL
+         OR ats.class_id = ch.class_id
+         OR (
+           ch.class_ids IS NOT NULL
+           AND ats.class_id = ANY(ch.class_ids)
+         )
+       )
+      WHERE ch.teacher_id IS NULL
+      GROUP BY ch.id
+    )
+    UPDATE l_chapter ch
+    SET teacher_id = tc.inferred_teacher_id
+    FROM teacher_candidates tc
+    WHERE ch.id = tc.chapter_id
+      AND ch.teacher_id IS NULL
+      AND tc.inferred_teacher_id IS NOT NULL
+  `);
+};
+
 // ==========================================
 // GET Subjects for LMS (Role-based)
 // ==========================================
@@ -287,7 +331,9 @@ router.get(
   withQuery(async (req, res, pool) => {
     const { id: userId, role, homebase_id } = req.user;
     const { subjectId } = req.params;
-    const { grade_id, class_id } = req.query;
+    const { grade_id, class_id, teacher_id } = req.query;
+
+    await ensureChapterTeacherColumn(pool);
 
     if (role === "teacher") {
       const sql = `
@@ -297,6 +343,8 @@ router.get(
           ch.title,
           ch.description,
           ch.order_number,
+          ch.teacher_id,
+          tu.full_name AS teacher_name,
           ch.grade_id,
           g.name AS grade_name,
           ch.class_id,
@@ -304,6 +352,7 @@ router.get(
           ch.class_ids,
           cls.class_names
         FROM l_chapter ch
+        LEFT JOIN u_users tu ON tu.id = ch.teacher_id
         LEFT JOIN a_grade g ON ch.grade_id = g.id
         LEFT JOIN a_class cl ON ch.class_id = cl.id
         LEFT JOIN LATERAL (
@@ -312,11 +361,26 @@ router.get(
           WHERE ch.class_ids IS NOT NULL AND c.id = ANY(ch.class_ids)
         ) cls ON true
         WHERE ch.subject_id = $1
-          AND EXISTS (
-            SELECT 1
-            FROM at_subject ats
-            WHERE ats.teacher_id = $2
-              AND ats.subject_id = ch.subject_id
+          AND (
+            ch.teacher_id = $2
+            OR (
+              ch.teacher_id IS NULL
+              AND EXISTS (
+                SELECT 1
+                FROM at_subject ats
+                WHERE ats.teacher_id = $2
+                  AND ats.subject_id = ch.subject_id
+                  AND (
+                    ats.class_id IS NULL
+                    OR ch.class_id IS NULL
+                    OR ats.class_id = ch.class_id
+                    OR (
+                      ch.class_ids IS NOT NULL
+                      AND ats.class_id = ANY(ch.class_ids)
+                    )
+                  )
+              )
+            )
           )
           AND (
             $3::int IS NULL
@@ -348,6 +412,8 @@ router.get(
           ch.title,
           ch.description,
           ch.order_number,
+          ch.teacher_id,
+          tu.full_name AS teacher_name,
           ch.grade_id,
           g.name AS grade_name,
           ch.class_id,
@@ -358,6 +424,7 @@ router.get(
         JOIN a_subject s ON s.id = ch.subject_id
         JOIN u_students st ON st.user_id = $2
         JOIN a_class active_cl ON active_cl.id = st.current_class_id
+        LEFT JOIN u_users tu ON tu.id = ch.teacher_id
         LEFT JOIN a_grade g ON ch.grade_id = g.id
         LEFT JOIN a_class cl ON ch.class_id = cl.id
         LEFT JOIN LATERAL (
@@ -396,6 +463,8 @@ router.get(
         ch.title,
         ch.description,
         ch.order_number,
+        ch.teacher_id,
+        tu.full_name AS teacher_name,
         ch.grade_id,
         g.name AS grade_name,
         ch.class_id,
@@ -403,6 +472,7 @@ router.get(
         ch.class_ids,
         cls.class_names
       FROM l_chapter ch
+      LEFT JOIN u_users tu ON tu.id = ch.teacher_id
       LEFT JOIN a_grade g ON ch.grade_id = g.id
       LEFT JOIN a_class cl ON ch.class_id = cl.id
       LEFT JOIN LATERAL (
@@ -413,6 +483,10 @@ router.get(
       JOIN a_subject s ON s.id = ch.subject_id
       WHERE ch.subject_id = $1
         AND s.homebase_id = $2
+        AND (
+          $5::int IS NULL
+          OR ch.teacher_id = $5
+        )
         AND (
           $3::int IS NULL
           OR ch.grade_id = $3
@@ -431,6 +505,7 @@ router.get(
       homebase_id,
       grade_id || null,
       class_id || null,
+      teacher_id || null,
     ]);
     return res.json({ status: "success", data: result.rows });
   }),
@@ -453,6 +528,8 @@ router.post(
       class_id,
       class_ids,
     } = req.body;
+
+    await ensureChapterTeacherColumn(client);
 
     if (role === "teacher") {
       const checkSql = `
@@ -484,6 +561,7 @@ router.post(
     const sql = `
       INSERT INTO l_chapter (
         subject_id,
+        teacher_id,
         title,
         description,
         order_number,
@@ -491,11 +569,12 @@ router.post(
         class_id,
         class_ids
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id
     `;
     const result = await client.query(sql, [
       subjectId,
+      role === "teacher" ? userId : null,
       title,
       description || null,
       order_number || null,
@@ -525,12 +604,25 @@ router.put(
       class_ids,
     } = req.body;
 
+    await ensureChapterTeacherColumn(client);
+
     if (role === "teacher") {
       const checkSql = `
         SELECT 1
         FROM l_chapter ch
-        JOIN at_subject ats ON ats.subject_id = ch.subject_id
-        WHERE ch.id = $1 AND ats.teacher_id = $2
+        WHERE ch.id = $1
+          AND (
+            ch.teacher_id = $2
+            OR (
+              ch.teacher_id IS NULL
+              AND EXISTS (
+                SELECT 1
+                FROM at_subject ats
+                WHERE ats.teacher_id = $2
+                  AND ats.subject_id = ch.subject_id
+              )
+            )
+          )
       `;
       const check = await client.query(checkSql, [id, userId]);
       if (check.rowCount === 0) {
@@ -560,8 +652,9 @@ router.put(
           order_number = $3,
           grade_id = $4,
           class_id = $5,
-          class_ids = $6
-      WHERE id = $7
+          class_ids = $6,
+          teacher_id = COALESCE($7, teacher_id)
+      WHERE id = $8
     `;
     await client.query(sql, [
       title,
@@ -570,6 +663,7 @@ router.put(
       grade_id || null,
       resolvedClassId || null,
       resolvedClassIds.length > 0 ? resolvedClassIds : null,
+      role === "teacher" ? userId : null,
       id,
     ]);
     return res.json({ status: "success" });
@@ -587,12 +681,25 @@ router.delete(
     const { id } = req.params;
     let attachmentUrls = [];
 
+    await ensureChapterTeacherColumn(client);
+
     if (role === "teacher") {
       const checkSql = `
         SELECT 1
         FROM l_chapter ch
-        JOIN at_subject ats ON ats.subject_id = ch.subject_id
-        WHERE ch.id = $1 AND ats.teacher_id = $2
+        WHERE ch.id = $1
+          AND (
+            ch.teacher_id = $2
+            OR (
+              ch.teacher_id IS NULL
+              AND EXISTS (
+                SELECT 1
+                FROM at_subject ats
+                WHERE ats.teacher_id = $2
+                  AND ats.subject_id = ch.subject_id
+              )
+            )
+          )
       `;
       const check = await client.query(checkSql, [id, userId]);
       if (check.rowCount === 0) {
@@ -602,8 +709,19 @@ router.delete(
         SELECT c.attachment_url
         FROM l_content c
         JOIN l_chapter ch ON ch.id = c.chapter_id
-        JOIN at_subject ats ON ats.subject_id = ch.subject_id
-        WHERE ch.id = $1 AND ats.teacher_id = $2
+        WHERE ch.id = $1
+          AND (
+            ch.teacher_id = $2
+            OR (
+              ch.teacher_id IS NULL
+              AND EXISTS (
+                SELECT 1
+                FROM at_subject ats
+                WHERE ats.teacher_id = $2
+                  AND ats.subject_id = ch.subject_id
+              )
+            )
+          )
       `;
       const files = await client.query(fileSql, [id, userId]);
       attachmentUrls = files.rows.flatMap((row) =>
