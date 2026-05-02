@@ -106,6 +106,9 @@ jobs:
             git checkout origin/main -- .github/workflows
           fi
           git add .github/workflows
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(compose): align workflows for ${COMPOSE_BRANCH}"
+          fi
           
           git push origin "${COMPOSE_BRANCH}" --force
 
