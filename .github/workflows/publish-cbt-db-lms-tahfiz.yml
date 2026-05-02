@@ -1,11 +1,10 @@
-name: Publish Product CBT + DB + LMS + Finance + Tahfiz
+name: Publish Product CBT + DB + LMS + Tahfiz
 
 on:
   push:
     branches:
       - feature/db
       - feature/lms
-      - feature/finance
       - feature/tahfiz
   workflow_run:
     workflows:
@@ -16,15 +15,15 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  COMPOSE_BRANCH: release/cbt-db-lms-finance-tahfiz
-  PRODUCT_BRANCH: product/cbt-db-lms-finance-tahfiz
-  VITE_PRODUCT_PROFILE: educore-cbt-db-lms-finance-tahfiz
+  COMPOSE_BRANCH: release/cbt-db-lms-tahfiz
+  PRODUCT_BRANCH: product/cbt-db-lms-tahfiz
+  VITE_PRODUCT_PROFILE: educore-cbt-db-lms-tahfiz
 
 permissions:
   contents: write
 
 concurrency:
-  group: publish-cbt-db-lms-finance-tahfiz
+  group: publish-cbt-db-lms-tahfiz
   cancel-in-progress: true
 
 jobs:
@@ -69,7 +68,6 @@ jobs:
 
           merge_branch "feature/db"
           merge_branch "feature/lms"
-          merge_branch "feature/finance"
           merge_branch "feature/tahfiz"
 
       - name: Setup Node.js
@@ -119,7 +117,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: release/cbt-db-lms-finance-tahfiz
+          ref: release/cbt-db-lms-tahfiz
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -146,7 +144,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Publish branch product/cbt-db-lms-finance-tahfiz
+      - name: Publish branch product/cbt-db-lms-tahfiz
         shell: bash
         run: |
           set -euo pipefail

@@ -96,6 +96,16 @@ jobs:
           set -euo pipefail
 
           node --check server/router/registerApiRoutes.js
+
+          # Keep workflow files unchanged on release branch to avoid
+          # requiring `workflows` permission for GitHub App pushes.
+          git fetch origin
+          if git show-ref --verify --quiet "refs/remotes/origin/${COMPOSE_BRANCH}"; then
+            git checkout "origin/${COMPOSE_BRANCH}" -- .github/workflows
+          else
+            git checkout origin/main -- .github/workflows
+          fi
+          git add .github/workflows
           
           git push origin "${COMPOSE_BRANCH}" --force
 
