@@ -50,26 +50,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          restore_lms_owned_paths() {
-            git checkout origin/feature/lms -- \
-              client/src/App.jsx \
-              client/src/components/editor \
-              client/src/components/index.js \
-              client/src/components/layout/menus/lmsMenus.jsx \
-              client/src/components/scroll/InfiniteScrollList.jsx \
-              client/src/module/lms \
-              client/src/routes/modules/lmsRoutes.jsx \
-              client/src/service/lms \
-              database/attendance_schema.sql \
-              database/attendance_seed.sql \
-              database/attendance_seed_full.sql \
-              database/attendance_seed_lite.sql \
-              database/lms_schema.sql \
-              docs/esp32_rfid_attendance_mfrc522.ino \
-              server/router/lms
-            git add -A
-          }
-
           merge_branch() {
             local source_branch="$1"
             local merge_message="chore(compose): merge ${source_branch} into ${COMPOSE_BRANCH}"
@@ -91,14 +71,6 @@ jobs:
           merge_branch "feature/lms"
           merge_branch "feature/finance"
           merge_branch "feature/tahfiz"
-
-          # `feature/lms` owns the LMS subtree. Re-apply it after composition so
-          # later branches cannot silently roll those files back to older copies.
-          restore_lms_owned_paths
-
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(compose): restore LMS-owned paths from feature/lms"
-          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -125,15 +97,6 @@ jobs:
         run: |
           set -euo pipefail
           node --check server/router/registerApiRoutes.js
-
-          # Release branches should carry the composed application source, but not
-          # workflow-file edits from feature branches. Keeping workflow files aligned
-          # to `main` avoids GitHub token restrictions when force-pushing the branch.
-          git checkout origin/main -- .github/workflows
-          git add .github/workflows
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(compose): align workflow files with main"
-          fi
 
           git push origin "${COMPOSE_BRANCH}" --force
 
