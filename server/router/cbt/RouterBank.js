@@ -189,7 +189,52 @@ router.delete(
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
-    await client.query(`DELETE FROM cbt.c_bank WHERE id = $1`, [id]);
+    // Fallback untuk database lama yang constraint FK-nya belum memakai
+    // ON DELETE CASCADE secara penuh di rantai c_bank -> c_exam -> c_student_answer.
+    await client.query(
+      `
+        DELETE FROM cbt.c_student_answer a
+        USING cbt.c_exam e,
+              cbt.c_question q
+        WHERE a.exam_id = e.id
+          AND a.question_id = q.id
+          AND e.bank_id = $1
+          AND q.bank_id = $1
+      `,
+      [id],
+    );
+
+    await client.query(
+      `
+        DELETE FROM cbt.c_student_answer a
+        USING cbt.c_question q
+        WHERE a.question_id = q.id
+          AND q.bank_id = $1
+      `,
+      [id],
+    );
+
+    await client.query(
+      `
+        DELETE FROM cbt.c_student_session s
+        USING cbt.c_exam e
+        WHERE s.exam_id = e.id
+          AND e.bank_id = $1
+      `,
+      [id],
+    );
+
+    await client.query(`DELETE FROM cbt.c_exam WHERE bank_id = $1`, [id]);
+
+    const deleteResult = await client.query(
+      `DELETE FROM cbt.c_bank WHERE id = $1 RETURNING id`,
+      [id],
+    );
+
+    if (deleteResult.rowCount === 0) {
+      return res.status(404).json({ message: "Bank soal tidak ditemukan" });
+    }
+
     res.json({ message: "Bank soal berhasil dihapus" });
   }),
 );
