@@ -84,79 +84,81 @@ const App = () => {
   useLoadUserQuery();
 
   return (
-    <BrowserRouter>
-      <AppMetadata />
-      <Routes>
-        {renderPublicRoutes()}
+    <Suspense fallback={<LoadApp />}>
+      <BrowserRouter>
+        <AppMetadata />
+        <Routes>
+          {renderPublicRoutes()}
 
-        <Route
-          element={
-            <RouteProtection
-              allowedRoles={["admin", "teacher", "student", "parent"]}
-              allowedLevels={[
-                "pusat",
-                "satuan",
-                "tahfiz",
-                "finance",
-                "keuangan",
-              ]}
-            />
-          }
-        >
-          <Route element={<AppLayout asShell />}>
-            {renderCenterRoutes({
-              LazyPage,
-              NotFoundRedirect,
-              isDbEnabled,
-            })}
-
-            {renderAdminRoutes({
-              LazyPage,
-            })}
-
-            {isCbtEnabled &&
-              renderCbtShellRoutes({
-                LazyPage,
-              })}
-
-            {isLmsEnabled &&
-              renderLmsRoutes({
+          <Route
+            element={
+              <RouteProtection
+                allowedRoles={["admin", "teacher", "student", "parent"]}
+                allowedLevels={[
+                  "pusat",
+                  "satuan",
+                  "tahfiz",
+                  "finance",
+                  "keuangan",
+                ]}
+              />
+            }
+          >
+            <Route element={<AppLayout asShell />}>
+              {renderCenterRoutes({
                 LazyPage,
                 NotFoundRedirect,
+                isDbEnabled,
               })}
 
-            {isDbEnabled &&
-              renderDbRoutes({
+              {renderAdminRoutes({
+                LazyPage,
+              })}
+
+              {isCbtEnabled &&
+                renderCbtShellRoutes({
+                  LazyPage,
+                })}
+
+              {isLmsEnabled &&
+                renderLmsRoutes({
+                  LazyPage,
+                  NotFoundRedirect,
+                })}
+
+              {isDbEnabled &&
+                renderDbRoutes({
+                  LazyPage,
+                  NotFoundRedirect,
+                })}
+
+              {isFinanceEnabled &&
+                renderFinanceRoutes({
+                  LazyPage,
+                })}
+
+              {isTahfizEnabled &&
+                renderTahfizRoutes({
+                  LazyPage,
+                })}
+
+              {renderRoleRoutes({
                 LazyPage,
                 NotFoundRedirect,
+                isCbtEnabled,
               })}
-
-            {isFinanceEnabled &&
-              renderFinanceRoutes({
-                LazyPage,
-              })}
-
-            {isTahfizEnabled &&
-              renderTahfizRoutes({
-                LazyPage,
-              })}
-
-            {renderRoleRoutes({
-              LazyPage,
-              NotFoundRedirect,
-              isCbtEnabled,
-            })}
+            </Route>
           </Route>
-        </Route>
 
-        {isCbtEnabled &&
-          renderCbtStandaloneRoutes({
-            LazyRoute,
-          })}
+          {isCbtEnabled &&
+            renderCbtStandaloneRoutes({
+              LazyRoute,
+            })}
 
-        <Route path='*' element={<NotFoundRedirect />} />
-      </Routes>
-    </BrowserRouter>
+          <Route path='*' element={<NotFoundRedirect />} />
+        </Routes>
+      </BrowserRouter>
+    </Suspense>
   );
 };
 

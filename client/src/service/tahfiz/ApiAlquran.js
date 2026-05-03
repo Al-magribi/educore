@@ -15,6 +15,16 @@ export const ApiAlquran = createApi({
       providesTags: ["Alquran"],
       transformResponse: (response) => response.data,
     }),
+    getSurahAyahList: builder.query({
+      query: (surahNumber) => `/alquran/surah/${surahNumber}/ayah`,
+      providesTags: ["Alquran"],
+      transformResponse: (response) => response.data,
+    }),
+    getJuzAyahList: builder.query({
+      query: (juzNumber) => `/alquran/juz/${juzNumber}/ayah`,
+      providesTags: ["Alquran"],
+      transformResponse: (response) => response.data,
+    }),
     updateJuzLineCount: builder.mutation({
       query: ({ number, line_count }) => ({
         url: `/alquran/juz/${number}/line-count`,
@@ -29,5 +39,7 @@ export const ApiAlquran = createApi({
 export const {
   useGetSurahListQuery,
   useGetJuzListQuery,
+  useGetSurahAyahListQuery,
+  useGetJuzAyahListQuery,
   useUpdateJuzLineCountMutation,
 } = ApiAlquran;
