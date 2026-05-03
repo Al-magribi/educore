@@ -186,8 +186,8 @@ router.get(
         COUNT(s.user_id) as student_count,
         ROUND((COUNT(s.user_id)::decimal * 100 / (SELECT COUNT(*) FROM u_students)), 1) as percentage
       FROM u_students s
-      JOIN db_city c ON s.city_id = c.id
-      JOIN db_province p ON c.province_id = p.id
+      JOIN "database".db_city c ON s.city_id = c.id
+      JOIN "database".db_province p ON c.province_id = p.id
       GROUP BY c.id, c.name, p.name
       ORDER BY student_count DESC
       LIMIT 10 -- Ambil Top 10 Kota
@@ -216,9 +216,9 @@ router.get(
     // Menggabungkan data pekerjaan Ayah dan Ibu
     const queryText = `
       WITH all_jobs AS (
-        SELECT father_job as job FROM u_student_families WHERE father_job IS NOT NULL AND father_job != ''
+        SELECT father_job as job FROM "database".u_student_families WHERE father_job IS NOT NULL AND father_job != ''
         UNION ALL
-        SELECT mother_job as job FROM u_student_families WHERE mother_job IS NOT NULL AND mother_job != ''
+        SELECT mother_job as job FROM "database".u_student_families WHERE mother_job IS NOT NULL AND mother_job != ''
       )
       SELECT 
         job, 
