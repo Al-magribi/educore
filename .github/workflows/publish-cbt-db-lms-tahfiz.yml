@@ -1,11 +1,11 @@
-name: Publish Product CBT + DB + LMS + Finance
+name: Publish Product CBT + DB + LMS + Tahfiz
 
 on:
   push:
     branches:
       - feature/db
       - feature/lms
-      - feature/finance
+      - feature/tahfiz
   workflow_run:
     workflows:
       - Sync Main To Feature Branches
@@ -15,15 +15,15 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  COMPOSE_BRANCH: release/cbt-db-lms-finance
-  PRODUCT_BRANCH: product/cbt-db-lms-finance
-  VITE_PRODUCT_PROFILE: educore-cbt-db-lms-finance
+  COMPOSE_BRANCH: release/cbt-db-lms-tahfiz
+  PRODUCT_BRANCH: product/cbt-db-lms-tahfiz
+  VITE_PRODUCT_PROFILE: educore-cbt-db-lms-tahfiz
 
 permissions:
   contents: write
 
 concurrency:
-  group: publish-cbt-db-lms-finance
+  group: publish-cbt-db-lms-tahfiz
   cancel-in-progress: true
 
 jobs:
@@ -68,15 +68,7 @@ jobs:
 
           merge_branch "feature/db"
           merge_branch "feature/lms"
-          merge_branch "feature/finance"
-
-          # `feature/lms` owns the LMS subtree. Re-apply it after composition so
-          # later branches cannot silently roll those files back to older copies.
-          restore_lms_owned_paths
-
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(compose): restore LMS-owned paths from feature/lms"
-          fi
+          merge_branch "feature/tahfiz"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -102,7 +94,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           node --check server/router/registerApiRoutes.js
           node --input-type=module -e "await import('./server/router/registerApiRoutes.js'); process.exit(0)"
 
@@ -118,7 +109,7 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "chore(compose): align workflows for ${COMPOSE_BRANCH}"
           fi
-          
+
           git push origin "${COMPOSE_BRANCH}" --force
 
   publish:
@@ -130,7 +121,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: release/cbt-db-lms-finance
+          ref: release/cbt-db-lms-tahfiz
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -157,7 +148,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Publish branch product/cbt-db-lms-finance
+      - name: Publish branch product/cbt-db-lms-tahfiz
         shell: bash
         run: |
           set -euo pipefail
