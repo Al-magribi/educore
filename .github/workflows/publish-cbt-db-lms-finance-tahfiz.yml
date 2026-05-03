@@ -125,6 +125,20 @@ jobs:
         run: |
           set -euo pipefail
           node --check server/router/registerApiRoutes.js
+          node --input-type=module -e "await import('./server/router/registerApiRoutes.js'); process.exit(0)"
+
+          # Keep workflow files unchanged on release branch to avoid
+          # requiring `workflows` permission for GitHub App pushes.
+          git fetch origin
+          if git show-ref --verify --quiet "refs/remotes/origin/${COMPOSE_BRANCH}"; then
+            git checkout "origin/${COMPOSE_BRANCH}" -- .github/workflows
+          else
+            git checkout origin/main -- .github/workflows
+          fi
+          git add .github/workflows
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(compose): align workflows for ${COMPOSE_BRANCH}"
+          fi
 
           # Release branches should carry the composed application source, but not
           # workflow-file edits from feature branches. Keeping workflow files aligned
