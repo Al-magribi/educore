@@ -49,12 +49,50 @@ CREATE TABLE u_teachers (
 
 
 -- AKUN ORANG TUA (Login khusus ortu)
+-- Revisi: 1 akun orang tua dapat terhubung ke lebih dari 1 siswa
 CREATE TABLE u_parents (
-    user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    user_id integer REFERENCES u_users(id) ON DELETE CASCADE,
     student_id integer REFERENCES u_students(user_id), -- Link ke anak
     phone text,
-    email text
+    email text,
+    CONSTRAINT uq_parent_student UNIQUE (user_id, student_id)
 );
+
+-- MIGRASI LEGACY:
+-- Jika database lama masih memakai PRIMARY KEY (user_id) pada u_parents,
+-- jalankan blok berikut agar 1 akun orang tua dapat terhubung ke lebih dari 1 siswa.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+         AND tc.table_name = kcu.table_name
+        WHERE tc.table_schema = 'public'
+          AND tc.table_name = 'u_parents'
+          AND tc.constraint_type = 'PRIMARY KEY'
+          AND kcu.column_name = 'user_id'
+    ) THEN
+        ALTER TABLE public.u_parents DROP CONSTRAINT u_parents_pkey;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_schema = 'public'
+          AND table_name = 'u_parents'
+          AND constraint_name = 'uq_parent_student'
+    ) THEN
+        ALTER TABLE public.u_parents
+        ADD CONSTRAINT uq_parent_student UNIQUE (user_id, student_id);
+    END IF;
+END $$;
 
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (
