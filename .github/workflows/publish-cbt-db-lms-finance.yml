@@ -49,28 +49,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          restore_lms_owned_paths() {
-            git checkout origin/feature/lms -- \
-              client/src/App.jsx \
-              client/src/components/editor \
-              client/src/components/index.js \
-              client/src/components/layout/menus/lmsMenus.jsx \
-              client/src/components/scroll/InfiniteScrollList.jsx \
-              client/src/module/lms \
-              client/src/routes/modules/lmsRoutes.jsx \
-              client/src/service/lms \
-              database/attendance_schema.sql \
-              database/attendance_seed.sql \
-              database/attendance_seed_full.sql \
-              database/attendance_seed_lite.sql \
-              database/lms_schema.sql \
-              docs/esp32_rfid_attendance_mfrc522.ino \
-              server/router/lms
-            git add -A
-          }
-
-          # Compose always starts from `main`, then layers feature branches
-          # in a fixed order so the release branch stays reproducible.
           merge_branch() {
             local source_branch="$1"
             local merge_message="chore(compose): merge ${source_branch} into ${COMPOSE_BRANCH}"
