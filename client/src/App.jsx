@@ -54,6 +54,9 @@ const NotFoundRedirect = () => {
         if (!isTahfizEnabled) {
           return <Navigate to='/admin-dashboard' replace />;
         }
+        if (user.is_musyrif) {
+          return <Navigate to='/tahfiz-musyrif-dashboard' replace />;
+        }
         return <Navigate to='/tahfiz-dashboard' replace />;
       }
       if (isFinanceLevel(user.level)) {

@@ -79,6 +79,8 @@ const Musyrif = () => {
       form.setFieldsValue({
         homebase_id: record.homebase_id,
         full_name: record.full_name,
+        username: record.username,
+        password: "",
         phone: record.phone,
         gender: record.gender,
         notes: record.notes,
@@ -93,6 +95,8 @@ const Musyrif = () => {
     const payload = {
       homebase_id: values.homebase_id,
       full_name: values.full_name,
+      username: values.username,
+      password: values.password || undefined,
       phone: values.phone,
       gender: values.gender,
       notes: values.notes,
@@ -131,6 +135,11 @@ const Musyrif = () => {
         title: "Nama Musyrif",
         dataIndex: "full_name",
         render: (value) => <Text strong>{value}</Text>,
+      },
+      {
+        title: "Username",
+        dataIndex: "username",
+        render: (value) => value || "-",
       },
       {
         title: "Homebase",
@@ -348,6 +357,52 @@ const Musyrif = () => {
                   ]}
                 >
                   <Input placeholder='Nama lengkap musyrif' />
+                </Form.Item>
+
+                <Form.Item
+                  label='Username Login'
+                  name='username'
+                  rules={[
+                    { required: true, message: "Username wajib diisi." },
+                    {
+                      pattern: /^[a-zA-Z0-9._-]+$/,
+                      message: "Username hanya boleh huruf, angka, titik, underscore, atau dash.",
+                    },
+                  ]}
+                >
+                  <Input placeholder='username.musyrif' autoComplete='off' />
+                </Form.Item>
+
+                <Form.Item
+                  label='Password Login'
+                  name='password'
+                  rules={
+                    editingData?.user_id
+                      ? [
+                          {
+                            min: 6,
+                            message: "Minimal 6 karakter jika mengubah password.",
+                          },
+                        ]
+                      : [
+                          { required: true, message: "Password wajib diisi." },
+                          { min: 6, message: "Password minimal 6 karakter." },
+                        ]
+                  }
+                  extra={
+                    editingData?.user_id
+                      ? "Kosongkan jika password tidak ingin diubah."
+                      : "Wajib diisi untuk membuat akun login musyrif."
+                  }
+                >
+                  <Input.Password
+                    placeholder={
+                      editingData?.user_id
+                        ? "Biarkan kosong jika tidak diubah"
+                        : "Minimal 6 karakter"
+                    }
+                    autoComplete='new-password'
+                  />
                 </Form.Item>
 
                 <Form.Item label='Nomor HP' name='phone'>

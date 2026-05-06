@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS t_activity_type(
 CREATE TABLE IF NOT EXISTS t_musyrif(
     id SERIAL NOT NULL,
     homebase_id integer REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    user_id integer UNIQUE REFERENCES public.u_users(id) ON DELETE SET NULL,
     full_name varchar(150) NOT NULL,
     phone varchar(30),
     gender varchar(10),
@@ -189,6 +190,10 @@ CREATE TABLE IF NOT EXISTS t_daily_record(
     fluency_grade varchar(2),
     tajweed_grade varchar(2),
     note text,
+    recorded_by_user_id integer REFERENCES public.u_users(id) ON DELETE SET NULL,
+    recorded_by_role varchar(30),
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT ck_t_daily_record_ayat
         CHECK (
@@ -204,8 +209,32 @@ CREATE TABLE IF NOT EXISTS t_daily_record(
             )
         ),
     CONSTRAINT ck_t_daily_record_lines_count
-        CHECK (lines_count IS NULL OR lines_count >= 0)
+        CHECK (lines_count IS NULL OR lines_count >= 0),
+    CONSTRAINT ck_t_daily_record_recorded_by_role
+        CHECK (
+            recorded_by_role IS NULL OR
+            recorded_by_role IN ('admin_tahfiz', 'homeroom_teacher', 'musyrif')
+        )
 );
+ALTER TABLE tahfiz.t_daily_record
+    ADD COLUMN IF NOT EXISTS recorded_by_user_id integer REFERENCES public.u_users(id) ON DELETE SET NULL;
+ALTER TABLE tahfiz.t_daily_record
+    ADD COLUMN IF NOT EXISTS recorded_by_role varchar(30);
+ALTER TABLE tahfiz.t_daily_record
+    ADD COLUMN IF NOT EXISTS created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE tahfiz.t_daily_record
+    ADD COLUMN IF NOT EXISTS updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE tahfiz.t_musyrif
+    ADD COLUMN IF NOT EXISTS user_id integer UNIQUE REFERENCES public.u_users(id) ON DELETE SET NULL;
+ALTER TABLE tahfiz.t_daily_record
+    DROP CONSTRAINT IF EXISTS ck_t_daily_record_recorded_by_role;
+ALTER TABLE tahfiz.t_daily_record
+    ADD CONSTRAINT ck_t_daily_record_recorded_by_role
+        CHECK (
+            recorded_by_role IS NULL OR
+            recorded_by_role IN ('admin_tahfiz', 'homeroom_teacher', 'musyrif')
+        );
 CREATE INDEX IF NOT EXISTS idx_t_daily_record_student_date
 ON tahfiz.t_daily_record(student_id, date DESC);
 CREATE INDEX IF NOT EXISTS idx_t_daily_record_halaqoh_date
@@ -214,6 +243,8 @@ CREATE INDEX IF NOT EXISTS idx_t_daily_record_musyrif_date
 ON tahfiz.t_daily_record(musyrif_id, date DESC);
 CREATE INDEX IF NOT EXISTS idx_t_daily_record_type
 ON tahfiz.t_daily_record(type_id);
+CREATE INDEX IF NOT EXISTS idx_t_daily_record_recorder
+ON tahfiz.t_daily_record(recorded_by_user_id, date DESC);
 
 INSERT INTO tahfiz.t_juz_detail (juz_id, surah_id, start_ayat, end_ayat)
 SELECT

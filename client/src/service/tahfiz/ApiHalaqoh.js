@@ -72,6 +72,20 @@ export const ApiHalaqoh = createApi({
       providesTags: ["Halaqoh"],
       transformResponse: (response) => response.data,
     }),
+    getMusyrifHalaqohList: builder.query({
+      query: (params = {}) => {
+        const searchParams = new URLSearchParams();
+        if (params.periode_id) {
+          searchParams.set("periode_id", params.periode_id);
+        }
+        const queryString = searchParams.toString();
+        return queryString
+          ? `/halaqoh/musyrif/list?${queryString}`
+          : "/halaqoh/musyrif/list";
+      },
+      providesTags: ["Halaqoh"],
+      transformResponse: (response) => response.data,
+    }),
 
     createHalaqoh: builder.mutation({
       query: (body) => ({
@@ -108,6 +122,7 @@ export const {
   useUpdateMusyrifMutation,
   useDeleteMusyrifMutation,
   useGetHalaqohListQuery,
+  useGetMusyrifHalaqohListQuery,
   useCreateHalaqohMutation,
   useUpdateHalaqohMutation,
   useDeleteHalaqohMutation,

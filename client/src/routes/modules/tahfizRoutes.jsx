@@ -9,8 +9,24 @@ const TahfizDashboard = lazy(
 const Alquran = lazy(() => import("../../module/tahfiz/alquran/view/Alquran"));
 const Halaqoh = lazy(() => import("../../module/tahfiz/halaqoh/view/Halaqoh"));
 const Target = lazy(() => import("../../module/tahfiz/target/Target"));
+const TahfizAdminReport = lazy(
+  () => import("../../module/tahfiz/report/TahfizAdminReport"),
+);
+const TahfizTeacherReport = lazy(
+  () => import("../../module/tahfiz/report/TahfizTeacherReport"),
+);
+const DailyReport = lazy(() => import("../../module/tahfiz/report/DailyReport"));
+const MusyrifDash = lazy(
+  () => import("../../module/tahfiz/musyrif/MusyrifDash"),
+);
+const MusyrifHalaqoh = lazy(
+  () => import("../../module/tahfiz/musyrif/MusyrifHalaqoh"),
+);
+const MusyrifReport = lazy(
+  () => import("../../module/tahfiz/musyrif/MusyrifReport"),
+);
 
-const renderTahfizRoutes = ({ LazyPage } = {}) =>
+const renderTahfizAdminRoutes = ({ LazyPage } = {}) =>
   LazyPage ? (
     <Route
       element={
@@ -59,7 +75,84 @@ const renderTahfizRoutes = ({ LazyPage } = {}) =>
           Component: Target,
         })}
       />
+      <Route
+        path='/tahfiz-daily-report'
+        element={createElement(LazyPage, {
+          title: "Setoran Hafalan - Admin Tahfiz",
+          Component: DailyReport,
+        })}
+      />
+      <Route
+        path='/tahfiz-report'
+        element={createElement(LazyPage, {
+          title: "Laporan Tahfiz - Admin",
+          Component: TahfizAdminReport,
+        })}
+      />
     </Route>
   ) : null;
+
+const renderTahfizMusyrifRoutes = ({ LazyPage } = {}) =>
+  LazyPage ? (
+    <Route
+      element={
+        <RouteProtection
+          allowedRoles={["admin"]}
+          allowedLevels={["tahfiz"]}
+          requireMusyrif
+        />
+      }
+    >
+      <Route
+        path='/tahfiz-musyrif-dashboard'
+        element={createElement(LazyPage, {
+          title: "Dashboard Musyrif",
+          Component: MusyrifDash,
+        })}
+      />
+      <Route
+        path='/tahfiz-musyrif-halaqoh'
+        element={createElement(LazyPage, {
+          title: "Halaqoh Musyrif",
+          Component: MusyrifHalaqoh,
+        })}
+      />
+      <Route
+        path='/tahfiz-musyrif-report'
+        element={createElement(LazyPage, {
+          title: "Laporan Musyrif",
+          Component: MusyrifReport,
+        })}
+      />
+    </Route>
+  ) : null;
+
+const renderTahfizTeacherRoutes = ({ LazyPage } = {}) =>
+  LazyPage ? (
+    <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
+      <Route
+        path='/tahfiz-teacher-daily-report'
+        element={createElement(LazyPage, {
+          title: "Setoran Hafalan - Wali Kelas",
+          Component: DailyReport,
+        })}
+      />
+      <Route
+        path='/tahfiz-teacher-report'
+        element={createElement(LazyPage, {
+          title: "Laporan Tahfiz - Guru",
+          Component: TahfizTeacherReport,
+        })}
+      />
+    </Route>
+  ) : null;
+
+const renderTahfizRoutes = ({ LazyPage } = {}) => (
+  <>
+    {renderTahfizAdminRoutes({ LazyPage })}
+    {renderTahfizTeacherRoutes({ LazyPage })}
+    {renderTahfizMusyrifRoutes({ LazyPage })}
+  </>
+);
 
 export default renderTahfizRoutes;

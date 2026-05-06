@@ -34,7 +34,9 @@ const HalaqohTab = ({ items = [] }) => {
         {labelNode}
       </span>
       <Flex vertical gap={0}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{caption.title}</span>
+        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>
+          {caption.title}
+        </span>
         {!isMobile ? (
           <span style={{ fontSize: 12, color: "rgba(100, 116, 139, 0.95)" }}>
             {caption.text}
@@ -83,12 +85,15 @@ const HalaqohTab = ({ items = [] }) => {
             </Title>
           </Flex>
           <Paragraph type='secondary' style={{ marginBottom: 0 }}>
-            Kelola halaqoh, musyrif, dan penempatan siswa dalam satu panel kerja.
+            Kelola halaqoh, musyrif, dan penempatan siswa dalam satu panel
+            kerja.
           </Paragraph>
         </Flex>
 
         <Tabs
-          defaultActiveKey={items.find((item) => item.key === "halaqoh")?.key || items[0]?.key}
+          defaultActiveKey={
+            items.find((item) => item.key === "musyrif")?.key || items[0]?.key
+          }
           items={tabItems}
           size={isMobile ? "middle" : "large"}
           tabBarGutter={12}

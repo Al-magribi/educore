@@ -1,4 +1,5 @@
 ﻿import { Router } from "express";
+import bcrypt from "bcrypt";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 
@@ -24,6 +25,8 @@ const normalizeStudentIds = (value) => {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => toIntOrNull(item)).filter(Boolean))];
 };
+
+const normalizeUsername = (value) => String(value || "").trim().toLowerCase();
 
 const resolveSelectedHomebase = async (db, userHomebaseId, requestedHomebaseId) => {
   if (userHomebaseId) {
@@ -242,8 +245,10 @@ router.get(
       `SELECT
          m.id,
          m.homebase_id,
+         m.user_id,
          h.name AS homebase_name,
          m.full_name,
+         u.username,
          m.phone,
          m.gender,
          m.is_active,
@@ -253,9 +258,10 @@ router.get(
          COUNT(DISTINCT q.id) AS halaqoh_count
        FROM tahfiz.t_musyrif m
        LEFT JOIN a_homebase h ON h.id = m.homebase_id
+       LEFT JOIN u_users u ON u.id = m.user_id
        LEFT JOIN tahfiz.t_halaqoh q ON q.musyrif_id = m.id
        ${whereClause}
-       GROUP BY m.id, h.name
+       GROUP BY m.id, h.name, u.username
        ORDER BY m.full_name ASC`,
       params,
     );
@@ -281,8 +287,13 @@ router.post(
     }
 
     const fullName = req.body.full_name?.trim();
+    const username = normalizeUsername(req.body.username);
+    const password = String(req.body.password || "").trim();
     if (!fullName) {
       return res.status(400).json({ message: "Nama musyrif wajib diisi." });
+    }
+    if (!username || !password) {
+      return res.status(400).json({ message: "Username dan password wajib diisi." });
     }
 
     const homebase = await client.query(`SELECT id FROM a_homebase WHERE id = $1`, [homebaseId]);
@@ -290,12 +301,38 @@ router.post(
       return res.status(404).json({ message: "Homebase tidak ditemukan." });
     }
 
+    const existingUser = await client.query(
+      `SELECT id FROM u_users WHERE username = $1 LIMIT 1`,
+      [username],
+    );
+    if (existingUser.rows.length) {
+      return res.status(400).json({ message: "Username sudah digunakan." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const createdUser = await client.query(
+      `INSERT INTO u_users (username, password, full_name, role, is_active)
+       VALUES ($1, $2, $3, 'admin', $4)
+       RETURNING id`,
+      [username, hashedPassword, fullName, toBool(req.body.is_active, true)],
+    );
+    const userId = createdUser.rows[0].id;
+
+    await client.query(
+      `INSERT INTO u_admin (user_id, homebase_id, level)
+       VALUES ($1, $2, 'tahfiz')
+       ON CONFLICT (user_id)
+       DO UPDATE SET homebase_id = EXCLUDED.homebase_id, level = 'tahfiz'`,
+      [userId, homebaseId],
+    );
+
     const created = await client.query(
-      `INSERT INTO tahfiz.t_musyrif (homebase_id, full_name, phone, gender, is_active, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO tahfiz.t_musyrif (homebase_id, user_id, full_name, phone, gender, is_active, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         homebaseId,
+        userId,
         fullName,
         req.body.phone?.trim() || null,
         req.body.gender?.trim() || null,
@@ -322,7 +359,7 @@ router.put(
     }
 
     const musyrif = await client.query(
-      `SELECT id, homebase_id FROM tahfiz.t_musyrif WHERE id = $1`,
+      `SELECT id, homebase_id, user_id FROM tahfiz.t_musyrif WHERE id = $1`,
       [id],
     );
     if (!musyrif.rows.length) {
@@ -334,26 +371,101 @@ router.put(
     }
 
     const requestedHomebaseId = toIntOrNull(req.body.homebase_id);
-    const nextHomebaseId = req.user.homebase_id || requestedHomebaseId || musyrif.rows[0].homebase_id;
+    const nextHomebaseId =
+      req.user.homebase_id || requestedHomebaseId || musyrif.rows[0].homebase_id;
     const fullName = req.body.full_name?.trim();
+    const username = normalizeUsername(req.body.username);
+    const nextPassword = String(req.body.password || "").trim();
 
     if (!fullName) {
       return res.status(400).json({ message: "Nama musyrif wajib diisi." });
     }
+    if (!username) {
+      return res.status(400).json({ message: "Username wajib diisi." });
+    }
+
+    const currentUserId = musyrif.rows[0].user_id;
+    let nextUserId = currentUserId;
+
+    if (currentUserId) {
+      const duplicate = await client.query(
+        `SELECT id FROM u_users WHERE username = $1 AND id <> $2 LIMIT 1`,
+        [username, currentUserId],
+      );
+      if (duplicate.rows.length) {
+        return res.status(400).json({ message: "Username sudah digunakan." });
+      }
+    } else {
+      const duplicate = await client.query(
+        `SELECT id FROM u_users WHERE username = $1 LIMIT 1`,
+        [username],
+      );
+      if (duplicate.rows.length) {
+        return res.status(400).json({ message: "Username sudah digunakan." });
+      }
+    }
+
+    if (currentUserId) {
+      if (nextPassword) {
+        const hashedPassword = await bcrypt.hash(nextPassword, 10);
+        await client.query(
+          `UPDATE u_users
+           SET username = $1,
+               full_name = $2,
+               is_active = $3,
+               password = $4
+           WHERE id = $5`,
+          [username, fullName, toBool(req.body.is_active, true), hashedPassword, currentUserId],
+        );
+      } else {
+        await client.query(
+          `UPDATE u_users
+           SET username = $1,
+               full_name = $2,
+               is_active = $3
+           WHERE id = $4`,
+          [username, fullName, toBool(req.body.is_active, true), currentUserId],
+        );
+      }
+    } else {
+      if (!nextPassword) {
+        return res
+          .status(400)
+          .json({ message: "Password wajib diisi untuk musyrif yang belum punya akun login." });
+      }
+      const hashedPassword = await bcrypt.hash(nextPassword, 10);
+      const createdUser = await client.query(
+        `INSERT INTO u_users (username, password, full_name, role, is_active)
+         VALUES ($1, $2, $3, 'admin', $4)
+         RETURNING id`,
+        [username, hashedPassword, fullName, toBool(req.body.is_active, true)],
+      );
+      nextUserId = createdUser.rows[0].id;
+    }
+
+    await client.query(
+      `INSERT INTO u_admin (user_id, homebase_id, level)
+       VALUES ($1, $2, 'tahfiz')
+       ON CONFLICT (user_id)
+       DO UPDATE SET homebase_id = EXCLUDED.homebase_id, level = 'tahfiz'`,
+      [nextUserId, nextHomebaseId],
+    );
 
     const updated = await client.query(
       `UPDATE tahfiz.t_musyrif
        SET homebase_id = $1,
-           full_name = $2,
-           phone = $3,
-           gender = $4,
-           is_active = $5,
-           notes = $6,
+           user_id = $2,
+           full_name = $3,
+           phone = $4,
+           gender = $5,
+           is_active = $6,
+           notes = $7,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
+       WHERE id = $8
        RETURNING *`,
       [
         nextHomebaseId,
+        nextUserId,
         fullName,
         req.body.phone?.trim() || null,
         req.body.gender?.trim() || null,
@@ -381,7 +493,7 @@ router.delete(
     }
 
     const musyrif = await client.query(
-      `SELECT id, homebase_id FROM tahfiz.t_musyrif WHERE id = $1`,
+      `SELECT id, homebase_id, user_id FROM tahfiz.t_musyrif WHERE id = $1`,
       [id],
     );
     if (!musyrif.rows.length) {
@@ -405,6 +517,9 @@ router.delete(
     }
 
     await client.query(`DELETE FROM tahfiz.t_musyrif WHERE id = $1`, [id]);
+    if (musyrif.rows[0].user_id) {
+      await client.query(`DELETE FROM u_users WHERE id = $1`, [musyrif.rows[0].user_id]);
+    }
 
     return res.json({
       code: 200,
@@ -481,6 +596,115 @@ router.get(
       code: 200,
       message: "Data halaqoh berhasil dimuat",
       data: result.rows,
+    });
+  }),
+);
+
+router.get(
+  "/halaqoh/musyrif/list",
+  authorize("admin", "tahfiz"),
+  withQuery(async (req, res, pool) => {
+    const requestedPeriodeId = toIntOrNull(req.query.periode_id);
+
+    const musyrifResult = await pool.query(
+      `SELECT id, homebase_id, full_name
+       FROM tahfiz.t_musyrif
+       WHERE user_id = $1
+         AND is_active = true
+       LIMIT 1`,
+      [req.user.id],
+    );
+
+    if (!musyrifResult.rows.length) {
+      return res.status(403).json({ message: "Akses musyrif ditolak." });
+    }
+
+    const musyrif = musyrifResult.rows[0];
+    const periodesResult = await pool.query(
+      `SELECT id, name, is_active
+       FROM a_periode
+       WHERE homebase_id = $1
+       ORDER BY is_active DESC, id DESC`,
+      [musyrif.homebase_id],
+    );
+
+    const periodes = periodesResult.rows;
+    const activePeriode = periodes.find((item) => item.is_active) || null;
+
+    let selectedPeriodeId = null;
+    if (requestedPeriodeId && periodes.some((item) => item.id === requestedPeriodeId)) {
+      selectedPeriodeId = requestedPeriodeId;
+    } else if (activePeriode) {
+      selectedPeriodeId = activePeriode.id;
+    } else if (periodes.length) {
+      selectedPeriodeId = periodes[0].id;
+    }
+
+    if (!selectedPeriodeId) {
+      return res.json({
+        code: 200,
+        message: "Daftar halaqoh musyrif berhasil dimuat",
+        data: {
+          musyrif,
+          filters: {
+            periodes,
+            selected_periode_id: null,
+            active_periode_id: activePeriode?.id || null,
+          },
+          halaqoh: [],
+        },
+      });
+    }
+
+    const halaqohResult = await pool.query(
+      `SELECT
+         h.id,
+         h.name,
+         h.is_active,
+         COUNT(DISTINCT hs.student_id) AS student_count,
+         COALESCE(
+           json_agg(
+             DISTINCT jsonb_build_object(
+               'id', u.id,
+               'full_name', u.full_name,
+               'nis', s.nis,
+               'class_name', COALESCE(c_latest.class_name, '-')
+             )
+           ) FILTER (WHERE u.id IS NOT NULL),
+           '[]'::json
+         ) AS students
+       FROM tahfiz.t_halaqoh h
+       LEFT JOIN tahfiz.t_halaqoh_students hs ON hs.halaqoh_id = h.id
+       LEFT JOIN u_students s ON s.user_id = hs.student_id
+       LEFT JOIN u_users u ON u.id = hs.student_id
+       LEFT JOIN LATERAL (
+         SELECT c.name AS class_name
+         FROM u_class_enrollments e
+         LEFT JOIN a_class c ON c.id = e.class_id
+         WHERE e.student_id = hs.student_id
+           AND e.periode_id = h.periode_id
+         ORDER BY e.id DESC
+         LIMIT 1
+       ) c_latest ON true
+       WHERE h.musyrif_id = $1
+         AND h.periode_id = $2
+       GROUP BY h.id, h.name, h.is_active
+       ORDER BY h.is_active DESC, h.name ASC`,
+      [musyrif.id, selectedPeriodeId],
+    );
+
+    return res.json({
+      code: 200,
+      message: "Daftar halaqoh musyrif berhasil dimuat",
+      data: {
+        musyrif,
+        filters: {
+          periodes,
+          selected_periode_id: selectedPeriodeId,
+          active_periode_id: activePeriode?.id || null,
+        },
+        halaqoh: halaqohResult.rows,
+      },
     });
   }),
 );

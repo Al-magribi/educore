@@ -10,7 +10,6 @@ import {
   Flex,
   message,
   ConfigProvider,
-  Space, // 1. Import ConfigProvider
 } from "antd";
 import { UserOutlined, LockOutlined, LoginOutlined } from "@ant-design/icons";
 import { Link } from "react-router-dom";
@@ -18,9 +17,17 @@ import { useDoSigninMutation } from "../../service/auth/ApiAuth";
 import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
-const roleOptions = ["Admin", "Guru", "Siswa", "Wali"];
+const roleOptions = ["Admin", "Musyrif", "Guru", "Siswa", "Wali"];
 
-const getSigninPayloadRole = (role) => role.toLowerCase();
+const rolePayloadMap = {
+  Admin: "admin",
+  Musyrif: "musyrif",
+  Guru: "teacher",
+  Siswa: "student",
+  Wali: "parent",
+};
+
+const getSigninPayloadRole = (role) => rolePayloadMap[role] || "admin";
 
 const Signin = () => {
   const { publicConfig } = useSelector((state) => state.app);
@@ -37,8 +44,6 @@ const Signin = () => {
       password: (values.password || "").trim(),
     };
 
-    // Menggabungkan role ke dalam values agar dikirim ke backend
-    // Backend perlu tahu role apa yang sedang mencoba login
     const payload = {
       ...sanitizedValues,
       role: getSigninPayloadRole(role),

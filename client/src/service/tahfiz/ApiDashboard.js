@@ -22,7 +22,22 @@ export const ApiTahfizDashboard = createApi({
       providesTags: ["TahfizDashboard"],
       transformResponse: (response) => response.data,
     }),
+    getMusyrifSummary: builder.query({
+      query: (params = {}) => {
+        const searchParams = new URLSearchParams();
+        if (params.periode_id) {
+          searchParams.set("periode_id", params.periode_id);
+        }
+        const queryString = searchParams.toString();
+        return queryString
+          ? `/dashboard/musyrif-summary?${queryString}`
+          : "/dashboard/musyrif-summary";
+      },
+      providesTags: ["TahfizDashboard"],
+      transformResponse: (response) => response.data,
+    }),
   }),
 });
 
-export const { useGetStudentSummaryQuery } = ApiTahfizDashboard;
+export const { useGetStudentSummaryQuery, useGetMusyrifSummaryQuery } =
+  ApiTahfizDashboard;

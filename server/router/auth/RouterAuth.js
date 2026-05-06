@@ -6,6 +6,63 @@ import { authorize } from "../../middleware/authorize.js";
 
 const router = Router();
 
+const normalizeRequestedRole = (value) => {
+  const requestedRole = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (!requestedRole) return null;
+
+  const roleAliases = {
+    wali: "parent",
+    orangtua: "parent",
+    parent: "parent",
+    guru: "teacher",
+    teacher: "teacher",
+    siswa: "student",
+    student: "student",
+    admin: "admin",
+    center: "pusat",
+    pusat: "pusat",
+    tahfiz: "tahfiz",
+    musyrif: "musyrif",
+    finance: "finance",
+    keuangan: "keuangan",
+  };
+
+  return roleAliases[requestedRole] || requestedRole;
+};
+
+const isRequestedRoleAllowed = ({ requestedRole, userRole, level, isMusyrif }) => {
+  if (!requestedRole) return true;
+
+  if (["student", "teacher", "parent"].includes(requestedRole)) {
+    return userRole === requestedRole;
+  }
+
+  if (requestedRole === "admin") {
+    return userRole === "admin";
+  }
+
+  if (requestedRole === "pusat") {
+    return userRole === "admin" && level === "pusat";
+  }
+
+  if (requestedRole === "tahfiz") {
+    return userRole === "admin" && level === "tahfiz";
+  }
+
+  if (requestedRole === "musyrif") {
+    return userRole === "admin" && level === "tahfiz" && Boolean(isMusyrif);
+  }
+
+  if (requestedRole === "finance" || requestedRole === "keuangan") {
+    return userRole === "admin" && ["finance", "keuangan"].includes(level);
+  }
+
+  return false;
+};
+
 // ============================================================================
 // 1. SIGNUP PARENT (Orang Tua mendaftar berdasarkan NIS Siswa)
 // Menggunakan withTransaction karena ada multiple insert (u_users & u_parents)
@@ -69,6 +126,7 @@ router.post(
   withTransaction(async (req, res, client) => {
     const username = String(req.body?.username || "").trim();
     const password = String(req.body?.password || "").trim();
+    const requestedRole = normalizeRequestedRole(req.body?.role);
 
     // 1. Validasi Input
     if (!username || !password) {
@@ -101,6 +159,40 @@ router.post(
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(401).json({ message: "Password salah." });
+    }
+
+    let authProfile = { level: null, is_musyrif: false };
+
+    if (user.role === "admin") {
+      const authProfileRes = await client.query(
+        `
+        SELECT
+          a.level,
+          (m.id IS NOT NULL) AS is_musyrif
+        FROM u_admin a
+        LEFT JOIN tahfiz.t_musyrif m ON m.user_id = a.user_id
+        WHERE a.user_id = $1
+        LIMIT 1
+      `,
+        [user.id],
+      );
+
+      if (authProfileRes.rowCount > 0) {
+        authProfile = authProfileRes.rows[0];
+      }
+    }
+
+    if (
+      !isRequestedRoleAllowed({
+        requestedRole,
+        userRole: user.role,
+        level: authProfile.level,
+        isMusyrif: authProfile.is_musyrif,
+      })
+    ) {
+      return res.status(403).json({
+        message: "Role login tidak sesuai dengan akun yang digunakan.",
+      });
     }
 
     // 4. Ambil Data Spesifik Berdasarkan Role
@@ -191,17 +283,25 @@ router.post(
             a.email, 
             a.homebase_id,
             a.level AS level, -- Level admin (misal: 'superadmin')
-            hb.name AS homebase_name,
+            hb.name AS homebase_name, 
+            m.id AS musyrif_id,
+            (m.id IS NOT NULL) AS is_musyrif,
             hb.level AS unit_level -- Level satuan (SD/SMP/SMA) dari a_homebase
         FROM u_admin a
         LEFT JOIN a_homebase hb ON a.homebase_id = hb.id
+        LEFT JOIN tahfiz.t_musyrif m ON m.user_id = a.user_id
         WHERE a.user_id = $1
       `,
         [user.id],
       );
       // Jika data admin ditemukan, masukkan ke roleData.
       // Frontend akan membaca 'level' dari sini (user.level)
-      if (adminRes.rowCount > 0) roleData = adminRes.rows[0];
+      if (adminRes.rowCount > 0) {
+        roleData = {
+          ...authProfile,
+          ...adminRes.rows[0],
+        };
+      }
     }
 
     // 5. Generate Token
@@ -330,10 +430,13 @@ router.get(
           a.level AS level,
           hb.name AS homebase_name,
           hb.id AS homebase_id,
+          m.id AS musyrif_id,
+          (m.id IS NOT NULL) AS is_musyrif,
           hb.level AS unit_level -- Tambahkan ini agar FE tahu ini SD/SMP/SMA
         FROM u_users u
         LEFT JOIN u_admin a ON u.id = a.user_id
         LEFT JOIN a_homebase hb ON a.homebase_id = hb.id
+        LEFT JOIN tahfiz.t_musyrif m ON m.user_id = u.id
         WHERE u.id = $1
       `;
     }

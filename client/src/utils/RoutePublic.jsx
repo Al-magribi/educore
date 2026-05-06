@@ -33,6 +33,18 @@ const RouterPublic = () => {
         if (user.level === "pusat") {
           return <Navigate to='/center-dashboard' replace />;
         } else if (user.level === "tahfiz") {
+          if (user.is_musyrif) {
+            return (
+              <Navigate
+                to={
+                  isTahfizEnabled
+                    ? "/tahfiz-musyrif-dashboard"
+                    : "/admin-dashboard"
+                }
+                replace
+              />
+            );
+          }
           return (
             <Navigate
               to={isTahfizEnabled ? "/tahfiz-dashboard" : "/admin-dashboard"}

@@ -30,10 +30,10 @@ const normalizeItems = (items = []) => {
   return items
     .map((item, index) => ({
       target_type: item.target_type,
-      juz_id: toNullableInt(item.juz_id),
-      surah_id: toNullableInt(item.surah_id),
-      start_ayat: toNullableInt(item.start_ayat),
-      end_ayat: toNullableInt(item.end_ayat),
+      juz_id: item.target_type === "juz" ? toNullableInt(item.juz_id) : null,
+      surah_id: item.target_type === "surah" ? toNullableInt(item.surah_id) : null,
+      start_ayat: item.target_type === "surah" ? toNullableInt(item.start_ayat) : null,
+      end_ayat: item.target_type === "surah" ? toNullableInt(item.end_ayat) : null,
       order_no: toNullableInt(item.order_no) || index + 1,
       is_mandatory: item.is_mandatory !== false,
       notes: item.notes || null,
@@ -57,19 +57,40 @@ const validateItems = (items) => {
       if (!item.surah_id || item.juz_id) {
         return "Target tipe surah wajib memilih surah dan tidak boleh memilih juz.";
       }
-      const hasRange = item.start_ayat != null || item.end_ayat != null;
-      if (hasRange) {
-        if (item.start_ayat == null || item.end_ayat == null) {
-          return "Jika mengisi rentang ayat, start dan end ayat harus diisi lengkap.";
-        }
-        if (item.start_ayat > item.end_ayat) {
-          return "Start ayat tidak boleh lebih besar dari end ayat.";
-        }
-      }
     }
   }
 
   return null;
+};
+
+const applySurahAyatRange = async (db, items) => {
+  const surahIds = [...new Set(items.filter((item) => item.target_type === "surah").map((item) => item.surah_id))];
+  if (!surahIds.length) return { items, error: null };
+
+  const surahQuery = await db.query(
+    `SELECT id, total_ayat
+     FROM tahfiz.t_surah
+     WHERE id = ANY($1::int[])`,
+    [surahIds],
+  );
+
+  const surahMap = new Map(surahQuery.rows.map((surah) => [surah.id, surah.total_ayat]));
+  for (const surahId of surahIds) {
+    if (!surahMap.has(surahId)) {
+      return { items: [], error: `Surah dengan ID ${surahId} tidak ditemukan.` };
+    }
+  }
+
+  const normalized = items.map((item) => {
+    if (item.target_type !== "surah") return item;
+    return {
+      ...item,
+      start_ayat: 1,
+      end_ayat: surahMap.get(item.surah_id),
+    };
+  });
+
+  return { items: normalized, error: null };
 };
 
 const validatePlanScope = async (db, { homebaseId, periodeId, gradeId }) => {
@@ -331,7 +352,7 @@ router.post(
     const title = req.body.title?.trim() || null;
     const notes = req.body.notes?.trim() || null;
     const isActive = req.body.is_active !== false;
-    const items = normalizeItems(req.body.items);
+    const rawItems = normalizeItems(req.body.items);
 
     if (!homebaseId || !periodeId || !gradeId) {
       return res.status(400).json({
@@ -339,9 +360,13 @@ router.post(
       });
     }
 
-    const itemError = validateItems(items);
+    const itemError = validateItems(rawItems);
     if (itemError) {
       return res.status(400).json({ message: itemError });
+    }
+    const { items, error: surahError } = await applySurahAyatRange(client, rawItems);
+    if (surahError) {
+      return res.status(400).json({ message: surahError });
     }
 
     const scopeError = await validatePlanScope(client, { homebaseId, periodeId, gradeId });
@@ -411,7 +436,7 @@ router.put(
     const title = req.body.title?.trim() || null;
     const notes = req.body.notes?.trim() || null;
     const isActive = req.body.is_active !== false;
-    const items = normalizeItems(req.body.items);
+    const rawItems = normalizeItems(req.body.items);
 
     if (!homebaseId || !periodeId || !gradeId) {
       return res.status(400).json({
@@ -432,9 +457,13 @@ router.put(
       return res.status(403).json({ message: "Akses ditolak untuk target plan ini." });
     }
 
-    const itemError = validateItems(items);
+    const itemError = validateItems(rawItems);
     if (itemError) {
       return res.status(400).json({ message: itemError });
+    }
+    const { items, error: surahError } = await applySurahAyatRange(client, rawItems);
+    if (surahError) {
+      return res.status(400).json({ message: surahError });
     }
 
     const scopeError = await validatePlanScope(client, { homebaseId, periodeId, gradeId });

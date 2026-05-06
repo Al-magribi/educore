@@ -3,7 +3,7 @@ import { LoadApp } from "../components";
 import { useSelector } from "react-redux";
 import { Navigate, Outlet } from "react-router-dom";
 
-const RouteProtection = ({ allowedRoles, allowedLevels }) => {
+const RouteProtection = ({ allowedRoles, allowedLevels, requireMusyrif = false }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
 
   // Tahan redirect sampai status sesi hasil bootstrap awal sudah diketahui.
@@ -25,6 +25,10 @@ const RouteProtection = ({ allowedRoles, allowedLevels }) => {
     (!user.level || !allowedLevels.includes(user.level))
   ) {
     return <Navigate to="/" replace />;
+  }
+
+  if (requireMusyrif && !user.is_musyrif) {
+    return <Navigate to='/' replace />;
   }
 
   return <Outlet />;

@@ -257,4 +257,218 @@ router.get(
   }),
 );
 
+router.get(
+  "/dashboard/musyrif-summary",
+  authorize("admin", "tahfiz"),
+  withQuery(async (req, res, pool) => {
+    const requestedPeriodeId = parseIntOrNull(req.query.periode_id);
+
+    const musyrifQuery = await pool.query(
+      `SELECT
+         m.id,
+         m.user_id,
+         m.full_name,
+         m.homebase_id,
+         h.name AS homebase_name
+       FROM tahfiz.t_musyrif m
+       LEFT JOIN a_homebase h ON h.id = m.homebase_id
+       WHERE m.user_id = $1
+         AND m.is_active = true
+       LIMIT 1`,
+      [req.user.id],
+    );
+
+    if (!musyrifQuery.rows.length) {
+      return res.status(403).json({
+        message: "Akses dashboard musyrif ditolak.",
+      });
+    }
+
+    const musyrif = musyrifQuery.rows[0];
+
+    const periodesQuery = await pool.query(
+      `SELECT id, name, is_active, created_at
+       FROM a_periode
+       WHERE homebase_id = $1
+       ORDER BY is_active DESC, id DESC`,
+      [musyrif.homebase_id],
+    );
+
+    const periodes = periodesQuery.rows;
+    const activePeriode = periodes.find((item) => item.is_active) || null;
+
+    let selectedPeriodeId = null;
+    if (requestedPeriodeId && periodes.some((item) => item.id === requestedPeriodeId)) {
+      selectedPeriodeId = requestedPeriodeId;
+    } else if (activePeriode) {
+      selectedPeriodeId = activePeriode.id;
+    } else if (periodes.length) {
+      selectedPeriodeId = periodes[0].id;
+    }
+
+    if (!selectedPeriodeId) {
+      return res.json({
+        code: 200,
+        message: "Ringkasan dashboard musyrif berhasil dimuat",
+        data: {
+          musyrif: {
+            id: musyrif.id,
+            full_name: musyrif.full_name,
+            homebase_id: musyrif.homebase_id,
+            homebase_name: musyrif.homebase_name,
+          },
+          filters: {
+            periodes,
+            selected_periode_id: null,
+            active_periode_id: activePeriode?.id || null,
+          },
+          overview: {
+            total_halaqoh: 0,
+            total_students: 0,
+            total_setoran: 0,
+            total_lines: 0,
+          },
+          halaqoh_summary: [],
+          activity_summary: [],
+          student_summary: [],
+        },
+      });
+    }
+
+    const [
+      halaqohSummary,
+      studentCount,
+      setoranStats,
+      activitySummary,
+      studentSummary,
+    ] = await Promise.all([
+      pool.query(
+        `SELECT
+           h.id,
+           h.name,
+           h.is_active,
+           COUNT(DISTINCT hs.student_id) AS student_count
+         FROM tahfiz.t_halaqoh h
+         LEFT JOIN tahfiz.t_halaqoh_students hs ON hs.halaqoh_id = h.id
+         WHERE h.musyrif_id = $1
+           AND h.periode_id = $2
+         GROUP BY h.id, h.name, h.is_active
+         ORDER BY h.is_active DESC, h.name ASC`,
+        [musyrif.id, selectedPeriodeId],
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT hs.student_id) AS count
+         FROM tahfiz.t_halaqoh_students hs
+         JOIN tahfiz.t_halaqoh h ON h.id = hs.halaqoh_id
+         WHERE h.musyrif_id = $1
+           AND h.periode_id = $2`,
+        [musyrif.id, selectedPeriodeId],
+      ),
+      pool.query(
+        `SELECT
+           COUNT(d.id) AS total_setoran,
+           COALESCE(SUM(d.lines_count), 0) AS total_lines
+         FROM tahfiz.t_daily_record d
+         JOIN tahfiz.t_halaqoh h ON h.id = d.halaqoh_id
+         WHERE h.musyrif_id = $1
+           AND h.periode_id = $2`,
+        [musyrif.id, selectedPeriodeId],
+      ),
+      pool.query(
+        `SELECT
+           COALESCE(t.name, 'Tanpa Kategori') AS activity_type,
+           COUNT(d.id) AS total_setoran,
+           COALESCE(SUM(d.lines_count), 0) AS total_lines
+         FROM tahfiz.t_daily_record d
+         JOIN tahfiz.t_halaqoh h ON h.id = d.halaqoh_id
+         LEFT JOIN tahfiz.t_activity_type t ON t.id = d.type_id
+         WHERE h.musyrif_id = $1
+           AND h.periode_id = $2
+         GROUP BY COALESCE(t.name, 'Tanpa Kategori')
+         ORDER BY total_setoran DESC, total_lines DESC`,
+        [musyrif.id, selectedPeriodeId],
+      ),
+      pool.query(
+        `WITH musyrif_students AS (
+           SELECT DISTINCT
+             hs.student_id,
+             h.id AS halaqoh_id,
+             h.name AS halaqoh_name
+           FROM tahfiz.t_halaqoh_students hs
+           JOIN tahfiz.t_halaqoh h ON h.id = hs.halaqoh_id
+           WHERE h.musyrif_id = $1
+             AND h.periode_id = $2
+         ),
+         latest_enrollment AS (
+           SELECT DISTINCT ON (e.student_id)
+             e.student_id,
+             e.class_id
+           FROM u_class_enrollments e
+           JOIN musyrif_students ms ON ms.student_id = e.student_id
+           WHERE e.periode_id = $2
+           ORDER BY e.student_id, e.id DESC
+         )
+         SELECT
+           ms.student_id,
+           s.nis,
+           u.full_name,
+           COALESCE(c.name, '-') AS class_name,
+           ms.halaqoh_id,
+           ms.halaqoh_name,
+           COALESCE(sr.total_setoran, 0) AS total_setoran,
+           COALESCE(sr.total_lines, 0) AS total_lines,
+           sr.last_setoran_date
+         FROM musyrif_students ms
+         JOIN u_students s ON s.user_id = ms.student_id
+         JOIN u_users u ON u.id = ms.student_id
+         LEFT JOIN latest_enrollment le ON le.student_id = ms.student_id
+         LEFT JOIN a_class c ON c.id = le.class_id
+         LEFT JOIN LATERAL (
+           SELECT
+             COUNT(d.id) AS total_setoran,
+             COALESCE(SUM(d.lines_count), 0) AS total_lines,
+             MAX(d.date) AS last_setoran_date
+           FROM tahfiz.t_daily_record d
+           JOIN tahfiz.t_halaqoh h ON h.id = d.halaqoh_id
+           WHERE d.student_id = ms.student_id
+             AND h.musyrif_id = $1
+             AND h.periode_id = $2
+         ) sr ON true
+         WHERE u.is_active = true
+         ORDER BY total_setoran DESC, total_lines DESC, u.full_name ASC`,
+        [musyrif.id, selectedPeriodeId],
+      ),
+    ]);
+
+    return res.json({
+      code: 200,
+      message: "Ringkasan dashboard musyrif berhasil dimuat",
+      data: {
+        musyrif: {
+          id: musyrif.id,
+          full_name: musyrif.full_name,
+          homebase_id: musyrif.homebase_id,
+          homebase_name: musyrif.homebase_name,
+        },
+        filters: {
+          periodes,
+          selected_periode_id: selectedPeriodeId,
+          active_periode_id: activePeriode?.id || null,
+        },
+        overview: {
+          total_halaqoh: halaqohSummary.rows.length,
+          total_students: Number.parseInt(studentCount.rows[0].count, 10) || 0,
+          total_setoran:
+            Number.parseInt(setoranStats.rows[0].total_setoran, 10) || 0,
+          total_lines:
+            Number.parseInt(setoranStats.rows[0].total_lines, 10) || 0,
+        },
+        halaqoh_summary: halaqohSummary.rows,
+        activity_summary: activitySummary.rows,
+        student_summary: studentSummary.rows,
+      },
+    });
+  }),
+);
+
 export default router;
