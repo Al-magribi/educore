@@ -17,17 +17,9 @@ import { useDoSigninMutation } from "../../service/auth/ApiAuth";
 import { useSelector } from "react-redux";
 
 const { Title, Text } = Typography;
-const roleOptions = ["Admin", "Musyrif", "Guru", "Siswa", "Wali"];
+const roleOptions = ["Admin", "Guru", "Siswa", "Wali"];
 
-const rolePayloadMap = {
-  Admin: "admin",
-  Musyrif: "musyrif",
-  Guru: "teacher",
-  Siswa: "student",
-  Wali: "parent",
-};
-
-const getSigninPayloadRole = (role) => rolePayloadMap[role] || "admin";
+const getSigninPayloadRole = (role) => role.toLowerCase();
 
 const Signin = () => {
   const { publicConfig } = useSelector((state) => state.app);
