@@ -78,6 +78,12 @@ const pickValue = (row, keys) => {
   return "";
 };
 
+const normalizeCellText = (value) => {
+  if (Array.isArray(value)) return "";
+  if (value && typeof value === "object") return "";
+  return normalizeText(value);
+};
+
 const buildSubjectMaps = (subjects) => {
   const byCode = new Map();
   const byName = new Map();
@@ -194,11 +200,21 @@ const buildRow = ({ row, index, classes, subjects }) => {
     pickValue(row, ["No. Telepon", "Telepon", "phone", "No HP"]),
   );
   const email = normalizeText(pickValue(row, ["Email", "email"]));
-  const homeroomClassName = normalizeText(
-    pickValue(row, ["Wali Kelas", "Homeroom", "homeroom_class"]),
+  const homeroomClassName = normalizeCellText(
+    pickValue(row, [
+      "homeroom_class_name",
+      "Wali Kelas",
+      "Homeroom",
+      "homeroom_class",
+    ]),
   );
-  const allocationsInput = normalizeText(
-    pickValue(row, ["Alokasi Mengajar", "allocations", "Mapel Ajar"]),
+  const allocationsInput = normalizeCellText(
+    pickValue(row, [
+      "allocations_input",
+      "Alokasi Mengajar",
+      "Mapel Ajar",
+      "allocations",
+    ]),
   );
 
   const classMap = buildClassMap(classes);

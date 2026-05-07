@@ -54,6 +54,10 @@ export const ApiSubject = createApi({
       query: (body) => ({ url: "/subject", method: "POST", body }),
       invalidatesTags: ["Subject"],
     }),
+    uploadSubjects: builder.mutation({
+      query: (body) => ({ url: "/subject/upload", method: "POST", body }),
+      invalidatesTags: ["Subject"],
+    }),
     updateSubject: builder.mutation({
       query: ({ id, ...body }) => ({
         url: `/subject/${id}`,
@@ -78,6 +82,7 @@ export const {
   useDeleteSubjectBranchMutation,
   useGetSubjectsQuery,
   useAddSubjectMutation,
+  useUploadSubjectsMutation,
   useUpdateSubjectMutation,
   useDeleteSubjectMutation,
 } = ApiSubject;

@@ -30,6 +30,7 @@ import {
   GitBranch,
   Loader2,
   CheckCircle,
+  Upload,
 } from "lucide-react";
 import {
   useGetSubjectsQuery,
@@ -40,10 +41,58 @@ import {
   useGetSubjectBranchesQuery,
 } from "../../../../service/academic/ApiSubject";
 import { InfiniteScrollList } from "../../../../components";
+import SubjectImportDrawer from "./SubjectImportDrawer";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
+
+const CATEGORY_STYLES = [
+  {
+    ribbon: "blue",
+    tagBackground: "rgba(59, 130, 246, 0.12)",
+    tagColor: "#1d4ed8",
+  },
+  {
+    ribbon: "green",
+    tagBackground: "rgba(16, 185, 129, 0.12)",
+    tagColor: "#047857",
+  },
+  {
+    ribbon: "gold",
+    tagBackground: "rgba(245, 158, 11, 0.14)",
+    tagColor: "#b45309",
+  },
+  {
+    ribbon: "purple",
+    tagBackground: "rgba(139, 92, 246, 0.12)",
+    tagColor: "#6d28d9",
+  },
+  {
+    ribbon: "magenta",
+    tagBackground: "rgba(236, 72, 153, 0.12)",
+    tagColor: "#be185d",
+  },
+  {
+    ribbon: "cyan",
+    tagBackground: "rgba(6, 182, 212, 0.12)",
+    tagColor: "#0f766e",
+  },
+  {
+    ribbon: "orange",
+    tagBackground: "rgba(249, 115, 22, 0.12)",
+    tagColor: "#c2410c",
+  },
+];
+
+const getCategoryStyle = (categoryName) => {
+  const source = (categoryName || "umum").toString().trim().toLowerCase();
+  const index =
+    source.split("").reduce((total, char) => total + char.charCodeAt(0), 0) %
+    CATEGORY_STYLES.length;
+
+  return CATEGORY_STYLES[index];
+};
 
 const SubjectTable = ({ screens }) => {
   const breakpointScreens = useBreakpoint();
@@ -54,6 +103,7 @@ const SubjectTable = ({ screens }) => {
   const [filterCategory, setFilterCategory] = useState(null);
   const [filterBranch, setFilterBranch] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
@@ -83,7 +133,8 @@ const SubjectTable = ({ screens }) => {
       } else {
         setAllSubjects((prev) => {
           const newItems = subjectsData.data.filter(
-            (newItem) => !prev.some((existingItem) => existingItem.id === newItem.id),
+            (newItem) =>
+              !prev.some((existingItem) => existingItem.id === newItem.id),
           );
           return [...prev, ...newItems];
         });
@@ -120,7 +171,11 @@ const SubjectTable = ({ screens }) => {
 
   const handleSubmit = async (values) => {
     try {
-      const payload = { ...values, branch_id: values.branch_id || null };
+      const payload = {
+        ...values,
+        category_id: values.category_id,
+        branch_id: values.branch_id || null,
+      };
       if (editingItem) {
         await updateSubject({ id: editingItem.id, ...payload }).unwrap();
         message.success("Mapel berhasil diperbarui");
@@ -147,7 +202,9 @@ const SubjectTable = ({ screens }) => {
   };
 
   const formBranches =
-    branchesData?.data?.filter((b) => b.category_id === selectedCategoryInForm) || [];
+    branchesData?.data?.filter(
+      (b) => b.category_id === selectedCategoryInForm,
+    ) || [];
 
   const filterBranchesList = filterCategory
     ? branchesData?.data?.filter((b) => b.category_id === filterCategory)
@@ -171,7 +228,7 @@ const SubjectTable = ({ screens }) => {
         styles={{ body: { padding: isMobile ? 16 : 18 } }}
       >
         <Flex
-          justify="space-between"
+          justify='space-between'
           align={activeScreens.md ? "center" : "stretch"}
           vertical={!activeScreens.md}
           gap={16}
@@ -180,23 +237,22 @@ const SubjectTable = ({ screens }) => {
             <Title level={4} style={{ margin: 0 }}>
               Direktori Mata Pelajaran
             </Title>
-            <Text type="secondary">
+            <Text type='secondary'>
               Cari, filter, dan kelola data mapel dari panel yang lebih ringkas.
             </Text>
           </div>
 
           <Flex
             gap={10}
-            wrap="wrap"
+            wrap='wrap'
             vertical={!activeScreens.md}
             style={{ width: !activeScreens.md ? "100%" : "auto" }}
           >
             <Input
-              prefix={<Search size={16} color="#94a3b8" />}
-              placeholder="Cari mata pelajaran..."
+              prefix={<Search size={16} color='#94a3b8' />}
+              placeholder='Cari mata pelajaran...'
               style={{ width: !activeScreens.md ? "100%" : 220 }}
               allowClear
-              size="large"
               onChange={(e) => {
                 setSearchText(e.target.value);
                 setPage(1);
@@ -204,9 +260,8 @@ const SubjectTable = ({ screens }) => {
             />
 
             <Select
-              placeholder="Filter Kategori"
+              placeholder='Filter Kategori'
               allowClear
-              size="large"
               style={{ width: !activeScreens.md ? "100%" : 180 }}
               value={filterCategory}
               onChange={(val) => {
@@ -218,14 +273,13 @@ const SubjectTable = ({ screens }) => {
                 label: c.name,
                 value: c.id,
               }))}
-              suffixIcon={<Layers size={14} color="#94a3b8" />}
+              suffixIcon={<Layers size={14} color='#94a3b8' />}
               virtual={false}
             />
 
             <Select
-              placeholder="Filter Cabang"
+              placeholder='Filter Cabang'
               allowClear
-              size="large"
               style={{ width: !activeScreens.md ? "100%" : 180 }}
               value={filterBranch}
               onChange={(val) => {
@@ -237,17 +291,23 @@ const SubjectTable = ({ screens }) => {
                 value: b.id,
               }))}
               disabled={!filterCategory && !filterBranch}
-              suffixIcon={<GitBranch size={14} color="#94a3b8" />}
+              suffixIcon={<GitBranch size={14} color='#94a3b8' />}
               virtual={false}
             />
 
             <Button
-              type="primary"
+              icon={<Upload size={18} />}
+              onClick={() => setIsImportOpen(true)}
+            >
+              Import
+            </Button>
+
+            <Button
+              type='primary'
               icon={<Plus size={18} />}
               onClick={() => setIsModalOpen(true)}
-              size="large"
             >
-              Mapel Baru
+              Mapel
             </Button>
           </Flex>
         </Flex>
@@ -258,113 +318,135 @@ const SubjectTable = ({ screens }) => {
         loading={isFetching}
         hasMore={allSubjects.length < (subjectsData?.total || 0)}
         onLoadMore={handleLoadMore}
-        height="70vh"
-        emptyText="Belum ada data mata pelajaran"
+        height='70vh'
+        emptyText='Belum ada data mata pelajaran'
         grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 12, lg: 8, xl: 6 }}
-        renderItem={(item) => (
-          <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.18 }}>
-            <Badge.Ribbon
-              text={item.category_name || "Umum"}
-              color={item.category_name === "Diniyah" ? "green" : "blue"}
-              style={{ top: 12 }}
-            >
-              <Card
-                hoverable
-                style={{
-                  borderRadius: 22,
-                  boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
-                }}
-                styles={{ body: { padding: "20px 18px" } }}
-                actions={[
-                  <Tooltip title="Edit" key="edit">
-                    <Button
-                      type="text"
-                      icon={<Edit2 size={16} color="#f59e0b" />}
-                      onClick={() => handleEdit(item)}
-                    />
-                  </Tooltip>,
-                  <Popconfirm
-                    key="delete"
-                    title="Hapus Mapel?"
-                    onConfirm={() => handleDelete(item.id)}
-                    okText="Hapus"
-                    cancelText="Batal"
-                    okButtonProps={{ danger: true }}
-                  >
-                    <Tooltip title="Hapus">
-                      <Button type="text" danger icon={<Trash2 size={16} />} />
-                    </Tooltip>
-                  </Popconfirm>,
-                ]}
-              >
-                <Flex vertical align="flex-start" gap={12}>
-                  <Flex align="center" gap={12} style={{ width: "100%" }}>
-                    <div
-                      style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 16,
-                        background: "linear-gradient(135deg, #dbeafe, #ede9fe)",
-                        color: "#2563eb",
-                        display: "grid",
-                        placeItems: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <BookOpen size={18} />
-                    </div>
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <Text
-                        strong
-                        style={{
-                          fontSize: 16,
-                          display: "block",
-                          lineHeight: 1.2,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                        title={item.name}
-                      >
-                        {item.name}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: 13 }}>
-                        Cabang: {item.branch_name || "-"}
-                      </Text>
-                    </div>
-                  </Flex>
+        renderItem={(item) => {
+          const categoryStyle = getCategoryStyle(item.category_name);
 
-                  <Flex gap={8} wrap="wrap">
-                    <Tag
-                      bordered={false}
-                      style={{
-                        borderRadius: 999,
-                        padding: "6px 12px",
-                        background: "rgba(59, 130, 246, 0.10)",
-                        color: "#1d4ed8",
-                        fontWeight: 600,
-                      }}
+          return (
+            <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.18 }}>
+              <Badge.Ribbon
+                text={item.category_name || "Umum"}
+                color={categoryStyle.ribbon}
+                style={{ top: 12 }}
+              >
+                <Card
+                  hoverable
+                  style={{
+                    borderRadius: 22,
+                    boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
+                  }}
+                  styles={{ body: { padding: "20px 18px" } }}
+                  actions={[
+                    <Tooltip title='Edit' key='edit'>
+                      <Button
+                        type='text'
+                        icon={<Edit2 size={16} color='#f59e0b' />}
+                        onClick={() => handleEdit(item)}
+                      />
+                    </Tooltip>,
+                    <Popconfirm
+                      key='delete'
+                      title='Hapus Mapel?'
+                      onConfirm={() => handleDelete(item.id)}
+                      okText='Hapus'
+                      cancelText='Batal'
+                      okButtonProps={{ danger: true }}
                     >
-                      Kode: {item.code || "?"}
-                    </Tag>
-                    <Tag
-                      bordered={false}
-                      style={{
-                        borderRadius: 999,
-                        padding: "6px 12px",
-                        background: "rgba(16, 185, 129, 0.10)",
-                        color: "#047857",
-                        fontWeight: 600,
-                      }}
-                    >
-                      KKM: {item.kkm}
-                    </Tag>
+                      <Tooltip title='Hapus'>
+                        <Button type='text' danger icon={<Trash2 size={16} />} />
+                      </Tooltip>
+                    </Popconfirm>,
+                  ]}
+                >
+                  <Flex vertical align='flex-start' gap={12}>
+                    <Flex align='center' gap={12} style={{ width: "100%" }}>
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 16,
+                          background: "linear-gradient(135deg, #dbeafe, #ede9fe)",
+                          color: "#2563eb",
+                          display: "grid",
+                          placeItems: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <BookOpen size={18} />
+                      </div>
+                      <div style={{ flex: 1, overflow: "hidden" }}>
+                        <Text
+                          strong
+                          style={{
+                            fontSize: 16,
+                            display: "block",
+                            lineHeight: 1.2,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                          title={item.name}
+                        >
+                          {item.name}
+                        </Text>
+                        <Text
+                          type='secondary'
+                          style={{ fontSize: 13, display: "block" }}
+                        >
+                          Kategori: {item.category_name || "-"}
+                        </Text>
+                        <Text type='secondary' style={{ fontSize: 13 }}>
+                          Cabang: {item.branch_name || "-"}
+                        </Text>
+                      </div>
+                    </Flex>
+
+                    <Flex gap={8} wrap='wrap'>
+                      <Tag
+                        bordered={false}
+                        style={{
+                          borderRadius: 999,
+                          padding: "6px 12px",
+                          background: categoryStyle.tagBackground,
+                          color: categoryStyle.tagColor,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Kategori: {item.category_name || "Umum"}
+                      </Tag>
+                      <Tag
+                        bordered={false}
+                        style={{
+                          borderRadius: 999,
+                          padding: "6px 12px",
+                          background: "rgba(59, 130, 246, 0.10)",
+                          color: "#1d4ed8",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Kode: {item.code || "?"}
+                      </Tag>
+                      <Tag
+                        bordered={false}
+                        style={{
+                          borderRadius: 999,
+                          padding: "6px 12px",
+                          background: "rgba(16, 185, 129, 0.10)",
+                          color: "#047857",
+                          fontWeight: 600,
+                        }}
+                      >
+                        KKM: {item.kkm}
+                      </Tag>
+                    </Flex>
                   </Flex>
-                </Flex>
-              </Card>
-            </Badge.Ribbon>
-          </MotionDiv>
-        )}
+                </Card>
+              </Badge.Ribbon>
+            </MotionDiv>
+          );
+        }}
       />
 
       <Modal
@@ -397,7 +479,7 @@ const SubjectTable = ({ screens }) => {
         <Form
           form={form}
           onFinish={handleSubmit}
-          layout="vertical"
+          layout='vertical'
           initialValues={{ kkm: 75 }}
         >
           <div
@@ -408,7 +490,7 @@ const SubjectTable = ({ screens }) => {
               borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
             }}
           >
-            <Flex align="flex-start" gap={16}>
+            <Flex align='flex-start' gap={16}>
               <div
                 style={{
                   width: isMobile ? 48 : 56,
@@ -425,10 +507,16 @@ const SubjectTable = ({ screens }) => {
               </div>
               <div style={{ flex: 1 }}>
                 <Title level={4} style={{ margin: 0 }}>
-                  {editingItem ? "Edit Mata Pelajaran" : "Buat Mata Pelajaran Baru"}
+                  {editingItem
+                    ? "Edit Mata Pelajaran"
+                    : "Buat Mata Pelajaran Baru"}
                 </Title>
-                <Text type="secondary" style={{ display: "block", marginTop: 6 }}>
-                  Simpan data mapel dengan kategori, cabang, kode, dan nilai KKM yang konsisten.
+                <Text
+                  type='secondary'
+                  style={{ display: "block", marginTop: 6 }}
+                >
+                  Simpan data mapel dengan kategori, cabang, kode, dan nilai KKM
+                  yang konsisten.
                 </Text>
               </div>
             </Flex>
@@ -450,14 +538,14 @@ const SubjectTable = ({ screens }) => {
                 }}
               >
                 <Form.Item
-                  name="name"
-                  label="Nama Mata Pelajaran"
+                  name='name'
+                  label='Nama Mata Pelajaran'
                   rules={[{ required: true, message: "Nama wajib diisi" }]}
                 >
                   <Input
-                    placeholder="Contoh: Kitab Safinah"
-                    size="large"
-                    prefix={<BookOpen size={16} color="#2563eb" />}
+                    placeholder='Contoh: Kitab Safinah'
+                    size='large'
+                    prefix={<BookOpen size={16} color='#2563eb' />}
                     style={{ borderRadius: 14, paddingBlock: 8 }}
                   />
                 </Form.Item>
@@ -465,13 +553,13 @@ const SubjectTable = ({ screens }) => {
                 <Row gutter={16}>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      name="category_id"
-                      label="Kategori"
+                      name='category_id'
+                      label='Kategori'
                       rules={[{ required: true, message: "Pilih kategori" }]}
                     >
                       <Select
-                        size="large"
-                        placeholder="Pilih Kategori"
+                        size='large'
+                        placeholder='Pilih Kategori'
                         options={categoriesData?.data?.map((c) => ({
                           label: c.name,
                           value: c.id,
@@ -485,9 +573,9 @@ const SubjectTable = ({ screens }) => {
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item name="branch_id" label="Cabang (Opsional)">
+                    <Form.Item name='branch_id' label='Cabang (Opsional)'>
                       <Select
-                        size="large"
+                        size='large'
                         placeholder={
                           selectedCategoryInForm
                             ? "Pilih Cabang"
@@ -507,25 +595,25 @@ const SubjectTable = ({ screens }) => {
 
                 <Row gutter={16}>
                   <Col xs={24} md={12}>
-                    <Form.Item name="code" label="Kode Mapel">
+                    <Form.Item name='code' label='Kode Mapel'>
                       <Input
-                        placeholder="Contoh: MP-01"
-                        prefix={<Hash size={16} color="#64748b" />}
+                        placeholder='Contoh: MP-01'
+                        prefix={<Hash size={16} color='#64748b' />}
                         style={{ borderRadius: 14, paddingBlock: 8 }}
                       />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      name="kkm"
-                      label="Nilai KKM"
+                      name='kkm'
+                      label='Nilai KKM'
                       rules={[{ required: true }]}
                     >
                       <InputNumber
                         min={0}
                         max={100}
                         style={{ width: "100%" }}
-                        size="large"
+                        size='large'
                       />
                     </Form.Item>
                   </Col>
@@ -540,35 +628,43 @@ const SubjectTable = ({ screens }) => {
                   padding: isMobile ? 16 : 18,
                 }}
               >
-                <Flex align="flex-start" gap={12}>
-                  <CheckCircle size={18} color="#4f46e5" style={{ marginTop: 2 }} />
+                <Flex align='flex-start' gap={12}>
+                  <CheckCircle
+                    size={18}
+                    color='#4f46e5'
+                    style={{ marginTop: 2 }}
+                  />
                   <div>
                     <Text strong style={{ display: "block", marginBottom: 4 }}>
                       Tips kelengkapan data
                     </Text>
-                    <Text type="secondary">
-                      Tentukan kategori lebih dulu agar pilihan cabang tepat dan data mapel tetap konsisten saat dipakai di modul lain.
+                    <Text type='secondary'>
+                      Tentukan kategori lebih dulu agar pilihan cabang tepat dan
+                      data mapel tetap konsisten saat dipakai di modul lain.
                     </Text>
                   </div>
                 </Flex>
               </div>
 
-              <Flex justify="flex-end" gap={10} vertical={isMobile}>
+              <Flex justify='flex-end' gap={10} vertical={isMobile}>
                 <Button
-                  size="large"
+                  size='large'
                   onClick={handleClose}
-                  style={{ borderRadius: 14, minWidth: isMobile ? "100%" : 120 }}
+                  style={{
+                    borderRadius: 14,
+                    minWidth: isMobile ? "100%" : 120,
+                  }}
                 >
                   Batal
                 </Button>
                 <Button
-                  type="primary"
-                  htmlType="submit"
-                  size="large"
+                  type='primary'
+                  htmlType='submit'
+                  size='large'
                   loading={isAdding || isUpdating}
                   icon={
                     isAdding || isUpdating ? (
-                      <Loader2 className="animate-spin" size={16} />
+                      <Loader2 className='animate-spin' size={16} />
                     ) : editingItem ? (
                       <Edit2 size={16} />
                     ) : (
@@ -588,6 +684,11 @@ const SubjectTable = ({ screens }) => {
           </div>
         </Form>
       </Modal>
+
+      <SubjectImportDrawer
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+      />
     </MotionDiv>
   );
 };
