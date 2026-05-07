@@ -77,7 +77,7 @@ const CenterConfig = () => {
       style={{ display: "grid", gap: 18 }}
     >
       <Card
-        variant="borderless"
+        variant='borderless'
         style={{
           borderRadius: 22,
           overflow: "hidden",
@@ -88,7 +88,7 @@ const CenterConfig = () => {
         }}
         styles={{ body: { padding: 20 } }}
       >
-        <Space orientation="vertical" size={14} style={{ width: "100%" }}>
+        <Space orientation='vertical' size={14} style={{ width: "100%" }}>
           <Tag
             style={{
               width: "fit-content",
@@ -135,12 +135,7 @@ const CenterConfig = () => {
       </Card>
 
       <Card
-        variant="borderless"
-        style={{
-          borderRadius: token.borderRadiusXL,
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-          boxShadow: token.boxShadowSecondary,
-        }}
+        variant='borderless'
         styles={{ body: { padding: isMobile ? 12 : 16 } }}
       >
         <Tabs

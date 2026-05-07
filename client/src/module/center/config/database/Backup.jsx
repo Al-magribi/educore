@@ -10,9 +10,8 @@ import {
   message,
 } from "antd";
 import {
-  CloudDownloadOutlined,
   DeleteOutlined,
-  FileZipOutlined,
+  FolderOpenOutlined,
   PlusOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
@@ -28,23 +27,33 @@ const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
 const Backup = () => {
-  const { data: backups, isLoading, refetch } = useGetBackupsQuery();
+  const { data: backups = [], isLoading, refetch } = useGetBackupsQuery();
   const [createBackup, { isLoading: isCreating }] = useCreateBackupMutation();
   const [deleteBackup, { isLoading: isDeleting }] = useDeleteBackupMutation();
 
   const handleCreateBackup = async () => {
     try {
-      await createBackup().unwrap();
-      message.success("Backup semua schema dan assets berhasil dibuat!");
+      const result = await createBackup().unwrap();
+      await refetch();
+      message.success(
+        result?.filename
+          ? `Backup berhasil dibuat: ${result.filename}`
+          : "Backup semua schema dan assets berhasil dibuat!",
+      );
     } catch (error) {
-      message.error(error?.data?.message || "Gagal membuat backup");
+      message.error(
+        error?.data?.message ||
+          error?.error ||
+          error?.message ||
+          "Gagal membuat backup",
+      );
     }
   };
 
   const handleDelete = async (filename) => {
     try {
       await deleteBackup(filename).unwrap();
-      message.success("File backup dihapus");
+      message.success("Folder backup dihapus");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus file");
     }
@@ -52,7 +61,7 @@ const Backup = () => {
 
   const columns = [
     {
-      title: "File Backup",
+      title: "Folder Backup",
       dataIndex: "name",
       key: "name",
       render: (_, record) => (
@@ -69,7 +78,7 @@ const Backup = () => {
               color: "#2563eb",
             }}
           >
-            <FileZipOutlined />
+            <FolderOpenOutlined />
           </div>
           <Space orientation="vertical" size={2}>
             <Text strong>{record.name}</Text>
@@ -77,7 +86,13 @@ const Backup = () => {
               color="blue"
               style={{ width: "fit-content", margin: 0, borderRadius: 999 }}
             >
-              {record.size}
+              Total: {record.size}
+            </Tag>
+            <Tag
+              color="cyan"
+              style={{ width: "fit-content", margin: 0, borderRadius: 999 }}
+            >
+              SQL: {record.sqlSize}
             </Tag>
           </Space>
         </Space>
@@ -95,18 +110,9 @@ const Backup = () => {
       align: "center",
       render: (_, record) => (
         <Space>
-          <Button
-            type="primary"
-            ghost
-            icon={<CloudDownloadOutlined />}
-            size="small"
-            href={record.url}
-            target="_blank"
-            style={{ borderRadius: 999 }}
-          />
           <Popconfirm
             title="Hapus Backup?"
-            description="File yang dihapus tidak dapat dikembalikan."
+            description="Folder backup yang dihapus tidak dapat dikembalikan."
             onConfirm={() => handleDelete(record.name)}
             okText="Hapus"
             cancelText="Batal"
@@ -148,8 +154,8 @@ const Backup = () => {
                 Riwayat Backup
               </Title>
               <Text style={{ color: "#64748b" }}>
-                Simpan salinan penuh semua schema database beserta folder
-                `server/assets`.
+                Simpan salinan penuh database dan folder `server/assets` ke
+                folder backup di server.
               </Text>
             </div>
             <Space>
