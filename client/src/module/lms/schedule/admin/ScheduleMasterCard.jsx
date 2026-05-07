@@ -5,6 +5,7 @@ import {
   Card,
   Flex,
   Form,
+  Grid,
   Input,
   Modal,
   Popconfirm,
@@ -14,8 +15,16 @@ import {
   Typography,
 } from "antd";
 import { Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_STYLE,
+  SCHEDULE_INNER_CARD_BODY,
+  SCHEDULE_INNER_CARD_STYLE,
+  SCHEDULE_TAG_STYLE,
+} from "./scheduleAdminStyles";
 
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const ScheduleMasterCard = ({
   canManage,
@@ -32,6 +41,8 @@ const ScheduleMasterCard = ({
   onActivateConfig,
   onDeleteConfig,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [configModalOpen, setConfigModalOpen] = React.useState(false);
   const [editingConfig, setEditingConfig] = React.useState(null);
   const [configForm] = Form.useForm();
@@ -92,7 +103,7 @@ const ScheduleMasterCard = ({
         showIcon
         type="info"
         message="Jadwal yang dipilih masih nonaktif"
-        description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada beban ajar, kegiatan, generator, dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
+        description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada beban ajar, kegiatan, ketentuan guru, dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
           scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
             ?.name || "belum ditentukan"
         }.`}
@@ -102,15 +113,19 @@ const ScheduleMasterCard = ({
   return (
     <>
       <Card
-        style={{ borderRadius: 16 }}
-        styles={{ body: { padding: 20 } }}
+        style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
+        styles={{ body: SCHEDULE_CARD_BODY }}
         title="Master Jadwal"
       >
         <Flex vertical gap={12}>
           <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
             <Space wrap>
               <Select
-                style={{ minWidth: 260 }}
+                style={{
+                  minWidth: isMobile ? undefined : 260,
+                  width: isMobile ? "100%" : undefined,
+                  maxWidth: "100%",
+                }}
                 placeholder="Pilih jadwal"
                 options={configOptions}
                 value={selectedConfig ? Number(selectedConfig.id) : undefined}
@@ -164,10 +179,13 @@ const ScheduleMasterCard = ({
 
             {selectedConfig ? (
               <Space wrap>
-                <Tag color={selectedConfig.is_active ? "green" : "default"}>
+                <Tag
+                  color={selectedConfig.is_active ? "green" : "default"}
+                  style={SCHEDULE_TAG_STYLE}
+                >
                   {selectedConfig.is_active ? "Aktif" : "Nonaktif"}
                 </Tag>
-                <Tag color="blue">
+                <Tag color="blue" style={SCHEDULE_TAG_STYLE}>
                   {selectedConfig.name || `Jadwal ${selectedConfig.id}`}
                 </Tag>
               </Space>
@@ -198,7 +216,7 @@ const ScheduleMasterCard = ({
                 showIcon
                 type="warning"
                 message="Masih ada kelas aktif yang belum masuk group jadwal"
-                description={`Generator akan ditolak sampai mapping group lengkap. Kelas yang belum dipetakan: ${unmappedGroupClasses
+                description={`Penyusunan jadwal final akan lebih aman jika mapping shift lengkap. Kelas yang belum dipetakan: ${unmappedGroupClasses
                   .map((item) => item.name)
                   .join(", ")}.`}
               />
@@ -210,6 +228,26 @@ const ScheduleMasterCard = ({
                 description="Semua kelas aktif pada satuan ini sudah memiliki group jadwal pada master yang sedang dipilih."
               />
             ) : null
+          ) : null}
+
+          {selectedConfig ? (
+            <Card
+              size="small"
+              style={SCHEDULE_INNER_CARD_STYLE}
+              styles={{ body: SCHEDULE_INNER_CARD_BODY }}
+            >
+              <Space size={[8, 8]} wrap>
+                <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
+                  Total master: {scheduleConfigs.length}
+                </Tag>
+                <Tag color="cyan" style={SCHEDULE_TAG_STYLE}>
+                  Shift: {configGroups.length}
+                </Tag>
+                <Tag color="gold" style={SCHEDULE_TAG_STYLE}>
+                  Kelas belum terpetakan: {unmappedGroupClasses.length}
+                </Tag>
+              </Space>
+            </Card>
           ) : null}
         </Flex>
       </Card>

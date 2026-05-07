@@ -5,6 +5,7 @@ import {
   Card,
   Flex,
   Form,
+  Grid,
   Input,
   Modal,
   Popconfirm,
@@ -15,6 +16,11 @@ import {
   Tag,
 } from "antd";
 import { Ban, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_STYLE,
+  SCHEDULE_TAG_STYLE,
+} from "./scheduleAdminStyles";
 
 const DAY_OPTIONS = [
   { value: 1, label: "Senin" },
@@ -25,6 +31,7 @@ const DAY_OPTIONS = [
   { value: 6, label: "Sabtu" },
   { value: 7, label: "Minggu" },
 ];
+const { useBreakpoint } = Grid;
 
 const formatTime = (value) => (value ? String(value).slice(0, 5) : "-");
 
@@ -178,7 +185,6 @@ const ScheduleUnavailabilityCard = ({
   rules,
   slots,
   allSlots,
-  selectedConfig,
   groups,
   selectedGroup,
   groupCount = 0,
@@ -187,6 +193,8 @@ const ScheduleUnavailabilityCard = ({
   onDelete,
   onSelectGroup,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [shiftFilter, setShiftFilter] = useState("all");
@@ -483,13 +491,17 @@ const ScheduleUnavailabilityCard = ({
       width: 180,
       render: (_, record) => {
         if (!record.matched_group_names?.length) {
-          return <Tag>Tidak terpetakan</Tag>;
+          return <Tag style={SCHEDULE_TAG_STYLE}>Tidak terpetakan</Tag>;
         }
 
         return (
           <Space size={[4, 4]} wrap>
             {record.matched_group_names.map((name) => (
-              <Tag key={`${record.id}-${name}`} color='blue'>
+              <Tag
+                key={`${record.id}-${name}`}
+                color='blue'
+                style={SCHEDULE_TAG_STYLE}
+              >
                 {name}
               </Tag>
             ))}
@@ -527,7 +539,7 @@ const ScheduleUnavailabilityCard = ({
       dataIndex: "is_active",
       width: 100,
       render: (value) => (
-        <Tag color={value ? "green" : "default"}>
+        <Tag color={value ? "green" : "default"} style={SCHEDULE_TAG_STYLE}>
           {value ? "Aktif" : "Nonaktif"}
         </Tag>
       ),
@@ -557,16 +569,16 @@ const ScheduleUnavailabilityCard = ({
 
   return (
     <Card
-      style={{ borderRadius: 16 }}
-      styles={{ body: { padding: 20 } }}
+      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
+      styles={{ body: SCHEDULE_CARD_BODY }}
       title={
         <Space>
           <Ban size={18} />
-          <span>Ketidak Tersedian Guru</span>
+          <span>Ketidaktersediaan Guru</span>
         </Space>
       }
       extra={
-        <Space>
+        <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
           {canManage ? (
             <Button
               type='primary'
@@ -581,7 +593,7 @@ const ScheduleUnavailabilityCard = ({
             value={shiftFilter}
             onChange={setShiftFilter}
             options={shiftFilterOptions}
-            style={{ width: 220 }}
+            style={{ width: isMobile ? "100%" : 220, maxWidth: "100%" }}
             placeholder='Filter shift'
           />
         </Space>
@@ -593,7 +605,7 @@ const ScheduleUnavailabilityCard = ({
         loading={loading}
         columns={columns}
         dataSource={filteredTableData}
-        scroll={{ x: 1020 }}
+        scroll={{ x: isMobile ? 1080 : 1020 }}
         pagination={{ pageSize: 6 }}
       />
 

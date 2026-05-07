@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -15,8 +16,16 @@ import {
   Typography,
 } from "antd";
 import { CalendarRange, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_STYLE,
+  SCHEDULE_INNER_CARD_BODY,
+  SCHEDULE_INNER_CARD_STYLE,
+  SCHEDULE_TAG_STYLE,
+} from "./scheduleAdminStyles";
 
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const DAY_OPTIONS = [
   { value: 1, label: "Senin" },
@@ -42,7 +51,6 @@ const ScheduleActivity = ({
   slots,
   teacherAssignments,
   scheduleCapacity,
-  selectedConfig,
   groups,
   selectedGroup,
   groupCount = 0,
@@ -51,6 +59,8 @@ const ScheduleActivity = ({
   onDelete,
   onSelectGroup,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [tableShiftFilter, setTableShiftFilter] = useState("all");
@@ -327,8 +337,8 @@ const ScheduleActivity = ({
 
   return (
     <Card
-      style={{ borderRadius: 16 }}
-      styles={{ body: { padding: 20 } }}
+      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
+      styles={{ body: SCHEDULE_CARD_BODY }}
       title={
         <Space>
           <CalendarRange size={18} />
@@ -345,20 +355,22 @@ const ScheduleActivity = ({
     >
       <Card
         size='small'
-        style={{ borderRadius: 12, marginBottom: 16 }}
+        style={{ ...SCHEDULE_INNER_CARD_STYLE, marginBottom: 16 }}
+        styles={{ body: SCHEDULE_INNER_CARD_BODY }}
         title='Ringkasan Okupansi Kegiatan'
       >
         <Space size={[8, 8]} wrap>
-          <Tag color='geekblue'>
+          <Tag color='geekblue' style={SCHEDULE_TAG_STYLE}>
             Kelas aktif: {scheduleCapacity?.active_class_count || 0}
           </Tag>
-          <Tag color='blue'>
+          <Tag color='blue' style={SCHEDULE_TAG_STYLE}>
             Sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
           </Tag>
-          <Tag color='purple'>
+          <Tag color='purple' style={SCHEDULE_TAG_STYLE}>
             Dipakai kegiatan: {scheduleCapacity?.total_activity_sessions || 0}
           </Tag>
           <Tag
+            style={SCHEDULE_TAG_STYLE}
             color={
               Number(scheduleCapacity?.remaining_sessions || 0) >= 0
                 ? "green"
@@ -377,10 +389,14 @@ const ScheduleActivity = ({
         columns={columns}
         title={() =>
           groupCount > 1 ? (
-            <Space wrap>
+            <Space wrap style={{ width: "100%" }}>
               <Text strong>Filter Shift:</Text>
               <Select
-                style={{ minWidth: 220 }}
+                style={{
+                  minWidth: isMobile ? undefined : 220,
+                  width: isMobile ? "100%" : undefined,
+                  maxWidth: "100%",
+                }}
                 value={tableShiftFilter}
                 onChange={setTableShiftFilter}
                 options={[
@@ -394,7 +410,7 @@ const ScheduleActivity = ({
         }
         dataSource={filteredActivityRows}
         pagination={false}
-        scroll={{ x: 1120 }}
+        scroll={{ x: isMobile ? 1180 : 1120 }}
         locale={{ emptyText: "Belum ada kegiatan jadwal." }}
       />
 

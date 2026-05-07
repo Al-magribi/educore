@@ -1726,7 +1726,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         return res.status(409).json({
           status: "error",
           message:
-            "Master jadwal ini belum bisa dihapus karena masih memiliki kegiatan, jadwal final/manual, atau riwayat generate.",
+            "Master jadwal ini belum bisa dihapus karena masih memiliki kegiatan, jadwal final/manual, atau riwayat proses jadwal sebelumnya.",
         });
       }
 

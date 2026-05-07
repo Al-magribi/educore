@@ -8,6 +8,7 @@ import {
   Empty,
   Flex,
   Form,
+  Grid,
   Input,
   Modal,
   Popconfirm,
@@ -19,8 +20,16 @@ import {
   Typography,
 } from "antd";
 import { CalendarClock, Pencil, Plus, Trash2, UsersRound } from "lucide-react";
+import {
+  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_STYLE,
+  SCHEDULE_INNER_CARD_BODY,
+  SCHEDULE_INNER_CARD_STYLE,
+  SCHEDULE_TAG_STYLE,
+} from "./scheduleAdminStyles";
 
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const DAY_OPTIONS = [
   { value: 1, label: "Senin" },
@@ -112,6 +121,8 @@ const ScheduleConfigCard = ({
   onSelectGroup,
   loading,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [dayForm] = Form.useForm();
   const [groupForm] = Form.useForm();
   const [dayRows, setDayRows] = useState([]);
@@ -374,8 +385,8 @@ const ScheduleConfigCard = ({
 
   return (
     <Card
-      style={{ borderRadius: 16 }}
-      styles={{ body: { padding: 20 } }}
+      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
+      styles={{ body: SCHEDULE_CARD_BODY }}
       title={
         <Space>
           <CalendarClock size={18} />
@@ -389,7 +400,7 @@ const ScheduleConfigCard = ({
           title='Shift Sekolah'
           extra={
             canManage ? (
-              <Space>
+              <Space wrap>
                 <Button
                   type='primary'
                   icon={<Plus size={14} />}
@@ -422,7 +433,8 @@ const ScheduleConfigCard = ({
               </Space>
             ) : null
           }
-          style={{ borderRadius: 12 }}
+          style={SCHEDULE_INNER_CARD_STYLE}
+          styles={{ body: SCHEDULE_INNER_CARD_BODY }}
         >
           <Flex vertical gap={12}>
             <Select
@@ -430,15 +442,19 @@ const ScheduleConfigCard = ({
               options={groupOptions}
               value={selectedGroup ? Number(selectedGroup.id) : undefined}
               onChange={onSelectGroup}
+              style={{ width: "100%", maxWidth: "100%" }}
             />
 
             {selectedGroup ? (
               <Flex vertical gap={8}>
                 <Space wrap>
-                  <Tag color={selectedGroup.is_default ? "blue" : "orange"}>
+                  <Tag
+                    color={selectedGroup.is_default ? "blue" : "orange"}
+                    style={SCHEDULE_TAG_STYLE}
+                  >
                     {selectedGroup.is_default ? "Utama" : "Tambahan"}
                   </Tag>
-                  <Tag color='geekblue'>
+                  <Tag color='geekblue' style={SCHEDULE_TAG_STYLE}>
                     {selectedGroup.class_count ||
                       selectedGroupClasses.length ||
                       0}{" "}
@@ -464,7 +480,7 @@ const ScheduleConfigCard = ({
                     showIcon
                     type='warning'
                     title='Belum ada kelas di shift ini'
-                    description='Tambahkan kelas ke Shift Pagi atau Shift Siang agar generator jadwal dapat menempatkan kelas ke shift yang benar.'
+                    description='Tambahkan kelas ke shift ini agar penyusunan jadwal final punya ruang kerja yang jelas.'
                   />
                 )}
               </Flex>
@@ -477,23 +493,25 @@ const ScheduleConfigCard = ({
         <Card
           size='small'
           title='Ringkasan Sesi Tersedia'
-          style={{ borderRadius: 12 }}
+          style={SCHEDULE_INNER_CARD_STYLE}
+          styles={{ body: SCHEDULE_INNER_CARD_BODY }}
         >
           <Space size={[8, 8]} wrap>
-            <Tag color='blue'>
+            <Tag color='blue' style={SCHEDULE_TAG_STYLE}>
               Slot group ini: {scheduleCapacity?.total_configured_slots || 0}
             </Tag>
-            <Tag color='geekblue'>
+            <Tag color='geekblue' style={SCHEDULE_TAG_STYLE}>
               Kelas aktif: {scheduleCapacity?.active_class_count || 0}
             </Tag>
-            <Tag color='green'>
+            <Tag color='green' style={SCHEDULE_TAG_STYLE}>
               Total sesi tersedia:{" "}
               {scheduleCapacity?.total_available_sessions || 0}
             </Tag>
-            <Tag color='gold'>
+            <Tag color='gold' style={SCHEDULE_TAG_STYLE}>
               Dipakai kegiatan: {scheduleCapacity?.total_activity_sessions || 0}
             </Tag>
             <Tag
+              style={SCHEDULE_TAG_STYLE}
               color={
                 Number(scheduleCapacity?.remaining_sessions || 0) >= 0
                   ? "cyan"
@@ -540,7 +558,7 @@ const ScheduleConfigCard = ({
               </Button>
             ) : null
           }
-          style={{ borderRadius: 12 }}
+          style={SCHEDULE_INNER_CARD_STYLE}
         >
           {selectedGroup ? (
             dayRows.length > 0 ? (
@@ -550,7 +568,7 @@ const ScheduleConfigCard = ({
                 columns={columns}
                 dataSource={dayRows}
                 pagination={false}
-                scroll={{ x: 760 }}
+                scroll={{ x: isMobile ? 920 : 760 }}
               />
             ) : (
               <Empty description='Belum ada hari yang dikonfigurasi untuk shift ini.' />

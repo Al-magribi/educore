@@ -382,7 +382,7 @@ export const registerScheduleResourceRoutes = (router) => {
         return res.status(400).json({
           status: "error",
           message:
-            "Ketentuan jadwal otomatis hanya mendukung aturan mingguan berbasis hari. specific_date tidak digunakan di modul ini.",
+            "Ketentuan jadwal di modul ini hanya mendukung aturan mingguan berbasis hari. specific_date tidak digunakan.",
         });
       }
 
@@ -496,14 +496,14 @@ export const registerScheduleResourceRoutes = (router) => {
         return res.status(400).json({
           status: "error",
           message:
-            "Ketentuan jadwal otomatis hanya mendukung aturan mingguan berbasis hari. specific_date tidak digunakan di modul ini.",
+            "Ketentuan jadwal di modul ini hanya mendukung aturan mingguan berbasis hari. specific_date tidak digunakan.",
         });
       }
 
       if (!toInt(day_of_week, null)) {
         return res.status(400).json({
           status: "error",
-          message: "day_of_week wajib diisi untuk ketentuan jadwal otomatis.",
+          message: "day_of_week wajib diisi untuk ketentuan jadwal guru.",
         });
       }
 

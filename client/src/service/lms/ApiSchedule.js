@@ -107,14 +107,6 @@ export const ApiSchedule = createApi({
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
-    generateSchedule: builder.mutation({
-      query: (body) => ({
-        url: "/schedule/generate",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
-    }),
     createManualScheduleEntry: builder.mutation({
       query: (body) => ({
         url: "/schedule/entries/manual",
@@ -155,7 +147,6 @@ export const {
   useDeleteScheduleActivityMutation,
   useSaveUnavailabilityMutation,
   useDeleteUnavailabilityMutation,
-  useGenerateScheduleMutation,
   useCreateManualScheduleEntryMutation,
   useUpdateScheduleEntryMutation,
   useDeleteScheduleEntryMutation,

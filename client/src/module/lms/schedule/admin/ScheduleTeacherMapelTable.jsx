@@ -88,7 +88,7 @@ const ScheduleTeacherMapelTable = ({ loading, rows }) => {
         width: 320,
         render: (_, record) =>
           record.shortages?.length ? (
-            <Space orientation="vertical" size={4}>
+            <Space direction="vertical" size={4}>
               {record.shortages.map((item) => (
                 <div key={item.key}>
                   <Text strong>{item.subject_name}</Text>{" "}

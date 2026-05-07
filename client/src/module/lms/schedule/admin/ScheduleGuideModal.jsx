@@ -1,6 +1,11 @@
 import React from "react";
-import { Alert, Divider, Modal, Space, Steps, Tag, Typography } from "antd";
+import { Alert, Card, Divider, Modal, Space, Steps, Tag, Typography } from "antd";
 import { BookOpenCheck } from "lucide-react";
+import {
+  SCHEDULE_INNER_CARD_BODY,
+  SCHEDULE_INNER_CARD_STYLE,
+  SCHEDULE_TAG_STYLE,
+} from "./scheduleAdminStyles";
 
 const { Paragraph, Text } = Typography;
 
@@ -20,10 +25,31 @@ const ScheduleGuideModal = ({ open, onClose }) => {
       width={920}
       centered
     >
+      <Card
+        size='small'
+        style={{ ...SCHEDULE_INNER_CARD_STYLE, marginBottom: 16 }}
+        styles={{ body: SCHEDULE_INNER_CARD_BODY }}
+      >
+        <Space size={[8, 8]} wrap>
+          <Tag color='blue' style={SCHEDULE_TAG_STYLE}>
+            1. Master & Shift
+          </Tag>
+          <Tag color='cyan' style={SCHEDULE_TAG_STYLE}>
+            2. Slot & Hari
+          </Tag>
+          <Tag color='gold' style={SCHEDULE_TAG_STYLE}>
+            3. Beban & Ketentuan
+          </Tag>
+          <Tag color='green' style={SCHEDULE_TAG_STYLE}>
+            4. Susun Final Manual
+          </Tag>
+        </Space>
+      </Card>
+
       <Alert
         showIcon
         type='info'
-        message='Urutan paling aman: Konfigurasi Slot -> Beban Ajar -> Ketentuan Guru -> Generate -> Cek & Edit Manual.'
+        message='Urutan paling aman: Master Jadwal -> Konfigurasi Shift & Slot -> Beban Ajar -> Ketentuan Guru -> Susun Jadwal Final Manual.'
         style={{ marginBottom: 16 }}
       />
 
@@ -72,21 +98,22 @@ const ScheduleGuideModal = ({ open, onClose }) => {
             ),
           },
           {
-            title: "4) Klik Generate Jadwal",
+            title: "4) Susun Jadwal Final",
             description: (
               <Space direction='vertical' size={4}>
                 <Text>
-                  Sistem otomatis cek bentrok kelas, bentrok guru, slot
-                  istirahat, dan ketentuan guru.
+                  Tambahkan jadwal manual berdasarkan beban ajar yang masih
+                  tersedia pada shift aktif.
                 </Text>
                 <Text>
-                  Jika ada yang gagal, sistem menampilkan jumlah item konflik.
+                  Sistem tetap memvalidasi bentrok kelas, guru, slot
+                  istirahat, dan ketentuan guru saat penyimpanan.
                 </Text>
               </Space>
             ),
           },
           {
-            title: "5) Cek Hasil dan Ubah Manual",
+            title: "5) Review Board dan Rapikan",
             description: (
               <Space direction='vertical' size={4}>
                 <Text>
@@ -115,7 +142,7 @@ const ScheduleGuideModal = ({ open, onClose }) => {
           3. Tambah jam sekolah atau kurangi istirahat jika kebijakan sekolah
           mengizinkan.
         </Text>
-        <Text>4. Generate ulang, lalu rapikan dengan edit manual.</Text>
+        <Text>4. Tambahkan atau pindahkan jadwal manual sampai alokasi sesi terpenuhi.</Text>
       </Space>
     </Modal>
   );

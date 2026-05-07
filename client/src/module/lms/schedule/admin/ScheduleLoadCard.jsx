@@ -12,6 +12,7 @@ import {
   Divider,
   Flex,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -25,10 +26,18 @@ import {
 } from "antd";
 import { BookOpenText, Pencil, Plus } from "lucide-react";
 import * as XLSX from "xlsx";
+import {
+  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_STYLE,
+  SCHEDULE_INNER_CARD_BODY,
+  SCHEDULE_INNER_CARD_STYLE,
+  SCHEDULE_TAG_STYLE,
+} from "./scheduleAdminStyles";
 
 const TEMPLATE_SHEET = "Beban Ajar";
 const GUIDE_SHEET = "Panduan";
 const PAGE_SIZE = 20;
+const { useBreakpoint } = Grid;
 
 const normalizeBoolean = (value, fallback) => {
   if (typeof value === "boolean") return value;
@@ -111,6 +120,8 @@ const ScheduleLoadCard = ({
   onSave,
   onImport,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [openModal, setOpenModal] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [editingLoadId, setEditingLoadId] = useState(null);
@@ -436,8 +447,8 @@ const ScheduleLoadCard = ({
 
   return (
     <Card
-      style={{ borderRadius: 16 }}
-      styles={{ body: { padding: 20 } }}
+      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
+      styles={{ body: SCHEDULE_CARD_BODY }}
       title={
         <Space>
           <BookOpenText size={18} />
@@ -446,7 +457,7 @@ const ScheduleLoadCard = ({
       }
       extra={
         canManage ? (
-          <Space wrap>
+          <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
             <Button onClick={() => setGuideOpen(true)}>Panduan Template</Button>
             <Button
               icon={<DownloadOutlined />}
@@ -477,25 +488,27 @@ const ScheduleLoadCard = ({
     >
       <Card
         size="small"
-        style={{ borderRadius: 12, marginBottom: 16 }}
+        style={{ ...SCHEDULE_INNER_CARD_STYLE, marginBottom: 16 }}
+        styles={{ body: SCHEDULE_INNER_CARD_BODY }}
         title="Ringkasan Kapasitas Sesi"
       >
         <Space size={[8, 8]} wrap>
-          <Tag color="geekblue">
+          <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
             Kelas aktif: {scheduleCapacity?.active_class_count || 0}
           </Tag>
-          <Tag color="blue">
+          <Tag color="blue" style={SCHEDULE_TAG_STYLE}>
             Sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
           </Tag>
-          <Tag color="gold">
+          <Tag color="gold" style={SCHEDULE_TAG_STYLE}>
             Beban terdistribusi:{" "}
             {scheduleCapacity?.total_distributed_sessions || 0}
           </Tag>
-          <Tag color="purple">
+          <Tag color="purple" style={SCHEDULE_TAG_STYLE}>
             Dipakai kegiatan:{" "}
             {scheduleCapacity?.total_activity_sessions || 0}
           </Tag>
           <Tag
+            style={SCHEDULE_TAG_STYLE}
             color={
               Number(scheduleCapacity?.remaining_sessions || 0) >= 0
                 ? "green"
@@ -529,14 +542,15 @@ const ScheduleLoadCard = ({
 
       <Card
         size="small"
-        style={{ borderRadius: 12 }}
+        style={SCHEDULE_INNER_CARD_STYLE}
         styles={{ body: { padding: 0 } }}
         title={
-          <Space
-            wrap
+          <Flex
+            wrap='wrap'
+            gap={12}
             style={{ width: "100%", justifyContent: "space-between" }}
           >
-            <Space wrap>
+            <Space wrap style={{ minWidth: 0 }}>
               <Input
                 allowClear
                 placeholder="Filter nama guru"
@@ -545,7 +559,7 @@ const ScheduleLoadCard = ({
                   setTeacherKeyword(event.target.value);
                   setVisibleCount(PAGE_SIZE);
                 }}
-                style={{ width: 240 }}
+                style={{ width: isMobile ? "100%" : 240, maxWidth: "100%" }}
               />
               <Select
                 allowClear
@@ -556,13 +570,13 @@ const ScheduleLoadCard = ({
                   setSelectedGradeId(value);
                   setVisibleCount(PAGE_SIZE);
                 }}
-                style={{ width: 180 }}
+                style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
               />
             </Space>
             <Tag icon={<InboxOutlined />} color="processing">
               Template mengikuti data pada tabel saat ini
             </Tag>
-          </Space>
+          </Flex>
         }
       >
         <div
@@ -577,7 +591,7 @@ const ScheduleLoadCard = ({
             loading={loading}
             columns={assignmentColumns}
             dataSource={visibleAssignments}
-            scroll={{ x: 900 }}
+            scroll={{ x: isMobile ? 1120 : 900 }}
             pagination={false}
           />
           {visibleAssignments.length < filteredAssignments.length ? (

@@ -5,23 +5,28 @@ import {
   Card,
   Empty,
   Form,
+  Grid,
   InputNumber,
   Modal,
   Popconfirm,
   Select,
   Space,
-  Switch,
-  Table,
-  Tag,
   Tabs,
-  Typography,
+  Tag,
 } from "antd";
-import { LayoutGrid, RefreshCcw, Sparkles } from "lucide-react";
+import { LayoutGrid, Plus, RefreshCcw } from "lucide-react";
 import ScheduleTeacherMapelTable from "./ScheduleTeacherMapelTable";
 import ScheduleTimetableBoard from "./ScheduleTimetableBoard";
-import { BORDER_COLOR, HEADER_BG, formatTime } from "./scheduleTimetableUtils";
-
-const { Text } = Typography;
+import {
+  formatTime,
+} from "./scheduleTimetableUtils";
+import {
+  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_STYLE,
+  SCHEDULE_INNER_CARD_BODY,
+  SCHEDULE_INNER_CARD_STYLE,
+  SCHEDULE_TAG_STYLE,
+} from "./scheduleAdminStyles";
 
 const DAY_OPTIONS = [
   { value: 1, label: "Senin" },
@@ -33,24 +38,7 @@ const DAY_OPTIONS = [
   { value: 7, label: "Minggu" },
 ];
 
-const GENERATE_ACTION_OPTIONS = [
-  {
-    value: "generate_new",
-    label: "Generate Baru",
-    description: "Hanya untuk periode yang belum memiliki jadwal sama sekali.",
-  },
-  {
-    value: "regenerate_generated",
-    label: "Regenerate Otomatis",
-    description:
-      "Hapus hasil generate lama, pertahankan manual override dan lock.",
-  },
-  {
-    value: "reset_generated",
-    label: "Reset Jadwal Otomatis",
-    description: "Bersihkan jadwal hasil generate tanpa membuat jadwal baru.",
-  },
-];
+const { useBreakpoint } = Grid;
 
 const ScheduleTimetableCard = ({
   canManage,
@@ -74,17 +62,15 @@ const ScheduleTimetableCard = ({
   onSelectGroup,
   onCreateEntry,
   onDeleteEntry,
-  onGenerate,
   onRefresh,
   onUpdateEntry,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [openModal, setOpenModal] = useState(false);
-  const [openGenerateModal, setOpenGenerateModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [modalMode, setModalMode] = useState("edit");
-  const [lastGenerateResult, setLastGenerateResult] = useState(null);
   const [form] = Form.useForm();
-  const [generateForm] = Form.useForm();
 
   const configOptions = useMemo(
     () =>
@@ -337,36 +323,6 @@ const ScheduleTimetableCard = ({
     );
   }, [sessionShortages, teacherAssignments, teachers]);
 
-  const displayGenerateResult = useMemo(() => {
-    if (!lastGenerateResult) return null;
-
-    const assignmentMap = new Map(
-      (teacherAssignments || []).map((item) => [
-        `${item.teacher_id}:${item.subject_id}:${item.class_id}`,
-        item,
-      ]),
-    );
-
-    return {
-      ...lastGenerateResult,
-      failed_items: (lastGenerateResult.failed_items || []).map(
-        (item, index) => {
-          const assignment =
-            assignmentMap.get(
-              `${item.teacher_id}:${item.subject_id}:${item.class_id}`,
-            ) || {};
-          return {
-            key: `${item.teacher_id}:${item.subject_id}:${item.class_id}:${item.meeting_no || index}`,
-            ...item,
-            teacher_name: assignment.teacher_name,
-            subject_name: assignment.subject_name,
-            class_name: assignment.class_name,
-          };
-        },
-      ),
-    };
-  }, [lastGenerateResult, teacherAssignments]);
-
   const teachingLoadMap = useMemo(
     () =>
       new Map(
@@ -484,21 +440,6 @@ const ScheduleTimetableCard = ({
     closeEntryModal();
   }, [closeEntryModal, editing?.id, onDeleteEntry]);
 
-  const openGenerateDialog = useCallback(() => {
-    generateForm.setFieldsValue({
-      action: "regenerate_generated",
-      dry_run: false,
-    });
-    setOpenGenerateModal(true);
-  }, [generateForm]);
-
-  const handleGenerateSubmit = useCallback(async () => {
-    const values = await generateForm.validateFields();
-    const response = await onGenerate(values);
-    setLastGenerateResult(response?.data || null);
-    setOpenGenerateModal(false);
-  }, [generateForm, onGenerate]);
-
   const currentDay = Form.useWatch("day_of_week", form);
   const currentTeachingLoadId = Form.useWatch("teaching_load_id", form);
   const currentSlotCount = Form.useWatch("slot_count", form);
@@ -539,6 +480,7 @@ const ScheduleTimetableCard = ({
     );
     return Math.max(1, Math.min(remainingSessions || 1, maxSessionsPerMeeting));
   }, [currentAllocatedSessions, currentManualLoad]);
+
   const slotStartOptions = useMemo(() => {
     const rows = slotByDay.get(Number(currentDay)) || [];
     const selectedSlotCount = Math.max(
@@ -634,16 +576,13 @@ const ScheduleTimetableCard = ({
     activityTargets,
     currentDay,
     currentSlotCount,
-    currentTeachingLoadId,
     editing,
     expandedEntries,
     form,
+    manualSlotCountLimit,
     modalMode,
     slotByDay,
-    teacherAssignments,
-    teachingLoadMap,
     currentManualLoad,
-    manualSlotCountLimit,
   ]);
 
   const selectedLoadHelper = useMemo(() => {
@@ -693,92 +632,38 @@ const ScheduleTimetableCard = ({
     [gradeGroups],
   );
 
-  const generateAction = Form.useWatch("action", generateForm);
-  const generatePreview = Form.useWatch("dry_run", generateForm);
-
-  const failedColumns = [
-    {
-      title: "Guru / Mapel / Kelas",
-      key: "assignment",
-      onHeaderCell: () => ({
-        style: {
-          background: HEADER_BG,
-          textAlign: "center",
-          fontWeight: 800,
-          borderColor: BORDER_COLOR,
-        },
-      }),
-      render: (_, record) => (
-        <Space orientation='vertical' size={0}>
-          <Text strong>
-            {record.teacher_name || `Guru #${record.teacher_id}`}
-          </Text>
-          <Text type='secondary'>
-            {record.subject_name || `Mapel #${record.subject_id}`} |{" "}
-            {record.class_name || `Kelas #${record.class_id}`}
-          </Text>
-        </Space>
-      ),
-    },
-    {
-      title: "Pertemuan",
-      key: "meeting",
-      width: 120,
-      onHeaderCell: () => ({
-        style: {
-          background: HEADER_BG,
-          textAlign: "center",
-          fontWeight: 800,
-          borderColor: BORDER_COLOR,
-        },
-      }),
-      render: (_, record) => (
-        <Tag color='gold'>
-          #{record.meeting_no} / {record.chunk_size} sesi
-        </Tag>
-      ),
-    },
-    {
-      title: "Alasan Utama",
-      dataIndex: "failure_reason",
-      key: "failure_reason",
-      width: 260,
-      onHeaderCell: () => ({
-        style: {
-          background: HEADER_BG,
-          textAlign: "center",
-          fontWeight: 800,
-          borderColor: BORDER_COLOR,
-        },
-      }),
-    },
-  ];
+  const manualEntryCount = useMemo(
+    () =>
+      (entries || []).filter(
+        (item) =>
+          item.source_type === "manual" || Boolean(item.is_manual_override),
+      ).length,
+    [entries],
+  );
+  const totalActivityCount = useMemo(
+    () => (activities || []).filter((item) => item?.is_active !== false).length,
+    [activities],
+  );
 
   return (
     <Card
-      style={{
-        borderRadius: 24,
-        overflow: "hidden",
-        border: "1px solid #ead9cc",
-        background:
-          "linear-gradient(180deg, rgba(255,250,244,0.96) 0%, rgba(255,255,255,1) 100%)",
-      }}
-      styles={{ body: { padding: 24 } }}
+      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
+      styles={{ body: SCHEDULE_CARD_BODY }}
       title={
         <Space>
           <LayoutGrid size={18} />
-          <span>Jadwal Final Cetak</span>
+          <span>Jadwal Final</span>
         </Space>
       }
       extra={
-        <Space>
+        <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
           {(configs || []).length > 1 ? (
             <Select
               value={selectedConfig ? Number(selectedConfig.id) : undefined}
               onChange={onSelectConfig}
               options={configOptions}
               placeholder='Pilih konfigurasi jadwal'
-              style={{ width: 240 }}
+              style={{ width: isMobile ? "100%" : 240, maxWidth: "100%" }}
               loading={loading}
             />
           ) : null}
@@ -788,7 +673,7 @@ const ScheduleTimetableCard = ({
               onChange={onSelectGroup}
               options={groupOptions}
               placeholder='Pilih shift jadwal'
-              style={{ width: 200 }}
+              style={{ width: isMobile ? "100%" : 200, maxWidth: "100%" }}
               loading={loading}
             />
           ) : null}
@@ -802,206 +687,114 @@ const ScheduleTimetableCard = ({
           {canManage ? (
             <Button
               type='primary'
-              icon={<Sparkles size={14} />}
-              onClick={openGenerateDialog}
-              loading={loading}
+              icon={<Plus size={14} />}
+              onClick={openCreateManualDialog}
             >
-              Generate
-            </Button>
-          ) : null}
-          {canManage ? (
-            <Button onClick={openCreateManualDialog}>
               Tambah Jadwal Manual
             </Button>
           ) : null}
         </Space>
       }
     >
-      {displayGenerateResult ? (
+      <Space direction='vertical' size={16} style={{ width: "100%" }}>
         <Card
           size='small'
-          style={{
-            marginBottom: 20,
-            borderRadius: 18,
-            borderColor: "#ead9cc",
-            background: "#fffaf4",
-          }}
-          title='Ringkasan Generate Terakhir'
+          style={SCHEDULE_INNER_CARD_STYLE}
+          styles={{ body: SCHEDULE_INNER_CARD_BODY }}
         >
-          <Space orientation='vertical' size={12} style={{ width: "100%" }}>
-            <Alert
-              showIcon
-              type={
-                displayGenerateResult.dry_run
-                  ? "info"
-                  : (displayGenerateResult.failed_items || []).length > 0
-                    ? "warning"
-                    : "success"
-              }
-              title={
-                displayGenerateResult.dry_run
-                  ? "Mode simulasi"
-                  : displayGenerateResult.operation === "reset_generated"
-                    ? "Reset jadwal otomatis"
-                    : "Generate jadwal"
-              }
-              description={`Aksi: ${GENERATE_ACTION_OPTIONS.find((item) => item.value === displayGenerateResult.action)?.label || displayGenerateResult.action}. Generated: ${displayGenerateResult.summary?.generated_entries || 0}. Konflik: ${displayGenerateResult.summary?.failed_count || 0}. Generated lama yang dibersihkan: ${displayGenerateResult.summary?.deleted_generated_entries || 0}.`}
-            />
-
-            <Space wrap>
-              <Tag color='blue'>
-                Load: {displayGenerateResult.summary?.total_loads || 0}
-              </Tag>
-              <Tag color='geekblue'>
-                Slot: {displayGenerateResult.summary?.total_slots || 0}
-              </Tag>
-              <Tag color='purple'>
-                Rule guru: {displayGenerateResult.summary?.weekly_rules || 0}
-              </Tag>
-              <Tag color='gold'>
-                Manual tersimpan:{" "}
-                {displayGenerateResult.summary?.existing_entries
-                  ?.manual_entries || 0}
-              </Tag>
-              <Tag color='red'>
-                Locked tersimpan:{" "}
-                {displayGenerateResult.summary?.existing_entries
-                  ?.locked_entries || 0}
-              </Tag>
-            </Space>
-
-            {(displayGenerateResult.failed_summary || []).length > 0 ? (
-              <Space wrap>
-                {displayGenerateResult.failed_summary.map((item) => (
-                  <Tag key={item.code} color='orange'>
-                    {item.label}: {item.count}
-                  </Tag>
-                ))}
-              </Space>
-            ) : null}
-
-            {(displayGenerateResult.failed_items || []).length > 0 ? (
-              <Table
-                rowKey='key'
-                size='small'
-                columns={failedColumns}
-                dataSource={displayGenerateResult.failed_items.slice(0, 10)}
-                pagination={false}
-                scroll={{ x: 720 }}
-              />
-            ) : null}
+          <Space size={[8, 8]} wrap>
+            <Tag color='blue' style={SCHEDULE_TAG_STYLE}>
+              Entri jadwal: {(entries || []).length}
+            </Tag>
+            <Tag color='geekblue' style={SCHEDULE_TAG_STYLE}>
+              Jadwal manual: {manualEntryCount}
+            </Tag>
+            <Tag color='purple' style={SCHEDULE_TAG_STYLE}>
+              Kegiatan aktif: {totalActivityCount}
+            </Tag>
+            <Tag color='gold' style={SCHEDULE_TAG_STYLE}>
+              Guru aktif: {teacherSummaryRows.length}
+            </Tag>
           </Space>
         </Card>
-      ) : null}
 
-      {!timetableRows.length ? (
-        <Empty description='Belum ada jadwal untuk ditampilkan.' />
-      ) : (
-        <Card
-          size='small'
-          style={{
-            borderRadius: 18,
-            borderColor: "#ead9cc",
-            boxShadow: "0 10px 24px rgba(110, 84, 54, 0.08)",
-          }}
-          styles={{
-            header: {
-              background: "#fff8f0",
-              borderBottom: "1px solid #efdfd0",
-            },
-            body: { padding: 0 },
-          }}
-        >
-          <Tabs
-            defaultActiveKey='timetable'
-            style={{ padding: "0 16px 16px" }}
-            items={[
-              {
-                key: "timetable",
-                label: "Jadwal",
-                children: (
-                  <ScheduleTimetableBoard
-                    canManage={canManage}
-                    flatClasses={flatClasses}
-                    gradeGroups={gradeGroups}
-                    loading={loading}
-                    onEditEntry={openEditor}
-                    rows={timetableRows}
-                  />
-                ),
-              },
-              {
-                key: "teacher-subject",
-                label: "Guru dan Mapel",
-                children: (
-                  <ScheduleTeacherMapelTable
-                    loading={loading}
-                    rows={teacherSummaryRows}
-                  />
-                ),
-              },
-            ]}
-          />
-        </Card>
-      )}
+        <Alert
+          showIcon
+          type='info'
+          message='Penyusunan jadwal dilakukan manual'
+          description='Gunakan tombol Tambah Jadwal Manual untuk menempatkan sesi, lalu klik kotak pelajaran di board untuk mengubah hari, slot, atau jumlah sesi. Validasi bentrok kelas, guru, kegiatan, dan batas beban tetap berjalan.'
+        />
 
-      <Modal
-        open={openGenerateModal}
-        title='Generate Jadwal'
-        onCancel={() => setOpenGenerateModal(false)}
-        onOk={handleGenerateSubmit}
-        okText={generatePreview ? "Jalankan Simulasi" : "Jalankan"}
-        confirmLoading={loading}
-      >
-        <Form form={generateForm} layout='vertical'>
-          <Form.Item name='action' label='Aksi' rules={[{ required: true }]}>
-            <Select
-              options={GENERATE_ACTION_OPTIONS.map((item) => ({
-                value: item.value,
-                label: item.label,
-              }))}
-            />
-          </Form.Item>
+        {sessionShortages.length > 0 ? (
           <Alert
             showIcon
-            type='info'
-            style={{ marginBottom: 16 }}
-            title={
-              GENERATE_ACTION_OPTIONS.find(
-                (item) => item.value === generateAction,
-              )?.label || "Generate"
-            }
-            description={
-              GENERATE_ACTION_OPTIONS.find(
-                (item) => item.value === generateAction,
-              )?.description || "-"
-            }
+            type='warning'
+            message={`Masih ada ${sessionShortages.length} beban ajar yang belum terpenuhi`}
+            description={`${sessionShortages
+              .slice(0, 3)
+              .map(
+                (item) =>
+                  `${item.teacher_name} - ${item.subject_name} ${item.class_name}: ${item.allocated_sessions}/${item.required_sessions} sesi`,
+              )
+              .join(" | ")}${
+              sessionShortages.length > 3 ? " | ..." : ""
+            }`}
           />
-          <Form.Item
-            name='dry_run'
-            label='Simulasi terlebih dahulu'
-            valuePropName='checked'
+        ) : null}
+
+        {!timetableRows.length ? (
+          <Card
+            size='small'
+            style={SCHEDULE_INNER_CARD_STYLE}
+            styles={{ body: { ...SCHEDULE_INNER_CARD_BODY, paddingBlock: 32 } }}
           >
-            <Switch checkedChildren='Simulasi' unCheckedChildren='Eksekusi' />
-          </Form.Item>
-          <Alert
-            showIcon
-            type={generatePreview ? "warning" : "success"}
-            title={
-              generatePreview
-                ? "Tidak ada data yang diubah"
-                : "Perubahan akan diterapkan"
-            }
-            description={
-              generatePreview
-                ? "Sistem hanya menghitung hasil, konflik, dan jumlah entri yang bisa dibuat."
-                : generateAction === "reset_generated"
-                  ? "Semua jadwal otomatis yang tidak dikunci dan bukan manual override akan dibersihkan."
-                  : "Sistem akan menulis hasil generate sesuai aksi yang dipilih."
-            }
-          />
-        </Form>
-      </Modal>
+            <Empty description='Belum ada jadwal untuk ditampilkan.' />
+          </Card>
+        ) : (
+          <Card
+            size='small'
+            style={SCHEDULE_INNER_CARD_STYLE}
+            styles={{
+              header: {
+                background: "#f8fbff",
+                borderBottom: "1px solid #e2e8f0",
+              },
+              body: { padding: 0 },
+            }}
+          >
+            <Tabs
+              defaultActiveKey='timetable'
+              style={{ padding: "0 16px 16px", maxWidth: "100%" }}
+              items={[
+                {
+                  key: "timetable",
+                  label: "Board Jadwal",
+                  children: (
+                    <ScheduleTimetableBoard
+                      canManage={canManage}
+                      flatClasses={flatClasses}
+                      gradeGroups={gradeGroups}
+                      loading={loading}
+                      onEditEntry={openEditor}
+                      rows={timetableRows}
+                    />
+                  ),
+                },
+                {
+                  key: "teacher-subject",
+                  label: "Guru dan Mapel",
+                  children: (
+                    <ScheduleTeacherMapelTable
+                      loading={loading}
+                      rows={teacherSummaryRows}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        )}
+      </Space>
 
       <Modal
         open={openModal}
@@ -1100,7 +893,7 @@ const ScheduleTimetableCard = ({
               type='info'
               showIcon
               style={{ marginBottom: 16 }}
-              title='Batas sesi manual'
+              message='Batas sesi manual'
               description={`Sisa beban: ${selectedLoadHelper.remainingSessions} sesi. Maks sesi per pertemuan: ${selectedLoadHelper.maxSessionsPerMeeting} sesi. Input yang diizinkan maksimal ${manualSlotCountLimit} sesi.`}
             />
           ) : null}
@@ -1108,14 +901,14 @@ const ScheduleTimetableCard = ({
             <Alert
               type='warning'
               showIcon
-              title={`${editing.class_name} | ${editing.subject_name}`}
-              description={`Guru: ${editing.teacher_name}. Hasil generate tidak akan menimpa perubahan manual ini selama tidak bentrok.`}
+              message={`${editing.class_name} | ${editing.subject_name}`}
+              description={`Guru: ${editing.teacher_name}. Perubahan pada jadwal ini akan dicatat sebagai penyesuaian manual.`}
             />
           ) : modalMode === "create" ? (
             <Alert
               type='info'
               showIcon
-              title='Jadwal manual akan dipertahankan saat generate'
+              message='Tambahkan jadwal final secara manual'
               description='Pilih beban ajar yang valid, lalu tentukan hari, slot mulai, dan jumlah sesi.'
             />
           ) : null}

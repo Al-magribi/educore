@@ -27,18 +27,6 @@ export const toTimeString = (minutes) => {
   return `${hour}:${minute}:00`;
 };
 
-export const splitSessions = (weeklySessions, maxPerMeeting) => {
-  const chunks = [];
-  let remaining = Math.max(0, toInt(weeklySessions, 0));
-  const maxChunk = Math.max(1, toInt(maxPerMeeting, 2));
-  while (remaining > 0) {
-    const nextChunk = Math.min(maxChunk, remaining);
-    chunks.push(nextChunk);
-    remaining -= nextChunk;
-  }
-  return chunks;
-};
-
 export const ensureActivePeriode = async (executor, homebaseId, requestedPeriodeId) => {
   if (requestedPeriodeId) return requestedPeriodeId;
   const activePeriode = await executor.query(
@@ -148,72 +136,6 @@ export const resolveSelectedScheduleGroup = async ({
 
 export const overlapTime = (slotStart, slotEnd, blockStart, blockEnd) =>
   slotStart < blockEnd && slotEnd > blockStart;
-
-export const buildSlotTimeMap = (slotRows = []) =>
-  slotRows.reduce((acc, item) => {
-    acc[Number(item.id)] = {
-      id: Number(item.id),
-      day_of_week: Number(item.day_of_week),
-      start_minute: parseMinute(item.start_time),
-      end_minute: parseMinute(item.end_time),
-      config_group_id: toInt(item.config_group_id, null),
-      slot_no: toInt(item.slot_no, null),
-    };
-    return acc;
-  }, {});
-
-export const gapSatisfied = (
-  candidateStart,
-  candidateEnd,
-  existingStart,
-  existingEnd,
-  minGap,
-) => {
-  if (!Number.isFinite(minGap) || minGap <= 0) return true;
-  if (candidateStart > existingEnd) return candidateStart - existingEnd >= minGap;
-  if (existingStart > candidateEnd) return existingStart - candidateEnd >= minGap;
-  return false;
-};
-
-export const GENERATE_ACTIONS = new Set([
-  "generate_new",
-  "regenerate_generated",
-  "reset_generated",
-]);
-
-export const FAILURE_LABELS = {
-  no_day_slots: "Tidak ada slot tersedia pada hari sekolah aktif.",
-  same_day_rule: "Aturan hari yang berbeda untuk mapel yang sama tidak terpenuhi.",
-  no_contiguous_segment: "Tidak ditemukan slot berurutan sesuai kebutuhan sesi.",
-  gap_rule: "Jarak minimal antarsesi mapel yang sama tidak terpenuhi.",
-  class_conflict: "Slot kelas sudah terisi.",
-  teacher_conflict: "Slot guru sudah terisi.",
-  teacher_unavailability: "Guru tidak tersedia pada slot tersebut.",
-  no_group_mapping: "Kelas belum memiliki group jadwal aktif.",
-  no_available_slot: "Tidak ada kombinasi slot yang dapat dipakai.",
-};
-
-export const summarizeFailureStats = (stats = {}) =>
-  Object.entries(stats)
-    .filter(([, count]) => Number(count) > 0)
-    .sort((left, right) => Number(right[1]) - Number(left[1]))
-    .map(([code, count]) => ({
-      code,
-      count: Number(count),
-      label: FAILURE_LABELS[code] || code,
-    }));
-
-export const getPrimaryFailureCode = (stats = {}) => {
-  const sorted = summarizeFailureStats(stats);
-  return sorted[0]?.code || "no_available_slot";
-};
-
-export const aggregateFailureCodes = (failedItems = []) =>
-  failedItems.reduce((acc, item) => {
-    const code = item.failure_code || "no_available_slot";
-    acc[code] = (acc[code] || 0) + 1;
-    return acc;
-  }, {});
 
 export const resolveScheduleSegment = async ({
   client,
