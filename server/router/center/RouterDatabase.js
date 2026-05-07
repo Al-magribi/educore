@@ -8,6 +8,7 @@ import { spawn } from "cross-spawn";
 const router = Router();
 const SYSTEM_SCHEMAS = ["information_schema", "pg_catalog"];
 const HIDDEN_SCHEMAS = ["pgboss"];
+const HIDDEN_TABLES = [{ schema: "public", table: "configurations" }];
 
 // =======================================
 // Helper Functions
@@ -85,6 +86,11 @@ const normalizeRequestedTable = (value) => {
   return null;
 };
 
+const isHiddenTable = (schema, table) =>
+  HIDDEN_TABLES.some(
+    (item) => item.schema === schema && item.table === table,
+  );
+
 const replaceDirectory = (sourceDir, targetDir, rollbackDir) => {
   const hasTarget = fs.existsSync(targetDir);
 
@@ -92,24 +98,39 @@ const replaceDirectory = (sourceDir, targetDir, rollbackDir) => {
     fs.rmSync(rollbackDir, { recursive: true, force: true });
   }
 
+  fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+
   if (hasTarget) {
-    fs.renameSync(targetDir, rollbackDir);
+    fs.cpSync(targetDir, rollbackDir, { recursive: true, force: true });
   }
 
   try {
-    fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+    if (fs.existsSync(targetDir)) {
+      const targetEntries = fs.readdirSync(targetDir);
+      for (const entry of targetEntries) {
+        fs.rmSync(path.join(targetDir, entry), { recursive: true, force: true });
+      }
+    } else {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
     fs.cpSync(sourceDir, targetDir, { recursive: true, force: true });
 
     if (fs.existsSync(rollbackDir)) {
       fs.rmSync(rollbackDir, { recursive: true, force: true });
     }
   } catch (error) {
-    if (fs.existsSync(targetDir)) {
-      fs.rmSync(targetDir, { recursive: true, force: true });
-    }
-
     if (fs.existsSync(rollbackDir)) {
-      fs.renameSync(rollbackDir, targetDir);
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      const targetEntries = fs.existsSync(targetDir)
+        ? fs.readdirSync(targetDir)
+        : [];
+      for (const entry of targetEntries) {
+        fs.rmSync(path.join(targetDir, entry), { recursive: true, force: true });
+      }
+
+      fs.cpSync(rollbackDir, targetDir, { recursive: true, force: true });
     }
 
     throw error;
@@ -159,6 +180,39 @@ const getDirectorySize = (dirPath) => {
 const formatBytes = (bytes) => {
   const mb = bytes / 1024 / 1024;
   return `${mb.toFixed(2)} MB`;
+};
+
+const sanitizeRestoreSql = (sqlContent) => {
+  const inheritedConstraintDropPattern =
+    /ALTER TABLE(?:\s+IF\s+EXISTS)?\s+ONLY\s+([^\s;]+)\s+DROP\s+CONSTRAINT(?:\s+IF\s+EXISTS)?\s+([^\s;]+);\s*/gim;
+  const dropTablePattern = /DROP TABLE IF EXISTS\s+([^\s;]+)\s*;/gim;
+  const dropSchemaPattern = /DROP SCHEMA IF EXISTS\s+([^\s;]+)\s*;/gim;
+
+  let removedInheritedConstraintDrops = 0;
+  let normalizedDropTableCascade = 0;
+  let normalizedDropSchemaCascade = 0;
+
+  let sanitizedSql = sqlContent.replace(inheritedConstraintDropPattern, () => {
+    removedInheritedConstraintDrops += 1;
+    return "";
+  });
+
+  sanitizedSql = sanitizedSql.replace(dropTablePattern, (_, identifier) => {
+    normalizedDropTableCascade += 1;
+    return `DROP TABLE IF EXISTS ${identifier} CASCADE;`;
+  });
+
+  sanitizedSql = sanitizedSql.replace(dropSchemaPattern, (_, identifier) => {
+    normalizedDropSchemaCascade += 1;
+    return `DROP SCHEMA IF EXISTS ${identifier} CASCADE;`;
+  });
+
+  return {
+    sanitizedSql,
+    removedInheritedConstraintDrops,
+    normalizedDropTableCascade,
+    normalizedDropSchemaCascade,
+  };
 };
 
 const isSafeBackupName = (value) =>
@@ -222,7 +276,9 @@ router.get(
     `;
 
     const result = await pool.query(query, [SYSTEM_SCHEMAS, HIDDEN_SCHEMAS]);
-    res.status(200).json(result.rows);
+    res.status(200).json(
+      result.rows.filter((row) => !isHiddenTable(row.schema, row.tableName)),
+    );
   }),
 );
 
@@ -414,13 +470,44 @@ router.post(
         tempRestoreDir,
         "__assets_before_restore",
       );
+      const restoreSqlFile = path.join(tempRestoreDir, "database.restore.sql");
       const PSQL_CMD = getCommandPath("psql");
 
       console.log(`[RESTORE] Executing SQL restore from ${backupName}...`);
 
+      const rawSql = fs.readFileSync(sqlFile, "utf8");
+      const {
+        sanitizedSql,
+        removedInheritedConstraintDrops,
+        normalizedDropTableCascade,
+        normalizedDropSchemaCascade,
+      } =
+        sanitizeRestoreSql(rawSql);
+
+      fs.writeFileSync(restoreSqlFile, sanitizedSql);
+
+      if (removedInheritedConstraintDrops > 0) {
+        console.log(
+          `[RESTORE] Removed ${removedInheritedConstraintDrops} inherited DROP CONSTRAINT statement(s) before restore.`,
+        );
+      }
+
+      if (normalizedDropTableCascade > 0) {
+        console.log(
+          `[RESTORE] Added CASCADE to ${normalizedDropTableCascade} DROP TABLE statement(s).`,
+        );
+      }
+
+      if (normalizedDropSchemaCascade > 0) {
+        console.log(
+          `[RESTORE] Added CASCADE to ${normalizedDropSchemaCascade} DROP SCHEMA statement(s).`,
+        );
+      }
+
       const pgEnv = { ...process.env, PGPASSWORD: process.env.P_PASSWORD };
 
       await new Promise((resolve, reject) => {
+        let stderrBuffer = "";
         const psql = spawn(
           PSQL_CMD,
           [
@@ -436,16 +523,27 @@ router.post(
             "ON_ERROR_STOP=1",
             "-1",
             "-f",
-            sqlFile,
+            restoreSqlFile,
           ],
           { env: pgEnv },
         );
 
-        psql.stderr.on("data", (data) => console.log(`psql stderr: ${data}`));
+        psql.stderr.on("data", (data) => {
+          const text = data.toString();
+          stderrBuffer += text;
+          console.log(`psql stderr: ${text}`);
+        });
 
         psql.on("close", (code) => {
           if (code !== 0) {
-            reject(new Error("Gagal restore SQL (Exit code error)"));
+            const stderrMessage = stderrBuffer.trim();
+            reject(
+              new Error(
+                stderrMessage
+                  ? `Gagal restore SQL: ${stderrMessage}`
+                  : "Gagal restore SQL (Exit code error)",
+              ),
+            );
             return;
           }
 
@@ -513,7 +611,7 @@ router.delete(
       const allTables = result.rows.map((row) => ({
         schema: row.table_schema,
         table: row.table_name,
-      }));
+      })).filter((item) => !isHiddenTable(item.schema, item.table));
       const exactMap = new Map(
         allTables.map((item) => [`${item.schema}.${item.table}`, item]),
       );
@@ -548,20 +646,40 @@ router.delete(
       );
 
       const protectedAdminIds = new Set();
+      const protectedAdminRelations = [];
       if (includesUsersTable || includesAdminTable) {
         const protectedAdmins = await client.query(
           `
-            SELECT u.id
+            SELECT
+              u.id,
+              a.user_id AS admin_user_id,
+              a.phone,
+              a.email,
+              a.level,
+              a.homebase_id
             FROM public.u_users u
-            INNER JOIN public.u_admin a ON a.user_id = u.id
-            WHERE u.role = 'admin'
-              AND LOWER(COALESCE(a.level, '')) = ANY($1::text[])
+            LEFT JOIN public.u_admin a ON a.user_id = u.id
+            WHERE u.username = 'center'
+               OR u.role = 'center'
+               OR (
+                 u.role = 'admin'
+                 AND LOWER(BTRIM(COALESCE(a.level, ''))) = ANY($1::text[])
+               )
           `,
           [PROTECTED_ADMIN_LEVELS],
         );
 
         for (const row of protectedAdmins.rows) {
           protectedAdminIds.add(row.id);
+          if (row.admin_user_id) {
+            protectedAdminRelations.push({
+              userId: row.admin_user_id,
+              phone: row.phone,
+              email: row.email,
+              level: row.level,
+              homebaseId: row.homebase_id,
+            });
+          }
         }
       }
 
@@ -593,6 +711,27 @@ router.delete(
             `DELETE FROM public.u_admin WHERE user_id <> ALL($1::int[])`,
             [Array.from(protectedAdminIds)],
           );
+
+          for (const relation of protectedAdminRelations) {
+            await client.query(
+              `
+                INSERT INTO public.u_admin (user_id, phone, email, level, homebase_id)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (user_id) DO UPDATE
+                SET phone = EXCLUDED.phone,
+                    email = EXCLUDED.email,
+                    level = EXCLUDED.level,
+                    homebase_id = EXCLUDED.homebase_id
+              `,
+              [
+                relation.userId,
+                relation.phone,
+                relation.email,
+                relation.level,
+                relation.homebaseId,
+              ],
+            );
+          }
         } else {
           await client.query(`TRUNCATE TABLE public.u_admin RESTART IDENTITY`);
         }
