@@ -96,7 +96,6 @@ jobs:
           set -euo pipefail
 
           node --check server/router/registerApiRoutes.js
-          node --input-type=module -e "await import('./server/router/registerApiRoutes.js'); process.exit(0)"
 
           # Keep workflow files unchanged on release branch to avoid
           # requiring `workflows` permission for GitHub App pushes.
@@ -110,7 +109,7 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "chore(compose): align workflows for ${COMPOSE_BRANCH}"
           fi
-          
+
           git push origin "${COMPOSE_BRANCH}" --force
 
   publish:
