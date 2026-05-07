@@ -35,7 +35,7 @@ const Backup = () => {
   const handleCreateBackup = async () => {
     try {
       await createBackup().unwrap();
-      message.success("Backup berhasil dibuat!");
+      message.success("Backup semua schema dan assets berhasil dibuat!");
     } catch (error) {
       message.error(error?.data?.message || "Gagal membuat backup");
     }
@@ -148,7 +148,8 @@ const Backup = () => {
                 Riwayat Backup
               </Title>
               <Text style={{ color: "#64748b" }}>
-                Simpan dan unduh salinan database terbaru saat dibutuhkan.
+                Simpan salinan penuh semua schema database beserta folder
+                `server/assets`.
               </Text>
             </div>
             <Space>
