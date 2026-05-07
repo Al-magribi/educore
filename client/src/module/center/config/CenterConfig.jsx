@@ -1,24 +1,69 @@
 import React from "react";
 import { AppleOutlined, DatabaseOutlined } from "@ant-design/icons";
-import { Card, Space, Tabs, Tag, Typography } from "antd";
+import { Card, Flex, Grid, Space, Tabs, Tag, Typography, theme } from "antd";
 import { motion } from "framer-motion";
 import Database from "./database/Database";
 import App from "./app/App";
 
+const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
 const CenterConfig = () => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const { token } = theme.useToken();
+
+  const createTabLabel = (label, icon, caption) => (
+    <Flex align='center' gap={10}>
+      <span
+        style={{
+          width: 34,
+          height: 34,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
+          color: "#0369a1",
+          border: "1px solid rgba(148, 163, 184, 0.14)",
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </span>
+      <Flex vertical gap={0}>
+        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+        {!isMobile && (
+          <span
+            style={{
+              fontSize: 12,
+              color: token.colorTextSecondary,
+              lineHeight: 1.2,
+            }}
+          >
+            {caption}
+          </span>
+        )}
+      </Flex>
+    </Flex>
+  );
+
   const items = [
     {
-      label: "Pengaturan Aplikasi",
-      icon: <AppleOutlined />,
+      label: createTabLabel(
+        "Pengaturan Aplikasi",
+        <AppleOutlined />,
+        "Identitas & preferensi",
+      ),
       key: "app",
       children: <App />,
     },
     {
-      label: "Pengaturan Database",
-      icon: <DatabaseOutlined />,
+      label: createTabLabel(
+        "Pengaturan Database",
+        <DatabaseOutlined />,
+        "Backup, restore, dan tables",
+      ),
       key: "database",
       children: <Database />,
     },
@@ -82,8 +127,8 @@ const CenterConfig = () => {
               }}
             >
               Atur konfigurasi aplikasi, backup database, restore data, dan
-              pengelolaan tabel dengan tampilan yang lebih nyaman untuk dipakai
-              harian.
+              pengelolaan tabel lintas schema dengan tampilan yang lebih nyaman
+              untuk dipakai harian.
             </Text>
           </div>
         </Space>
@@ -92,13 +137,19 @@ const CenterConfig = () => {
       <Card
         variant="borderless"
         style={{
-          borderRadius: 22,
+          borderRadius: token.borderRadiusXL,
           border: "1px solid rgba(148, 163, 184, 0.14)",
-          boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
+          boxShadow: token.boxShadowSecondary,
         }}
-        styles={{ body: { padding: 18 } }}
+        styles={{ body: { padding: isMobile ? 12 : 16 } }}
       >
-        <Tabs defaultActiveKey="app" items={items} />
+        <Tabs
+          defaultActiveKey='app'
+          items={items}
+          size={isMobile ? "middle" : "large"}
+          tabBarGutter={12}
+          tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+        />
       </Card>
     </MotionDiv>
   );

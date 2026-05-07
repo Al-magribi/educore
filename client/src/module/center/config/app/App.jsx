@@ -3,13 +3,16 @@ import {
   Alert,
   Button,
   Card,
+  Flex,
   Form,
+  Grid,
   Space,
   Spin,
   Tabs,
   Tag,
   Typography,
   message,
+  theme,
 } from "antd";
 import { SaveOutlined, SettingOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
@@ -19,10 +22,15 @@ import {
 } from "../../../../service/center/ApiApp";
 import ConfigCategoryPanel from "./ConfigCategoryPanel";
 
+const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
 const App = () => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const { token } = theme.useToken();
+
   const normalizeDomainInput = (rawValue) => {
     if (typeof rawValue !== "string") {
       return rawValue;
@@ -70,16 +78,52 @@ const App = () => {
       return [];
     }
 
+    const createTabLabel = (label, caption) => (
+      <Flex align='center' gap={10}>
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 12,
+            background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
+            color: "#0369a1",
+            border: "1px solid rgba(148, 163, 184, 0.14)",
+            flexShrink: 0,
+          }}
+        >
+          <SettingOutlined />
+        </span>
+        <Flex vertical gap={0}>
+          <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+          {!isMobile && (
+            <span
+              style={{
+                fontSize: 12,
+                color: token.colorTextSecondary,
+                lineHeight: 1.2,
+              }}
+            >
+              {caption}
+            </span>
+          )}
+        </Flex>
+      </Flex>
+    );
+
     const uniqueCategories = [...new Set(configs.map((c) => c.category))];
 
-    return uniqueCategories.map((cat) => ({
-      key: cat,
-      label: cat.toUpperCase(),
-      children: (
-        <ConfigCategoryPanel configs={configs.filter((c) => c.category === cat)} />
-      ),
-    }));
-  }, [configs]);
+    return uniqueCategories.map((cat) => {
+      const categoryConfigs = configs.filter((c) => c.category === cat);
+
+      return {
+        key: cat,
+        label: createTabLabel(cat.toUpperCase(), `${categoryConfigs.length} item`),
+        children: <ConfigCategoryPanel configs={categoryConfigs} />,
+      };
+    });
+  }, [configs, isMobile, token.colorTextSecondary]);
 
   if (isLoading) {
     return (
@@ -184,14 +228,20 @@ const App = () => {
       <Card
         variant="borderless"
         style={{
-          borderRadius: 22,
+          borderRadius: token.borderRadiusXL,
           border: "1px solid rgba(148, 163, 184, 0.14)",
-          boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
+          boxShadow: token.boxShadowSecondary,
         }}
-        styles={{ body: { padding: 18 } }}
+        styles={{ body: { padding: isMobile ? 12 : 16 } }}
       >
         <Form form={form} layout="vertical" onFinish={onFinish}>
-          <Tabs defaultActiveKey={tabItems[0]?.key} items={tabItems} />
+          <Tabs
+            defaultActiveKey={tabItems[0]?.key}
+            items={tabItems}
+            size={isMobile ? "middle" : "large"}
+            tabBarGutter={12}
+            tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+          />
         </Form>
       </Card>
     </MotionDiv>

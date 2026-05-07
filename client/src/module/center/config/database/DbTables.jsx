@@ -8,8 +8,10 @@ import {
   Input,
   Popconfirm,
   Row,
+  Select,
   Space,
   Spin,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -29,6 +31,41 @@ import {
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
+const HIDDEN_SCHEMAS = ["pgboss"];
+const schemaColors = [
+  "blue",
+  "cyan",
+  "geekblue",
+  "green",
+  "gold",
+  "orange",
+  "magenta",
+  "purple",
+];
+
+const getTableMeta = (table, index = 0) => {
+  if (typeof table === "string") {
+    const [schemaPart, tablePart] = table.includes(".")
+      ? table.split(".")
+      : ["public", table];
+
+    return {
+      key: table.includes(".") ? table : `public.${table}`,
+      schema: schemaPart,
+      tableName: tablePart,
+      fullName: table.includes(".") ? table : `public.${table}`,
+      color: schemaColors[index % schemaColors.length],
+    };
+  }
+
+  return {
+    key: table.fullName,
+    schema: table.schema,
+    tableName: table.tableName,
+    fullName: table.fullName,
+    color: schemaColors[index % schemaColors.length],
+  };
+};
 
 const DbTables = () => {
   const { data: tables, isLoading } = useGetTablesQuery();
@@ -36,31 +73,84 @@ const DbTables = () => {
 
   const [selectedTables, setSelectedTables] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [schemaFilter, setSchemaFilter] = useState("all");
 
-  const filteredTables = useMemo(() => {
+  const normalizedTables = useMemo(() => {
     if (!tables) {
       return [];
     }
 
-    return tables.filter((t) =>
-      t.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-  }, [tables, searchTerm]);
+    return tables
+      .map((table, index) => getTableMeta(table, index))
+      .filter((table) => !HIDDEN_SCHEMAS.includes(table.schema));
+  }, [tables]);
 
-  const toggleSelection = (tableName) => {
+  const schemaOptions = useMemo(() => {
+    const schemas = Array.from(
+      new Set(normalizedTables.map((table) => table.schema)),
+    ).sort((a, b) => a.localeCompare(b));
+
+    return [
+      { value: "all", label: "Semua Schema" },
+      ...schemas.map((schema) => ({
+        value: schema,
+        label: schema,
+      })),
+    ];
+  }, [normalizedTables]);
+
+  const filteredTables = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+
+    const schemaScopedTables =
+      schemaFilter === "all"
+        ? normalizedTables
+        : normalizedTables.filter((table) => table.schema === schemaFilter);
+
+    if (!keyword) {
+      return schemaScopedTables;
+    }
+
+    return schemaScopedTables.filter((table) =>
+      [table.fullName, table.schema, table.tableName].some((value) =>
+        value.toLowerCase().includes(keyword),
+      ),
+    );
+  }, [normalizedTables, schemaFilter, searchTerm]);
+
+  const schemaSummary = useMemo(() => {
+    const counts = filteredTables.reduce((acc, table) => {
+      acc[table.schema] = (acc[table.schema] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(counts);
+  }, [filteredTables]);
+
+  const visibleKeys = filteredTables.map((table) => table.key);
+  const allVisibleSelected =
+    filteredTables.length > 0 &&
+    filteredTables.every((table) => selectedTables.includes(table.key));
+  const hasPartialSelection =
+    selectedTables.length > 0 && !allVisibleSelected;
+
+  const toggleSelection = (tableKey) => {
     setSelectedTables((prev) =>
-      prev.includes(tableName)
-        ? prev.filter((t) => t !== tableName)
-        : [...prev, tableName],
+      prev.includes(tableKey)
+        ? prev.filter((item) => item !== tableKey)
+        : [...prev, tableKey],
     );
   };
 
   const handleSelectAll = () => {
-    if (selectedTables.length === filteredTables.length) {
-      setSelectedTables([]);
-    } else {
-      setSelectedTables(filteredTables);
+    if (allVisibleSelected) {
+      setSelectedTables((prev) =>
+        prev.filter((item) => !visibleKeys.includes(item)),
+      );
+      return;
     }
+
+    setSelectedTables((prev) => Array.from(new Set([...prev, ...visibleKeys])));
   };
 
   const handleResetExecute = async () => {
@@ -70,21 +160,23 @@ const DbTables = () => {
 
     try {
       await resetTables({ tables: selectedTables }).unwrap();
-      message.success(`${selectedTables.length} tabel berhasil dikosongkan!`);
+      message.success(
+        `${selectedTables.length} tabel berhasil dikosongkan dan ID direset!`,
+      );
       setSelectedTables([]);
     } catch (error) {
       message.error(error?.data?.message || "Gagal mereset tabel");
     }
   };
 
-  const renderCard = (tableName) => {
-    const isSelected = selectedTables.includes(tableName);
+  const renderCard = (table) => {
+    const isSelected = selectedTables.includes(table.key);
 
     return (
-      <Col xs={24} sm={12} md={8} lg={6} key={tableName}>
+      <Col xs={24} sm={12} md={8} lg={6} key={table.key}>
         <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
           <div
-            onClick={() => toggleSelection(tableName)}
+            onClick={() => toggleSelection(table.key)}
             style={{
               position: "relative",
               cursor: "pointer",
@@ -127,13 +219,18 @@ const DbTables = () => {
                   color: isSelected ? "#1d4ed8" : "#0f172a",
                   display: "block",
                 }}
-                ellipsis={{ tooltip: tableName }}
+                ellipsis={{ tooltip: table.fullName }}
               >
-                {tableName}
+                {table.tableName}
               </Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Public Schema
-              </Text>
+              <Space size={6} wrap style={{ marginTop: 4 }}>
+                <Tag color={table.color} style={{ margin: 0, borderRadius: 999 }}>
+                  {table.schema}
+                </Tag>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {table.fullName}
+                </Text>
+              </Space>
             </div>
 
             {isSelected ? (
@@ -189,23 +286,34 @@ const DbTables = () => {
                 Manajemen Data Tabel
               </Title>
               <Text style={{ color: "#64748b" }}>
-                Pilih tabel yang ingin dikosongkan dengan kontrol yang lebih
-                jelas.
+                Pilih tabel dari semua schema untuk dikosongkan beserta reset
+                identity-nya.
               </Text>
             </div>
-            {tables ? (
-              <Badge count={tables.length} style={{ backgroundColor: "#64748b" }} />
+            {normalizedTables.length > 0 ? (
+              <Badge
+                count={normalizedTables.length}
+                style={{ backgroundColor: "#64748b" }}
+              />
             ) : null}
           </Space>
 
-          <Input
-            placeholder="Cari tabel..."
-            prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: 220, borderRadius: 999 }}
-            allowClear
-          />
+          <Space wrap>
+            <Select
+              value={schemaFilter}
+              onChange={setSchemaFilter}
+              options={schemaOptions}
+              style={{ width: 190 }}
+            />
+            <Input
+              placeholder="Cari schema atau tabel..."
+              prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ width: 260, borderRadius: 999 }}
+              allowClear
+            />
+          </Space>
         </Space>
 
         <div
@@ -223,32 +331,39 @@ const DbTables = () => {
         >
           <Space wrap>
             <Button
-              type={
-                selectedTables.length > 0 &&
-                selectedTables.length === filteredTables.length
-                  ? "primary"
-                  : "default"
-              }
+              type={allVisibleSelected ? "primary" : "default"}
               icon={<CheckSquareOutlined />}
               onClick={handleSelectAll}
               style={{ borderRadius: 999 }}
             >
-              {selectedTables.length === filteredTables.length
-                ? "Batal Pilih Semua"
-                : "Pilih Semua"}
+              {allVisibleSelected ? "Batal Pilih Semua" : "Pilih Semua"}
             </Button>
+
+            {schemaSummary.map(([schema, count], index) => (
+              <Tag
+                key={schema}
+                color={schemaColors[index % schemaColors.length]}
+                style={{ borderRadius: 999, margin: 0 }}
+              >
+                {schema}: {count}
+              </Tag>
+            ))}
 
             {selectedTables.length > 0 ? (
               <Text strong style={{ color: "#d97706" }}>
                 {selectedTables.length} tabel dipilih
               </Text>
             ) : null}
+
+            {hasPartialSelection ? (
+              <Text type="secondary">Sebagian tabel terlihat sudah dipilih</Text>
+            ) : null}
           </Space>
 
           {selectedTables.length > 0 ? (
             <Popconfirm
               title="Kosongkan Data Tabel?"
-              description={`Tindakan ini akan menghapus permanen seluruh data pada ${selectedTables.length} tabel yang dipilih.`}
+              description={`Tindakan ini akan menghapus permanen seluruh data pada ${selectedTables.length} tabel yang dipilih, menjalankan CASCADE, dan mereset identity/ID-nya.`}
               onConfirm={handleResetExecute}
               okText="Ya, Hapus Data"
               cancelText="Batal"

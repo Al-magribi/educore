@@ -13,6 +13,8 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 const router = Router();
+const SYSTEM_SCHEMAS = ["information_schema", "pg_catalog"];
+const HIDDEN_SCHEMAS = ["pgboss"];
 
 // =======================================
 // Helper Functions
@@ -23,9 +25,33 @@ const router = Router();
  * Berguna jika di server Linux path berbeda (misal di AAPanel/CPanel)
  */
 const getCommandPath = (toolName) => {
-  // Sesuaikan path ini dengan server production Anda jika perlu
+  const executableName =
+    process.platform === "win32" ? `${toolName}.exe` : toolName;
+
+  if (process.platform === "win32") {
+    const windowsRoots = [
+      "C:\\Program Files\\PostgreSQL",
+      "C:\\Program Files (x86)\\PostgreSQL",
+    ];
+
+    for (const root of windowsRoots) {
+      if (!fs.existsSync(root)) continue;
+
+      const versions = fs
+        .readdirSync(root, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+      for (const version of versions) {
+        const candidate = path.join(root, version, "bin", executableName);
+        if (fs.existsSync(candidate)) return candidate;
+      }
+    }
+  }
+
   const possiblePaths = [
-    `/www/server/pgsql/bin/${toolName}`, // Common AAPanel path
+    `/www/server/pgsql/bin/${toolName}`,
     `/usr/bin/${toolName}`,
     `/usr/local/bin/${toolName}`,
   ];
@@ -34,7 +60,66 @@ const getCommandPath = (toolName) => {
     if (fs.existsSync(p)) return p;
   }
 
-  return toolName; // Default (jika sudah ada di Environment Variable PATH)
+  return executableName;
+};
+
+const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
+
+const buildQualifiedName = (schema, table) =>
+  `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;
+
+const normalizeRequestedTable = (value) => {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    const parts = value.split(".");
+    if (parts.length === 2) {
+      return { schema: parts[0], table: parts[1] };
+    }
+
+    return { schema: null, table: value };
+  }
+
+  if (typeof value === "object") {
+    const schema = value.schema ?? value.table_schema ?? null;
+    const table = value.tableName ?? value.table_name ?? value.name ?? null;
+
+    if (!table) return null;
+    return { schema, table };
+  }
+
+  return null;
+};
+
+const replaceDirectory = (sourceDir, targetDir, rollbackDir) => {
+  const hasTarget = fs.existsSync(targetDir);
+
+  if (fs.existsSync(rollbackDir)) {
+    fs.rmSync(rollbackDir, { recursive: true, force: true });
+  }
+
+  if (hasTarget) {
+    fs.renameSync(targetDir, rollbackDir);
+  }
+
+  try {
+    fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+    fs.cpSync(sourceDir, targetDir, { recursive: true, force: true });
+
+    if (fs.existsSync(rollbackDir)) {
+      fs.rmSync(rollbackDir, { recursive: true, force: true });
+    }
+  } catch (error) {
+    if (fs.existsSync(targetDir)) {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+    }
+
+    if (fs.existsSync(rollbackDir)) {
+      fs.renameSync(rollbackDir, targetDir);
+    }
+
+    throw error;
+  }
 };
 
 // =======================================
@@ -44,21 +129,20 @@ router.get(
   "/get-tables",
   authorize("admin"), // Hanya admin
   withQuery(async (req, res, pool) => {
-    // Mengambil semua tabel public kecuali tabel master wilayah (db_*)
-    // agar user tidak tidak sengaja menghapus data wilayah.
     const query = `
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_type = 'BASE TABLE'
-      AND table_name NOT LIKE 'db_%' -- Exclude master wilayah (province, city, etc)
-      ORDER BY table_name ASC;
+      SELECT
+        t.table_schema AS schema,
+        t.table_name AS "tableName",
+        (t.table_schema || '.' || t.table_name) AS "fullName"
+      FROM information_schema.tables t
+      WHERE t.table_type = 'BASE TABLE'
+        AND t.table_schema <> ALL($1::text[])
+        AND t.table_schema <> ALL($2::text[])
+      ORDER BY t.table_schema ASC, t.table_name ASC;
     `;
 
-    const result = await pool.query(query);
-    const tables = result.rows.map((row) => row.table_name);
-
-    res.status(200).json(tables);
+    const result = await pool.query(query, [SYSTEM_SCHEMAS, HIDDEN_SCHEMAS]);
+    res.status(200).json(result.rows);
   }),
 );
 
@@ -81,6 +165,7 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
   const zipFilePath = path.join(targetDir, zipFileName);
 
   const PG_DUMP_CMD = getCommandPath("pg_dump");
+  const manifestFilePath = path.join(targetDir, `manifest_${timestamp}.json`);
 
   try {
     console.log(`[BACKUP] Starting backup using: ${PG_DUMP_CMD}`);
@@ -100,6 +185,8 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
           process.env.P_USER,
           "--clean", // Tambahkan DROP TABLE sebelum CREATE
           "--if-exists",
+          "--no-owner",
+          "--no-privileges",
           "--format=p", // Plain text SQL
           "--file",
           sqlFilePath,
@@ -120,6 +207,15 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
       });
     });
 
+    const manifest = {
+      database: process.env.P_DB,
+      createdAt: new Date().toISOString(),
+      backupType: "full_database_with_assets",
+      sqlFile: "database.sql",
+      assetDirectory: "assets",
+    };
+    fs.writeFileSync(manifestFilePath, JSON.stringify(manifest, null, 2));
+
     // 4. Proses Zipping (SQL + Assets)
     const output = fs.createWriteStream(zipFilePath);
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -128,6 +224,7 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
       console.log(`[BACKUP] Zip created: ${archive.pointer()} bytes`);
       // Hapus file raw SQL setelah di-zip agar hemat storage
       if (fs.existsSync(sqlFilePath)) fs.unlinkSync(sqlFilePath);
+      if (fs.existsSync(manifestFilePath)) fs.unlinkSync(manifestFilePath);
 
       res.status(200).json({
         message: "Backup berhasil dibuat",
@@ -143,6 +240,7 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
 
     // Masukkan SQL ke dalam Zip
     archive.file(sqlFilePath, { name: "database.sql" });
+    archive.file(manifestFilePath, { name: "backup_manifest.json" });
 
     // Masukkan folder Assets (misal: upload tugas siswa, foto profil)
     // Sesuaikan path assets LMS Anda. Asumsi: 'server/public' atau 'server/assets'
@@ -156,6 +254,7 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
     console.error(`[BACKUP ERROR] ${error.message}`);
     // Cleanup jika error
     if (fs.existsSync(sqlFilePath)) fs.unlinkSync(sqlFilePath);
+    if (fs.existsSync(manifestFilePath)) fs.unlinkSync(manifestFilePath);
     res.status(500).json({ message: error.message });
   }
 });
@@ -244,25 +343,14 @@ router.post(
       const zip = new AdmZip(req.file.buffer);
       zip.extractAllTo(tempRestoreDir, true);
 
-      // 3. Restore Assets
       const extractedAssets = path.join(tempRestoreDir, "assets");
-      const targetAssets = path.join(process.cwd(), "server/assets"); // Sesuaikan folder asli
-
-      if (fs.existsSync(extractedAssets)) {
-        // Bersihkan assets lama (opsional, hati-hati jika ingin merge jangan dihapus)
-        if (fs.existsSync(targetAssets)) {
-          // fs.rmSync(targetAssets, { recursive: true, force: true });
-          // Disarankan overwrite daripada delete folder root assets untuk menjaga permission
-        }
-        // Copy recursive
-        fs.cpSync(extractedAssets, targetAssets, {
-          recursive: true,
-          force: true,
-        });
-      }
-
-      // 4. Restore Database (SQL)
-      const sqlFile = path.join(tempRestoreDir, "database.sql");
+      const targetAssets = path.join(process.cwd(), "server/assets");
+      const rollbackAssets = path.join(tempRestoreDir, "__assets_before_restore");
+      const sqlCandidates = fs
+        .readdirSync(tempRestoreDir)
+        .filter((file) => file.toLowerCase().endsWith(".sql"))
+        .map((file) => path.join(tempRestoreDir, file));
+      const sqlFile = sqlCandidates[0] || path.join(tempRestoreDir, "database.sql");
       const PSQL_CMD = getCommandPath("psql");
 
       if (fs.existsSync(sqlFile)) {
@@ -281,6 +369,9 @@ router.post(
             process.env.P_USER,
             "-d",
             process.env.P_DB, // Database target
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-1",
             "-f",
             sqlFile,
           ],
@@ -290,15 +381,27 @@ router.post(
         psql.stderr.on("data", (data) => console.log(`psql stderr: ${data}`));
 
         psql.on("close", (code) => {
-          // Cleanup
-          fs.rmSync(tempRestoreDir, { recursive: true, force: true });
-
-          if (code === 0) {
-            res.json({ message: "Restore Database & Assets berhasil!" });
-          } else {
-            res
+          if (code !== 0) {
+            fs.rmSync(tempRestoreDir, { recursive: true, force: true });
+            return res
               .status(500)
               .json({ message: "Gagal restore SQL (Exit code error)" });
+          }
+
+          try {
+            if (fs.existsSync(extractedAssets)) {
+              replaceDirectory(extractedAssets, targetAssets, rollbackAssets);
+            }
+
+            fs.rmSync(tempRestoreDir, { recursive: true, force: true });
+            res.json({
+              message: "Restore database semua schema dan assets berhasil!",
+            });
+          } catch (assetError) {
+            fs.rmSync(tempRestoreDir, { recursive: true, force: true });
+            res.status(500).json({
+              message: `Database pulih, tetapi restore assets gagal: ${assetError.message}`,
+            });
           }
         });
 
@@ -334,35 +437,68 @@ router.delete(
       return res.status(400).json({ message: "Pilih tabel yang akan direset" });
     }
 
-    // Validasi agar tidak menghapus tabel sistem/master wilayah secara paksa lewat API ini
-    const forbiddenTables = [
-      "db_province",
-      "db_city",
-      "db_district",
-      "db_village",
-    ];
-    const safeTables = tables.filter((t) => !forbiddenTables.includes(t));
+    const normalizedTables = tables
+      .map(normalizeRequestedTable)
+      .filter(Boolean);
 
-    if (safeTables.length === 0)
-      return res.status(400).json({ message: "Tabel tidak valid" });
-
-    // Handle User: Jangan hapus Admin
-    const cleanUsers = safeTables.includes("u_users");
-    const tablesToTruncate = safeTables.filter((t) => t !== "u_users");
+    if (normalizedTables.length === 0) {
+      return res.status(400).json({ message: "Format tabel tidak valid" });
+    }
 
     try {
-      if (tablesToTruncate.length > 0) {
-        // Gunakan CASCADE karena lms_table.sql banyak relasi
-        await client.query(
-          `TRUNCATE TABLE ${tablesToTruncate.join(", ")} RESTART IDENTITY CASCADE`,
-        );
+      const result = await client.query(
+        `
+          SELECT table_schema, table_name
+          FROM information_schema.tables
+          WHERE table_type = 'BASE TABLE'
+            AND table_schema <> ALL($1::text[])
+            AND table_schema <> ALL($2::text[])
+        `,
+        [SYSTEM_SCHEMAS, HIDDEN_SCHEMAS],
+      );
+
+      const allTables = result.rows.map((row) => ({
+        schema: row.table_schema,
+        table: row.table_name,
+      }));
+      const exactMap = new Map(
+        allTables.map((item) => [`${item.schema}.${item.table}`, item]),
+      );
+      const nameBuckets = allTables.reduce((acc, item) => {
+        acc[item.table] = acc[item.table] || [];
+        acc[item.table].push(item);
+        return acc;
+      }, {});
+
+      const resolvedTables = normalizedTables.map((item) => {
+        if (item.schema) {
+          return exactMap.get(`${item.schema}.${item.table}`) || null;
+        }
+
+        const matches = nameBuckets[item.table] || [];
+        if (matches.length === 1) return matches[0];
+        return null;
+      });
+
+      if (resolvedTables.some((item) => !item)) {
+        return res.status(400).json({
+          message:
+            "Beberapa tabel tidak ditemukan atau ambigu. Gunakan nama schema.table.",
+        });
       }
 
-      if (cleanUsers) {
-        // Hapus semua user kecuali yang punya role admin
-        // Note: lms_table.sql memisahkan role di u_users
-        await client.query(`DELETE FROM u_users WHERE role != 'admin'`);
-      }
+      const uniqueTables = Array.from(
+        new Map(
+          resolvedTables.map((item) => [
+            `${item.schema}.${item.table}`,
+            buildQualifiedName(item.schema, item.table),
+          ]),
+        ).values(),
+      );
+
+      await client.query(
+        `TRUNCATE TABLE ${uniqueTables.join(", ")} RESTART IDENTITY CASCADE`,
+      );
 
       res.status(200).json({ message: "Data berhasil direset" });
     } catch (error) {
