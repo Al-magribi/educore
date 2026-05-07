@@ -592,7 +592,7 @@ const Periode = ({ screens }) => {
                   rules={[
                     { required: true, message: "Nama periode wajib diisi" },
                   ]}
-                  help='Contoh: 2025/2026 Ganjil'
+                  help='Contoh: 2025/2026'
                   style={{ marginBottom: 0 }}
                 >
                   <Input
