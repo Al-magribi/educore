@@ -62,7 +62,8 @@ const App = () => {
     try {
       const payload = Object.keys(values).map((key) => ({
         key,
-        value: key === "domain" ? normalizeDomainInput(values[key]) : values[key],
+        value:
+          key === "domain" ? normalizeDomainInput(values[key]) : values[key],
       }));
 
       await updateConfigs({ configs: payload }).unwrap();
@@ -119,7 +120,10 @@ const App = () => {
 
       return {
         key: cat,
-        label: createTabLabel(cat.toUpperCase(), `${categoryConfigs.length} item`),
+        label: createTabLabel(
+          cat.toUpperCase(),
+          `${categoryConfigs.length} item`,
+        ),
         children: <ConfigCategoryPanel configs={categoryConfigs} />,
       };
     });
@@ -128,7 +132,7 @@ const App = () => {
   if (isLoading) {
     return (
       <Card
-        variant="borderless"
+        variant='borderless'
         style={{ borderRadius: 22 }}
         styles={{ body: { padding: 28 } }}
       >
@@ -140,7 +144,7 @@ const App = () => {
             justifyContent: "center",
           }}
         >
-          <Spin size="large" />
+          <Spin size='large' />
         </div>
       </Card>
     );
@@ -148,7 +152,7 @@ const App = () => {
 
   if (isError) {
     return (
-      <Alert title="Gagal memuat data konfigurasi" type="error" showIcon />
+      <Alert title='Gagal memuat data konfigurasi' type='error' showIcon />
     );
   }
 
@@ -160,7 +164,7 @@ const App = () => {
       style={{ display: "grid", gap: 18 }}
     >
       <Card
-        variant="borderless"
+        variant='borderless'
         style={{
           borderRadius: 22,
           overflow: "hidden",
@@ -175,7 +179,7 @@ const App = () => {
           size={[14, 14]}
           style={{ width: "100%", justifyContent: "space-between" }}
         >
-          <Space orientation="vertical" size={10}>
+          <Space orientation='vertical' size={10}>
             <Tag
               icon={<SettingOutlined />}
               style={{
@@ -185,7 +189,7 @@ const App = () => {
                 paddingInline: 12,
                 fontWeight: 600,
               }}
-              color="blue"
+              color='blue'
             >
               Pengaturan Sistem
             </Tag>
@@ -209,11 +213,11 @@ const App = () => {
           </Space>
 
           <Button
-            type="primary"
+            type='primary'
             icon={<SaveOutlined />}
             loading={isUpdating}
             onClick={() => form.submit()}
-            size="large"
+            size='large'
             style={{
               borderRadius: 999,
               paddingInline: 20,
@@ -226,15 +230,14 @@ const App = () => {
       </Card>
 
       <Card
-        variant="borderless"
+        variant='borderless'
         style={{
           borderRadius: token.borderRadiusXL,
           border: "1px solid rgba(148, 163, 184, 0.14)",
-          boxShadow: token.boxShadowSecondary,
         }}
         styles={{ body: { padding: isMobile ? 12 : 16 } }}
       >
-        <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form form={form} layout='vertical' onFinish={onFinish}>
           <Tabs
             defaultActiveKey={tabItems[0]?.key}
             items={tabItems}
