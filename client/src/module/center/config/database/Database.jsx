@@ -61,12 +61,20 @@ const Database = () => {
     },
     {
       key: "restore",
-      label: createTabLabel("Restore", <CloudSyncOutlined />, "Pulihkan sistem"),
+      label: createTabLabel(
+        "Restore",
+        <CloudSyncOutlined />,
+        "Pulihkan sistem",
+      ),
       children: <Restore />,
     },
     {
       key: "tables",
-      label: createTabLabel("Tables", <AppstoreOutlined />, "Kelola data tabel"),
+      label: createTabLabel(
+        "Tables",
+        <AppstoreOutlined />,
+        "Kelola data tabel",
+      ),
       children: <DbTables />,
     },
   ];
@@ -79,29 +87,24 @@ const Database = () => {
       style={{ display: "grid", gap: 18, paddingBottom: 24 }}
     >
       <div>
-        <Tag color="purple" style={{ borderRadius: 999, paddingInline: 12 }}>
+        <Tag color='purple' style={{ borderRadius: 999, paddingInline: 12 }}>
           Database Workspace
         </Tag>
         <Title level={3} style={{ margin: "10px 0 0", color: "#0f172a" }}>
           Backup, restore, dan kelola tabel lintas schema dengan lebih aman.
         </Title>
         <Text style={{ color: "#64748b", display: "block", marginTop: 6 }}>
-          Gunakan tab berikut untuk membuat snapshot penuh database,
-          memulihkan semua schema beserta assets, dan mengelola tabel per
-          skema dengan kontrol yang lebih jelas.
+          Gunakan tab berikut untuk membuat snapshot penuh database, memulihkan
+          semua schema beserta assets, dan mengelola tabel per skema dengan
+          kontrol yang lebih jelas.
         </Text>
       </div>
 
       <Card
-        variant="borderless"
-        style={{
-          borderRadius: token.borderRadiusXL,
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-          boxShadow: token.boxShadowSecondary,
-        }}
+        variant='borderless'
         styles={{ body: { padding: isMobile ? 12 : 16 } }}
       >
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        <Space vertical size={16} style={{ width: "100%" }}>
           <Tabs
             defaultActiveKey='backup'
             items={items}

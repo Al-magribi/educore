@@ -1,58 +1,49 @@
 import React, { useState } from "react";
-import { Alert, Button, Card, Space, Typography, Upload, message } from "antd";
-import { CloudSyncOutlined, InboxOutlined } from "@ant-design/icons";
+import {
+  Alert,
+  Button,
+  Card,
+  Popconfirm,
+  Select,
+  Space,
+  Typography,
+  message,
+} from "antd";
+import { CloudSyncOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
-import { useRestoreDataMutation } from "../../../../service/center/ApiDatabase";
+import {
+  useGetBackupsQuery,
+  useRestoreDataMutation,
+} from "../../../../service/center/ApiDatabase";
 
-const { Dragger } = Upload;
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
 const Restore = () => {
-  const [fileList, setFileList] = useState([]);
+  const [selectedBackup, setSelectedBackup] = useState(null);
+  const { data: backups = [], isLoading: isLoadingBackups } =
+    useGetBackupsQuery();
   const [restoreData, { isLoading }] = useRestoreDataMutation();
 
   const handleRestore = async () => {
-    if (fileList.length === 0) {
-      return message.warning(
-        "Silakan upload file backup (.zip) terlebih dahulu",
-      );
+    if (!selectedBackup) {
+      return message.warning("Silakan pilih folder backup terlebih dahulu");
     }
 
-    const formData = new FormData();
-    formData.append("backupFile", fileList[0]);
-
     try {
-      await restoreData(formData).unwrap();
+      await restoreData(selectedBackup).unwrap();
       message.success("Semua schema database dan assets berhasil dipulihkan!");
-      setFileList([]);
+      setSelectedBackup(null);
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
       message.error(error?.data?.message || "Gagal melakukan restore");
     }
   };
 
-  const uploadProps = {
-    onRemove: () => {
-      setFileList([]);
-    },
-    beforeUpload: (file) => {
-      const isZip =
-        file.type === "application/zip" ||
-        file.type === "application/x-zip-compressed" ||
-        file.name.endsWith(".zip");
-
-      if (!isZip) {
-        message.error(`${file.name} bukan file ZIP!`);
-        return Upload.LIST_IGNORE;
-      }
-
-      setFileList([file]);
-      return false;
-    },
-    fileList,
-    maxCount: 1,
-  };
+  const backupOptions = backups.map((backup) => ({
+    label: `${backup.name} (${backup.size})`,
+    value: backup.name,
+  }));
 
   return (
     <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
@@ -72,49 +63,53 @@ const Restore = () => {
               Restore Database
             </Title>
             <Text style={{ color: "#64748b" }}>
-              Pulihkan semua schema database dan folder assets dari file backup
-              dengan kontrol yang lebih aman.
+              Pulihkan semua schema database dan folder assets dari folder
+              backup yang tersimpan di server.
             </Text>
           </div>
 
           <Alert
             title="Perhatian penting"
-            description="Proses restore akan menimpa seluruh schema database dan mengganti isi folder assets saat ini dengan isi file backup. Pastikan Anda telah membuat backup terbaru sebelum melanjutkan."
+            description="Proses restore akan menimpa seluruh schema database dan mengganti isi folder assets saat ini dengan isi folder backup. Pastikan Anda memilih backup yang benar sebelum melanjutkan."
             type="warning"
             showIcon
           />
 
-          <Dragger
-            {...uploadProps}
+          <Select
+            showSearch
+            allowClear
+            loading={isLoadingBackups}
+            options={backupOptions}
+            value={selectedBackup}
+            onChange={setSelectedBackup}
+            placeholder="Pilih folder backup"
+            optionFilterProp="label"
             style={{
-              borderRadius: 18,
-              paddingBlock: 10,
-              background: "#fafafa",
+              width: "100%",
             }}
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined style={{ color: "#f59e0b" }} />
-            </p>
-            <p className="ant-upload-text">
-              Klik atau tarik file backup (.zip) ke area ini
-            </p>
-            <p className="ant-upload-hint">
-              Hanya mendukung satu file berekstensi `.zip`
-            </p>
-          </Dragger>
+          />
 
           <div style={{ textAlign: "right" }}>
-            <Button
-              type="primary"
-              icon={<CloudSyncOutlined />}
-              onClick={handleRestore}
-              loading={isLoading}
-              disabled={fileList.length === 0}
-              danger
-              style={{ borderRadius: 999, fontWeight: 600 }}
+            <Popconfirm
+              title="Mulai Restore?"
+              description="Database dan assets saat ini akan diganti dengan isi backup terpilih."
+              onConfirm={handleRestore}
+              okText="Restore"
+              cancelText="Batal"
+              okButtonProps={{ danger: true }}
+              disabled={!selectedBackup}
             >
-              Mulai Proses Restore
-            </Button>
+              <Button
+                type="primary"
+                icon={<CloudSyncOutlined />}
+                loading={isLoading}
+                disabled={!selectedBackup}
+                danger
+                style={{ borderRadius: 999, fontWeight: 600 }}
+              >
+                Mulai Proses Restore
+              </Button>
+            </Popconfirm>
           </div>
         </Space>
       </Card>

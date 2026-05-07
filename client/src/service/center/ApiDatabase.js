@@ -24,7 +24,7 @@ export const ApiDatabase = createApi({
       invalidatesTags: ["Database"], // Refresh data jika perlu
     }),
 
-    // 3. Ambil List File Backup
+    // 3. Ambil List Folder Backup
     getBackups: builder.query({
       query: () => ({
         url: "/list-backups",
@@ -42,7 +42,7 @@ export const ApiDatabase = createApi({
       invalidatesTags: ["Backups"], // Refresh list backup setelah membuat
     }),
 
-    // 5. Hapus File Backup
+    // 5. Hapus Folder Backup
     deleteBackup: builder.mutation({
       query: (filename) => ({
         url: `/delete-backup/${filename}`,
@@ -53,10 +53,10 @@ export const ApiDatabase = createApi({
 
     // 6. Restore Database
     restoreData: builder.mutation({
-      query: (formData) => ({
+      query: (backupName) => ({
         url: "/restore-data",
         method: "POST",
-        body: formData,
+        body: { backupName },
       }),
       // Restore mengubah seluruh data, jadi kita invalidate semua
       invalidatesTags: ["Database", "Backups"],
