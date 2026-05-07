@@ -346,7 +346,7 @@ router.get(
       `SELECT
          TO_CHAR(a.date::date, 'YYYY-MM-DD') AS attendance_date,
          a.status
-       FROM l_attendance a
+       FROM lms.l_attendance a
        WHERE a.student_id = $1
          AND a.subject_id = $2
          AND a.class_id = $3
@@ -399,8 +399,8 @@ router.get(
       ? round2((attendanceSummary.hadir / meetingCount) * 100)
       : 0;
 
-    const teacherFilterScoreClause = teacherIds.length
-      ? "AND (teacher_id = ANY($7::int[]) OR teacher_id IS NULL)"
+    const formativeTeacherFilterClause = teacherIds.length
+      ? "AND (f.teacher_id = ANY($7::int[]) OR f.teacher_id IS NULL)"
       : "";
     const formativeResult = await pool.query(
       `SELECT
@@ -409,15 +409,15 @@ router.get(
          f.type,
          f.score,
          ch.title AS chapter_title
-       FROM l_score_formative f
-       LEFT JOIN l_chapter ch ON ch.id = f.chapter_id
+       FROM lms.l_score_formative f
+       LEFT JOIN lms.l_chapter ch ON ch.id = f.chapter_id
        WHERE f.student_id = $1
          AND f.subject_id = $2
          AND f.class_id = $3
          AND f.periode_id = $4
          AND f.semester = $5
          AND f.month = $6
-         ${teacherFilterScoreClause}
+         ${formativeTeacherFilterClause}
        ORDER BY f.chapter_id ASC, f.type ASC, f.id ASC`,
       [
         userId,
@@ -448,6 +448,9 @@ router.get(
         )
       : 0;
 
+    const summativeTeacherFilterClause = teacherIds.length
+      ? "AND (s.teacher_id = ANY($7::int[]) OR s.teacher_id IS NULL)"
+      : "";
     const summativeResult = await pool.query(
       `SELECT
          s.id,
@@ -457,15 +460,15 @@ router.get(
          s.score_skill,
          s.final_score,
          ch.title AS chapter_title
-       FROM l_score_summative s
-       LEFT JOIN l_chapter ch ON ch.id = s.chapter_id
+       FROM lms.l_score_summative s
+       LEFT JOIN lms.l_chapter ch ON ch.id = s.chapter_id
        WHERE s.student_id = $1
          AND s.subject_id = $2
          AND s.class_id = $3
          AND s.periode_id = $4
          AND s.semester = $5
          AND s.month = $6
-         ${teacherFilterScoreClause}
+         ${summativeTeacherFilterClause}
        ORDER BY s.chapter_id ASC, s.type ASC, s.id ASC`,
       [
         userId,
@@ -517,7 +520,7 @@ router.get(
          a.percaya_diri,
          a.teacher_note,
          a.average_score
-       FROM l_score_attitude a
+       FROM lms.l_score_attitude a
        WHERE a.student_id = $1
          AND a.subject_id = $2
          AND a.class_id = $3
@@ -908,7 +911,7 @@ router.get(
          ch.order_number,
          ch.class_id,
          ch.class_ids
-       FROM l_chapter ch
+       FROM lms.l_chapter ch
        WHERE ch.subject_id = $1
          ${chapterFilter.join("\n")}
        ORDER BY COALESCE(ch.order_number, 9999), ch.title ASC`,
@@ -924,7 +927,7 @@ router.get(
                c.chapter_id,
                c.title,
                c.order_number
-             FROM l_content c
+             FROM lms.l_content c
              WHERE c.chapter_id = ANY($1::int[])
              ORDER BY COALESCE(c.order_number, 9999), c.created_at ASC`,
             [chapterIds],
@@ -1452,7 +1455,7 @@ router.get(
          a.student_id,
          TO_CHAR(a.date::date, 'YYYY-MM-DD') AS attendance_date,
          a.status
-       FROM l_attendance a
+       FROM lms.l_attendance a
        WHERE a.class_id = $1
          AND a.subject_id = $2
          AND a.date >= $3::date
@@ -1690,7 +1693,7 @@ router.get(
     );
 
     const teacherFilterQuery =
-      role === "teacher" || effectiveTeacherId ? "AND teacher_id = $4" : "";
+      role === "teacher" || effectiveTeacherId ? "AND f.teacher_id = $4" : "";
     const teacherFilterParams =
       role === "teacher" || effectiveTeacherId ? [effectiveTeacherId] : [];
 
@@ -1703,8 +1706,8 @@ router.get(
          type,
          score,
          ch.title AS chapter_title
-       FROM l_score_formative f
-       LEFT JOIN l_chapter ch ON ch.id = f.chapter_id
+       FROM lms.l_score_formative f
+       LEFT JOIN lms.l_chapter ch ON ch.id = f.chapter_id
        WHERE f.subject_id = $1
          AND f.class_id = $2
          AND f.periode_id = $3
@@ -1998,7 +2001,7 @@ router.get(
     );
 
     const teacherFilterQuery =
-      role === "teacher" || effectiveTeacherId ? "AND teacher_id = $4" : "";
+      role === "teacher" || effectiveTeacherId ? "AND s.teacher_id = $4" : "";
     const teacherFilterParams =
       role === "teacher" || effectiveTeacherId ? [effectiveTeacherId] : [];
 
@@ -2013,8 +2016,8 @@ router.get(
          score_skill,
          final_score,
          ch.title AS chapter_title
-       FROM l_score_summative s
-       LEFT JOIN l_chapter ch ON ch.id = s.chapter_id
+       FROM lms.l_score_summative s
+       LEFT JOIN lms.l_chapter ch ON ch.id = s.chapter_id
        WHERE s.subject_id = $1
          AND s.class_id = $2
          AND s.periode_id = $3
@@ -2353,7 +2356,7 @@ router.get(
       `SELECT
          f.student_id,
          f.final_grade
-       FROM l_score_final f
+       FROM lms.l_score_final f
        WHERE f.subject_id = $1
          AND f.class_id = $2
          AND f.periode_id = $3
@@ -2552,7 +2555,7 @@ router.get(
          s.final_score,
          s.score_written,
          s.score_skill
-       FROM l_score_summative s
+       FROM lms.l_score_summative s
        WHERE s.subject_id = $1
          AND s.class_id = $2
          AND s.periode_id = $3
@@ -2570,7 +2573,7 @@ router.get(
       `SELECT
          f.student_id,
          f.final_grade
-       FROM l_score_final f
+       FROM lms.l_score_final f
        WHERE f.subject_id = $1
          AND f.class_id = $2
          AND f.periode_id = $3

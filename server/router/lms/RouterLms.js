@@ -84,13 +84,13 @@ const parseContentMedia = (row) => {
 
 const ensureChapterTeacherColumn = async (executor) => {
   await executor.query(`
-    ALTER TABLE l_chapter
+    ALTER TABLE lms.l_chapter
     ADD COLUMN IF NOT EXISTS teacher_id integer REFERENCES u_teachers(user_id)
   `);
 
   await executor.query(`
     CREATE INDEX IF NOT EXISTS idx_l_chapter_teacher_subject
-    ON l_chapter(teacher_id, subject_id)
+    ON lms.l_chapter(teacher_id, subject_id)
   `);
 
   // Backfill legacy rows when a single teacher can be inferred from subject/class assignment.
@@ -102,7 +102,7 @@ const ensureChapterTeacherColumn = async (executor) => {
           WHEN COUNT(DISTINCT ats.teacher_id) = 1 THEN MAX(ats.teacher_id)
           ELSE NULL
         END AS inferred_teacher_id
-      FROM l_chapter ch
+      FROM lms.l_chapter ch
       JOIN at_subject ats
         ON ats.subject_id = ch.subject_id
        AND (
@@ -117,7 +117,7 @@ const ensureChapterTeacherColumn = async (executor) => {
       WHERE ch.teacher_id IS NULL
       GROUP BY ch.id
     )
-    UPDATE l_chapter ch
+    UPDATE lms.l_chapter ch
     SET teacher_id = tc.inferred_teacher_id
     FROM teacher_candidates tc
     WHERE ch.id = tc.chapter_id
@@ -351,7 +351,7 @@ router.get(
           cl.name AS class_name,
           ch.class_ids,
           cls.class_names
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         LEFT JOIN u_users tu ON tu.id = ch.teacher_id
         LEFT JOIN a_grade g ON ch.grade_id = g.id
         LEFT JOIN a_class cl ON ch.class_id = cl.id
@@ -420,7 +420,7 @@ router.get(
           cl.name AS class_name,
           ch.class_ids,
           cls.class_names
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         JOIN a_subject s ON s.id = ch.subject_id
         JOIN u_students st ON st.user_id = $2
         JOIN a_class active_cl ON active_cl.id = st.current_class_id
@@ -471,7 +471,7 @@ router.get(
         cl.name AS class_name,
         ch.class_ids,
         cls.class_names
-      FROM l_chapter ch
+      FROM lms.l_chapter ch
       LEFT JOIN u_users tu ON tu.id = ch.teacher_id
       LEFT JOIN a_grade g ON ch.grade_id = g.id
       LEFT JOIN a_class cl ON ch.class_id = cl.id
@@ -559,7 +559,7 @@ router.post(
       resolvedClassIds.length === 1 ? resolvedClassIds[0] : class_id || null;
 
     const sql = `
-      INSERT INTO l_chapter (
+      INSERT INTO lms.l_chapter (
         subject_id,
         teacher_id,
         title,
@@ -609,7 +609,7 @@ router.put(
     if (role === "teacher") {
       const checkSql = `
         SELECT 1
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         WHERE ch.id = $1
           AND (
             ch.teacher_id = $2
@@ -631,7 +631,7 @@ router.put(
     } else {
       const checkSql = `
         SELECT 1
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         JOIN a_subject s ON s.id = ch.subject_id
         WHERE ch.id = $1 AND s.homebase_id = $2
       `;
@@ -646,7 +646,7 @@ router.put(
       resolvedClassIds.length === 1 ? resolvedClassIds[0] : class_id || null;
 
     const sql = `
-      UPDATE l_chapter
+      UPDATE lms.l_chapter
       SET title = $1,
           description = $2,
           order_number = $3,
@@ -686,7 +686,7 @@ router.delete(
     if (role === "teacher") {
       const checkSql = `
         SELECT 1
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         WHERE ch.id = $1
           AND (
             ch.teacher_id = $2
@@ -707,8 +707,8 @@ router.delete(
       }
       const fileSql = `
         SELECT c.attachment_url
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         WHERE ch.id = $1
           AND (
             ch.teacher_id = $2
@@ -730,7 +730,7 @@ router.delete(
     } else {
       const checkSql = `
         SELECT 1
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         JOIN a_subject s ON s.id = ch.subject_id
         WHERE ch.id = $1 AND s.homebase_id = $2
       `;
@@ -740,8 +740,8 @@ router.delete(
       }
       const fileSql = `
         SELECT c.attachment_url
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         JOIN a_subject s ON s.id = ch.subject_id
         WHERE ch.id = $1 AND s.homebase_id = $2
       `;
@@ -751,8 +751,8 @@ router.delete(
       );
     }
 
-    await client.query("DELETE FROM l_content WHERE chapter_id = $1", [id]);
-    await client.query("DELETE FROM l_chapter WHERE id = $1", [id]);
+    await client.query("DELETE FROM lms.l_content WHERE chapter_id = $1", [id]);
+    await client.query("DELETE FROM lms.l_chapter WHERE id = $1", [id]);
     const uniqueUrls = Array.from(new Set(attachmentUrls));
     uniqueUrls.forEach((url) => {
       const filePath = resolveLmsAssetPath(url);
@@ -784,8 +784,8 @@ router.get(
           c.attachment_name,
           c.order_number,
           c.created_at
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         WHERE c.chapter_id = $1
           AND EXISTS (
             SELECT 1
@@ -814,8 +814,8 @@ router.get(
           c.attachment_name,
           c.order_number,
           c.created_at
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         JOIN a_subject s ON s.id = ch.subject_id
         JOIN u_students st ON st.user_id = $2
         JOIN a_class active_cl ON active_cl.id = st.current_class_id
@@ -857,8 +857,8 @@ router.get(
         c.attachment_name,
         c.order_number,
         c.created_at
-      FROM l_content c
-      JOIN l_chapter ch ON ch.id = c.chapter_id
+      FROM lms.l_content c
+      JOIN lms.l_chapter ch ON ch.id = c.chapter_id
       JOIN a_subject s ON s.id = ch.subject_id
       WHERE c.chapter_id = $1
         AND s.homebase_id = $2
@@ -896,7 +896,7 @@ router.post(
     if (role === "teacher") {
       const checkSql = `
         SELECT 1
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         JOIN at_subject ats ON ats.subject_id = ch.subject_id
         WHERE ch.id = $1 AND ats.teacher_id = $2
       `;
@@ -907,7 +907,7 @@ router.post(
     } else {
       const checkSql = `
         SELECT 1
-        FROM l_chapter ch
+        FROM lms.l_chapter ch
         JOIN a_subject s ON s.id = ch.subject_id
         WHERE ch.id = $1 AND s.homebase_id = $2
       `;
@@ -928,7 +928,7 @@ router.post(
       : normalizeStringArray(attachment_name);
 
     const sql = `
-      INSERT INTO l_content (
+      INSERT INTO lms.l_content (
         chapter_id,
         title,
         body,
@@ -978,8 +978,8 @@ router.put(
     if (role === "teacher") {
       const checkSql = `
         SELECT c.attachment_url
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         JOIN at_subject ats ON ats.subject_id = ch.subject_id
         WHERE c.id = $1 AND ats.teacher_id = $2
       `;
@@ -993,8 +993,8 @@ router.put(
     } else {
       const checkSql = `
         SELECT c.attachment_url
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         JOIN a_subject s ON s.id = ch.subject_id
         WHERE c.id = $1 AND s.homebase_id = $2
       `;
@@ -1018,7 +1018,7 @@ router.put(
       : normalizeStringArray(attachment_name);
 
     const sql = `
-      UPDATE l_content
+      UPDATE lms.l_content
       SET title = $1,
           body = $2,
           video_url = $3,
@@ -1062,8 +1062,8 @@ router.delete(
     if (role === "teacher") {
       const checkSql = `
         SELECT c.attachment_url
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         JOIN at_subject ats ON ats.subject_id = ch.subject_id
         WHERE c.id = $1 AND ats.teacher_id = $2
       `;
@@ -1077,8 +1077,8 @@ router.delete(
     } else {
       const checkSql = `
         SELECT c.attachment_url
-        FROM l_content c
-        JOIN l_chapter ch ON ch.id = c.chapter_id
+        FROM lms.l_content c
+        JOIN lms.l_chapter ch ON ch.id = c.chapter_id
         JOIN a_subject s ON s.id = ch.subject_id
         WHERE c.id = $1 AND s.homebase_id = $2
       `;
@@ -1091,7 +1091,7 @@ router.delete(
       );
     }
 
-    await client.query("DELETE FROM l_content WHERE id = $1", [id]);
+    await client.query("DELETE FROM lms.l_content WHERE id = $1", [id]);
     const uniqueUrls = Array.from(new Set(existingAttachmentUrls));
     uniqueUrls.forEach((url) => {
       const filePath = resolveLmsAssetPath(url);

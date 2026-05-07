@@ -114,7 +114,7 @@ const ensureTeacherSubjectAccess = async (db, teacherId, subjectId) => {
 const ensureChapterBelongsToSubject = async (db, chapterId, subjectId) => {
   const chapterResult = await db.query(
     `SELECT id, title
-     FROM l_chapter
+     FROM lms.l_chapter
      WHERE id = $1
        AND subject_id = $2
      LIMIT 1`,
@@ -162,7 +162,7 @@ const getTaskDetail = async (db, taskId, teacherId) => {
          '{}'::text[]
        ) AS class_names
      FROM lms.l_task t
-     JOIN l_chapter ch ON ch.id = t.chapter_id
+     JOIN lms.l_chapter ch ON ch.id = t.chapter_id
      LEFT JOIN lms.l_task_class tc ON tc.task_id = t.id
      LEFT JOIN a_class cl ON cl.id = tc.class_id
      WHERE t.id = $1
@@ -327,7 +327,7 @@ router.get(
          sub.submitted_at
        FROM lms.l_task t
        JOIN a_subject s ON s.id = t.subject_id
-       JOIN l_chapter ch ON ch.id = t.chapter_id
+       JOIN lms.l_chapter ch ON ch.id = t.chapter_id
        JOIN lms.l_task_class tc
          ON tc.task_id = t.id
         AND tc.class_id = $2
@@ -415,7 +415,7 @@ router.get(
         ) AS class_names,
         COUNT(DISTINCT tc.class_id) AS target_class_count
       FROM lms.l_task t
-      JOIN l_chapter ch ON ch.id = t.chapter_id
+      JOIN lms.l_chapter ch ON ch.id = t.chapter_id
       LEFT JOIN lms.l_task_class tc ON tc.task_id = t.id
       LEFT JOIN a_class cl ON cl.id = tc.class_id
       WHERE t.teacher_id = $1
@@ -470,7 +470,7 @@ router.get(
            '{}'::text[]
          ) AS class_names
        FROM lms.l_task t
-       JOIN l_chapter ch ON ch.id = t.chapter_id
+       JOIN lms.l_chapter ch ON ch.id = t.chapter_id
        LEFT JOIN lms.l_task_class tc ON tc.task_id = t.id
        LEFT JOIN a_class cl ON cl.id = tc.class_id
        WHERE t.id = $1

@@ -380,7 +380,7 @@ router.get(
     const attendanceColumns = await getTableColumnPresence(pool, "l_attendance", [
       "periode_id",
       "class_id",
-    ]);
+    ], "lms");
 
     const studentCards = await Promise.all(
       students.map(async (student) => {
@@ -392,7 +392,7 @@ router.get(
               sql: `SELECT
                       COUNT(*)::int AS total_sessions,
                       COUNT(*) FILTER (WHERE status IN ('Hadir', 'Telat'))::int AS hadir_sessions
-                    FROM l_attendance
+                    FROM lms.l_attendance
                     WHERE student_id = $1
                       AND ($2::int IS NULL OR periode_id = $2)`,
               params: [studentId, Number.isInteger(periodeId) ? periodeId : null],
@@ -402,7 +402,7 @@ router.get(
                 sql: `SELECT
                         COUNT(*)::int AS total_sessions,
                         COUNT(*) FILTER (WHERE status IN ('Hadir', 'Telat'))::int AS hadir_sessions
-                      FROM l_attendance
+                      FROM lms.l_attendance
                       WHERE student_id = $1
                         AND ($2::int IS NULL OR class_id = $2)`,
                 params: [studentId, Number.isInteger(classId) ? classId : null],
@@ -411,7 +411,7 @@ router.get(
                 sql: `SELECT
                         COUNT(*)::int AS total_sessions,
                         COUNT(*) FILTER (WHERE status IN ('Hadir', 'Telat'))::int AS hadir_sessions
-                      FROM l_attendance
+                      FROM lms.l_attendance
                       WHERE student_id = $1`,
                 params: [studentId],
               };
@@ -423,13 +423,13 @@ router.get(
                    COUNT(DISTINCT ats.subject_id)::int AS subjects_total,
                    COUNT(DISTINCT ct.id)::int AS materials_total
                  FROM at_subject ats
-                 LEFT JOIN l_chapter ch
+                 LEFT JOIN lms.l_chapter ch
                    ON ch.subject_id = ats.subject_id
                   AND (
                     ch.class_id = $1
                     OR $1 = ANY(COALESCE(ch.class_ids, ARRAY[]::integer[]))
                   )
-                 LEFT JOIN l_content ct ON ct.chapter_id = ch.id
+                 LEFT JOIN lms.l_content ct ON ct.chapter_id = ch.id
                  WHERE ats.class_id = $1`,
                 [classId],
               )
@@ -484,8 +484,8 @@ router.get(
                ct.created_at,
                ch.title AS chapter_title,
                sbj.name AS subject_name
-             FROM l_content ct
-             JOIN l_chapter ch ON ch.id = ct.chapter_id
+             FROM lms.l_content ct
+             JOIN lms.l_chapter ch ON ch.id = ct.chapter_id
              JOIN a_subject sbj ON sbj.id = ch.subject_id
              WHERE
                ch.class_id = ANY($1::int[])
@@ -669,7 +669,7 @@ router.get(
            UNION
 
            SELECT a.subject_id
-           FROM l_attendance a
+           FROM lms.l_attendance a
            WHERE a.student_id = $2
              AND a.class_id = $1
              AND EXISTS (
@@ -688,7 +688,7 @@ router.get(
            UNION
 
            SELECT x.subject_id
-           FROM l_score_attitude x
+           FROM lms.l_score_attitude x
            WHERE x.student_id = $2
              AND x.class_id = $1
              AND x.periode_id = $3
@@ -699,7 +699,7 @@ router.get(
            UNION
 
            SELECT f.subject_id
-           FROM l_score_formative f
+           FROM lms.l_score_formative f
            WHERE f.student_id = $2
              AND f.class_id = $1
              AND f.periode_id = $3
@@ -710,7 +710,7 @@ router.get(
            UNION
 
            SELECT s.subject_id
-           FROM l_score_summative s
+           FROM lms.l_score_summative s
            WHERE s.student_id = $2
              AND s.class_id = $1
              AND s.periode_id = $3
@@ -759,7 +759,7 @@ router.get(
           `SELECT
              TO_CHAR(a.date::date, 'YYYY-MM-DD') AS attendance_date,
              a.status
-           FROM l_attendance a
+           FROM lms.l_attendance a
            WHERE a.student_id = $1
              AND a.subject_id = $2
              AND a.class_id = $3
@@ -825,8 +825,8 @@ router.get(
              f.type,
              f.score,
              ch.title AS chapter_title
-           FROM l_score_formative f
-           LEFT JOIN l_chapter ch ON ch.id = f.chapter_id
+           FROM lms.l_score_formative f
+           LEFT JOIN lms.l_chapter ch ON ch.id = f.chapter_id
            WHERE f.student_id = $1
              AND f.subject_id = $2
              AND f.class_id = $3
@@ -874,8 +874,8 @@ router.get(
              s.score_skill,
              s.final_score,
              ch.title AS chapter_title
-           FROM l_score_summative s
-           LEFT JOIN l_chapter ch ON ch.id = s.chapter_id
+           FROM lms.l_score_summative s
+           LEFT JOIN lms.l_chapter ch ON ch.id = s.chapter_id
            WHERE s.student_id = $1
              AND s.subject_id = $2
              AND s.class_id = $3
@@ -935,7 +935,7 @@ router.get(
              a.percaya_diri,
              a.teacher_note,
              a.average_score
-           FROM l_score_attitude a
+           FROM lms.l_score_attitude a
            WHERE a.student_id = $1
              AND a.subject_id = $2
              AND a.class_id = $3

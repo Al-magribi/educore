@@ -527,7 +527,7 @@ router.get(
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
-       LEFT JOIN l_score_attitude a
+       LEFT JOIN lms.l_score_attitude a
          ON a.student_id = e.student_id
         AND a.subject_id = $1
         AND a.periode_id = $3
@@ -734,9 +734,9 @@ router.get(
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
-       LEFT JOIN l_score_formative f
+       LEFT JOIN lms.l_score_formative f
          ON ${joinConditions.join("\n        AND ")}
-       LEFT JOIN l_chapter ch ON ch.id = f.chapter_id
+       LEFT JOIN lms.l_chapter ch ON ch.id = f.chapter_id
        WHERE e.class_id = $2
          AND e.periode_id = $3
        ORDER BY u.full_name ASC, f.chapter_id ASC, f.type ASC, f.id ASC`,
@@ -970,7 +970,7 @@ router.get(
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
-       LEFT JOIN l_score_summative s
+       LEFT JOIN lms.l_score_summative s
          ON ${joinConditions.join("\n        AND ")}
        WHERE e.class_id = $2
          AND e.periode_id = $3
@@ -1147,7 +1147,7 @@ router.post(
     }
 
     await client.query(
-      `DELETE FROM l_score_attitude
+      `DELETE FROM lms.l_score_attitude
        WHERE subject_id = $1
          AND periode_id = $2
          AND LOWER(TRIM(month)) = ANY($3::text[])
@@ -1168,7 +1168,7 @@ router.post(
 
     for (const item of items) {
       await client.query(
-        `INSERT INTO l_score_attitude (
+        `INSERT INTO lms.l_score_attitude (
            student_id,
            class_id,
            subject_id,
@@ -1363,7 +1363,7 @@ router.post(
     );
 
     await client.query(
-      `DELETE FROM l_score_formative
+      `DELETE FROM lms.l_score_formative
        WHERE subject_id = $1
          AND periode_id = $2
          AND class_id = $3
@@ -1392,7 +1392,7 @@ router.post(
         item.subchapter_id,
       );
       await client.query(
-        `INSERT INTO l_score_formative (
+        `INSERT INTO lms.l_score_formative (
            periode_id,
            semester,
            month,
@@ -1593,7 +1593,7 @@ router.post(
     );
 
     await client.query(
-      `DELETE FROM l_score_summative
+      `DELETE FROM lms.l_score_summative
        WHERE subject_id = $1
          AND periode_id = $2
          AND class_id = $3
@@ -1618,7 +1618,7 @@ router.post(
       }
       const typeKey = buildSummativeType(month, chapter_id, item.subchapter_id);
       await client.query(
-        `INSERT INTO l_score_summative (
+        `INSERT INTO lms.l_score_summative (
            periode_id,
            semester,
            month,
@@ -1754,7 +1754,7 @@ router.get(
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
-       LEFT JOIN l_score_final f
+       LEFT JOIN lms.l_score_final f
          ON f.student_id = e.student_id
         AND f.subject_id = $1
         AND f.class_id = $2
@@ -1914,7 +1914,7 @@ router.post(
     }
 
     await client.query(
-      `DELETE FROM l_score_final
+      `DELETE FROM lms.l_score_final
        WHERE subject_id = $1
          AND periode_id = $2
          AND semester = $3
@@ -1934,7 +1934,7 @@ router.post(
     for (const item of normalizedItems) {
       if (item.final_grade == null) continue;
       await client.query(
-        `INSERT INTO l_score_final (
+        `INSERT INTO lms.l_score_final (
            periode_id,
            semester,
            class_id,
@@ -2055,7 +2055,7 @@ router.delete(
     }
 
     const deleteResult = await client.query(
-      `DELETE FROM l_score_final
+      `DELETE FROM lms.l_score_final
        WHERE subject_id = $1
          AND periode_id = $2
          AND semester = $3

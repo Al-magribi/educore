@@ -387,7 +387,7 @@ router.get(
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
        JOIN a_class c ON e.class_id = c.id
-       LEFT JOIN l_attendance a
+       LEFT JOIN lms.l_attendance a
          ON a.student_id = e.student_id
         AND a.class_id = e.class_id
         AND a.subject_id = $1
@@ -480,7 +480,7 @@ router.post(
     }
 
     await client.query(
-      `DELETE FROM l_attendance
+      `DELETE FROM lms.l_attendance
        WHERE class_id = $1 AND subject_id = $2 AND date = $3::date`,
       [class_id, subject_id, date],
     );
@@ -495,7 +495,7 @@ router.post(
       }
 
       await client.query(
-        `INSERT INTO l_attendance (
+        `INSERT INTO lms.l_attendance (
            class_id,
            subject_id,
            student_id,
