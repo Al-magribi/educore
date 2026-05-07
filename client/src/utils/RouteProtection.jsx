@@ -1,10 +1,13 @@
 // utils/RouteProtection.jsx
 import { LoadApp } from "../components";
 import { useSelector } from "react-redux";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Result } from "antd";
+import resolveUserHomePath from "./resolveUserHomePath";
 
 const RouteProtection = ({ allowedRoles, allowedLevels, requireMusyrif = false }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
+  const location = useLocation();
 
   // Tahan redirect sampai status sesi hasil bootstrap awal sudah diketahui.
   if (!isInitialized) {
@@ -15,8 +18,20 @@ const RouteProtection = ({ allowedRoles, allowedLevels, requireMusyrif = false }
     return <Navigate to="/" replace />;
   }
 
+  const homePath = resolveUserHomePath(user);
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    if (homePath && homePath !== location.pathname) {
+      return <Navigate to={homePath} replace />;
+    }
+
+    return (
+      <Result
+        status="403"
+        title="Akses ditolak"
+        subTitle="Role akun ini tidak punya akses ke halaman tersebut."
+      />
+    );
   }
 
   if (
@@ -24,7 +39,17 @@ const RouteProtection = ({ allowedRoles, allowedLevels, requireMusyrif = false }
     allowedLevels &&
     (!user.level || !allowedLevels.includes(user.level))
   ) {
-    return <Navigate to="/" replace />;
+    if (homePath && homePath !== location.pathname) {
+      return <Navigate to={homePath} replace />;
+    }
+
+    return (
+      <Result
+        status="403"
+        title="Akses ditolak"
+        subTitle="Level admin akun ini belum cocok dengan modul yang dibuka."
+      />
+    );
   }
 
   if (requireMusyrif && !user.is_musyrif) {

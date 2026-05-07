@@ -6,6 +6,7 @@ import { useLoadUserQuery } from "./service/auth/ApiAuth";
 import { AppLayout, AppMetadata, LoadApp } from "./components";
 import RouteProtection from "./utils/RouteProtection";
 import { FEATURES, hasFeature } from "./config/productFeatures";
+import resolveUserHomePath from "./utils/resolveUserHomePath";
 
 import renderPublicRoutes from "./routes/modules/publicRoutes";
 import renderCenterRoutes from "./routes/modules/centerRoutes";
@@ -25,7 +26,6 @@ const isDbEnabled = hasFeature(FEATURES.DB);
 const isLmsEnabled = hasFeature(FEATURES.LMS);
 const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
 const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
-const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
 
 const NotFoundRedirect = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
@@ -38,37 +38,13 @@ const NotFoundRedirect = () => {
     return <Navigate to='/' replace />;
   }
 
-  switch (user.role) {
-    case "student":
-      return <Navigate to='/siswa-dashboard' replace />;
-    case "teacher":
-      return <Navigate to='/guru-dashboard' replace />;
-    case "parent":
-      return <Navigate to='/orangtua-dashboard' replace />;
-    case "admin":
-    case "center":
-      if (user.level === "pusat") {
-        return <Navigate to='/center-dashboard' replace />;
-      }
-      if (user.level === "tahfiz") {
-        if (!isTahfizEnabled) {
-          return <Navigate to='/admin-dashboard' replace />;
-        }
-        if (user.is_musyrif) {
-          return <Navigate to='/tahfiz-musyrif-dashboard' replace />;
-        }
-        return <Navigate to='/tahfiz-dashboard' replace />;
-      }
-      if (isFinanceLevel(user.level)) {
-        if (!isFinanceEnabled) {
-          return <Navigate to='/admin-dashboard' replace />;
-        }
-        return <Navigate to='/finance-dashboard' replace />;
-      }
-      return <Navigate to='/admin-dashboard' replace />;
-    default:
-      return <Navigate to='/' replace />;
+  const homePath = resolveUserHomePath(user);
+
+  if (homePath) {
+    return <Navigate to={homePath} replace />;
   }
+
+  return <Navigate to='/' replace />;
 };
 
 const LazyRoute = ({ Component }) => (
