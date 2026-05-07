@@ -217,7 +217,10 @@ const FinanceDashPage = () => {
                       <Building2 size={18} />
                     </span>
                     <div>
-                      <Text strong style={{ display: "block", color: "#0f172a" }}>
+                      <Text
+                        strong
+                        style={{ display: "block", color: "#0f172a" }}
+                      >
                         Filter Satuan Aktif
                       </Text>
                       <Text type='secondary'>
@@ -306,33 +309,6 @@ const FinanceDashPage = () => {
               ]}
             />
           </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={sectionVariants}>
-          <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
-            vertical={isMobile}
-            gap={10}
-            style={{
-              padding: isMobile ? "14px 16px" : "16px 18px",
-              borderRadius: 20,
-              background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
-              border: "1px solid rgba(148,163,184,0.14)",
-            }}
-          >
-            <Text type='secondary'>
-              Data dashboard dibatasi pada periode aktif dan dipisah per tab
-              agar lebih mudah dipantau oleh tim keuangan.
-            </Text>
-            <Button
-              icon={<RefreshCcw size={16} />}
-              onClick={refetch}
-              style={{ width: isMobile ? "100%" : "auto" }}
-            >
-              Segarkan Data
-            </Button>
-          </Flex>
         </MotionDiv>
       </Space>
     </MotionDiv>
