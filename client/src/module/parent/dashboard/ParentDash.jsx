@@ -401,10 +401,7 @@ const ParentDash = () => {
                                 }}
                               >
                                 <div>
-                                  <Text
-                                    strong
-                                    style={{ fontSize: 18, color: "#0f172a" }}
-                                  >
+                                  <Text strong style={{ color: "#0f172a" }}>
                                     {student.student_name}
                                   </Text>
                                   <div>
@@ -511,7 +508,7 @@ const ParentDash = () => {
                                 </Space>
                               </Card>
 
-                              <Row gutter={[12, 12]}>
+                              {/* <Row gutter={[12, 12]}>
                                 <Col xs={24} sm={12}>
                                   <Card
                                     size='small'
@@ -608,7 +605,7 @@ const ParentDash = () => {
                                     </Space>
                                   </Card>
                                 </Col>
-                              </Row>
+                              </Row> */}
                             </Space>
                           </Card>
                         </motion.div>

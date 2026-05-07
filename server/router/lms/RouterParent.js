@@ -814,8 +814,8 @@ router.get(
           ? round2((attendanceSummary.hadir / meetingCount) * 100)
           : 0;
 
-        const teacherFilterScoreClause = teacherIds.length
-          ? "AND (teacher_id = ANY($7::int[]) OR teacher_id IS NULL)"
+        const formativeTeacherFilterClause = teacherIds.length
+          ? "AND (f.teacher_id = ANY($7::int[]) OR f.teacher_id IS NULL)"
           : "";
 
         const formativeResult = await pool.query(
@@ -833,7 +833,7 @@ router.get(
              AND f.periode_id = $4
              AND f.semester = $5
              AND f.month = $6
-             ${teacherFilterScoreClause}
+             ${formativeTeacherFilterClause}
            ORDER BY f.chapter_id ASC, f.type ASC, f.id ASC`,
           [
             selectedStudentId,
@@ -865,6 +865,9 @@ router.get(
             )
           : 0;
 
+        const summativeTeacherFilterClause = teacherIds.length
+          ? "AND (s.teacher_id = ANY($7::int[]) OR s.teacher_id IS NULL)"
+          : "";
         const summativeResult = await pool.query(
           `SELECT
              s.id,
@@ -882,7 +885,7 @@ router.get(
              AND s.periode_id = $4
              AND s.semester = $5
              AND s.month = $6
-             ${teacherFilterScoreClause}
+             ${summativeTeacherFilterClause}
            ORDER BY s.chapter_id ASC, s.type ASC, s.id ASC`,
           [
             selectedStudentId,
