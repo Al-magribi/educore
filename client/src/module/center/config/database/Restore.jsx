@@ -24,7 +24,7 @@ const Restore = () => {
 
     try {
       await restoreData(formData).unwrap();
-      message.success("Database dan aset berhasil dipulihkan!");
+      message.success("Semua schema database dan assets berhasil dipulihkan!");
       setFileList([]);
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
@@ -72,14 +72,14 @@ const Restore = () => {
               Restore Database
             </Title>
             <Text style={{ color: "#64748b" }}>
-              Pulihkan database dan aset dari file backup dengan kontrol yang
-              lebih aman.
+              Pulihkan semua schema database dan folder assets dari file backup
+              dengan kontrol yang lebih aman.
             </Text>
           </div>
 
           <Alert
             title="Perhatian penting"
-            description="Proses restore akan menimpa seluruh data database dan folder aset saat ini dengan isi file backup. Pastikan Anda telah membuat backup terbaru sebelum melanjutkan."
+            description="Proses restore akan menimpa seluruh schema database dan mengganti isi folder assets saat ini dengan isi file backup. Pastikan Anda telah membuat backup terbaru sebelum melanjutkan."
             type="warning"
             showIcon
           />

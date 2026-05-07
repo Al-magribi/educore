@@ -3,11 +3,13 @@ import {
   Avatar,
   Button,
   Card,
+  Divider,
   Grid,
   Input,
   Popconfirm,
   Space,
   Tag,
+  Table,
   Tooltip,
   Typography,
   message,
@@ -21,10 +23,8 @@ import {
   BookOutlined,
   MailOutlined,
   PhoneOutlined,
-  IdcardOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
-import { InfiniteScrollList } from "../../../components";
 import {
   useDeleteTeacherMutation,
   useLazyGetTeachersQuery,
@@ -141,6 +141,15 @@ const TeacherList = () => {
     }
   };
 
+  const handleTableScroll = (event) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+    if (distanceFromBottom < 120 && hasMore && !isFetching) {
+      handleLoadMore();
+    }
+  };
+
   const openModal = (item = null) => {
     setEditingItem(item);
     setIsModalOpen(true);
@@ -164,66 +173,16 @@ const TeacherList = () => {
     await refreshFirstPage();
   };
 
-  const renderItem = (item) => (
-    <MotionDiv
-      key={item.id}
-      variants={itemVariants}
-      whileHover={{ y: -4 }}
-      transition={{ duration: 0.2 }}
-    >
-      <Card
-        variant="borderless"
-        hoverable
-        actions={[
-          <Tooltip title="Edit data guru" key="edit">
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => openModal(item)}
-              style={{ color: "#2563eb", fontWeight: 600 }}
-            >
-              Edit
-            </Button>
-          </Tooltip>,
-          <Popconfirm
-            key="delete"
-            title="Hapus Guru?"
-            description="Data mengajar, nilai, dan absensi terkait mungkin akan hilang."
-            onConfirm={() => handleDelete(item.id)}
-            okText="Ya, Hapus"
-            cancelText="Batal"
-          >
-            <Button
-              type="link"
-              danger
-              icon={<DeleteOutlined />}
-              loading={isDeleting}
-              style={{ fontWeight: 600 }}
-            >
-              Hapus
-            </Button>
-          </Popconfirm>,
-        ]}
-        styles={{
-          body: { padding: 18 },
-          actions: {
-            borderTop: "1px solid #e2e8f0",
-            background: "#fff",
-          },
-        }}
-        style={{
-          height: "100%",
-          borderRadius: 24,
-          overflow: "hidden",
-          border: "1px solid rgba(148, 163, 184, 0.16)",
-          boxShadow: "0 22px 50px rgba(15, 23, 42, 0.08)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
-        }}
-      >
-        <Space align="start" size={16} style={{ width: "100%" }}>
+  const columns = [
+    {
+      title: "Guru",
+      dataIndex: "full_name",
+      key: "teacher",
+      width: isMobile ? 260 : 320,
+      render: (_, item) => (
+        <Space align="start" size={14} style={{ width: "100%" }}>
           <Avatar
-            size={56}
+            size={isMobile ? 44 : 52}
             src={item.img_url}
             icon={<UserOutlined />}
             style={{
@@ -234,18 +193,26 @@ const TeacherList = () => {
             }}
           />
 
-          <Space orientation="vertical" size={10} style={{ flex: 1, minWidth: 0 }}>
+          <Space
+            direction="vertical"
+            size={6}
+            style={{ minWidth: 0, width: "100%" }}
+          >
             <div>
-              <Title
-                level={5}
-                style={{ margin: 0, color: "#0f172a", fontSize: 17 }}
-                ellipsis={{ tooltip: item.full_name }}
+              <Text
+                strong
+                style={{
+                  display: "block",
+                  color: "#0f172a",
+                  fontSize: isMobile ? 14 : 15,
+                  lineHeight: 1.35,
+                }}
               >
                 {item.full_name}
-              </Title>
+              </Text>
               <Text
                 type="secondary"
-                style={{ display: "block", marginTop: 4, fontSize: 13 }}
+                style={{ display: "block", marginTop: 2, fontSize: 12 }}
               >
                 @{item.username}
               </Text>
@@ -253,8 +220,8 @@ const TeacherList = () => {
 
             <Space wrap size={[8, 8]}>
               <Tag
-                icon={<BookOutlined />}
                 color="cyan"
+                icon={<BookOutlined />}
                 style={{
                   margin: 0,
                   borderRadius: 999,
@@ -264,58 +231,133 @@ const TeacherList = () => {
               >
                 {item.homebase_name || "Belum ada Homebase"}
               </Tag>
-              <Tag
-                color={item.is_active ? "success" : "error"}
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  fontWeight: 600,
-                }}
-              >
-                {item.is_active ? "Aktif" : "Nonaktif"}
-              </Tag>
+              {isMobile ? (
+                <Tag
+                  color={item.is_active ? "success" : "error"}
+                  style={{
+                    margin: 0,
+                    borderRadius: 999,
+                    paddingInline: 10,
+                    fontWeight: 600,
+                  }}
+                >
+                  {item.is_active ? "Aktif" : "Nonaktif"}
+                </Tag>
+              ) : null}
             </Space>
 
-            <div style={{ display: "grid", gap: 8 }}>
-              <Space size={8} style={{ color: "#64748b", width: "100%" }}>
-                <IdcardOutlined />
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 12, minWidth: 0 }}
-                  ellipsis={{ tooltip: item.nip || "Non-NIP" }}
-                >
-                  {item.nip || "Non-NIP"}
+            {isMobile ? (
+              <div style={{ display: "grid", gap: 4 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  NIP: {item.nip || "Non-NIP"}
                 </Text>
-              </Space>
-
-              <Space size={8} style={{ color: "#64748b", width: "100%" }}>
-                <MailOutlined />
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 12, minWidth: 0 }}
-                  ellipsis={{ tooltip: item.email || "-" }}
-                >
-                  {item.email || "-"}
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Email: {item.email || "-"}
                 </Text>
-              </Space>
-
-              <Space size={8} style={{ color: "#64748b", width: "100%" }}>
-                <PhoneOutlined />
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 12, minWidth: 0 }}
-                  ellipsis={{ tooltip: item.phone || "-" }}
-                >
-                  {item.phone || "-"}
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Telepon: {item.phone || "-"}
                 </Text>
-              </Space>
-            </div>
+              </div>
+            ) : null}
           </Space>
         </Space>
-      </Card>
-    </MotionDiv>
-  );
+      ),
+    },
+    {
+      title: "Homebase",
+      dataIndex: "homebase_name",
+      key: "homebase",
+      responsive: ["md"],
+      width: 190,
+      render: (value) => (
+        <Text style={{ color: "#0f172a" }}>{value || "Belum ada Homebase"}</Text>
+      ),
+    },
+    {
+      title: "NIP",
+      dataIndex: "nip",
+      key: "nip",
+      responsive: ["lg"],
+      width: 120,
+      render: (value) => <Text type="secondary">{value || "Non-NIP"}</Text>,
+    },
+    {
+      title: "Kontak",
+      key: "contact",
+      responsive: ["xl"],
+      width: 200,
+      render: (_, item) => (
+        <Space direction="vertical" size={4} style={{ width: "100%" }}>
+          <Space size={8} style={{ color: "#64748b" }}>
+            <MailOutlined />
+            <Text type="secondary" ellipsis={{ tooltip: item.email || "-" }}>
+              {item.email || "-"}
+            </Text>
+          </Space>
+          <Space size={8} style={{ color: "#64748b" }}>
+            <PhoneOutlined />
+            <Text type="secondary">{item.phone || "-"}</Text>
+          </Space>
+        </Space>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "is_active",
+      key: "status",
+      width: 100,
+      render: (value) => (
+        <Tag
+          color={value ? "success" : "error"}
+          style={{
+            margin: 0,
+            borderRadius: 999,
+            paddingInline: 10,
+            fontWeight: 600,
+          }}
+        >
+          {value ? "Aktif" : "Nonaktif"}
+        </Tag>
+      ),
+    },
+    {
+      title: "Aksi",
+      key: "actions",
+      width: isMobile ? 96 : 124,
+      align: "right",
+      render: (_, item) => (
+        <Space size={2} wrap style={{ justifyContent: "flex-end" }}>
+          <Tooltip title="Edit data guru">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => openModal(item)}
+              style={{ color: "#2563eb", fontWeight: 600 }}
+            >
+              {!isMobile ? "Edit" : null}
+            </Button>
+          </Tooltip>
+          <Popconfirm
+            title="Hapus Guru?"
+            description="Data mengajar, nilai, dan absensi terkait mungkin akan hilang."
+            onConfirm={() => handleDelete(item.id)}
+            okText="Ya, Hapus"
+            cancelText="Batal"
+          >
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              loading={isDeleting}
+              style={{ fontWeight: 600 }}
+            >
+              {!isMobile ? "Hapus" : null}
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -323,7 +365,7 @@ const TeacherList = () => {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        style={{ display: "grid", gap: 18 }}
+        style={{ display: "grid", gap: 18, width: "100%", minWidth: 0 }}
       >
         <MotionDiv variants={itemVariants}>
           <Card
@@ -381,10 +423,15 @@ const TeacherList = () => {
                 </Text>
               </div>
 
-              <Space
-                wrap
-                size={[12, 12]}
-                style={{ width: "100%", justifyContent: "space-between" }}
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  width: "100%",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
               >
                 <Input
                   placeholder="Cari nama, username, atau NIP..."
@@ -395,8 +442,9 @@ const TeacherList = () => {
                     setSearch(e.target.value);
                   }}
                   style={{
+                    flex: isMobile ? "1 1 100%" : "1 1 320px",
                     maxWidth: isMobile ? "100%" : 340,
-                    width: "100%",
+                    minWidth: 0,
                     height: 42,
                     borderRadius: 999,
                     background: "rgba(255,255,255,0.96)",
@@ -408,6 +456,7 @@ const TeacherList = () => {
                   onClick={() => openModal(null)}
                   size="large"
                   style={{
+                    flexShrink: 0,
                     borderRadius: 999,
                     height: 42,
                     paddingInline: 20,
@@ -419,30 +468,70 @@ const TeacherList = () => {
                 >
                   Tambah Guru
                 </Button>
-              </Space>
+              </div>
             </Space>
           </Card>
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
-          <InfiniteScrollList
-            data={listData}
-            loading={isFetching}
-            hasMore={hasMore}
-            onLoadMore={handleLoadMore}
-            renderItem={renderItem}
-            height="75vh"
-            emptyText="Belum ada data guru"
-            grid={{
-              gutter: [16, 16],
-              xs: 24,
-              sm: 24,
-              md: 12,
-              lg: 8,
-              xl: 6,
-              xxl: 6,
+          <Card
+            variant="borderless"
+            style={{
+              borderRadius: 22,
+              overflow: "hidden",
+              border: "1px solid rgba(148, 163, 184, 0.16)",
+              boxShadow: "0 22px 50px rgba(15, 23, 42, 0.08)",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
             }}
-          />
+            styles={{ body: { padding: 0 } }}
+          >
+            <div
+              onScroll={handleTableScroll}
+              style={{
+                maxHeight: "75vh",
+                overflow: "auto",
+                width: "100%",
+              }}
+            >
+              <Table
+                rowKey="id"
+                dataSource={listData}
+                columns={columns}
+                pagination={false}
+                loading={isFetching && listData.length === 0}
+                sticky={!isMobile}
+                scroll={{ x: "max-content" }}
+                locale={{
+                  emptyText: "Belum ada data guru",
+                }}
+                size={isMobile ? "small" : "middle"}
+                style={{ width: "100%" }}
+              />
+
+              {isFetching && listData.length > 0 ? (
+                <div
+                  style={{
+                    padding: "14px 16px",
+                    textAlign: "center",
+                    color: "#2563eb",
+                    fontWeight: 500,
+                    background: "rgba(248, 250, 252, 0.96)",
+                  }}
+                >
+                  Memuat data guru...
+                </div>
+              ) : null}
+
+              {!hasMore && listData.length > 0 ? (
+                <Divider
+                  style={{ color: "#94a3b8", fontSize: 12, margin: "8px 0 18px" }}
+                >
+                  Semua data telah dimuat
+                </Divider>
+              ) : null}
+            </div>
+          </Card>
         </MotionDiv>
       </MotionDiv>
 

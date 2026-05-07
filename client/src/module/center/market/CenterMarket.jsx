@@ -129,19 +129,6 @@ const CenterMarket = () => {
               berikutnya.
             </Text>
           </div>
-
-          <Alert
-            message='Market Insight'
-            description='Gunakan insight ini untuk memahami wilayah asal, profil pekerjaan orang tua, dan segmentasi saudara siswa secara lebih terarah.'
-            type='info'
-            showIcon
-            style={{
-              borderRadius: 18,
-              border: "none",
-              background: "rgba(255,255,255,0.1)",
-              color: "#fff",
-            }}
-          />
         </Space>
       </div>
 
