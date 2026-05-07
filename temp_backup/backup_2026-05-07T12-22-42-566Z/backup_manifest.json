@@ -1,0 +1,8 @@
+{
+  "database": "educore",
+  "createdAt": "2026-05-07T12:22:53.230Z",
+  "backupType": "folder_database_with_assets",
+  "sqlFile": "database.sql",
+  "assetDirectory": "assets",
+  "sqlSize": 24212920
+}
