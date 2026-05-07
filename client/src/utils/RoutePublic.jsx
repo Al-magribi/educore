@@ -1,58 +1,22 @@
 // utils/RouterPublic.jsx
 import { LoadApp } from "../components";
 import { useSelector } from "react-redux";
-import { Navigate, Outlet } from "react-router-dom";
-import { FEATURES, hasFeature } from "../config/productFeatures";
-
-const isTahfizEnabled = hasFeature(FEATURES.TAHFIZ);
-const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
-const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import resolveUserHomePath from "./resolveUserHomePath";
 
 const RouterPublic = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
+  const location = useLocation();
 
   if (!isInitialized) {
     return <LoadApp />;
   }
 
   if (user) {
-    switch (user.role) {
-      case "student":
-        return <Navigate to='/siswa-dashboard' replace />;
+    const homePath = resolveUserHomePath(user);
 
-      case "teacher":
-        return <Navigate to='/guru-dashboard' replace />;
-
-      case "parent":
-        return <Navigate to='/orangtua-dashboard' replace />;
-
-      // SKENARIO KHUSUS ADMIN
-      case "admin":
-      case "center": // Jika role center dipisah di DB, handle disini juga
-        // Cek Level Admin
-        if (user.level === "pusat") {
-          return <Navigate to='/center-dashboard' replace />;
-        } else if (user.level === "tahfiz") {
-          return (
-            <Navigate
-              to={isTahfizEnabled ? "/tahfiz-dashboard" : "/admin-dashboard"}
-              replace
-            />
-          );
-        } else if (isFinanceLevel(user.level)) {
-          return (
-            <Navigate
-              to={isFinanceEnabled ? "/finance-dashboard" : "/admin-dashboard"}
-              replace
-            />
-          );
-        } else {
-          // Default: Satuan / Admin Sekolah
-          return <Navigate to='/admin-dashboard' replace />;
-        }
-
-      default:
-        return <Navigate to='/' replace />;
+    if (homePath && homePath !== location.pathname) {
+      return <Navigate to={homePath} replace />;
     }
   }
 

@@ -32,7 +32,13 @@ import {
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 const HIDDEN_SCHEMAS = ["pgboss"];
-const HIDDEN_TABLES = ["db_city", "db_district", "db_village", "db_province"];
+const HIDDEN_TABLES = [
+  "db_city",
+  "db_district",
+  "db_village",
+  "db_province",
+  "configurations",
+];
 const schemaColors = [
   "blue",
   "cyan",
@@ -292,7 +298,8 @@ const DbTables = () => {
               </Title>
               <Text style={{ color: "#64748b" }}>
                 Pilih tabel dari semua schema untuk dikosongkan beserta reset
-                identity-nya.
+                identity-nya. Admin pusat/center beserta relasi `u_admin` akan
+                dipertahankan.
               </Text>
             </div>
             {normalizedTables.length > 0 ? (
@@ -368,7 +375,7 @@ const DbTables = () => {
           {selectedTables.length > 0 ? (
             <Popconfirm
               title="Kosongkan Data Tabel?"
-              description={`Tindakan ini akan menghapus permanen seluruh data pada ${selectedTables.length} tabel yang dipilih, menjalankan CASCADE, dan mereset identity/ID-nya.`}
+              description={`Tindakan ini akan menghapus permanen seluruh data pada ${selectedTables.length} tabel yang dipilih, menjalankan CASCADE, dan mereset identity/ID-nya. Admin pusat/center di u_users dan relasinya di u_admin tetap dipertahankan.`}
               onConfirm={handleResetExecute}
               okText="Ya, Hapus Data"
               cancelText="Batal"
