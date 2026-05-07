@@ -236,32 +236,6 @@ const CenterDash = () => {
                 mudah dibaca.
               </Paragraph>
             </div>
-
-            <Card
-              variant='borderless'
-              style={{
-                width: 320,
-                maxWidth: "100%",
-                borderRadius: 24,
-                background: "rgba(255,255,255,0.14)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                backdropFilter: "blur(10px)",
-              }}
-              styles={{ body: { padding: 22 } }}
-            >
-              <Flex vertical gap={8}>
-                <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                  Sorotan hari ini
-                </Text>
-                <Title level={4} style={{ margin: 0, color: "#fff" }}>
-                  {totalAttendance} presensi tercatat
-                </Title>
-                <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                  {stats.activeExams || 0} ujian aktif dan {logsData.length}{" "}
-                  aktivitas terakhir terpantau.
-                </Text>
-              </Flex>
-            </Card>
           </Flex>
         </Card>
       </MotionDiv>
