@@ -32,12 +32,14 @@ router.get(
       db.query("SELECT COUNT(*) FROM cbt.c_exam WHERE is_active = true"),
 
       // 4. Setoran Tahfiz Hari Ini
-      db.query("SELECT COUNT(*) FROM t_daily_record WHERE date = CURRENT_DATE"),
+      db.query(
+        "SELECT COUNT(*) FROM tahfiz.t_daily_record WHERE date = CURRENT_DATE",
+      ),
 
       // 5. Statistik Kehadiran Hari Ini (Group by status)
       db.query(`
       SELECT status, COUNT(*) as count 
-      FROM l_attendance 
+      FROM lms.l_attendance 
       WHERE date = CURRENT_DATE 
       GROUP BY status
     `),
