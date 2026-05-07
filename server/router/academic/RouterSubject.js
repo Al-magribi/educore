@@ -130,10 +130,10 @@ router.get(
             s.*, 
             b.name as branch_name, 
             c.name as category_name,
-            c.id as category_id
+            COALESCE(s.category_id, b.category_id) as category_id
         FROM a_subject s
         LEFT JOIN a_subject_branch b ON s.branch_id = b.id
-        LEFT JOIN a_subject_category c ON b.category_id = c.id
+        LEFT JOIN a_subject_category c ON c.id = COALESCE(s.category_id, b.category_id)
         WHERE s.homebase_id = $1
     `;
 
@@ -161,7 +161,7 @@ router.get(
 
     // Jika filter category dipilih
     if (category_id) {
-      baseQuery += ` AND c.id = $${paramIndex}`;
+      baseQuery += ` AND COALESCE(s.category_id, b.category_id) = $${paramIndex}`;
       params.push(category_id);
       paramIndex++;
     }
@@ -182,7 +182,7 @@ router.get(
     let countQuery = `
         SELECT COUNT(*) FROM a_subject s 
         LEFT JOIN a_subject_branch b ON s.branch_id = b.id
-        LEFT JOIN a_subject_category c ON b.category_id = c.id
+        LEFT JOIN a_subject_category c ON c.id = COALESCE(s.category_id, b.category_id)
         WHERE s.homebase_id = $1
     `;
     const countParams = [homebase_id];
@@ -207,7 +207,7 @@ router.get(
       countIdx++;
     }
     if (category_id) {
-      countQuery += ` AND c.id = $${countIdx}`;
+      countQuery += ` AND COALESCE(s.category_id, b.category_id) = $${countIdx}`;
       countParams.push(category_id);
       countIdx++;
     }
@@ -233,14 +233,32 @@ router.post(
   "/subject",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
-    const { branch_id, name, code, kkm } = req.body;
+    const { category_id, branch_id, name, code, kkm } = req.body;
     const { homebase_id } = req.user;
 
-    // branch_id bisa null jika user tidak memilih
+    let resolvedCategoryId = category_id || null;
+
+    if (branch_id) {
+      const branchResult = await client.query(
+        `SELECT category_id FROM a_subject_branch WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
+        [branch_id, homebase_id],
+      );
+
+      if (branchResult.rowCount === 0) {
+        return res.status(400).json({ message: "Cabang tidak ditemukan." });
+      }
+
+      resolvedCategoryId = branchResult.rows[0].category_id;
+    }
+
+    if (!resolvedCategoryId) {
+      return res.status(400).json({ message: "Kategori wajib dipilih." });
+    }
+
     const result = await client.query(
-      `INSERT INTO a_subject (homebase_id, branch_id, name, code, kkm) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [homebase_id, branch_id || null, name, code, kkm],
+      `INSERT INTO a_subject (homebase_id, category_id, branch_id, name, code, kkm) 
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [homebase_id, resolvedCategoryId, branch_id || null, name, code, kkm],
     );
 
     res.json({
@@ -256,14 +274,134 @@ router.put(
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
-    const { branch_id, name, code, kkm } = req.body;
+    const { category_id, branch_id, name, code, kkm } = req.body;
+    const { homebase_id } = req.user;
+
+    let resolvedCategoryId = category_id || null;
+
+    if (branch_id) {
+      const branchResult = await client.query(
+        `SELECT category_id FROM a_subject_branch WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
+        [branch_id, homebase_id],
+      );
+
+      if (branchResult.rowCount === 0) {
+        return res.status(400).json({ message: "Cabang tidak ditemukan." });
+      }
+
+      resolvedCategoryId = branchResult.rows[0].category_id;
+    }
+
+    if (!resolvedCategoryId) {
+      return res.status(400).json({ message: "Kategori wajib dipilih." });
+    }
 
     await client.query(
-      `UPDATE a_subject SET branch_id=$1, name=$2, code=$3, kkm=$4 WHERE id=$5`,
-      [branch_id || null, name, code, kkm, id],
+      `UPDATE a_subject 
+       SET category_id=$1, branch_id=$2, name=$3, code=$4, kkm=$5 
+       WHERE id=$6`,
+      [resolvedCategoryId, branch_id || null, name, code, kkm, id],
     );
 
     res.json({ status: "success", message: "Mata pelajaran diupdate" });
+  }),
+);
+
+router.post(
+  "/subject/upload",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const subjects = req.body;
+    const { homebase_id } = req.user;
+
+    if (!Array.isArray(subjects) || subjects.length === 0) {
+      return res.status(400).json({ message: "Data import tidak valid." });
+    }
+
+    const categoriesResult = await client.query(
+      `SELECT id, name FROM a_subject_category WHERE homebase_id = $1`,
+      [homebase_id],
+    );
+    const branchesResult = await client.query(
+      `SELECT id, category_id, name FROM a_subject_branch WHERE homebase_id = $1`,
+      [homebase_id],
+    );
+
+    const categoryIds = new Set(categoriesResult.rows.map((item) => item.id));
+    const branchMap = new Map(branchesResult.rows.map((item) => [item.id, item]));
+    const seenKeys = new Set();
+
+    let imported = 0;
+    let skippedInvalid = 0;
+    let skippedDuplicate = 0;
+
+    for (const subject of subjects) {
+      const name = (subject?.name || "").toString().trim();
+      const code = (subject?.code || "").toString().trim();
+      const categoryId = subject?.category_id || null;
+      const branchId = subject?.branch_id || null;
+      const kkm = Number(subject?.kkm);
+
+      if (!name || !categoryId || !Number.isFinite(kkm) || kkm < 0 || kkm > 100) {
+        skippedInvalid++;
+        continue;
+      }
+
+      if (!categoryIds.has(categoryId)) {
+        skippedInvalid++;
+        continue;
+      }
+
+      if (branchId) {
+        const branch = branchMap.get(branchId);
+        if (!branch || branch.category_id !== categoryId) {
+          skippedInvalid++;
+          continue;
+        }
+      }
+
+      const dedupeKey = `${name.toLowerCase()}::${branchId || "null"}::${code.toLowerCase()}`;
+      if (seenKeys.has(dedupeKey)) {
+        skippedDuplicate++;
+        continue;
+      }
+      seenKeys.add(dedupeKey);
+
+      const duplicateQuery = await client.query(
+        `SELECT id
+         FROM a_subject
+         WHERE homebase_id = $1
+           AND (
+             (LOWER(name) = LOWER($2) AND branch_id IS NOT DISTINCT FROM $3)
+             OR ($4 <> '' AND LOWER(COALESCE(code, '')) = LOWER($4))
+           )
+         LIMIT 1`,
+        [homebase_id, name, branchId, code],
+      );
+
+      if (duplicateQuery.rowCount > 0) {
+        skippedDuplicate++;
+        continue;
+      }
+
+      await client.query(
+        `INSERT INTO a_subject (homebase_id, category_id, branch_id, name, code, kkm)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [homebase_id, categoryId, branchId, name, code || null, kkm],
+      );
+      imported++;
+    }
+
+    res.status(201).json({
+      status: "success",
+      message: `Berhasil mengimpor ${imported} dari ${subjects.length} data mata pelajaran.`,
+      summary: {
+        total: subjects.length,
+        imported,
+        skipped_invalid: skippedInvalid,
+        skipped_duplicate: skippedDuplicate,
+      },
+    });
   }),
 );
 
