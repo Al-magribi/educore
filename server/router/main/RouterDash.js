@@ -73,7 +73,7 @@ router.get(
       ),
       pool.query(
         `SELECT status, COUNT(*) as count 
-         FROM l_attendance a
+         FROM lms.l_attendance a
          JOIN a_class c ON a.class_id = c.id
          WHERE a.date = CURRENT_DATE AND c.homebase_id = $1
          GROUP BY status`,
@@ -357,7 +357,7 @@ router.get(
            COUNT(DISTINCT sub.id) as submission_count
          FROM lms.l_task t
          JOIN a_subject s ON s.id = t.subject_id
-         JOIN l_chapter ch ON ch.id = t.chapter_id
+         JOIN lms.l_chapter ch ON ch.id = t.chapter_id
          LEFT JOIN lms.l_task_class tc ON tc.task_id = t.id
          LEFT JOIN a_class c ON c.id = tc.class_id
          LEFT JOIN lms.l_task_submission sub ON sub.task_id = t.id
