@@ -1,16 +1,9 @@
 import { Router } from "express";
 import { withTransaction, withQuery } from "../../utils/wrapper.js"; // Path sesuai snippet Anda
 import { authorize } from "../../middleware/authorize.js";
-import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { spawn } from "cross-spawn";
-import archiver from "archiver";
-import AdmZip from "adm-zip";
-
-// Konfigurasi Multer untuk Upload (Restore)
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
 
 const router = Router();
 const SYSTEM_SCHEMAS = ["information_schema", "pg_catalog"];
@@ -67,6 +60,7 @@ const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
 const buildQualifiedName = (schema, table) =>
   `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;
+const PROTECTED_ADMIN_LEVELS = ["center", "pusat"];
 
 const normalizeRequestedTable = (value) => {
   if (!value) return null;
@@ -122,6 +116,92 @@ const replaceDirectory = (sourceDir, targetDir, rollbackDir) => {
   }
 };
 
+const ensureCleanDirectory = (dirPath) => {
+  if (fs.existsSync(dirPath)) {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  }
+
+  fs.mkdirSync(dirPath, { recursive: true });
+};
+
+const removeDirectoryIfExists = (dirPath) => {
+  if (fs.existsSync(dirPath)) {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  }
+};
+
+const assertFileHasContent = (filePath, label) => {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`${label} tidak ditemukan`);
+  }
+
+  const { size } = fs.statSync(filePath);
+  if (size <= 0) {
+    throw new Error(`${label} kosong (0 KB)`);
+  }
+
+  return size;
+};
+
+const getDirectorySize = (dirPath) => {
+  if (!fs.existsSync(dirPath)) return 0;
+
+  return fs
+    .readdirSync(dirPath, { withFileTypes: true })
+    .reduce((total, entry) => {
+      const entryPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) return total + getDirectorySize(entryPath);
+      if (entry.isFile()) return total + fs.statSync(entryPath).size;
+      return total;
+    }, 0);
+};
+
+const formatBytes = (bytes) => {
+  const mb = bytes / 1024 / 1024;
+  return `${mb.toFixed(2)} MB`;
+};
+
+const isSafeBackupName = (value) =>
+  typeof value === "string" &&
+  /^backup_\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(value);
+
+const getBackupDirectory = (backupName) => {
+  if (!isSafeBackupName(backupName)) {
+    throw new Error("Nama backup tidak valid");
+  }
+
+  const backupRoot = path.resolve(process.cwd(), "temp_backup");
+  const backupDir = path.resolve(backupRoot, backupName);
+
+  if (
+    backupDir !== backupRoot &&
+    backupDir.startsWith(`${backupRoot}${path.sep}`)
+  ) {
+    return backupDir;
+  }
+
+  throw new Error("Path backup tidak valid");
+};
+
+const validateBackupDirectory = (backupDir) => {
+  if (!fs.existsSync(backupDir) || !fs.statSync(backupDir).isDirectory()) {
+    throw new Error("Folder backup tidak ditemukan");
+  }
+
+  const sqlFile = path.join(backupDir, "database.sql");
+  const manifestFile = path.join(backupDir, "backup_manifest.json");
+  const assetsDir = path.join(backupDir, "assets");
+
+  assertFileHasContent(sqlFile, "File database.sql");
+  assertFileHasContent(manifestFile, "File backup_manifest.json");
+
+  if (!fs.existsSync(assetsDir) || !fs.statSync(assetsDir).isDirectory()) {
+    throw new Error("Folder assets tidak ditemukan dalam backup");
+  }
+
+  return { sqlFile, manifestFile, assetsDir };
+};
+
 // =======================================
 // 1. Get Tables (Daftar Tabel)
 // =======================================
@@ -159,15 +239,15 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
 
   // 2. Naming File
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const sqlFileName = `lms_backup_${timestamp}.sql`;
-  const sqlFilePath = path.join(targetDir, sqlFileName);
-  const zipFileName = `backup_${timestamp}.zip`;
-  const zipFilePath = path.join(targetDir, zipFileName);
+  const backupName = `backup_${timestamp}`;
+  const backupDir = path.join(targetDir, backupName);
+  const sqlFilePath = path.join(backupDir, "database.sql");
 
   const PG_DUMP_CMD = getCommandPath("pg_dump");
-  const manifestFilePath = path.join(targetDir, `manifest_${timestamp}.json`);
+  const manifestFilePath = path.join(backupDir, "backup_manifest.json");
 
   try {
+    ensureCleanDirectory(backupDir);
     console.log(`[BACKUP] Starting backup using: ${PG_DUMP_CMD}`);
 
     // 3. Spawn pg_dump
@@ -207,59 +287,41 @@ router.get("/create-backup", authorize("admin"), async (req, res) => {
       });
     });
 
+    const sqlSize = assertFileHasContent(sqlFilePath, "File database.sql");
+    const assetsPath = path.join(process.cwd(), "server/assets");
+    const stagedAssetsPath = path.join(backupDir, "assets");
+
+    if (fs.existsSync(assetsPath)) {
+      fs.cpSync(assetsPath, stagedAssetsPath, { recursive: true, force: true });
+    } else {
+      fs.mkdirSync(stagedAssetsPath, { recursive: true });
+    }
+
     const manifest = {
       database: process.env.P_DB,
       createdAt: new Date().toISOString(),
-      backupType: "full_database_with_assets",
+      backupType: "folder_database_with_assets",
       sqlFile: "database.sql",
       assetDirectory: "assets",
+      sqlSize,
     };
     fs.writeFileSync(manifestFilePath, JSON.stringify(manifest, null, 2));
+    assertFileHasContent(manifestFilePath, "File backup_manifest.json");
+    validateBackupDirectory(backupDir);
 
-    // 4. Proses Zipping (SQL + Assets)
-    const output = fs.createWriteStream(zipFilePath);
-    const archive = archiver("zip", { zlib: { level: 9 } });
-
-    output.on("close", () => {
-      console.log(`[BACKUP] Zip created: ${archive.pointer()} bytes`);
-      // Hapus file raw SQL setelah di-zip agar hemat storage
-      if (fs.existsSync(sqlFilePath)) fs.unlinkSync(sqlFilePath);
-      if (fs.existsSync(manifestFilePath)) fs.unlinkSync(manifestFilePath);
-
-      res.status(200).json({
-        message: "Backup berhasil dibuat",
-        filename: zipFileName,
-        url: `/temp_backup/${zipFileName}`, // Pastikan folder ini di-serve static di main app
-      });
+    res.status(200).json({
+      message: "Backup berhasil dibuat",
+      filename: backupName,
+      url: `/temp_backup/${backupName}/backup_manifest.json`,
     });
-
-    archive.on("error", (err) => {
-      throw err;
-    });
-    archive.pipe(output);
-
-    // Masukkan SQL ke dalam Zip
-    archive.file(sqlFilePath, { name: "database.sql" });
-    archive.file(manifestFilePath, { name: "backup_manifest.json" });
-
-    // Masukkan folder Assets (misal: upload tugas siswa, foto profil)
-    // Sesuaikan path assets LMS Anda. Asumsi: 'server/public' atau 'server/assets'
-    const assetsPath = path.join(process.cwd(), "server/assets");
-    if (fs.existsSync(assetsPath)) {
-      archive.directory(assetsPath, "assets");
-    }
-
-    await archive.finalize();
   } catch (error) {
     console.error(`[BACKUP ERROR] ${error.message}`);
-    // Cleanup jika error
-    if (fs.existsSync(sqlFilePath)) fs.unlinkSync(sqlFilePath);
-    if (fs.existsSync(manifestFilePath)) fs.unlinkSync(manifestFilePath);
+    removeDirectoryIfExists(backupDir);
     res.status(500).json({ message: error.message });
   }
 });
 
-// List File Backup yang tersedia
+// List Folder Backup yang tersedia
 router.get("/list-backups", authorize("admin"), async (req, res) => {
   try {
     const targetDir = path.join(process.cwd(), "temp_backup");
@@ -268,17 +330,30 @@ router.get("/list-backups", authorize("admin"), async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const files = fs.readdirSync(targetDir);
-    const fileList = files
-      .filter((f) => f.endsWith(".zip"))
-      .map((file) => {
-        const filePath = path.join(targetDir, file);
-        const stats = fs.statSync(filePath);
+    const fileList = fs
+      .readdirSync(targetDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && isSafeBackupName(entry.name))
+      .map((entry) => {
+        const backupDir = path.join(targetDir, entry.name);
+        const stats = fs.statSync(backupDir);
+        const manifestPath = path.join(backupDir, "backup_manifest.json");
+        let manifest = {};
+
+        if (fs.existsSync(manifestPath)) {
+          try {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+          } catch (error) {
+            manifest = {};
+          }
+        }
+
         return {
-          name: file,
-          size: (stats.size / 1024 / 1024).toFixed(2) + " MB",
-          createdAt: stats.birthtime,
-          url: `/temp_backup/${file}`,
+          name: entry.name,
+          type: "folder",
+          size: formatBytes(getDirectorySize(backupDir)),
+          createdAt: manifest.createdAt || stats.birthtime,
+          sqlSize: manifest.sqlSize ? formatBytes(manifest.sqlSize) : "-",
+          url: `/temp_backup/${entry.name}/backup_manifest.json`,
         };
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -296,15 +371,10 @@ router.delete(
   async (req, res) => {
     try {
       const { filename } = req.params;
-      // Validasi dasar keamanan path traversal
-      if (filename.includes("..") || filename.includes("/")) {
-        return res.status(400).json({ message: "Invalid filename" });
-      }
-
-      const filePath = path.join(process.cwd(), "temp_backup", filename);
+      const filePath = getBackupDirectory(filename);
 
       if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        fs.rmSync(filePath, { recursive: true, force: true });
         res.status(200).json({ message: "File backup berhasil dihapus" });
       } else {
         res.status(404).json({ message: "File tidak ditemukan" });
@@ -322,42 +392,35 @@ router.delete(
 router.post(
   "/restore-data",
   authorize("admin"),
-  upload.single("backupFile"), // Name field di frontend harus 'backupFile'
   async (req, res) => {
-    const tempRestoreDir = path.join(process.cwd(), "temp_restore");
+    const restoreId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const tempRestoreDir = path.join(process.cwd(), "temp_restore", restoreId);
 
     try {
-      if (!req.file || !req.file.buffer) {
+      const { backupName } = req.body || {};
+
+      if (!backupName) {
         return res
           .status(400)
-          .json({ message: "File backup (.zip) wajib diupload" });
+          .json({ message: "Pilih folder backup yang akan direstore" });
       }
 
-      // 1. Setup Folder Temp
-      if (fs.existsSync(tempRestoreDir)) {
-        fs.rmSync(tempRestoreDir, { recursive: true, force: true });
-      }
-      fs.mkdirSync(tempRestoreDir);
+      ensureCleanDirectory(tempRestoreDir);
 
-      // 2. Extract ZIP
-      const zip = new AdmZip(req.file.buffer);
-      zip.extractAllTo(tempRestoreDir, true);
-
-      const extractedAssets = path.join(tempRestoreDir, "assets");
+      const backupDir = getBackupDirectory(backupName);
+      const { sqlFile, assetsDir } = validateBackupDirectory(backupDir);
       const targetAssets = path.join(process.cwd(), "server/assets");
-      const rollbackAssets = path.join(tempRestoreDir, "__assets_before_restore");
-      const sqlCandidates = fs
-        .readdirSync(tempRestoreDir)
-        .filter((file) => file.toLowerCase().endsWith(".sql"))
-        .map((file) => path.join(tempRestoreDir, file));
-      const sqlFile = sqlCandidates[0] || path.join(tempRestoreDir, "database.sql");
+      const rollbackAssets = path.join(
+        tempRestoreDir,
+        "__assets_before_restore",
+      );
       const PSQL_CMD = getCommandPath("psql");
 
-      if (fs.existsSync(sqlFile)) {
-        console.log(`[RESTORE] Executing SQL restore...`);
+      console.log(`[RESTORE] Executing SQL restore from ${backupName}...`);
 
-        const pgEnv = { ...process.env, PGPASSWORD: process.env.P_PASSWORD };
+      const pgEnv = { ...process.env, PGPASSWORD: process.env.P_PASSWORD };
 
+      await new Promise((resolve, reject) => {
         const psql = spawn(
           PSQL_CMD,
           [
@@ -382,43 +445,33 @@ router.post(
 
         psql.on("close", (code) => {
           if (code !== 0) {
-            fs.rmSync(tempRestoreDir, { recursive: true, force: true });
-            return res
-              .status(500)
-              .json({ message: "Gagal restore SQL (Exit code error)" });
+            reject(new Error("Gagal restore SQL (Exit code error)"));
+            return;
           }
 
-          try {
-            if (fs.existsSync(extractedAssets)) {
-              replaceDirectory(extractedAssets, targetAssets, rollbackAssets);
-            }
-
-            fs.rmSync(tempRestoreDir, { recursive: true, force: true });
-            res.json({
-              message: "Restore database semua schema dan assets berhasil!",
-            });
-          } catch (assetError) {
-            fs.rmSync(tempRestoreDir, { recursive: true, force: true });
-            res.status(500).json({
-              message: `Database pulih, tetapi restore assets gagal: ${assetError.message}`,
-            });
-          }
+          resolve();
         });
 
         psql.on("error", (err) => {
-          fs.rmSync(tempRestoreDir, { recursive: true, force: true });
-          res.status(500).json({ message: `Gagal spawn psql: ${err.message}` });
+          reject(new Error(`Gagal spawn psql: ${err.message}`));
         });
-      } else {
-        fs.rmSync(tempRestoreDir, { recursive: true, force: true });
-        res
-          .status(400)
-          .json({ message: "File database.sql tidak ditemukan dalam backup" });
+      });
+
+      try {
+        replaceDirectory(assetsDir, targetAssets, rollbackAssets);
+        removeDirectoryIfExists(tempRestoreDir);
+        res.json({
+          message: "Restore database semua schema dan assets berhasil!",
+        });
+      } catch (assetError) {
+        removeDirectoryIfExists(tempRestoreDir);
+        res.status(500).json({
+          message: `Database pulih, tetapi restore assets gagal: ${assetError.message}`,
+        });
       }
     } catch (error) {
       console.error(error);
-      if (fs.existsSync(tempRestoreDir))
-        fs.rmSync(tempRestoreDir, { recursive: true, force: true });
+      removeDirectoryIfExists(tempRestoreDir);
       res.status(500).json({ message: error.message });
     }
   },
@@ -487,18 +540,74 @@ router.delete(
         });
       }
 
-      const uniqueTables = Array.from(
-        new Map(
-          resolvedTables.map((item) => [
-            `${item.schema}.${item.table}`,
-            buildQualifiedName(item.schema, item.table),
-          ]),
-        ).values(),
+      const includesUsersTable = resolvedTables.some(
+        (item) => item.schema === "public" && item.table === "u_users",
+      );
+      const includesAdminTable = resolvedTables.some(
+        (item) => item.schema === "public" && item.table === "u_admin",
       );
 
-      await client.query(
-        `TRUNCATE TABLE ${uniqueTables.join(", ")} RESTART IDENTITY CASCADE`,
-      );
+      const protectedAdminIds = new Set();
+      if (includesUsersTable || includesAdminTable) {
+        const protectedAdmins = await client.query(
+          `
+            SELECT u.id
+            FROM public.u_users u
+            INNER JOIN public.u_admin a ON a.user_id = u.id
+            WHERE u.role = 'admin'
+              AND LOWER(COALESCE(a.level, '')) = ANY($1::text[])
+          `,
+          [PROTECTED_ADMIN_LEVELS],
+        );
+
+        for (const row of protectedAdmins.rows) {
+          protectedAdminIds.add(row.id);
+        }
+      }
+
+      const truncateTargets = resolvedTables.filter((item) => {
+        if (item.schema !== "public") return true;
+        if (item.table === "u_users") return false;
+        if (item.table === "u_admin") return false;
+        return true;
+      });
+
+      if (truncateTargets.length > 0) {
+        const truncateSql = Array.from(
+          new Map(
+            truncateTargets.map((item) => [
+              `${item.schema}.${item.table}`,
+              buildQualifiedName(item.schema, item.table),
+            ]),
+          ).values(),
+        );
+
+        await client.query(
+          `TRUNCATE TABLE ${truncateSql.join(", ")} RESTART IDENTITY CASCADE`,
+        );
+      }
+
+      if (includesAdminTable) {
+        if (protectedAdminIds.size > 0) {
+          await client.query(
+            `DELETE FROM public.u_admin WHERE user_id <> ALL($1::int[])`,
+            [Array.from(protectedAdminIds)],
+          );
+        } else {
+          await client.query(`TRUNCATE TABLE public.u_admin RESTART IDENTITY`);
+        }
+      }
+
+      if (includesUsersTable) {
+        if (protectedAdminIds.size > 0) {
+          await client.query(
+            `DELETE FROM public.u_users WHERE id <> ALL($1::int[])`,
+            [Array.from(protectedAdminIds)],
+          );
+        } else {
+          await client.query(`TRUNCATE TABLE public.u_users RESTART IDENTITY`);
+        }
+      }
 
       res.status(200).json({ message: "Data berhasil direset" });
     } catch (error) {
