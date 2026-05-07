@@ -99,10 +99,6 @@ const HalaqohTab = ({ items = [] }) => {
           tabBarGutter={12}
           tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
         />
-
-        <Text type='secondary' style={{ fontSize: 12 }}>
-          Gunakan tab untuk berpindah konteks manajemen tanpa keluar dari modul.
-        </Text>
       </Card>
     </MotionDiv>
   );
