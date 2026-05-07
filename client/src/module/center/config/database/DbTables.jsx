@@ -32,6 +32,7 @@ import {
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 const HIDDEN_SCHEMAS = ["pgboss"];
+const HIDDEN_TABLES = ["db_city", "db_district", "db_village", "db_province"];
 const schemaColors = [
   "blue",
   "cyan",
@@ -82,7 +83,11 @@ const DbTables = () => {
 
     return tables
       .map((table, index) => getTableMeta(table, index))
-      .filter((table) => !HIDDEN_SCHEMAS.includes(table.schema));
+      .filter(
+        (table) =>
+          !HIDDEN_SCHEMAS.includes(table.schema) &&
+          !HIDDEN_TABLES.includes(table.tableName),
+      );
   }, [tables]);
 
   const schemaOptions = useMemo(() => {
