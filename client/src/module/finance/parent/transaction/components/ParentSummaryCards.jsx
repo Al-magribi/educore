@@ -103,15 +103,6 @@ const ParentSummaryCards = ({ summary }) => (
             value={summary?.[item.key] || 0}
             formatter={item.formatter}
           />
-          <div
-            style={{
-              marginTop: 8,
-              fontSize: 12,
-              color: "#64748b",
-            }}
-          >
-            {item.note}
-          </div>
         </Card>
       </MotionDiv>
     ))}

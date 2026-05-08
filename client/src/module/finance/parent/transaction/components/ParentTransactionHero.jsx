@@ -71,7 +71,7 @@ const ParentTransactionHero = ({ student, summary }) => (
             level={2}
             style={{ margin: 0, color: "#fff", lineHeight: 1.1 }}
           >
-            Riwayat pembayaran sekolah dalam satu workspace yang rapi
+            Riwayat pembayaran sekolah
           </Title>
 
           <Paragraph
@@ -86,53 +86,6 @@ const ParentTransactionHero = ({ student, summary }) => (
             resmi untuk {student?.student_name || "anak Anda"}.
           </Paragraph>
         </Space>
-
-        <Card
-          variant='borderless'
-          style={{
-            width: 320,
-            maxWidth: "100%",
-            borderRadius: 24,
-            background: "rgba(255,255,255,0.14)",
-            border: "1px solid rgba(255,255,255,0.14)",
-            backdropFilter: "blur(10px)",
-          }}
-          styles={{ body: { padding: 22 } }}
-        >
-          <Space direction='vertical' size={12} style={{ width: "100%" }}>
-            <Flex align='center' gap={8}>
-              <CreditCard size={16} color='#bfdbfe' />
-              <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                Ringkasan saat ini
-              </Text>
-            </Flex>
-            <Title level={3} style={{ margin: 0, color: "#fff" }}>
-              {student?.student_name || "-"}
-            </Title>
-            <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-              {student?.grade_name || "-"} {student?.class_name || ""}
-            </Text>
-            <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-              {student?.homebase_name || "-"} | {student?.periode_name || "-"}
-            </Text>
-            <Flex
-              align='center'
-              gap={8}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 18,
-                background: "rgba(15,23,42,0.16)",
-              }}
-            >
-              <ShieldCheck size={16} color='#86efac' />
-              <Text style={{ color: "#e2e8f0" }}>
-                {Number(summary?.paid_count || 0)} item lunas,{" "}
-                {Number(summary?.pending_count || 0)} menunggu verifikasi,{" "}
-                {Number(summary?.total_items || 0)} item terpantau
-              </Text>
-            </Flex>
-          </Space>
-        </Card>
       </Flex>
     </Card>
   </MotionDiv>

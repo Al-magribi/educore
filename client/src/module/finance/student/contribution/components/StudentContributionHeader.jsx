@@ -108,28 +108,6 @@ const StudentContributionHeader = ({
             </Space>
           ) : null}
         </Flex>
-
-        <Alert
-          showIcon
-          type={access?.is_officer ? "info" : "success"}
-          style={{
-            borderRadius: 18,
-            border: "none",
-            background: "rgba(255,255,255,0.12)",
-            color: "#fff",
-          }}
-          icon={<FundProjectionScreenOutlined />}
-          title={
-            access?.is_officer
-              ? "Anda terdaftar sebagai petugas kas kelas pada periode aktif ini."
-              : "Anda sedang melihat status kas kelas dan riwayat pembayaran periode aktif."
-          }
-          description={
-            ownStudent?.is_paid
-              ? "Status pembayaran kas Anda sudah tercatat pada periode aktif."
-              : "Pembayaran kas Anda belum tercatat pada periode aktif."
-          }
-        />
       </Flex>
     </Card>
   </MotionDiv>
