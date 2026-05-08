@@ -391,7 +391,12 @@ const Schedule = () => {
         color: "gold",
       },
     ],
-    [configGroups.length, payload.entries, scheduleConfigs.length, scopedClasses],
+    [
+      configGroups.length,
+      payload.entries,
+      scheduleConfigs.length,
+      scopedClasses,
+    ],
   );
 
   const handleConfigSave = async (body) => {
@@ -637,14 +642,14 @@ const Schedule = () => {
       <Alert
         showIcon
         type='warning'
-        message='Belum ada master jadwal'
+        title='Belum ada master jadwal'
         description='Buat dan pilih master jadwal terlebih dahulu sebelum mengelola data operasional.'
       />
     ) : !isSelectedConfigActive ? (
       <Alert
         showIcon
         type='info'
-        message='Jadwal yang dipilih masih nonaktif'
+        title='Jadwal yang dipilih masih nonaktif'
         description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada beban ajar, kegiatan, ketentuan guru, dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
           scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
             ?.name || "belum ditentukan"
@@ -657,312 +662,310 @@ const Schedule = () => {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      style={{
-        display: "grid",
-        gap: 18,
-        paddingBottom: 24,
-        width: "100%",
-        maxWidth: "100%",
-        overflowX: "hidden",
-      }}
     >
-      <Card
-        variant='borderless'
-        style={{
-          borderRadius: isMobile ? 22 : 28,
-          overflow: "hidden",
-          border: "1px solid rgba(191, 219, 254, 0.82)",
-          background:
-            "radial-gradient(circle at top right, rgba(125, 211, 252, 0.28), transparent 34%), linear-gradient(135deg, #0f172a 0%, #0f3d8f 45%, #0891b2 100%)",
-          boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
-        }}
-        styles={{ body: { padding: isMobile ? 20 : 28 } }}
-      >
-        <Flex
-          justify='space-between'
-          align='start'
-          wrap='wrap'
-          gap={16}
-          style={{ width: "100%", maxWidth: "100%" }}
+      <Flex vertical gap={"middle"}>
+        <Card
+          variant='borderless'
+          style={{
+            borderRadius: isMobile ? 22 : 28,
+            overflow: "hidden",
+            border: "1px solid rgba(191, 219, 254, 0.82)",
+            background:
+              "radial-gradient(circle at top right, rgba(125, 211, 252, 0.28), transparent 34%), linear-gradient(135deg, #0f172a 0%, #0f3d8f 45%, #0891b2 100%)",
+            boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
+          }}
+          styles={{ body: { padding: isMobile ? 20 : 28 } }}
         >
-          <Space
-            direction='vertical'
-            size={12}
-            style={{ maxWidth: 760, minWidth: 0, width: "100%" }}
+          <Flex
+            justify='space-between'
+            align='start'
+            wrap='wrap'
+            gap={16}
+            style={{ width: "100%", maxWidth: "100%" }}
           >
-            <Tag
-              icon={<BookOpenCheck size={14} />}
-              style={{
-                ...SCHEDULE_TAG_STYLE,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.12)",
-                color: "#f8fafc",
-              }}
+            <Space
+              direction='vertical'
+              size={12}
+              style={{ maxWidth: 760, minWidth: 0, width: "100%" }}
             >
-              Workspace Jadwal
-            </Tag>
-            <div>
-              <Title
-                level={isMobile ? 4 : 2}
-                style={{ margin: 0, color: "#f8fafc", lineHeight: 1.15 }}
-              >
-                Kelola master, shift, beban ajar, dan jadwal final dari satu
-                alur yang lebih rapi.
-              </Title>
-              <Text
+              <Tag
+                icon={<BookOpenCheck size={14} />}
                 style={{
-                  display: "block",
-                  marginTop: 8,
-                  color: "rgba(226, 232, 240, 0.92)",
-                  maxWidth: 760,
-                  lineHeight: 1.7,
+                  ...SCHEDULE_TAG_STYLE,
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#f8fafc",
                 }}
               >
-                Modul ini sekarang difokuskan untuk pengaturan struktur jadwal
-                dan penyusunan final secara manual, sehingga admin bisa
-                mengontrol penempatan sesi dengan lebih jelas.
-              </Text>
-            </div>
-            <Space size={[8, 8]} wrap>
-              {summaryItems.map((item) => (
-                <Tag
-                  key={item.key}
-                  color={item.color}
+                Workspace Jadwal
+              </Tag>
+              <div>
+                <Title
+                  level={isMobile ? 4 : 2}
+                  style={{ margin: 0, color: "#f8fafc", lineHeight: 1.15 }}
+                >
+                  Kelola master, shift, beban ajar, dan jadwal final dari satu
+                  alur yang lebih rapi.
+                </Title>
+                <Text
                   style={{
-                    ...SCHEDULE_TAG_STYLE,
-                    background: "rgba(255,255,255,0.12)",
-                    borderColor: "rgba(255,255,255,0.16)",
-                    color: "#f8fafc",
+                    display: "block",
+                    marginTop: 8,
+                    color: "rgba(226, 232, 240, 0.92)",
+                    maxWidth: 760,
+                    lineHeight: 1.7,
                   }}
                 >
-                  {item.label}: {item.value}
-                </Tag>
-              ))}
+                  Modul ini sekarang difokuskan untuk pengaturan struktur jadwal
+                  dan penyusunan final secara manual, sehingga admin bisa
+                  mengontrol penempatan sesi dengan lebih jelas.
+                </Text>
+              </div>
+              <Space size={[8, 8]} wrap>
+                {summaryItems.map((item) => (
+                  <Tag
+                    key={item.key}
+                    color={item.color}
+                    style={{
+                      ...SCHEDULE_TAG_STYLE,
+                      background: "rgba(255,255,255,0.12)",
+                      borderColor: "rgba(255,255,255,0.16)",
+                      color: "#f8fafc",
+                    }}
+                  >
+                    {item.label}: {item.value}
+                  </Tag>
+                ))}
+              </Space>
             </Space>
-          </Space>
 
-          <Button
-            size='large'
-            icon={<CircleHelp size={16} />}
-            onClick={() => setGuideOpen(true)}
-            style={{
-              borderRadius: 14,
-              borderColor: "rgba(255,255,255,0.2)",
-              background: "rgba(255,255,255,0.14)",
-              color: "#fff",
-            }}
-          >
-            Panduan Jadwal
-          </Button>
-        </Flex>
-      </Card>
+            <Button
+              size='large'
+              icon={<CircleHelp size={16} />}
+              onClick={() => setGuideOpen(true)}
+              style={{
+                borderRadius: 14,
+                borderColor: "rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.14)",
+                color: "#fff",
+              }}
+            >
+              Panduan Jadwal
+            </Button>
+          </Flex>
+        </Card>
 
-      <Card
-        variant='borderless'
-        style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}
-        styles={{ body: { padding: isMobile ? 12 : 16 } }}
-      >
-        <Tabs
-          defaultActiveKey='master'
-          size={isMobile ? "middle" : "large"}
-          tabBarGutter={12}
-          tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
-          items={[
-            {
-              key: "master",
-              label: createTabLabel(
-                "Master Jadwal",
-                <SlidersHorizontal size={16} />,
-                "Pilih versi jadwal aktif",
-              ),
-              children: (
-                <ScheduleMasterCard
-                  canManage={canManage}
-                  scheduleConfigs={scheduleConfigs}
-                  selectedConfig={selectedConfig}
-                  configOptions={configOptions}
-                  configGroups={configGroups}
-                  unmappedGroupClasses={unmappedGroupClasses}
-                  activeConfigId={activeConfigId}
-                  loading={savingConfig || deletingConfig}
-                  activatingConfig={activatingConfig}
-                  onSelectConfig={setSelectedConfigId}
-                  onSaveConfig={handleSaveConfigMeta}
-                  onActivateConfig={handleActivateConfig}
-                  onDeleteConfig={handleDeleteConfig}
-                />
-              ),
-            },
-            {
-              key: "config",
-              label: createTabLabel(
-                "Konfigurasi Jadwal",
-                <Settings2 size={16} />,
-                "Atur hari, sesi, dan shift",
-              ),
-              children: selectedConfig ? (
-                <ScheduleConfigCard
-                  canManage={canManage}
-                  config={selectedConfig}
-                  groups={configGroups}
-                  selectedGroup={selectedGroup}
-                  selectedGroupClasses={payload.selected_group_classes || []}
-                  classes={payload.classes || []}
-                  dayTemplates={payload.day_templates || []}
-                  breaks={payload.breaks || []}
-                  scheduleCapacity={scheduleCapacity}
-                  sessionShortages={sessionShortages}
-                  loading={
-                    savingConfig ||
-                    savingConfigGroup ||
-                    deletingConfigGroup ||
-                    activatingConfig ||
-                    isFetching
-                  }
-                  onSelectGroup={setSelectedGroupId}
-                  onSave={handleConfigSave}
-                  onSaveGroup={handleGroupSave}
-                  onDeleteGroup={handleDeleteGroup}
-                />
-              ) : (
-                <Alert
-                  showIcon
-                  type='warning'
-                  message='Belum ada master jadwal'
-                  description='Buat master jadwal terlebih dahulu untuk mulai mengatur hari, jam belajar, dan durasi sesi.'
-                />
-              ),
-            },
-            {
-              key: "load",
-              label: createTabLabel(
-                "Beban Ajar",
-                <UsersRound size={16} />,
-                "Distribusi sesi guru per kelas",
-              ),
-              children: isConfigOperational ? (
-                <ScheduleLoadCard
-                  canManage={canManage}
-                  classes={scopedClasses}
-                  grades={payload.grades || []}
-                  subjects={payload.subjects || []}
-                  teachers={payload.teachers || []}
-                  teacherAssignments={scopedTeacherAssignments}
-                  scheduleCapacity={scheduleCapacity}
-                  sessionShortages={sessionShortages}
-                  loading={
-                    savingLoad || deletingLoad || importingLoad || isFetching
-                  }
-                  onSave={handleLoadSave}
-                  onImport={handleImportLoad}
-                  onDelete={handleDeleteLoad}
-                />
-              ) : (
-                renderInactiveConfigAlert()
-              ),
-            },
-            {
-              key: "activity",
-              label: createTabLabel(
-                "Kegiatan",
-                <Activity size={16} />,
-                "Blok slot untuk agenda sekolah",
-              ),
-              children: isConfigOperational ? (
-                <ScheduleActivity
-                  canManage={canManage}
-                  activities={payload.all_activities || payload.activities || []}
-                  activityTargets={
-                    payload.all_activity_targets || payload.activity_targets || []
-                  }
-                  slots={payload.slots || []}
-                  teacherAssignments={scopedTeacherAssignments}
-                  scheduleCapacity={scheduleCapacity}
-                  selectedConfig={selectedConfig}
-                  groups={configGroups}
-                  selectedGroup={selectedGroup}
-                  groupCount={configGroups.length}
-                  loading={savingActivity || deletingActivity || isFetching}
-                  onSave={handleActivitySave}
-                  onDelete={handleActivityDelete}
-                  onSelectGroup={setSelectedGroupId}
-                />
-              ) : (
-                renderInactiveConfigAlert()
-              ),
-            },
-            {
-              key: "unavailability",
-              label: createTabLabel(
-                "Ketentuan Guru",
-                <UserRoundCog size={16} />,
-                "Hari dan jam yang diblokir",
-              ),
-              children: isConfigOperational ? (
-                <ScheduleUnavailabilityCard
-                  canManage={canManage}
-                  teachers={payload.teachers || []}
-                  rules={payload.unavailability || []}
-                  slots={payload.slots || []}
-                  allSlots={payload.all_slots || payload.slots || []}
-                  selectedConfig={selectedConfig}
-                  groups={configGroups}
-                  selectedGroup={selectedGroup}
-                  groupCount={configGroups.length}
-                  loading={savingRule || deletingRule || isFetching}
-                  onSave={handleRuleSave}
-                  onDelete={handleDeleteRule}
-                  onSelectGroup={setSelectedGroupId}
-                />
-              ) : (
-                renderInactiveConfigAlert()
-              ),
-            },
-            {
-              key: "final",
-              label: createTabLabel(
-                "Jadwal Final",
-                <LayoutGrid size={16} />,
-                "Review dan edit jadwal manual",
-              ),
-              children: isConfigOperational ? (
-                <ScheduleTimetableCard
-                  canManage={canManage}
-                  configs={scheduleConfigs}
-                  groups={configGroups}
-                  entries={payload.entries || []}
-                  activities={payload.activities || []}
-                  activityTargets={payload.activity_targets || []}
-                  slots={payload.slots || []}
-                  breaks={payload.breaks || []}
-                  classes={scopedClasses}
-                  grades={payload.grades || []}
-                  teacherAssignments={scopedTeacherAssignments}
-                  teachers={payload.teachers || []}
-                  sessionShortages={sessionShortages}
-                  selectedConfig={selectedConfig}
-                  selectedGroup={selectedGroup}
-                  groupCount={configGroups.length}
-                  onSelectConfig={setSelectedConfigId}
-                  onSelectGroup={setSelectedGroupId}
-                  onCreateEntry={handleCreateManualEntry}
-                  onRefresh={refetch}
-                  onDeleteEntry={handleDeleteEntry}
-                  onUpdateEntry={handleUpdateEntry}
-                  loading={
-                    creatingEntry ||
-                    updatingEntry ||
-                    deletingEntry ||
-                    isFetching
-                  }
-                />
-              ) : (
-                renderInactiveConfigAlert()
-              ),
-            },
-          ]}
-        />
-      </Card>
+        <Card
+          variant='borderless'
+          style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}
+          styles={{ body: { padding: isMobile ? 12 : 16 } }}
+        >
+          <Tabs
+            defaultActiveKey='master'
+            size={isMobile ? "middle" : "large"}
+            tabBarGutter={12}
+            tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+            items={[
+              {
+                key: "master",
+                label: createTabLabel(
+                  "Master Jadwal",
+                  <SlidersHorizontal size={16} />,
+                  "Pilih versi jadwal aktif",
+                ),
+                children: (
+                  <ScheduleMasterCard
+                    canManage={canManage}
+                    scheduleConfigs={scheduleConfigs}
+                    selectedConfig={selectedConfig}
+                    configOptions={configOptions}
+                    configGroups={configGroups}
+                    unmappedGroupClasses={unmappedGroupClasses}
+                    activeConfigId={activeConfigId}
+                    loading={savingConfig || deletingConfig}
+                    activatingConfig={activatingConfig}
+                    onSelectConfig={setSelectedConfigId}
+                    onSaveConfig={handleSaveConfigMeta}
+                    onActivateConfig={handleActivateConfig}
+                    onDeleteConfig={handleDeleteConfig}
+                  />
+                ),
+              },
+              {
+                key: "config",
+                label: createTabLabel(
+                  "Konfigurasi Jadwal",
+                  <Settings2 size={16} />,
+                  "Atur hari, sesi, dan shift",
+                ),
+                children: selectedConfig ? (
+                  <ScheduleConfigCard
+                    canManage={canManage}
+                    config={selectedConfig}
+                    groups={configGroups}
+                    selectedGroup={selectedGroup}
+                    selectedGroupClasses={payload.selected_group_classes || []}
+                    classes={payload.classes || []}
+                    dayTemplates={payload.day_templates || []}
+                    breaks={payload.breaks || []}
+                    scheduleCapacity={scheduleCapacity}
+                    sessionShortages={sessionShortages}
+                    loading={
+                      savingConfig ||
+                      savingConfigGroup ||
+                      deletingConfigGroup ||
+                      activatingConfig ||
+                      isFetching
+                    }
+                    onSelectGroup={setSelectedGroupId}
+                    onSave={handleConfigSave}
+                    onSaveGroup={handleGroupSave}
+                    onDeleteGroup={handleDeleteGroup}
+                  />
+                ) : (
+                  <Alert
+                    showIcon
+                    type='warning'
+                    message='Belum ada master jadwal'
+                    description='Buat master jadwal terlebih dahulu untuk mulai mengatur hari, jam belajar, dan durasi sesi.'
+                  />
+                ),
+              },
+              {
+                key: "load",
+                label: createTabLabel(
+                  "Beban Ajar",
+                  <UsersRound size={16} />,
+                  "Distribusi sesi guru per kelas",
+                ),
+                children: isConfigOperational ? (
+                  <ScheduleLoadCard
+                    canManage={canManage}
+                    classes={scopedClasses}
+                    grades={payload.grades || []}
+                    subjects={payload.subjects || []}
+                    teachers={payload.teachers || []}
+                    teacherAssignments={scopedTeacherAssignments}
+                    scheduleCapacity={scheduleCapacity}
+                    sessionShortages={sessionShortages}
+                    loading={
+                      savingLoad || deletingLoad || importingLoad || isFetching
+                    }
+                    onSave={handleLoadSave}
+                    onImport={handleImportLoad}
+                    onDelete={handleDeleteLoad}
+                  />
+                ) : (
+                  renderInactiveConfigAlert()
+                ),
+              },
+              {
+                key: "activity",
+                label: createTabLabel(
+                  "Kegiatan",
+                  <Activity size={16} />,
+                  "Blok slot untuk agenda sekolah",
+                ),
+                children: isConfigOperational ? (
+                  <ScheduleActivity
+                    canManage={canManage}
+                    activities={
+                      payload.all_activities || payload.activities || []
+                    }
+                    activityTargets={
+                      payload.all_activity_targets ||
+                      payload.activity_targets ||
+                      []
+                    }
+                    slots={payload.slots || []}
+                    teacherAssignments={scopedTeacherAssignments}
+                    scheduleCapacity={scheduleCapacity}
+                    selectedConfig={selectedConfig}
+                    groups={configGroups}
+                    selectedGroup={selectedGroup}
+                    groupCount={configGroups.length}
+                    loading={savingActivity || deletingActivity || isFetching}
+                    onSave={handleActivitySave}
+                    onDelete={handleActivityDelete}
+                    onSelectGroup={setSelectedGroupId}
+                  />
+                ) : (
+                  renderInactiveConfigAlert()
+                ),
+              },
+              {
+                key: "unavailability",
+                label: createTabLabel(
+                  "Ketentuan Guru",
+                  <UserRoundCog size={16} />,
+                  "Hari dan jam yang diblokir",
+                ),
+                children: isConfigOperational ? (
+                  <ScheduleUnavailabilityCard
+                    canManage={canManage}
+                    teachers={payload.teachers || []}
+                    rules={payload.unavailability || []}
+                    slots={payload.slots || []}
+                    allSlots={payload.all_slots || payload.slots || []}
+                    selectedConfig={selectedConfig}
+                    groups={configGroups}
+                    selectedGroup={selectedGroup}
+                    groupCount={configGroups.length}
+                    loading={savingRule || deletingRule || isFetching}
+                    onSave={handleRuleSave}
+                    onDelete={handleDeleteRule}
+                    onSelectGroup={setSelectedGroupId}
+                  />
+                ) : (
+                  renderInactiveConfigAlert()
+                ),
+              },
+              {
+                key: "final",
+                label: createTabLabel(
+                  "Jadwal Final",
+                  <LayoutGrid size={16} />,
+                  "Review dan edit jadwal manual",
+                ),
+                children: isConfigOperational ? (
+                  <ScheduleTimetableCard
+                    canManage={canManage}
+                    configs={scheduleConfigs}
+                    groups={configGroups}
+                    entries={payload.entries || []}
+                    activities={payload.activities || []}
+                    activityTargets={payload.activity_targets || []}
+                    slots={payload.slots || []}
+                    breaks={payload.breaks || []}
+                    classes={scopedClasses}
+                    grades={payload.grades || []}
+                    teacherAssignments={scopedTeacherAssignments}
+                    teachers={payload.teachers || []}
+                    sessionShortages={sessionShortages}
+                    selectedConfig={selectedConfig}
+                    selectedGroup={selectedGroup}
+                    groupCount={configGroups.length}
+                    onSelectConfig={setSelectedConfigId}
+                    onSelectGroup={setSelectedGroupId}
+                    onCreateEntry={handleCreateManualEntry}
+                    onRefresh={refetch}
+                    onDeleteEntry={handleDeleteEntry}
+                    onUpdateEntry={handleUpdateEntry}
+                    loading={
+                      creatingEntry ||
+                      updatingEntry ||
+                      deletingEntry ||
+                      isFetching
+                    }
+                  />
+                ) : (
+                  renderInactiveConfigAlert()
+                ),
+              },
+            ]}
+          />
+        </Card>
+      </Flex>
 
       <ScheduleGuideModal
         open={guideOpen}

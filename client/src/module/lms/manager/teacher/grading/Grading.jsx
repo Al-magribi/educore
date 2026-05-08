@@ -1089,6 +1089,95 @@ const Grading = ({ subject }) => {
     return Math.max(0, Math.min(100, Math.round(numberValue)));
   };
 
+  const normalizeSpreadsheetHeader = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  const buildFormativeImportColumns = (headerRow = []) => {
+    const explicitSubchapterIds = visibleFormativeColumns
+      .map((column) =>
+        Number(column?.subchapterId ?? column?.subchapter_id ?? column?.scoreKey),
+      )
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const usedGeneratedScoreKeys = new Set(
+      explicitSubchapterIds.map((value) => String(value)),
+    );
+    const baseNextSubchapterId =
+      Number.isFinite(Number(nextFormatifIndex)) && Number(nextFormatifIndex) > 0
+        ? Number(nextFormatifIndex)
+        : (explicitSubchapterIds.length ? Math.max(...explicitSubchapterIds) : 0) + 1;
+    let nextGeneratedSubchapterId = baseNextSubchapterId;
+
+    const reserveGeneratedScoreKey = () => {
+      while (usedGeneratedScoreKeys.has(String(nextGeneratedSubchapterId))) {
+        nextGeneratedSubchapterId += 1;
+      }
+      const reservedKey = String(nextGeneratedSubchapterId);
+      usedGeneratedScoreKeys.add(reservedKey);
+      nextGeneratedSubchapterId += 1;
+      return reservedKey;
+    };
+
+    const seenHeaders = new Map();
+    return (headerRow || []).map((headerValue, index) => {
+      const normalizedHeader = normalizeSpreadsheetHeader(headerValue);
+      if (!normalizedHeader) return { index, kind: "ignore" };
+
+      const occurrence = (seenHeaders.get(normalizedHeader) || 0) + 1;
+      seenHeaders.set(normalizedHeader, occurrence);
+
+      if (
+        normalizedHeader === "nis" ||
+        normalizedHeader === "no induk" ||
+        normalizedHeader === "no_induk"
+      ) {
+        return { index, kind: "nis" };
+      }
+
+      if (normalizedHeader === "nama" || normalizedHeader === "nama siswa") {
+        return { index, kind: "ignore" };
+      }
+
+      if (formativeTemplateHeaderMap.has(normalizedHeader) && occurrence === 1) {
+        return {
+          index,
+          kind: "score",
+          scoreKey: formativeTemplateHeaderMap.get(normalizedHeader),
+        };
+      }
+
+      if (/^input\s*nilai(?:[\s_-]*\d+)?$/i.test(normalizedHeader)) {
+        return {
+          index,
+          kind: "score",
+          scoreKey: reserveGeneratedScoreKey(),
+        };
+      }
+
+      const scoreNumberMatch = normalizedHeader.match(/^nilai\s*(\d+)$/i);
+      if (scoreNumberMatch && !formativeTemplateHeaderMap.has(normalizedHeader)) {
+        const explicitScoreKey = String(Number(scoreNumberMatch[1]));
+        usedGeneratedScoreKeys.add(explicitScoreKey);
+        return {
+          index,
+          kind: "score",
+          scoreKey: explicitScoreKey,
+        };
+      }
+
+      if (/^nilai\s*\d+$/i.test(normalizedHeader) && occurrence > 1) {
+        return {
+          index,
+          kind: "score",
+          scoreKey: reserveGeneratedScoreKey(),
+        };
+      }
+
+      return { index, kind: "ignore" };
+    });
+  };
+
   const hasPositiveSummativeScore = (scoreWritten, scoreSkill) =>
     (scoreWritten ?? 0) > 0 || (scoreSkill ?? 0) > 0;
 
@@ -1417,33 +1506,30 @@ const Grading = ({ subject }) => {
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+          header: 1,
           defval: "",
         });
 
-        if (!rows.length) {
+        if (!rows.length || !Array.isArray(rows[0])) {
           message.error("File Excel kosong atau format tidak sesuai.");
+          return;
+        }
+
+        const [headerRow, ...dataRows] = rows;
+        const importColumns = buildFormativeImportColumns(headerRow);
+        const nisColumn = importColumns.find((column) => column.kind === "nis");
+
+        if (!nisColumn) {
+          message.error("Kolom NIS tidak ditemukan pada file Excel.");
           return;
         }
 
         const updates = new Map();
         let unknownNisCount = 0;
 
-        rows.forEach((row) => {
-          const normalizedRow = Object.entries(row).reduce(
-            (acc, [key, value]) => {
-              const normalizedKey = String(key || "")
-                .trim()
-                .toLowerCase();
-              if (normalizedKey) acc[normalizedKey] = value;
-              return acc;
-            },
-            {},
-          );
-
-          const nisValue =
-            normalizedRow.nis ||
-            normalizedRow["no induk"] ||
-            normalizedRow["no_induk"];
+        dataRows.forEach((row) => {
+          if (!Array.isArray(row)) return;
+          const nisValue = row[nisColumn.index];
           const nis = String(nisValue || "").trim();
           if (!nis) return;
           if (!availableNis.has(nis)) {
@@ -1452,32 +1538,12 @@ const Grading = ({ subject }) => {
           }
 
           const nextScores = {};
-          Object.entries(normalizedRow).forEach(([key, value]) => {
+          importColumns.forEach((column) => {
+            if (column.kind !== "score" || !column.scoreKey) return;
+            const value = row[column.index];
             if (value === null || value === undefined || value === "") return;
-            if (formativeTemplateHeaderMap.has(key)) {
-              nextScores[formativeTemplateHeaderMap.get(key)] =
-                normalizeScoreValue(value);
-              return;
-            }
-            if (!/^nilai\s*\d+$/i.test(key)) return;
-            const match = key.match(/\d+/);
-            const index = match ? Number(match[0]) : null;
-            if (!index) return;
-            nextScores[String(index)] = normalizeScoreValue(value);
+            nextScores[column.scoreKey] = normalizeScoreValue(value);
           });
-          const inputValue =
-            normalizedRow["input nilai"] ??
-            normalizedRow.nilai ??
-            normalizedRow.score ??
-            normalizedRow.formatif ??
-            null;
-          if (
-            inputValue !== null &&
-            inputValue !== undefined &&
-            inputValue !== ""
-          ) {
-            nextScores.__new = normalizeScoreValue(inputValue);
-          }
           if (Object.keys(nextScores).length) {
             updates.set(nis, nextScores);
           }

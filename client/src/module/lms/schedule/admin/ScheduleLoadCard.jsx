@@ -9,7 +9,6 @@ import {
   Button,
   Card,
   Col,
-  Divider,
   Flex,
   Form,
   Grid,
@@ -39,16 +38,6 @@ const GUIDE_SHEET = "Panduan";
 const PAGE_SIZE = 20;
 const { useBreakpoint } = Grid;
 
-const normalizeBoolean = (value, fallback) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "ya", "yes", "1"].includes(normalized)) return true;
-    if (["false", "tidak", "no", "0"].includes(normalized)) return false;
-  }
-  return fallback;
-};
-
 const normalizeInteger = (value, fallback = null) => {
   if (value === "" || value === null || typeof value === "undefined") {
     return fallback;
@@ -68,12 +57,6 @@ const buildTemplateRows = (rows = []) =>
     subject_id: item.subject_id || "",
     class_id: item.class_id || "",
     teaching_load_id: item.teaching_load_id || "",
-    max_sessions_per_meeting: item.max_sessions_per_meeting || 2,
-    minimum_gap_slots: Number.isFinite(item.minimum_gap_slots)
-      ? item.minimum_gap_slots
-      : 4,
-    require_different_days: item.require_different_days ?? true,
-    is_active: item.is_active ?? true,
   }));
 
 const buildGuideSheet = () =>
@@ -91,7 +74,7 @@ const buildGuideSheet = () =>
     ],
     [
       "4",
-      "Kolom lain boleh dibiarkan seperti default template jika tidak ingin diubah.",
+      "Ubah hanya kolom beban_sesi. Kolom lain dipakai sistem untuk pencocokan data.",
     ],
     [
       "5",
@@ -101,10 +84,6 @@ const buildGuideSheet = () =>
     ["Kolom utama", "guru, mapel, tingkat, kelas, beban_sesi"],
     ["Kolom teknis", "teacher_id, subject_id, class_id, teaching_load_id"],
     ["Catatan beban_sesi", "Harus angka bulat lebih dari 0"],
-    [
-      "minimum_gap_slots",
-      "Isi 0 jika mapel yang sama tidak boleh muncul lagi di hari yang sama.",
-    ],
   ]);
 
 const ScheduleLoadCard = ({
@@ -125,7 +104,6 @@ const ScheduleLoadCard = ({
   const [openModal, setOpenModal] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [editingLoadId, setEditingLoadId] = useState(null);
-  const [showGapRule, setShowGapRule] = useState(false);
   const [teacherKeyword, setTeacherKeyword] = useState("");
   const [selectedGradeId, setSelectedGradeId] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -257,16 +235,6 @@ const ScheduleLoadCard = ({
           subject_name: row.mapel || row.subject_name || "",
           class_name: row.kelas || row.class_name || "",
           weekly_sessions: normalizeInteger(row.beban_sesi, null),
-          max_sessions_per_meeting: normalizeInteger(
-            row.max_sessions_per_meeting,
-            null,
-          ),
-          minimum_gap_slots: normalizeInteger(row.minimum_gap_slots, null),
-          require_different_days: normalizeBoolean(
-            row.require_different_days,
-            true,
-          ),
-          is_active: normalizeBoolean(row.is_active, true),
         }))
         .filter(
           (row) =>
@@ -309,14 +277,9 @@ const ScheduleLoadCard = ({
 
   const handleOpenCreate = () => {
     setEditingLoadId(null);
-    setShowGapRule(false);
     form.resetFields();
     form.setFieldsValue({
       weekly_sessions: 0,
-      max_sessions_per_meeting: 0,
-      minimum_gap_slots: 0,
-      require_different_days: true,
-      allow_same_day_with_gap: true,
       is_active: true,
     });
     setOpenModal(true);
@@ -324,7 +287,6 @@ const ScheduleLoadCard = ({
 
   const handleOpenEdit = (record) => {
     setEditingLoadId(record.teaching_load_id || null);
-    setShowGapRule(false);
     form.setFieldsValue({
       id: record.teaching_load_id || undefined,
       class_id: record.class_id,
@@ -333,14 +295,6 @@ const ScheduleLoadCard = ({
       weekly_sessions: Number.isFinite(record.weekly_sessions)
         ? record.weekly_sessions
         : 0,
-      max_sessions_per_meeting: Number.isFinite(record.max_sessions_per_meeting)
-        ? record.max_sessions_per_meeting
-        : 0,
-      minimum_gap_slots: Number.isFinite(record.minimum_gap_slots)
-        ? record.minimum_gap_slots
-        : 0,
-      require_different_days: record.require_different_days ?? true,
-      allow_same_day_with_gap: record.allow_same_day_with_gap ?? true,
       is_active: record.is_active ?? true,
     });
     setOpenModal(true);
@@ -353,7 +307,6 @@ const ScheduleLoadCard = ({
       id: editingLoadId || values.id,
     });
     setOpenModal(false);
-    setShowGapRule(false);
   };
 
   const assignmentColumns = [
@@ -639,13 +592,9 @@ const ScheduleLoadCard = ({
           <br />
           3. Jangan ubah kolom `teacher_id`, `subject_id`, dan `class_id`.
           <br />
-          4. `minimum_gap_slots = 0` berarti mapel yang sama tidak boleh muncul
-          lagi di hari yang sama.
+          4. Template disamakan dengan input utama di modal beban ajar.
           <br />
-          5. Jika {"`minimum_gap_slots > 0`"}, sistem menganggap mapel yang sama
-          boleh muncul lagi di hari yang sama dengan jarak sesuai gap.
-          <br />
-          6. Simpan file `.xlsx`, lalu klik `Import Excel`.
+          5. Simpan file `.xlsx`, lalu klik `Import Excel`.
         </div>
       </Modal>
 
@@ -731,88 +680,23 @@ const ScheduleLoadCard = ({
               </Form.Item>
             </Col>
           </Row>
-          <Row gutter={12}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="weekly_sessions"
-                label="Beban sesi per minggu"
-                rules={[
-                  { required: true, message: "Beban sesi wajib diisi." },
-                  {
-                    validator: (_, value) =>
-                      Number(value) > 0
-                        ? Promise.resolve()
-                        : Promise.reject(
-                            new Error(
-                              "Beban sesi per minggu harus lebih dari 0.",
-                            ),
-                          ),
-                  },
-                ]}
-              >
-                <InputNumber min={0} max={12} style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="max_sessions_per_meeting"
-                label="Maks sesi per pertemuan"
-                rules={[
-                  { required: true, message: "Maks sesi wajib diisi." },
-                  {
-                    validator: (_, value) =>
-                      Number(value) > 0
-                        ? Promise.resolve()
-                        : Promise.reject(
-                            new Error(
-                              "Maks sesi per pertemuan harus lebih dari 0.",
-                            ),
-                          ),
-                  },
-                ]}
-              >
-                <InputNumber min={0} max={4} style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Divider style={{ margin: "8px 0 16px" }} />
-
-          <Flex vertical gap={12}>
-            <Form.Item
-              name="minimum_gap_slots"
-              label="Minimal gap slot"
-              rules={[{ required: true }]}
-              extra="Isi 0 jika mapel yang sama tidak boleh muncul lagi di hari yang sama untuk kelas tersebut."
-              style={{ marginBottom: 0 }}
-            >
-              <InputNumber min={0} max={10} style={{ width: "100%" }} />
-            </Form.Item>
-
-            <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
-              <Space direction="vertical" size={0}>
-                <span style={{ fontWeight: 600 }}>Aturan gap slot</span>
-                <span style={{ color: "#8c8c8c", fontSize: 12 }}>
-                  Tampilkan atau sembunyikan pengaturan jeda mapel yang sama.
-                </span>
-              </Space>
-              <Button
-                type="dashed"
-                onClick={() => setShowGapRule((prev) => !prev)}
-              >
-                {showGapRule ? "Sembunyikan" : "Tampilkan"}
-              </Button>
-            </Flex>
-
-            {showGapRule ? (
-              <Alert
-                showIcon
-                type="info"
-                message="Aturan gap slot"
-                description="Cukup atur `minimum_gap_slots`. Nilai 0 berarti mapel yang sama tidak boleh muncul lagi di hari yang sama. Nilai lebih dari 0 berarti mapel yang sama boleh muncul lagi di hari yang sama dengan jarak minimal sesuai nilai gap."
-              />
-            ) : null}
-          </Flex>
+          <Form.Item
+            name="weekly_sessions"
+            label="Beban sesi per minggu"
+            rules={[
+              { required: true, message: "Beban sesi wajib diisi." },
+              {
+                validator: (_, value) =>
+                  Number(value) > 0
+                    ? Promise.resolve()
+                    : Promise.reject(
+                        new Error("Beban sesi per minggu harus lebih dari 0."),
+                      ),
+              },
+            ]}
+          >
+            <InputNumber min={0} max={12} style={{ width: "100%" }} />
+          </Form.Item>
         </Form>
       </Modal>
     </Card>

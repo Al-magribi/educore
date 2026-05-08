@@ -20,6 +20,8 @@ export const registerScheduleResourceRoutes = (router) => {
         minimum_gap_slots = 4,
         is_active = true,
       } = req.body || {};
+      const hasOwn = (key) =>
+        Object.prototype.hasOwnProperty.call(req.body || {}, key);
 
       const periodeId = await ensureActivePeriode(client, homebase_id, toInt(periode_id, null));
       if (!periodeId) {
@@ -29,24 +31,13 @@ export const registerScheduleResourceRoutes = (router) => {
         });
       }
 
-      const minimumGapSlots = toInt(minimum_gap_slots, 4);
-      const allowSameDayWithGap = minimumGapSlots > 0;
-
-      const payload = [
-        homebase_id,
-        periodeId,
+      const requiredPayload = [
         toInt(class_id, null),
         toInt(subject_id, null),
         toInt(teacher_id, null),
         toInt(weekly_sessions, null),
-        toInt(max_sessions_per_meeting, 2),
-        Boolean(require_different_days),
-        allowSameDayWithGap,
-        minimumGapSlots,
-        Boolean(is_active),
-        userId,
       ];
-      if (payload.slice(2, 6).some((value) => !value)) {
+      if (requiredPayload.some((value) => !value)) {
         return res.status(400).json({
           status: "error",
           message: "class_id, subject_id, teacher_id, dan weekly_sessions wajib diisi.",
@@ -66,7 +57,7 @@ export const registerScheduleResourceRoutes = (router) => {
            AND s.homebase_id = $4
            AND c.homebase_id = $4
          LIMIT 1`,
-        [payload[4], payload[3], payload[2], homebase_id],
+        [requiredPayload[2], requiredPayload[1], requiredPayload[0], homebase_id],
       );
       if (assignmentValidation.rowCount === 0) {
         return res.status(400).json({
@@ -76,6 +67,47 @@ export const registerScheduleResourceRoutes = (router) => {
       }
 
       const isUpdate = Boolean(toInt(id, null));
+      let existingLoad = null;
+      if (isUpdate) {
+        const existingResult = await client.query(
+          `SELECT id,
+                  max_sessions_per_meeting,
+                  require_different_days,
+                  allow_same_day_with_gap,
+                  minimum_gap_slots,
+                  is_active
+           FROM lms.l_teaching_load
+           WHERE id = $1
+             AND homebase_id = $2
+             AND periode_id = $3
+           LIMIT 1`,
+          [toInt(id, null), homebase_id, periodeId],
+        );
+
+        if (existingResult.rowCount === 0) {
+          return res.status(404).json({
+            status: "error",
+            message: "Data beban ajar tidak ditemukan.",
+          });
+        }
+
+        existingLoad = existingResult.rows[0];
+      }
+
+      const resolvedMaxSessionsPerMeeting = hasOwn("max_sessions_per_meeting")
+        ? toInt(max_sessions_per_meeting, 2)
+        : toInt(existingLoad?.max_sessions_per_meeting, 2);
+      const resolvedMinimumGapSlots = hasOwn("minimum_gap_slots")
+        ? toInt(minimum_gap_slots, 4)
+        : toInt(existingLoad?.minimum_gap_slots, 4);
+      const resolvedRequireDifferentDays = hasOwn("require_different_days")
+        ? Boolean(require_different_days)
+        : Boolean(existingLoad?.require_different_days ?? true);
+      const resolvedIsActive = hasOwn("is_active")
+        ? Boolean(is_active)
+        : Boolean(existingLoad?.is_active ?? true);
+      const resolvedAllowSameDayWithGap = resolvedMinimumGapSlots > 0;
+
       const sql = isUpdate
         ? `UPDATE lms.l_teaching_load
            SET class_id = $3,
@@ -111,7 +143,20 @@ export const registerScheduleResourceRoutes = (router) => {
 
       const result = await client.query(
         sql,
-        isUpdate ? [...payload.slice(0, 11), toInt(id, null)] : payload,
+        [
+          homebase_id,
+          periodeId,
+          toInt(class_id, null),
+          toInt(subject_id, null),
+          toInt(teacher_id, null),
+          toInt(weekly_sessions, null),
+          resolvedMaxSessionsPerMeeting,
+          resolvedRequireDifferentDays,
+          resolvedAllowSameDayWithGap,
+          resolvedMinimumGapSlots,
+          resolvedIsActive,
+          ...(isUpdate ? [toInt(id, null)] : [userId]),
+        ],
       );
       return res.json({
         status: "success",
@@ -200,19 +245,14 @@ export const registerScheduleResourceRoutes = (router) => {
           continue;
         }
 
-        const maxSessionsPerMeeting = toInt(row?.max_sessions_per_meeting, 2);
-        const minimumGapSlots = toInt(row?.minimum_gap_slots, 4);
-        const requireDifferentDays =
-          typeof row?.require_different_days === "boolean"
-            ? row.require_different_days
-            : true;
-        const allowSameDayWithGap = minimumGapSlots > 0;
-        const isActive =
-          typeof row?.is_active === "boolean" ? row.is_active : true;
-
         const existingLoad = teachingLoadId
           ? await client.query(
-              `SELECT id
+              `SELECT id,
+                      max_sessions_per_meeting,
+                      require_different_days,
+                      allow_same_day_with_gap,
+                      minimum_gap_slots,
+                      is_active
                FROM lms.l_teaching_load
                WHERE id = $1
                  AND homebase_id = $2
@@ -221,6 +261,22 @@ export const registerScheduleResourceRoutes = (router) => {
               [teachingLoadId, homebase_id, periodeId],
             )
           : { rowCount: 0 };
+
+        const existingRow = existingLoad.rows?.[0] || null;
+        const rowHasOwn = (key) => Object.prototype.hasOwnProperty.call(row || {}, key);
+        const maxSessionsPerMeeting = rowHasOwn("max_sessions_per_meeting")
+          ? toInt(row?.max_sessions_per_meeting, 2)
+          : toInt(existingRow?.max_sessions_per_meeting, 2);
+        const minimumGapSlots = rowHasOwn("minimum_gap_slots")
+          ? toInt(row?.minimum_gap_slots, 4)
+          : toInt(existingRow?.minimum_gap_slots, 4);
+        const requireDifferentDays = rowHasOwn("require_different_days")
+          ? Boolean(row?.require_different_days)
+          : Boolean(existingRow?.require_different_days ?? true);
+        const allowSameDayWithGap = minimumGapSlots > 0;
+        const isActive = rowHasOwn("is_active")
+          ? Boolean(row?.is_active)
+          : Boolean(existingRow?.is_active ?? true);
 
         if (existingLoad.rowCount > 0) {
           await client.query(
