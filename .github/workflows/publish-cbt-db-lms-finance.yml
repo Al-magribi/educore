@@ -70,6 +70,13 @@ jobs:
             git add -A
           }
 
+          ensure_parent_report_components() {
+            git checkout origin/feature/lms -- \
+              client/src/module/parent/dashboard/ParentDash.jsx \
+              client/src/module/lms/report/AcademicReport.jsx
+            git add -A
+          }
+
           # Compose always starts from `main`, then layers feature branches
           # in a fixed order so the release branch stays reproducible.
           merge_branch() {
@@ -96,10 +103,15 @@ jobs:
           # `feature/lms` owns the LMS subtree. Re-apply it after composition so
           # later branches cannot silently roll those files back to older copies.
           restore_lms_owned_paths
+          ensure_parent_report_components
 
           if ! git diff --cached --quiet; then
             git commit -m "chore(compose): restore LMS-owned paths from feature/lms"
           fi
+
+          git diff --quiet origin/feature/lms -- \
+            client/src/module/parent/dashboard/ParentDash.jsx \
+            client/src/module/lms/report/AcademicReport.jsx
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
