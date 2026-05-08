@@ -47,6 +47,11 @@ export const ApiReport = createApi({
       providesTags: ["TahfizReport"],
       transformResponse: (response) => response.data,
     }),
+    getTahfizPersonalSummary: builder.query({
+      query: () => "/report/personal-summary",
+      providesTags: ["TahfizReport"],
+      transformResponse: (response) => response.data,
+    }),
     getDailyReportOptions: builder.query({
       query: (params = {}) => {
         const searchParams = new URLSearchParams();
@@ -137,6 +142,7 @@ export const {
   useGetTahfizReportOptionsQuery,
   useGetTahfizReportSummaryQuery,
   useGetMusyrifReportSummaryQuery,
+  useGetTahfizPersonalSummaryQuery,
   useGetDailyReportOptionsQuery,
   useGetDailyReportStudentsQuery,
   useGetDailyReportRecordsQuery,

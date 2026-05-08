@@ -741,6 +741,426 @@ const buildSummaryQuery = ({ enforceTeacherScope = false } = {}) => `
   ) AS report_data;
 `;
 
+const createEmptyPersonalStudentOverview = () => ({
+  total_students: 0,
+  total_classes: 0,
+  total_grades: 0,
+  active_plan_count: 0,
+  total_target_ayahs: 0,
+  total_achieved_ayahs: 0,
+  completed_students: 0,
+  completed_plans: 0,
+  average_completion_percentage: 0,
+  total_records: 0,
+  ziyadah_records: 0,
+  last_record_date: null,
+});
+
+const buildPersonalStudentSummaryQuery = () => `
+  WITH student_scope AS (
+    SELECT
+      s.user_id AS student_id,
+      u.full_name AS student_name,
+      s.nis,
+      COALESCE(ce.class_id, s.current_class_id) AS class_id,
+      c.name AS class_name,
+      c.grade_id,
+      g.name AS grade_name,
+      COALESCE(ce.periode_id, s.current_periode_id) AS periode_id,
+      COALESCE(ce.homebase_id, s.homebase_id, c.homebase_id) AS homebase_id,
+      hb.name AS homebase_name,
+      p.name AS periode_name
+    FROM u_students s
+    JOIN u_users u ON u.id = s.user_id
+    LEFT JOIN LATERAL (
+      SELECT e.class_id, e.periode_id, e.homebase_id
+      FROM u_class_enrollments e
+      WHERE e.student_id = s.user_id
+      ORDER BY
+        CASE
+          WHEN s.current_periode_id IS NOT NULL AND e.periode_id = s.current_periode_id THEN 0
+          ELSE 1
+        END,
+        e.id DESC
+      LIMIT 1
+    ) ce ON true
+    LEFT JOIN a_class c ON c.id = COALESCE(ce.class_id, s.current_class_id)
+    LEFT JOIN a_grade g ON g.id = c.grade_id
+    LEFT JOIN a_homebase hb ON hb.id = COALESCE(ce.homebase_id, s.homebase_id, c.homebase_id)
+    LEFT JOIN a_periode p ON p.id = COALESCE(ce.periode_id, s.current_periode_id)
+    WHERE s.user_id = $1
+  ),
+  selected_plans AS (
+    SELECT
+      p.id AS plan_id,
+      p.homebase_id,
+      p.grade_id,
+      p.periode_id,
+      p.title,
+      p.notes,
+      p.updated_at,
+      g.name AS grade_name,
+      hb.name AS homebase_name
+    FROM student_scope ss
+    JOIN tahfiz.t_target_plan p
+      ON p.is_active = true
+     AND p.periode_id = ss.periode_id
+     AND p.homebase_id = ss.homebase_id
+     AND p.grade_id = ss.grade_id
+    JOIN a_grade g ON g.id = p.grade_id
+    LEFT JOIN a_homebase hb ON hb.id = p.homebase_id
+  ),
+  target_ayahs AS (
+    SELECT DISTINCT
+      sp.plan_id,
+      ay.id AS ayah_id,
+      ay.ayah_global_number
+    FROM selected_plans sp
+    JOIN tahfiz.t_target_item ti ON ti.plan_id = sp.plan_id
+    JOIN tahfiz.t_ayah ay ON (
+      (ti.target_type = 'juz' AND ay.juz_id = ti.juz_id)
+      OR (
+        ti.target_type = 'surah'
+        AND ay.surah_id = ti.surah_id
+        AND ay.ayah_number BETWEEN COALESCE(ti.start_ayat, 1) AND COALESCE(ti.end_ayat, ay.ayah_number)
+      )
+    )
+  ),
+  target_plan_totals AS (
+    SELECT plan_id, COUNT(DISTINCT ayah_id)::int AS target_total_ayahs
+    FROM target_ayahs
+    GROUP BY plan_id
+  ),
+  planned_students AS (
+    SELECT
+      ss.student_id,
+      ss.student_name,
+      ss.nis,
+      ss.class_id,
+      ss.class_name,
+      ss.grade_id,
+      ss.grade_name,
+      ss.periode_id,
+      ss.homebase_id,
+      sp.plan_id,
+      sp.title AS plan_title
+    FROM student_scope ss
+    JOIN selected_plans sp ON true
+  ),
+  record_ranges AS (
+    SELECT DISTINCT
+      dr.student_id,
+      LEAST(
+        sa.ayah_global_number,
+        COALESCE(ea.ayah_global_number, sa.ayah_global_number)
+      ) AS start_global,
+      GREATEST(
+        sa.ayah_global_number,
+        COALESCE(ea.ayah_global_number, sa.ayah_global_number)
+      ) AS end_global
+    FROM tahfiz.t_daily_record dr
+    JOIN student_scope ss ON ss.student_id = dr.student_id
+    JOIN tahfiz.t_ayah sa
+      ON sa.surah_id = dr.start_surah_id
+     AND sa.ayah_number = COALESCE(dr.start_ayat, 1)
+    LEFT JOIN tahfiz.t_ayah ea
+      ON ea.surah_id = COALESCE(dr.end_surah_id, dr.start_surah_id)
+     AND ea.ayah_number = COALESCE(dr.end_ayat, dr.start_ayat, 1)
+    LEFT JOIN tahfiz.t_activity_type at ON at.id = dr.type_id
+    WHERE at.code = 'ziyadah' OR at.code IS NULL
+  ),
+  student_achievements AS (
+    SELECT
+      ps.student_id,
+      ps.plan_id,
+      COUNT(DISTINCT ta.ayah_id)::int AS achieved_ayahs
+    FROM planned_students ps
+    LEFT JOIN record_ranges rr
+      ON rr.student_id = ps.student_id
+    LEFT JOIN target_ayahs ta
+      ON ta.plan_id = ps.plan_id
+     AND ta.ayah_global_number BETWEEN rr.start_global AND rr.end_global
+    GROUP BY ps.student_id, ps.plan_id
+  ),
+  student_rows AS (
+    SELECT
+      ps.grade_id,
+      ps.grade_name,
+      ps.class_id,
+      ps.class_name,
+      ps.student_id,
+      ps.student_name,
+      ps.nis,
+      ps.plan_id,
+      ps.plan_title,
+      COALESCE(tpt.target_total_ayahs, 0) AS target_total_ayahs,
+      COALESCE(sa.achieved_ayahs, 0) AS achieved_ayahs,
+      CASE
+        WHEN COALESCE(tpt.target_total_ayahs, 0) > 0 THEN ROUND(
+          LEAST(
+            (COALESCE(sa.achieved_ayahs, 0)::numeric / tpt.target_total_ayahs::numeric) * 100,
+            100
+          ),
+          2
+        )
+        ELSE 0
+      END AS completion_percentage,
+      CASE
+        WHEN COALESCE(tpt.target_total_ayahs, 0) > 0
+         AND COALESCE(sa.achieved_ayahs, 0) >= COALESCE(tpt.target_total_ayahs, 0)
+        THEN true
+        ELSE false
+      END AS is_completed
+    FROM planned_students ps
+    LEFT JOIN target_plan_totals tpt ON tpt.plan_id = ps.plan_id
+    LEFT JOIN student_achievements sa
+      ON sa.student_id = ps.student_id
+     AND sa.plan_id = ps.plan_id
+  ),
+  plan_item_rows AS (
+    SELECT
+      sp.plan_id,
+      ti.id,
+      ti.target_type,
+      ti.order_no,
+      j.number AS juz_number,
+      s.number AS surah_number,
+      s.name_latin AS surah_name_latin,
+      ti.start_ayat,
+      ti.end_ayat
+    FROM selected_plans sp
+    JOIN tahfiz.t_target_item ti ON ti.plan_id = sp.plan_id
+    LEFT JOIN tahfiz.t_juz j ON j.id = ti.juz_id
+    LEFT JOIN tahfiz.t_surah s ON s.id = ti.surah_id
+  ),
+  record_overview AS (
+    SELECT
+      COUNT(*)::int AS total_records,
+      COUNT(*) FILTER (WHERE at.code = 'ziyadah' OR at.code IS NULL)::int AS ziyadah_records,
+      MAX(dr.date) AS last_record_date
+    FROM tahfiz.t_daily_record dr
+    LEFT JOIN tahfiz.t_activity_type at ON at.id = dr.type_id
+    WHERE dr.student_id = $1
+  )
+  SELECT json_build_object(
+    'student', COALESCE((
+      SELECT json_build_object(
+        'student_id', ss.student_id,
+        'student_name', ss.student_name,
+        'nis', ss.nis,
+        'class_id', ss.class_id,
+        'class_name', ss.class_name,
+        'grade_id', ss.grade_id,
+        'grade_name', ss.grade_name,
+        'periode_id', ss.periode_id,
+        'periode_name', ss.periode_name,
+        'homebase_id', ss.homebase_id,
+        'homebase_name', ss.homebase_name
+      )
+      FROM student_scope ss
+    ), '{}'::json),
+    'overview', json_build_object(
+      'total_students', CASE WHEN EXISTS(SELECT 1 FROM student_scope) THEN 1 ELSE 0 END,
+      'total_classes', CASE WHEN EXISTS(SELECT 1 FROM student_scope WHERE class_id IS NOT NULL) THEN 1 ELSE 0 END,
+      'total_grades', CASE WHEN EXISTS(SELECT 1 FROM student_scope WHERE grade_id IS NOT NULL) THEN 1 ELSE 0 END,
+      'active_plan_count', COALESCE((SELECT COUNT(*)::int FROM selected_plans), 0),
+      'total_target_ayahs', COALESCE((SELECT SUM(target_total_ayahs)::int FROM student_rows), 0),
+      'total_achieved_ayahs', COALESCE((SELECT SUM(achieved_ayahs)::int FROM student_rows), 0),
+      'completed_students', CASE
+        WHEN EXISTS(SELECT 1 FROM student_rows WHERE is_completed = true) THEN 1
+        ELSE 0
+      END,
+      'completed_plans', COALESCE((SELECT COUNT(*)::int FROM student_rows WHERE is_completed = true), 0),
+      'average_completion_percentage', COALESCE((SELECT ROUND(AVG(completion_percentage), 2) FROM student_rows), 0),
+      'total_records', COALESCE((SELECT total_records FROM record_overview), 0),
+      'ziyadah_records', COALESCE((SELECT ziyadah_records FROM record_overview), 0),
+      'last_record_date', (SELECT last_record_date FROM record_overview)
+    ),
+    'plans', COALESCE((
+      SELECT json_agg(
+        json_build_object(
+          'plan_id', sp.plan_id,
+          'grade_id', sp.grade_id,
+          'grade_name', sp.grade_name,
+          'homebase_name', sp.homebase_name,
+          'title', sp.title,
+          'notes', sp.notes,
+          'updated_at', sp.updated_at,
+          'target_total_ayahs', COALESCE(tpt.target_total_ayahs, 0),
+          'items', COALESCE((
+            SELECT json_agg(
+              json_build_object(
+                'id', pir.id,
+                'target_type', pir.target_type,
+                'order_no', pir.order_no,
+                'juz_number', pir.juz_number,
+                'surah_number', pir.surah_number,
+                'surah_name_latin', pir.surah_name_latin,
+                'start_ayat', pir.start_ayat,
+                'end_ayat', pir.end_ayat
+              ) ORDER BY pir.order_no ASC, pir.id ASC
+            )
+            FROM plan_item_rows pir
+            WHERE pir.plan_id = sp.plan_id
+          ), '[]'::json)
+        )
+        ORDER BY sp.grade_name ASC, sp.plan_id ASC
+      )
+      FROM selected_plans sp
+      LEFT JOIN target_plan_totals tpt ON tpt.plan_id = sp.plan_id
+    ), '[]'::json),
+    'student_rows', COALESCE((
+      SELECT json_agg(
+        json_build_object(
+          'student_id', student_id,
+          'student_name', student_name,
+          'nis', nis,
+          'class_id', class_id,
+          'class_name', class_name,
+          'grade_id', grade_id,
+          'grade_name', grade_name,
+          'plan_id', plan_id,
+          'plan_title', plan_title,
+          'target_total_ayahs', target_total_ayahs,
+          'achieved_ayahs', achieved_ayahs,
+          'completion_percentage', completion_percentage,
+          'is_completed', is_completed
+        )
+        ORDER BY grade_name ASC, class_name ASC, student_name ASC
+      )
+      FROM student_rows
+    ), '[]'::json)
+  ) AS report_data;
+`;
+
+const getRecentDailyRecordsForStudent = async (db, studentId, limit = 12) => {
+  const result = await db.query(
+    `SELECT
+       dr.id,
+       dr.date,
+       at.name AS activity_name,
+       at.code AS activity_code,
+       ss.number AS start_surah_number,
+       ss.name_latin AS start_surah_name,
+       dr.start_ayat,
+       es.number AS end_surah_number,
+       es.name_latin AS end_surah_name,
+       dr.end_ayat,
+       dr.fluency_grade,
+       dr.tajweed_grade,
+       dr.note,
+       dr.recorded_by_role,
+       ru.full_name AS recorded_by_name,
+       dr.created_at,
+       dr.updated_at
+     FROM tahfiz.t_daily_record dr
+     LEFT JOIN tahfiz.t_activity_type at ON at.id = dr.type_id
+     LEFT JOIN tahfiz.t_surah ss ON ss.id = dr.start_surah_id
+     LEFT JOIN tahfiz.t_surah es ON es.id = dr.end_surah_id
+     LEFT JOIN u_users ru ON ru.id = dr.recorded_by_user_id
+     WHERE dr.student_id = $1
+     ORDER BY dr.date DESC, dr.id DESC
+     LIMIT $2`,
+    [studentId, limit],
+  );
+
+  return result.rows;
+};
+
+const getParentLinkedStudentIds = async (db, parentUserId) => {
+  const parentStudentIds = [];
+  const parentStudentTableExists = await hasTable(db, "public", "u_parent_students");
+
+  if (parentStudentTableExists) {
+    const relationResult = await db.query(
+      `SELECT DISTINCT student_id
+       FROM u_parent_students
+       WHERE parent_user_id = $1
+       ORDER BY student_id ASC`,
+      [parentUserId],
+    );
+    parentStudentIds.push(...relationResult.rows.map((item) => item.student_id));
+  }
+
+  if (!parentStudentIds.length) {
+    const legacyResult = await db.query(
+      `SELECT student_id
+       FROM u_parents
+       WHERE user_id = $1
+         AND student_id IS NOT NULL
+       LIMIT 1`,
+      [parentUserId],
+    );
+    if (legacyResult.rows[0]?.student_id) {
+      parentStudentIds.push(legacyResult.rows[0].student_id);
+    }
+  }
+
+  return [...new Set(parentStudentIds.filter(Boolean))];
+};
+
+const buildPersonalReportResponse = async (db, studentIds = []) => {
+  const reportQuery = buildPersonalStudentSummaryQuery();
+  const reports = await Promise.all(
+    studentIds.map(async (studentId) => {
+      const [reportResult, recentRecords] = await Promise.all([
+        db.query(reportQuery, [studentId]),
+        getRecentDailyRecordsForStudent(db, studentId),
+      ]);
+
+      const reportData = reportResult.rows[0]?.report_data || {};
+      return {
+        student: reportData.student || {},
+        overview: reportData.overview || createEmptyPersonalStudentOverview(),
+        plans: reportData.plans || [],
+        student_rows: reportData.student_rows || [],
+        recent_records: recentRecords,
+      };
+    }),
+  );
+
+  const validReports = reports.filter((item) => item.student?.student_id);
+  const aggregatePercentage =
+    validReports.length > 0
+      ? Number(
+          (
+            validReports.reduce(
+              (total, item) => total + Number(item.overview?.average_completion_percentage || 0),
+              0,
+            ) / validReports.length
+          ).toFixed(2),
+        )
+      : 0;
+
+  return {
+    overview: {
+      students_total: validReports.length,
+      active_plan_count: validReports.reduce(
+        (total, item) => total + Number(item.overview?.active_plan_count || 0),
+        0,
+      ),
+      total_target_ayahs: validReports.reduce(
+        (total, item) => total + Number(item.overview?.total_target_ayahs || 0),
+        0,
+      ),
+      total_achieved_ayahs: validReports.reduce(
+        (total, item) => total + Number(item.overview?.total_achieved_ayahs || 0),
+        0,
+      ),
+      total_records: validReports.reduce(
+        (total, item) => total + Number(item.overview?.total_records || 0),
+        0,
+      ),
+      completed_students: validReports.reduce(
+        (total, item) => total + Number(item.overview?.completed_students || 0),
+        0,
+      ),
+      average_completion_percentage: aggregatePercentage,
+    },
+    students: validReports,
+  };
+};
+
 router.get(
   "/report/options",
   authorize("admin", "teacher"),
@@ -855,6 +1275,40 @@ router.get(
         grade_rows: reportData.grade_rows || [],
         class_rows: reportData.class_rows || [],
         student_rows: reportData.student_rows || [],
+      },
+    });
+  }),
+);
+
+router.get(
+  "/report/personal-summary",
+  authorize("student", "parent"),
+  withQuery(async (req, res, pool) => {
+    const ayahTableExists = await hasTable(pool, "tahfiz", "t_ayah");
+    if (!ayahTableExists) {
+      return res.status(400).json({
+        message: "Tabel tahfiz.t_ayah belum tersedia. Jalankan schema tahfiz terbaru terlebih dahulu.",
+      });
+    }
+
+    const studentIds =
+      req.user.role === "student"
+        ? [req.user.id]
+        : await getParentLinkedStudentIds(pool, req.user.id);
+
+    const reportPayload = await buildPersonalReportResponse(pool, studentIds);
+
+    return res.json({
+      code: 200,
+      message: "Ringkasan laporan tahfiz personal berhasil dimuat",
+      data: {
+        viewer: {
+          user_id: req.user.id,
+          full_name: req.user.full_name,
+          role: req.user.role,
+        },
+        overview: reportPayload.overview,
+        students: reportPayload.students,
       },
     });
   }),

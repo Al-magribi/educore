@@ -38,6 +38,7 @@ import {
   useUpdateHalaqohMutation,
 } from "../../../../service/tahfiz/ApiHalaqoh";
 import HalaqohTab from "./HalaqohTab";
+import HalaqohImportDrawer from "./HalaqohImportDrawer";
 import Musyrif from "./Musyrif";
 
 const { Text, Title } = Typography;
@@ -52,9 +53,11 @@ const HalaqohManager = () => {
   const [homebaseId, setHomebaseId] = useState();
   const [periodeId, setPeriodeId] = useState();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingData, setEditingData] = useState(null);
 
   const optionsQuery = useGetHalaqohOptionsQuery({ homebase_id: homebaseId });
+  const globalOptionsQuery = useGetHalaqohOptionsQuery({ include_all: true });
   const selectedHomebaseId =
     homebaseId ?? optionsQuery.data?.selected_homebase_id;
 
@@ -75,18 +78,55 @@ const HalaqohManager = () => {
   const periodeOptions = (optionsQuery.data?.periodes || []).map((item) => ({
     value: item.id,
     label: `${item.name}${item.is_active ? " (Aktif)" : ""}`,
+    searchTokens: [item.name],
   }));
 
   const musyrifOptions = (optionsQuery.data?.musyrif || []).map((item) => ({
     value: item.id,
     label: `${item.full_name}${item.is_active ? "" : " (Nonaktif)"}`,
     disabled: !item.is_active,
+    searchTokens: [item.full_name, item.username].filter(Boolean),
   }));
 
   const studentOptions = (optionsQuery.data?.students || []).map((item) => ({
     value: item.id,
     label: `${item.full_name} (${item.nis || "-"}) - ${item.class_name || "-"}`,
+    full_name: item.full_name,
+    nis: item.nis,
   }));
+
+  const importPeriodeOptions = (globalOptionsQuery.data?.periodes || []).map((item) => ({
+    value: item.id,
+    label: `${item.name} - ${item.homebase_name || "Tanpa Satuan"}${item.is_active ? " (Aktif)" : ""}`,
+    searchTokens: [item.name, item.homebase_name].filter(Boolean),
+    homebase_id: item.homebase_id,
+    homebase_name: item.homebase_name,
+  }));
+
+  const importMusyrifOptions = (globalOptionsQuery.data?.musyrif || []).map((item) => ({
+    value: item.id,
+    label: `${item.full_name} - ${item.homebase_name || "Tanpa Satuan"}${item.is_active ? "" : " (Nonaktif)"}`,
+    disabled: !item.is_active,
+    searchTokens: [item.full_name, item.username, item.homebase_name].filter(Boolean),
+    homebase_id: item.homebase_id,
+    homebase_name: item.homebase_name,
+  }));
+
+  const importStudentOptions = (globalOptionsQuery.data?.students || []).map((item) => ({
+    value: item.id,
+    label: `${item.full_name} (${item.nis || "-"}) - ${item.class_name || "-"} - ${item.homebase_name || "Tanpa Satuan"}`,
+    full_name: item.full_name,
+    nis: item.nis,
+    homebase_id: item.homebase_id,
+    homebase_name: item.homebase_name,
+    class_name: item.class_name,
+  }));
+
+  const importReference = globalOptionsQuery.data?.import_reference || {
+    active_periodes: [],
+    musyrif: [],
+    students: [],
+  };
 
   const isScopedHomebaseUser = homebaseOptions.length === 1;
 
@@ -261,6 +301,7 @@ const HalaqohManager = () => {
               placeholder='Filter Periode'
               style={{ width: 220 }}
             />
+            <Button onClick={() => setImportOpen(true)}>Import Excel</Button>
             <Button
               type='primary'
               icon={<Plus size={16} />}
@@ -462,6 +503,16 @@ const HalaqohManager = () => {
           </div>
         </MotionDiv>
       </Drawer>
+
+      <HalaqohImportDrawer
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        periodeOptions={importPeriodeOptions}
+        musyrifOptions={importMusyrifOptions}
+        studentOptions={importStudentOptions}
+        selectedPeriodeId={undefined}
+        importReference={importReference}
+      />
     </>
   );
 };

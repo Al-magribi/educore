@@ -16,7 +16,6 @@ import {
 } from "antd";
 import {
   ArrowLeft,
-  Info,
   Pause,
   Play,
   Repeat,
@@ -93,6 +92,8 @@ const getSharedAudio = () => {
 };
 
 const clampRepeatCount = (value) => Math.min(20, Math.max(1, value || 1));
+const getAyahLabel = (ayah) => ayah?.ayah_number || ayah?.ayah_global_number || "-";
+const getAyahSurahName = (ayah) => ayah?.surah_name || ayah?.surah_name_latin || null;
 
 const AyahDetailPanel = ({
   title,
@@ -310,7 +311,7 @@ const AyahDetailPanel = ({
     const repeatCount = repeatTargets[targetIndex] || 1;
     setRemainingRepeats(Math.max(repeatCount - 1, 0));
     setResumeTime(0);
-    setPlayerState((prev) => (prev === "playing" ? "playing" : "paused"));
+    setPlayerState("playing");
   };
 
   const setAyahRepeat = (index, value) => {
@@ -330,7 +331,7 @@ const AyahDetailPanel = ({
     },
     {
       label: "Sedang Dipilih",
-      value: currentAyah?.ayah_number || currentAyah?.ayah_global_number || "-",
+      value: getAyahLabel(currentAyah),
       color: playerState === "playing" ? "#0f766e" : "#92400e",
       background:
         playerState === "playing"
@@ -914,14 +915,14 @@ const AyahDetailPanel = ({
                   style={{ fontWeight: 700, fontSize: 16, color: "#0f172a" }}
                 >
                   Ayat{" "}
-                  {currentAyah.ayah_number || currentAyah.ayah_global_number}
+                  {getAyahLabel(currentAyah)}
                 </Text>
-                {currentAyah.surah_name ? (
+                {getAyahSurahName(currentAyah) ? (
                   <Text
                     type='secondary'
-                    ellipsis={{ tooltip: currentAyah.surah_name }}
+                    ellipsis={{ tooltip: getAyahSurahName(currentAyah) }}
                   >
-                    {currentAyah.surah_name}
+                    {getAyahSurahName(currentAyah)}
                   </Text>
                 ) : null}
               </Space>

@@ -4,6 +4,7 @@ import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 
 const router = Router();
+const SALT_ROUNDS = 10;
 
 const toIntOrNull = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -27,6 +28,16 @@ const normalizeStudentIds = (value) => {
 };
 
 const normalizeUsername = (value) => String(value || "").trim().toLowerCase();
+const normalizeText = (value) => String(value || "").trim();
+const normalizeKey = (value) =>
+  normalizeText(value).toLowerCase().replace(/\s+/g, " ");
+const normalizeGender = (value) => {
+  const raw = normalizeKey(value);
+  if (!raw) return null;
+  if (["l", "lk", "laki", "laki-laki", "male"].includes(raw)) return "L";
+  if (["p", "pr", "perempuan", "female"].includes(raw)) return "P";
+  return normalizeText(value);
+};
 
 const resolveSelectedHomebase = async (db, userHomebaseId, requestedHomebaseId) => {
   if (userHomebaseId) {
@@ -108,6 +119,7 @@ router.get(
   withQuery(async (req, res, pool) => {
     const scopedHomebaseId = req.user.homebase_id || null;
     const requestedHomebaseId = toIntOrNull(req.query.homebase_id);
+    const includeAll = toBool(req.query.include_all, false);
     const selectedHomebaseId = await resolveSelectedHomebase(
       pool,
       scopedHomebaseId,
@@ -128,43 +140,114 @@ router.get(
            ORDER BY name ASC`,
         );
 
-    const periodesQuery = selectedHomebaseId
+    const periodesQuery = includeAll
       ? pool.query(
-          `SELECT id, homebase_id, name, is_active
-           FROM a_periode
-           WHERE homebase_id = $1
-           ORDER BY is_active DESC, id DESC`,
+          `SELECT p.id, p.homebase_id, hb.name AS homebase_name, p.name, p.is_active
+           FROM a_periode p
+           JOIN a_homebase hb ON hb.id = p.homebase_id
+           ORDER BY hb.name ASC, p.is_active DESC, p.id DESC`,
+        )
+      : selectedHomebaseId
+      ? pool.query(
+          `SELECT p.id, p.homebase_id, hb.name AS homebase_name, p.name, p.is_active
+           FROM a_periode p
+           JOIN a_homebase hb ON hb.id = p.homebase_id
+           WHERE p.homebase_id = $1
+           ORDER BY p.is_active DESC, p.id DESC`,
           [selectedHomebaseId],
         )
       : pool.query(
-          `SELECT id, homebase_id, name, is_active
-           FROM a_periode
-           ORDER BY id DESC`,
+          `SELECT p.id, p.homebase_id, hb.name AS homebase_name, p.name, p.is_active
+           FROM a_periode p
+           JOIN a_homebase hb ON hb.id = p.homebase_id
+           ORDER BY p.id DESC`,
         );
 
-    const musyrifQuery = selectedHomebaseId
+    const musyrifQuery = includeAll
       ? pool.query(
-          `SELECT id, homebase_id, full_name, phone, gender, is_active
-           FROM tahfiz.t_musyrif
-           WHERE homebase_id = $1
-           ORDER BY full_name ASC`,
+          `SELECT
+             m.id,
+             m.homebase_id,
+             hb.name AS homebase_name,
+             m.full_name,
+             m.phone,
+             m.gender,
+             m.is_active,
+             u.username
+           FROM tahfiz.t_musyrif m
+           LEFT JOIN u_users u ON u.id = m.user_id
+           LEFT JOIN a_homebase hb ON hb.id = m.homebase_id
+           ORDER BY hb.name ASC, m.full_name ASC`,
+        )
+      : selectedHomebaseId
+      ? pool.query(
+          `SELECT
+             m.id,
+             m.homebase_id,
+             hb.name AS homebase_name,
+             m.full_name,
+             m.phone,
+             m.gender,
+             m.is_active,
+             u.username
+           FROM tahfiz.t_musyrif m
+           LEFT JOIN u_users u ON u.id = m.user_id
+           LEFT JOIN a_homebase hb ON hb.id = m.homebase_id
+           WHERE m.homebase_id = $1
+           ORDER BY m.full_name ASC`,
           [selectedHomebaseId],
         )
       : pool.query(
-          `SELECT id, homebase_id, full_name, phone, gender, is_active
-           FROM tahfiz.t_musyrif
-           ORDER BY full_name ASC`,
+          `SELECT
+             m.id,
+             m.homebase_id,
+             hb.name AS homebase_name,
+             m.full_name,
+             m.phone,
+             m.gender,
+             m.is_active,
+             u.username
+           FROM tahfiz.t_musyrif m
+           LEFT JOIN u_users u ON u.id = m.user_id
+           LEFT JOIN a_homebase hb ON hb.id = m.homebase_id
+           ORDER BY m.full_name ASC`,
         );
 
-    const studentsQuery = selectedHomebaseId
+    const studentsQuery = includeAll
       ? pool.query(
           `SELECT
              s.user_id AS id,
+             s.homebase_id,
+             hb.name AS homebase_name,
              s.nis,
              u.full_name,
              COALESCE(c.name, '-') AS class_name
            FROM u_students s
            JOIN u_users u ON u.id = s.user_id
+           LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
+           LEFT JOIN LATERAL (
+             SELECT c.name
+             FROM u_class_enrollments e
+             LEFT JOIN a_class c ON c.id = e.class_id
+             WHERE e.student_id = s.user_id
+             ORDER BY e.id DESC
+             LIMIT 1
+           ) c ON true
+           WHERE u.is_active = true
+           ORDER BY hb.name ASC, u.full_name ASC`,
+        )
+      : selectedHomebaseId
+      ? pool.query(
+          `SELECT
+             s.user_id AS id,
+             s.homebase_id,
+             hb.name AS homebase_name,
+             s.nis,
+             u.full_name,
+             COALESCE(c.name, '-') AS class_name
+           FROM u_students s
+           JOIN u_users u ON u.id = s.user_id
+           LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
            LEFT JOIN LATERAL (
              SELECT c.name
              FROM u_class_enrollments e
@@ -181,11 +264,14 @@ router.get(
       : pool.query(
           `SELECT
              s.user_id AS id,
+             s.homebase_id,
+             hb.name AS homebase_name,
              s.nis,
              u.full_name,
              COALESCE(c.name, '-') AS class_name
            FROM u_students s
            JOIN u_users u ON u.id = s.user_id
+           LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
            LEFT JOIN LATERAL (
              SELECT c.name
              FROM u_class_enrollments e
@@ -198,11 +284,105 @@ router.get(
            ORDER BY u.full_name ASC`,
         );
 
-    const [homebasesResult, periodesResult, musyrifResult, studentsResult] = await Promise.all([
+    const importReferenceQuery = pool.query(
+          `WITH accessible_homebases AS (
+             SELECT id, name
+             FROM a_homebase
+           ),
+           active_periodes AS (
+             SELECT DISTINCT ON (p.homebase_id)
+               p.homebase_id,
+               p.id,
+               p.name,
+               p.is_active
+             FROM a_periode p
+             JOIN accessible_homebases hb ON hb.id = p.homebase_id
+             ORDER BY p.homebase_id, p.is_active DESC, p.id DESC
+           )
+           SELECT json_build_object(
+             'active_periodes',
+             COALESCE(
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'homebase_id', hb.id,
+                     'homebase_name', hb.name,
+                     'periode_id', ap.id,
+                     'periode_name', ap.name,
+                     'is_active', ap.is_active
+                   )
+                   ORDER BY hb.name ASC
+                 )
+                 FROM accessible_homebases hb
+                 LEFT JOIN active_periodes ap ON ap.homebase_id = hb.id
+               ),
+               '[]'::json
+             ),
+             'musyrif',
+             COALESCE(
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'homebase_id', hb.id,
+                     'homebase_name', hb.name,
+                     'musyrif_id', m.id,
+                     'full_name', m.full_name,
+                     'username', u.username,
+                     'is_active', m.is_active
+                   )
+                   ORDER BY hb.name ASC, m.full_name ASC
+                 )
+                 FROM accessible_homebases hb
+                 JOIN tahfiz.t_musyrif m ON m.homebase_id = hb.id
+                 LEFT JOIN u_users u ON u.id = m.user_id
+               ),
+               '[]'::json
+             ),
+             'students',
+             COALESCE(
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'homebase_id', hb.id,
+                     'homebase_name', hb.name,
+                     'active_periode_id', ap.id,
+                     'active_periode_name', ap.name,
+                     'student_id', s.user_id,
+                     'nis', s.nis,
+                     'full_name', u.full_name,
+                     'class_name', COALESCE(class_ref.name, '-')
+                   )
+                   ORDER BY hb.name ASC, u.full_name ASC
+                 )
+                 FROM accessible_homebases hb
+                 JOIN u_students s ON s.homebase_id = hb.id
+                 JOIN u_users u ON u.id = s.user_id
+                 LEFT JOIN active_periodes ap ON ap.homebase_id = hb.id
+                 LEFT JOIN LATERAL (
+                   SELECT c.name
+                   FROM u_class_enrollments e
+                   LEFT JOIN a_class c ON c.id = e.class_id
+                   WHERE e.student_id = s.user_id
+                     AND (
+                       ap.id IS NULL OR
+                       e.periode_id = ap.id
+                     )
+                   ORDER BY e.id DESC
+                   LIMIT 1
+                 ) class_ref ON true
+                 WHERE u.is_active = true
+               ),
+               '[]'::json
+             )
+           ) AS data`,
+        );
+
+    const [homebasesResult, periodesResult, musyrifResult, studentsResult, importReferenceResult] = await Promise.all([
       homebasesQuery,
       periodesQuery,
       musyrifQuery,
       studentsQuery,
+      importReferenceQuery,
     ]);
 
     return res.json({
@@ -214,6 +394,11 @@ router.get(
         periodes: periodesResult.rows,
         musyrif: musyrifResult.rows,
         students: studentsResult.rows,
+        import_reference: importReferenceResult.rows[0]?.data || {
+          active_periodes: [],
+          musyrif: [],
+          students: [],
+        },
       },
     });
   }),
@@ -345,6 +530,116 @@ router.post(
       code: 201,
       message: "Musyrif berhasil ditambahkan",
       data: created.rows[0],
+    });
+  }),
+);
+
+router.post(
+  "/halaqoh/musyrif/import",
+  authorize("admin", "tahfiz"),
+  withTransaction(async (req, res, client) => {
+    const payload = Array.isArray(req.body) ? { musyrif: req.body } : req.body;
+    const rows = Array.isArray(payload?.musyrif) ? payload.musyrif : [];
+    const scopedHomebaseId = req.user.homebase_id || null;
+    const defaultHomebaseId = scopedHomebaseId || toIntOrNull(payload?.homebase_id);
+
+    if (!rows.length) {
+      return res.status(400).json({ message: "Data import musyrif tidak valid." });
+    }
+
+    let imported = 0;
+    let skippedInvalid = 0;
+    let skippedDuplicate = 0;
+    const seenUsernames = new Set();
+
+    for (const row of rows) {
+      const homebaseId = scopedHomebaseId || toIntOrNull(row?.homebase_id) || defaultHomebaseId;
+      const fullName = normalizeText(row?.full_name || row?.name);
+      const username = normalizeUsername(row?.username);
+      const password = normalizeText(row?.password);
+      const phone = normalizeText(row?.phone) || null;
+      const gender = normalizeGender(row?.gender);
+      const notes = normalizeText(row?.notes) || null;
+      const isActive = toBool(row?.is_active, true);
+
+      if (!homebaseId || !fullName || !username || !password) {
+        skippedInvalid++;
+        continue;
+      }
+
+      if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+        skippedInvalid++;
+        continue;
+      }
+
+      const homebase = await client.query(
+        `SELECT id
+         FROM a_homebase
+         WHERE id = $1
+         LIMIT 1`,
+        [homebaseId],
+      );
+
+      if (!homebase.rows.length) {
+        skippedInvalid++;
+        continue;
+      }
+
+      if (seenUsernames.has(username)) {
+        skippedDuplicate++;
+        continue;
+      }
+      seenUsernames.add(username);
+
+      const duplicateUser = await client.query(
+        `SELECT id
+         FROM u_users
+         WHERE username = $1
+         LIMIT 1`,
+        [username],
+      );
+
+      if (duplicateUser.rows.length) {
+        skippedDuplicate++;
+        continue;
+      }
+
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      const createdUser = await client.query(
+        `INSERT INTO u_users (username, password, full_name, role, is_active)
+         VALUES ($1, $2, $3, 'admin', $4)
+         RETURNING id`,
+        [username, hashedPassword, fullName, isActive],
+      );
+
+      const userId = createdUser.rows[0].id;
+
+      await client.query(
+        `INSERT INTO u_admin (user_id, homebase_id, level)
+         VALUES ($1, $2, 'tahfiz')
+         ON CONFLICT (user_id)
+         DO UPDATE SET homebase_id = EXCLUDED.homebase_id, level = 'tahfiz'`,
+        [userId, homebaseId],
+      );
+
+      await client.query(
+        `INSERT INTO tahfiz.t_musyrif (homebase_id, user_id, full_name, phone, gender, is_active, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [homebaseId, userId, fullName, phone, gender, isActive, notes],
+      );
+
+      imported++;
+    }
+
+    return res.status(201).json({
+      code: 201,
+      message: `Berhasil mengimpor ${imported} dari ${rows.length} data musyrif.`,
+      summary: {
+        total: rows.length,
+        imported,
+        skipped_invalid: skippedInvalid,
+        skipped_duplicate: skippedDuplicate,
+      },
     });
   }),
 );
@@ -761,6 +1056,109 @@ router.post(
       code: 201,
       message: "Halaqoh berhasil ditambahkan",
       data: created.rows[0],
+    });
+  }),
+);
+
+router.post(
+  "/halaqoh/list/import",
+  authorize("admin", "tahfiz"),
+  withTransaction(async (req, res, client) => {
+    const payload = Array.isArray(req.body) ? { halaqoh: req.body } : req.body;
+    const rows = Array.isArray(payload?.halaqoh) ? payload.halaqoh : [];
+
+    if (!rows.length) {
+      return res.status(400).json({ message: "Data import halaqoh tidak valid." });
+    }
+
+    let imported = 0;
+    let skippedInvalid = 0;
+    let skippedDuplicate = 0;
+    const seenKeys = new Set();
+
+    for (const row of rows) {
+      const periodeId = toIntOrNull(row?.periode_id);
+      const musyrifId = toIntOrNull(row?.musyrif_id);
+      const name = normalizeText(row?.name);
+      const studentIds = normalizeStudentIds(row?.student_ids);
+      const isActive = toBool(row?.is_active, true);
+
+      if (!periodeId || !musyrifId || !name) {
+        skippedInvalid++;
+        continue;
+      }
+
+      const periodeScope = await ensurePeriodeScope(client, periodeId, null);
+      if (!periodeScope.ok) {
+        skippedInvalid++;
+        continue;
+      }
+
+      const homebaseId = periodeScope.data.homebase_id;
+
+      const musyrifScope = await ensureMusyrifScope(client, musyrifId, homebaseId);
+      if (!musyrifScope.ok) {
+        skippedInvalid++;
+        continue;
+      }
+
+      const studentScope = await ensureStudentsScope(client, studentIds, homebaseId);
+      if (!studentScope.ok) {
+        skippedInvalid++;
+        continue;
+      }
+
+      const dedupeKey = `${periodeId}::${normalizeKey(name)}`;
+      if (seenKeys.has(dedupeKey)) {
+        skippedDuplicate++;
+        continue;
+      }
+      seenKeys.add(dedupeKey);
+
+      const duplicate = await client.query(
+        `SELECT id
+         FROM tahfiz.t_halaqoh
+         WHERE periode_id = $1
+           AND LOWER(name) = LOWER($2)
+         LIMIT 1`,
+        [periodeId, name],
+      );
+
+      if (duplicate.rows.length) {
+        skippedDuplicate++;
+        continue;
+      }
+
+      const created = await client.query(
+        `INSERT INTO tahfiz.t_halaqoh (periode_id, name, musyrif_id, is_active)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
+        [periodeId, name, musyrifId, isActive],
+      );
+
+      const halaqohId = created.rows[0].id;
+
+      if (studentIds.length) {
+        await client.query(
+          `INSERT INTO tahfiz.t_halaqoh_students (halaqoh_id, student_id)
+           SELECT $1, unnest($2::int[])
+           ON CONFLICT (halaqoh_id, student_id) DO NOTHING`,
+          [halaqohId, studentIds],
+        );
+      }
+
+      imported++;
+    }
+
+    return res.status(201).json({
+      code: 201,
+      message: `Berhasil mengimpor ${imported} dari ${rows.length} data halaqoh.`,
+      summary: {
+        total: rows.length,
+        imported,
+        skipped_invalid: skippedInvalid,
+        skipped_duplicate: skippedDuplicate,
+      },
     });
   }),
 );

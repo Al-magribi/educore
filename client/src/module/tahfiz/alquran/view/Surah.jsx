@@ -49,6 +49,12 @@ const normalizeRevelation = (type) => {
   return type;
 };
 
+const getSurahArabicName = (surah) =>
+  surah?.name_arabic || surah?.name_latin || `Surah ${surah?.number ?? "-"}`;
+
+const getSurahTranslation = (surah) =>
+  surah?.name_translation || normalizeRevelation(surah?.revelation_type);
+
 const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
   const screens = useBreakpoint();
   const [search, setSearch] = useState("");
@@ -61,7 +67,7 @@ const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
   const filteredSurah = useMemo(() => {
     return data.filter((surah) => {
       const text =
-        `${surah.number} ${surah.name_latin} ${surah.name_arabic} ${surah.name_translation}`.toLowerCase();
+        `${surah.number || ""} ${surah.name_latin || ""} ${surah.name_arabic || ""} ${surah.name_translation || ""}`.toLowerCase();
 
       const matchSearch = text.includes(search.toLowerCase());
       const normalized = (surah.revelation_type || "").toLowerCase();
@@ -91,7 +97,7 @@ const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
     return (
       <AyahDetailPanel
         title={`Surah ${activeSurah.number} - ${activeSurah.name_latin}`}
-        subtitle={activeSurah.name_arabic}
+        subtitle={getSurahArabicName(activeSurah)}
         onBack={() => setActiveSurah(null)}
         isLoading={ayahQuery.isLoading}
         isError={ayahQuery.isError}
@@ -219,15 +225,15 @@ const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
                         color: "#0f172a",
                       }}
                     >
-                      {surah.name_arabic}
+                      {getSurahArabicName(surah)}
                     </Text>
                   </Space>
 
                   <div>
                     <Title level={5} style={{ margin: 0 }}>
-                      {surah.name_latin}
+                      {surah.name_latin || `Surah ${surah.number}`}
                     </Title>
-                    <Text type='secondary'>{surah.name_translation}</Text>
+                    <Text type='secondary'>{getSurahTranslation(surah)}</Text>
                   </div>
 
                   <Space wrap>

@@ -59,6 +59,9 @@ const arabicTagTextStyle = {
   fontWeight: 600,
 };
 
+const getDisplaySurahName = (value, surahNumber) =>
+  value || `Surah ${surahNumber ?? "-"}`;
+
 const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
   const [form] = Form.useForm();
   const [activeJuz, setActiveJuz] = React.useState(null);
@@ -214,7 +217,12 @@ const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
                     <Text type='secondary'>Awal Juz</Text>
                     <Title level={5} style={{ margin: "2px 0 0 0" }}>
                       Surah {item.start_surah_number} (
-                      <span style={arabicTextStyle}>{item.start_surah_name}</span>)
+                      <span style={arabicTextStyle}>
+                        {getDisplaySurahName(
+                          item.start_surah_name,
+                          item.start_surah_number,
+                        )}
+                      </span>)
                     </Title>
                     <Text>Ayat {item.start_ayah}</Text>
                   </div>
@@ -228,7 +236,12 @@ const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
                     <Text type='secondary'>Akhir Juz</Text>
                     <Title level={5} style={{ margin: "2px 0 0 0" }}>
                       Surah {item.end_surah_number} (
-                      <span style={arabicTextStyle}>{item.end_surah_name}</span>)
+                      <span style={arabicTextStyle}>
+                        {getDisplaySurahName(
+                          item.end_surah_name,
+                          item.end_surah_number,
+                        )}
+                      </span>)
                     </Title>
                     <Text>Ayat {item.end_ayah}</Text>
                   </div>
@@ -267,7 +280,10 @@ const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
                         <Space wrap>
                           {(item.surah_list || []).map((surah) => (
                             <Tag key={`${item.number}-${surah.number}`}>
-                              {surah.number}. <span style={arabicTagTextStyle}>{surah.name}</span>
+                              {surah.number}.{" "}
+                              <span style={arabicTagTextStyle}>
+                                {getDisplaySurahName(surah.name, surah.number)}
+                              </span>
                             </Tag>
                           ))}
                         </Space>

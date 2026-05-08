@@ -18,11 +18,20 @@ CREATE TABLE IF NOT EXISTS t_surah(
     id SERIAL NOT NULL,
     number integer NOT NULL,
     name_latin varchar(100) NOT NULL,
+    name_arabic varchar(100),
+    name_translation varchar(100),
+    revelation_type varchar(30),
     total_ayat integer NOT NULL,
     PRIMARY KEY(id),
     CONSTRAINT uq_t_surah_number UNIQUE(number),
     CONSTRAINT ck_t_surah_total_ayat CHECK (total_ayat > 0)
 );
+ALTER TABLE tahfiz.t_surah
+    ADD COLUMN IF NOT EXISTS name_arabic varchar(100);
+ALTER TABLE tahfiz.t_surah
+    ADD COLUMN IF NOT EXISTS name_translation varchar(100);
+ALTER TABLE tahfiz.t_surah
+    ADD COLUMN IF NOT EXISTS revelation_type varchar(30);
 
 CREATE TABLE IF NOT EXISTS t_juz(
     id SERIAL NOT NULL,

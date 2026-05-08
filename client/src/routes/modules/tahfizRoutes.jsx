@@ -15,6 +15,12 @@ const TahfizAdminReport = lazy(
 const TahfizTeacherReport = lazy(
   () => import("../../module/tahfiz/report/TahfizTeacherReport"),
 );
+const TahfizStudentReport = lazy(
+  () => import("../../module/tahfiz/report/TahfizStudentReport"),
+);
+const TahfizParentReport = lazy(
+  () => import("../../module/tahfiz/report/TahfizParentReport"),
+);
 const DailyReport = lazy(() => import("../../module/tahfiz/report/DailyReport"));
 const MusyrifDash = lazy(
   () => import("../../module/tahfiz/musyrif/MusyrifDash"),
@@ -147,11 +153,36 @@ const renderTahfizTeacherRoutes = ({ LazyPage } = {}) =>
     </Route>
   ) : null;
 
+const renderTahfizPersonalRoutes = ({ LazyPage } = {}) =>
+  LazyPage ? (
+    <>
+      <Route element={<RouteProtection allowedRoles={["student"]} />}>
+        <Route
+          path='/tahfiz-student-report'
+          element={createElement(LazyPage, {
+            title: "Laporan Tahfiz - Siswa",
+            Component: TahfizStudentReport,
+          })}
+        />
+      </Route>
+      <Route element={<RouteProtection allowedRoles={["parent"]} />}>
+        <Route
+          path='/tahfiz-parent-report'
+          element={createElement(LazyPage, {
+            title: "Laporan Tahfiz - Orang Tua",
+            Component: TahfizParentReport,
+          })}
+        />
+      </Route>
+    </>
+  ) : null;
+
 const renderTahfizRoutes = ({ LazyPage } = {}) => (
   <>
     {renderTahfizAdminRoutes({ LazyPage })}
     {renderTahfizTeacherRoutes({ LazyPage })}
     {renderTahfizMusyrifRoutes({ LazyPage })}
+    {renderTahfizPersonalRoutes({ LazyPage })}
   </>
 );
 

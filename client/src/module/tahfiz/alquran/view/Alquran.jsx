@@ -77,21 +77,25 @@ const summaryStyles = [
   },
 ];
 
+const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
 const Alquran = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const surahQuery = useGetSurahListQuery();
   const juzQuery = useGetJuzListQuery();
+  const surahData = ensureArray(surahQuery.data);
+  const juzData = ensureArray(juzQuery.data);
 
   const totalAyat =
-    surahQuery.data?.reduce(
+    surahData.reduce(
       (accumulator, surah) => accumulator + (surah.number_of_verses || 0),
       0,
     ) || 0;
 
   const summaryItems = [
-    { ...summaryStyles[0], value: surahQuery.data?.length || 0 },
-    { ...summaryStyles[1], value: juzQuery.data?.length || 0 },
+    { ...summaryStyles[0], value: surahData.length || 0 },
+    { ...summaryStyles[1], value: juzData.length || 0 },
     { ...summaryStyles[2], value: totalAyat },
   ];
 
@@ -235,11 +239,11 @@ const Alquran = () => {
                     "Surah",
                     <BookOpenText size={16} />,
                     "Daftar surah Al-Qur'an",
-                    surahQuery.data?.length || 0,
+                    surahData.length || 0,
                   ),
                   children: (
                     <Surah
-                      data={surahQuery.data || []}
+                      data={surahData}
                       isLoading={surahQuery.isLoading}
                       isFetching={surahQuery.isFetching}
                       isError={surahQuery.isError}
@@ -253,11 +257,11 @@ const Alquran = () => {
                     "Juz",
                     <Layers2 size={16} />,
                     "Rentang dan detail juz",
-                    juzQuery.data?.length || 0,
+                    juzData.length || 0,
                   ),
                   children: (
                     <Juz
-                      data={juzQuery.data || []}
+                      data={juzData}
                       isLoading={juzQuery.isLoading}
                       isFetching={juzQuery.isFetching}
                       isError={juzQuery.isError}
@@ -271,7 +275,7 @@ const Alquran = () => {
         </MotionDiv>
 
         {(surahQuery.isFetching || juzQuery.isFetching) &&
-        (surahQuery.data?.length || juzQuery.data?.length) ? (
+        (surahData.length || juzData.length) ? (
           <MotionDiv variants={itemVariants}>
             <Space size={8}>
               <Sparkles size={14} color='#1d4ed8' />

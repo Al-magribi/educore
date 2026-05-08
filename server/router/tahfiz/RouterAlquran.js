@@ -94,6 +94,55 @@ const normalizeBitrate = (value) => {
 const buildAudioUrl = (ayahGlobalNumber, edition, bitrate) =>
   `https://cdn.islamic.network/quran/audio/${bitrate}/${edition}/${ayahGlobalNumber}.mp3`;
 
+const buildJuzDetails = (surahs = []) => {
+  const juzMap = new Map();
+
+  for (const surah of surahs) {
+    const surahNumber = Number.parseInt(surah?.number, 10);
+    const ayahs = Array.isArray(surah?.ayahs) ? surah.ayahs : [];
+
+    if (Number.isNaN(surahNumber) || !ayahs.length) continue;
+
+    for (const ayah of ayahs) {
+      const juzNumber = Number.parseInt(ayah?.juz, 10);
+      const ayahNumber = Number.parseInt(ayah?.numberInSurah, 10);
+
+      if (Number.isNaN(juzNumber) || Number.isNaN(ayahNumber)) continue;
+
+      if (!juzMap.has(juzNumber)) {
+        juzMap.set(juzNumber, new Map());
+      }
+
+      const surahMap = juzMap.get(juzNumber);
+      const existingRange = surahMap.get(surahNumber);
+
+      if (!existingRange) {
+        surahMap.set(surahNumber, {
+          start_ayat: ayahNumber,
+          end_ayat: ayahNumber,
+        });
+        continue;
+      }
+
+      existingRange.start_ayat = Math.min(existingRange.start_ayat, ayahNumber);
+      existingRange.end_ayat = Math.max(existingRange.end_ayat, ayahNumber);
+    }
+  }
+
+  return Array.from(juzMap.entries())
+    .sort((a, b) => a[0] - b[0])
+    .flatMap(([juzNumber, surahMap]) =>
+      Array.from(surahMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([surahNumber, range]) => ({
+          juz_number: juzNumber,
+          surah_number: surahNumber,
+          start_ayat: range.start_ayat,
+          end_ayat: range.end_ayat,
+        })),
+    );
+};
+
 const ensureQuranColumns = async (client) => {
   await client.query(`
     ALTER TABLE tahfiz.t_surah
@@ -127,9 +176,14 @@ router.post(
       retries: 2,
     });
     const surahs = Array.isArray(payload?.data?.surahs) ? payload.data.surahs : [];
+    const juzDetails = buildJuzDetails(surahs);
 
     if (!surahs.length) {
       return res.status(502).json({ message: "Data Al-Quran dari API tidak valid." });
+    }
+
+    if (!juzDetails.length) {
+      return res.status(502).json({ message: "Data Juz dari API tidak valid." });
     }
 
     for (let juzNumber = 1; juzNumber <= 30; juzNumber += 1) {
@@ -220,6 +274,26 @@ router.post(
       }
     }
 
+    await client.query(`DELETE FROM tahfiz.t_juz_detail`);
+
+    for (const detail of juzDetails) {
+      const juzId = juzIdMap.get(detail.juz_number);
+      const surahId = surahIdMap.get(detail.surah_number);
+
+      if (!juzId || !surahId) {
+        throw new Error(
+          `Relasi juz detail tidak valid untuk Juz ${detail.juz_number}, Surah ${detail.surah_number}.`,
+        );
+      }
+
+      await client.query(
+        `INSERT INTO tahfiz.t_juz_detail(juz_id, surah_id, start_ayat, end_ayat)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (juz_id, surah_id, start_ayat, end_ayat) DO NOTHING`,
+        [juzId, surahId, detail.start_ayat, detail.end_ayat],
+      );
+    }
+
     cache.delete("surah_list");
     cache.delete("juz_list");
 
@@ -228,6 +302,8 @@ router.post(
       message: "Sinkronisasi Al-Quran ke database lokal berhasil.",
       data: {
         surah_count: surahs.length,
+        juz_count: 30,
+        juz_detail_count: juzDetails.length,
         ayah_count: totalAyah,
         audio_edition: audioEdition,
         audio_bitrate: audioBitrate,

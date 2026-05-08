@@ -11,6 +11,9 @@ export const ApiHalaqoh = createApi({
         if (params.homebase_id) {
           searchParams.set("homebase_id", params.homebase_id);
         }
+        if (params.include_all) {
+          searchParams.set("include_all", "1");
+        }
         const queryString = searchParams.toString();
         return queryString ? `/halaqoh/options?${queryString}` : "/halaqoh/options";
       },
@@ -38,6 +41,15 @@ export const ApiHalaqoh = createApi({
         body,
       }),
       invalidatesTags: ["Musyrif", "HalaqohOption"],
+    }),
+
+    importMusyrif: builder.mutation({
+      query: (body) => ({
+        url: "/halaqoh/musyrif/import",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Musyrif", "HalaqohOption", "Halaqoh"],
     }),
 
     updateMusyrif: builder.mutation({
@@ -96,6 +108,15 @@ export const ApiHalaqoh = createApi({
       invalidatesTags: ["Halaqoh", "Musyrif"],
     }),
 
+    importHalaqoh: builder.mutation({
+      query: (body) => ({
+        url: "/halaqoh/list/import",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Halaqoh", "Musyrif"],
+    }),
+
     updateHalaqoh: builder.mutation({
       query: ({ id, ...body }) => ({
         url: `/halaqoh/list/${id}`,
@@ -119,11 +140,13 @@ export const {
   useGetHalaqohOptionsQuery,
   useGetMusyrifListQuery,
   useCreateMusyrifMutation,
+  useImportMusyrifMutation,
   useUpdateMusyrifMutation,
   useDeleteMusyrifMutation,
   useGetHalaqohListQuery,
   useGetMusyrifHalaqohListQuery,
   useCreateHalaqohMutation,
+  useImportHalaqohMutation,
   useUpdateHalaqohMutation,
   useDeleteHalaqohMutation,
 } = ApiHalaqoh;

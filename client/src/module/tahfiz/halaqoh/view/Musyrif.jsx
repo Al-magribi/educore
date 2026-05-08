@@ -26,6 +26,7 @@ import {
   useGetMusyrifListQuery,
   useUpdateMusyrifMutation,
 } from "../../../../service/tahfiz/ApiHalaqoh";
+import MusyrifImportDrawer from "./MusyrifImportDrawer";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -38,6 +39,7 @@ const Musyrif = () => {
   const [form] = Form.useForm();
   const [homebaseId, setHomebaseId] = useState();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingData, setEditingData] = useState(null);
 
   const optionsQuery = useGetHalaqohOptionsQuery({ homebase_id: homebaseId });
@@ -235,6 +237,7 @@ const Musyrif = () => {
               placeholder='Pilih Homebase'
               style={{ width: 220 }}
             />
+            <Button onClick={() => setImportOpen(true)}>Import Excel</Button>
             <Button
               type='primary'
               icon={<Plus size={16} />}
@@ -450,6 +453,13 @@ const Musyrif = () => {
           </div>
         </MotionDiv>
       </Drawer>
+
+      <MusyrifImportDrawer
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        homebaseOptions={homebaseOptions}
+        selectedHomebaseId={selectedHomebaseId}
+      />
     </>
   );
 };
