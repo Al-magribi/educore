@@ -153,49 +153,10 @@ const FinanceFeaturePage = ({
                   >
                     {title}
                   </Title>
-                  <Paragraph
-                    style={{
-                      marginBottom: 0,
-                      fontSize: 16,
-                      color: "rgba(255,255,255,0.82)",
-                      maxWidth: 760,
-                    }}
-                  >
-                    {description}
-                  </Paragraph>
-                  {headerExtra ? <div>{headerExtra}</div> : null}
                 </Space>
               </Col>
-
               <Col xs={24} xl={8}>
-                <Card
-                  variant='borderless'
-                  style={{
-                    ...cardStyle,
-                    borderRadius: 24,
-                    background: "rgba(255,255,255,0.14)",
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    backdropFilter: "blur(10px)",
-                  }}
-                  bodyStyle={{ padding: 24 }}
-                >
-                  <Space vertical size={10} style={{ width: "100%" }}>
-                    <Flex align='center' gap={8}>
-                      <BarChart3 size={16} color='#bfdbfe' />
-                      <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                        Ringkasan Hari Ini
-                      </Text>
-                    </Flex>
-                    <Title level={3} style={{ margin: 0, color: "#fff" }}>
-                      {summary.title}
-                    </Title>
-                    <Paragraph
-                      style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}
-                    >
-                      {summary.description}
-                    </Paragraph>
-                  </Space>
-                </Card>
+                {headerExtra ? <div>{headerExtra}</div> : null}
               </Col>
             </Row>
           </Card>
@@ -231,7 +192,9 @@ const FinanceFeaturePage = ({
           ))}
         </Row>
 
-        {children ? <MotionDiv variants={itemVariants}>{children}</MotionDiv> : null}
+        {children ? (
+          <MotionDiv variants={itemVariants}>{children}</MotionDiv>
+        ) : null}
 
         {showDataTable ? (
           <Row gutter={[16, 16]}>
