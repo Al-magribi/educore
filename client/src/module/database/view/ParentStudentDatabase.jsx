@@ -13,6 +13,7 @@ import {
   Space,
   Statistic,
   Table,
+  Tabs,
   Tag,
   Typography,
   message,
@@ -121,6 +122,40 @@ const renderFieldCard = (label, value, token) => (
       </Text>
     </div>
   </Col>
+);
+
+const createTabLabel = (label, icon, caption, isMobile, token) => (
+  <Flex align='center' gap={10}>
+    <span
+      style={{
+        width: 34,
+        height: 34,
+        display: "grid",
+        placeItems: "center",
+        borderRadius: 12,
+        background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
+        color: "#0369a1",
+        border: "1px solid rgba(148, 163, 184, 0.14)",
+        flexShrink: 0,
+      }}
+    >
+      {icon}
+    </span>
+    <Flex vertical gap={0}>
+      <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+      {!isMobile && (
+        <span
+          style={{
+            fontSize: 12,
+            color: token.colorTextSecondary,
+            lineHeight: 1.2,
+          }}
+        >
+          {caption}
+        </span>
+      )}
+    </Flex>
+  </Flex>
 );
 
 const SectionCard = ({
@@ -245,6 +280,188 @@ const ParentStudentDatabase = () => {
     ],
   );
 
+  const tabItems = [
+    {
+      key: "student-info",
+      label: createTabLabel(
+        "Informasi Siswa",
+        <School size={16} />,
+        "Identitas & akademik",
+        isMobile,
+        token,
+      ),
+      children: (
+        <SectionCard
+          title='Informasi Siswa'
+          description='Ringkasan identitas dan informasi akademik anak yang dipilih.'
+          icon={<School size={20} />}
+          loading={isLoading || isFetching}
+          screens={screens}
+        >
+          {selectedStudent ? (
+            <Row gutter={[16, 16]}>
+              {renderFieldCard("Nama Lengkap", selectedStudent.full_name, token)}
+              {renderFieldCard("Jenis Kelamin", selectedStudent.gender, token)}
+              {renderFieldCard("NIS", selectedStudent.nis, token)}
+              {renderFieldCard("NISN", selectedStudent.nisn, token)}
+              {renderFieldCard(
+                "Satuan Pendidikan",
+                selectedStudent.education_unit,
+                token,
+              )}
+              {renderFieldCard(
+                "Tahun Pelajaran",
+                selectedStudent.academic_year,
+                token,
+              )}
+              {renderFieldCard("Tingkat", selectedStudent.grade_name, token)}
+              {renderFieldCard("Kelas", selectedStudent.class_name, token)}
+              {renderFieldCard(
+                "Tempat Lahir",
+                selectedStudent.birth_place,
+                token,
+              )}
+              {renderFieldCard(
+                "Tanggal Lahir",
+                formatDate(selectedStudent.birth_date),
+                token,
+              )}
+              {renderFieldCard("Alamat", selectedStudent.address, token)}
+            </Row>
+          ) : (
+            <Empty description='Belum ada data siswa terhubung ke akun ini.' />
+          )}
+        </SectionCard>
+      ),
+    },
+    {
+      key: "parent-info",
+      label: createTabLabel(
+        "Informasi Orang Tua",
+        <HeartHandshake size={16} />,
+        "Data ayah & ibu",
+        isMobile,
+        token,
+      ),
+      children: (
+        <SectionCard
+          title='Informasi Orang Tua'
+          description='Data ayah dan ibu yang tercatat pada profil anak terpilih.'
+          icon={<HeartHandshake size={20} />}
+          loading={isLoading || isFetching}
+          screens={screens}
+        >
+          {selectedStudent ? (
+            <Row gutter={[16, 16]}>
+              {renderFieldCard("Nama Ayah", selectedStudent.father_name, token)}
+              {renderFieldCard("NIK Ayah", selectedStudent.father_nik, token)}
+              {renderFieldCard(
+                "Tempat Lahir Ayah",
+                selectedStudent.father_birth_place,
+                token,
+              )}
+              {renderFieldCard(
+                "Tanggal Lahir Ayah",
+                formatDate(selectedStudent.father_birth_date),
+                token,
+              )}
+              {renderFieldCard(
+                "No Tlp Ayah",
+                selectedStudent.father_phone,
+                token,
+              )}
+              {renderFieldCard("Nama Ibu", selectedStudent.mother_name, token)}
+              {renderFieldCard("NIK Ibu", selectedStudent.mother_nik, token)}
+              {renderFieldCard(
+                "Tempat Lahir Ibu",
+                selectedStudent.mother_birth_place,
+                token,
+              )}
+              {renderFieldCard(
+                "Tanggal Lahir Ibu",
+                formatDate(selectedStudent.mother_birth_date),
+                token,
+              )}
+              {renderFieldCard(
+                "No Tlp Ibu",
+                selectedStudent.mother_phone,
+                token,
+              )}
+            </Row>
+          ) : (
+            <Empty description='Data orang tua belum tersedia.' />
+          )}
+        </SectionCard>
+      ),
+    },
+    {
+      key: "family-info",
+      label: createTabLabel(
+        "Informasi Keluarga",
+        <Users size={16} />,
+        "Saudara & keluarga lain",
+        isMobile,
+        token,
+      ),
+      children: (
+        <SectionCard
+          title='Informasi Keluarga'
+          description='Daftar anggota keluarga selain orang tua pada profil anak terpilih.'
+          icon={<CalendarDays size={20} />}
+          loading={isLoading || isFetching}
+          screens={screens}
+        >
+          {selectedStudent?.siblings?.length > 0 ? (
+            <Table
+              rowKey={(item) => item.id || `${item.name}-${item.birth_date}`}
+              pagination={false}
+              dataSource={selectedStudent.siblings}
+              scroll={{ x: 520 }}
+              style={{
+                borderRadius: 18,
+                overflow: "hidden",
+                border: `1px solid ${token.colorBorderSecondary}`,
+              }}
+              columns={[
+                {
+                  title: "Nama",
+                  dataIndex: "name",
+                  key: "name",
+                  render: (value) => (
+                    <Text strong style={{ color: "#0f172a" }}>
+                      {value || "-"}
+                    </Text>
+                  ),
+                },
+                {
+                  title: "Jenis Kelamin",
+                  dataIndex: "gender",
+                  key: "gender",
+                  render: (value) => (
+                    <Tag
+                      color={value === "Perempuan" ? "magenta" : "blue"}
+                      style={{ borderRadius: 999, fontWeight: 600 }}
+                    >
+                      {value || "-"}
+                    </Tag>
+                  ),
+                },
+                {
+                  title: "Tanggal Lahir",
+                  dataIndex: "birth_date",
+                  key: "birth_date",
+                  render: formatDate,
+                },
+              ]}
+            />
+          ) : (
+            <Empty description='Data keluarga belum ada.' />
+          )}
+        </SectionCard>
+      ),
+    },
+  ];
+
   const handleSubmit = async (values) => {
     if (!selectedStudent?.student_id) return;
     try {
@@ -261,13 +478,8 @@ const ParentStudentDatabase = () => {
 
   return (
     <>
-      <MotionDiv
-        variants={containerVariants}
-        initial='hidden'
-        animate='show'
-        style={{ width: "100%" }}
-      >
-        <Space vertical size={20} style={{ width: "100%", display: "flex" }}>
+      <MotionDiv variants={containerVariants} initial='hidden' animate='show'>
+        <Space vertical size={20}>
           <MotionDiv variants={itemVariants}>
             <Card
               style={{
@@ -297,7 +509,7 @@ const ParentStudentDatabase = () => {
                 gap={18}
                 style={{ position: "relative" }}
               >
-                <div style={{ color: "#fff", maxWidth: 760, flex: 1 }}>
+                <div style={{ color: "#fff", flex: 1 }}>
                   <Flex
                     align='center'
                     gap={10}
@@ -347,11 +559,7 @@ const ParentStudentDatabase = () => {
                   </Text>
                 </div>
 
-                <Flex
-                  vertical={isMobile}
-                  gap={12}
-                  style={{ width: isMobile ? "100%" : 280 }}
-                >
+                <Flex vertical={isMobile} gap={12}>
                   <Select
                     placeholder='Pilih siswa'
                     size='large'
@@ -521,185 +729,22 @@ const ParentStudentDatabase = () => {
           </MotionDiv>
 
           <MotionDiv variants={itemVariants}>
-            <SectionCard
-              title='Informasi Siswa'
-              description='Ringkasan identitas dan informasi akademik anak yang dipilih.'
-              icon={<School size={20} />}
-              loading={isLoading || isFetching}
-              screens={screens}
+            <Card
+              bordered={false}
+              style={{
+                borderRadius: 24,
+                boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+              }}
+              styles={{ body: { padding: isMobile ? 12 : 16 } }}
             >
-              {selectedStudent ? (
-                <Row gutter={[16, 16]}>
-                  {renderFieldCard(
-                    "Nama Lengkap",
-                    selectedStudent.full_name,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Jenis Kelamin",
-                    selectedStudent.gender,
-                    token,
-                  )}
-                  {renderFieldCard("NIS", selectedStudent.nis, token)}
-                  {renderFieldCard("NISN", selectedStudent.nisn, token)}
-                  {renderFieldCard(
-                    "Satuan Pendidikan",
-                    selectedStudent.education_unit,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Tahun Pelajaran",
-                    selectedStudent.academic_year,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Tingkat",
-                    selectedStudent.grade_name,
-                    token,
-                  )}
-                  {renderFieldCard("Kelas", selectedStudent.class_name, token)}
-                  {renderFieldCard(
-                    "Tempat Lahir",
-                    selectedStudent.birth_place,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Tanggal Lahir",
-                    formatDate(selectedStudent.birth_date),
-                    token,
-                  )}
-                  {renderFieldCard("Alamat", selectedStudent.address, token)}
-                </Row>
-              ) : (
-                <Empty description='Belum ada data siswa terhubung ke akun ini.' />
-              )}
-            </SectionCard>
-          </MotionDiv>
-
-          <MotionDiv variants={itemVariants}>
-            <SectionCard
-              title='Informasi Orang Tua'
-              description='Data ayah dan ibu yang tercatat pada profil anak terpilih.'
-              icon={<HeartHandshake size={20} />}
-              loading={isLoading || isFetching}
-              screens={screens}
-            >
-              {selectedStudent ? (
-                <Row gutter={[16, 16]}>
-                  {renderFieldCard(
-                    "Nama Ayah",
-                    selectedStudent.father_name,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "NIK Ayah",
-                    selectedStudent.father_nik,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Tempat Lahir Ayah",
-                    selectedStudent.father_birth_place,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Tanggal Lahir Ayah",
-                    formatDate(selectedStudent.father_birth_date),
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "No Tlp Ayah",
-                    selectedStudent.father_phone,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Nama Ibu",
-                    selectedStudent.mother_name,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "NIK Ibu",
-                    selectedStudent.mother_nik,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Tempat Lahir Ibu",
-                    selectedStudent.mother_birth_place,
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "Tanggal Lahir Ibu",
-                    formatDate(selectedStudent.mother_birth_date),
-                    token,
-                  )}
-                  {renderFieldCard(
-                    "No Tlp Ibu",
-                    selectedStudent.mother_phone,
-                    token,
-                  )}
-                </Row>
-              ) : (
-                <Empty description='Data orang tua belum tersedia.' />
-              )}
-            </SectionCard>
-          </MotionDiv>
-
-          <MotionDiv variants={itemVariants}>
-            <SectionCard
-              title='Informasi Keluarga Lain'
-              description='Daftar anggota keluarga selain orang tua pada profil anak terpilih.'
-              icon={<CalendarDays size={20} />}
-              loading={isLoading || isFetching}
-              screens={screens}
-            >
-              {selectedStudent?.siblings?.length > 0 ? (
-                <Table
-                  rowKey={(item) =>
-                    item.id || `${item.name}-${item.birth_date}`
-                  }
-                  pagination={false}
-                  dataSource={selectedStudent.siblings}
-                  scroll={{ x: 520 }}
-                  style={{
-                    borderRadius: 18,
-                    overflow: "hidden",
-                    border: `1px solid ${token.colorBorderSecondary}`,
-                  }}
-                  columns={[
-                    {
-                      title: "Nama",
-                      dataIndex: "name",
-                      key: "name",
-                      render: (value) => (
-                        <Text strong style={{ color: "#0f172a" }}>
-                          {value || "-"}
-                        </Text>
-                      ),
-                    },
-                    {
-                      title: "Jenis Kelamin",
-                      dataIndex: "gender",
-                      key: "gender",
-                      render: (value) => (
-                        <Tag
-                          color={value === "Perempuan" ? "magenta" : "blue"}
-                          style={{ borderRadius: 999, fontWeight: 600 }}
-                        >
-                          {value || "-"}
-                        </Tag>
-                      ),
-                    },
-                    {
-                      title: "Tanggal Lahir",
-                      dataIndex: "birth_date",
-                      key: "birth_date",
-                      render: formatDate,
-                    },
-                  ]}
-                />
-              ) : (
-                <Empty description='Data keluarga belum ada.' />
-              )}
-            </SectionCard>
+              <Tabs
+                items={tabItems}
+                defaultActiveKey='student-info'
+                size={isMobile ? "middle" : "large"}
+                tabBarGutter={12}
+                tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+              />
+            </Card>
           </MotionDiv>
         </Space>
       </MotionDiv>
