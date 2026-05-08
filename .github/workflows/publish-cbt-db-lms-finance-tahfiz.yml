@@ -78,6 +78,32 @@ jobs:
             git add -A
           }
 
+          restore_finance_owned_paths() {
+            git checkout origin/feature/finance -- \
+              client/src/components/layout/menus/financeMenus.jsx \
+              client/src/module/finance \
+              client/src/routes/modules/financeRoutes.jsx \
+              client/src/service/finance \
+              server/router/finance
+            git add -A
+          }
+
+          restore_tahfiz_owned_paths() {
+            git checkout origin/feature/tahfiz -- \
+              client/src/components/layout/menus/tahfizMenus.jsx \
+              client/src/module/tahfiz \
+              client/src/routes/modules/tahfizRoutes.jsx \
+              client/src/service/tahfiz \
+              database/tahfiz_schema.sql \
+              server/router/tahfiz
+            git add -A
+          }
+
+          harmonize_shared_app_shell() {
+            perl -0pi -e 's/\{isTahfizEnabled && renderTahfizRoutes\(\)\}/\{isTahfizEnabled \&\& renderTahfizRoutes\(\{\n                LazyPage,\n              \}\)\}/g' client/src/App.jsx
+            git add client/src/App.jsx
+          }
+
           merge_branch() {
             local source_branch="$1"
             local merge_message="chore(compose): merge ${source_branch} into ${COMPOSE_BRANCH}"
@@ -104,9 +130,12 @@ jobs:
           # later branches cannot silently roll those files back to older copies.
           restore_lms_owned_paths
           ensure_parent_report_components
+          restore_finance_owned_paths
+          restore_tahfiz_owned_paths
+          harmonize_shared_app_shell
 
           if ! git diff --cached --quiet; then
-            git commit -m "chore(compose): restore LMS-owned paths from feature/lms"
+            git commit -m "chore(compose): restore feature-owned paths"
           fi
 
           git diff --quiet origin/feature/lms -- \
