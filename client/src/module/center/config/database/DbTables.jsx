@@ -38,6 +38,10 @@ const HIDDEN_TABLES = [
   "db_village",
   "db_province",
   "configurations",
+  "t_ayah",
+  "t_juz",
+  "t_juz_detail",
+  "t_surah",
 ];
 const schemaColors = [
   "blue",
@@ -142,8 +146,7 @@ const DbTables = () => {
   const allVisibleSelected =
     filteredTables.length > 0 &&
     filteredTables.every((table) => selectedTables.includes(table.key));
-  const hasPartialSelection =
-    selectedTables.length > 0 && !allVisibleSelected;
+  const hasPartialSelection = selectedTables.length > 0 && !allVisibleSelected;
 
   const toggleSelection = (tableKey) => {
     setSelectedTables((prev) =>
@@ -235,10 +238,13 @@ const DbTables = () => {
                 {table.tableName}
               </Text>
               <Space size={6} wrap style={{ marginTop: 4 }}>
-                <Tag color={table.color} style={{ margin: 0, borderRadius: 999 }}>
+                <Tag
+                  color={table.color}
+                  style={{ margin: 0, borderRadius: 999 }}
+                >
                   {table.schema}
                 </Tag>
-                <Text type="secondary" style={{ fontSize: 12 }}>
+                <Text type='secondary' style={{ fontSize: 12 }}>
                   {table.fullName}
                 </Text>
               </Space>
@@ -263,7 +269,7 @@ const DbTables = () => {
 
   return (
     <Card
-      variant="borderless"
+      variant='borderless'
       style={{
         borderRadius: 22,
         border: "1px solid rgba(148, 163, 184, 0.14)",
@@ -271,13 +277,13 @@ const DbTables = () => {
       }}
       styles={{ body: { padding: 18 } }}
     >
-      <Space orientation="vertical" size={18} style={{ width: "100%" }}>
+      <Space orientation='vertical' size={18} style={{ width: "100%" }}>
         <Space
           wrap
           size={[12, 12]}
           style={{ width: "100%", justifyContent: "space-between" }}
         >
-          <Space align="center" size={12}>
+          <Space align='center' size={12}>
             <div
               style={{
                 width: 44,
@@ -318,7 +324,7 @@ const DbTables = () => {
               style={{ width: 190 }}
             />
             <Input
-              placeholder="Cari schema atau tabel..."
+              placeholder='Cari schema atau tabel...'
               prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -368,21 +374,23 @@ const DbTables = () => {
             ) : null}
 
             {hasPartialSelection ? (
-              <Text type="secondary">Sebagian tabel terlihat sudah dipilih</Text>
+              <Text type='secondary'>
+                Sebagian tabel terlihat sudah dipilih
+              </Text>
             ) : null}
           </Space>
 
           {selectedTables.length > 0 ? (
             <Popconfirm
-              title="Kosongkan Data Tabel?"
+              title='Kosongkan Data Tabel?'
               description={`Tindakan ini akan menghapus permanen seluruh data pada ${selectedTables.length} tabel yang dipilih, menjalankan CASCADE, dan mereset identity/ID-nya. Admin pusat/center di u_users dan relasinya di u_admin tetap dipertahankan.`}
               onConfirm={handleResetExecute}
-              okText="Ya, Hapus Data"
-              cancelText="Batal"
+              okText='Ya, Hapus Data'
+              cancelText='Batal'
               okButtonProps={{ danger: true }}
             >
               <Button
-                type="primary"
+                type='primary'
                 danger
                 icon={<DeleteOutlined />}
                 loading={isResetting}
@@ -394,7 +402,7 @@ const DbTables = () => {
           ) : null}
         </div>
 
-        <Spin spinning={isLoading} tip="Memuat daftar tabel...">
+        <Spin spinning={isLoading} tip='Memuat daftar tabel...'>
           {filteredTables.length > 0 ? (
             <Row gutter={[16, 16]}>
               {filteredTables.map((table) => renderCard(table))}
@@ -403,7 +411,9 @@ const DbTables = () => {
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
-                searchTerm ? "Tabel tidak ditemukan" : "Tidak ada tabel tersedia"
+                searchTerm
+                  ? "Tabel tidak ditemukan"
+                  : "Tidak ada tabel tersedia"
               }
             />
           )}
