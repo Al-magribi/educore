@@ -58,6 +58,7 @@ jobs:
               client/src/components/layout/menus/lmsMenus.jsx \
               client/src/components/scroll/InfiniteScrollList.jsx \
               client/src/module/lms \
+              client/src/module/parent/dashboard/ParentDash.jsx \
               client/src/routes/modules/lmsRoutes.jsx \
               client/src/service/lms \
               database/attendance_schema.sql \
