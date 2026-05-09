@@ -11,7 +11,9 @@ import "katex/dist/katex.min.css";
 import katex from "katex";
 
 // Pasang katex ke window agar Quill dapat mendeteksinya secara otomatis
-window.katex = katex;
+if (typeof globalThis !== "undefined") {
+  globalThis.katex = katex;
+}
 
 // Register module untuk resize gambar
 Quill.register("modules/resize", QuillResizeImage);

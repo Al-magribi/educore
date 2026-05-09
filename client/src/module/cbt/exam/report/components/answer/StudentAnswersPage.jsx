@@ -29,6 +29,7 @@ import {
 import StudentAnswersHero from "./StudentAnswersHero";
 import StudentAnswersManualAction from "./StudentAnswersManualAction";
 import StudentAnswersMetrics from "./StudentAnswersMetrics";
+import RichContentViewer from "../../../../components/RichContentViewer";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -44,10 +45,6 @@ const TYPE_LABELS = {
 };
 
 const MANUAL_REVIEW_TYPES = new Set(["essay", "short"]);
-
-const createMarkup = (value) => ({
-  __html: typeof value === "string" ? value : "",
-});
 
 const normalizeTagValue = (value) =>
   String(value ?? "")
@@ -169,8 +166,9 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
         wordBreak: "break-word",
         ...style,
       }}
-      dangerouslySetInnerHTML={createMarkup(value)}
-    />
+    >
+      <RichContentViewer value={value} />
+    </div>
   );
 
   const renderOptionTag = (option, color = "default", icon = null) => {
@@ -191,7 +189,9 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
         icon={icon}
         style={{ maxWidth: "100%", whiteSpace: "normal", borderRadius: 12 }}
       >
-        <span dangerouslySetInnerHTML={createMarkup(rawValue)} />
+        <div style={{ display: "inline-block", maxWidth: "100%" }}>
+          <RichContentViewer value={rawValue} />
+        </div>
       </Tag>
     );
   };
@@ -246,7 +246,9 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
         icon={<CheckCircle2 size={12} />}
         style={{ maxWidth: "100%", whiteSpace: "normal", borderRadius: 12 }}
       >
-        <span dangerouslySetInnerHTML={createMarkup(value || "-")} />
+        <div style={{ display: "inline-block", maxWidth: "100%" }}>
+          <RichContentViewer value={value || "-"} />
+        </div>
       </Tag>
     </Space>
   );
@@ -558,14 +560,18 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                   wrap='wrap'
                 >
                   <Tag style={{ maxWidth: "100%", whiteSpace: "normal" }}>
-                    <span dangerouslySetInnerHTML={createMarkup(pair.left)} />
+                    <div style={{ display: "inline-block", maxWidth: "100%" }}>
+                      <RichContentViewer value={pair.left} />
+                    </div>
                   </Tag>
                   <Text type='secondary'>→</Text>
                   <Tag
                     color={pair.correct ? "green" : "red"}
                     style={{ maxWidth: "100%", whiteSpace: "normal" }}
                   >
-                    <span dangerouslySetInnerHTML={createMarkup(pair.right)} />
+                    <div style={{ display: "inline-block", maxWidth: "100%" }}>
+                      <RichContentViewer value={pair.right} />
+                    </div>
                   </Tag>
                   {pair.correct ? (
                     <CheckCircle2 size={14} color='#16a34a' />
@@ -588,16 +594,22 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                     wrap='wrap'
                   >
                     <Tag style={{ maxWidth: "100%", whiteSpace: "normal" }}>
-                      <span dangerouslySetInnerHTML={createMarkup(pair.left)} />
+                      <div
+                        style={{ display: "inline-block", maxWidth: "100%" }}
+                      >
+                        <RichContentViewer value={pair.left} />
+                      </div>
                     </Tag>
                     <Text type='secondary'>→</Text>
                     <Tag
                       color='blue'
                       style={{ maxWidth: "100%", whiteSpace: "normal" }}
                     >
-                      <span
-                        dangerouslySetInnerHTML={createMarkup(pair.right)}
-                      />
+                      <div
+                        style={{ display: "inline-block", maxWidth: "100%" }}
+                      >
+                        <RichContentViewer value={pair.right} />
+                      </div>
                     </Tag>
                   </Flex>
                 ))

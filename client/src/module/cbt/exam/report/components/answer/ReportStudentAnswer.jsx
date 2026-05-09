@@ -33,6 +33,7 @@ import {
 import * as XLSX from "xlsx";
 import { useSearchParams } from "react-router-dom";
 import { useGetExamStudentAnswerReportQuery } from "../../../../../../service/cbt/ApiExam";
+import RichContentViewer from "../../../../components/RichContentViewer";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -93,6 +94,10 @@ const getAnswerCell = (student, questionId) =>
 
 const getStatusLabel = (status) =>
   STATUS_META[status]?.label || STATUS_META.unanswered.label;
+
+const tooltipContentStyle = {
+  maxWidth: 360,
+};
 
 const createSheetFromAoA = (rows, widths = []) => {
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
@@ -288,10 +293,16 @@ const ReportStudentAnswer = ({
   const renderAnswerCell = (question, record) => {
     if (record.row_type === "key") {
       const display = question.key?.display || "-";
-      const detail = question.key?.detail || display;
+      const detail = question.key?.detail_html || question.key?.detail || display;
 
       return (
-        <Tooltip title={detail}>
+        <Tooltip
+          title={
+            <div style={tooltipContentStyle}>
+              <RichContentViewer value={detail} />
+            </div>
+          }
+        >
           <Tag
             color='blue'
             style={{
@@ -311,13 +322,15 @@ const ReportStudentAnswer = ({
     const cell = getAnswerCell(record, question.id);
     const statusMeta = STATUS_META[cell?.status] || STATUS_META.unanswered;
     const display = cell?.answer || "-";
-    const detail = cell?.detail || display;
+    const detail = cell?.detail_html || cell?.detail || display;
 
     return (
       <Tooltip
         title={
-          <Space vertical size={2}>
-            <Text style={{ color: "#fff" }}>{detail || "-"}</Text>
+          <Space vertical size={6}>
+            <div style={tooltipContentStyle}>
+              <RichContentViewer value={detail || "-"} />
+            </div>
             <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: 12 }}>
               {statusMeta.label} - Skor {cell?.score ?? 0}
             </Text>
@@ -503,8 +516,16 @@ const ReportStudentAnswer = ({
       dataIndex: "question",
       width: 420,
       render: (value) => (
-        <Tooltip title={value || "-"}>
-          <Text>{truncateText(value, 120)}</Text>
+        <Tooltip
+          title={
+            <div style={tooltipContentStyle}>
+              <RichContentViewer value={value || "-"} />
+            </div>
+          }
+        >
+          <div style={{ maxHeight: 84, overflow: "hidden" }}>
+            <RichContentViewer value={value || "-"} />
+          </div>
         </Tooltip>
       ),
     },
@@ -513,8 +534,18 @@ const ReportStudentAnswer = ({
       dataIndex: "key",
       width: 320,
       render: (value) => (
-        <Tooltip title={value?.detail || value?.display || "-"}>
-          <Text>{truncateText(value?.display, 100)}</Text>
+        <Tooltip
+          title={
+            <div style={tooltipContentStyle}>
+              <RichContentViewer
+                value={value?.detail_html || value?.detail || value?.display || "-"}
+              />
+            </div>
+          }
+        >
+          <div style={{ maxHeight: 84, overflow: "hidden" }}>
+            <RichContentViewer value={value?.display || "-"} />
+          </div>
         </Tooltip>
       ),
     },
