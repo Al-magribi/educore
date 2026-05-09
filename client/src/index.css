@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Roboto:wght@400;500;700&display=swap");
+
 * {
   padding: 0;
   margin: 0;
@@ -30,6 +32,129 @@
 .ql-editor {
   border: none !important;
   z-index: 200 !important;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item::before {
+  content: "Sans";
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="sans"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="sans"]::before {
+  content: "Sans";
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="serif"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
+  content: "Serif";
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="monospace"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
+  content: "Monospace";
+  font-family: "Courier New", Courier, monospace;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="roboto"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="roboto"]::before {
+  content: "Roboto";
+  font-family: "Roboto", Arial, sans-serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label:not([data-value])::before {
+  content: "Sans";
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="amiri"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="amiri"]::before {
+  content: "Amiri";
+  font-family: "Amiri", serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="naskh"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="naskh"]::before {
+  content: "Naskh";
+  font-family: "Noto Naskh Arabic", serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="diwani"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="diwani"]::before {
+  content: "Diwani";
+  font-family: "Aref Ruqaa", "Amiri", serif;
+}
+
+.ql-font-sans {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.ql-font-serif {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.ql-font-monospace {
+  font-family: "Courier New", Courier, monospace;
+}
+
+.ql-font-roboto {
+  font-family: "Roboto", Arial, sans-serif;
+}
+
+.ql-font-amiri {
+  font-family: "Amiri", "Times New Roman", serif;
+  direction: rtl;
+}
+
+.ql-font-naskh {
+  font-family: "Noto Naskh Arabic", "Amiri", serif;
+  direction: rtl;
+}
+
+.ql-font-diwani {
+  font-family: "Aref Ruqaa", "Amiri", serif;
+  direction: rtl;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before {
+  content: "12px";
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before {
+  content: "14px";
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before {
+  content: "16px";
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before {
+  content: "18px";
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="20px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="20px"]::before {
+  content: "20px";
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="24px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before {
+  content: "24px";
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="28px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="28px"]::before {
+  content: "28px";
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="32px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before {
+  content: "32px";
 }
 
 .ql-toolbar .ql-audio::before {
