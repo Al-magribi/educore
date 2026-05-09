@@ -18,6 +18,23 @@ if (typeof globalThis !== "undefined") {
 // Register module untuk resize gambar
 Quill.register("modules/resize", QuillResizeImage);
 
+const Font = Quill.import("formats/font");
+Font.whitelist = ["sans", "serif", "monospace", "roboto", "amiri", "naskh", "diwani"];
+Quill.register(Font, true);
+
+const SizeStyle = Quill.import("attributors/style/size");
+SizeStyle.whitelist = [
+  "12px",
+  "14px",
+  "16px",
+  "18px",
+  "20px",
+  "24px",
+  "28px",
+  "32px",
+];
+Quill.register(SizeStyle, true);
+
 // Custom Blot untuk Audio (Tetap dipertahankan dari versi sebelumnya)
 const AudioBlot = Quill.import("blots/block/embed");
 class Audio extends AudioBlot {
@@ -209,9 +226,10 @@ const Editor = ({
 Editor.modules = (handleImageUpload, handleAudioUpload) => ({
   toolbar: {
     container: [
-      [{ header: "1" }, { header: "2" }, { font: [] }],
-      [{ size: [] }],
+      [{ header: "1" }, { header: "2" }, { font: Font.whitelist }],
+      [{ size: SizeStyle.whitelist }],
       ["bold", "italic", "underline", "strike", "blockquote"],
+      [{ direction: "rtl" }, { align: [] }],
       [
         { list: "ordered" },
         { list: "bullet" },
@@ -243,6 +261,8 @@ Editor.formats = [
   "underline",
   "strike",
   "blockquote",
+  "direction",
+  "align",
   "list",
   "indent",
   "link",
