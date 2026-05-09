@@ -115,15 +115,13 @@ const TransactionList = ({
   onCreate,
 }) => {
   const selectedHomebaseId = transactionFilters.homebase_id;
-  const requiresHomebaseSelection =
-    (homebases || []).length > 1 && !selectedHomebaseId;
   const activeHomebaseName =
     (homebases || []).find(
       (item) => Number(item.id) === Number(selectedHomebaseId),
     )?.name ||
-    (requiresHomebaseSelection
-      ? "Pilih satuan"
-      : user?.homebase_name || user?.homebase_id || "-");
+    (selectedHomebaseId
+      ? user?.homebase_name || user?.homebase_id || "-"
+      : "Semua satuan");
   const totalRecords = Number(transactionSummary.total_records || 0);
   const currentPage = Number(
     transactionSummary.page || transactionFilters.page || 1,
@@ -576,6 +574,7 @@ const TransactionList = ({
                 size='large'
                 disabled={(homebases || []).length <= 1}
                 virtual={false}
+                allowClear
               />
               <Select
                 allowClear
@@ -606,7 +605,6 @@ const TransactionList = ({
                 optionFilterProp='searchLabel'
                 size='large'
                 virtual={false}
-                disabled={requiresHomebaseSelection}
               />
               <Input
                 placeholder='Cari nama siswa / NIS'
@@ -620,7 +618,6 @@ const TransactionList = ({
                   }))
                 }
                 size='large'
-                disabled={requiresHomebaseSelection}
               />
               <Select
                 allowClear
@@ -640,7 +637,6 @@ const TransactionList = ({
                 }
                 size='large'
                 virtual={false}
-                disabled={requiresHomebaseSelection}
               />
               <Select
                 allowClear
@@ -660,7 +656,6 @@ const TransactionList = ({
                 }
                 size='large'
                 virtual={false}
-                disabled={requiresHomebaseSelection}
               />
               <Select
                 allowClear
@@ -683,7 +678,6 @@ const TransactionList = ({
                 }
                 size='large'
                 virtual={false}
-                disabled={requiresHomebaseSelection}
               />
             </div>
           </div>
@@ -710,9 +704,7 @@ const TransactionList = ({
                 })),
             }}
             locale={{
-              emptyText: requiresHomebaseSelection
-                ? "Pilih homebase terlebih dahulu untuk menampilkan transaksi."
-                : "Belum ada transaksi pada filter saat ini.",
+              emptyText: "Belum ada transaksi pada filter saat ini.",
             }}
           />
         </Flex>

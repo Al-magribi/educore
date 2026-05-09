@@ -314,14 +314,17 @@ router.get(
     await ensureFinalFinanceTables(db);
 
     const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
-    const homebaseId = await resolveScopedHomebaseId(
-      db,
-      req.user,
-      requestedHomebaseId,
-    );
+    const homebaseId = req.user.homebase_id
+      ? Number(req.user.homebase_id)
+      : requestedHomebaseId
+        ? await resolveScopedHomebaseId(db, req.user, requestedHomebaseId)
+        : null;
+    const params = [];
+    let whereClause = `WHERE fc.category = 'other'`;
 
-    if (!homebaseId) {
-      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    if (homebaseId) {
+      params.push(homebaseId);
+      whereClause += ` AND fc.homebase_id = $${params.length}`;
     }
 
     const result = await db.query(
@@ -344,12 +347,11 @@ router.get(
         LEFT JOIN a_grade g ON g.id = fr.grade_id
         LEFT JOIN finance.invoice_item ii ON ii.component_id = fc.id AND ii.item_type = 'other'
         JOIN a_homebase hb ON hb.id = fc.homebase_id
-        WHERE fc.homebase_id = $1
-          AND fc.category = 'other'
+        ${whereClause}
         GROUP BY fc.id, hb.id
         ORDER BY fc.is_active DESC, fc.name ASC
       `,
-      [homebaseId],
+      params,
     );
 
     res.json({ status: "success", data: result.rows });
@@ -545,21 +547,17 @@ router.get(
     await ensureFinalFinanceTables(db);
 
     const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
-    const homebaseId = await resolveScopedHomebaseId(
-      db,
-      req.user,
-      requestedHomebaseId,
-    );
+    const homebaseId = req.user.homebase_id
+      ? Number(req.user.homebase_id)
+      : requestedHomebaseId
+        ? await resolveScopedHomebaseId(db, req.user, requestedHomebaseId)
+        : null;
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const studentId = parseOptionalInt(req.query.student_id);
     const status = (req.query.status || "").trim();
     const search = (req.query.search || "").trim();
-
-    if (!homebaseId) {
-      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
-    }
 
     const scope = buildEnrollmentWhereClause({
       homebaseId,
@@ -569,11 +567,21 @@ router.get(
       studentId,
       search,
     });
+    const typeScopeWhereClause = homebaseId
+      ? `WHERE fc.homebase_id = $1
+            AND fc.category = 'other'
+            AND fc.is_active = true`
+      : `WHERE fc.category = 'other'
+            AND fc.is_active = true`;
+    const itemScopeWhereClause = homebaseId
+      ? `WHERE inv.homebase_id = $1`
+      : `WHERE 1=1`;
 
     const result = await db.query(
       `
         WITH enrollment_scope AS (
           SELECT
+            e.homebase_id,
             e.student_id,
             e.periode_id,
             p.name AS periode_name,
@@ -600,12 +608,11 @@ router.get(
             fr.id AS fee_rule_id
           FROM finance.fee_component fc
           JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
-          WHERE fc.homebase_id = $1
-            AND fc.category = 'other'
-            AND fc.is_active = true
+          ${typeScopeWhereClause}
         ),
         item_scope AS (
           SELECT
+            inv.homebase_id,
             inv.student_id,
             inv.periode_id,
             ii.id AS charge_id,
@@ -626,12 +633,12 @@ router.get(
           JOIN finance.invoice_item ii ON ii.invoice_id = inv.id AND ii.item_type = 'other'
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
           LEFT JOIN finance.payment p ON p.id = pa.payment_id
-          WHERE inv.homebase_id = $1
-          GROUP BY inv.student_id, inv.periode_id, ii.id
+          ${itemScopeWhereClause}
+          GROUP BY inv.homebase_id, inv.student_id, inv.periode_id, ii.id
         )
         SELECT
           item.charge_id,
-          $1::int AS homebase_id,
+          COALESCE(item.homebase_id, es.homebase_id) AS homebase_id,
           es.periode_id,
           es.periode_name,
           ts.type_id,

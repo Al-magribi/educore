@@ -122,8 +122,13 @@ export const buildEnrollmentWhereClause = ({
   studentId,
   search,
 }) => {
-  const params = [homebaseId];
-  let whereClause = `WHERE e.homebase_id = $1`;
+  const params = [];
+  let whereClause = `WHERE 1=1`;
+
+  if (homebaseId) {
+    params.push(homebaseId);
+    whereClause += ` AND e.homebase_id = $${params.length}`;
+  }
 
   if (periodeId) {
     params.push(periodeId);

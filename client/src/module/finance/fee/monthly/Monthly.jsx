@@ -82,6 +82,29 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const selectedTariffHomebaseId = Form.useWatch("homebase_id", tariffForm);
   const selectedPaymentStudentId = Form.useWatch("student_id", paymentForm);
   const selectedPaymentPeriodeId = Form.useWatch("periode_id", paymentForm);
+  const hasPrimaryFilters = Boolean(filters.homebase_id && filters.periode_id);
+
+  const tariffQueryFilters = hasPrimaryFilters
+    ? {
+        homebase_id: filters.homebase_id,
+        periode_id: filters.periode_id,
+        grade_id: filters.grade_id,
+      }
+    : {};
+
+  const paymentQueryFilters = {
+    bill_month: filters.bill_month,
+    ...(hasPrimaryFilters
+      ? {
+          homebase_id: filters.homebase_id,
+          periode_id: filters.periode_id,
+          grade_id: filters.grade_id,
+          class_id: filters.class_id,
+          student_id: filters.student_id,
+          student_search: filters.student_search,
+        }
+      : {}),
+  };
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetMonthlyOptionsQuery(
@@ -92,27 +115,27 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     { skip: !selectedTariffHomebaseId },
   );
   const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } =
-    useGetMonthlyOptionsQuery({
-      homebase_id: filters.homebase_id,
-      periode_id: filters.periode_id,
-      grade_id: filters.grade_id,
-      class_id: filters.class_id,
-      search: filters.student_search,
-    });
+    useGetMonthlyOptionsQuery(
+      hasPrimaryFilters
+        ? {
+            homebase_id: filters.homebase_id,
+            periode_id: filters.periode_id,
+            grade_id: filters.grade_id,
+            class_id: filters.class_id,
+            search: filters.student_search,
+          }
+        : undefined,
+    );
   const {
     data: tariffResponse,
     isLoading: isLoadingTariffs,
     isFetching: isFetchingTariffs,
-  } = useGetMonthlyTariffsQuery({
-    homebase_id: filters.homebase_id,
-    periode_id: filters.periode_id,
-    grade_id: filters.grade_id,
-  });
+  } = useGetMonthlyTariffsQuery(tariffQueryFilters);
   const {
     data: paymentResponse,
     isLoading: isLoadingPayments,
     isFetching: isFetchingPayments,
-  } = useGetMonthlyPaymentsQuery(filters);
+  } = useGetMonthlyPaymentsQuery(paymentQueryFilters);
 
   const [addMonthlyTariff, { isLoading: isAddingTariff }] =
     useAddMonthlyTariffMutation();
@@ -142,42 +165,59 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     () => filterOptions.students || [],
     [filterOptions.students],
   );
-  const tariffs = tariffResponse?.data || [];
-  const payments = paymentResponse?.data || [];
-  const paymentSummary = paymentResponse?.summary || {};
-  const paymentStudents = [...mainStudents].sort((left, right) =>
-    String(left.full_name || "").localeCompare(
-      String(right.full_name || ""),
-      "id",
-      {
-        sensitivity: "base",
-      },
-    ),
+  const tariffs = useMemo(
+    () => tariffResponse?.data || [],
+    [tariffResponse?.data],
   );
+  const payments = useMemo(
+    () => paymentResponse?.data || [],
+    [paymentResponse?.data],
+  );
+  const paymentSummary = useMemo(
+    () => paymentResponse?.summary || {},
+    [paymentResponse?.summary],
+  );
+  const paymentStudents = useMemo(() => {
+    const studentMap = new Map();
+
+    mainStudents.forEach((student) => {
+      studentMap.set(Number(student.id), student);
+    });
+
+    payments.forEach((payment) => {
+      const studentId = Number(payment.student_id);
+
+      if (!studentId || studentMap.has(studentId)) {
+        return;
+      }
+
+      studentMap.set(studentId, {
+        id: payment.student_id,
+        full_name: payment.student_name,
+        nis: payment.nis,
+        grade_id: payment.grade_id,
+        grade_name: payment.grade_name,
+        class_id: payment.class_id,
+        class_name: payment.class_name,
+        periode_id: payment.periode_id,
+        homebase_id: payment.homebase_id,
+      });
+    });
+
+    return [...studentMap.values()].sort((left, right) =>
+      String(left.full_name || "").localeCompare(
+        String(right.full_name || ""),
+        "id",
+        {
+          sensitivity: "base",
+        },
+      ),
+    );
+  }, [mainStudents, payments]);
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
-
-  useEffect(() => {
-    if (!filters.homebase_id && options.selected_homebase_id) {
-      setFilters((previous) => ({
-        ...previous,
-        homebase_id: options.selected_homebase_id,
-      }));
-    }
-  }, [filters.homebase_id, options.selected_homebase_id]);
-
-  useEffect(() => {
-    if (!filters.periode_id && periodes.length > 0) {
-      const activePeriode =
-        periodes.find((item) => item.is_active) || periodes[0];
-      setFilters((previous) => ({
-        ...previous,
-        periode_id: activePeriode?.id,
-      }));
-    }
-  }, [filters.periode_id, periodes]);
 
   useEffect(() => {
     if (
@@ -503,7 +543,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const isPageBootstrapping =
     isLoadingOptions ||
     (!optionsResponse && !periodes.length) ||
-    (Boolean(filters.periode_id) &&
+    (hasPrimaryFilters &&
       (isLoadingFilterOptions || isLoadingTariffs || isLoadingPayments) &&
       !filterOptionsResponse &&
       !tariffResponse &&
@@ -516,9 +556,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const activeHomebaseName =
     homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
       ?.name ||
-    user?.homebase_name ||
-    user?.homebase_id ||
-    "-";
+    (hasPrimaryFilters
+      ? user?.homebase_name || user?.homebase_id || "-"
+      : "Semua satuan");
 
   const createTabLabel = (label, icon, count, caption) => (
     <Space size={10}>
@@ -671,8 +711,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
             <Space align='center' size={8}>
               <Sparkles size={14} color='#64748b' />
               <Text type='secondary'>
-                Satuan aktif: {activeHomebaseName}. Gunakan filter untuk
-                mempersempit pemantauan SPP per periode, tingkat, kelas, dan siswa.
+                Tampilan saat ini: {activeHomebaseName}. Data akan difilter
+                setelah satuan dan periode dipilih, lalu bisa dipersempit lagi
+                berdasarkan tingkat, kelas, dan siswa.
               </Text>
             </Space>
           </Card>
@@ -713,7 +754,8 @@ const Monthly = ({ initialTab = "tariffs" }) => {
           paymentForm.setFieldsValue({
             grade_id: selectedStudent?.grade_id,
             periode_id: selectedStudent?.periode_id || filters.periode_id,
-            homebase_id: filters.homebase_id,
+            homebase_id:
+              selectedStudent?.homebase_id || filters.homebase_id,
           });
         }}
         form={paymentForm}
