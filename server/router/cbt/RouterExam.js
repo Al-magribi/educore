@@ -2357,6 +2357,7 @@ router.get(
           ...option,
           marker: content || marker,
           text: content || marker,
+          html: option.content || content || marker,
           full: content || marker,
         };
       }
@@ -2366,7 +2367,9 @@ router.get(
           ...option,
           marker: String(index + 1),
           text: content || "-",
+          html: option.content || content || "-",
           label_text: rawLabel || `Premis ${index + 1}`,
+          label_html: option.label || rawLabel || `Premis ${index + 1}`,
           full: `${rawLabel || `Premis ${index + 1}`} -> ${content || "-"}`,
         };
       }
@@ -2375,6 +2378,7 @@ router.get(
         ...option,
         marker,
         text: content || "-",
+        html: option.content || content || "-",
         full: `${marker}. ${content || "-"}`,
       };
     };
@@ -2397,6 +2401,13 @@ router.get(
         return {
           display: pairs.join("; ") || "-",
           detail: pairs.join("; ") || "-",
+          detail_html:
+            questionOptions
+              .map(
+                (option) =>
+                  `${option.label_html || option.label_text || "-"} -> ${option.html || option.text || "-"}`,
+              )
+              .join("<br/>") || "-",
         };
       }
 
@@ -2406,6 +2417,9 @@ router.get(
         return {
           display: answers.join(" / ") || "-",
           detail: answers.join(" / ") || "-",
+          detail_html:
+            correctOptions.map((option) => option.html || option.text || "-").join(" / ") ||
+            "-",
         };
       }
 
@@ -2414,6 +2428,9 @@ router.get(
       return {
         display: compact.join(", ") || "-",
         detail: detail.join("; ") || "-",
+        detail_html:
+          correctOptions.map((option) => option.html || option.text || option.marker).join("; ") ||
+          "-",
       };
     };
 
@@ -2463,6 +2480,8 @@ router.get(
         return {
           display: selectedOption?.marker || "-",
           detail: selectedOption?.full || selectedOption?.marker || "-",
+          detail_html:
+            selectedOption?.html || selectedOption?.full || selectedOption?.marker || "-",
           status,
           score,
         };
@@ -2476,6 +2495,10 @@ router.get(
             selectedOptions
               .map((option) => option.full || option.marker)
               .join("; ") || "-",
+          detail_html:
+            selectedOptions
+              .map((option) => option.html || option.text || option.marker)
+              .join("; ") || "-",
           status,
           score,
         };
@@ -2487,6 +2510,10 @@ router.get(
         return {
           display: textAnswer || "-",
           detail: textAnswer || "-",
+          detail_html:
+            typeof answerValue === "string" && answerValue.trim()
+              ? answerValue
+              : textAnswer || "-",
           status,
           score,
         };
@@ -2509,6 +2536,16 @@ router.get(
         return {
           display: formattedPairs.join("; ") || "-",
           detail: formattedPairs.join("; ") || "-",
+          detail_html:
+            pairs
+              .map((pair) => {
+                const leftId = parseMatchPairId(pair, "left");
+                const rightId = parseMatchPairId(pair, "right");
+                const leftOption = questionOptions.find((option) => option.id === leftId);
+                const rightOption = questionOptions.find((option) => option.id === rightId);
+                return `${leftOption?.label_html || leftOption?.label_text || "-"} -> ${rightOption?.html || rightOption?.text || "-"}`;
+              })
+              .join("<br/>") || "-",
           status,
           score,
         };
@@ -2528,14 +2565,15 @@ router.get(
         type_label: questionTypeLabels[question.q_type] || "Unknown",
         bloom_level: question.bloom_level,
         bloom_label: getBloomLevelLabel(question.bloom_level),
-        question: stripHtml(question.content),
+        question: question.content || "-",
         max_points: question.score_point || 0,
         key,
         options: questionOptions.map((option) => ({
           id: option.id,
           marker: option.marker,
           label: option.label_text || option.marker,
-          content: option.text,
+          label_html: option.label_html || option.label_text || option.marker,
+          content: option.html || option.text,
           full: option.full,
           is_correct: option.is_correct,
         })),
@@ -2561,6 +2599,7 @@ router.get(
           type_label: questionReport.type_label,
           answer: cell.display,
           detail: cell.detail,
+          detail_html: cell.detail_html || cell.detail,
           status: cell.status,
           score: cell.score,
           reviewStatus:
@@ -2824,13 +2863,13 @@ router.get(
       const questionOptions = optionByQuestion[question.id] || [];
       const optionText = (opt) => {
         const label = opt.label ? `${opt.label}. ` : "";
-        return `${label}${stripHtml(opt.content)}`.trim();
+        return `${label}${opt.content || stripHtml(opt.content)}`.trim();
       };
       const optionMarker = (opt) => stripHtml(opt.label) || stripHtml(opt.content) || "-";
       const optionView = (opt) => ({
         id: opt.id,
-        label: stripHtml(opt.label) || null,
-        content: stripHtml(opt.content) || "-",
+        label: opt.label || stripHtml(opt.label) || null,
+        content: opt.content || stripHtml(opt.content) || "-",
       });
 
       const answerRow = answerMap.get(question.id);
@@ -2851,7 +2890,7 @@ router.get(
         q_type: question.q_type,
         bloom_level: question.bloom_level,
         bloom_label: getBloomLevelLabel(question.bloom_level),
-        question: stripHtml(question.content),
+        question: question.content || "-",
         maxPoints: question.score_point || 0,
         rawAnswer: serializeRawAnswer(rawAnswerValue),
         status,
@@ -2951,7 +2990,7 @@ router.get(
           ...base,
           type: "short",
           answer: typeof answerValue === "string" ? answerValue : "-",
-          correctAnswers: correctOptions.map((opt) => stripHtml(opt.content) || "-"),
+          correctAnswers: correctOptions.map((opt) => opt.content || stripHtml(opt.content) || "-"),
           correctOptionIds: correctOptions.map((opt) => opt.id),
           rawAnswerDisplay: serializeRawAnswer(answerValue),
           points:
@@ -2971,11 +3010,11 @@ router.get(
           ...base,
           type: "true_false",
           options: questionOptions.map(optionView),
-          selected: selectedOption ? stripHtml(selectedOption.content) : "-",
+          selected: selectedOption ? selectedOption.content || stripHtml(selectedOption.content) : "-",
           selectedOptionIds: selectedOption ? [selectedOption.id] : [],
-          selectedMarkers: selectedOption ? [optionMarker(selectedOption)] : [],
+          selectedMarkers: selectedOption ? [optionMarker(selectedOption)] : [], 
           correctAnswers: correctOptions.map(
-            (opt) => stripHtml(opt.content) || "-",
+            (opt) => opt.content || stripHtml(opt.content) || "-",
           ),
           correctOptionIds: correctOptions.map((opt) => opt.id),
           correctMarkers: correctOptions.map(optionMarker),
@@ -2990,10 +3029,10 @@ router.get(
       if (question.q_type === 6) {
         const pairs = extractMatchPairs(answerValue);
         const leftById = new Map(
-          questionOptions.map((opt) => [opt.id, stripHtml(opt.label) || "-"]),
+          questionOptions.map((opt) => [opt.id, opt.label || stripHtml(opt.label) || "-"]),
         );
         const rightById = new Map(
-          questionOptions.map((opt) => [opt.id, stripHtml(opt.content) || "-"]),
+          questionOptions.map((opt) => [opt.id, opt.content || stripHtml(opt.content) || "-"]),
         );
         const autoMatchScore = getMatchAutoScore({
           answerValue,
@@ -3018,8 +3057,8 @@ router.get(
               String(pair.leftId) === String(pair.rightId),
           })),
           correctMatches: questionOptions.map((opt) => ({
-            left: stripHtml(opt.label) || "-",
-            right: stripHtml(opt.content) || "-",
+            left: opt.label || stripHtml(opt.label) || "-",
+            right: opt.content || stripHtml(opt.content) || "-",
           })),
         };
       }
