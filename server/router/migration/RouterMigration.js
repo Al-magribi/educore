@@ -884,12 +884,12 @@ router.post("/migrate/step-4-lms", async (req, res) => {
     const chapters = await sourceClient.query("SELECT * FROM l_chapter");
     for (const r of chapters.rows) {
       await destClient.query(
-        `INSERT INTO l_chapter (id, subject_id, teacher_id, title, description, order_number) 
+        `INSERT INTO lms.l_chapter (id, subject_id, teacher_id, title, description, order_number) 
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
         [r.id, r.subject, r.teacher, r.title, r.target, r.order_number],
       );
     }
-    await resetSequence(destClient, "l_chapter");
+    await resetSequence(destClient, "lms.l_chapter");
 
     // 2. CONTENT (Materi)
     const contents = await sourceClient.query("SELECT * FROM l_content");
@@ -903,12 +903,12 @@ router.post("/migrate/step-4-lms", async (req, res) => {
       const video = fileRes.rows[0] ? fileRes.rows[0].video : null;
 
       await destClient.query(
-        `INSERT INTO l_content (id, chapter_id, title, attachment_url, video_url, created_at) 
+        `INSERT INTO lms.l_content (id, chapter_id, title, attachment_url, video_url, created_at) 
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
         [r.id, r.chapter, r.title, attach, video, r.createdat],
       );
     }
-    await resetSequence(destClient, "l_content");
+    await resetSequence(destClient, "lms.l_content");
 
     // 3. NILAI FORMATIF (UNPIVOT)
     // Di oldtable: l_formative punya student_id (int) yang merujuk ke u_students(id).
@@ -937,7 +937,7 @@ router.post("/migrate/step-4-lms", async (req, res) => {
         const score = f[`f_${i}`];
         if (score !== null && score !== undefined) {
           await destClient.query(
-            `INSERT INTO l_score_formative (student_id, subject_id, chapter_id, type, score)
+            `INSERT INTO lms.l_score_formative (student_id, subject_id, chapter_id, type, score)
               VALUES ($1, $2, $3, $4, $5)`,
             [newStudentId, f.subject_id, f.chapter_id, `Tugas ${i}`, score],
           );
@@ -965,7 +965,7 @@ router.post("/migrate/step-4-lms", async (req, res) => {
       // (Logic disederhanakan: skip teacher mapping jika null, atau set null)
 
       await destClient.query(
-        `INSERT INTO l_attendance (class_id, subject_id, student_id, date, note)
+        `INSERT INTO lms.l_attendance (class_id, subject_id, student_id, date, note)
              VALUES ($1, $2, $3, $4, $5)`,
         [a.classid, a.subjectid, newStudentId, a.day_date, a.note],
       );

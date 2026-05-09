@@ -2,6 +2,8 @@
    Digabungkan dengan fitur dari newtable.sql
 */
 
+CREATE SCHEMA IF NOT EXISTS lms;
+
 SET search_path TO public, public;
 
 
@@ -197,6 +199,8 @@ CREATE INDEX idx_enrollment_history ON u_class_enrollments(student_id);
 -- Menggabungkan fitur file, presensi, dan penilaian detail (sikap)
 -- ================================================================
 
+SET search_path TO lms, public;
+
 CREATE TABLE l_chapter (
     id SERIAL PRIMARY KEY,
     subject_id integer REFERENCES a_subject(id),
@@ -287,6 +291,8 @@ CREATE TABLE l_score_final (
     final_grade integer, -- Nilai Akhir Angka
     letter_grade varchar(2) -- A, B, C
 );
+
+SET search_path TO public, public;
 
 -- ================================================================
 -- SECTION 6: TAHFIZ (AL-QUR'AN)

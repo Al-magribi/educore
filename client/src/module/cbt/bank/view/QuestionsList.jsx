@@ -1,4 +1,11 @@
-import React, { Suspense, lazy, useMemo, useState } from "react";
+import React, {
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { motion } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
@@ -164,6 +171,8 @@ const QuestionsList = () => {
   const [isAiGenerateOpen, setIsAiGenerateOpen] = useState(false);
   const [isAiPreviewOpen, setIsAiPreviewOpen] = useState(false);
   const [activeAiJobId, setActiveAiJobId] = useState(null);
+  const latestAiJobStatusRef = useRef(null);
+  const [latestAiPollingInterval, setLatestAiPollingInterval] = useState(8000);
 
   const {
     data: questions = [],
@@ -177,7 +186,9 @@ const QuestionsList = () => {
       { bankId },
       {
         skip: !bankId,
-        pollingInterval: activeAiJobId && isAiPreviewOpen ? 0 : 8000,
+        pollingInterval: latestAiPollingInterval,
+        refetchOnFocus: true,
+        refetchOnReconnect: true,
       },
     );
   const aiAlertMeta = getAiJobAlertMeta(latestAiJob);
@@ -188,6 +199,46 @@ const QuestionsList = () => {
           100,
       )
     : 0;
+
+  useEffect(() => {
+    if (latestAiJob?.id && !activeAiJobId) {
+      setActiveAiJobId(latestAiJob.id);
+    }
+  }, [activeAiJobId, latestAiJob?.id]);
+
+  useEffect(() => {
+    if (!latestAiJob?.id || !latestAiJob?.status) {
+      latestAiJobStatusRef.current = latestAiJob?.status || null;
+      return;
+    }
+
+    const previousStatus = latestAiJobStatusRef.current;
+    latestAiJobStatusRef.current = latestAiJob.status;
+
+    if (
+      previousStatus &&
+      previousStatus !== latestAiJob.status &&
+      ["completed", "approved", "discarded", "failed"].includes(
+        latestAiJob.status,
+      )
+    ) {
+      refetchLatestAiJob();
+      refetch();
+    }
+  }, [latestAiJob, refetch, refetchLatestAiJob]);
+
+  useEffect(() => {
+    if (!bankId) {
+      setLatestAiPollingInterval(0);
+      return;
+    }
+
+    setLatestAiPollingInterval(
+      latestAiJob?.status === "queued" || latestAiJob?.status === "running"
+        ? 1500
+        : 8000,
+    );
+  }, [bankId, latestAiJob?.status]);
 
   const totalScore = useMemo(
     () => questions.reduce((acc, curr) => acc + (curr.score_point || 0), 0),
