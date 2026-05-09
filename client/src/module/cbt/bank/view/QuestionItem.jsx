@@ -2,106 +2,10 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Card, Flex, Tag, Typography, theme, Divider } from "antd";
 import { GitMerge, Type, CheckCircle2 } from "lucide-react";
-import "katex/dist/katex.min.css";
-import { InlineMath } from "react-katex";
+import RichContentViewer from "../../components/RichContentViewer";
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
-
-const QL_FORMULA_REGEX =
-  /<span[^>]*class=["'][^"']*ql-formula[^"']*["'][^>]*data-value=["']([^"']+)["'][^>]*><\/span>/gi;
-
-const hasLatexSyntax = (text = "") =>
-  /\\[a-zA-Z]+|[_^{}]/.test(text) || /[a-zA-Z0-9]\s*\\times\s*[a-zA-Z0-9]/.test(text);
-
-const renderMathOrText = (text, keyPrefix = "seg") => {
-  const segments = text.split(/(\$[^$]+\$)/g);
-  const hasValidDollarPair = segments.some(
-    (segment) => segment.startsWith("$") && segment.endsWith("$"),
-  );
-
-  if (hasValidDollarPair) {
-    return segments.map((segment, idx) => {
-      if (segment.startsWith("$") && segment.endsWith("$")) {
-        const formula = segment.slice(1, -1).trim();
-        if (!formula) return null;
-        return <InlineMath key={`${keyPrefix}-math-${idx}`} math={formula} />;
-      }
-
-      return (
-        <span
-          key={`${keyPrefix}-text-${idx}`}
-          dangerouslySetInnerHTML={{ __html: segment }}
-        />
-      );
-    });
-  }
-
-  const normalizedNoDollar = text.replace(/\$/g, "").trim();
-  if (hasLatexSyntax(normalizedNoDollar)) {
-    return <InlineMath math={normalizedNoDollar} />;
-  }
-
-  return <span dangerouslySetInnerHTML={{ __html: text }} />;
-};
-
-/**
- * MathRenderer yang diperbarui untuk menangani luapan konten (overflow)
- * dan kompatibilitas dengan format Quill Editor.
- */
-const MathRenderer = ({ value }) => {
-  if (!value) return null;
-
-  // Render logic untuk rumus Matematika
-  const renderContent = () => {
-    const normalizedValue =
-      typeof value === "string"
-        ? value.replace(QL_FORMULA_REGEX, (_, formula) => `$${formula}$`)
-        : value;
-
-    if (typeof normalizedValue !== "string") {
-      return <div dangerouslySetInnerHTML={{ __html: normalizedValue }} />;
-    }
-
-    return <>{renderMathOrText(normalizedValue, "viewer")}</>;
-  };
-
-  return (
-    <div className="ql-editor-viewer">
-      {/* CSS internal untuk memastikan konten tidak keluar container */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-        .ql-editor-viewer {
-          word-break: break-word;
-          overflow-wrap: break-word;
-          width: 100%;
-        }
-        .ql-editor-viewer img {
-          max-width: 100%;
-          height: auto !important;
-          object-fit: contain;
-          display: block;
-          margin: 10px 0;
-        }
-        .ql-editor-viewer p {
-          margin-bottom: 8px;
-          line-height: 1.6;
-        }
-        .ql-editor-viewer iframe {
-          max-width: 100%;
-        }
-        /* Style untuk list agar tidak keluar margin */
-        .ql-editor-viewer ul, .ql-editor-viewer ol {
-          padding-left: 25px;
-        }
-      `,
-        }}
-      />
-      {renderContent()}
-    </div>
-  );
-};
 
 const QuestionItem = ({ question }) => {
   const { token } = theme.useToken();
@@ -126,7 +30,7 @@ const QuestionItem = ({ question }) => {
             color: token.colorText,
           }}
         >
-          <MathRenderer value={question.content} />
+          <RichContentViewer value={question.content} />
         </div>
 
         <Divider orientation="left" plain>
@@ -178,7 +82,7 @@ const QuestionItem = ({ question }) => {
                   </Flex>
 
                   <div style={{ flex: 1, fontSize: 14, overflow: "hidden" }}>
-                    <MathRenderer value={opt.content} />
+                    <RichContentViewer value={opt.content} />
                   </div>
 
                   {isMatching && (
@@ -195,7 +99,7 @@ const QuestionItem = ({ question }) => {
                           overflow: "hidden",
                         }}
                       >
-                        <MathRenderer value={opt.label} />
+                        <RichContentViewer value={opt.label} />
                       </div>
                     </>
                   )}
