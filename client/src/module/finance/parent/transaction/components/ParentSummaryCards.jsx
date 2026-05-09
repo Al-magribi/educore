@@ -39,15 +39,7 @@ const summaryStyles = [
     bg: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
     color: "#c2410c",
   },
-  {
-    title: "Item Terpantau",
-    key: "total_items",
-    icon: <CreditCard size={18} />,
-    formatter: (value) => Number(value || 0),
-    note: "Seluruh item pembayaran untuk periode ini.",
-    bg: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)",
-    color: "#475569",
-  },
+
   {
     title: "Menunggu Verifikasi",
     key: "pending_count",

@@ -68,31 +68,45 @@ const Others = () => {
   const [editingType, setEditingType] = useState(null);
 
   const [typeForm] = Form.useForm();
+  const selectedTypeHomebaseId = Form.useWatch("homebase_id", typeForm);
+  const hasPrimaryFilters = Boolean(filters.homebase_id && filters.periode_id);
+
+  const typeQueryFilters = filters.homebase_id
+    ? { homebase_id: filters.homebase_id }
+    : {};
+
+  const chargeQueryFilters = hasPrimaryFilters ? filters : {};
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetOtherOptionsQuery(
       filters.homebase_id ? { homebase_id: filters.homebase_id } : undefined,
     );
   const { data: scopedOptionsResponse, isLoading: isLoadingScopedOptions } =
-    useGetOtherOptionsQuery({
-      homebase_id: filters.homebase_id,
-      periode_id: filters.periode_id,
-      grade_id: filters.grade_id,
-      class_id: filters.class_id,
-      search: filters.student_search,
-    });
+    useGetOtherOptionsQuery(
+      hasPrimaryFilters
+        ? {
+            homebase_id: filters.homebase_id,
+            periode_id: filters.periode_id,
+            grade_id: filters.grade_id,
+            class_id: filters.class_id,
+            search: filters.student_search,
+          }
+        : undefined,
+    );
+  const { data: typeModalOptionsResponse } = useGetOtherOptionsQuery(
+    { homebase_id: selectedTypeHomebaseId },
+    { skip: !selectedTypeHomebaseId },
+  );
   const {
     data: typeResponse,
     isLoading: isLoadingTypes,
     isFetching: isFetchingTypes,
-  } = useGetOtherPaymentTypesQuery({
-    homebase_id: filters.homebase_id,
-  });
+  } = useGetOtherPaymentTypesQuery(typeQueryFilters);
   const {
     data: chargeResponse,
     isLoading: isLoadingCharges,
     isFetching: isFetchingCharges,
-  } = useGetOtherChargesQuery(filters);
+  } = useGetOtherChargesQuery(chargeQueryFilters);
 
   const [addOtherPaymentType, { isLoading: isAddingType }] =
     useAddOtherPaymentTypeMutation();
@@ -108,6 +122,11 @@ const Others = () => {
   const homebases = useMemo(() => options.homebases || [], [options.homebases]);
   const periodes = useMemo(() => options.periodes || [], [options.periodes]);
   const grades = useMemo(() => options.grades || [], [options.grades]);
+  const typeModalOptions = typeModalOptionsResponse?.data || {};
+  const typeModalGrades = useMemo(
+    () => typeModalOptions.grades || grades,
+    [typeModalOptions.grades, grades],
+  );
   const classes = useMemo(
     () => scopedOptions.classes || [],
     [scopedOptions.classes],
@@ -116,31 +135,17 @@ const Others = () => {
     () => scopedOptions.students || [],
     [scopedOptions.students],
   );
-  const types = typeResponse?.data || [];
-  const charges = chargeResponse?.data || [];
-  const summary = chargeResponse?.summary || {};
+  const types = useMemo(() => typeResponse?.data || [], [typeResponse?.data]);
+  const charges = useMemo(
+    () => chargeResponse?.data || [],
+    [chargeResponse?.data],
+  );
+  const summary = useMemo(
+    () => chargeResponse?.summary || {},
+    [chargeResponse?.summary],
+  );
 
   /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!filters.homebase_id && options.selected_homebase_id) {
-      setFilters((previous) => ({
-        ...previous,
-        homebase_id: options.selected_homebase_id,
-      }));
-    }
-  }, [filters.homebase_id, options.selected_homebase_id]);
-
-  useEffect(() => {
-    if (!filters.periode_id && periodes.length > 0) {
-      const activePeriode =
-        periodes.find((item) => item.is_active) || periodes[0];
-      setFilters((previous) => ({
-        ...previous,
-        periode_id: activePeriode?.id,
-      }));
-    }
-  }, [filters.periode_id, periodes]);
-
   useEffect(() => {
     if (
       filters.class_id &&
@@ -176,6 +181,27 @@ const Others = () => {
       typeForm.setFieldValue("homebase_id", homebases[0]?.id);
     }
   }, [homebases, typeForm, typeModalOpen]);
+
+  useEffect(() => {
+    if (!typeModalOpen || !selectedTypeHomebaseId) {
+      return;
+    }
+
+    const currentGradeIds = typeForm.getFieldValue("grade_ids") || [];
+    const validGradeIds = new Set(typeModalGrades.map((item) => Number(item.id)));
+    const nextGradeIds = currentGradeIds.filter((item) =>
+      validGradeIds.has(Number(item)),
+    );
+
+    if (nextGradeIds.length !== currentGradeIds.length) {
+      typeForm.setFieldValue("grade_ids", nextGradeIds);
+    }
+  }, [
+    selectedTypeHomebaseId,
+    typeForm,
+    typeModalOpen,
+    typeModalGrades,
+  ]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const openTypeModal = (record = null) => {
@@ -256,7 +282,7 @@ const Others = () => {
   const isPageBootstrapping =
     isLoadingOptions ||
     (!optionsResponse && !periodes.length) ||
-    (Boolean(filters.periode_id) &&
+    (hasPrimaryFilters &&
       (isLoadingScopedOptions || isLoadingTypes || isLoadingCharges) &&
       !scopedOptionsResponse &&
       !typeResponse &&
@@ -269,9 +295,9 @@ const Others = () => {
   const activeHomebaseName =
     homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
       ?.name ||
-    user?.homebase_name ||
-    user?.homebase_id ||
-    "-";
+    (hasPrimaryFilters
+      ? user?.homebase_name || user?.homebase_id || "-"
+      : "Semua satuan");
 
   const createTabLabel = (label, icon, count, caption) => (
     <Space size={10}>
@@ -413,9 +439,9 @@ const Others = () => {
             <Space align='center' size={8}>
               <Sparkles size={14} color='#64748b' />
               <Text type='secondary'>
-                Satuan aktif: {activeHomebaseName}. Gunakan filter untuk
-                memantau jenis biaya, status tagihan, dan realisasi pembayaran
-                non-SPP dengan lebih terarah.
+                Tampilan saat ini: {activeHomebaseName}. Data akan difilter
+                setelah satuan dan periode dipilih, lalu bisa dipersempit lagi
+                berdasarkan tingkat, kelas, siswa, jenis biaya, dan status.
               </Text>
             </Space>
           </Card>
@@ -430,10 +456,13 @@ const Others = () => {
           setEditingType(null);
         }}
         onSubmit={handleSubmitType}
+        onHomebaseChange={() => {
+          typeForm.setFieldValue("grade_ids", []);
+        }}
         form={typeForm}
         confirmLoading={isAddingType || isUpdatingType}
         homebases={homebases}
-        grades={grades}
+        grades={typeModalGrades}
       />
     </MotionDiv>
   );

@@ -82,7 +82,7 @@ const FinanceDashPage = () => {
       <Alert
         type='error'
         showIcon
-        message='Dashboard keuangan gagal dimuat'
+        title='Dashboard keuangan gagal dimuat'
         description='Data dashboard tidak dapat diambil dari server.'
         action={
           <Button size='small' onClick={refetch}>

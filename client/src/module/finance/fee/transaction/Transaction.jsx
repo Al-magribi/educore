@@ -144,22 +144,13 @@ const Transaction = () => {
   const options = optionResponse?.data || {};
   const homebases = useMemo(() => options.homebases || [], [options.homebases]);
   const resolvedTransactionHomebaseId =
-    transactionFilters.homebase_id ||
-    (homebases.length === 1 ? homebases[0]?.id : undefined) ||
-    (user?.homebase_id
-      ? optionResponse?.data?.selected_homebase_id
-      : undefined);
+    transactionFilters.homebase_id || optionResponse?.data?.selected_homebase_id;
 
   const { data: transactionResponse, isLoading: isLoadingTransactions } =
-    useGetTransactionsQuery(
-      {
-        ...transactionFilters,
-        homebase_id: resolvedTransactionHomebaseId,
-      },
-      {
-        skip: !resolvedTransactionHomebaseId,
-      },
-    );
+    useGetTransactionsQuery({
+      ...transactionFilters,
+      homebase_id: resolvedTransactionHomebaseId,
+    });
   const transactions = useMemo(
     () => transactionResponse?.data || [],
     [transactionResponse?.data],

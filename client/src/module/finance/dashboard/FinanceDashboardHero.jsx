@@ -40,15 +40,31 @@ const FinanceDashboardHero = ({ meta, summary, spp, others, isMobile }) => {
               <Tag color='cyan' style={{ borderRadius: 999, fontWeight: 600 }}>
                 Dashboard Admin Keuangan
               </Tag>
-              <Tag color='geekblue' style={{ borderRadius: 999, fontWeight: 600 }}>
+              <Tag
+                color='geekblue'
+                style={{ borderRadius: 999, fontWeight: 600 }}
+              >
                 Bulan berjalan: {meta?.current_month_label || "-"}
               </Tag>
+
+              <Tag color='lime' style={{ borderRadius: 999, fontWeight: 600 }}>
+                Collection rate SPP: {spp?.collection_rate_current_month || 0}%
+              </Tag>
+
+              {isMultiUnit ? (
+                <Tag
+                  color='purple'
+                  style={{ borderRadius: 999, fontWeight: 600 }}
+                >
+                  Satuan aktif: {activeScope.length || 0}
+                </Tag>
+              ) : null}
             </Flex>
             <Title
               level={isMobile ? 3 : 2}
               style={{ color: "#fff", margin: 0, lineHeight: 1.12 }}
             >
-              Ringkasan keuangan sekolah yang lebih tajam dan mudah dipantau.
+              Ringkasan keuangan sekolah
             </Title>
             <Paragraph
               style={{
@@ -58,22 +74,9 @@ const FinanceDashboardHero = ({ meta, summary, spp, others, isMobile }) => {
               }}
             >
               {isMultiUnit
-                ? `Menampilkan seluruh satuan dengan periode aktif masing-masing. Total satuan aktif saat ini ${activeScope.length || 0}, sehingga tim dapat membandingkan performa keuangan antar unit dengan lebih cepat.`
+                ? `Menampilkan seluruh satuan dengan periode aktif masing-masing. Total satuan aktif saat ini ${activeScope.length || 0}`
                 : `Periode aktif: ${meta?.active_periode?.periode_name || meta?.active_periode?.name || "-"}. Pantau pemasukan SPP, pembayaran lainnya, tabungan siswa, dan kas kelas dari satu panel kerja yang lebih fokus.`}
             </Paragraph>
-            <Flex wrap='wrap' gap={10}>
-              <Tag color='lime' style={{ borderRadius: 999, fontWeight: 600 }}>
-                Collection rate SPP: {spp?.collection_rate_current_month || 0}%
-              </Tag>
-              <Tag color='gold' style={{ borderRadius: 999, fontWeight: 600 }}>
-                Piutang lain: {currency(others?.total_remaining)}
-              </Tag>
-              {isMultiUnit ? (
-                <Tag color='purple' style={{ borderRadius: 999, fontWeight: 600 }}>
-                  Satuan aktif: {activeScope.length || 0}
-                </Tag>
-              ) : null}
-            </Flex>
           </Space>
         </Col>
         <Col xs={24} xl={9}>
@@ -105,48 +108,6 @@ const FinanceDashboardHero = ({ meta, summary, spp, others, isMobile }) => {
                   )}
                   prefix={<Landmark size={20} color='#fff' />}
                 />
-
-                {[
-                  {
-                    label: "Dana terkelola",
-                    value: currency(summary?.managed_funds),
-                    icon: <TrendingUp size={15} />,
-                  },
-                  {
-                    label: "Outstanding aktif",
-                    value: currency(
-                      Number(spp?.outstanding_current_month || 0) +
-                        Number(others?.total_remaining || 0),
-                    ),
-                    icon: <CalendarRange size={15} />,
-                  },
-                  {
-                    label: "Cakupan satuan",
-                    value: isMultiUnit ? `${activeScope.length || 0} satuan` : "Satuan aktif",
-                    icon: <Building2 size={15} />,
-                  },
-                ].map((item) => (
-                  <Flex
-                    key={item.label}
-                    justify='space-between'
-                    align='center'
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: 16,
-                      background: "rgba(15,23,42,0.16)",
-                    }}
-                  >
-                    <Flex align='center' gap={8}>
-                      <span style={{ color: "#bfdbfe", display: "flex" }}>
-                        {item.icon}
-                      </span>
-                      <Text style={{ color: "#e2e8f0" }}>{item.label}</Text>
-                    </Flex>
-                    <Text strong style={{ color: "#fff" }}>
-                      {item.value}
-                    </Text>
-                  </Flex>
-                ))}
               </Space>
             </Card>
           </MotionDiv>

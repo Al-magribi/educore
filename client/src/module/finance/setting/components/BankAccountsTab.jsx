@@ -54,7 +54,12 @@ const BankAccountsTab = ({
                 "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(240,253,250,0.94))",
             }}
           >
-            <Flex justify='space-between' align='flex-start' wrap='wrap' gap={16}>
+            <Flex
+              justify='space-between'
+              align='flex-start'
+              wrap='wrap'
+              gap={16}
+            >
               <Flex align='flex-start' gap={14} style={{ flex: 1 }}>
                 <div
                   style={{
@@ -84,7 +89,11 @@ const BankAccountsTab = ({
                   </Paragraph>
                 </div>
               </Flex>
-              <Button type='primary' icon={<PlusOutlined />} onClick={onOpenCreate}>
+              <Button
+                type='primary'
+                icon={<PlusOutlined />}
+                onClick={onOpenCreate}
+              >
                 Tambah Rekening
               </Button>
             </Flex>
@@ -169,88 +178,84 @@ const BankAccountsTab = ({
           {modalNode}
         </MotionDiv>
       )}
-      >
-        <div
-          style={{
-            padding: 24,
-            background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+    >
+      <div
+        style={{
+          marginBottom: 20,
+          padding: 20,
+          borderRadius: 22,
+          background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
         }}
       >
         <div
           style={{
-            marginBottom: 20,
-            padding: 20,
-            borderRadius: 22,
-            background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
+            width: 52,
+            height: 52,
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 18,
+            background: "linear-gradient(135deg, #1d4ed8, #0f766e)",
+            color: "#fff",
+            boxShadow: "0 18px 32px rgba(29, 78, 216, 0.22)",
+            marginBottom: 14,
           }}
         >
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 18,
-              background: "linear-gradient(135deg, #1d4ed8, #0f766e)",
-              color: "#fff",
-              boxShadow: "0 18px 32px rgba(29, 78, 216, 0.22)",
-              marginBottom: 14,
-            }}
-          >
-            <BankOutlined style={{ fontSize: 20 }} />
-          </div>
-          <Text strong style={{ display: "block", fontSize: 24, color: "#0f172a" }}>
-            {editingBankAccount ? "Edit Rekening Bank" : "Tambah Rekening Bank"}
-          </Text>
-          <Text type='secondary'>
-            Simpan rekening tujuan pembayaran manual untuk satuan yang sedang dipilih.
-          </Text>
+          <BankOutlined style={{ fontSize: 20 }} />
         </div>
-
-        <Form form={bankForm} layout='vertical' onFinish={onFinish}>
-          <Form.Item
-            name='bank_name'
-            label='Nama Bank'
-            rules={[{ required: true, message: "Nama bank wajib diisi" }]}
-          >
-            <Input size='large' placeholder='BCA / BNI / Mandiri / dll' />
-          </Form.Item>
-          <Form.Item
-            name='account_name'
-            label='Nama Pemilik Rekening'
-            rules={[{ required: true, message: "Nama pemilik rekening wajib diisi" }]}
-          >
-            <Input
-              size='large'
-              placeholder='Nama yayasan / sekolah / satuan'
-            />
-          </Form.Item>
-          <Form.Item
-            name='account_number'
-            label='Nomor Rekening'
-            rules={[{ required: true, message: "Nomor rekening wajib diisi" }]}
-          >
-            <Input size='large' placeholder='Nomor rekening tujuan' />
-          </Form.Item>
-          <Form.Item name='branch' label='Cabang'>
-            <Input size='large' placeholder='Opsional' />
-          </Form.Item>
-          <Form.Item name='is_active' label='Aktif' valuePropName='checked'>
-            <Switch />
-          </Form.Item>
-
-          <Flex justify='flex-end' gap={12} wrap='wrap'>
-            <Button onClick={onCloseModal}>Batal</Button>
-            <Button
-              type='primary'
-              onClick={onSubmitModal}
-              loading={isAddingBankAccount || isUpdatingBankAccount}
-            >
-              {editingBankAccount ? "Simpan Perubahan" : "Simpan Rekening"}
-            </Button>
-          </Flex>
-        </Form>
+        <Text
+          strong
+          style={{ display: "block", fontSize: 24, color: "#0f172a" }}
+        >
+          {editingBankAccount ? "Edit Rekening Bank" : "Tambah Rekening Bank"}
+        </Text>
+        <Text type='secondary'>
+          Simpan rekening tujuan pembayaran manual untuk satuan yang sedang
+          dipilih.
+        </Text>
       </div>
+
+      <Form form={bankForm} layout='vertical' onFinish={onFinish}>
+        <Form.Item
+          name='bank_name'
+          label='Nama Bank'
+          rules={[{ required: true, message: "Nama bank wajib diisi" }]}
+        >
+          <Input size='large' placeholder='BCA / BNI / Mandiri / dll' />
+        </Form.Item>
+        <Form.Item
+          name='account_name'
+          label='Nama Pemilik Rekening'
+          rules={[
+            { required: true, message: "Nama pemilik rekening wajib diisi" },
+          ]}
+        >
+          <Input size='large' placeholder='Nama yayasan / sekolah / satuan' />
+        </Form.Item>
+        <Form.Item
+          name='account_number'
+          label='Nomor Rekening'
+          rules={[{ required: true, message: "Nomor rekening wajib diisi" }]}
+        >
+          <Input size='large' placeholder='Nomor rekening tujuan' />
+        </Form.Item>
+        <Form.Item name='branch' label='Cabang'>
+          <Input size='large' placeholder='Opsional' />
+        </Form.Item>
+        <Form.Item name='is_active' label='Aktif' valuePropName='checked'>
+          <Switch />
+        </Form.Item>
+
+        <Flex justify='flex-end' gap={12} wrap='wrap'>
+          <Button onClick={onCloseModal}>Batal</Button>
+          <Button
+            type='primary'
+            onClick={onSubmitModal}
+            loading={isAddingBankAccount || isUpdatingBankAccount}
+          >
+            {editingBankAccount ? "Simpan Perubahan" : "Simpan Rekening"}
+          </Button>
+        </Flex>
+      </Form>
     </Modal>
   </>
 );

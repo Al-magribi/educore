@@ -322,16 +322,21 @@ router.get(
     await ensureFinalFinanceTables(db);
 
     const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
-    const homebaseId = await resolveScopedHomebaseId(
-      db,
-      req.user,
-      requestedHomebaseId,
-    );
+    const homebaseId = req.user.homebase_id
+      ? Number(req.user.homebase_id)
+      : requestedHomebaseId
+        ? await resolveScopedHomebaseId(db, req.user, requestedHomebaseId)
+        : null;
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
 
-    const params = [homebaseId];
-    let whereClause = `WHERE fr.homebase_id = $1 AND fc.category = 'spp'`;
+    const params = [];
+    let whereClause = `WHERE fc.category = 'spp'`;
+
+    if (homebaseId) {
+      params.push(homebaseId);
+      whereClause += ` AND fr.homebase_id = $${params.length}`;
+    }
 
     if (periodeId) {
       params.push(periodeId);
@@ -541,21 +546,17 @@ router.get(
     await ensureFinalFinanceTables(db);
 
     const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
-    const homebaseId = await resolveScopedHomebaseId(
-      db,
-      req.user,
-      requestedHomebaseId,
-    );
+    const homebaseId = req.user.homebase_id
+      ? Number(req.user.homebase_id)
+      : requestedHomebaseId
+        ? await resolveScopedHomebaseId(db, req.user, requestedHomebaseId)
+        : null;
     const periodeId = parseOptionalInt(req.query.periode_id);
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const studentId = parseOptionalInt(req.query.student_id);
     const billMonth = parseOptionalInt(req.query.bill_month) || 1;
     const search = (req.query.search || "").trim();
-
-    if (!homebaseId) {
-      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
-    }
 
     const scope = buildEnrollmentWhereClause({
       homebaseId,
@@ -565,6 +566,9 @@ router.get(
       studentId,
       search,
     });
+    const itemScopeWhereClause = homebaseId
+      ? `WHERE inv.homebase_id = $1 AND ii.item_type = 'spp'`
+      : `WHERE ii.item_type = 'spp'`;
 
     const result = await db.query(
       `
@@ -588,8 +592,7 @@ router.get(
           JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
           LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
           LEFT JOIN finance.payment p ON p.id = pa.payment_id
-          WHERE inv.homebase_id = $1
-            AND ii.item_type = 'spp'
+          ${itemScopeWhereClause}
           GROUP BY inv.student_id, inv.periode_id, ii.id
         ),
         paid_history AS (
@@ -607,8 +610,7 @@ router.get(
           FROM finance.invoice inv
           JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
           LEFT JOIN item_scope paid ON paid.invoice_item_id = ii.id
-          WHERE inv.homebase_id = $1
-            AND ii.item_type = 'spp'
+          ${itemScopeWhereClause}
           GROUP BY inv.student_id, inv.periode_id
         )
         SELECT

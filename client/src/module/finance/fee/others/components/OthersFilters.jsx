@@ -37,6 +37,7 @@ const OthersFilters = ({
   types,
 }) => {
   const fieldStyle = { width: "100%", marginTop: 8 };
+  const hasPrimaryFilters = Boolean(filters.homebase_id && filters.periode_id);
 
   return (
     <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -71,8 +72,8 @@ const OthersFilters = ({
                 Filter Pembayaran Lainnya
               </Text>
               <Text type='secondary' style={{ fontSize: 13 }}>
-                Saring data tagihan berdasarkan satuan, periode, siswa, jenis biaya,
-                dan status.
+                Saat satuan dan periode belum dipilih, semua data tetap
+                ditampilkan. Filter detail aktif setelah keduanya dipilih.
               </Text>
             </div>
           </Space>
@@ -106,7 +107,6 @@ const OthersFilters = ({
                   setFilters((previous) => ({
                     ...previous,
                     homebase_id: value,
-                    periode_id: undefined,
                     grade_id: undefined,
                     class_id: undefined,
                     student_id: undefined,
@@ -119,8 +119,9 @@ const OthersFilters = ({
                   value: item.id,
                   label: item.name,
                 }))}
-                placeholder='Pilih satuan'
+                placeholder='Semua satuan'
                 style={fieldStyle}
+                allowClear
                 showSearch
                 optionFilterProp='label'
                 virtual={false}
@@ -147,11 +148,12 @@ const OthersFilters = ({
                 label: item.name,
                 is_active: item.is_active,
               }))}
-              placeholder='Pilih periode'
-              style={fieldStyle}
-              optionRender={renderPeriodeOption}
-              showSearch
-              optionFilterProp='label'
+                placeholder='Semua periode'
+                style={fieldStyle}
+                allowClear
+                optionRender={renderPeriodeOption}
+                showSearch
+                optionFilterProp='label'
               virtual={false}
             />
           </Col>
@@ -176,6 +178,7 @@ const OthersFilters = ({
               placeholder='Semua tingkat'
               style={fieldStyle}
               allowClear
+              disabled={!hasPrimaryFilters}
               showSearch
               optionFilterProp='label'
               virtual={false}
@@ -201,7 +204,7 @@ const OthersFilters = ({
               placeholder='Semua kelas'
               style={fieldStyle}
               allowClear
-              disabled={classes.length === 0}
+              disabled={!hasPrimaryFilters || classes.length === 0}
               showSearch
               optionFilterProp='label'
               virtual={false}
@@ -225,6 +228,7 @@ const OthersFilters = ({
               placeholder='Semua jenis biaya'
               style={fieldStyle}
               allowClear
+              disabled={!hasPrimaryFilters}
               showSearch
               optionFilterProp='label'
               virtual={false}
@@ -249,7 +253,7 @@ const OthersFilters = ({
               placeholder='Semua siswa'
               style={fieldStyle}
               allowClear
-              disabled={students.length === 0}
+              disabled={!hasPrimaryFilters || students.length === 0}
               showSearch
               optionFilterProp='label'
               virtual={false}
@@ -277,6 +281,7 @@ const OthersFilters = ({
               placeholder='Cari berdasarkan nama atau NIS'
               style={fieldStyle}
               allowClear
+              disabled={!hasPrimaryFilters}
               prefix={<Search size={16} color='#94a3b8' />}
             />
           </Col>
@@ -299,6 +304,7 @@ const OthersFilters = ({
               placeholder='Semua status'
               style={fieldStyle}
               allowClear
+              disabled={!hasPrimaryFilters}
               virtual={false}
             />
           </Col>

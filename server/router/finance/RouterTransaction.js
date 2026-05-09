@@ -898,21 +898,13 @@ router.get(
     const paymentSourceFilter = (req.query.payment_source || "").trim().toLowerCase();
     const search = (req.query.search || "").trim();
 
-    if (!homebaseId) {
-      return res.json({
-        status: "success",
-        data: [],
-        summary: {
-          page,
-          limit,
-          total_records: 0,
-          total_pages: 0,
-        },
-      });
-    }
+    const params = [];
+    let whereClause = `WHERE 1=1`;
 
-    const params = [homebaseId];
-    let whereClause = `WHERE p.homebase_id = $1`;
+    if (homebaseId) {
+      params.push(homebaseId);
+      whereClause += ` AND p.homebase_id = $${params.length}`;
+    }
 
     if (periodeId) {
       params.push(periodeId);
