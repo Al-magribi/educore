@@ -13,6 +13,7 @@ import {
 } from "antd";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { GraduationCap, ListChecks } from "lucide-react";
+import RichContentViewer from "../../components/RichContentViewer";
 
 const { Title, Text } = Typography;
 
@@ -27,10 +28,6 @@ const QUESTION_TYPES = {
 
 const getQuestionType = (type) =>
   QUESTION_TYPES[type] || { label: "Unknown", color: "default" };
-
-const createMarkup = (value) => ({
-  __html: typeof value === "string" ? value : "",
-});
 
 const normalizeTextContent = (value = "") =>
   String(value)
@@ -313,8 +310,9 @@ const QuestionContent = ({
             overflowWrap: "anywhere",
             wordBreak: "break-word",
           }}
-          dangerouslySetInnerHTML={createMarkup(question.content)}
-        />
+        >
+          <RichContentViewer value={question.content} />
+        </div>
       </Card>
 
       {isTextAnswer ? (
@@ -367,10 +365,13 @@ const QuestionContent = ({
                             overflowWrap: "anywhere",
                             wordBreak: "break-word",
                           }}
-                          dangerouslySetInnerHTML={{
-                            __html: typeof item.label === "string" ? item.label : "-",
-                          }}
-                        />
+                        >
+                          <RichContentViewer
+                            value={
+                              typeof item.label === "string" ? item.label : "-"
+                            }
+                          />
+                        </div>
                       </Space>
                       <Droppable droppableId={`left-${item.id}`}>
                         {(provided, snapshot) => (
@@ -419,10 +420,15 @@ const QuestionContent = ({
                                         overflowWrap: "anywhere",
                                         wordBreak: "break-word",
                                       }}
-                                      dangerouslySetInnerHTML={{
-                                        __html: typeof assignedItem.content === "string" ? assignedItem.content : "",
-                                      }}
-                                    />
+                                    >
+                                      <RichContentViewer
+                                        value={
+                                          typeof assignedItem.content === "string"
+                                            ? assignedItem.content
+                                            : ""
+                                        }
+                                      />
+                                    </div>
                                   </div>
                                 )}
                               </Draggable>
@@ -484,10 +490,15 @@ const QuestionContent = ({
                                 overflowWrap: "anywhere",
                                 wordBreak: "break-word",
                               }}
-                              dangerouslySetInnerHTML={{
-                                __html: typeof item.content === "string" ? item.content : "",
-                              }}
-                            />
+                            >
+                              <RichContentViewer
+                                value={
+                                  typeof item.content === "string"
+                                    ? item.content
+                                    : ""
+                                }
+                              />
+                            </div>
                           </Card>
                         )}
                       </Draggable>
@@ -531,8 +542,9 @@ const QuestionContent = ({
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
                       }}
-                      dangerouslySetInnerHTML={createMarkup(option.content)}
-                    />
+                    >
+                      <RichContentViewer value={option.content} />
+                    </div>
                   </Space>
                 </Checkbox>
               </Card>
@@ -571,8 +583,9 @@ const QuestionContent = ({
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
                       }}
-                      dangerouslySetInnerHTML={createMarkup(option.content)}
-                    />
+                    >
+                      <RichContentViewer value={option.content} />
+                    </div>
                   </Space>
                 </Radio>
               </Card>
