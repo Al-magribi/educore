@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -465,6 +465,12 @@ const AiQuestionDraftPreviewModal = ({
   onRegenerate,
 }) => {
   const [editingDraft, setEditingDraft] = useState(null);
+  const previousProgressRef = useRef({
+    generated: null,
+    status: null,
+    drafts: null,
+  });
+  const [detailPollingInterval, setDetailPollingInterval] = useState(1500);
   const { data: templates = [] } = useGetRubricTemplatesQuery(undefined, {
     skip: !open,
   });
@@ -472,7 +478,9 @@ const AiQuestionDraftPreviewModal = ({
     { bankId, jobId },
     {
       skip: !open || !bankId || !jobId,
-      pollingInterval: open && jobId ? 4000 : 0,
+      pollingInterval: detailPollingInterval,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
     },
   );
   const [approveDraft, { isLoading: approvingDraft }] =
@@ -502,6 +510,38 @@ const AiQuestionDraftPreviewModal = ({
       ),
     [drafts],
   );
+
+  useEffect(() => {
+    if (!open || !jobId || !job) return;
+
+    const nextProgress = {
+      generated: Number(job.total_generated || 0),
+      status: job.status || null,
+      drafts: drafts.length,
+    };
+    const previousProgress = previousProgressRef.current;
+
+    const hasChanged =
+      previousProgress.generated !== nextProgress.generated ||
+      previousProgress.status !== nextProgress.status ||
+      previousProgress.drafts !== nextProgress.drafts;
+
+    if (hasChanged) {
+      previousProgressRef.current = nextProgress;
+      onQuestionsChanged?.();
+    }
+  }, [drafts.length, job, jobId, onQuestionsChanged, open]);
+
+  useEffect(() => {
+    if (!open || !bankId || !jobId) {
+      setDetailPollingInterval(0);
+      return;
+    }
+
+    setDetailPollingInterval(
+      !data?.job || ["queued", "running"].includes(data.job.status) ? 1500 : 0,
+    );
+  }, [bankId, data?.job, jobId, open]);
 
   const handleApproveDraft = async (draftId) => {
     try {

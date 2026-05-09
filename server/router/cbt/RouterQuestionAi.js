@@ -730,22 +730,28 @@ const getTeacherAssignedGradesBySubject = async (db, teacherId, subjectId) => {
   return result.rows;
 };
 
-const getChapterTeacherColumn = async (db) => {
+const getChapterScopeColumns = async (db) => {
   const result = await db.query(
     `
       SELECT column_name
       FROM information_schema.columns
-      WHERE table_schema = 'public'
+      WHERE table_schema = 'lms'
         AND table_name = 'l_chapter'
-        AND column_name IN ('teacher_id', 'teacher')
-      ORDER BY CASE
-        WHEN column_name = 'teacher_id' THEN 1
-        ELSE 2
-      END
-      LIMIT 1
+        AND column_name IN ('teacher_id', 'teacher', 'grade_id', 'class_id')
     `,
   );
-  return result.rows[0]?.column_name || null;
+
+  const availableColumns = new Set(result.rows.map((row) => row.column_name));
+
+  return {
+    teacher: availableColumns.has("teacher_id")
+      ? "teacher_id"
+      : availableColumns.has("teacher")
+        ? "teacher"
+        : null,
+    grade: availableColumns.has("grade_id") ? "grade_id" : null,
+    class: availableColumns.has("class_id") ? "class_id" : null,
+  };
 };
 
 const getTeacherFilteredChapters = async ({
@@ -766,17 +772,32 @@ const getTeacherFilteredChapters = async ({
     }
   }
 
-  const chapterTeacherColumn = await getChapterTeacherColumn(db);
+  const chapterScopeColumns = await getChapterScopeColumns(db);
   const params = [subjectId];
   let query = `
-    SELECT id, title, description, order_number
-    FROM l_chapter
-    WHERE subject_id = $1
+    SELECT ch.id, ch.title, ch.description, ch.order_number
+    FROM lms.l_chapter ch
+    WHERE ch.subject_id = $1
   `;
 
-  if (chapterTeacherColumn) {
-    query += ` AND ${chapterTeacherColumn} = $2`;
+  if (chapterScopeColumns.teacher) {
+    query += ` AND ch.${chapterScopeColumns.teacher} = $2`;
     params.push(teacherId);
+  }
+
+  if (gradeId && chapterScopeColumns.grade) {
+    query += ` AND ch.${chapterScopeColumns.grade} = $${params.length + 1}`;
+    params.push(gradeId);
+  } else if (gradeId && chapterScopeColumns.class) {
+    query += `
+      AND EXISTS (
+        SELECT 1
+        FROM a_class c
+        WHERE c.id = ch.${chapterScopeColumns.class}
+          AND c.grade_id = $${params.length + 1}
+      )
+    `;
+    params.push(gradeId);
   }
 
   query += ` ORDER BY order_number ASC NULLS LAST, id ASC`;
@@ -789,23 +810,39 @@ const areTeacherChaptersValid = async ({
   teacherId,
   subjectId,
   chapterIds,
+  gradeId = null,
 }) => {
   if (chapterIds.length < 1) {
     return true;
   }
 
-  const chapterTeacherColumn = await getChapterTeacherColumn(db);
+  const chapterScopeColumns = await getChapterScopeColumns(db);
   const params = [subjectId, chapterIds];
   let query = `
-    SELECT id
-    FROM l_chapter
-    WHERE subject_id = $1
-      AND id = ANY($2::int[])
+    SELECT ch.id
+    FROM lms.l_chapter ch
+    WHERE ch.subject_id = $1
+      AND ch.id = ANY($2::int[])
   `;
 
-  if (chapterTeacherColumn) {
-    query += ` AND ${chapterTeacherColumn} = $3`;
+  if (chapterScopeColumns.teacher) {
+    query += ` AND ch.${chapterScopeColumns.teacher} = $3`;
     params.push(teacherId);
+  }
+
+  if (gradeId && chapterScopeColumns.grade) {
+    query += ` AND ch.${chapterScopeColumns.grade} = $${params.length + 1}`;
+    params.push(gradeId);
+  } else if (gradeId && chapterScopeColumns.class) {
+    query += `
+      AND EXISTS (
+        SELECT 1
+        FROM a_class c
+        WHERE c.id = ch.${chapterScopeColumns.class}
+          AND c.grade_id = $${params.length + 1}
+      )
+    `;
+    params.push(gradeId);
   }
 
   const result = await db.query(query, params);
@@ -1488,6 +1525,7 @@ const processQuestionGenerationJob = async ({ pool, jobId }) => {
       teacherId: job.requested_by,
       subjectId: bank.subject_id,
       chapterIds,
+      gradeId: job.grade_id,
     });
     if (!chaptersValid) {
       throw new Error(
@@ -2057,6 +2095,7 @@ router.post(
         teacherId,
         subjectId: bank.subject_id,
         chapterIds: normalizedChapters,
+        gradeId,
       });
       if (!chaptersValid) {
         return res.status(400).json({
