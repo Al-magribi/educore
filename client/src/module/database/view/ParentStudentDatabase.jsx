@@ -300,7 +300,11 @@ const ParentStudentDatabase = () => {
         >
           {selectedStudent ? (
             <Row gutter={[16, 16]}>
-              {renderFieldCard("Nama Lengkap", selectedStudent.full_name, token)}
+              {renderFieldCard(
+                "Nama Lengkap",
+                selectedStudent.full_name,
+                token,
+              )}
               {renderFieldCard("Jenis Kelamin", selectedStudent.gender, token)}
               {renderFieldCard("NIS", selectedStudent.nis, token)}
               {renderFieldCard("NISN", selectedStudent.nisn, token)}
@@ -416,7 +420,6 @@ const ParentStudentDatabase = () => {
               rowKey={(item) => item.id || `${item.name}-${item.birth_date}`}
               pagination={false}
               dataSource={selectedStudent.siblings}
-              scroll={{ x: 520 }}
               style={{
                 borderRadius: 18,
                 overflow: "hidden",
@@ -478,8 +481,52 @@ const ParentStudentDatabase = () => {
 
   return (
     <>
-      <MotionDiv variants={containerVariants} initial='hidden' animate='show'>
-        <Space vertical size={20}>
+      <style>
+        {`
+          .parent-student-database-tabs .ant-tabs-nav-list {
+            display: flex;
+            width: 100%;
+            gap: 12px;
+          }
+
+          .parent-student-database-tabs .ant-tabs-tab {
+            flex: 1 1 0;
+            min-width: 0;
+            margin: 0 !important;
+            padding-inline: 0;
+          }
+
+          .parent-student-database-tabs .ant-tabs-tab-btn {
+            width: 100%;
+          }
+
+          .parent-student-database-tabs .ant-tabs-tab-btn > * {
+            width: 100%;
+          }
+
+          @media (max-width: 767px) {
+            .parent-student-database-tabs .ant-tabs-nav-list {
+              gap: 8px;
+            }
+
+            .parent-student-database-tabs .ant-tabs-tab {
+              flex: 0 0 auto;
+              padding-inline: 0;
+            }
+          }
+        `}
+      </style>
+      <MotionDiv
+        variants={containerVariants}
+        initial='hidden'
+        animate='show'
+        style={{ width: "100%" }}
+      >
+        <Space
+          direction='vertical'
+          size={20}
+          style={{ width: "100%", display: "flex" }}
+        >
           <MotionDiv variants={itemVariants}>
             <Card
               style={{
@@ -551,7 +598,6 @@ const ParentStudentDatabase = () => {
                     style={{
                       color: "rgba(241,245,249,0.84)",
                       display: "block",
-                      maxWidth: 620,
                     }}
                   >
                     Pilih anak yang ingin ditinjau, cek kelengkapan profilnya,
@@ -738,10 +784,10 @@ const ParentStudentDatabase = () => {
               styles={{ body: { padding: isMobile ? 12 : 16 } }}
             >
               <Tabs
+                className='parent-student-database-tabs'
                 items={tabItems}
                 defaultActiveKey='student-info'
                 size={isMobile ? "middle" : "large"}
-                tabBarGutter={12}
                 tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
               />
             </Card>
