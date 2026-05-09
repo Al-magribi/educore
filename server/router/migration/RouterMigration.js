@@ -979,12 +979,12 @@ router.post("/migrate/step-4-lms", async (req, res) => {
         skippedChapters++;
       }
       await destClient.query(
-        `INSERT INTO l_chapter (id, subject_id, teacher_id, title, description, order_number) 
+        `INSERT INTO lms.l_chapter (id, subject_id, teacher_id, title, description, order_number) 
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
         [r.id, r.subject, r.teacher, r.title, r.target, r.order_number],
       );
     }
-    await resetSequence(destClient, "l_chapter");
+    await resetSequence(destClient, "lms.l_chapter");
 
     // 1.b CHAPTER CLASS MAPPING (l_cclass -> l_chapter.class_id/class_ids)
     const chapterClasses = await sourceClient.query(
@@ -1034,32 +1034,12 @@ router.post("/migrate/step-4-lms", async (req, res) => {
       const attachmentName = fileRes.rows[0] ? fileRes.rows[0].title : null;
 
       await destClient.query(
-        `INSERT INTO l_content (
-           id,
-           chapter_id,
-           title,
-           body,
-           order_number,
-           attachment_url,
-           attachment_name,
-           video_url,
-           created_at
-         ) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
-        [
-          r.id,
-          r.chapter,
-          r.title,
-          r.target,
-          r.order_number,
-          attach,
-          attachmentName,
-          video,
-          r.createdat,
-        ],
+        `INSERT INTO lms.l_content (id, chapter_id, title, attachment_url, video_url, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
+        [r.id, r.chapter, r.title, attach, video, r.createdat],
       );
     }
-    await resetSequence(destClient, "l_content");
+    await resetSequence(destClient, "lms.l_content");
 
     // 3. RESET NILAI (Agar tidak dobel jika migrasi diulang)
     await destClient.query(
@@ -1174,27 +1154,11 @@ router.post("/migrate/step-4-lms", async (req, res) => {
       for (let i = 1; i <= 8; i++) {
         const score = f[`f_${i}`];
         if (score !== null && score !== undefined) {
-          const type = `${monthCode}-${chapterCode}-S${i}`;
-          formativeBatch.push([
-            newStudentId,
-            subjectId,
-            chapterId,
-            f.month,
-            f.semester,
-            type,
-            score,
-            classId,
-            oldTeacherIdToNewUserId.get(f.teacher_id) || null,
-          ]);
-          if (formativeBatch.length >= BATCH_SIZE) {
-            await bulkInsert(
-              destClient,
-              "l_score_formative",
-              formativeColumns,
-              formativeBatch,
-            );
-            formativeBatch = [];
-          }
+          await destClient.query(
+            `INSERT INTO lms.l_score_formative (student_id, subject_id, chapter_id, type, score)
+              VALUES ($1, $2, $3, $4, $5)`,
+            [newStudentId, f.subject_id, f.chapter_id, `Tugas ${i}`, score],
+          );
         }
       }
     }
@@ -1350,16 +1314,9 @@ router.post("/migrate/step-4-lms", async (req, res) => {
       // (Logic disederhanakan: skip teacher mapping jika null, atau set null)
 
       await destClient.query(
-        `INSERT INTO l_attendance (class_id, subject_id, student_id, date, note, teacher_id)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          classId,
-          subjectId,
-          newStudentId,
-          a.day_date,
-          a.note,
-          oldTeacherIdToNewUserId.get(a.teacher_id) || null,
-        ],
+        `INSERT INTO lms.l_attendance (class_id, subject_id, student_id, date, note)
+             VALUES ($1, $2, $3, $4, $5)`,
+        [a.classid, a.subjectid, newStudentId, a.day_date, a.note],
       );
     }
 

@@ -319,5 +319,98 @@ CREATE TABLE l_daily_absence_report(
 );
 CREATE INDEX idx_daily_absence_report_lookup ON lms.l_daily_absence_report USING btree (homebase_id, periode_id, date, target_type, target_user_id);
 
+CREATE TABLE l_chapter(
+    id SERIAL NOT NULL,
+    subject_id integer REFERENCES public.a_subject(id),
+    teacher_id integer REFERENCES public.u_teachers(user_id),
+    title text NOT NULL,
+    description text,
+    order_number integer,
+    PRIMARY KEY(id)
+);
+
+CREATE TABLE l_content(
+    id SERIAL NOT NULL,
+    chapter_id integer REFERENCES lms.l_chapter(id),
+    title text NOT NULL,
+    body text,
+    video_url text,
+    attachment_url text,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id)
+);
+
+CREATE TABLE l_attendance(
+    id SERIAL NOT NULL,
+    class_id integer REFERENCES public.a_class(id),
+    subject_id integer REFERENCES public.a_subject(id),
+    student_id integer REFERENCES public.u_students(user_id),
+    date date DEFAULT CURRENT_DATE,
+    status varchar(20) CHECK (status IN ('Hadir', 'Izin', 'Sakit', 'Alpha')),
+    note text,
+    teacher_id integer REFERENCES public.u_teachers(user_id),
+    PRIMARY KEY(id)
+);
+
+CREATE TABLE l_score_weighting(
+    id SERIAL NOT NULL,
+    teacher_id integer REFERENCES public.u_teachers(user_id),
+    subject_id integer REFERENCES public.a_subject(id),
+    weight_attendance integer DEFAULT 0,
+    weight_attitude integer DEFAULT 0,
+    weight_daily integer DEFAULT 0,
+    weight_mid integer DEFAULT 0,
+    weight_final integer DEFAULT 0,
+    PRIMARY KEY(id),
+    CONSTRAINT total_weight_100 CHECK ((weight_attendance + weight_attitude + weight_daily + weight_mid + weight_final) = 100)
+);
+
+CREATE TABLE l_score_attitude(
+    id SERIAL NOT NULL,
+    student_id integer REFERENCES public.u_students(user_id),
+    subject_id integer REFERENCES public.a_subject(id),
+    periode_id integer REFERENCES public.a_periode(id),
+    month varchar(20),
+    kinerja integer DEFAULT 0,
+    kedisiplinan integer DEFAULT 0,
+    keaktifan integer DEFAULT 0,
+    percaya_diri integer DEFAULT 0,
+    teacher_note text,
+    average_score numeric(5,2) GENERATED ALWAYS AS ((kinerja + kedisiplinan + keaktifan + percaya_diri) / 4.0) STORED,
+    PRIMARY KEY(id)
+);
+
+CREATE TABLE l_score_formative(
+    id SERIAL NOT NULL,
+    student_id integer REFERENCES public.u_students(user_id),
+    subject_id integer REFERENCES public.a_subject(id),
+    chapter_id integer REFERENCES lms.l_chapter(id),
+    type varchar(50),
+    score integer CHECK (score >= 0 AND score <= 100),
+    PRIMARY KEY(id)
+);
+
+CREATE TABLE l_score_summative(
+    id SERIAL NOT NULL,
+    student_id integer REFERENCES public.u_students(user_id),
+    subject_id integer REFERENCES public.a_subject(id),
+    periode_id integer REFERENCES public.a_periode(id),
+    type varchar(20),
+    score_written integer,
+    score_skill integer,
+    final_score numeric(5,2),
+    PRIMARY KEY(id)
+);
+
+CREATE TABLE l_score_final(
+    id SERIAL NOT NULL,
+    periode_id integer REFERENCES public.a_periode(id),
+    student_id integer REFERENCES public.u_students(user_id),
+    subject_id integer REFERENCES public.a_subject(id),
+    final_grade integer,
+    letter_grade varchar(2),
+    PRIMARY KEY(id)
+);
+
 SET search_path TO public;
 COMMIT;

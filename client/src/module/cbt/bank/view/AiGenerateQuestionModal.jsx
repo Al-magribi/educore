@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -59,30 +59,40 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
   const [form] = Form.useForm();
   const selectedGradeId = Form.useWatch("grade_id", form);
   const {
-    data: meta,
-    isFetching,
-    refetch,
+    data: bootstrapMeta,
+    isFetching: isBootstrapFetching,
+    refetch: refetchBootstrapMeta,
+  } = useGetAiQuestionGenerateMetaQuery(
+    { bankId },
+    {
+      skip: !open || !bankId,
+    },
+  );
+  const {
+    data: gradeMeta,
+    isFetching: isGradeMetaFetching,
+    refetch: refetchGradeMeta,
   } = useGetAiQuestionGenerateMetaQuery(
     { bankId, gradeId: selectedGradeId },
     {
-      skip: !open || !bankId,
+      skip: !open || !bankId || !selectedGradeId,
     },
   );
   const [startGenerate, { isLoading: isStarting }] =
     useStartAiQuestionGenerateMutation();
 
-  useEffect(() => {
-    if (!open) return;
-    form.setFieldsValue(initialValues);
-  }, [form, open]);
+  const availableGrades = bootstrapMeta?.grades || [];
+  const activeMeta = bootstrapMeta;
+  const chapters = useMemo(() => gradeMeta?.chapters || [], [gradeMeta?.chapters]);
+  const isModalReady = Boolean(open && bootstrapMeta);
 
   useEffect(() => {
-    if (!open || !meta?.grades?.length) return;
-    const currentGrade = form.getFieldValue("grade_id");
-    if (!currentGrade) {
-      form.setFieldValue("grade_id", meta.grades[0]?.id);
+    if (!open) {
+      form.resetFields();
+      return;
     }
-  }, [form, meta, open]);
+    form.setFieldsValue(initialValues);
+  }, [form, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -102,7 +112,14 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
     }
   };
 
-  const aiConfig = meta?.ai_config;
+  const handleRefresh = () => {
+    refetchBootstrapMeta();
+    if (selectedGradeId) {
+      refetchGradeMeta();
+    }
+  };
+
+  const aiConfig = bootstrapMeta?.ai_config;
   const isReady = Boolean(aiConfig?.is_ready);
 
   return (
@@ -111,7 +128,7 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
       onCancel={onCancel}
       footer={null}
       width={880}
-      destroyOnClose
+      destroyOnHidden
       title={
         <Flex align='center' gap={10}>
           <Wand2 size={18} />
@@ -120,7 +137,7 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
       }
       centered
     >
-      {isFetching ? (
+      {isBootstrapFetching || !isModalReady ? (
         <Flex
           vertical
           justify='center'
@@ -156,12 +173,12 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
                 <div>
                   <Text type='secondary'>Bank Soal</Text>
                   <Title level={5} style={{ margin: "4px 0 0 0" }}>
-                    {meta?.bank?.title || "-"}
+                    {activeMeta?.bank?.title || "-"}
                   </Title>
                   <Text type='secondary'>
-                    {meta?.bank?.subject_name || "-"}{" "}
-                    {meta?.bank?.subject_code
-                      ? `(${meta.bank.subject_code})`
+                    {activeMeta?.bank?.subject_name || "-"}{" "}
+                    {activeMeta?.bank?.subject_code
+                      ? `(${activeMeta.bank.subject_code})`
                       : ""}
                   </Text>
                 </div>
@@ -195,7 +212,9 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
                 <Select
                   size='large'
                   placeholder='Pilih tingkat'
-                  options={(meta?.grades || []).map((grade) => ({
+                  loading={isBootstrapFetching}
+                  allowClear
+                  options={availableGrades.map((grade) => ({
                     value: grade.id,
                     label: grade.name,
                   }))}
@@ -234,8 +253,19 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
                     : "Pilih tingkat terlebih dahulu"
                 }
                 suffixIcon={<Layers3 size={16} />}
-                disabled={!selectedGradeId}
-                options={(meta?.chapters || []).map((chapter) => ({
+                loading={Boolean(selectedGradeId) && isGradeMetaFetching}
+                disabled={
+                  !selectedGradeId ||
+                  isGradeMetaFetching
+                }
+                notFoundContent={
+                  selectedGradeId && isGradeMetaFetching ? (
+                    <Spin size='small' />
+                  ) : selectedGradeId ? (
+                    "Belum ada materi pada tingkat ini"
+                  ) : undefined
+                }
+                options={chapters.map((chapter) => ({
                   value: chapter.id,
                   label: chapter.title,
                 }))}
@@ -282,14 +312,14 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
             </Card>
 
             <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
-              <Button onClick={refetch}>Refresh Meta</Button>
+              <Button onClick={handleRefresh}>Refresh Meta</Button>
               <Space>
                 <Button onClick={onCancel}>Batal</Button>
                 <Button
                   type='primary'
                   htmlType='submit'
                   loading={isStarting}
-                  disabled={!isReady}
+                  disabled={!isReady || isGradeMetaFetching}
                 >
                   Mulai Generate
                 </Button>
