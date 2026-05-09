@@ -23,7 +23,49 @@ const BLOOM_LEVEL_META = {
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+const QL_FORMULA_REGEX =
+  /<span([^>]*)class=["']([^"']*\bql-formula\b[^"']*)["']([^>]*)data-value=["']([^"']+)["']([^>]*)><\/span>/gi;
+
+const INLINE_FORMULA_REGEX = /\$([^$]+)\$/g;
+
+const MATH_TEXT_PATTERN =
+  /\\[a-zA-Z]+|[\^_=]|[+\-*/]|[(){}\[\]]|\d+\s*(?:x|×|÷|\/|\+|\-|\*|=)\s*\d+/;
+
+const NON_MATH_LETTER_PATTERN = /[A-Za-z]{2,}/;
+
 let htmlToDocxLoaderPromise;
+let mathJaxLoaderPromise;
+
+const looksLikeStandaloneMath = (text = "") => {
+  const trimmed = String(text).replace(/\u00a0/g, " ").trim();
+  if (!trimmed) return false;
+  if (!MATH_TEXT_PATTERN.test(trimmed)) return false;
+  if (NON_MATH_LETTER_PATTERN.test(trimmed) && !trimmed.includes("\\")) {
+    return false;
+  }
+
+  const normalized = trimmed.replace(/\s+/g, "");
+  return /^[0-9A-Za-z\\^_=+\-*/().,{}[\]|<>:%×÷]+$/.test(normalized);
+};
+
+const prepareHtmlContent = (value) => {
+  if (typeof value !== "string" || !value) return "";
+
+  const normalizedFormulaSpans = value.replace(
+    QL_FORMULA_REGEX,
+    (_, beforeClass, classValue, betweenAttrs, formula, afterAttrs) =>
+      `<span${beforeClass}class="${classValue}"${betweenAttrs}data-value="${formula}"${afterAttrs}></span>`,
+  );
+
+  if (normalizedFormulaSpans.includes("ql-formula")) {
+    return normalizedFormulaSpans;
+  }
+
+  return normalizedFormulaSpans.replace(
+    INLINE_FORMULA_REGEX,
+    (_, formula) => `<span class="ql-formula" data-value="${formula}"></span>`,
+  );
+};
 
 const toBrowserBuffer = (bytes) => {
   const buffer = new Uint8Array(bytes);
@@ -236,6 +278,42 @@ const loadBrowserScript = (src) =>
     document.head.appendChild(script);
   });
 
+const loadMathJax = async () => {
+  if (!mathJaxLoaderPromise) {
+    mathJaxLoaderPromise = (async () => {
+      if (!globalThis.MathJax?.tex2svgPromise) {
+        globalThis.MathJax = {
+          startup: {
+            typeset: false,
+          },
+          svg: {
+            fontCache: "none",
+          },
+        };
+
+        await loadBrowserScript(
+          "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js",
+        );
+      }
+
+      if (!globalThis.MathJax?.tex2svgPromise) {
+        throw new TypeError("Unable to load MathJax SVG renderer");
+      }
+
+      if (globalThis.MathJax.startup?.promise) {
+        await globalThis.MathJax.startup.promise;
+      }
+
+      return globalThis.MathJax;
+    })().catch((error) => {
+      mathJaxLoaderPromise = null;
+      throw error;
+    });
+  }
+
+  return mathJaxLoaderPromise;
+};
+
 const loadHtmlToDocx = async () => {
   if (!htmlToDocxLoaderPromise) {
     htmlToDocxLoaderPromise = (async () => {
@@ -343,12 +421,79 @@ const waitForFonts = async () => {
   }
 };
 
-const renderFormulaToDataUrl = async (formula, formulaCache) => {
+const renderFormulaWithMathJax = async (formula) => {
+  const mathJax = await loadMathJax();
+  const wrapper = await mathJax.tex2svgPromise(formula, { display: false });
+  const svg = wrapper?.querySelector?.("svg");
+
+  if (!svg) {
+    throw new Error("MathJax SVG output is unavailable");
+  }
+
+  svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const widthValue =
+    Number.parseFloat(svg.getAttribute("width") || "0") * 16 || 0;
+  const heightValue =
+    Number.parseFloat(svg.getAttribute("height") || "0") * 16 || 0;
+  const viewBox = svg.getAttribute("viewBox") || "";
+  const [, , vbWidth = widthValue || 8, vbHeight = heightValue || 8] =
+    viewBox.split(/\s+/);
+  const width = Math.max(Math.ceil(widthValue || Number(vbWidth) || 8), 8);
+  const height = Math.max(Math.ceil(heightValue || Number(vbHeight) || 8), 8);
+  const svgMarkup = svg.outerHTML.replace(
+    "<svg",
+    `<svg style="background:#ffffff;color:#111827"`,
+  );
+  const svgBlob = new Blob([svgMarkup], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = svgUrl;
+    });
+
+    const ratio = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Canvas context is unavailable");
+    }
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.scale(ratio, ratio);
+    context.drawImage(image, 0, 0, width, height);
+
+    return {
+      dataUrl: canvas.toDataURL("image/png"),
+      width,
+      height,
+    };
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+};
+
+const renderFormulaToImage = async (formula, formulaCache) => {
   const key = formula.trim();
-  if (!key) return "";
+  if (!key) return null;
   if (formulaCache.has(key)) return formulaCache.get(key);
 
   const promise = (async () => {
+    try {
+      return await renderFormulaWithMathJax(key);
+    } catch {
+      // Fall through to KaTeX + foreignObject fallback.
+    }
+
     const container = document.createElement("div");
     container.style.position = "fixed";
     container.style.left = "-10000px";
@@ -413,12 +558,16 @@ const renderFormulaToDataUrl = async (formula, formulaCache) => {
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.scale(ratio, ratio);
       context.drawImage(image, 0, 0, width, height);
-      return canvas.toDataURL("image/png");
+      return {
+        dataUrl: canvas.toDataURL("image/png"),
+        width,
+        height,
+      };
     } finally {
       URL.revokeObjectURL(svgUrl);
       document.body.removeChild(container);
     }
-  })().catch(() => "");
+  })().catch(() => null);
 
   formulaCache.set(key, promise);
   return promise;
@@ -438,7 +587,7 @@ const prepareRichHtml = async (value, imageCache, formulaCache) => {
 
   const parser = new DOMParser();
   const documentFragment = parser.parseFromString(
-    `<div>${value}</div>`,
+    `<div>${prepareHtmlContent(value)}</div>`,
     "text/html",
   );
   const root = documentFragment.body.firstElementChild;
@@ -447,19 +596,35 @@ const prepareRichHtml = async (value, imageCache, formulaCache) => {
 
   replaceEmbeddedMedia(root);
 
+  const candidateElements = root.querySelectorAll("p, li, div, span");
+  candidateElements.forEach((element) => {
+    if (element.querySelector(".ql-formula, img, audio, video, iframe")) {
+      return;
+    }
+
+    if (Array.from(element.children).length > 0) return;
+
+    const textContent = element.textContent || "";
+    if (!looksLikeStandaloneMath(textContent)) return;
+
+    element.innerHTML = `<span class="ql-formula" data-value="${escapeHtml(textContent.trim())}"></span>`;
+  });
+
   const formulaNodes = [...root.querySelectorAll(".ql-formula[data-value]")];
   for (const node of formulaNodes) {
     const formula = node.getAttribute("data-value") || "";
-    const dataUrl = await renderFormulaToDataUrl(formula, formulaCache);
+    const renderedFormula = await renderFormulaToImage(formula, formulaCache);
 
-    if (dataUrl) {
+    if (renderedFormula?.dataUrl) {
       const image = document.createElement("img");
-      image.setAttribute("src", dataUrl);
+      image.setAttribute("src", renderedFormula.dataUrl);
       image.setAttribute("alt", formula);
       image.setAttribute("title", formula);
+      image.setAttribute("width", String(renderedFormula.width));
+      image.setAttribute("height", String(renderedFormula.height));
       image.setAttribute(
         "style",
-        "display:inline-block;vertical-align:middle;max-height:28px;",
+        `display:inline-block;vertical-align:middle;width:${renderedFormula.width}px;height:${renderedFormula.height}px;max-width:100%;`,
       );
       node.replaceWith(image);
     } else {
