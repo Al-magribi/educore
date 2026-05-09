@@ -70,8 +70,8 @@ const applySpecialOrdering = (groups) => {
   merged.center = mergeRoleMenus(groups, "center", [
     "core",
     "db",
-    "cbt",
     "lms",
+    "cbt",
     "finance",
     "tahfiz",
   ]);
@@ -103,11 +103,11 @@ const applySpecialOrdering = (groups) => {
   ]);
   merged.tahfiz = mergeRoleMenus(groups, "tahfiz", [
     "core",
+    "db",
+    "lms",
+    "cbt",
     "tahfiz",
     "finance",
-    "db",
-    "cbt",
-    "lms",
   ]);
 
   return merged;

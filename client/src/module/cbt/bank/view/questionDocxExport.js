@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape */
 import katex from "katex";
 import katexStyles from "katex/dist/katex.min.css?inline";
 import htmlToDocxBrowserUrl from "@turbodocx/html-to-docx/dist/html-to-docx.browser.js?url";
@@ -35,6 +36,8 @@ const NON_MATH_LETTER_PATTERN = /[A-Za-z]{2,}/;
 
 let htmlToDocxLoaderPromise;
 let mathJaxLoaderPromise;
+const intrinsicImageSizeCache = new Map();
+const DEFAULT_MAX_IMAGE_WIDTH = 640;
 
 const looksLikeStandaloneMath = (text = "") => {
   const trimmed = String(text).replace(/\u00a0/g, " ").trim();
@@ -411,6 +414,93 @@ const fetchAsDataUrl = async (url, imageCache) => {
   return promise;
 };
 
+const loadImageDimensions = (src) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () =>
+      resolve({
+        width: image.naturalWidth || image.width || 0,
+        height: image.naturalHeight || image.height || 0,
+      });
+    image.onerror = reject;
+    image.src = src;
+  });
+
+const getIntrinsicImageSize = async (src) => {
+  if (!src) return { width: 0, height: 0 };
+  if (intrinsicImageSizeCache.has(src)) {
+    return intrinsicImageSizeCache.get(src);
+  }
+
+  const promise = loadImageDimensions(src).catch(() => ({ width: 0, height: 0 }));
+  intrinsicImageSizeCache.set(src, promise);
+  return promise;
+};
+
+const parseStyleDeclarations = (style = "") =>
+  String(style)
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter(Boolean)
+    .reduce((result, declaration) => {
+      const separatorIndex = declaration.indexOf(":");
+      if (separatorIndex === -1) return result;
+      const property = declaration.slice(0, separatorIndex).trim().toLowerCase();
+      const value = declaration.slice(separatorIndex + 1).trim();
+      if (!property || !value) return result;
+      result[property] = value;
+      return result;
+    }, {});
+
+const parsePixelValue = (value) => {
+  if (value == null) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized || normalized === "auto") return null;
+  const matchedValue = normalized.match(/^(-?\d+(?:\.\d+)?)(px)?$/);
+  if (!matchedValue) return null;
+  const numericValue = Number.parseFloat(matchedValue[1]);
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : null;
+};
+
+const getImageTargetSize = async (image, dataUrl) => {
+  const styles = parseStyleDeclarations(image.getAttribute("style") || "");
+  const attrWidth = parsePixelValue(image.getAttribute("width"));
+  const attrHeight = parsePixelValue(image.getAttribute("height"));
+  const styleWidth = parsePixelValue(styles.width);
+  const styleHeight = parsePixelValue(styles.height);
+  const intrinsicSize = await getIntrinsicImageSize(dataUrl || image.getAttribute("src"));
+
+  let width = styleWidth ?? attrWidth ?? intrinsicSize.width ?? 0;
+  let height = styleHeight ?? attrHeight ?? intrinsicSize.height ?? 0;
+
+  if (!width && height && intrinsicSize.width && intrinsicSize.height) {
+    width = (height * intrinsicSize.width) / intrinsicSize.height;
+  }
+
+  if (!height && width && intrinsicSize.width && intrinsicSize.height) {
+    height = (width * intrinsicSize.height) / intrinsicSize.width;
+  }
+
+  if (!width && intrinsicSize.width) {
+    width = intrinsicSize.width;
+  }
+
+  if (!height && intrinsicSize.height) {
+    height = intrinsicSize.height;
+  }
+
+  if (width > DEFAULT_MAX_IMAGE_WIDTH && intrinsicSize.width && intrinsicSize.height) {
+    const ratio = DEFAULT_MAX_IMAGE_WIDTH / width;
+    width = DEFAULT_MAX_IMAGE_WIDTH;
+    height = height ? height * ratio : intrinsicSize.height * ratio;
+  }
+
+  return {
+    width: Math.max(Math.round(width || 0), 0),
+    height: Math.max(Math.round(height || 0), 0),
+  };
+};
+
 const waitForFonts = async () => {
   if (document.fonts?.ready) {
     try {
@@ -442,7 +532,7 @@ const renderFormulaWithMathJax = async (formula) => {
   const height = Math.max(Math.ceil(heightValue || Number(vbHeight) || 8), 8);
   const svgMarkup = svg.outerHTML.replace(
     "<svg",
-    `<svg style="background:#ffffff;color:#111827"`,
+    `<svg xmlns="http://www.w3.org/2000/svg" style="background:#ffffff;color:#111827"`,
   );
   const svgBlob = new Blob([svgMarkup], {
     type: "image/svg+xml;charset=utf-8",
@@ -620,11 +710,12 @@ const prepareRichHtml = async (value, imageCache, formulaCache) => {
       image.setAttribute("src", renderedFormula.dataUrl);
       image.setAttribute("alt", formula);
       image.setAttribute("title", formula);
+      image.setAttribute("data-formula-image", "true");
       image.setAttribute("width", String(renderedFormula.width));
       image.setAttribute("height", String(renderedFormula.height));
       image.setAttribute(
         "style",
-        `display:inline-block;vertical-align:middle;width:${renderedFormula.width}px;height:${renderedFormula.height}px;max-width:100%;`,
+        `display:inline-block;vertical-align:middle;width:${renderedFormula.width}px;height:${renderedFormula.height}px;`,
       );
       node.replaceWith(image);
     } else {
@@ -644,11 +735,40 @@ const prepareRichHtml = async (value, imageCache, formulaCache) => {
       image.setAttribute("src", dataUrl);
     }
 
-    const style = image.getAttribute("style") || "";
-    image.setAttribute(
-      "style",
-      `${style};max-width:100%;height:auto;object-fit:contain;`.trim(),
-    );
+    if (image.getAttribute("data-formula-image") === "true") {
+      continue;
+    }
+
+    const styles = parseStyleDeclarations(image.getAttribute("style") || "");
+    const { width, height } = await getImageTargetSize(image, dataUrl);
+    const nextStyleEntries = [
+      "display:block",
+      "margin:10px 0",
+      "object-fit:contain",
+    ];
+
+    if (width > 0) {
+      image.setAttribute("width", String(width));
+      nextStyleEntries.push(`width:${width}px`);
+      nextStyleEntries.push(`max-width:${width}px`);
+    } else {
+      image.removeAttribute("width");
+      nextStyleEntries.push("max-width:100%");
+    }
+
+    if (height > 0) {
+      image.setAttribute("height", String(height));
+      nextStyleEntries.push(`height:${height}px`);
+    } else {
+      image.removeAttribute("height");
+      nextStyleEntries.push("height:auto");
+    }
+
+    if (styles.float) {
+      nextStyleEntries.push(`float:${styles.float}`);
+    }
+
+    image.setAttribute("style", nextStyleEntries.join(";"));
   }
 
   return root.innerHTML;
@@ -810,8 +930,7 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
             margin: 0 0 8px;
           }
           img {
-            max-width: 100%;
-            height: auto;
+            vertical-align: middle;
           }
           .document-header {
             margin-bottom: 18px;
