@@ -2322,6 +2322,8 @@ router.get(
       });
     }
 
+    const semesterMonths = SEMESTER_MONTHS[semesterValue];
+
     const classSubjectMeta = await pool.query(
       `SELECT
          c.name AS class_name,
@@ -2543,7 +2545,7 @@ router.get(
     );
 
     const teacherFilterSummativeQuery =
-      role === "teacher" || effectiveTeacherId ? "AND s.teacher_id = $4" : "";
+      role === "teacher" || effectiveTeacherId ? "AND s.teacher_id = $5" : "";
     const teacherFilterFinalQuery =
       role === "teacher" || effectiveTeacherId ? "AND f.teacher_id = $5" : "";
     const teacherFilterParams =
@@ -2552,6 +2554,7 @@ router.get(
     const summativeResult = await pool.query(
       `SELECT
          s.student_id,
+         s.month,
          s.final_score,
          s.score_written,
          s.score_skill
@@ -2559,12 +2562,14 @@ router.get(
        WHERE s.subject_id = $1
          AND s.class_id = $2
          AND s.periode_id = $3
+         AND s.semester = $4
          ${teacherFilterSummativeQuery}
        ORDER BY s.student_id ASC, s.id ASC`,
       [
         subject_id,
         class_id,
         activePeriode.id,
+        semesterValue,
         ...teacherFilterParams,
       ],
     );
@@ -2590,7 +2595,12 @@ router.get(
     );
 
     const summativeScoresByStudent = new Map();
-    for (const row of summativeResult.rows) {
+    const filteredSummativeRows = summativeResult.rows.filter((row) => {
+      const monthNumber = monthNameToNumber(row.month);
+      return monthNumber === null || semesterMonths.includes(monthNumber);
+    });
+
+    for (const row of filteredSummativeRows) {
       const key = String(row.student_id);
       if (!summativeScoresByStudent.has(key)) {
         summativeScoresByStudent.set(key, []);

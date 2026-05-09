@@ -44,7 +44,8 @@ const getTodayScheduleKey = () => {
 
 const TeacherSchedule = () => {
   const { user } = useSelector((state) => state.auth);
-  const { data, isLoading, isFetching, refetch } = useGetScheduleBootstrapQuery();
+  const { data, isLoading, isFetching, refetch } =
+    useGetScheduleBootstrapQuery();
 
   const payload = data?.data || {};
 
@@ -132,7 +133,9 @@ const TeacherSchedule = () => {
           missing_sessions: Math.max(requiredSessions - allocatedSessions, 0),
         };
       })
-      .filter((item) => item.required_sessions > 0 && item.missing_sessions > 0);
+      .filter(
+        (item) => item.required_sessions > 0 && item.missing_sessions > 0,
+      );
   }, [teacherAssignments, teacherEntries]);
 
   const scheduleColumns = [
@@ -355,10 +358,8 @@ const TeacherSchedule = () => {
                             </Text>
                           </div>
                         </div>
-                        <Space wrap size={4}>
-                          <Tag color='blue'>Jam {item.slot_label}</Tag>
-                          <Tag color='purple'>Pertemuan {item.meeting_no}</Tag>
-                        </Space>
+
+                        <Tag color='blue'>Jam {item.slot_label}</Tag>
                       </Flex>
                     </Card>
                   ))}

@@ -115,8 +115,8 @@ const TeacherPointEntryDrawer = ({
             rules={[{ required: true, message: "Siswa wajib dipilih." }]}
           >
             <Select
-              showSearch
-              optionFilterProp='label'
+              showSearch={{ optionFilterProp: "label" }}
+              virtual={false}
               placeholder='Pilih siswa'
               options={students.map((item) => ({
                 value: item.student_id,
@@ -131,8 +131,8 @@ const TeacherPointEntryDrawer = ({
             rules={[{ required: true, message: "Rule poin wajib dipilih." }]}
           >
             <Select
-              showSearch
-              optionFilterProp='label'
+              showSearch={{ optionFilterProp: "label" }}
+              virtual={false}
               placeholder='Pilih rule poin'
               options={rules.map((item) => ({
                 value: item.id,

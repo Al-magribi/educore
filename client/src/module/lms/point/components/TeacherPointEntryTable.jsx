@@ -1,48 +1,71 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   Button,
   Card,
   Empty,
   Flex,
+  Input,
   Popconfirm,
+  Select,
   Space,
   Table,
   Tag,
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
-import { PencilLine, Plus, ShieldAlert, Trash2, Trophy } from "lucide-react";
+import {
+  PencilLine,
+  Plus,
+  Search,
+  ShieldAlert,
+  Trash2,
+  Trophy,
+} from "lucide-react";
 
 const { Text, Title } = Typography;
 
 const tableCardStyle = {
   borderRadius: 24,
   border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
 };
 
 const TypeTag = ({ value }) => {
   const isReward = value === "reward";
   const Icon = isReward ? Trophy : ShieldAlert;
+
   return (
     <Tag
       style={{
         margin: 0,
         borderRadius: 999,
-        paddingInline: 10,
-        borderColor: isReward ? "#fcd34d" : "#fecaca",
-        background: isReward ? "#fffbeb" : "#fef2f2",
-        color: isReward ? "#a16207" : "#b91c1c",
+        padding: "4px 10px",
+        border: "none",
+        background: isReward ? "#fff7d6" : "#fee2e2",
+        color: isReward ? "#92400e" : "#b91c1c",
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
+        fontWeight: 600,
+        lineHeight: 1,
       }}
     >
       <Icon size={13} />
       {isReward ? "Prestasi" : "Pelanggaran"}
     </Tag>
   );
+};
+
+const formatEntryDate = (value) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 };
 
 const TeacherPointEntryTable = ({
@@ -54,13 +77,28 @@ const TeacherPointEntryTable = ({
   onEdit,
   onDelete,
 }) => {
+  const [nameFilter, setNameFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+
+  const filteredDataSource = useMemo(() => {
+    const keyword = nameFilter.trim().toLowerCase();
+
+    return dataSource.filter((item) => {
+      const matchName = keyword
+        ? (item.student_name || "").toLowerCase().includes(keyword)
+        : true;
+      const matchType = typeFilter ? item.point_type === typeFilter : true;
+      return matchName && matchType;
+    });
+  }, [dataSource, nameFilter, typeFilter]);
+
   const columns = [
     {
       title: "Tanggal",
       dataIndex: "entry_date",
       key: "entry_date",
-      width: 120,
-      render: (value) => <Text>{value}</Text>,
+      width: 160,
+      render: (value) => <Text>{formatEntryDate(value)}</Text>,
     },
     {
       title: "Siswa",
@@ -95,7 +133,9 @@ const TeacherPointEntryTable = ({
       render: (value, record) => (
         <Text
           strong
-          style={{ color: record.point_type === "reward" ? "#a16207" : "#b91c1c" }}
+          style={{
+            color: record.point_type === "reward" ? "#a16207" : "#b91c1c",
+          }}
         >
           {value}
         </Text>
@@ -137,10 +177,17 @@ const TeacherPointEntryTable = ({
     },
   ];
 
+  const emptyNode = (
+    <Empty
+      description='Belum ada entri poin yang cocok dengan filter.'
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+    />
+  );
+
   const mobileContent = (
     <Flex vertical gap={12}>
-      {dataSource.length ? (
-        dataSource.map((item) => (
+      {filteredDataSource.length ? (
+        filteredDataSource.map((item) => (
           <Card
             key={item.id}
             style={{
@@ -155,7 +202,9 @@ const TeacherPointEntryTable = ({
                 <div>
                   <Text strong>{item.student_name}</Text>
                   <div>
-                    <Text style={{ color: "#64748b" }}>{item.entry_date}</Text>
+                    <Text style={{ color: "#64748b" }}>
+                      {formatEntryDate(item.entry_date)}
+                    </Text>
                   </div>
                 </div>
                 <TypeTag value={item.point_type} />
@@ -206,10 +255,7 @@ const TeacherPointEntryTable = ({
           </Card>
         ))
       ) : (
-        <Empty
-          description='Belum ada entri poin untuk filter siswa yang dipilih.'
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
+        emptyNode
       )}
     </Flex>
   );
@@ -220,7 +266,10 @@ const TeacherPointEntryTable = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28 }}
     >
-      <Card style={tableCardStyle} styles={{ body: { padding: isMobile ? 16 : 20 } }}>
+      <Card
+        style={tableCardStyle}
+        styles={{ body: { padding: isMobile ? 16 : 20 } }}
+      >
         <Flex vertical gap={16}>
           <Flex
             vertical={isMobile}
@@ -234,8 +283,8 @@ const TeacherPointEntryTable = ({
               </Title>
               <Text style={{ color: "#64748b" }}>
                 {selectedStudent
-                  ? `Menampilkan riwayat poin untuk ${selectedStudent.student_name}.`
-                  : "Pilih salah satu siswa untuk fokus pada riwayat poin, atau tampilkan semuanya."}
+                  ? `Siswa ${selectedStudent.student_name} sedang dipilih pada ringkasan kelas, tetapi tabel ini tetap menampilkan seluruh riwayat sesuai filter.`
+                  : "Tinjau seluruh riwayat poin siswa, lalu saring berdasarkan nama dan jenis rule."}
               </Text>
             </div>
 
@@ -255,23 +304,44 @@ const TeacherPointEntryTable = ({
             </Button>
           </Flex>
 
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.3fr) 220px",
+              gap: 12,
+            }}
+          >
+            <Input
+              allowClear
+              value={nameFilter}
+              onChange={(event) => setNameFilter(event.target.value)}
+              prefix={<Search size={16} color='#64748b' />}
+              placeholder='Filter nama siswa'
+              style={{ borderRadius: 14, height: 42 }}
+            />
+            <Select
+              allowClear
+              value={typeFilter || undefined}
+              onChange={(value) => setTypeFilter(value || "")}
+              placeholder='Semua jenis rule'
+              style={{ width: "100%" }}
+              options={[
+                { label: "Prestasi", value: "reward" },
+                { label: "Pelanggaran", value: "punishment" },
+              ]}
+            />
+          </div>
+
           {isMobile ? (
             mobileContent
           ) : (
             <Table
               rowKey='id'
               loading={loading}
-              dataSource={dataSource}
+              dataSource={filteredDataSource}
               columns={columns}
               pagination={{ pageSize: 10, showSizeChanger: false }}
-              locale={{
-                emptyText: (
-                  <Empty
-                    description='Belum ada entri poin untuk filter siswa yang dipilih.'
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  />
-                ),
-              }}
+              locale={{ emptyText: emptyNode }}
             />
           )}
         </Flex>

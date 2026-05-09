@@ -6,7 +6,6 @@ import {
   Flex,
   Grid,
   Input,
-  Segmented,
   Space,
   Tabs,
   Tag,
@@ -82,12 +81,6 @@ const tabsCardStyle = {
   boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
 };
 
-const filterOptions = [
-  { label: "Semua", value: "" },
-  { label: "Prestasi", value: "reward" },
-  { label: "Pelanggaran", value: "punishment" },
-];
-
 const TeacherPointView = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
@@ -95,7 +88,6 @@ const TeacherPointView = () => {
   const [activeTab, setActiveTab] = useState("summary");
   const [searchStudent, setSearchStudent] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [selectedType, setSelectedType] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
 
@@ -119,7 +111,6 @@ const TeacherPointView = () => {
   } = useGetTeacherPointEntriesQuery(
     {
       periodeId: activePeriode?.id,
-      studentId: selectedStudentId,
     },
     { skip: !activePeriode?.id },
   );
@@ -140,11 +131,7 @@ const TeacherPointView = () => {
     });
   }, [searchStudent, students]);
 
-  const entries = useMemo(() => {
-    const source = entriesRes?.data || [];
-    if (!selectedType) return source;
-    return source.filter((item) => item.point_type === selectedType);
-  }, [entriesRes?.data, selectedType]);
+  const entries = useMemo(() => entriesRes?.data || [], [entriesRes?.data]);
 
   const selectedStudent = useMemo(
     () =>
@@ -447,9 +434,7 @@ const TeacherPointView = () => {
 
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: isMobile ? "1fr" : "1.2fr auto",
-                  gap: 12,
+                  maxWidth: isMobile ? "100%" : 420,
                 }}
               >
                 <Input
@@ -459,12 +444,6 @@ const TeacherPointView = () => {
                   prefix={<Search size={16} color='#64748b' />}
                   placeholder='Cari siswa berdasarkan nama atau NIS'
                   style={{ borderRadius: 14, height: 42 }}
-                />
-                <Segmented
-                  block
-                  options={filterOptions}
-                  value={selectedType}
-                  onChange={setSelectedType}
                 />
               </div>
 
