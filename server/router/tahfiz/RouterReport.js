@@ -302,7 +302,8 @@ const pickSelectedHomebaseId = (req, requestedHomebaseId, homebases = []) => {
   const scopedHomebaseId = req.user.homebase_id || null;
   if (scopedHomebaseId) return scopedHomebaseId;
   if (requestedHomebaseId) return requestedHomebaseId;
-  return homebases[0]?.id ?? null;
+  if (req.user.role === "teacher") return homebases[0]?.id ?? null;
+  return null;
 };
 
 const buildReportScope = async (db, req, filters = {}) => {
@@ -356,8 +357,14 @@ const buildReportScope = async (db, req, filters = {}) => {
          ORDER BY is_active DESC, id DESC`,
       );
   const periodes = periodeResult.rows;
-  const selectedPeriodeId =
-    requestedPeriodeId || periodes.find((item) => item.is_active)?.id || periodes[0]?.id || null;
+  let selectedPeriodeId = requestedPeriodeId;
+  if (selectedPeriodeId && !periodes.some((item) => item.id === selectedPeriodeId)) {
+    selectedPeriodeId = null;
+  }
+  if (!selectedPeriodeId && req.user.role === "teacher") {
+    selectedPeriodeId =
+      periodes.find((item) => item.is_active)?.id || periodes[0]?.id || null;
+  }
 
   const params = [];
 
@@ -468,8 +475,8 @@ const buildSummaryQuery = ({ enforceTeacherScope = false } = {}) => `
     LEFT JOIN a_grade g ON g.id = c.grade_id
     JOIN u_users u ON u.id = ce.student_id
     LEFT JOIN u_students s ON s.user_id = ce.student_id
-    WHERE ce.periode_id = $1
-      AND ce.homebase_id = $2
+    WHERE ($1::int IS NULL OR ce.periode_id = $1)
+      AND ($2::int IS NULL OR ce.homebase_id = $2)
       AND ($3::int IS NULL OR c.grade_id = $3)
       AND ($4::int IS NULL OR c.id = $4)
       ${enforceTeacherScope ? "AND c.homeroom_teacher_id = $5" : ""}
@@ -489,8 +496,8 @@ const buildSummaryQuery = ({ enforceTeacherScope = false } = {}) => `
     JOIN a_grade g ON g.id = p.grade_id
     LEFT JOIN a_homebase hb ON hb.id = p.homebase_id
     WHERE p.is_active = true
-      AND p.periode_id = $1
-      AND p.homebase_id = $2
+      AND ($1::int IS NULL OR p.periode_id = $1)
+      AND ($2::int IS NULL OR p.homebase_id = $2)
       AND ($3::int IS NULL OR p.grade_id = $3)
   ),
   target_ayahs AS (
@@ -544,7 +551,8 @@ const buildSummaryQuery = ({ enforceTeacherScope = false } = {}) => `
     FROM tahfiz.t_daily_record dr
     JOIN u_class_enrollments ce
       ON ce.student_id = dr.student_id
-     AND ce.periode_id = $1
+     AND ($1::int IS NULL OR ce.periode_id = $1)
+     AND ($2::int IS NULL OR ce.homebase_id = $2)
     JOIN tahfiz.t_ayah sa
       ON sa.surah_id = dr.start_surah_id
      AND sa.ayah_number = COALESCE(dr.start_ayat, 1)
@@ -1198,7 +1206,7 @@ router.get(
 
     const scope = await buildReportScope(pool, req, req.query);
 
-    if (!scope.selectedHomebaseId || !scope.selectedPeriodeId) {
+    if (req.user.role === "teacher" && (!scope.selectedHomebaseId || !scope.selectedPeriodeId)) {
       return res.json({
         code: 200,
         message: "Belum ada homebase atau periode yang bisa dipilih",

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Badge,
@@ -106,24 +106,6 @@ const Target = () => {
   const [createPlan, { isLoading: creating }] = useCreateTargetPlanMutation();
   const [updatePlan, { isLoading: updating }] = useUpdateTargetPlanMutation();
   const [deletePlan, { isLoading: deleting }] = useDeleteTargetPlanMutation();
-
-  useEffect(() => {
-    const homebases = optionsQuery.data?.homebases || [];
-    if (!homebases.length || homebaseId != null) return;
-
-    const sorted = [...homebases].sort((a, b) => Number(a.id) - Number(b.id));
-    setHomebaseId(sorted[0]?.id);
-  }, [optionsQuery.data?.homebases, homebaseId]);
-
-  useEffect(() => {
-    const periodes = optionsQuery.data?.periodes || [];
-    if (!periodes.length || periodeId != null) return;
-
-    const activePeriode = periodes.find((item) => item.is_active);
-    if (activePeriode) {
-      setPeriodeId(activePeriode.id);
-    }
-  }, [optionsQuery.data?.periodes, periodeId]);
 
   const homebaseOptions = (optionsQuery.data?.homebases || []).map((item) => ({
     value: item.id,

@@ -49,8 +49,7 @@ const resolveSelectedHomebase = async (db, userHomebaseId, requestedHomebaseId) 
     return homebase.rows.length ? requestedHomebaseId : null;
   }
 
-  const fallback = await db.query(`SELECT id FROM a_homebase ORDER BY name ASC LIMIT 1`);
-  return fallback.rows[0]?.id || null;
+  return null;
 };
 
 const ensurePeriodeScope = async (db, periodeId, homebaseId) => {

@@ -43,11 +43,9 @@ const Musyrif = () => {
   const [editingData, setEditingData] = useState(null);
 
   const optionsQuery = useGetHalaqohOptionsQuery({ homebase_id: homebaseId });
-  const selectedHomebaseId =
-    homebaseId ?? optionsQuery.data?.selected_homebase_id;
 
   const musyrifQuery = useGetMusyrifListQuery({
-    homebase_id: selectedHomebaseId,
+    homebase_id: homebaseId,
   });
 
   const [createMusyrif, { isLoading: creating }] = useCreateMusyrifMutation();
@@ -60,11 +58,12 @@ const Musyrif = () => {
   }));
 
   const isScopedHomebaseUser = homebaseOptions.length === 1;
+  const defaultHomebaseId = isScopedHomebaseUser ? homebaseOptions[0]?.value : null;
 
   const resetForm = () => {
     form.resetFields();
     form.setFieldsValue({
-      homebase_id: selectedHomebaseId ?? null,
+      homebase_id: homebaseId ?? defaultHomebaseId ?? null,
       is_active: true,
     });
   };
@@ -230,10 +229,11 @@ const Musyrif = () => {
 
           <Space>
             <Select
-              value={selectedHomebaseId}
+              value={homebaseId}
               onChange={setHomebaseId}
               options={homebaseOptions}
               disabled={isScopedHomebaseUser}
+              allowClear
               placeholder='Pilih Homebase'
               style={{ width: 220 }}
             />
@@ -458,7 +458,7 @@ const Musyrif = () => {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         homebaseOptions={homebaseOptions}
-        selectedHomebaseId={selectedHomebaseId}
+        selectedHomebaseId={homebaseId ?? defaultHomebaseId}
       />
     </>
   );

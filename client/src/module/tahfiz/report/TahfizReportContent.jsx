@@ -111,11 +111,21 @@ const TahfizReportContent = ({ mode = "admin" }) => {
   const optionDefaults = optionsQuery.data || {};
   const availableOptionClasses = optionDefaults.classes || [];
   const effectiveHomebaseId =
-    homebaseId ?? optionDefaults.selected_homebase_id ?? undefined;
+    mode === "teacher"
+      ? (homebaseId ?? optionDefaults.selected_homebase_id ?? undefined)
+      : homebaseId;
   const effectivePeriodeId =
-    periodeId ?? optionDefaults.selected_periode_id ?? undefined;
-  const baseGradeId = gradeId ?? optionDefaults.selected_grade_id ?? undefined;
-  const baseClassId = classId ?? optionDefaults.selected_class_id ?? undefined;
+    mode === "teacher"
+      ? (periodeId ?? optionDefaults.selected_periode_id ?? undefined)
+      : periodeId;
+  const baseGradeId =
+    mode === "teacher"
+      ? (gradeId ?? optionDefaults.selected_grade_id ?? undefined)
+      : gradeId;
+  const baseClassId =
+    mode === "teacher"
+      ? (classId ?? optionDefaults.selected_class_id ?? undefined)
+      : classId;
   const teacherFallbackClassId =
     mode === "teacher" ? availableOptionClasses[0]?.id : undefined;
   const effectiveClassId = baseClassId ?? teacherFallbackClassId;

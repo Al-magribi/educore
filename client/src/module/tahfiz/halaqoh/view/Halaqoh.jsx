@@ -58,11 +58,9 @@ const HalaqohManager = () => {
 
   const optionsQuery = useGetHalaqohOptionsQuery({ homebase_id: homebaseId });
   const globalOptionsQuery = useGetHalaqohOptionsQuery({ include_all: true });
-  const selectedHomebaseId =
-    homebaseId ?? optionsQuery.data?.selected_homebase_id;
 
   const halaqohQuery = useGetHalaqohListQuery({
-    homebase_id: selectedHomebaseId,
+    homebase_id: homebaseId,
     periode_id: periodeId,
   });
 
@@ -129,6 +127,9 @@ const HalaqohManager = () => {
   };
 
   const isScopedHomebaseUser = homebaseOptions.length === 1;
+  const displayedHomebaseId = isScopedHomebaseUser
+    ? homebaseOptions[0]?.value
+    : homebaseId;
 
   const resetForm = () => {
     form.resetFields();
@@ -283,7 +284,7 @@ const HalaqohManager = () => {
 
           <Space wrap>
             <Select
-              value={selectedHomebaseId}
+              value={displayedHomebaseId}
               onChange={(value) => {
                 setHomebaseId(value);
                 setPeriodeId(undefined);
