@@ -4,12 +4,16 @@ import {
   Button,
   Card,
   Divider,
+  Empty,
+  Flex,
   Grid,
   Input,
+  List,
+  Pagination,
   Popconfirm,
   Space,
-  Tag,
   Table,
+  Tag,
   Tooltip,
   Typography,
   message,
@@ -63,16 +67,16 @@ const TeacherList = () => {
   const isMobile = !screens.md;
 
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
   const [listData, setListData] = useState([]);
-  const [hasMore, setHasMore] = useState(false);
+  const [totalItems, setTotalItems] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
   const debounced = useDebounced(search, 500);
   const [triggerGetTeachers, { isFetching }] = useLazyGetTeachersQuery();
-  const [deleteTeacher, { isLoading: isDeleting }] =
-    useDeleteTeacherMutation();
+  const [deleteTeacher, { isLoading: isDeleting }] = useDeleteTeacherMutation();
 
   useEffect(() => {
     let isActive = true;
@@ -81,7 +85,7 @@ const TeacherList = () => {
       try {
         const result = await triggerGetTeachers({
           page,
-          limit: 16,
+          limit: pageSize,
           search: debounced,
         }).unwrap();
 
@@ -89,22 +93,12 @@ const TeacherList = () => {
           return;
         }
 
-        setHasMore(Boolean(result?.hasMore));
-        setListData((prev) => {
-          if (page === 1) {
-            return result?.data || [];
-          }
-
-          const existingIds = new Set(prev.map((item) => item.id));
-          const nextItems = (result?.data || []).filter(
-            (item) => !existingIds.has(item.id),
-          );
-          return [...prev, ...nextItems];
-        });
+        setListData(result?.data || []);
+        setTotalItems(result?.totalItems || 0);
       } catch {
-        if (isActive && page === 1) {
-          setHasMore(false);
+        if (isActive) {
           setListData([]);
+          setTotalItems(0);
         }
       }
     };
@@ -114,39 +108,29 @@ const TeacherList = () => {
     return () => {
       isActive = false;
     };
-  }, [page, debounced, triggerGetTeachers]);
+  }, [page, pageSize, debounced, triggerGetTeachers]);
 
-  const refreshFirstPage = async () => {
+  const refreshCurrentPage = async ({
+    nextPage = page,
+    nextPageSize = pageSize,
+  } = {}) => {
     try {
       const result = await triggerGetTeachers(
         {
-          page: 1,
-          limit: 16,
+          page: nextPage,
+          limit: nextPageSize,
           search: debounced,
         },
         true,
       ).unwrap();
 
-      setHasMore(Boolean(result?.hasMore));
       setListData(result?.data || []);
+      setTotalItems(result?.totalItems || 0);
+      setPage(nextPage);
+      setPageSize(nextPageSize);
     } catch {
-      setHasMore(false);
       setListData([]);
-    }
-  };
-
-  const handleLoadMore = () => {
-    if (hasMore && !isFetching) {
-      setPage((prev) => prev + 1);
-    }
-  };
-
-  const handleTableScroll = (event) => {
-    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-    if (distanceFromBottom < 120 && hasMore && !isFetching) {
-      handleLoadMore();
+      setTotalItems(0);
     }
   };
 
@@ -159,8 +143,12 @@ const TeacherList = () => {
     try {
       await deleteTeacher(id).unwrap();
       message.success("Guru berhasil dihapus");
-      setPage(1);
-      await refreshFirstPage();
+
+      const nextTotal = Math.max(totalItems - 1, 0);
+      const lastPage = Math.max(1, Math.ceil(nextTotal / pageSize));
+      const nextPage = Math.min(page, lastPage);
+
+      await refreshCurrentPage({ nextPage });
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus data");
     }
@@ -169,20 +157,30 @@ const TeacherList = () => {
   const handleSuccess = async () => {
     setIsModalOpen(false);
     setEditingItem(null);
-    setPage(1);
-    await refreshFirstPage();
+    await refreshCurrentPage();
+  };
+
+  const handleTableChange = (pager) => {
+    setPage(pager.current || 1);
+    setPageSize(pager.pageSize || pageSize);
+  };
+
+  const handleMobilePagination = (nextPage, nextPageSize) => {
+    setPage(nextPage);
+    setPageSize(nextPageSize);
   };
 
   const columns = [
     {
-      title: "Guru",
+      title: "Nama Guru",
+      key: "guru",
       dataIndex: "full_name",
-      key: "teacher",
-      width: isMobile ? 260 : 320,
+      fixed: "left",
+      width: 280,
       render: (_, item) => (
-        <Space align="start" size={14} style={{ width: "100%" }}>
+        <Flex align='center' gap={12}>
           <Avatar
-            size={isMobile ? 44 : 52}
+            size={44}
             src={item.img_url}
             icon={<UserOutlined />}
             style={{
@@ -192,167 +190,114 @@ const TeacherList = () => {
               flexShrink: 0,
             }}
           />
-
-          <Space
-            direction="vertical"
-            size={6}
-            style={{ minWidth: 0, width: "100%" }}
-          >
-            <div>
-              <Text
-                strong
-                style={{
-                  display: "block",
-                  color: "#0f172a",
-                  fontSize: isMobile ? 14 : 15,
-                  lineHeight: 1.35,
-                }}
-              >
-                {item.full_name}
-              </Text>
-              <Text
-                type="secondary"
-                style={{ display: "block", marginTop: 2, fontSize: 12 }}
-              >
-                @{item.username}
-              </Text>
-            </div>
-
-            <Space wrap size={[8, 8]}>
-              <Tag
-                color="cyan"
-                icon={<BookOutlined />}
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  fontWeight: 600,
-                }}
-              >
-                {item.homebase_name || "Belum ada Homebase"}
-              </Tag>
-              {isMobile ? (
-                <Tag
-                  color={item.is_active ? "success" : "error"}
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 10,
-                    fontWeight: 600,
-                  }}
-                >
-                  {item.is_active ? "Aktif" : "Nonaktif"}
-                </Tag>
-              ) : null}
-            </Space>
-
-            {isMobile ? (
-              <div style={{ display: "grid", gap: 4 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  NIP: {item.nip || "Non-NIP"}
-                </Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Email: {item.email || "-"}
-                </Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Telepon: {item.phone || "-"}
-                </Text>
-              </div>
-            ) : null}
-          </Space>
-        </Space>
+          <Flex vertical style={{ minWidth: 0 }}>
+            <Text strong ellipsis={{ tooltip: item.full_name }}>
+              {item.full_name}
+            </Text>
+            <Text
+              type='secondary'
+              style={{ fontSize: 12 }}
+              ellipsis={{ tooltip: item.username }}
+            >
+              @{item.username}
+            </Text>
+          </Flex>
+        </Flex>
       ),
     },
     {
       title: "Homebase",
-      dataIndex: "homebase_name",
       key: "homebase",
-      responsive: ["md"],
-      width: 190,
-      render: (value) => (
-        <Text style={{ color: "#0f172a" }}>{value || "Belum ada Homebase"}</Text>
-      ),
-    },
-    {
-      title: "NIP",
-      dataIndex: "nip",
-      key: "nip",
-      responsive: ["lg"],
-      width: 120,
-      render: (value) => <Text type="secondary">{value || "Non-NIP"}</Text>,
-    },
-    {
-      title: "Kontak",
-      key: "contact",
-      responsive: ["xl"],
-      width: 200,
+      width: 220,
       render: (_, item) => (
-        <Space direction="vertical" size={4} style={{ width: "100%" }}>
-          <Space size={8} style={{ color: "#64748b" }}>
-            <MailOutlined />
-            <Text type="secondary" ellipsis={{ tooltip: item.email || "-" }}>
-              {item.email || "-"}
-            </Text>
-          </Space>
-          <Space size={8} style={{ color: "#64748b" }}>
-            <PhoneOutlined />
-            <Text type="secondary">{item.phone || "-"}</Text>
-          </Space>
+        <Space direction='vertical' size={4}>
+          <Tag
+            color='cyan'
+            icon={<BookOutlined />}
+            style={{ margin: 0, borderRadius: 999, fontWeight: 600 }}
+          >
+            {item.homebase_name || "Belum ada Homebase"}
+          </Tag>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            NIP: {item.nip || "Non-NIP"}
+          </Text>
         </Space>
       ),
     },
     {
+      title: "Kontak",
+      key: "contact",
+      width: 240,
+      render: (_, item) => (
+        <Flex vertical gap={6}>
+          <Space size={8} style={{ color: "#64748b" }}>
+            <PhoneOutlined />
+            <Text
+              type='secondary'
+              style={{ fontSize: 12 }}
+              ellipsis={{ tooltip: item.phone || "-" }}
+            >
+              {item.phone || "-"}
+            </Text>
+          </Space>
+          <Space size={8} style={{ color: "#64748b" }}>
+            <MailOutlined />
+            <Text
+              type='secondary'
+              style={{ fontSize: 12 }}
+              ellipsis={{ tooltip: item.email || "-" }}
+            >
+              {item.email || "-"}
+            </Text>
+          </Space>
+        </Flex>
+      ),
+    },
+    {
       title: "Status",
-      dataIndex: "is_active",
       key: "status",
-      width: 100,
-      render: (value) => (
+      dataIndex: "is_active",
+      width: 120,
+      render: (isActive) => (
         <Tag
-          color={value ? "success" : "error"}
-          style={{
-            margin: 0,
-            borderRadius: 999,
-            paddingInline: 10,
-            fontWeight: 600,
-          }}
+          color={isActive ? "success" : "error"}
+          style={{ margin: 0, borderRadius: 999, fontWeight: 600 }}
         >
-          {value ? "Aktif" : "Nonaktif"}
+          {isActive ? "Aktif" : "Nonaktif"}
         </Tag>
       ),
     },
     {
       title: "Aksi",
-      key: "actions",
-      width: isMobile ? 96 : 124,
+      key: "action",
       align: "right",
+      width: 110,
+      fixed: "right",
       render: (_, item) => (
-        <Space size={2} wrap style={{ justifyContent: "flex-end" }}>
-          <Tooltip title="Edit data guru">
+        <Space>
+          <Tooltip title='Edit'>
             <Button
-              type="text"
+              type='text'
               icon={<EditOutlined />}
               onClick={() => openModal(item)}
-              style={{ color: "#2563eb", fontWeight: 600 }}
-            >
-              {!isMobile ? "Edit" : null}
-            </Button>
+            />
           </Tooltip>
           <Popconfirm
-            title="Hapus Guru?"
-            description="Data mengajar, nilai, dan absensi terkait mungkin akan hilang."
+            title='Hapus Guru?'
+            description='Aksi ini tidak dapat dibatalkan.'
             onConfirm={() => handleDelete(item.id)}
-            okText="Ya, Hapus"
-            cancelText="Batal"
+            okText='Ya, Hapus'
+            cancelText='Batal'
+            placement='topRight'
           >
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              loading={isDeleting}
-              style={{ fontWeight: 600 }}
-            >
-              {!isMobile ? "Hapus" : null}
-            </Button>
+            <Tooltip title='Hapus'>
+              <Button
+                type='text'
+                danger
+                icon={<DeleteOutlined />}
+                loading={isDeleting}
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
@@ -363,13 +308,19 @@ const TeacherList = () => {
     <>
       <MotionDiv
         variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        style={{ display: "grid", gap: 18, width: "100%", minWidth: 0 }}
+        initial='hidden'
+        animate='show'
+        style={{
+          display: "grid",
+          gap: 18,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+        }}
       >
         <MotionDiv variants={itemVariants}>
           <Card
-            variant="borderless"
+            variant='borderless'
             style={{
               borderRadius: 22,
               overflow: "hidden",
@@ -380,7 +331,7 @@ const TeacherList = () => {
             }}
             styles={{ body: { padding: isMobile ? 18 : 20 } }}
           >
-            <Space orientation="vertical" size={14} style={{ width: "100%" }}>
+            <Space vertical size={14} style={{ width: "100%" }}>
               <Tag
                 style={{
                   width: "fit-content",
@@ -419,22 +370,19 @@ const TeacherList = () => {
                   }}
                 >
                   Cari guru, perbarui penempatan, dan tambah data guru baru dari
-                  workspace yang tetap nyaman dipakai di desktop maupun mobile.
+                  satu workspace yang tetap nyaman dipakai di desktop maupun
+                  mobile.
                 </Text>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  width: "100%",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
+              <Space
+                wrap
+                size={[12, 12]}
+                style={{ width: "100%", justifyContent: "space-between" }}
               >
                 <Input
-                  placeholder="Cari nama, username, atau NIP..."
+                  value={search}
+                  placeholder='Cari nama, username, atau NIP...'
                   prefix={<SearchOutlined style={{ color: "#64748b" }} />}
                   allowClear
                   onChange={(e) => {
@@ -442,21 +390,19 @@ const TeacherList = () => {
                     setSearch(e.target.value);
                   }}
                   style={{
-                    flex: isMobile ? "1 1 100%" : "1 1 320px",
-                    maxWidth: isMobile ? "100%" : 340,
-                    minWidth: 0,
+                    maxWidth: isMobile ? "100%" : 320,
+                    width: "100%",
                     height: 42,
                     borderRadius: 999,
                     background: "rgba(255,255,255,0.96)",
                   }}
                 />
                 <Button
-                  type="primary"
+                  type='primary'
                   icon={<PlusOutlined />}
                   onClick={() => openModal(null)}
-                  size="large"
+                  size='large'
                   style={{
-                    flexShrink: 0,
                     borderRadius: 999,
                     height: 42,
                     paddingInline: 20,
@@ -468,69 +414,152 @@ const TeacherList = () => {
                 >
                   Tambah Guru
                 </Button>
-              </div>
+              </Space>
             </Space>
           </Card>
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
           <Card
-            variant="borderless"
+            variant='borderless'
+            styles={{ body: { padding: isMobile ? 12 : 16 } }}
             style={{
               borderRadius: 22,
-              overflow: "hidden",
-              border: "1px solid rgba(148, 163, 184, 0.16)",
-              boxShadow: "0 22px 50px rgba(15, 23, 42, 0.08)",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
+              border: "1px solid rgba(148, 163, 184, 0.14)",
+              boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
             }}
-            styles={{ body: { padding: 0 } }}
           >
-            <div
-              onScroll={handleTableScroll}
-              style={{
-                maxHeight: "75vh",
-                overflow: "auto",
-                width: "100%",
-              }}
-            >
-              <Table
-                rowKey="id"
-                dataSource={listData}
-                columns={columns}
-                pagination={false}
-                loading={isFetching && listData.length === 0}
-                sticky={!isMobile}
-                scroll={{ x: "max-content" }}
-                locale={{
-                  emptyText: "Belum ada data guru",
-                }}
-                size={isMobile ? "small" : "middle"}
-                style={{ width: "100%" }}
-              />
-
-              {isFetching && listData.length > 0 ? (
-                <div
-                  style={{
-                    padding: "14px 16px",
-                    textAlign: "center",
-                    color: "#2563eb",
-                    fontWeight: 500,
-                    background: "rgba(248, 250, 252, 0.96)",
+            {isMobile ? (
+              <>
+                <List
+                  dataSource={listData}
+                  loading={isFetching}
+                  locale={{
+                    emptyText: <Empty description='Data guru belum tersedia' />,
                   }}
-                >
-                  Memuat data guru...
-                </div>
-              ) : null}
+                  renderItem={(item) => (
+                    <List.Item style={{ padding: 0, marginBottom: 10 }}>
+                      <MotionDiv
+                        whileHover={{ y: -3 }}
+                        transition={{ duration: 0.18 }}
+                        style={{ width: "100%" }}
+                      >
+                        <Card
+                          size='small'
+                          style={{ width: "100%", borderRadius: 18 }}
+                        >
+                          <Flex justify='space-between' align='start' gap={10}>
+                            <Space align='start'>
+                              <Avatar
+                                src={item.img_url}
+                                icon={<UserOutlined />}
+                              />
+                              <Flex vertical style={{ minWidth: 0 }}>
+                                <Text strong>{item.full_name}</Text>
+                                <Text type='secondary' style={{ fontSize: 12 }}>
+                                  @{item.username}
+                                </Text>
+                              </Flex>
+                            </Space>
+                            <Space>
+                              <Tooltip title='Edit'>
+                                <Button
+                                  size='small'
+                                  type='text'
+                                  icon={<EditOutlined />}
+                                  onClick={() => openModal(item)}
+                                />
+                              </Tooltip>
+                              <Popconfirm
+                                title='Hapus Guru?'
+                                description='Aksi ini tidak dapat dibatalkan.'
+                                onConfirm={() => handleDelete(item.id)}
+                                okText='Ya'
+                                cancelText='Batal'
+                              >
+                                <Tooltip title='Hapus'>
+                                  <Button
+                                    size='small'
+                                    type='text'
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                    loading={isDeleting}
+                                  />
+                                </Tooltip>
+                              </Popconfirm>
+                            </Space>
+                          </Flex>
 
-              {!hasMore && listData.length > 0 ? (
-                <Divider
-                  style={{ color: "#94a3b8", fontSize: 12, margin: "8px 0 18px" }}
-                >
-                  Semua data telah dimuat
-                </Divider>
-              ) : null}
-            </div>
+                          <Divider style={{ margin: "10px 0" }} />
+
+                          <Flex vertical gap={8}>
+                            <Tag
+                              color='cyan'
+                              icon={<BookOutlined />}
+                              style={{
+                                margin: 0,
+                                width: "fit-content",
+                                borderRadius: 999,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {item.homebase_name || "Belum ada Homebase"}
+                            </Tag>
+                            <Text type='secondary' style={{ fontSize: 12 }}>
+                              NIP: {item.nip || "Non-NIP"}
+                            </Text>
+                            <Text>{item.phone || "-"}</Text>
+                            <Text type='secondary'>{item.email || "-"}</Text>
+                            <Tag
+                              color={item.is_active ? "success" : "error"}
+                              style={{
+                                margin: 0,
+                                width: "fit-content",
+                                borderRadius: 999,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {item.is_active ? "Aktif" : "Nonaktif"}
+                            </Tag>
+                          </Flex>
+                        </Card>
+                      </MotionDiv>
+                    </List.Item>
+                  )}
+                />
+
+                <Flex justify='center' style={{ marginTop: 12 }}>
+                  <Pagination
+                    current={page}
+                    pageSize={pageSize}
+                    total={totalItems}
+                    onChange={handleMobilePagination}
+                    showSizeChanger
+                    pageSizeOptions={["10", "20", "50"]}
+                    responsive
+                    showTotal={(value) => `${value} guru`}
+                  />
+                </Flex>
+              </>
+            ) : (
+              <Table
+                columns={columns}
+                dataSource={listData}
+                loading={isFetching}
+                pagination={{
+                  current: page,
+                  pageSize,
+                  total: totalItems,
+                  showSizeChanger: true,
+                  pageSizeOptions: ["10", "20", "50"],
+                  showTotal: (items, range) =>
+                    `${range[0]}-${range[1]} dari ${items} guru`,
+                }}
+                onChange={handleTableChange}
+                rowKey='id'
+                size='middle'
+              />
+            )}
           </Card>
         </MotionDiv>
       </MotionDiv>

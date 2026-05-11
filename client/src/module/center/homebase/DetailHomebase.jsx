@@ -58,7 +58,10 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
     }
   }, [open, homebaseId, selectedPeriodeId, triggerGetDetail]);
 
-  const stats = useMemo(() => apiData?.data?.stats || {}, [apiData?.data?.stats]);
+  const stats = useMemo(
+    () => apiData?.data?.stats || {},
+    [apiData?.data?.stats],
+  );
   const composition = apiData?.data?.class_composition || [];
   const periods = apiData?.data?.periods || [];
   const teacherMale = stats.teachers?.laki || 0;
@@ -123,17 +126,17 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
       modalRender={(node) => (
         <MotionDiv
           variants={modalVariants}
-          initial="hidden"
-          animate="show"
+          initial='hidden'
+          animate='show'
           style={{ borderRadius: 28, overflow: "hidden" }}
         >
           {node}
         </MotionDiv>
       )}
     >
-      <Space orientation="vertical" size={20} style={{ width: "100%" }}>
+      <Space orientation='vertical' size={20} style={{ width: "100%" }}>
         <Card
-          variant="borderless"
+          variant='borderless'
           style={{
             borderRadius: 24,
             background:
@@ -142,11 +145,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
           }}
           styles={{ body: { padding: isMobile ? 20 : 28 } }}
         >
-          <Space
-            orientation="vertical"
-            size={14}
-            style={{ width: "100%" }}
-          >
+          <Space orientation='vertical' size={14} style={{ width: "100%" }}>
             <Tag
               icon={<ApartmentOutlined />}
               style={{
@@ -197,9 +196,11 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
               </Text>
               <Select
                 style={{ width: isMobile ? "100%" : 260 }}
-                value={selectedPeriodeId ? Number(selectedPeriodeId) : undefined}
+                value={
+                  selectedPeriodeId ? Number(selectedPeriodeId) : undefined
+                }
                 onChange={(val) => setPeriodeId(val)}
-                placeholder="Pilih Periode"
+                placeholder='Pilih Periode'
                 loading={isFetching}
                 suffixIcon={<CalendarOutlined style={{ color: "#64748b" }} />}
                 options={periods.map((p) => ({
@@ -213,7 +214,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
 
         {isFetching && !apiData ? (
           <Card
-            variant="borderless"
+            variant='borderless'
             style={{ borderRadius: 24, minHeight: 300 }}
             styles={{ body: { padding: 32 } }}
           >
@@ -225,7 +226,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                 justifyContent: "center",
               }}
             >
-              <Spin size="large" />
+              <Spin size='large' />
             </div>
           </Card>
         ) : (
@@ -233,9 +234,12 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
             <Row gutter={[16, 16]}>
               {cards.map((item) => (
                 <Col xs={24} sm={12} lg={6} key={item.key}>
-                  <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
+                  <MotionDiv
+                    whileHover={{ y: -4 }}
+                    transition={{ duration: 0.2 }}
+                  >
                     <Card
-                      variant="borderless"
+                      variant='borderless'
                       style={{
                         borderRadius: 22,
                         background: item.bg,
@@ -278,8 +282,8 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
             <Row gutter={[16, 16]}>
               <Col xs={24} lg={16}>
                 <Card
-                  title="Komposisi Siswa per Kelas"
-                  variant="borderless"
+                  title='Komposisi Siswa per Kelas'
+                  variant='borderless'
                   style={{
                     borderRadius: 24,
                     border: "1px solid rgba(148, 163, 184, 0.14)",
@@ -288,7 +292,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                   styles={{ body: { padding: 20 } }}
                 >
                   {composition.length === 0 ? (
-                    <Empty description="Belum ada kelas atau siswa pada periode ini" />
+                    <Empty description='Belum ada kelas atau siswa pada periode ini' />
                   ) : (
                     <div
                       style={{
@@ -309,7 +313,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                           transition={{ duration: 0.2 }}
                         >
                           <Card
-                            variant="borderless"
+                            variant='borderless'
                             style={{
                               borderRadius: 20,
                               background:
@@ -319,7 +323,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                             styles={{ body: { padding: 18 } }}
                           >
                             <Space
-                              orientation="vertical"
+                              orientation='vertical'
                               size={14}
                               style={{ width: "100%" }}
                             >
@@ -335,7 +339,10 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                                 </Text>
                                 <Title
                                   level={5}
-                                  style={{ margin: "4px 0 0", color: "#0f172a" }}
+                                  style={{
+                                    margin: "4px 0 0",
+                                    color: "#0f172a",
+                                  }}
                                 >
                                   {cls.class_name}
                                 </Title>
@@ -344,7 +351,8 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                               <div
                                 style={{
                                   display: "grid",
-                                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                                  gridTemplateColumns:
+                                    "repeat(2, minmax(0, 1fr))",
                                   gap: 12,
                                 }}
                               >
@@ -355,13 +363,16 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                                     background: "rgba(59,130,246,0.08)",
                                   }}
                                 >
-                                  <Space align="center" size={10}>
+                                  <Space align='center' size={10}>
                                     <ManOutlined
                                       style={{ color: "#2563eb", fontSize: 18 }}
                                     />
                                     <div>
                                       <Text
-                                        style={{ fontSize: 12, color: "#64748b" }}
+                                        style={{
+                                          fontSize: 12,
+                                          color: "#64748b",
+                                        }}
                                       >
                                         Ikhwan
                                       </Text>
@@ -382,13 +393,16 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                                     background: "rgba(236,72,153,0.08)",
                                   }}
                                 >
-                                  <Space align="center" size={10}>
+                                  <Space align='center' size={10}>
                                     <WomanOutlined
                                       style={{ color: "#db2777", fontSize: 18 }}
                                     />
                                     <div>
                                       <Text
-                                        style={{ fontSize: 12, color: "#64748b" }}
+                                        style={{
+                                          fontSize: 12,
+                                          color: "#64748b",
+                                        }}
                                       >
                                         Akhwat
                                       </Text>
@@ -411,12 +425,17 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                                   border: "1px solid #e2e8f0",
                                 }}
                               >
-                                <Text style={{ color: "#475569", fontSize: 12 }}>
+                                <Text
+                                  style={{ color: "#475569", fontSize: 12 }}
+                                >
                                   Total siswa
                                 </Text>
                                 <Title
                                   level={4}
-                                  style={{ margin: "2px 0 0", color: "#0f172a" }}
+                                  style={{
+                                    margin: "2px 0 0",
+                                    color: "#0f172a",
+                                  }}
                                 >
                                   {cls.total_students}
                                 </Title>
@@ -431,10 +450,14 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
               </Col>
 
               <Col xs={24} lg={8}>
-                <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+                <Space
+                  orientation='vertical'
+                  size={16}
+                  style={{ width: "100%" }}
+                >
                   <Card
-                    title="Komposisi Guru"
-                    variant="borderless"
+                    title='Komposisi Guru'
+                    variant='borderless'
                     style={{
                       borderRadius: 24,
                       border: "1px solid rgba(148, 163, 184, 0.14)",
@@ -442,7 +465,11 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                     }}
                     styles={{ body: { padding: 20 } }}
                   >
-                    <Space orientation="vertical" size={14} style={{ width: "100%" }}>
+                    <Space
+                      orientation='vertical'
+                      size={14}
+                      style={{ width: "100%" }}
+                    >
                       <div
                         style={{
                           borderRadius: 20,
@@ -451,7 +478,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                             "linear-gradient(135deg, rgba(245,158,11,0.16), rgba(251,191,36,0.08))",
                         }}
                       >
-                        <Space align="center" size={14}>
+                        <Space align='center' size={14}>
                           <div
                             style={{
                               width: 48,
@@ -471,7 +498,10 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                             <Text style={{ color: "#92400e", fontSize: 12 }}>
                               Ikhwan
                             </Text>
-                            <Title level={3} style={{ margin: 0, color: "#78350f" }}>
+                            <Title
+                              level={3}
+                              style={{ margin: 0, color: "#78350f" }}
+                            >
                               {teacherMale}
                             </Title>
                           </div>
@@ -486,7 +516,7 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                             "linear-gradient(135deg, rgba(236,72,153,0.16), rgba(244,114,182,0.08))",
                         }}
                       >
-                        <Space align="center" size={14}>
+                        <Space align='center' size={14}>
                           <div
                             style={{
                               width: 48,
@@ -506,7 +536,10 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                             <Text style={{ color: "#9d174d", fontSize: 12 }}>
                               Akhwat
                             </Text>
-                            <Title level={3} style={{ margin: 0, color: "#831843" }}>
+                            <Title
+                              level={3}
+                              style={{ margin: 0, color: "#831843" }}
+                            >
                               {teacherFemale}
                             </Title>
                           </div>
@@ -520,11 +553,13 @@ const DetailHomebase = ({ open, homebaseId, onCancel }) => {
                         <Progress
                           percent={
                             totalTeacherGender
-                              ? Math.round((teacherMale / totalTeacherGender) * 100)
+                              ? Math.round(
+                                  (teacherMale / totalTeacherGender) * 100,
+                                )
                               : 0
                           }
-                          strokeColor="#f59e0b"
-                          trailColor="#f1f5f9"
+                          strokeColor='#f59e0b'
+                          trailColor='#f1f5f9'
                           showInfo
                         />
                       </div>
