@@ -44,15 +44,7 @@ const resolveRecorderRole = async (db, req) => {
     if (req.user.admin_level && req.user.admin_level !== "tahfiz") {
       return null;
     }
-    const musyrifResult = await db.query(
-      `SELECT id
-       FROM tahfiz.t_musyrif
-       WHERE user_id = $1
-         AND is_active = true
-       LIMIT 1`,
-      [req.user.id],
-    );
-    if (musyrifResult.rows.length) {
+    if (req.user.is_musyrif) {
       return "musyrif";
     }
     return "admin_tahfiz";
@@ -117,9 +109,9 @@ const getSurahLookup = async (db) => {
 };
 
 const getScopedStudents = async (db, req, scope, recorderRole = null) => {
-  if (!scope.selectedPeriodeId || !scope.selectedHomebaseId) return [];
-
   if (recorderRole === "musyrif") {
+    if (!scope.selectedPeriodeId) return [];
+
     const musyrifId = await resolveActiveMusyrifId(db, req.user.id);
     if (!musyrifId) return [];
 
@@ -163,35 +155,84 @@ const getScopedStudents = async (db, req, scope, recorderRole = null) => {
     return result.rows;
   }
 
-  const params = [scope.selectedPeriodeId, scope.selectedHomebaseId, scope.selectedGradeId, scope.selectedClassId];
-  let teacherFilter = "";
-
   if (req.user.role === "teacher") {
-    params.push(req.user.id);
-    teacherFilter = `AND c.homeroom_teacher_id = $5`;
+    if (!scope.selectedPeriodeId || !scope.selectedHomebaseId) return [];
+
+    const params = [
+      scope.selectedPeriodeId,
+      scope.selectedHomebaseId,
+      scope.selectedGradeId,
+      scope.selectedClassId,
+      req.user.id,
+    ];
+
+    const result = await db.query(
+      `SELECT
+         ce.student_id,
+         u.full_name AS student_name,
+         s.nis,
+         ce.class_id,
+         c.name AS class_name,
+         c.grade_id,
+         g.name AS grade_name
+       FROM u_class_enrollments ce
+       JOIN u_users u ON u.id = ce.student_id
+       LEFT JOIN u_students s ON s.user_id = ce.student_id
+       JOIN a_class c ON c.id = ce.class_id
+       LEFT JOIN a_grade g ON g.id = c.grade_id
+       WHERE ce.periode_id = $1
+         AND ce.homebase_id = $2
+         AND ($3::int IS NULL OR c.grade_id = $3)
+         AND ($4::int IS NULL OR c.id = $4)
+         AND c.homeroom_teacher_id = $5
+       ORDER BY g.name ASC NULLS LAST, c.name ASC, u.full_name ASC`,
+      params,
+    );
+
+    return result.rows;
   }
 
   const result = await db.query(
     `SELECT
-       ce.student_id,
+       s.user_id AS student_id,
        u.full_name AS student_name,
        s.nis,
-       ce.class_id,
-       c.name AS class_name,
-       c.grade_id,
-       g.name AS grade_name
-     FROM u_class_enrollments ce
-     JOIN u_users u ON u.id = ce.student_id
-     LEFT JOIN u_students s ON s.user_id = ce.student_id
-     JOIN a_class c ON c.id = ce.class_id
-     LEFT JOIN a_grade g ON g.id = c.grade_id
-     WHERE ce.periode_id = $1
-       AND ce.homebase_id = $2
-       AND ($3::int IS NULL OR c.grade_id = $3)
-       AND ($4::int IS NULL OR c.id = $4)
-       ${teacherFilter}
-     ORDER BY g.name ASC NULLS LAST, c.name ASC, u.full_name ASC`,
-    params,
+       enrollment.class_id,
+       enrollment.class_name,
+       enrollment.grade_id,
+       enrollment.grade_name
+     FROM u_students s
+     JOIN u_users u ON u.id = s.user_id
+     LEFT JOIN LATERAL (
+       SELECT
+         ce.class_id,
+         c.name AS class_name,
+         c.grade_id,
+         g.name AS grade_name
+       FROM u_class_enrollments ce
+       JOIN a_class c ON c.id = ce.class_id
+       LEFT JOIN a_grade g ON g.id = c.grade_id
+       WHERE ce.student_id = s.user_id
+         AND ($1::int IS NULL OR ce.periode_id = $1)
+         AND ($2::int IS NULL OR ce.homebase_id = $2)
+         AND ($3::int IS NULL OR c.grade_id = $3)
+         AND ($4::int IS NULL OR c.id = $4)
+       ORDER BY ce.id DESC
+       LIMIT 1
+     ) enrollment ON true
+     WHERE (
+       $1::int IS NULL
+       AND $2::int IS NULL
+       AND $3::int IS NULL
+       AND $4::int IS NULL
+     ) OR enrollment.class_id IS NOT NULL
+     ORDER BY enrollment.grade_name ASC NULLS LAST, enrollment.class_name ASC NULLS LAST, u.full_name ASC`,
+    [
+      scope.selectedPeriodeId,
+      scope.selectedHomebaseId,
+      scope.selectedGradeId,
+      scope.selectedClassId,
+    ],
   );
 
   return result.rows;
@@ -361,7 +402,10 @@ const buildReportScope = async (db, req, filters = {}) => {
   if (selectedPeriodeId && !periodes.some((item) => item.id === selectedPeriodeId)) {
     selectedPeriodeId = null;
   }
-  if (!selectedPeriodeId && req.user.role === "teacher") {
+  if (
+    !selectedPeriodeId &&
+    (req.user.role === "teacher" || req.user.is_musyrif)
+  ) {
     selectedPeriodeId =
       periodes.find((item) => item.is_active)?.id || periodes[0]?.id || null;
   }
@@ -1895,15 +1939,6 @@ router.get(
     }
 
     const scope = await buildReportScope(pool, req, req.query);
-    if (!scope.selectedPeriodeId || !scope.selectedHomebaseId) {
-      return res.json({
-        code: 200,
-        message: "Belum ada periode/homebase aktif",
-        data: [],
-        meta: { page: 1, page_size: 10, total: 0, total_pages: 0 },
-      });
-    }
-
     const page = toPositiveInt(req.query.page, 1);
     const pageSize = Math.min(toPositiveInt(req.query.page_size, 10), 100);
     const offset = (page - 1) * pageSize;
@@ -1918,13 +1953,65 @@ router.get(
     ];
 
     const whereClauses = [
-      "($3::int IS NULL OR c.grade_id = $3)",
-      "($4::int IS NULL OR c.id = $4)",
+      `(
+         $1::int IS NULL
+         OR EXISTS (
+           SELECT 1
+           FROM u_class_enrollments ce_filter
+           WHERE ce_filter.student_id = dr.student_id
+             AND ce_filter.periode_id = $1
+         )
+       )`,
+      `(
+         $2::int IS NULL
+         OR EXISTS (
+           SELECT 1
+           FROM u_class_enrollments ce_filter
+           WHERE ce_filter.student_id = dr.student_id
+             AND ce_filter.homebase_id = $2
+             AND ($1::int IS NULL OR ce_filter.periode_id = $1)
+         )
+       )`,
+      `(
+         $3::int IS NULL
+         OR EXISTS (
+           SELECT 1
+           FROM u_class_enrollments ce_filter
+           JOIN a_class c_filter ON c_filter.id = ce_filter.class_id
+           WHERE ce_filter.student_id = dr.student_id
+             AND c_filter.grade_id = $3
+             AND ($1::int IS NULL OR ce_filter.periode_id = $1)
+             AND ($2::int IS NULL OR ce_filter.homebase_id = $2)
+         )
+       )`,
+      `(
+         $4::int IS NULL
+         OR EXISTS (
+           SELECT 1
+           FROM u_class_enrollments ce_filter
+           WHERE ce_filter.student_id = dr.student_id
+             AND ce_filter.class_id = $4
+             AND ($1::int IS NULL OR ce_filter.periode_id = $1)
+             AND ($2::int IS NULL OR ce_filter.homebase_id = $2)
+         )
+       )`,
     ];
 
     if (req.user.role === "teacher") {
       params.push(req.user.id);
-      whereClauses.push(`c.homeroom_teacher_id = $${params.length}`);
+      whereClauses.push(
+        `EXISTS (
+           SELECT 1
+           FROM u_class_enrollments ce_filter
+           JOIN a_class c_filter ON c_filter.id = ce_filter.class_id
+           WHERE ce_filter.student_id = dr.student_id
+             AND c_filter.homeroom_teacher_id = $${params.length}
+             AND ($1::int IS NULL OR ce_filter.periode_id = $1)
+             AND ($2::int IS NULL OR ce_filter.homebase_id = $2)
+             AND ($3::int IS NULL OR c_filter.grade_id = $3)
+             AND ($4::int IS NULL OR c_filter.id = $4)
+         )`,
+      );
     }
 
     if (recorderRole === "musyrif") {
@@ -1959,12 +2046,6 @@ router.get(
 
     const fromSql = `
        FROM tahfiz.t_daily_record dr
-       JOIN u_class_enrollments ce
-         ON ce.student_id = dr.student_id
-        AND ce.periode_id = $1
-        AND ce.homebase_id = $2
-       JOIN a_class c ON c.id = ce.class_id
-       LEFT JOIN a_grade g ON g.id = c.grade_id
        JOIN u_users u ON u.id = dr.student_id
        LEFT JOIN u_students s ON s.user_id = dr.student_id
        LEFT JOIN tahfiz.t_activity_type at ON at.id = dr.type_id

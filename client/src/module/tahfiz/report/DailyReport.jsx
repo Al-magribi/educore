@@ -57,21 +57,42 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
     grade_id: gradeId,
     class_id: classId,
   });
+  const data = optionsQuery.data;
+  const actor = data?.actor || {};
+  const isAdmin = actor.user_role === "admin";
+  const adminStructureFilterReady = Boolean(homebaseId && periodeId);
 
   React.useEffect(() => {
     if (isEmbedded) return;
     const filters = optionsQuery.data?.filters;
+    const actorRole = optionsQuery.data?.actor?.user_role;
     if (!filters) return;
-    if (localHomebaseId == null && filters.selected_homebase_id != null) {
+    if (
+      actorRole !== "admin" &&
+      localHomebaseId == null &&
+      filters.selected_homebase_id != null
+    ) {
       setLocalHomebaseId(filters.selected_homebase_id);
     }
-    if (localPeriodeId == null && filters.selected_periode_id != null) {
+    if (
+      actorRole !== "admin" &&
+      localPeriodeId == null &&
+      filters.selected_periode_id != null
+    ) {
       setLocalPeriodeId(filters.selected_periode_id);
     }
-    if (localGradeId == null && filters.selected_grade_id != null) {
+    if (
+      actorRole !== "admin" &&
+      localGradeId == null &&
+      filters.selected_grade_id != null
+    ) {
       setLocalGradeId(filters.selected_grade_id);
     }
-    if (localClassId == null && filters.selected_class_id != null) {
+    if (
+      actorRole !== "admin" &&
+      localClassId == null &&
+      filters.selected_class_id != null
+    ) {
       setLocalClassId(filters.selected_class_id);
     }
   }, [
@@ -111,18 +132,24 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
   }, [homebaseId, periodeId, gradeId, classId]);
 
   const recordFilters = {
-    homebase_id: homebaseId,
-    periode_id: periodeId,
-    grade_id: gradeId,
-    class_id: classId,
     page,
     page_size: pageSize,
     date_from: dateFrom ? dayjs(dateFrom).format("YYYY-MM-DD") : undefined,
     date_to: dateTo ? dayjs(dateTo).format("YYYY-MM-DD") : undefined,
   };
+  const shouldApplyStructureFilters = !isAdmin || isEmbedded || adminStructureFilterReady;
+  const effectiveRecordFilters = shouldApplyStructureFilters
+    ? {
+        ...recordFilters,
+        homebase_id: homebaseId,
+        periode_id: periodeId,
+        grade_id: gradeId,
+        class_id: classId,
+      }
+    : recordFilters;
 
-  const recordsQuery = useGetDailyReportRecordsQuery(recordFilters, {
-    skip: !periodeId,
+  const recordsQuery = useGetDailyReportRecordsQuery(effectiveRecordFilters, {
+    skip: !isAdmin && !periodeId,
   });
 
   const [validatePayload] = useValidateDailyReportPayloadMutation();
@@ -137,11 +164,9 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
   const startAyat = Form.useWatch("start_ayat", form);
   const endAyat = Form.useWatch("end_ayat", form);
 
-  const data = optionsQuery.data;
   const isLoading = optionsQuery.isLoading;
   const isFetching = optionsQuery.isFetching;
   const error = optionsQuery.error;
-  const actor = data?.actor || {};
   const students = data?.reference?.students || [];
   const activityTypes = data?.reference?.activity_types || [];
   const surahs = data?.reference?.surahs || [];
@@ -183,6 +208,7 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
   const grades = data?.filters?.grades || [];
   const classes = data?.filters?.classes || [];
   const structureFilterSpan = actor.user_role === "admin" ? 6 : 8;
+  const disableAdminDetailFilter = isAdmin && !adminStructureFilterReady;
 
   if (isLoading || isFetching) {
     return (
@@ -218,7 +244,10 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
   };
 
   const normalizeForSubmit = (values) => ({
-    ...recordFilters,
+    homebase_id: homebaseId,
+    periode_id: periodeId,
+    grade_id: gradeId,
+    class_id: classId,
     student_id: values.student_id,
     date: values.date ? dayjs(values.date).format("YYYY-MM-DD") : null,
     type_id: values.type_id,
@@ -448,6 +477,7 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
               style={{ width: "100%", marginTop: 6 }}
               value={periodeId}
               placeholder='Pilih periode'
+              disabled={!homebaseId}
               options={periodes.map((item) => ({
                 value: item.id,
                 label: `${item.name}${item.is_active ? " (Aktif)" : ""}`,
@@ -467,6 +497,7 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
               style={{ width: "100%", marginTop: 6 }}
               value={gradeId}
               placeholder='Pilih tingkat'
+              disabled={disableAdminDetailFilter}
               options={grades.map((item) => ({
                 value: item.id,
                 label: item.name,
@@ -486,6 +517,7 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
               style={{ width: "100%", marginTop: 6 }}
               value={classId}
               placeholder='Pilih kelas'
+              disabled={disableAdminDetailFilter}
               options={classes.map((item) => ({
                 value: item.id,
                 label: `${item.grade_name ? `${item.grade_name} - ` : ""}${item.name}`,
@@ -555,10 +587,10 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
                   setPage(1);
                   setDateFrom(null);
                   setDateTo(null);
-                  setLocalHomebaseId(data?.filters?.selected_homebase_id);
-                  setLocalPeriodeId(data?.filters?.selected_periode_id);
-                  setLocalGradeId(data?.filters?.selected_grade_id);
-                  setLocalClassId(data?.filters?.selected_class_id);
+                  setLocalHomebaseId(undefined);
+                  setLocalPeriodeId(undefined);
+                  setLocalGradeId(undefined);
+                  setLocalClassId(undefined);
                 }}
               >
                 Reset Filter
