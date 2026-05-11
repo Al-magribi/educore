@@ -300,7 +300,6 @@ const TeacherList = ({
           }}
           onChange={handleDesktopChange}
           rowKey='id'
-          scroll={{ x: 1100 }}
           size='middle'
         />
       )}

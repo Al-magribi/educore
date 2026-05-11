@@ -11,6 +11,7 @@ import {
   Tooltip,
   Typography,
   Grid,
+  Badge,
 } from "antd";
 import {
   PlusOutlined,
@@ -195,91 +196,87 @@ const CenterHome = () => {
       transition={{ duration: 0.2 }}
       style={{ marginBottom: 18 }}
     >
-      <Card
-        variant="borderless"
-        actions={[
-          <Tooltip title="Lihat dashboard detail" key="detail">
-            <Button
-              type="link"
-              icon={<InfoCircleOutlined />}
-              onClick={() => openDetailDashboard(item.id)}
-              style={{ fontWeight: 600 }}
+      <Badge.Ribbon text={item.level} color='blue'>
+        <Card
+          variant='borderless'
+          actions={[
+            <Tooltip title='Lihat dashboard detail' key='detail'>
+              <Button
+                type='link'
+                icon={<InfoCircleOutlined />}
+                onClick={() => openDetailDashboard(item.id)}
+                style={{ fontWeight: 600 }}
+              >
+                Detail
+              </Button>
+            </Tooltip>,
+            <Tooltip title='Edit homebase' key='edit'>
+              <Button
+                type='link'
+                icon={<EditOutlined />}
+                onClick={() => openModal(item)}
+                style={{ color: "#2563eb", fontWeight: 600 }}
+              >
+                Edit
+              </Button>
+            </Tooltip>,
+            <Popconfirm
+              key='delete'
+              title='Hapus Homebase ini?'
+              description='Data yang terhubung seperti kelas dan guru bisa terdampak.'
+              onConfirm={() => handleDelete(item.id)}
+              okText='Ya, Hapus'
+              cancelText='Batal'
             >
-              Detail
-            </Button>
-          </Tooltip>,
-          <Tooltip title="Edit homebase" key="edit">
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => openModal(item)}
-              style={{ color: "#2563eb", fontWeight: 600 }}
+              <Button
+                type='link'
+                danger
+                icon={<DeleteOutlined />}
+                loading={isDeleting}
+                style={{ fontWeight: 600 }}
+              >
+                Hapus
+              </Button>
+            </Popconfirm>,
+          ]}
+          styles={{
+            body: {
+              padding: isMobile ? 18 : 22,
+            },
+            actions: {
+              background: "#fff",
+              borderTop: "1px solid #e2e8f0",
+            },
+          }}
+          style={{
+            borderRadius: 24,
+            overflow: "hidden",
+            border: "1px solid rgba(148, 163, 184, 0.18)",
+            boxShadow: "0 24px 60px rgba(15, 23, 42, 0.08)",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94))",
+          }}
+        >
+          <Space align='start' size={16} style={{ width: "100%" }}>
+            <div
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 18,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background:
+                  "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(59,130,246,0.18))",
+                color: "#1d4ed8",
+                fontSize: 22,
+                flexShrink: 0,
+              }}
             >
-              Edit
-            </Button>
-          </Tooltip>,
-          <Popconfirm
-            key="delete"
-            title="Hapus Homebase ini?"
-            description="Data yang terhubung seperti kelas dan guru bisa terdampak."
-            onConfirm={() => handleDelete(item.id)}
-            okText="Ya, Hapus"
-            cancelText="Batal"
-          >
-            <Button
-              type="link"
-              danger
-              icon={<DeleteOutlined />}
-              loading={isDeleting}
-              style={{ fontWeight: 600 }}
-            >
-              Hapus
-            </Button>
-          </Popconfirm>,
-        ]}
-        styles={{
-          body: {
-            padding: isMobile ? 18 : 22,
-          },
-          actions: {
-            background: "#fff",
-            borderTop: "1px solid #e2e8f0",
-          },
-        }}
-        style={{
-          borderRadius: 24,
-          overflow: "hidden",
-          border: "1px solid rgba(148, 163, 184, 0.18)",
-          boxShadow: "0 24px 60px rgba(15, 23, 42, 0.08)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94))",
-        }}
-      >
-        <Space align="start" size={16} style={{ width: "100%" }}>
-          <div
-            style={{
-              width: 54,
-              height: 54,
-              borderRadius: 18,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background:
-                "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(59,130,246,0.18))",
-              color: "#1d4ed8",
-              fontSize: 22,
-              flexShrink: 0,
-            }}
-          >
-            <HomeOutlined />
-          </div>
+              <HomeOutlined />
+            </div>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <Space
-              wrap
-              size={[10, 10]}
-              style={{ marginBottom: 10, width: "100%" }}
-            >
+            <div style={{ flex: 1, minWidth: 0 }}>
               <Title
                 level={4}
                 style={{
@@ -291,62 +288,51 @@ const CenterHome = () => {
               >
                 {item.name}
               </Title>
-              <Tag
-                color="blue"
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  fontWeight: 600,
-                  marginInlineEnd: 0,
-                }}
-              >
-                {item.level || "Jenjang belum diatur"}
-              </Tag>
-            </Space>
 
-            <Text
-              type="secondary"
-              style={{
-                display: "block",
-                fontSize: 13.5,
-                lineHeight: 1.7,
-                color: "#475569",
-                marginBottom: 14,
-              }}
-            >
-              {item.description || "Belum ada deskripsi untuk homebase ini."}
-            </Text>
-
-            <Space wrap size={[12, 10]}>
-              <Tag
+              <Text
+                type='secondary'
                 style={{
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  marginInlineEnd: 0,
-                  color: "#0f172a",
-                  background: "#f8fafc",
-                  borderColor: "#e2e8f0",
-                }}
-              >
-                ID: {item.id}
-              </Tag>
-              <Tag
-                icon={<CalendarOutlined />}
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  marginInlineEnd: 0,
+                  display: "block",
+                  fontSize: 13.5,
+                  lineHeight: 1.7,
                   color: "#475569",
-                  background: "#fff",
-                  borderColor: "#e2e8f0",
+                  marginBottom: 14,
                 }}
               >
-                Dibuat {formatDate(item.created_at)}
-              </Tag>
-            </Space>
-          </div>
-        </Space>
-      </Card>
+                {item.description || "Belum ada deskripsi untuk homebase ini."}
+              </Text>
+
+              <Space wrap size={[12, 10]}>
+                <Tag
+                  style={{
+                    borderRadius: 999,
+                    paddingInline: 10,
+                    marginInlineEnd: 0,
+                    color: "#0f172a",
+                    background: "#f8fafc",
+                    borderColor: "#e2e8f0",
+                  }}
+                >
+                  ID: {item.id}
+                </Tag>
+                <Tag
+                  icon={<CalendarOutlined />}
+                  style={{
+                    borderRadius: 999,
+                    paddingInline: 10,
+                    marginInlineEnd: 0,
+                    color: "#475569",
+                    background: "#fff",
+                    borderColor: "#e2e8f0",
+                  }}
+                >
+                  Dibuat {formatDate(item.created_at)}
+                </Tag>
+              </Space>
+            </div>
+          </Space>
+        </Card>
+      </Badge.Ribbon>
     </MotionDiv>
   );
 
@@ -354,13 +340,13 @@ const CenterHome = () => {
     <>
       <MotionDiv
         variants={containerVariants}
-        initial="hidden"
-        animate="show"
+        initial='hidden'
+        animate='show'
         style={{ display: "grid", gap: 18 }}
       >
         <MotionDiv variants={itemVariants}>
           <Card
-            variant="borderless"
+            variant='borderless'
             style={{
               borderRadius: 22,
               overflow: "hidden",
@@ -375,7 +361,7 @@ const CenterHome = () => {
               },
             }}
           >
-            <Space orientation="vertical" size={14} style={{ width: "100%" }}>
+            <Space orientation='vertical' size={14} style={{ width: "100%" }}>
               <Tag
                 style={{
                   width: "fit-content",
@@ -424,7 +410,7 @@ const CenterHome = () => {
                 style={{ width: "100%", justifyContent: "space-between" }}
               >
                 <Input
-                  placeholder="Cari homebase..."
+                  placeholder='Cari homebase...'
                   prefix={<SearchOutlined style={{ color: "#64748b" }} />}
                   allowClear
                   onChange={(e) => {
@@ -440,10 +426,10 @@ const CenterHome = () => {
                   }}
                 />
                 <Button
-                  type="primary"
+                  type='primary'
                   icon={<PlusOutlined />}
                   onClick={() => openModal(null)}
-                  size="large"
+                  size='large'
                   style={{
                     borderRadius: 999,
                     height: 42,
@@ -468,8 +454,8 @@ const CenterHome = () => {
             hasMore={hasMore}
             onLoadMore={handleLoadMore}
             renderItem={renderHomebaseItem}
-            height="68vh"
-            emptyText="Belum ada data satuan pendidikan"
+            height='68vh'
+            emptyText='Belum ada data satuan pendidikan'
           />
         </MotionDiv>
       </MotionDiv>
