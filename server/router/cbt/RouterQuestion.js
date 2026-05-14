@@ -81,6 +81,24 @@ const normalizeRubricItems = (rubric = []) => {
     .filter((item) => item.criteria_name);
 };
 
+const normalizeRichTextField = (value) => {
+  if (value === undefined || value === null) return "";
+  return String(value);
+};
+
+const normalizeQuestionOptions = (options = []) => {
+  if (!Array.isArray(options)) return [];
+
+  return options.map((option) => ({
+    label:
+      option?.label === undefined || option?.label === null
+        ? null
+        : String(option.label),
+    content: normalizeRichTextField(option?.content),
+    is_correct: Boolean(option?.is_correct),
+  }));
+};
+
 /**
  * TIPE SOAL MAPPING (Frontend & Backend Agreement):
  * 1: PG Tunggal (Single Choice)
@@ -146,7 +164,7 @@ router.get(
 
     // Ambil Soal
     const sqlQuestion = `
-      SELECT id, q_type, bloom_level, content, score_point 
+      SELECT id, q_type, bloom_level, COALESCE(content, '') AS content, score_point 
       FROM cbt.c_question
       WHERE bank_id = $1 
       ORDER BY id ASC
@@ -158,7 +176,7 @@ router.get(
     if (questions.length > 0) {
       const qIds = questions.map((q) => q.id);
       const sqlOptions = `
-        SELECT id, question_id, label, content, is_correct 
+        SELECT id, question_id, COALESCE(label, '') AS label, COALESCE(content, '') AS content, is_correct 
         FROM cbt.c_question_options
         WHERE question_id = ANY($1::int[]) 
         ORDER BY id ASC
@@ -176,7 +194,7 @@ router.get(
       const qIds = questions.map((q) => q.id);
       const rubricResult = await pool.query(
         `
-          SELECT id, question_id, template_id, criteria_name, criteria_description, max_score, order_no
+          SELECT id, question_id, template_id, COALESCE(criteria_name, '') AS criteria_name, COALESCE(criteria_description, '') AS criteria_description, max_score, order_no
           FROM cbt.c_question_rubric
           WHERE question_id = ANY($1::int[])
           ORDER BY question_id ASC, order_no ASC, id ASC
@@ -213,6 +231,8 @@ router.post(
     } =
       req.body;
     const normalizedBloomLevel = normalizeBloomLevel(bloom_level);
+    const normalizedContent = normalizeRichTextField(content);
+    const normalizedOptions = normalizeQuestionOptions(options);
     const normalizedRubric = q_type === 3 ? normalizeRubricItems(rubric) : [];
 
     // Insert Soal
@@ -224,24 +244,25 @@ router.post(
       bank_id,
       q_type,
       normalizedBloomLevel,
-      content,
+      normalizedContent,
       score_point || 1,
     ]);
     const questionId = resQ.rows[0].id;
 
     // Insert Opsi (Jika ada)
     // Essay Uraian mungkin tidak punya opsi, tapi Essay Singkat punya (kunci jawaban)
-    if (options && options.length > 0) {
+    if (normalizedOptions.length > 0) {
       const sqlOpt = `
         INSERT INTO cbt.c_question_options (question_id, label, content, is_correct)
         VALUES ($1, $2, $3, $4)
       `;
-      for (const opt of options) {
-        // Sanitasi dasar
-        const label = opt.label || null;
-        const content = opt.content || "";
-        const isCorrect = opt.is_correct || false;
-        await client.query(sqlOpt, [questionId, label, content, isCorrect]);
+      for (const opt of normalizedOptions) {
+        await client.query(sqlOpt, [
+          questionId,
+          opt.label,
+          opt.content,
+          opt.is_correct,
+        ]);
       }
     }
 
@@ -305,12 +326,14 @@ router.put(
       rubric,
     } = req.body;
     const normalizedBloomLevel = normalizeBloomLevel(bloom_level);
+    const normalizedContent = normalizeRichTextField(content);
+    const normalizedOptions = normalizeQuestionOptions(options);
     const normalizedRubric = q_type === 3 ? normalizeRubricItems(rubric) : [];
 
     // Update Header Soal
     await client.query(
       `UPDATE cbt.c_question SET content=$1, score_point=$2, q_type=$3, bloom_level=$4 WHERE id=$5`,
-      [content, score_point, q_type, normalizedBloomLevel, id],
+      [normalizedContent, score_point, q_type, normalizedBloomLevel, id],
     );
 
     // Update Opsi: Strategi paling aman & mudah adalah Delete All -> Insert New
@@ -319,18 +342,13 @@ router.put(
       id,
     ]);
 
-    if (options && options.length > 0) {
+    if (normalizedOptions.length > 0) {
       const sqlOpt = `
         INSERT INTO cbt.c_question_options (question_id, label, content, is_correct)
         VALUES ($1, $2, $3, $4)
       `;
-      for (const opt of options) {
-        await client.query(sqlOpt, [
-          id,
-          opt.label || null,
-          opt.content || "",
-          opt.is_correct || false,
-        ]);
+      for (const opt of normalizedOptions) {
+        await client.query(sqlOpt, [id, opt.label, opt.content, opt.is_correct]);
       }
     }
 
@@ -405,6 +423,8 @@ router.post(
 
     for (const q of questions) {
       const normalizedBloomLevel = normalizeBloomLevel(q.bloom_level);
+      const normalizedContent = normalizeRichTextField(q.content);
+      const normalizedOptions = normalizeQuestionOptions(q.options);
       // 1. Insert Soal Utama
       const resQ = await client.query(
         `INSERT INTO cbt.c_question (bank_id, q_type, bloom_level, content, score_point)
@@ -413,7 +433,7 @@ router.post(
           q.bank_soal_id,
           q.q_type,
           normalizedBloomLevel,
-          q.content,
+          normalizedContent,
           q.score_point,
         ], // score_weight dari frontend
       );
@@ -421,12 +441,12 @@ router.post(
       const questionId = resQ.rows[0].id;
 
       // 2. Insert Opsi/Jawaban
-      if (q.options && q.options.length > 0) {
+      if (normalizedOptions.length > 0) {
         const optQuery = `INSERT INTO cbt.c_question_options (question_id, label, content, is_correct) VALUES ($1, $2, $3, $4)`;
-        for (const opt of q.options) {
+        for (const opt of normalizedOptions) {
           await client.query(optQuery, [
             questionId,
-            opt.label || "", // Sekarang bisa menampung teks panjang hasil split '|'
+            opt.label,
             opt.content,
             opt.is_correct,
           ]);

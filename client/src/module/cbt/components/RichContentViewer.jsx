@@ -1,12 +1,14 @@
+/* eslint-disable no-useless-escape */
 import React, { useEffect, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 
 const QL_FORMULA_REGEX =
-  /<span([^>]*)class=["']([^"']*\bql-formula\b[^"']*)["']([^>]*)data-value=["']([^"']+)["']([^>]*)><\/span>/gi;
+  /<span([^>]*)class=["']([^"']*\bql-formula\b[^"']*)["']([^>]*)data-value=["']([^"']+)["']([^>]*)>[\s\S]*?<\/span>/gi;
 
 const INLINE_FORMULA_REGEX = /\$([^$]+)\$/g;
+const BLOCK_FORMULA_REGEX = /\$\$([\s\S]+?)\$\$/g;
 
 const MATH_TEXT_PATTERN =
   /\\[a-zA-Z]+|[\^_=]|[+\-*/]|[(){}\[\]]|\d+\s*(?:x|×|÷|\/|\+|\-|\*|=)\s*\d+/;
@@ -25,10 +27,32 @@ const looksLikeStandaloneMath = (text = "") => {
   return /^[0-9A-Za-z\\^_=+\-*/().,{}[\]|<>:%×÷]+$/.test(normalized);
 };
 
-const prepareHtmlContent = (value) => {
+const escapeHtml = (value = "") =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const hasHtmlMarkup = (value = "") => /<\/?[a-z][\s\S]*>/i.test(String(value));
+
+const normalizeRawContentToHtml = (value) => {
   if (typeof value !== "string" || !value) return "";
 
-  const normalizedFormulaSpans = value.replace(
+  const normalizedValue = value.replace(/\r\n/g, "\n");
+  if (hasHtmlMarkup(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return escapeHtml(normalizedValue).replace(/\n/g, "<br />");
+};
+
+const prepareHtmlContent = (value) => {
+  const normalizedInput = normalizeRawContentToHtml(value);
+  if (!normalizedInput) return "";
+
+  const normalizedFormulaSpans = normalizedInput.replace(
     QL_FORMULA_REGEX,
     (_, beforeClass, classValue, betweenAttrs, formula, afterAttrs) =>
       `<span${beforeClass}class="${classValue}"${betweenAttrs}data-value="${formula}"${afterAttrs}></span>`,
@@ -38,10 +62,39 @@ const prepareHtmlContent = (value) => {
     return normalizedFormulaSpans;
   }
 
-  return normalizedFormulaSpans.replace(
-    INLINE_FORMULA_REGEX,
-    (_, formula) => `<span class="ql-formula" data-value="${formula}"></span>`,
-  );
+  return normalizedFormulaSpans
+    .replace(
+      BLOCK_FORMULA_REGEX,
+      (_, formula) =>
+        `<p><span class="ql-formula" data-value="${formula.trim()}"></span></p>`,
+    )
+    .replace(
+      INLINE_FORMULA_REGEX,
+      (_, formula) => `<span class="ql-formula" data-value="${formula}"></span>`,
+    );
+};
+
+const replaceStandaloneMathTextNodes = (root) => {
+  const textNodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    const parent = node.parentElement;
+    if (!parent) return;
+    if (parent.closest(".ql-formula, .katex, script, style")) return;
+
+    const textContent = node.textContent || "";
+    if (!looksLikeStandaloneMath(textContent)) return;
+
+    const formulaNode = document.createElement("span");
+    formulaNode.className = "ql-formula";
+    formulaNode.setAttribute("data-value", textContent.trim());
+    node.replaceWith(formulaNode);
+  });
 };
 
 const RichContentViewer = ({ value, className = "", style }) => {
@@ -64,6 +117,8 @@ const RichContentViewer = ({ value, className = "", style }) => {
         node.textContent = formula;
       }
     };
+
+    replaceStandaloneMathTextNodes(container);
 
     const candidateElements = container.querySelectorAll("p, li, div, span");
     candidateElements.forEach((element) => {
