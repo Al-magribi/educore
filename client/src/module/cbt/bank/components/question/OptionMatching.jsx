@@ -4,8 +4,9 @@ import { Form, Input, Button, Alert, Typography, Grid, Card, Flex } from "antd";
 import { Plus, Trash2, GitMerge } from "lucide-react";
 import "katex/dist/katex.min.css";
 import { InlineMath } from "react-katex";
+import TextEditor from "./TextEditor";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -68,7 +69,11 @@ const OptionMatching = () => {
                       rules={[{ required: true, message: "Isi premis" }]}
                       style={{ marginBottom: 0, flex: 1, width: "100%" }}
                     >
-                      <Input placeholder="Premis" size="large" style={{ borderRadius: 12 }} />
+                      <TextEditor
+                        variant="short"
+                        placeholder="Premis"
+                        height="120px"
+                      />
                     </Form.Item>
 
                     <div
@@ -90,7 +95,11 @@ const OptionMatching = () => {
                       rules={[{ required: true, message: "Isi pasangan" }]}
                       style={{ marginBottom: 0, flex: 1, width: "100%" }}
                     >
-                      <Input placeholder="Jawaban" size="large" style={{ borderRadius: 12 }} />
+                      <TextEditor
+                        variant="short"
+                        placeholder="Jawaban"
+                        height="120px"
+                      />
                     </Form.Item>
 
                     <Button
