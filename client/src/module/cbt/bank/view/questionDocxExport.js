@@ -25,9 +25,10 @@ const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const QL_FORMULA_REGEX =
-  /<span([^>]*)class=["']([^"']*\bql-formula\b[^"']*)["']([^>]*)data-value=["']([^"']+)["']([^>]*)><\/span>/gi;
+  /<span([^>]*)class=["']([^"']*\bql-formula\b[^"']*)["']([^>]*)data-value=["']([^"']+)["']([^>]*)>[\s\S]*?<\/span>/gi;
 
 const INLINE_FORMULA_REGEX = /\$([^$]+)\$/g;
+const BLOCK_FORMULA_REGEX = /\$\$([\s\S]+?)\$\$/g;
 
 const MATH_TEXT_PATTERN =
   /\\[a-zA-Z]+|[\^_=]|[+\-*/]|[(){}\[\]]|\d+\s*(?:x|×|÷|\/|\+|\-|\*|=)\s*\d+/;
@@ -51,10 +52,24 @@ const looksLikeStandaloneMath = (text = "") => {
   return /^[0-9A-Za-z\\^_=+\-*/().,{}[\]|<>:%×÷]+$/.test(normalized);
 };
 
-const prepareHtmlContent = (value) => {
+const hasHtmlMarkup = (value = "") => /<\/?[a-z][\s\S]*>/i.test(String(value));
+
+const normalizeRawContentToHtml = (value) => {
   if (typeof value !== "string" || !value) return "";
 
-  const normalizedFormulaSpans = value.replace(
+  const normalizedValue = value.replace(/\r\n/g, "\n");
+  if (hasHtmlMarkup(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return escapeHtml(normalizedValue).replace(/\n/g, "<br />");
+};
+
+const prepareHtmlContent = (value) => {
+  const normalizedInput = normalizeRawContentToHtml(value);
+  if (!normalizedInput) return "";
+
+  const normalizedFormulaSpans = normalizedInput.replace(
     QL_FORMULA_REGEX,
     (_, beforeClass, classValue, betweenAttrs, formula, afterAttrs) =>
       `<span${beforeClass}class="${classValue}"${betweenAttrs}data-value="${formula}"${afterAttrs}></span>`,
@@ -64,10 +79,16 @@ const prepareHtmlContent = (value) => {
     return normalizedFormulaSpans;
   }
 
-  return normalizedFormulaSpans.replace(
-    INLINE_FORMULA_REGEX,
-    (_, formula) => `<span class="ql-formula" data-value="${formula}"></span>`,
-  );
+  return normalizedFormulaSpans
+    .replace(
+      BLOCK_FORMULA_REGEX,
+      (_, formula) =>
+        `<p><span class="ql-formula" data-value="${formula.trim()}"></span></p>`,
+    )
+    .replace(
+      INLINE_FORMULA_REGEX,
+      (_, formula) => `<span class="ql-formula" data-value="${formula}"></span>`,
+    );
 };
 
 const toBrowserBuffer = (bytes) => {
@@ -672,6 +693,29 @@ const replaceEmbeddedMedia = (root) => {
   });
 };
 
+const replaceStandaloneMathTextNodes = (root) => {
+  const textNodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    const parent = node.parentElement;
+    if (!parent) return;
+    if (parent.closest(".ql-formula, .katex, script, style")) return;
+
+    const textContent = node.textContent || "";
+    if (!looksLikeStandaloneMath(textContent)) return;
+
+    const formulaNode = document.createElement("span");
+    formulaNode.className = "ql-formula";
+    formulaNode.setAttribute("data-value", textContent.trim());
+    node.replaceWith(formulaNode);
+  });
+};
+
 const prepareRichHtml = async (value, imageCache, formulaCache) => {
   if (!value) return "";
 
@@ -685,6 +729,7 @@ const prepareRichHtml = async (value, imageCache, formulaCache) => {
   if (!root) return "";
 
   replaceEmbeddedMedia(root);
+  replaceStandaloneMathTextNodes(root);
 
   const candidateElements = root.querySelectorAll("p, li, div, span");
   candidateElements.forEach((element) => {
@@ -790,6 +835,48 @@ const buildMetaLine = (question) => {
   `;
 };
 
+const buildRubricHtml = (question) => {
+  if (question.q_type !== 3) return "";
+
+  const rubricItems = Array.isArray(question.preparedRubric)
+    ? question.preparedRubric
+    : [];
+
+  if (!rubricItems.length) {
+    return `<p class="muted">Rubric penilaian belum tersedia.</p>`;
+  }
+
+  const rows = rubricItems
+    .map(
+      (item, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${item.criteria_name || "-"}</td>
+          <td>${item.criteria_description || "-"}</td>
+          <td>${escapeHtml(item.max_score || 0)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  return `
+    <div class="rubric-section">
+      <p><strong>Rubric Penilaian:</strong></p>
+      <table class="plain-table rubric-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Aspek</th>
+            <th>Deskripsi</th>
+            <th>Poin</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+};
+
 const buildOptionsHtml = (question, preparedOptions) => {
   if (!preparedOptions.length) {
     return `<p class="muted">Tidak ada opsi jawaban.</p>`;
@@ -801,8 +888,8 @@ const buildOptionsHtml = (question, preparedOptions) => {
         (option, index) => `
           <tr>
             <td>${index + 1}</td>
-            <td>${option.content || "-"}</td>
             <td>${option.label || "-"}</td>
+            <td>${option.content || "-"}</td>
           </tr>
         `,
       )
@@ -811,6 +898,13 @@ const buildOptionsHtml = (question, preparedOptions) => {
     return `
       <p><strong>Opsi:</strong></p>
       <table class="plain-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Premis</th>
+            <th>Pasangan Jawaban</th>
+          </tr>
+        </thead>
         <tbody>${rows}</tbody>
       </table>
     `;
@@ -824,17 +918,19 @@ const buildOptionsHtml = (question, preparedOptions) => {
           : `${String.fromCharCode(65 + index)}.`;
 
       return `
-        <li>
-          <span class="option-marker">${marker}</span>
-          <div class="option-content">${option.content || "-"}</div>
-        </li>
+        <tr>
+          <td class="option-marker-cell">${marker}</td>
+          <td class="option-content-cell">${option.content || "-"}</td>
+        </tr>
       `;
     })
     .join("");
 
   return `
     <p><strong>Opsi:</strong></p>
-    <ol class="options-list">${items}</ol>
+    <table class="plain-table options-table">
+      <tbody>${items}</tbody>
+    </table>
   `;
 };
 
@@ -851,7 +947,13 @@ const buildAnswerKeyHtml = (question, preparedOptions) => {
     const items = preparedOptions
       .map(
         (option, index) => `
-          <li>${index + 1}. ${option.content || "-"} - ${option.label || "-"}</li>
+          <li>
+            <strong>${index + 1}.</strong>
+            <div class="matching-answer-row">
+              <div><strong>Premis:</strong> ${option.label || "-"}</div>
+              <div><strong>Pasangan:</strong> ${option.content || "-"}</div>
+            </div>
+          </li>
         `,
       )
       .join("");
@@ -859,7 +961,7 @@ const buildAnswerKeyHtml = (question, preparedOptions) => {
     return `
       <div class="answer-key">
         <strong>Kunci Jawaban:</strong>
-        <ol>${items}</ol>
+        <ol class="answer-list">${items}</ol>
       </div>
     `;
   }
@@ -872,21 +974,69 @@ const buildAnswerKeyHtml = (question, preparedOptions) => {
     return `<p class="answer-key">Kunci Jawaban: Tidak tersedia</p>`;
   }
 
+  if (question.q_type === 5) {
+    const items = preparedOptions
+      .map((option, index) => {
+        const marker = String.fromCharCode(65 + index);
+        const status = question.options?.[index]?.is_correct ? "Benar" : "Salah";
+
+        return `
+          <li>
+            <strong>${marker}.</strong>
+            <div class="answer-list-item">
+              <div>${option.content || "-"}</div>
+              <div><strong>Status:</strong> ${status}</div>
+            </div>
+          </li>
+        `;
+      })
+      .join("");
+
+    return `
+      <div class="answer-key">
+        <strong>Kunci Jawaban:</strong>
+        <ol class="answer-list">${items}</ol>
+      </div>
+    `;
+  }
+
   if (question.q_type === 4) {
     const answers = correctOptions
-      .map((option) => option.content || "-")
-      .join(", ");
-    return `<p class="answer-key"><strong>Kunci Jawaban:</strong> ${answers}</p>`;
+      .map(
+        (option, index) => `
+          <li>
+            <strong>${index + 1}.</strong>
+            <div class="answer-list-item">${option.content || "-"}</div>
+          </li>
+        `,
+      )
+      .join("");
+    return `
+      <div class="answer-key">
+        <strong>Kunci Jawaban:</strong>
+        <ol class="answer-list">${answers}</ol>
+      </div>
+    `;
   }
 
   const answers = correctOptions
     .map((option) => {
       const actualIndex = preparedOptions.indexOf(option);
-      return `${String.fromCharCode(65 + actualIndex)} (${option.content || "-"})`;
+      return `
+        <li>
+          <strong>${String.fromCharCode(65 + actualIndex)}.</strong>
+          <div class="answer-list-item">${option.content || "-"}</div>
+        </li>
+      `;
     })
-    .join(", ");
+    .join("");
 
-  return `<p class="answer-key"><strong>Kunci Jawaban:</strong> ${answers}</p>`;
+  return `
+    <div class="answer-key">
+      <strong>Kunci Jawaban:</strong>
+      <ol class="answer-list">${answers}</ol>
+    </div>
+  `;
 };
 
 const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
@@ -899,6 +1049,7 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
           <p><strong>Pertanyaan:</strong></p>
           <div class="question-content">${question.preparedContent || ""}</div>
           ${buildOptionsHtml(question, question.preparedOptions || [])}
+          ${buildRubricHtml(question)}
           ${buildAnswerKeyHtml(question, question.preparedOptions || [])}
         </section>
       `,
@@ -956,17 +1107,46 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
             border-collapse: collapse;
             margin: 0 0 10px;
           }
+          .plain-table th,
           .plain-table td {
-            padding: 4px 6px 4px 0;
+            padding: 6px 8px;
             vertical-align: top;
             text-align: left;
+            border: 1px solid #cbd5e1;
+          }
+          .plain-table th {
+            background: #f8fafc;
+          }
+          .plain-table td:first-child,
+          .plain-table th:first-child {
+            width: 44px;
+          }
+          .options-table .option-marker-cell {
+            width: 44px;
+            white-space: nowrap;
+            font-weight: 700;
+          }
+          .options-table .option-content-cell {
+            width: auto;
           }
           .answer-key {
             margin-top: 8px;
           }
+          .answer-list,
           .answer-key ol {
             margin: 6px 0 0 18px;
             padding: 0;
+          }
+          .answer-list li {
+            margin-bottom: 6px;
+          }
+          .answer-list-item,
+          .matching-answer-row {
+            display: inline-block;
+            vertical-align: top;
+          }
+          .rubric-section {
+            margin-top: 10px;
           }
           .muted {
             color: #64748b;
@@ -1017,11 +1197,23 @@ export const exportQuestionsToDocx = async ({ bankName, questions }) => {
           label: await prepareRichHtml(option.label, imageCache, formulaCache),
         })),
       );
+      const preparedRubric = await Promise.all(
+        (question.rubric || []).map(async (item) => ({
+          ...item,
+          criteria_name: escapeHtml(item.criteria_name || ""),
+          criteria_description: await prepareRichHtml(
+            item.criteria_description,
+            imageCache,
+            formulaCache,
+          ),
+        })),
+      );
 
       return {
         ...question,
         preparedContent,
         preparedOptions,
+        preparedRubric,
       };
     }),
   );
