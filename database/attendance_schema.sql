@@ -2,6 +2,7 @@ CREATE SCHEMA IF NOT EXISTS attendance;
 
 BEGIN;
 SET search_path TO attendance, public;
+SET TIME ZONE 'Asia/Jakarta';
 
 CREATE TABLE attendance_policy(
     id SERIAL NOT NULL,
@@ -13,8 +14,8 @@ CREATE TABLE attendance_policy(
     description text,
     is_active boolean NOT NULL DEFAULT true,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT attendance_policy_target_role_check
         CHECK (target_role IN ('student', 'teacher')),
@@ -40,8 +41,8 @@ CREATE TABLE attendance_policy_day_rule(
     checkout_is_optional boolean NOT NULL DEFAULT false,
     min_presence_minutes integer,
     notes text,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT attendance_policy_day_rule_day_check
         CHECK (day_of_week BETWEEN 1 AND 7),
@@ -79,8 +80,8 @@ CREATE TABLE attendance_policy_assignment(
     effective_end_date date,
     is_active boolean NOT NULL DEFAULT true,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT attendance_policy_assignment_scope_check
         CHECK (assignment_scope IN ('user', 'class', 'grade', 'homebase')),
@@ -115,8 +116,8 @@ CREATE TABLE attendance_holiday(
     applies_to_role varchar(20) DEFAULT 'all',
     is_active boolean NOT NULL DEFAULT true,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT attendance_holiday_role_check
         CHECK (applies_to_role IN ('all', 'student', 'teacher'))
@@ -133,8 +134,8 @@ CREATE TABLE attendance_feature_setting(
     is_enabled boolean NOT NULL DEFAULT true,
     notes text,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT attendance_feature_setting_code_check
         CHECK (
@@ -165,11 +166,11 @@ CREATE TABLE rfid_device(
     api_token text NOT NULL,
     firmware_version varchar(50),
     is_active boolean NOT NULL DEFAULT true,
-    last_seen_at timestamp without time zone,
-    installed_at timestamp without time zone,
+    last_seen_at timestamp with time zone,
+    installed_at timestamp with time zone,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT rfid_device_type_check
         CHECK (device_type IN ('gate', 'classroom')),
@@ -193,14 +194,14 @@ CREATE TABLE rfid_card(
     card_uid varchar(100) NOT NULL,
     card_number varchar(100),
     card_type varchar(20) NOT NULL DEFAULT 'rfid',
-    issued_at timestamp without time zone,
-    expired_at timestamp without time zone,
+    issued_at timestamp with time zone,
+    expired_at timestamp with time zone,
     is_primary boolean NOT NULL DEFAULT true,
     is_active boolean NOT NULL DEFAULT true,
     notes text,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT rfid_card_type_check
         CHECK (card_type IN ('rfid', 'nfc')),
@@ -226,13 +227,13 @@ CREATE TABLE rfid_scan_log(
     scan_source varchar(20) NOT NULL,
     scan_action varchar(30),
     card_uid varchar(100) NOT NULL,
-    scanned_at timestamp without time zone NOT NULL,
-    device_time_at timestamp without time zone,
-    server_received_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    scanned_at timestamp with time zone NOT NULL,
+    device_time_at timestamp with time zone,
+    server_received_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     result_status varchar(30) NOT NULL DEFAULT 'accepted',
     rejection_reason text,
     raw_payload jsonb DEFAULT '{}'::jsonb,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT rfid_scan_log_source_check
         CHECK (scan_source IN ('gate', 'classroom')),
@@ -282,8 +283,8 @@ CREATE TABLE daily_attendance(
     policy_type varchar(30),
     required_to_attend boolean NOT NULL DEFAULT true,
     requirement_source varchar(30) NOT NULL DEFAULT 'policy',
-    checkin_at timestamp without time zone,
-    checkout_at timestamp without time zone,
+    checkin_at timestamp with time zone,
+    checkout_at timestamp with time zone,
     first_gate_scan_id bigint REFERENCES attendance.rfid_scan_log(id) ON DELETE SET NULL,
     last_gate_scan_id bigint REFERENCES attendance.rfid_scan_log(id) ON DELETE SET NULL,
     attendance_status varchar(30) NOT NULL DEFAULT 'pending',
@@ -294,9 +295,9 @@ CREATE TABLE daily_attendance(
     is_early_checkout boolean NOT NULL DEFAULT false,
     has_midday_exit boolean NOT NULL DEFAULT false,
     notes text,
-    evaluated_at timestamp without time zone,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    evaluated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT daily_attendance_role_check
         CHECK (target_role IN ('student', 'teacher')),
@@ -341,12 +342,12 @@ CREATE TABLE daily_attendance_event(
     attendance_id bigint NOT NULL REFERENCES attendance.daily_attendance(id) ON DELETE CASCADE,
     scan_log_id bigint REFERENCES attendance.rfid_scan_log(id) ON DELETE SET NULL,
     event_type varchar(30) NOT NULL,
-    event_time timestamp without time zone NOT NULL,
+    event_time timestamp with time zone NOT NULL,
     event_source varchar(20) NOT NULL DEFAULT 'rfid',
     event_result varchar(20) NOT NULL DEFAULT 'applied',
     notes text,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT daily_attendance_event_type_check
         CHECK (
@@ -377,16 +378,16 @@ CREATE TABLE teacher_schedule_requirement(
     first_slot_id integer REFERENCES lms.l_time_slot(id) ON DELETE SET NULL,
     last_slot_id integer REFERENCES lms.l_time_slot(id) ON DELETE SET NULL,
     class_id integer NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
-    planned_start_at timestamp without time zone,
-    planned_end_at timestamp without time zone,
-    actual_checkin_at timestamp without time zone,
-    actual_checkout_at timestamp without time zone,
+    planned_start_at timestamp with time zone,
+    planned_end_at timestamp with time zone,
+    actual_checkin_at timestamp with time zone,
+    actual_checkout_at timestamp with time zone,
     teacher_session_log_id integer REFERENCES lms.l_teacher_session_log(id) ON DELETE SET NULL,
     session_status varchar(30) NOT NULL DEFAULT 'pending',
     late_minutes integer NOT NULL DEFAULT 0,
     notes text,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT teacher_schedule_requirement_status_check
         CHECK (
@@ -424,7 +425,7 @@ CREATE TABLE attendance_manual_adjustment(
     reason text NOT NULL,
     approved_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT attendance_manual_adjustment_target_check
         CHECK (target_type IN ('daily_attendance', 'teacher_session')),
@@ -456,3 +457,5 @@ FOREIGN KEY(attendance_id) REFERENCES attendance.daily_attendance(id) ON DELETE 
 
 SET search_path TO public;
 COMMIT;
+
+
