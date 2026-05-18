@@ -85,9 +85,15 @@ const Report = ({ exam_id, exam_name, token }) => {
   const { data: attendanceResponse, isLoading: attendanceLoading } =
     useGetExamAttendanceQuery({ exam_id }, { skip: !exam_id });
   const { data: scoreResponse, isLoading: scoreLoading } =
-    useGetExamScoresQuery({ exam_id }, { skip: !exam_id });
+    useGetExamScoresQuery(
+      { exam_id },
+      { skip: !exam_id || activeTab !== "scores" },
+    );
   const { data: bloomResponse, isLoading: bloomLoading } =
-    useGetExamBloomAnalysisQuery({ exam_id }, { skip: !exam_id });
+    useGetExamBloomAnalysisQuery(
+      { exam_id },
+      { skip: !exam_id || activeTab !== "bloom-analysis" },
+    );
 
   const attendanceData = useMemo(() => {
     const rows = attendanceResponse?.data || [];
