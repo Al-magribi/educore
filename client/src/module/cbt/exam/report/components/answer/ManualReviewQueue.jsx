@@ -33,7 +33,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   useFinalizeExamStudentAnswerReviewMutation,
   useGetExamAiGradingLatestJobQuery,
-  useGetExamStudentAnswerReportQuery,
+  useGetExamManualReviewSummaryQuery,
   useStartExamAiGradingJobMutation,
 } from "../../../../../../service/cbt/ApiExam";
 
@@ -51,12 +51,7 @@ const MANUAL_TYPE_META = {
   short: { label: "Jawaban Singkat", color: "cyan" },
 };
 
-const getManualTypeKey = (typeLabel = "") => {
-  const normalized = String(typeLabel).toLowerCase();
-  if (normalized.includes("uraian")) return "essay";
-  if (normalized.includes("singkat")) return "short";
-  return "manual";
-};
+const FINALIZE_BATCH_SIZE = 3;
 
 const getFriendlyAiErrorMessage = (errorMessage) => {
   const message = String(errorMessage || "").trim();
@@ -150,7 +145,7 @@ const ManualReviewQueue = ({
     isLoading,
     isFetching,
     refetch: refetchReport,
-  } = useGetExamStudentAnswerReportQuery(
+  } = useGetExamManualReviewSummaryQuery(
     { exam_id: examId },
     { skip: !examId },
   );
@@ -196,56 +191,18 @@ const ManualReviewQueue = ({
     () =>
       students
         .map((student, index) => {
-          const manualAnswers = (student.answers || []).filter((answer) =>
-            ["essay", "short"].includes(
-              getManualTypeKey(answer.type_label || answer.type),
-            ),
-          );
-          const reviewAnswers = manualAnswers.filter((answer) => {
-            const reviewStatus = String(
-              answer.reviewStatus || "",
-            ).toLowerCase();
-            return reviewStatus !== "finalized";
-          });
-          const finalizedAnswers = manualAnswers.filter((answer) => {
-            const reviewStatus = String(
-              answer.reviewStatus || "",
-            ).toLowerCase();
-            return reviewStatus === "finalized";
-          });
-          const reviewTypeCounts = reviewAnswers.reduce((acc, answer) => {
-            const key = getManualTypeKey(answer.type_label);
-            acc[key] = (acc[key] || 0) + 1;
-            return acc;
-          }, {});
-          const finalizedTypeCounts = finalizedAnswers.reduce((acc, answer) => {
-            const key = getManualTypeKey(answer.type_label);
-            acc[key] = (acc[key] || 0) + 1;
-            return acc;
-          }, {});
-
           return {
             ...student,
             key: student.id,
             no: index + 1,
-            review_question_ids: reviewAnswers.map(
-              (answer) => answer.question_id,
-            ),
-            review_count: reviewAnswers.length,
-            review_types: reviewTypeCounts,
-            review_score_total: reviewAnswers.reduce(
-              (sum, answer) => sum + Number(answer.score || 0),
-              0,
-            ),
-            finalized_question_ids: finalizedAnswers.map(
-              (answer) => answer.question_id,
-            ),
-            finalized_count: finalizedAnswers.length,
-            finalized_types: finalizedTypeCounts,
-            finalized_score_total: finalizedAnswers.reduce(
-              (sum, answer) => sum + Number(answer.score || 0),
-              0,
-            ),
+            review_question_ids: student.review_question_ids || [],
+            review_count: Number(student.review_count || 0),
+            review_types: student.review_types || {},
+            review_score_total: Number(student.review_score_total || 0),
+            finalized_question_ids: student.finalized_question_ids || [],
+            finalized_count: Number(student.finalized_count || 0),
+            finalized_types: student.finalized_types || {},
+            finalized_score_total: Number(student.finalized_score_total || 0),
           };
         })
         .filter(
@@ -385,16 +342,26 @@ const ManualReviewQueue = ({
     }
 
     setIsFinalizingAll(true);
-    const results = await Promise.allSettled(
-      targets.map((target) =>
-        finalizeReview({
-          exam_id: examId,
-          student_id: target.studentId,
-          question_id: target.questionId,
-        }).unwrap(),
-      ),
-    );
-    setIsFinalizingAll(false);
+    const results = [];
+
+    try {
+      for (let index = 0; index < targets.length; index += FINALIZE_BATCH_SIZE) {
+        const batch = targets.slice(index, index + FINALIZE_BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+          batch.map((target) =>
+            finalizeReview({
+              exam_id: examId,
+              student_id: target.studentId,
+              question_id: target.questionId,
+              skipInvalidate: true,
+            }).unwrap(),
+          ),
+        );
+        results.push(...batchResults);
+      }
+    } finally {
+      setIsFinalizingAll(false);
+    }
 
     const successCount = results.filter(
       (result) => result.status === "fulfilled",
