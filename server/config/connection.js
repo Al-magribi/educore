@@ -12,7 +12,7 @@ const pool = new Pool({
   password: process.env.P_PASSWORD,
   max: POOL_MAX,
   idleTimeoutMillis: 20000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 // Monitor pool secara berkala, tapi jangan mematikan aplikasi saat ramai.
