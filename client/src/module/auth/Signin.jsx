@@ -10,7 +10,6 @@ import {
   Checkbox,
   Flex,
   ConfigProvider,
-  Space, // 1. Import ConfigProvider
 } from "antd";
 import { UserOutlined, LockOutlined, LoginOutlined } from "@ant-design/icons";
 import { Link } from "react-router-dom";
@@ -38,8 +37,6 @@ const Signin = () => {
       password: (values.password || "").trim(),
     };
 
-    // Menggabungkan role ke dalam values agar dikirim ke backend
-    // Backend perlu tahu role apa yang sedang mencoba login
     const payload = {
       ...sanitizedValues,
       role: getSigninPayloadRole(role),
