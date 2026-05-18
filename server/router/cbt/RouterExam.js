@@ -2159,6 +2159,203 @@ router.get(
   }),
 );
 
+// 2.9.2 GET Lightweight Manual Review Queue (Teacher/Admin)
+router.get(
+  "/exam-attendance/:exam_id/manual-review-summary",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const examId = parseInt(req.params.exam_id, 10);
+    const user = req.user;
+
+    if (!Number.isInteger(examId)) {
+      return res.status(400).json({ message: "Exam ID tidak valid" });
+    }
+
+    const examCheck = await pool.query(
+      `
+        SELECT e.id, b.teacher_id, ut.homebase_id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
+        LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
+        WHERE e.id = $1
+        LIMIT 1
+      `,
+      [examId],
+    );
+
+    if (examCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Ujian tidak ditemukan" });
+    }
+
+    const examOwner = examCheck.rows[0];
+    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+
+    const summaryResult = await pool.query(
+      `
+        WITH student_class AS (
+          SELECT
+            s.user_id,
+            s.nis,
+            u.full_name,
+            COALESCE(s.current_class_id, latest_enrollment.class_id) AS class_id
+          FROM u_students s
+          JOIN u_users u ON u.id = s.user_id
+          LEFT JOIN LATERAL (
+            SELECT class_id
+            FROM u_class_enrollments
+            WHERE student_id = s.user_id
+            ORDER BY id DESC
+            LIMIT 1
+          ) AS latest_enrollment ON true
+        ),
+        roster AS (
+          SELECT DISTINCT
+            sc.user_id,
+            sc.nis,
+            sc.full_name,
+            sc.class_id,
+            c.name AS class_name
+          FROM cbt.c_exam_class ec
+          JOIN a_class c ON c.id = ec.class_id
+          JOIN student_class sc ON sc.class_id = c.id
+          WHERE ec.exam_id = $1
+        ),
+        manual_questions AS (
+          SELECT q.id, q.q_type
+          FROM cbt.c_question q
+          JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+          WHERE e.id = $1 AND q.q_type IN (3, 4)
+        ),
+        manual_items AS (
+          SELECT
+            r.user_id,
+            r.nis,
+            r.full_name,
+            r.class_id,
+            r.class_name,
+            q.id AS question_id,
+            q.q_type,
+            COALESCE(ar.review_status, 'pending') AS review_status,
+            COALESCE(ar.total_score, sa.score_obtained, 0) AS score
+          FROM roster r
+          CROSS JOIN manual_questions q
+          LEFT JOIN cbt.c_student_answer sa
+            ON sa.exam_id = $1
+           AND sa.student_id = r.user_id
+           AND sa.question_id = q.id
+          LEFT JOIN cbt.c_answer_review ar
+            ON ar.exam_id = $1
+           AND ar.student_id = r.user_id
+           AND ar.question_id = q.id
+        )
+        SELECT
+          user_id AS id,
+          nis,
+          full_name AS name,
+          class_id,
+          class_name,
+          COALESCE(SUM(score), 0) AS score,
+          COALESCE(
+            ARRAY_AGG(question_id ORDER BY question_id)
+              FILTER (WHERE review_status <> 'finalized'),
+            ARRAY[]::integer[]
+          ) AS review_question_ids,
+          COUNT(*) FILTER (WHERE review_status <> 'finalized')::int AS review_count,
+          COUNT(*) FILTER (
+            WHERE review_status <> 'finalized' AND q_type = 3
+          )::int AS review_essay_count,
+          COUNT(*) FILTER (
+            WHERE review_status <> 'finalized' AND q_type = 4
+          )::int AS review_short_count,
+          COALESCE(SUM(score) FILTER (WHERE review_status <> 'finalized'), 0) AS review_score_total,
+          COALESCE(
+            ARRAY_AGG(question_id ORDER BY question_id)
+              FILTER (WHERE review_status = 'finalized'),
+            ARRAY[]::integer[]
+          ) AS finalized_question_ids,
+          COUNT(*) FILTER (WHERE review_status = 'finalized')::int AS finalized_count,
+          COUNT(*) FILTER (
+            WHERE review_status = 'finalized' AND q_type = 3
+          )::int AS finalized_essay_count,
+          COUNT(*) FILTER (
+            WHERE review_status = 'finalized' AND q_type = 4
+          )::int AS finalized_short_count,
+          COALESCE(SUM(score) FILTER (WHERE review_status = 'finalized'), 0) AS finalized_score_total
+        FROM manual_items
+        GROUP BY user_id, nis, full_name, class_id, class_name
+        HAVING COUNT(*) > 0
+        ORDER BY class_name ASC, full_name ASC
+      `,
+      [examId],
+    );
+
+    const students = summaryResult.rows.map((row, index) => ({
+      id: row.id,
+      key: row.id,
+      no: index + 1,
+      nis: row.nis,
+      name: row.name,
+      class_id: row.class_id,
+      class_name: row.class_name,
+      score: Number(row.score || 0),
+      review_question_ids: row.review_question_ids || [],
+      review_count: Number(row.review_count || 0),
+      review_types: {
+        essay: Number(row.review_essay_count || 0),
+        short: Number(row.review_short_count || 0),
+      },
+      review_score_total: Number(row.review_score_total || 0),
+      finalized_question_ids: row.finalized_question_ids || [],
+      finalized_count: Number(row.finalized_count || 0),
+      finalized_types: {
+        essay: Number(row.finalized_essay_count || 0),
+        short: Number(row.finalized_short_count || 0),
+      },
+      finalized_score_total: Number(row.finalized_score_total || 0),
+    }));
+
+    const classes = [
+      ...students
+        .reduce((acc, student) => {
+          if (!student.class_id) return acc;
+          if (!acc.has(student.class_id)) {
+            acc.set(student.class_id, {
+              id: student.class_id,
+              name: student.class_name,
+              total_students: 0,
+            });
+          }
+          acc.get(student.class_id).total_students += 1;
+          return acc;
+        }, new Map())
+        .values(),
+    ];
+
+    return res.json({
+      data: {
+        students,
+        classes,
+        summary: {
+          total_students: students.length,
+          pending_review_count: students.reduce(
+            (sum, student) => sum + Number(student.review_count || 0),
+            0,
+          ),
+          finalized_count: students.reduce(
+            (sum, student) => sum + Number(student.finalized_count || 0),
+            0,
+          ),
+        },
+      },
+    });
+  }),
+);
+
 // 2.9.2 GET Student Answer Matrix Report (Teacher/Admin)
 router.get(
   "/exam-attendance/:exam_id/student-answer-report",
