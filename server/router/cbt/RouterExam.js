@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isIP } from "node:net";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { getActivePeriode } from "../../utils/helper.js";
 
 const router = Router();
 
@@ -50,6 +51,81 @@ const normalizeIdList = (value) => {
   return value
     .map((id) => parseInt(id, 10))
     .filter((id) => Number.isInteger(id));
+};
+
+const resolveStudentExamScope = async (pool, studentId) => {
+  const studentResult = await pool.query(
+    `SELECT current_class_id, current_periode_id, homebase_id
+     FROM u_students
+     WHERE user_id = $1
+     LIMIT 1`,
+    [studentId],
+  );
+
+  if (studentResult.rowCount === 0) {
+    return null;
+  }
+
+  const student = studentResult.rows[0];
+  let activePeriodeId = student.current_periode_id || null;
+
+  if (!activePeriodeId && student.homebase_id) {
+    try {
+      activePeriodeId = await getActivePeriode(pool, student.homebase_id);
+    } catch {
+      activePeriodeId = null;
+    }
+  }
+
+  const currentClassResult =
+    student.current_class_id && activePeriodeId
+      ? await pool.query(
+          `SELECT c.id AS class_id, c.name AS class_name, c.grade_id
+           FROM a_class c
+           JOIN u_class_enrollments e ON e.class_id = c.id
+           WHERE e.student_id = $1
+             AND e.class_id = $2
+             AND e.periode_id = $3
+           ORDER BY e.id DESC
+           LIMIT 1`,
+          [studentId, student.current_class_id, activePeriodeId],
+        )
+      : { rowCount: 0, rows: [] };
+
+  if (currentClassResult.rowCount > 0) {
+    return currentClassResult.rows[0];
+  }
+
+  const enrollmentResult = await pool.query(
+    `SELECT c.id AS class_id, c.name AS class_name, c.grade_id
+     FROM u_class_enrollments e
+     JOIN a_class c ON e.class_id = c.id
+     WHERE e.student_id = $1
+       AND ($2::int IS NULL OR e.periode_id = $2)
+     ORDER BY
+       CASE WHEN $2::int IS NOT NULL AND e.periode_id = $2 THEN 0 ELSE 1 END,
+       e.id DESC
+     LIMIT 1`,
+    [studentId, activePeriodeId],
+  );
+
+  if (enrollmentResult.rowCount > 0) {
+    return enrollmentResult.rows[0];
+  }
+
+  if (!student.current_class_id) {
+    return null;
+  }
+
+  const fallbackClassResult = await pool.query(
+    `SELECT id AS class_id, name AS class_name, grade_id
+     FROM a_class
+     WHERE id = $1
+     LIMIT 1`,
+    [student.current_class_id],
+  );
+
+  return fallbackClassResult.rows[0] || null;
 };
 
 const extractScalarAnswerId = (value) => {
@@ -875,23 +951,14 @@ const resolveClassIds = async ({
     return { ok: false, status: 403, message: "Grade tidak sesuai homebase" };
   }
 
-  let finalClassIds = classIds;
+  const finalClassIds = [...new Set(classIds)];
 
   if (finalClassIds.length === 0) {
-    const classResult = await pool.query(
-      `
-        SELECT id
-        FROM a_class
-        WHERE homebase_id = $1 AND grade_id = $2
-        ORDER BY name ASC
-      `,
-      [homebaseId, gradeId],
-    );
-    finalClassIds = classResult.rows.map((row) => row.id);
-  }
-
-  if (finalClassIds.length === 0) {
-    return { ok: false, status: 400, message: "Kelas untuk grade ini belum ada" };
+    return {
+      ok: false,
+      status: 400,
+      message: "Pilih minimal 1 kelas untuk jadwal ujian",
+    };
   }
 
   const classCheck = await pool.query(
@@ -1077,25 +1144,9 @@ router.get(
   authorize("student"),
   withQuery(async (req, res, pool) => {
     const userId = req.user.id;
-
-    const studentResult = await pool.query(
-      `SELECT current_class_id FROM u_students WHERE user_id = $1 LIMIT 1`,
-      [userId],
-    );
-
-    const currentClassId = studentResult.rows[0]?.current_class_id || null;
-
-    const enrollmentResult = await pool.query(
-      `SELECT class_id
-       FROM u_class_enrollments
-       WHERE student_id = $1
-       ORDER BY id DESC
-       LIMIT 1`,
-      [userId],
-    );
-
-    const enrollmentClassId = enrollmentResult.rows[0]?.class_id || null;
-    const classId = currentClassId || enrollmentClassId;
+    const studentScope = await resolveStudentExamScope(pool, userId);
+    const classId = studentScope?.class_id || null;
+    const gradeId = studentScope?.grade_id || null;
 
     if (!classId) {
       return res.json({ data: [] });
@@ -1123,10 +1174,13 @@ router.get(
         LEFT JOIN a_grade g ON e.grade_id = g.id
         JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
         JOIN a_class c ON ec.class_id = c.id
-        WHERE ec.class_id = $1 AND e.is_active = true
+        WHERE ec.class_id = $1
+          AND e.is_active = true
+          AND ($2::int IS NULL OR e.grade_id = $2)
+          AND ($2::int IS NULL OR c.grade_id = $2)
         ORDER BY e.created_at DESC
       `,
-      [classId],
+      [classId, gradeId],
     );
 
     res.json({ data: result.rows });
@@ -1145,24 +1199,9 @@ router.post(
       return res.status(400).json({ message: "Token ujian wajib diisi" });
     }
 
-    const studentResult = await pool.query(
-      `SELECT current_class_id FROM u_students WHERE user_id = $1 LIMIT 1`,
-      [userId],
-    );
-
-    const currentClassId = studentResult.rows[0]?.current_class_id || null;
-
-    const enrollmentResult = await pool.query(
-      `SELECT class_id
-       FROM u_class_enrollments
-       WHERE student_id = $1
-       ORDER BY id DESC
-       LIMIT 1`,
-      [userId],
-    );
-
-    const enrollmentClassId = enrollmentResult.rows[0]?.class_id || null;
-    const classId = currentClassId || enrollmentClassId;
+    const studentScope = await resolveStudentExamScope(pool, userId);
+    const classId = studentScope?.class_id || null;
+    const gradeId = studentScope?.grade_id || null;
 
     if (!classId) {
       return res.status(400).json({ message: "Kelas siswa tidak ditemukan" });
@@ -1173,13 +1212,16 @@ router.post(
         SELECT e.id, e.duration_minutes
         FROM cbt.c_exam e
         JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
+        JOIN a_class c ON ec.class_id = c.id
         WHERE e.id = $1
           AND ec.class_id = $2
+          AND ($4::int IS NULL OR e.grade_id = $4)
+          AND ($4::int IS NULL OR c.grade_id = $4)
           AND e.is_active = true
           AND UPPER(e.token) = UPPER($3)
         LIMIT 1
       `,
-      [parseInt(exam_id, 10), classId, String(token).trim()],
+      [parseInt(exam_id, 10), classId, String(token).trim(), gradeId],
     );
 
     if (examCheck.rowCount === 0) {
@@ -1269,24 +1311,9 @@ router.get(
       return res.status(400).json({ message: "Exam ID tidak valid" });
     }
 
-    const studentResult = await pool.query(
-      `SELECT current_class_id FROM u_students WHERE user_id = $1 LIMIT 1`,
-      [userId],
-    );
-
-    const currentClassId = studentResult.rows[0]?.current_class_id || null;
-
-    const enrollmentResult = await pool.query(
-      `SELECT class_id
-       FROM u_class_enrollments
-       WHERE student_id = $1
-       ORDER BY id DESC
-       LIMIT 1`,
-      [userId],
-    );
-
-    const enrollmentClassId = enrollmentResult.rows[0]?.class_id || null;
-    const classId = currentClassId || enrollmentClassId;
+    const studentScope = await resolveStudentExamScope(pool, userId);
+    const classId = studentScope?.class_id || null;
+    const gradeId = studentScope?.grade_id || null;
 
     if (!classId) {
       return res.status(400).json({ message: "Kelas siswa tidak ditemukan" });
@@ -1307,10 +1334,15 @@ router.get(
         JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN a_subject s ON b.subject_id = s.id
         JOIN cbt.c_exam_class ec ON ec.exam_id = e.id
-        WHERE e.id = $1 AND e.is_active = true AND ec.class_id = $2
+        JOIN a_class c ON ec.class_id = c.id
+        WHERE e.id = $1
+          AND e.is_active = true
+          AND ec.class_id = $2
+          AND ($3::int IS NULL OR e.grade_id = $3)
+          AND ($3::int IS NULL OR c.grade_id = $3)
         LIMIT 1
       `,
-      [examId, classId],
+      [examId, classId, gradeId],
     );
 
     if (examResult.rowCount === 0) {
