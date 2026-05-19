@@ -148,16 +148,6 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
   }, [isAdmin, teacherIdField, user, form, isEdit]);
 
   useEffect(() => {
-    if (!gradeId || !classOptions.length) return;
-    if (!classIds || classIds.length === 0) {
-      form.setFieldValue(
-        "class_ids",
-        classOptions.map((opt) => opt.value),
-      );
-    }
-  }, [gradeId, classOptions, classIds, form]);
-
-  useEffect(() => {
     if (isEdit && initialValues) {
       form.setFieldsValue({
         ...initialValues,
@@ -505,8 +495,9 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
                   Pilih Semua Kelas
                 </Button>
                 <Text type='secondary' style={{ fontSize: 12 }}>
-                  Jika hanya pilih grade, semua kelas di grade tersebut otomatis
-                  dipilih.
+                  Pilih kelas secara eksplisit. Gunakan tombol "Pilih Semua
+                  Kelas" hanya jika ujian memang berlaku untuk seluruh kelas di
+                  tingkat ini.
                 </Text>
               </Flex>
 
