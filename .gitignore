@@ -20,6 +20,10 @@
 # production
 /build
 
+# uploaded media (persist on VPS via volume / deploy)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
 # misc
 .DS_Store
 *.pem
@@ -39,3 +43,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+AGENTS.md
+CLAUDE.md

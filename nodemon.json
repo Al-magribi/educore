@@ -1,0 +1,20 @@
+{
+  "watch": [
+    "next.config.mjs",
+    "postcss.config.mjs",
+    "src/auth.config.js",
+    "src/auth.js",
+    "src/proxy.js"
+  ],
+  "ignore": [
+    "node_modules/**",
+    ".next/**",
+    "public/uploads/**",
+    "prisma/**"
+  ],
+  "ext": "js,mjs,json",
+  "exec": "node scripts/ensure-upload-dir.js && next dev",
+  "signal": "SIGTERM",
+  "delay": 1000,
+  "legacyWatch": true
+}

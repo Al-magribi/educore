@@ -1,0 +1,509 @@
+// EduCore CMS + SPMB — PostgreSQL schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  super_admin
+  cms_admin
+  spmb_admin
+  applicant
+}
+
+enum ApplicationStatus {
+  draft
+  pending_payment
+  paid
+  form_in_progress
+  submitted
+  under_review
+  accepted
+  rejected
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  manual_review
+}
+
+enum PaymentMethod {
+  manual
+  midtrans
+}
+
+enum NewsStatus {
+  draft
+  published
+}
+
+enum GalleryAlbumStatus {
+  draft
+  published
+}
+
+enum HomeSectionType {
+  hero
+  achievements
+  extracurricular
+  alumni_testimonials
+  spmb_cta
+  contact
+}
+
+// ─── Auth & users ────────────────────────────────────────────────────────────
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  name            String
+  phone           String?
+  role            UserRole  @default(applicant)
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  accounts               Account[]
+  sessions               Session[]
+  emailVerificationCodes EmailVerificationCode[]
+  passwordResetTokens    PasswordResetToken[]
+  newsPosts              NewsPost[]
+  applications           Application[]
+  reviewedApplications   Application[] @relation("ReviewedBy")
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model EmailVerificationCode {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  code      String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_codes")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+// ─── CMS: pengaturan sekolah & tema ─────────────────────────────────────────
+
+model SchoolSettings {
+  id           String   @id @default("default")
+  name         String
+  tagline      String?
+  street       String?
+  district     String?
+  city         String?
+  province     String?
+  postalCode   String?  @map("postal_code")
+  country      String?  @default("Indonesia")
+  phone        String?
+  email        String?
+  whatsapp     String?
+  logoUrl         String?  @map("logo_url")
+  faviconUrl      String?  @map("favicon_url")
+  siteTitle       String?  @map("site_title")
+  siteUrl         String?  @map("site_url")
+  metaDescription String?  @map("meta_description") @db.Text
+  metaKeywords    String?  @map("meta_keywords")
+  robotsIndex     Boolean  @default(true) @map("robots_index")
+  robotsFollow    Boolean  @default(true) @map("robots_follow")
+  ogImageUrl      String?  @map("og_image_url")
+  mapsUrl      String?  @map("maps_url")
+  mapEmbedUrl  String?  @map("map_embed_url") @db.Text
+  officeHours  Json?    @map("office_hours")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("school_settings")
+}
+
+model ThemeSettings {
+  id                String   @id @default("default")
+  primary           String   @default("#2563eb")
+  primaryForeground String   @default("#ffffff") @map("primary_foreground")
+  secondary         String   @default("#1e40af")
+  accent            String   @default("#3b82f6")
+  isCustom          Boolean  @default(false) @map("is_custom")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("theme_settings")
+}
+
+// ─── CMS: beranda (section-based) ─────────────────────────────────────────────
+
+model HomeSection {
+  id          String          @id @default(cuid())
+  type        HomeSectionType
+  sortOrder   Int             @default(0) @map("sort_order")
+  isPublished Boolean         @default(true) @map("is_published")
+  content     Json?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  items HomeSectionItem[]
+
+  @@index([type, sortOrder])
+  @@map("home_sections")
+}
+
+model HomeSectionItem {
+  id          String   @id @default(cuid())
+  sectionId   String   @map("section_id")
+  sortOrder   Int      @default(0) @map("sort_order")
+  title       String?
+  description String?  @db.Text
+  imageUrl    String?  @map("image_url")
+  imageAlt    String?  @map("image_alt")
+  linkUrl     String?  @map("link_url")
+  metadata    Json?
+
+  section HomeSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, sortOrder])
+  @@map("home_section_items")
+}
+
+// ─── CMS: halaman tentang ─────────────────────────────────────────────────────
+
+model AboutPage {
+  id                 String   @id @default("default")
+  pageTitle          String   @map("page_title")
+  pageSubtitle       String?  @map("page_subtitle") @db.Text
+  pageImageUrl       String?  @map("page_image_url")
+  pageImageAlt       String?  @map("page_image_alt")
+  profileTitle       String?  @map("profile_title")
+  profileParagraphs  Json?    @map("profile_paragraphs")
+  profileHighlights  Json?    @map("profile_highlights")
+  visionTitle        String?  @map("vision_title")
+  visionContent      String?  @map("vision_content") @db.Text
+  missionTitle       String?  @map("mission_title")
+  missionItems       Json?    @map("mission_items")
+  valuesTitle        String?  @map("values_title")
+  valuesItems        Json?    @map("values_items")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("about_pages")
+}
+
+// ─── CMS: berita ──────────────────────────────────────────────────────────────
+
+model NewsPost {
+  id          String     @id @default(cuid())
+  title       String
+  slug        String     @unique
+  excerpt     String     @db.Text
+  body        Json
+  coverImage  String?    @map("cover_image")
+  coverAlt    String?    @map("cover_alt")
+  category    String
+  authorId    String?    @map("author_id")
+  featured    Boolean    @default(false)
+  readMinutes Int        @default(3) @map("read_minutes")
+  status      NewsStatus @default(draft)
+  publishedAt DateTime?  @map("published_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@index([category])
+  @@map("news_posts")
+}
+
+// ─── CMS: galeri (album + gambar) ─────────────────────────────────────────────
+
+model GalleryAlbum {
+  id           String             @id @default(cuid())
+  title        String
+  slug         String             @unique
+  description  String?            @db.Text
+  coverImageId String?            @map("cover_image_id")
+  status       GalleryAlbumStatus @default(draft)
+  sortOrder    Int                @default(0) @map("sort_order")
+  publishedAt  DateTime?          @map("published_at")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  images     GalleryImage[]
+  coverImage GalleryImage? @relation("AlbumCover", fields: [coverImageId], references: [id], onDelete: SetNull)
+
+  @@index([status, sortOrder])
+  @@map("gallery_albums")
+}
+
+model GalleryImage {
+  id        String   @id @default(cuid())
+  albumId   String   @map("album_id")
+  imageUrl  String   @map("image_url")
+  imageAlt  String?  @map("image_alt")
+  caption   String?  @db.Text
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  album          GalleryAlbum   @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  coverForAlbums GalleryAlbum[] @relation("AlbumCover")
+
+  @@index([albumId, sortOrder])
+  @@map("gallery_images")
+}
+
+// ─── SPMB: landing page content (editable) ───────────────────────────────────
+
+model SpmbLandingContent {
+  id           String   @id @default("default")
+  page         Json
+  quickInfo    Json?    @map("quick_info")
+  schedule     Json?
+  flow         Json?
+  requirements Json?
+  fees         Json?
+  faq          Json?
+  contact      Json?
+  isOpen       Boolean  @default(true) @map("is_open")
+  academicYear String?  @map("academic_year")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("spmb_landing_content")
+}
+
+// ─── SPMB: periode, form, kuesioner ─────────────────────────────────────────
+
+model AdmissionPeriod {
+  id           String    @id @default(cuid())
+  academicYear String    @map("academic_year")
+  name         String
+  opensAt      DateTime  @map("opens_at")
+  closesAt     DateTime  @map("closes_at")
+  isActive     Boolean   @default(false) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  formDefinitions FormDefinition[]
+  questionnaires  Questionnaire[]
+  applications    Application[]
+
+  @@index([isActive])
+  @@map("admission_periods")
+}
+
+model FormDefinition {
+  id        String   @id @default(cuid())
+  periodId  String   @map("period_id")
+  name      String
+  version   Int      @default(1)
+  schema    Json
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  period AdmissionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([periodId, isActive])
+  @@map("form_definitions")
+}
+
+model Questionnaire {
+  id        String   @id @default(cuid())
+  periodId  String   @map("period_id")
+  title     String
+  schema    Json
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  period    AdmissionPeriod          @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  responses QuestionnaireResponse[]
+
+  @@index([periodId])
+  @@map("questionnaires")
+}
+
+// ─── SPMB: pendaftaran calon siswa ──────────────────────────────────────────
+
+model Application {
+  id           String            @id @default(cuid())
+  userId       String            @map("user_id")
+  periodId     String            @map("period_id")
+  status       ApplicationStatus @default(draft)
+  submittedAt  DateTime?         @map("submitted_at")
+  reviewedAt   DateTime?         @map("reviewed_at")
+  reviewedById String?           @map("reviewed_by_id")
+  reviewNote   String?           @map("review_note") @db.Text
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period     AdmissionPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  reviewedBy User?      @relation("ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  answers               ApplicationAnswer[]
+  files                 ApplicationFile[]
+  payments              Payment[]
+  questionnaireResponses QuestionnaireResponse[]
+
+  @@unique([userId, periodId])
+  @@index([status])
+  @@map("applications")
+}
+
+model ApplicationAnswer {
+  id            String @id @default(cuid())
+  applicationId String @map("application_id")
+  fieldId       String @map("field_id")
+  value         Json
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, fieldId])
+  @@map("application_answers")
+}
+
+model ApplicationFile {
+  id            String   @id @default(cuid())
+  applicationId String   @map("application_id")
+  fieldId       String   @map("field_id")
+  fileUrl       String   @map("file_url")
+  fileName      String   @map("file_name")
+  mimeType      String?  @map("mime_type")
+  sizeBytes     Int?     @map("size_bytes")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("application_files")
+}
+
+model QuestionnaireResponse {
+  id              String   @id @default(cuid())
+  applicationId   String   @map("application_id")
+  questionnaireId String   @map("questionnaire_id")
+  answers         Json
+  submittedAt     DateTime @default(now()) @map("submitted_at")
+
+  application   Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, questionnaireId])
+  @@map("questionnaire_responses")
+}
+
+// ─── SPMB: pembayaran ───────────────────────────────────────────────────────
+
+model Payment {
+  id            String        @id @default(cuid())
+  applicationId String        @map("application_id")
+  amount        Int
+  status        PaymentStatus @default(pending)
+  method        PaymentMethod
+  externalId    String?       @map("external_id")
+  proofUrl      String?       @map("proof_url")
+  paidAt        DateTime?     @map("paid_at")
+  metadata      Json?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([externalId])
+  @@map("payments")
+}
+
+model PaymentSettings {
+  id                 String   @id @default("default")
+  registrationFee    Int      @default(350000) @map("registration_fee")
+  manualEnabled      Boolean  @default(true) @map("manual_enabled")
+  midtransEnabled    Boolean  @default(false) @map("midtrans_enabled")
+  midtransServerKey  String?  @map("midtrans_server_key") @db.Text
+  midtransClientKey  String?  @map("midtrans_client_key")
+  midtransMerchantId String?  @map("midtrans_merchant_id")
+  midtransProduction Boolean  @default(false) @map("midtrans_production")
+  manualInstructions String?  @map("manual_instructions") @db.Text
+  bankName           String?  @map("bank_name")
+  bankAccountNumber  String?  @map("bank_account_number")
+  bankAccountName    String?  @map("bank_account_name")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_settings")
+}
+
+model SmtpSettings {
+  id        String   @id @default("default")
+  enabled   Boolean  @default(false)
+  host      String   @default("smtp.gmail.com")
+  port      Int      @default(587)
+  secure    Boolean  @default(false)
+  user      String?
+  password  String?  @db.Text
+  fromName  String?  @map("from_name")
+  fromEmail String?  @map("from_email")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("smtp_settings")
+}

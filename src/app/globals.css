@@ -2,25 +2,127 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
+  /* Tema default — biru teknologi */
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1e40af;
+  --color-accent: #3b82f6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+html,
+body {
+  min-height: 100dvh;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+button {
+  cursor: pointer
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  color: var(--foreground);
+}
+
+/* Konten berita (HTML dari Quill) */
+.news-body {
+  color: #475569;
+  font-size: 1rem;
+  line-height: 1.75;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+@media (min-width: 768px) {
+  .news-body {
+    font-size: 1.0625rem;
+  }
+}
+
+.news-body > * + * {
+  margin-top: 1.25rem;
+}
+
+.news-body h1,
+.news-body h2,
+.news-body h3 {
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.news-body h1 {
+  font-size: 1.75rem;
+}
+
+.news-body h2 {
+  font-size: 1.5rem;
+}
+
+.news-body h3 {
+  font-size: 1.25rem;
+}
+
+.news-body p {
+  margin: 0;
+}
+
+.news-body a {
+  color: var(--color-primary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.news-body a:hover {
+  color: var(--color-secondary);
+}
+
+.news-body ul,
+.news-body ol {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.news-body li + li {
+  margin-top: 0.35rem;
+}
+
+.news-body blockquote {
+  margin: 0;
+  border-left: 4px solid color-mix(in srgb, var(--color-primary) 35%, #e2e8f0);
+  padding-left: 1rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.news-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
 }
