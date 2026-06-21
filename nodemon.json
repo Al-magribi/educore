@@ -4,7 +4,8 @@
     "postcss.config.mjs",
     "src/auth.config.js",
     "src/auth.js",
-    "src/proxy.js"
+    "src/proxy.js",
+    "src/app"
   ],
   "ignore": [
     "node_modules/**",
@@ -13,7 +14,7 @@
     "prisma/**"
   ],
   "ext": "js,mjs,json",
-  "exec": "node scripts/ensure-upload-dir.js && next dev",
+  "exec": "node scripts/ensure-upload-dir.js && node scripts/ensure-dev-cache.js && next dev",
   "signal": "SIGTERM",
   "delay": 1000,
   "legacyWatch": true

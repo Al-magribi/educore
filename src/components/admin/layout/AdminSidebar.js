@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { SchoolBrandMark } from "@/components/branding/SchoolBrandMark.js";
 import { IconChevronLeft, IconChevronRight, IconExternal } from "./icons.js";
-import { adminNavSections } from "./nav-config.js";
+import { adminNavActions, adminNavSections } from "./nav-config.js";
 
 function isActive(pathname, href, exact) {
   if (exact) return pathname === href;
@@ -13,6 +15,38 @@ function isActive(pathname, href, exact) {
 
 export function AdminSidebar({ collapsed, onToggleCollapse, schoolName, logoUrl, hasLogo }) {
   const pathname = usePathname();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleNavAction = async (action) => {
+    if (action.id !== "logout" || loggingOut) return;
+
+    setLoggingOut(true);
+    try {
+      await signOut({ redirectTo: action.redirectTo ?? "/masuk" });
+    } catch {
+      setLoggingOut(false);
+    }
+  };
+
+  const renderNavAction = (action) => {
+    const Icon = action.icon;
+
+    return (
+      <button
+        key={action.id}
+        type="button"
+        onClick={() => handleNavAction(action)}
+        disabled={loggingOut}
+        title={collapsed ? action.label : undefined}
+        className={`admin-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+          collapsed ? "justify-center px-2" : ""
+        } ${action.id === "logout" ? "text-rose-300 hover:text-rose-200" : ""}`}
+      >
+        <Icon className="h-5 w-5 shrink-0" />
+        {!collapsed ? <span className="truncate">{loggingOut ? "Keluar..." : action.label}</span> : null}
+      </button>
+    );
+  };
 
   return (
     <aside
@@ -99,15 +133,18 @@ export function AdminSidebar({ collapsed, onToggleCollapse, schoolName, logoUrl,
         style={{ borderColor: "var(--admin-sidebar-border)" }}
       >
         {collapsed ? (
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="admin-nav-item flex w-full items-center justify-center rounded-xl p-2.5 transition"
-            aria-label="Perlebar sidebar"
-            title="Perlebar sidebar"
-          >
-            <IconChevronRight className="h-5 w-5" />
-          </button>
+          <div className="flex flex-col gap-1">
+            {adminNavActions.map(renderNavAction)}
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="admin-nav-item flex w-full items-center justify-center rounded-xl p-2.5 transition"
+              aria-label="Perlebar sidebar"
+              title="Perlebar sidebar"
+            >
+              <IconChevronRight className="h-5 w-5" />
+            </button>
+          </div>
         ) : (
           <>
             <Link
@@ -118,6 +155,7 @@ export function AdminSidebar({ collapsed, onToggleCollapse, schoolName, logoUrl,
               <IconExternal className="h-5 w-5 shrink-0" />
               <span>Lihat situs</span>
             </Link>
+            {adminNavActions.map(renderNavAction)}
             <button
               type="button"
               onClick={onToggleCollapse}

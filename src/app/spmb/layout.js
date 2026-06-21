@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const navItems = [
-  { href: "/spmb/dashboard", label: "Dashboard" },
+  { href: "/user", label: "Dashboard" },
   { href: "/spmb/pembayaran", label: "Pembayaran" },
   { href: "/spmb/formulir", label: "Formulir" },
   { href: "/spmb/upload", label: "Upload" },

@@ -1,19 +1,27 @@
-import { PaymentSettingsForm } from "@/components/spmb-admin/PaymentSettingsForm.js";
+import PaymentList from "@/components/spmb-admin/pembayaran/PaymentList.jsx";
+import { getAdminPaymentSettings } from "@/modules/payment/settings.js";
+import { listPayments } from "@/modules/payment/payments.js";
 
 export const metadata = {
-  title: "Pengaturan Pembayaran",
+  title: "Pembayaran",
 };
 
-export default function SpmbAdminPembayaranPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SpmbAdminPembayaranPage() {
+  const [payments, settings] = await Promise.all([
+    listPayments({ page: 1, limit: 10 }),
+    getAdminPaymentSettings(),
+  ]);
+
   return (
-    <>
-      <h1 className="text-2xl font-bold">Pembayaran</h1>
-      <p className="mt-2 text-slate-600">
-        Konfigurasi transfer manual dan Midtrans — disimpan di database PostgreSQL.
-      </p>
-      <div className="mt-8">
-        <PaymentSettingsForm />
-      </div>
-    </>
+    <PaymentList
+      initialItems={payments.items}
+      initialPagination={payments.pagination}
+      initialSettings={{
+        midtransEnabled: settings?.midtransEnabled ?? false,
+        manualEnabled: settings?.manualEnabled ?? true,
+      }}
+    />
   );
 }

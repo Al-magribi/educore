@@ -1,4 +1,26 @@
+import Image from "next/image";
 import { isAppUploadUrl } from "@/lib/storage/urls.js";
+
+function SchoolLogoImage({
+  src,
+  alt,
+  width,
+  height,
+  className,
+  priority = false,
+}) {
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      priority={priority}
+      className={className}
+      sizes={`${width}px`}
+    />
+  );
+}
 
 export function resolveSchoolLogo(logoUrl) {
   const url = logoUrl?.trim() ?? "";
@@ -16,6 +38,7 @@ export function resolveSchoolLogo(logoUrl) {
  *   variant?: "mark" | "banner";
  *   markClassName?: string;
  *   bannerClassName?: string;
+ *   priority?: boolean;
  * }} props
  */
 export function SchoolBrandMark({
@@ -25,6 +48,7 @@ export function SchoolBrandMark({
   variant = "mark",
   markClassName = "",
   bannerClassName = "",
+  priority = true,
 }) {
   const initial = schoolName.charAt(0).toUpperCase() || "E";
   const hasLogo = hasLogoProp ?? isAppUploadUrl(logoUrl);
@@ -32,13 +56,13 @@ export function SchoolBrandMark({
   if (variant === "banner" && hasLogo && logoUrl) {
     return (
       <span className={`inline-flex h-10 max-w-[180px] shrink-0 items-center ${bannerClassName}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <SchoolLogoImage
           src={logoUrl}
           alt={schoolName}
-          className="h-10 w-auto max-w-[180px] object-contain object-left"
           width={180}
           height={40}
+          priority={priority}
+          className="h-10 w-auto max-w-[180px] object-contain object-left"
         />
       </span>
     );
@@ -49,13 +73,13 @@ export function SchoolBrandMark({
       <span
         className={`inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 ${markClassName}`}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <SchoolLogoImage
           src={logoUrl}
           alt={schoolName}
-          className="max-h-full max-w-full object-contain p-0.5"
           width={36}
           height={36}
+          priority={priority}
+          className="max-h-full max-w-full object-contain p-0.5"
         />
       </span>
     );
@@ -96,13 +120,12 @@ export function PublicSchoolBrand({
     if (context === "footer") {
       return (
         <div className="rounded-xl bg-white/95 px-3 py-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <SchoolLogoImage
             src={logoUrl}
             alt={schoolName}
-            className="h-10 w-auto max-w-[200px] object-contain object-left"
             width={200}
             height={40}
+            className="h-10 w-auto max-w-[200px] object-contain object-left"
           />
         </div>
       );
@@ -111,16 +134,13 @@ export function PublicSchoolBrand({
     return (
       <>
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200/80">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <SchoolLogoImage
             src={logoUrl}
             alt={schoolName}
-            className="max-h-full max-w-full object-contain p-1"
             width={40}
             height={40}
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
+            priority
+            className="max-h-full max-w-full object-contain p-1"
           />
         </span>
         <span className="hidden font-bold text-slate-900 sm:block md:max-w-[220px] md:truncate lg:max-w-none">

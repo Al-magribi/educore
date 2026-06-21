@@ -334,21 +334,50 @@ model SpmbLandingContent {
 // ─── SPMB: periode, form, kuesioner ─────────────────────────────────────────
 
 model AdmissionPeriod {
-  id           String    @id @default(cuid())
-  academicYear String    @map("academic_year")
+  id           String   @id @default(cuid())
+  academicYear String   @map("academic_year")
   name         String
-  opensAt      DateTime  @map("opens_at")
-  closesAt     DateTime  @map("closes_at")
-  isActive     Boolean   @default(false) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  opensAt      DateTime @map("opens_at")
+  closesAt     DateTime @map("closes_at")
+  isActive     Boolean  @default(false) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   formDefinitions FormDefinition[]
   questionnaires  Questionnaire[]
   applications    Application[]
+  feeItemPeriods  FinancialFeeItemPeriod[]
 
   @@index([isActive])
   @@map("admission_periods")
+}
+
+model FinancialFeeItem {
+  id          String   @id @default(cuid())
+  label       String
+  frequency   String   @default("once")
+  applyToAll  Boolean  @default(true) @map("apply_to_all")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  periodFees FinancialFeeItemPeriod[]
+
+  @@map("financial_fee_items")
+}
+
+model FinancialFeeItemPeriod {
+  id       String @id @default(cuid())
+  itemId   String @map("item_id")
+  periodId String @map("period_id")
+  amount   Int    @default(0)
+
+  item   FinancialFeeItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  period AdmissionPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, periodId])
+  @@index([periodId])
+  @@map("financial_fee_item_periods")
 }
 
 model FormDefinition {

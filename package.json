@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "nodemon",
+    "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npm run dev",
     "build": "prisma generate && node scripts/ensure-upload-dir.js && next build",
     "start": "node scripts/ensure-upload-dir.js && next start",
     "postinstall": "prisma generate && node scripts/ensure-upload-dir.js",

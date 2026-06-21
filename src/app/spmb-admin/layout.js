@@ -1,31 +1,46 @@
-import Link from "next/link";
+import { prisma } from "@/lib/db.js";
+import { isAppUploadUrl } from "@/lib/storage/urls.js";
+import { toAdminThemeVars } from "@/lib/admin/theme-vars.js";
+import { getThemeSettings } from "@/modules/theme/index.js";
+import { SpmbAdminShell } from "@/components/spmb-admin/layout/index.js";
+import "@/app/admin/admin.css";
 
-const navItems = [
-  { href: "/spmb-admin/formulir", label: "Formulir" },
-  { href: "/spmb-admin/pembayaran", label: "Pembayaran" },
-  { href: "/spmb-admin/smtp", label: "SMTP" },
-  { href: "/spmb-admin/kuesioner", label: "Kuesioner" },
-  { href: "/spmb-admin/pendaftar", label: "Pendaftar" },
-];
+export const dynamic = "force-dynamic";
 
-export default function SpmbAdminLayout({ children }) {
+export const metadata = {
+  title: "Admin SPMB",
+};
+
+async function getSpmbAdminLayoutData() {
+  const [school, theme] = await Promise.all([
+    prisma.schoolSettings.findUnique({
+      where: { id: "default" },
+      select: { name: true, logoUrl: true },
+    }),
+    getThemeSettings(),
+  ]);
+
+  const logoUrl = school?.logoUrl?.trim() ?? "";
+
+  return {
+    schoolName: school?.name ?? "EduCore",
+    logoUrl,
+    hasLogo: isAppUploadUrl(logoUrl),
+    themeStyle: toAdminThemeVars(theme),
+  };
+}
+
+export default async function SpmbAdminLayout({ children }) {
+  const { schoolName, logoUrl, hasLogo, themeStyle } = await getSpmbAdminLayoutData();
+
   return (
-    <div className="flex min-h-full">
-      <aside className="w-56 shrink-0 border-r border-zinc-200 bg-zinc-50 p-4">
-        <p className="mb-6 text-sm font-semibold text-primary">Admin SPMB</p>
-        <nav className="flex flex-col gap-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded px-3 py-2 text-sm hover:bg-zinc-200"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex-1 p-8">{children}</main>
-    </div>
+    <SpmbAdminShell
+      schoolName={schoolName}
+      logoUrl={logoUrl}
+      hasLogo={hasLogo}
+      themeStyle={themeStyle}
+    >
+      {children}
+    </SpmbAdminShell>
   );
 }

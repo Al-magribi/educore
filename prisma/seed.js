@@ -85,18 +85,105 @@ async function main() {
     },
   });
 
+  const feeItemDefinitions = [
+    { id: "ipsp", label: "Iuran Pengembangan Sarana Pendidikan (IPSP)", frequency: "once" },
+    { id: "spp", label: "Sumbangan Pengelolaan Pendidikan (SPP)", frequency: "monthly" },
+    { id: "ipks", label: "Iuran Pengembangan Keterampilan Siswa (IPKS)", frequency: "yearly" },
+    { id: "ikk", label: "Iuran Kegiatan Kesiswaan (IKK/OSIS)", frequency: "yearly" },
+    { id: "mpls", label: "Iuran Kegiatan Awal Peserta Didik Baru Masa Pengenalan Sekolah (MPLS)", frequency: "once" },
+    {
+      id: "admin_supplies",
+      label: "Pengadaan Perlengkapan Administrasi Kesiswaan (Pas Foto, Kartu Pelajar, Sampul, dan Laporan Pendidikan)",
+      frequency: "once",
+    },
+    {
+      id: "personal",
+      label: "Biaya Pribadi Peserta Didik (Pakaian Seragam Sekolah, Jas Almamater, Rompi, dan Atribut)",
+      frequency: "once",
+    },
+  ];
+
+  const gelombang1Amounts = {
+    ipsp: 5_000_000,
+    spp: 590_000,
+    ipks: 580_000,
+    ikk: 400_000,
+    mpls: 550_000,
+    admin_supplies: 525_000,
+    personal: 900_000,
+  };
+
+  const gelombang2Amounts = {
+    ...gelombang1Amounts,
+    ipsp: 6_500_000,
+  };
+
+  for (const [index, item] of feeItemDefinitions.entries()) {
+    await prisma.financialFeeItem.upsert({
+      where: { id: item.id },
+      update: {
+        label: item.label,
+        frequency: item.frequency,
+        applyToAll: true,
+        sortOrder: index,
+      },
+      create: {
+        id: item.id,
+        label: item.label,
+        frequency: item.frequency,
+        applyToAll: true,
+        sortOrder: index,
+      },
+    });
+  }
+
   const period = await prisma.admissionPeriod.upsert({
-    where: { id: "period-2026-2027" },
-    update: {},
+    where: { id: "period-2026-2027-g1" },
+    update: {
+      opensAt: new Date("2025-12-01"),
+      closesAt: new Date("2026-02-28"),
+    },
     create: {
-      id: "period-2026-2027",
+      id: "period-2026-2027-g1",
       academicYear: "2026/2027",
       name: "Gelombang 1",
-      opensAt: new Date("2026-06-01"),
-      closesAt: new Date("2026-06-30"),
+      opensAt: new Date("2025-12-01"),
+      closesAt: new Date("2026-02-28"),
       isActive: true,
     },
   });
+
+  const period2 = await prisma.admissionPeriod.upsert({
+    where: { id: "period-2026-2027-g2" },
+    update: {},
+    create: {
+      id: "period-2026-2027-g2",
+      academicYear: "2026/2027",
+      name: "Gelombang 2",
+      opensAt: new Date("2026-03-01"),
+      closesAt: new Date("2026-05-31"),
+      isActive: false,
+    },
+  });
+
+  for (const item of feeItemDefinitions) {
+    for (const [periodRow, amounts] of [
+      [period, gelombang1Amounts],
+      [period2, gelombang2Amounts],
+    ]) {
+      await prisma.financialFeeItemPeriod.upsert({
+        where: {
+          itemId_periodId: { itemId: item.id, periodId: periodRow.id },
+        },
+        update: { amount: amounts[item.id] ?? 0 },
+        create: {
+          itemId: item.id,
+          periodId: periodRow.id,
+          amount: amounts[item.id] ?? 0,
+        },
+      });
+    }
+  }
 
   await prisma.formDefinition.upsert({
     where: { id: "form-default-2026" },
@@ -106,6 +193,7 @@ async function main() {
       periodId: period.id,
       name: "Formulir SPMB 2026/2027",
       version: 1,
+      isActive: true,
       schema: {
         fields: [
           { id: "full_name", type: "text", label: "Nama Lengkap", required: true },

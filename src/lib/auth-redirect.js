@@ -9,7 +9,7 @@ export function getLoginRedirect(role) {
     case ROLES.SPMB_ADMIN:
       return "/spmb-admin";
     case ROLES.APPLICANT:
-      return "/spmb/dashboard";
+      return "/user";
     default:
       return "/";
   }
@@ -21,8 +21,12 @@ export function getPublicDashboardHref(role) {
     case ROLES.SUPER_ADMIN:
     case ROLES.CMS_ADMIN:
       return "/admin";
+    case ROLES.SPMB_ADMIN:
+      return "/spmb-admin";
+    case ROLES.APPLICANT:
+      return "/user";
     default:
-      return "/spmb";
+      return null;
   }
 }
 
@@ -33,6 +37,9 @@ export function canAccessPath(role, pathname) {
   }
   if (pathname.startsWith("/spmb-admin")) {
     return role === ROLES.SUPER_ADMIN || role === ROLES.SPMB_ADMIN;
+  }
+  if (pathname.startsWith("/user")) {
+    return role === ROLES.APPLICANT;
   }
   if (pathname.startsWith("/spmb/")) {
     return role === ROLES.APPLICANT;

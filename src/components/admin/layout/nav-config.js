@@ -1,4 +1,4 @@
-import { IconAbout, IconDashboard, IconHome, IconNews, IconPalette, IconSettings, IconUsers } from './icons.js';
+import { IconAbout, IconDashboard, IconHome, IconLogout, IconNews, IconPalette, IconSettings, IconUsers } from './icons.js';
 
 export const adminNavItems = [
   { href: '/admin', label: 'Dashboard', icon: IconDashboard, exact: true },
@@ -11,3 +11,12 @@ export const adminNavItems = [
 ];
 
 export const adminNavSections = [{ title: 'Menu', items: adminNavItems }];
+
+export const adminNavActions = [
+  {
+    id: 'logout',
+    label: 'Keluar',
+    icon: IconLogout,
+    redirectTo: '/masuk',
+  },
+];

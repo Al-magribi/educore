@@ -19,6 +19,7 @@ export async function proxy(request) {
     pathname.startsWith("/api/admin") ||
     pathname === "/api/upload" ||
     pathname.startsWith("/spmb-admin") ||
+    pathname.startsWith("/user") ||
     pathname.startsWith("/spmb/");
 
   if (!needsAuth) return NextResponse.next();
@@ -44,6 +45,13 @@ export async function proxy(request) {
     return NextResponse.next();
   }
 
+  if (pathname.startsWith("/api/spmb-admin")) {
+    if (role !== "super_admin" && role !== "spmb_admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
+
   if (!canAccessPath(role, pathname)) {
     return NextResponse.redirect(new URL(getLoginRedirect(role), request.url));
   }
@@ -55,10 +63,18 @@ export const config = {
   matcher: [
     "/masuk",
     "/daftar",
+    "/admin",
     "/admin/:path*",
+    "/api/admin",
     "/api/admin/:path*",
+    "/api/spmb-admin",
+    "/api/spmb-admin/:path*",
     "/api/upload",
+    "/spmb-admin",
     "/spmb-admin/:path*",
+    "/user",
+    "/user/:path*",
+    "/spmb",
     "/spmb/:path*",
   ],
 };
