@@ -8,7 +8,18 @@ import {
   formatRupiah,
 } from "@/modules/spmb/period-fees.js";
 
-export function ItemBiayaStep({ form, onChange, onSubmit, onBack, saving, periodName, readOnly = false }) {
+export function ItemBiayaStep({
+  form,
+  onChange,
+  onSubmit,
+  onBack,
+  saving,
+  periodName,
+  readOnly = false,
+  embedded = false,
+  hideActions = false,
+  emptyMessage,
+}) {
   const total = useMemo(() => calculateFeeTotal(form.items ?? []), [form.items]);
 
   const setItemField = (itemId, key, value) => {
@@ -26,20 +37,22 @@ export function ItemBiayaStep({ form, onChange, onSubmit, onBack, saving, period
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900">Langkah 3 — Item Biaya per Gelombang</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Atur frekuensi dan nominal biaya untuk{" "}
-          <span className="font-medium text-slate-900">{periodName}</span>
-          {form.title ? (
-            <>
-              {" "}
-              — <span className="font-medium text-slate-900">{form.title}</span>
-            </>
-          ) : null}
-          .
-        </p>
-      </div>
+      {!embedded ? (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Langkah 3 — Item Biaya per Gelombang</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Atur frekuensi dan nominal biaya untuk{" "}
+            <span className="font-medium text-slate-900">{periodName}</span>
+            {form.title ? (
+              <>
+                {" "}
+                — <span className="font-medium text-slate-900">{form.title}</span>
+              </>
+            ) : null}
+            .
+          </p>
+        </div>
+      ) : null}
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-4 py-3">
@@ -49,7 +62,8 @@ export function ItemBiayaStep({ form, onChange, onSubmit, onBack, saving, period
 
         {(form.items ?? []).length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-slate-500">
-            Belum ada item. Kembali ke langkah 2 untuk menambahkan item biaya.
+            {emptyMessage ??
+              "Belum ada item. Kembali ke langkah 2 untuk menambahkan item biaya."}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -112,7 +126,7 @@ export function ItemBiayaStep({ form, onChange, onSubmit, onBack, saving, period
         )}
       </section>
 
-      {!readOnly ? (
+      {!readOnly && !hideActions ? (
         <div className="flex flex-wrap gap-3">
           <button
             type="submit"

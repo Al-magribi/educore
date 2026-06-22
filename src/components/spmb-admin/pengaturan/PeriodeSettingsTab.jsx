@@ -51,6 +51,168 @@ function buildGelombangForm(period) {
   };
 }
 
+function useModalLock(open, onClose, disabled = false) {
+  useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape" && !disabled) onClose();
+    };
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, disabled, onClose]);
+}
+
+function ModalShell({ open, titleId, title, description, onClose, disabled, children, footer }) {
+  useModalLock(open, onClose, disabled);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <button
+        type="button"
+        aria-label="Tutup"
+        className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]"
+        onClick={disabled ? undefined : onClose}
+        disabled={disabled}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-2xl"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div>
+            <h2 id={titleId} className="text-lg font-semibold text-slate-900">
+              {title}
+            </h2>
+            {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={disabled}
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+            aria-label="Tutup"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {footer ? (
+          <div className="shrink-0 border-t border-slate-100 bg-slate-50/60 px-5 py-4">{footer}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function GelombangModal({ open, mode, form, saving, onChange, onSubmit, onClose }) {
+  const isCreate = mode === "create";
+  const titleId = "gelombang-modal-title";
+
+  return (
+    <ModalShell
+      open={open}
+      titleId={titleId}
+      title={isCreate ? "Buat gelombang baru" : "Edit gelombang"}
+      description="Tentukan jadwal buka/tutup dan status aktif gelombang pendaftaran."
+      onClose={onClose}
+      disabled={saving}
+      footer={
+        <div className="flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            form="gelombang-modal-form"
+            disabled={saving}
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
+          >
+            {saving ? "Menyimpan..." : isCreate ? "Buat gelombang" : "Simpan perubahan"}
+          </button>
+        </div>
+      }
+    >
+      <div className="px-5 py-5">
+        <GelombangStepForm
+          form={form}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          saving={saving}
+          embedded
+          hideActions
+          formId="gelombang-modal-form"
+          submitLabel={isCreate ? "Buat gelombang" : "Simpan perubahan"}
+        />
+      </div>
+    </ModalShell>
+  );
+}
+
+function FeeDetailModal({ open, period, onClose }) {
+  const titleId = "fee-detail-modal-title";
+
+  if (!period) {
+    return null;
+  }
+
+  return (
+    <ModalShell
+      open={open}
+      titleId={titleId}
+      title={`Rincian biaya — ${period.name}`}
+      description={`${period.academicYear} · Total ${formatRupiah(period.financialFees?.total ?? 0)}`}
+      onClose={onClose}
+      footer={
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Tutup
+          </button>
+        </div>
+      }
+    >
+      <div className="px-5 py-5">
+        <ItemBiayaStep
+          form={{
+            title: "Persyaratan keuangan",
+            note: "",
+            items: period.financialFees?.items ?? [],
+          }}
+          onChange={() => {}}
+          onSubmit={(e) => e.preventDefault()}
+          periodName={period.name}
+          readOnly
+          embedded
+          hideActions
+          emptyMessage="Belum ada item persyaratan untuk gelombang ini. Atur di tab Persyaratan."
+        />
+      </div>
+    </ModalShell>
+  );
+}
+
 function GelombangCard({ period, onEdit, onActivate, onDelete, onViewFees, deleting }) {
   const itemCount = period.financialFees?.items?.length ?? 0;
 
@@ -124,10 +286,12 @@ function PeriodeListPanel({
   onPeriodsChange,
 }) {
   const [formMode, setFormMode] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [gelombangForm, setGelombangForm] = useState(() => buildGelombangForm(null));
   const [saving, setSaving] = useState(false);
   const [viewingPeriod, setViewingPeriod] = useState(null);
+  const [feeModalOpen, setFeeModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
 
@@ -145,19 +309,31 @@ function PeriodeListPanel({
     setFormMode("create");
     setEditingPeriod(null);
     setGelombangForm(buildGelombangForm(null));
-    setViewingPeriod(null);
+    setFormOpen(true);
   };
 
   const openEdit = (period) => {
     setFormMode("edit");
     setEditingPeriod(period);
     setGelombangForm(buildGelombangForm(period));
-    setViewingPeriod(null);
+    setFormOpen(true);
+  };
+
+  const openFeeDetail = (period) => {
+    setViewingPeriod(period);
+    setFeeModalOpen(true);
   };
 
   const closeForm = () => {
+    if (saving) return;
+    setFormOpen(false);
     setFormMode(null);
     setEditingPeriod(null);
+  };
+
+  const closeFeeDetail = () => {
+    setFeeModalOpen(false);
+    setViewingPeriod(null);
   };
 
   const handleSave = async (e) => {
@@ -178,7 +354,9 @@ function PeriodeListPanel({
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan periode");
 
       onMessage({ type: "success", text: data.message || "Periode disimpan" });
-      closeForm();
+      setFormOpen(false);
+      setFormMode(null);
+      setEditingPeriod(null);
       await onPeriodsChange();
     } catch (err) {
       onMessage({ type: "error", text: err.message });
@@ -220,7 +398,7 @@ function PeriodeListPanel({
       if (!res.ok) throw new Error(data.error || "Gagal menghapus gelombang");
       onMessage({ type: "success", text: data.message });
       if (editingPeriod?.id === period.id) closeForm();
-      if (viewingPeriod?.id === period.id) setViewingPeriod(null);
+      if (viewingPeriod?.id === period.id) closeFeeDetail();
       await onPeriodsChange();
     } catch (err) {
       onMessage({ type: "error", text: err.message });
@@ -259,69 +437,16 @@ function PeriodeListPanel({
         <p className="text-sm text-slate-600">
           Setiap gelombang memiliki jadwal sendiri. Item biaya diatur di tab Persyaratan.
         </p>
-        {!formMode ? (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
-          >
-            + Buat gelombang baru
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={closeForm}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Tutup form
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={openCreate}
+          className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+        >
+          + Buat gelombang baru
+        </button>
       </div>
 
-      {formMode ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
-          <GelombangStepForm
-            form={gelombangForm}
-            onChange={setGelombangForm}
-            onSubmit={handleSave}
-            onCancel={closeForm}
-            saving={saving}
-            submitLabel={formMode === "create" ? "Buat gelombang" : "Simpan perubahan"}
-          />
-        </div>
-      ) : null}
-
-      {viewingPeriod ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">
-                Rincian biaya — {viewingPeriod.name}
-              </h3>
-              <p className="text-sm text-slate-600">{viewingPeriod.academicYear}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setViewingPeriod(null)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Tutup
-            </button>
-          </div>
-          <ItemBiayaStep
-            form={{
-              title: "Persyaratan keuangan",
-              note: "",
-              items: viewingPeriod.financialFees?.items ?? [],
-            }}
-            onChange={() => {}}
-            onSubmit={(e) => e.preventDefault()}
-            readOnly
-          />
-        </div>
-      ) : null}
-
-      {groupedPeriods.length === 0 && !formMode ? (
+      {groupedPeriods.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center text-sm text-slate-600">
           Belum ada gelombang. Klik &quot;Buat gelombang baru&quot; untuk memulai.
         </div>
@@ -339,7 +464,7 @@ function PeriodeListPanel({
                   onEdit={openEdit}
                   onActivate={handleActivate}
                   onDelete={handleDelete}
-                  onViewFees={setViewingPeriod}
+                  onViewFees={openFeeDetail}
                   deleting={deletingId === period.id}
                 />
               ))}
@@ -347,6 +472,16 @@ function PeriodeListPanel({
           </section>
         ))
       )}
+      <GelombangModal
+        open={formOpen}
+        mode={formMode ?? "create"}
+        form={gelombangForm}
+        saving={saving}
+        onChange={setGelombangForm}
+        onSubmit={handleSave}
+        onClose={closeForm}
+      />
+      <FeeDetailModal open={feeModalOpen} period={viewingPeriod} onClose={closeFeeDetail} />
       <ConfirmDeleteDialog />
     </div>
   );

@@ -1,16 +1,28 @@
 "use client";
 
-export function GelombangStepForm({ form, onChange, onSubmit, onCancel, saving, submitLabel }) {
+export function GelombangStepForm({
+  form,
+  onChange,
+  onSubmit,
+  onCancel,
+  saving,
+  submitLabel,
+  embedded = false,
+  hideActions = false,
+  formId,
+}) {
   const setField = (key, value) => onChange((current) => ({ ...current, [key]: value }));
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900">Buat / Edit Gelombang</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Tentukan gelombang pendaftaran, jadwal buka/tutup, dan apakah gelombang ini aktif.
-        </p>
-      </div>
+    <form id={formId} onSubmit={onSubmit} className="space-y-5">
+      {!embedded ? (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Buat / Edit Gelombang</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Tentukan gelombang pendaftaran, jadwal buka/tutup, dan apakah gelombang ini aktif.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
@@ -75,24 +87,26 @@ export function GelombangStepForm({ form, onChange, onSubmit, onCancel, saving, 
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
-        >
-          {saving ? "Menyimpan..." : submitLabel}
-        </button>
-        {onCancel ? (
+      {!hideActions ? (
+        <div className="flex flex-wrap gap-3">
           <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            type="submit"
+            disabled={saving}
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
           >
-            Batal
+            {saving ? "Menyimpan..." : submitLabel}
           </button>
-        ) : null}
-      </div>
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Batal
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </form>
   );
 }
