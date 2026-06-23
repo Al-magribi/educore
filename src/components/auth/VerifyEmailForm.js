@@ -15,7 +15,8 @@ export function VerifyEmailForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resent, setResent] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [resendError, setResendError] = useState("");
+  const [countdown, setCountdown] = useState(60);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -31,23 +32,75 @@ export function VerifyEmailForm() {
     }
     setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    router.push("/masuk?verified=1");
+
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: typeof email === "string" ? email : "",
+          code,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Verifikasi gagal. Coba lagi.");
+        return;
+      }
+
+      router.push("/masuk?verified=1");
+    } catch {
+      setError("Koneksi gagal. Periksa jaringan Anda.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResend = async () => {
     if (countdown > 0) return;
+    setResendError("");
     setResent(true);
-    setCountdown(60);
-    await new Promise((r) => setTimeout(r, 500));
-    setResent(false);
+
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResendError(data.error || "Gagal mengirim ulang kode.");
+        return;
+      }
+
+      setCountdown(60);
+    } catch {
+      setResendError("Koneksi gagal. Periksa jaringan Anda.");
+    } finally {
+      setResent(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+        </div>
+        <p className="text-sm font-medium text-slate-700">Periksa kotak masuk Anda</p>
+      </div>
+
       <div className="rounded-xl bg-primary/5 px-4 py-3 text-center text-sm text-slate-600">
-        Kode verifikasi dikirim ke{" "}
+        Kode verifikasi 6 digit telah dikirim ke{" "}
         <span className="font-semibold text-slate-900">{email}</span>
       </div>
 
@@ -68,11 +121,18 @@ export function VerifyEmailForm() {
         <button
           type="button"
           onClick={handleResend}
-          disabled={countdown > 0}
+          disabled={countdown > 0 || resent}
           className="font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-slate-400"
         >
-          {countdown > 0 ? `Kirim ulang (${countdown}s)` : "Kirim ulang"}
+          {resent
+            ? "Mengirim..."
+            : countdown > 0
+              ? `Kirim ulang (${countdown}s)`
+              : "Kirim ulang"}
         </button>
+        {resendError ? (
+          <p className="mt-2 text-xs text-red-600">{resendError}</p>
+        ) : null}
       </div>
 
       <p className="text-center text-sm text-slate-500">

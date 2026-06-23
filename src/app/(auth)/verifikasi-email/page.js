@@ -11,7 +11,7 @@ function VerifyEmailContent() {
   return (
     <AuthShell
       title="Verifikasi Email"
-      subtitle="Masukkan kode 6 digit yang kami kirim ke email Anda."
+      subtitle="Cek email Anda dan masukkan kode 6 digit untuk mengaktifkan akun."
     >
       <VerifyEmailForm />
     </AuthShell>

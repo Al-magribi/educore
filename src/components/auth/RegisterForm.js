@@ -36,13 +36,44 @@ export function RegisterForm() {
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    router.push(`/verifikasi-email?email=${encodeURIComponent(form.email)}`);
+    setErrors({});
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
+          phone: form.phone.trim() || undefined,
+          password: form.password,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrors({ form: data.error || "Gagal mendaftar. Coba lagi." });
+        return;
+      }
+
+      router.push(`/verifikasi-email?email=${encodeURIComponent(data.email)}`);
+    } catch {
+      setErrors({ form: "Koneksi gagal. Periksa jaringan Anda." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {errors.form ? (
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          role="alert"
+        >
+          {errors.form}
+        </div>
+      ) : null}
       <AuthField
         id="name"
         label="Nama Lengkap"

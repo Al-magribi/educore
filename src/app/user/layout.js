@@ -1,30 +1,26 @@
-import Link from "next/link";
+import { getPublicSchoolBranding } from "@/modules/cms/school-settings.js";
+import { requireRole } from "@/lib/auth.js";
+import { ROLES } from "@/config/roles.js";
+import { UserShell } from "@/components/user/index.js";
 
-const navItems = [
-  { href: "/user", label: "Dashboard" },
-  { href: "/spmb/pembayaran", label: "Pembayaran" },
-  { href: "/spmb/formulir", label: "Formulir" },
-  { href: "/spmb/upload", label: "Upload" },
-  { href: "/spmb/kuesioner", label: "Kuesioner" },
-];
+export const dynamic = "force-dynamic";
 
-export default function UserLayout({ children }) {
+export const metadata = {
+  title: "Dashboard Pendaftaran",
+};
+
+export default async function UserLayout({ children }) {
+  const session = await requireRole(ROLES.APPLICANT);
+  const school = await getPublicSchoolBranding();
+
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="border-b border-zinc-200 px-6 py-4">
-        <nav className="mx-auto flex max-w-4xl gap-4">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-sm hover:text-primary"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 p-8">{children}</main>
-    </div>
+    <UserShell
+      schoolName={school.name}
+      logoUrl={school.logoUrl}
+      hasLogo={school.hasLogo}
+      userName={session.user.name}
+    >
+      {children}
+    </UserShell>
   );
 }

@@ -18,7 +18,13 @@ function SchoolLogoImage({
       height={height}
       priority={priority}
       className={className}
-      style={{ width: "auto", height: "auto", ...style }}
+      style={{
+        width: "auto",
+        height: "auto",
+        maxWidth: "100%",
+        maxHeight: "100%",
+        ...style,
+      }}
       sizes={`${width}px`}
     />
   );
@@ -64,8 +70,8 @@ export function SchoolBrandMark({
           width={180}
           height={40}
           priority={priority}
-          className="w-auto max-w-[180px] object-contain object-left"
-          style={{ height: "2.5rem" }}
+          className="object-contain object-left"
+          style={{ height: "2.5rem", width: "auto", maxWidth: "180px" }}
         />
       </span>
     );
@@ -82,7 +88,7 @@ export function SchoolBrandMark({
           width={36}
           height={36}
           priority={priority}
-          className="max-h-full max-w-full object-contain p-0.5"
+          className="object-contain p-0.5"
         />
       </span>
     );
@@ -128,8 +134,8 @@ export function PublicSchoolBrand({
             alt={schoolName}
             width={200}
             height={40}
-            className="w-auto max-w-[200px] object-contain object-left"
-            style={{ height: "2.5rem" }}
+            className="object-contain object-left"
+            style={{ height: "2.5rem", width: "auto", maxWidth: "200px" }}
           />
         </div>
       );
@@ -144,7 +150,7 @@ export function PublicSchoolBrand({
             width={40}
             height={40}
             priority
-            className="max-h-full max-w-full object-contain p-1"
+            className="object-contain p-1"
           />
         </span>
         <span className="hidden font-bold text-slate-900 sm:block md:max-w-[220px] md:truncate lg:max-w-none">

@@ -1,0 +1,26 @@
+.user-shell-root {
+  --user-sidebar-width-expanded: 17rem;
+  --user-sidebar-width-collapsed: 4.75rem;
+  --user-sidebar-width: var(--user-sidebar-width-expanded);
+}
+
+.user-shell-root[data-sidebar-collapsed="true"] {
+  --user-sidebar-width: var(--user-sidebar-width-collapsed);
+}
+
+.user-sidebar {
+  width: var(--user-sidebar-width);
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+
+.user-main {
+  padding-left: 0;
+  transition: padding-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (min-width: 1024px) {
+  .user-main {
+    padding-left: var(--user-sidebar-width);
+  }
+}
