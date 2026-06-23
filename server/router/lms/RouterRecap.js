@@ -2519,6 +2519,8 @@ router.get(
       });
     }
 
+    const semesterMonths = SEMESTER_MONTHS[semesterValue];
+
     const classSubjectMeta = await pool.query(
       `SELECT
          c.name AS class_name,
