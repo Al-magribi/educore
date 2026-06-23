@@ -1,11 +1,20 @@
-import { spmbLandingData } from "@/data/spmb-dummy.js";
+import { cache } from "react";
+import { getSpmbLandingContent } from "@/modules/spmb/landing-content.js";
 import { SpmbLandingView } from "@/components/spmb/landing/SpmbLandingView.js";
 
-export const metadata = {
-  title: "SPMB",
-  description: spmbLandingData.page.subtitle,
-};
+export const dynamic = "force-dynamic";
 
-export default function SpmbLandingPage() {
-  return <SpmbLandingView data={spmbLandingData} />;
+const loadLandingData = cache(getSpmbLandingContent);
+
+export async function generateMetadata() {
+  const data = await loadLandingData();
+  return {
+    title: data.page.title || "SPMB",
+    description: data.page.subtitle,
+  };
+}
+
+export default async function SpmbLandingPage() {
+  const data = await loadLandingData();
+  return <SpmbLandingView data={data} />;
 }

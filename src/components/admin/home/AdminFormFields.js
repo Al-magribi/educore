@@ -26,12 +26,17 @@ export function Field({ label, hint, children, className = "" }) {
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--admin-primary)] focus:ring-2 focus:ring-[var(--admin-ring)]";
 
-export function TextInput(props) {
-  return <input className={inputClass} {...props} />;
+export function TextInput({ className = "", ...props }) {
+  return <input className={`${inputClass} ${className}`.trim()} {...props} />;
 }
 
-export function TextArea(props) {
-  return <textarea className={`${inputClass} min-h-[100px] resize-y`} {...props} />;
+export function TextArea({ className = "", ...props }) {
+  return (
+    <textarea
+      className={`${inputClass} min-h-[100px] resize-y ${className}`.trim()}
+      {...props}
+    />
+  );
 }
 
 export function SelectInput({ className = "", ...props }) {
@@ -50,6 +55,33 @@ export function SelectInput({ className = "", ...props }) {
       >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
       </svg>
+    </div>
+  );
+}
+
+export function RupiahInput({ value, onValueChange, className = "", ...props }) {
+  const display = new Intl.NumberFormat("id-ID").format(Math.max(0, Number(value) || 0));
+
+  const handleChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    const numeric = digits === "" ? 0 : Math.max(0, Number(digits) || 0);
+    onValueChange?.(numeric);
+  };
+
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-500">
+        Rp
+      </span>
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        value={display}
+        onChange={handleChange}
+        className={`${inputClass} pl-10 text-right tabular-nums ${className}`.trim()}
+        {...props}
+      />
     </div>
   );
 }

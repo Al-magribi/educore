@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { RupiahInput, SelectInput } from "@/components/admin/home/AdminFormFields.js";
 import {
   calculateFeeTotal,
   FEE_FREQUENCIES,
@@ -85,30 +86,27 @@ export function ItemBiayaStep({
                           ({FEE_FREQUENCY_LABELS[item.frequency] ?? item.frequency})
                         </span>
                       ) : (
-                        <select
+                        <SelectInput
                           value={item.frequency}
                           onChange={(e) => setItemField(item.id, "frequency", e.target.value)}
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                          className="min-w-36"
                         >
                           {FEE_FREQUENCIES.map((freq) => (
                             <option key={freq} value={freq}>
                               {FEE_FREQUENCY_LABELS[freq]}
                             </option>
                           ))}
-                        </select>
+                        </SelectInput>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       {readOnly ? (
                         <span className="font-medium text-slate-900">{formatRupiah(item.amount)}</span>
                       ) : (
-                        <input
-                          type="number"
-                          min={0}
-                          step={1000}
+                        <RupiahInput
                           value={item.amount}
-                          onChange={(e) => setItemAmount(item.id, e.target.value)}
-                          className="w-full min-w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                          onValueChange={(numeric) => setItemAmount(item.id, numeric)}
+                          className="min-w-36"
                         />
                       )}
                     </td>

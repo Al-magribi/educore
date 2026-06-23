@@ -1,5 +1,11 @@
 export const SETTINGS_TABS = [
   {
+    id: "landing",
+    label: "Landing Page",
+    shortLabel: "Landing",
+    description: "Kustomisasi konten halaman publik SPMB (/spmb)",
+  },
+  {
     id: "pembayaran",
     label: "Pembayaran",
     shortLabel: "Bayar",

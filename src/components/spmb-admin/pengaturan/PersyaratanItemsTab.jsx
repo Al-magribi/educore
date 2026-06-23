@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConfirmDelete } from "@/components/admin/home/ConfirmDeleteModal.js";
+import { Field, RupiahInput, SelectInput } from "@/components/admin/home/AdminFormFields.js";
 import {
   FEE_FREQUENCIES,
   FEE_FREQUENCY_LABELS,
@@ -165,20 +166,18 @@ function FeeItemModal({ open, mode, periods, initial, saving, onSave, onClose })
                 />
               </label>
 
-              <label className="block max-w-xs">
-                <span className="text-sm font-medium text-slate-700">Frekuensi</span>
-                <select
+              <Field label="Frekuensi" className="max-w-xs">
+                <SelectInput
                   value={form.frequency}
                   onChange={(e) => setForm((current) => ({ ...current, frequency: e.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 >
                   {FEE_FREQUENCIES.map((freq) => (
                     <option key={freq} value={freq}>
                       {FEE_FREQUENCY_LABELS[freq]}
                     </option>
                   ))}
-                </select>
-              </label>
+                </SelectInput>
+              </Field>
 
               <fieldset className="space-y-3 rounded-xl border border-slate-200 p-4">
                 <legend className="px-1 text-sm font-medium text-slate-700">Tampilkan di periode</legend>
@@ -264,13 +263,10 @@ function FeeItemModal({ open, mode, periods, initial, saving, onSave, onClose })
                               <span className="ml-2 text-xs text-slate-400">{period.academicYear}</span>
                             </td>
                             <td className="px-4 py-3">
-                              <input
-                                type="number"
-                                min={0}
-                                step={1000}
+                              <RupiahInput
                                 value={amount}
-                                onChange={(e) => setAmount(period.id, e.target.value)}
-                                className="w-full min-w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                onValueChange={(numeric) => setAmount(period.id, numeric)}
+                                className="min-w-36"
                               />
                             </td>
                           </tr>

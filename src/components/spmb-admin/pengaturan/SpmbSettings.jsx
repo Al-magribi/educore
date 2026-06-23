@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import LandingSettingsTab from "@/components/spmb-admin/pengaturan/LandingSettingsTab.jsx";
 import PaymentSettingsTab from "@/components/spmb-admin/pengaturan/PaymentSettingsTab.jsx";
 import SmtpSettingsTab from "@/components/spmb-admin/pengaturan/SmtpSettingsTab.jsx";
 import PeriodeSettingsTab from "@/components/spmb-admin/pengaturan/PeriodeSettingsTab.jsx";
 import { SETTINGS_TABS } from "@/components/spmb-admin/pengaturan/settings-tabs.js";
 
 const TAB_PANELS = {
+  landing: LandingSettingsTab,
   pembayaran: PaymentSettingsTab,
   smtp: SmtpSettingsTab,
   periode: PeriodeSettingsTab,
@@ -16,7 +18,7 @@ const TAB_PANELS = {
 export default function SpmbSettings() {
   const searchParams = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
-  const initialTab = SETTINGS_TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "pembayaran";
+  const initialTab = SETTINGS_TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "landing";
   const [activeTab, setActiveTab] = useState(initialTab);
   const tabRefs = useRef({});
   const navRef = useRef(null);
@@ -34,19 +36,23 @@ export default function SpmbSettings() {
   }, [activeTab]);
 
   const current = SETTINGS_TABS.find((t) => t.id === activeTab) ?? SETTINGS_TABS[0];
-  const ActivePanel = TAB_PANELS[activeTab] ?? PaymentSettingsTab;
+  const ActivePanel = TAB_PANELS[activeTab] ?? LandingSettingsTab;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Pengaturan SPMB</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Konfigurasi pembayaran, email, dan periode penerimaan siswa baru.
+          Kustomisasi landing page, pembayaran, email, dan periode penerimaan siswa baru.
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-slate-50/80" role="tablist" aria-label="Pengaturan SPMB">
+      <div className="space-y-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div
+          className="shrink-0 border-b border-slate-200 bg-slate-50/80"
+          role="tablist"
+          aria-label="Pengaturan SPMB"
+        >
           <div
             ref={navRef}
             className="-mb-px flex gap-0.5 overflow-x-auto overscroll-x-contain px-2 pt-2 sm:gap-1 sm:px-4 sm:pt-3 [scrollbar-width:thin]"
@@ -77,7 +83,7 @@ export default function SpmbSettings() {
           </div>
         </div>
 
-        <div className="p-5 sm:p-6 md:p-8" role="tabpanel">
+        <div className="min-h-0 p-4 sm:p-6" role="tabpanel">
           <p className="mb-6 text-sm text-slate-600">{current.description}</p>
           <ActivePanel />
         </div>

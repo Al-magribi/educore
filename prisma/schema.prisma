@@ -317,7 +317,6 @@ model GalleryImage {
 model SpmbLandingContent {
   id           String   @id @default("default")
   page         Json
-  quickInfo    Json?    @map("quick_info")
   schedule     Json?
   flow         Json?
   requirements Json?

@@ -183,6 +183,19 @@ export function formatRupiah(amount) {
   }).format(amount);
 }
 
+/** Format angka untuk input (tanpa prefix Rp), pemisah ribuan Indonesia. */
+export function formatRupiahInput(amount) {
+  const num = Math.max(0, Number(amount) || 0);
+  return new Intl.NumberFormat("id-ID").format(num);
+}
+
+/** Parse teks input ke angka bulat (hanya digit). */
+export function parseRupiahInput(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return 0;
+  return Math.max(0, Number(digits) || 0);
+}
+
 export const DEFAULT_FINANCIAL_TITLE = "Biaya Masuk Siswa Baru";
 
 export function normalizeFinancialFees(input) {

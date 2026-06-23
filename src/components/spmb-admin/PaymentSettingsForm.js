@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Field, RupiahInput } from "@/components/admin/home/AdminFormFields.js";
 
 const empty = {
   registrationFee: 350000,
@@ -100,16 +101,12 @@ export function PaymentSettingsForm() {
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-slate-900">Umum</h2>
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">Biaya pendaftaran (Rp)</span>
-          <input
-            type="number"
-            min={0}
+        <Field label="Biaya pendaftaran">
+          <RupiahInput
             value={form.registrationFee}
-            onChange={set("registrationFee")}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            onValueChange={(numeric) => setForm((f) => ({ ...f, registrationFee: numeric }))}
           />
-        </label>
+        </Field>
       </section>
 
       <section className="space-y-4 rounded-xl border border-slate-200 p-4">

@@ -8,6 +8,7 @@ function SchoolLogoImage({
   height,
   className,
   priority = false,
+  style,
 }) {
   return (
     <Image
@@ -17,6 +18,7 @@ function SchoolLogoImage({
       height={height}
       priority={priority}
       className={className}
+      style={{ width: "auto", height: "auto", ...style }}
       sizes={`${width}px`}
     />
   );
@@ -62,7 +64,8 @@ export function SchoolBrandMark({
           width={180}
           height={40}
           priority={priority}
-          className="h-10 w-auto max-w-[180px] object-contain object-left"
+          className="w-auto max-w-[180px] object-contain object-left"
+          style={{ height: "2.5rem" }}
         />
       </span>
     );
@@ -125,7 +128,8 @@ export function PublicSchoolBrand({
             alt={schoolName}
             width={200}
             height={40}
-            className="h-10 w-auto max-w-[200px] object-contain object-left"
+            className="w-auto max-w-[200px] object-contain object-left"
+            style={{ height: "2.5rem" }}
           />
         </div>
       );
