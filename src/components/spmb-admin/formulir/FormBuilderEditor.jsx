@@ -5,9 +5,9 @@ import {
   Field,
   FormMessage,
   SaveButton,
-  SelectInput,
   TextInput,
 } from "@/components/admin/home/AdminFormFields.js";
+import { AdminSelect } from "@/components/admin/home/AdminSelect.js";
 import {
   FIELD_TYPES,
   OPTION_TYPES,
@@ -21,6 +21,30 @@ import {
   sanitizeIdInput,
 } from "./form-constants.js";
 import { FormPreviewModal } from "./FormPreviewModal.jsx";
+
+const fieldTypeOptions = FIELD_TYPES.map((type) => ({
+  value: type.value,
+  label: type.label,
+}));
+
+function AddFieldSelect({ groupTitle, onAdd }) {
+  const [pickerValue, setPickerValue] = useState("");
+
+  return (
+    <AdminSelect
+      value={pickerValue}
+      placeholder="Tambah field..."
+      options={fieldTypeOptions}
+      onChange={(type) => {
+        onAdd(type);
+        setPickerValue("");
+      }}
+      size="sm"
+      className="w-full sm:w-52"
+      aria-label={`Tambah field ke ${groupTitle}`}
+    />
+  );
+}
 
 export function FormBuilderEditor({ form, onCancel, onSaved }) {
   const initialGroups = normalizeFormGroups(form.schema?.groups ?? []);
@@ -58,6 +82,15 @@ export function FormBuilderEditor({ form, onCancel, onSaved }) {
     if (!selectedFieldId) return null;
     return findFieldLocation(groups, selectedFieldId)?.group.id ?? null;
   }, [groups, selectedFieldId]);
+
+  const groupOptions = useMemo(
+    () =>
+      groups.map((group) => ({
+        value: group.id,
+        label: group.title?.trim() || group.id,
+      })),
+    [groups]
+  );
 
   const updateGroup = useCallback((groupId, patch) => {
     setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, ...patch } : g)));
@@ -454,21 +487,10 @@ export function FormBuilderEditor({ form, onCancel, onSaved }) {
                           + {t.label}
                         </button>
                       ))}
-                      <SelectInput
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) addField(group.id, e.target.value);
-                        }}
-                        className="w-auto! py-1.5! text-xs!"
-                        aria-label={`Tambah field ke ${group.title}`}
-                      >
-                        <option value="">Tambah field...</option>
-                        {FIELD_TYPES.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </SelectInput>
+                      <AddFieldSelect
+                        groupTitle={group.title}
+                        onAdd={(type) => addField(group.id, type)}
+                      />
                     </div>
                   </section>
                 ))}
@@ -530,16 +552,11 @@ export function FormBuilderEditor({ form, onCancel, onSaved }) {
                 {selectionMode === "field" && selectedField ? (
                   <div className="space-y-4">
                     <Field label="Grup">
-                      <SelectInput
+                      <AdminSelect
                         value={selectedFieldGroupId ?? ""}
-                        onChange={(e) => moveFieldToGroup(selectedField.id, e.target.value)}
-                      >
-                        {groups.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.title}
-                          </option>
-                        ))}
-                      </SelectInput>
+                        options={groupOptions}
+                        onChange={(groupId) => moveFieldToGroup(selectedField.id, groupId)}
+                      />
                     </Field>
                     <Field label="Label">
                       <TextInput
@@ -576,10 +593,10 @@ export function FormBuilderEditor({ form, onCancel, onSaved }) {
                       ) : null}
                     </Field>
                     <Field label="Tipe">
-                      <SelectInput
+                      <AdminSelect
                         value={selectedField.type}
-                        onChange={(e) => {
-                          const type = e.target.value;
+                        options={fieldTypeOptions}
+                        onChange={(type) => {
                           updateField(selectedField.id, {
                             type,
                             options: OPTION_TYPES.has(type)
@@ -591,13 +608,7 @@ export function FormBuilderEditor({ form, onCancel, onSaved }) {
                                 : undefined,
                           });
                         }}
-                      >
-                        {FIELD_TYPES.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </SelectInput>
+                      />
                     </Field>
                     {!OPTION_TYPES.has(selectedField.type) &&
                     selectedField.type !== "checkbox" &&

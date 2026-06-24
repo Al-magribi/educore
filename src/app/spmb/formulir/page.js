@@ -1,8 +1,17 @@
-export default function SpmbFormulirPage() {
-  return (
-    <>
-      <h1 className="text-2xl font-bold">Formulir</h1>
-      <p className="mt-2 text-zinc-600">Isi formulir pendaftaran dinamis dari admin.</p>
-    </>
-  );
+import { requireRole } from "@/lib/auth.js";
+import { ROLES } from "@/config/roles.js";
+import { getApplicantFormPageData } from "@/modules/spmb/services/applicant-form.js";
+import { FormulirPageView } from "@/components/spmb/FormulirPageView.js";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Formulir SPMB",
+};
+
+export default async function SpmbFormulirPage() {
+  const session = await requireRole(ROLES.APPLICANT);
+  const initialData = await getApplicantFormPageData(session.user.id);
+
+  return <FormulirPageView initialData={initialData} />;
 }

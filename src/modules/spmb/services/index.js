@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db.js";
 
 export { getApplicantDashboardData, applicationStatusLabels } from "./applicant-dashboard.js";
+export { getApplicantFormPageData, saveApplicationForm } from "./applicant-form.js";
+export {
+  getApplicantQuestionnairePageData,
+  saveQuestionnaireResponse,
+} from "./applicant-questionnaire.js";
 
 export async function getApplicationByUserId(userId) {
   return prisma.application.findFirst({

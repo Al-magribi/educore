@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { FormSelect } from "@/components/spmb/FormSelect.js";
 
 function FieldPreview({ field }) {
   const baseClass =
@@ -11,16 +12,12 @@ function FieldPreview({ field }) {
   }
   if (field.type === "select") {
     return (
-      <select className={baseClass} disabled defaultValue="">
-        <option value="" disabled>
-          Pilih...
-        </option>
-        {(field.options ?? []).map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
+      <FormSelect
+        value=""
+        options={field.options ?? []}
+        placeholder={`Pilih ${field.label?.toLowerCase() ?? "opsi"}...`}
+        disabled
+      />
     );
   }
   if (field.type === "radio") {

@@ -1,10 +1,17 @@
-export default function SpmbKuesionerPage() {
-  return (
-    <>
-      <h1 className="text-2xl font-bold">Kuesioner</h1>
-      <p className="mt-2 text-zinc-600">
-        Kepribadian, gaya belajar, dan pertanyaan lain dari admin.
-      </p>
-    </>
-  );
+import { requireRole } from "@/lib/auth.js";
+import { ROLES } from "@/config/roles.js";
+import { getApplicantQuestionnairePageData } from "@/modules/spmb/services/applicant-questionnaire.js";
+import { KuesionerPageView } from "@/components/spmb/KuesionerPageView.js";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Kuesioner SPMB",
+};
+
+export default async function SpmbKuesionerPage() {
+  const session = await requireRole(ROLES.APPLICANT);
+  const initialData = await getApplicantQuestionnairePageData(session.user.id);
+
+  return <KuesionerPageView initialData={initialData} />;
 }

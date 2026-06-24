@@ -1,9 +1,5 @@
-import TestBuilderAdmin from "@/components/spmb-admin/test/TestBuilderAdmin.jsx";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Test",
-};
-
-export default function SpmbAdminTestPage() {
-  return <TestBuilderAdmin />;
+export default function SpmbAdminTestRedirectPage() {
+  redirect("/spmb-admin/kuesioner");
 }

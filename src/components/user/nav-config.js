@@ -26,12 +26,7 @@ export const userNavItems = [
     icon: IconForm,
     description: "Lengkapi data calon siswa sesuai formulir sekolah.",
   },
-  {
-    href: "/spmb/upload",
-    label: "Upload Berkas",
-    icon: IconUpload,
-    description: "Unggah dokumen persyaratan pendaftaran.",
-  },
+
   {
     href: "/spmb/kuesioner",
     label: "Kuesioner",

@@ -1,8 +1,8 @@
 const STATUS_LABELS = {
   pending: "Menunggu pembayaran",
   paid: "Lunas",
-  failed: "Gagal",
-  manual_review: "Menunggu verifikasi manual",
+  failed: "Gagal / ditolak",
+  manual_review: "Menunggu verifikasi admin",
 };
 
 export function PaymentStatus({ status = "pending" }) {
@@ -13,3 +13,5 @@ export function PaymentStatus({ status = "pending" }) {
     </div>
   );
 }
+
+export { STATUS_LABELS as PAYMENT_STATUS_LABELS };

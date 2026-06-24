@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { FormMessage, SelectInput } from "@/components/admin/home/AdminFormFields.js";
+import { FormMessage } from "@/components/admin/home/AdminFormFields.js";
+import { AdminSelect } from "@/components/admin/home/AdminSelect.js";
 
 const statusLabels = {
   pending: "Menunggu",
@@ -9,6 +10,24 @@ const statusLabels = {
   failed: "Gagal",
   manual_review: "Verifikasi manual",
 };
+
+const statusIndicators = {
+  pending: "bg-slate-400",
+  paid: "bg-emerald-500",
+  failed: "bg-rose-500",
+  manual_review: "bg-amber-500",
+};
+
+const statusOptions = Object.entries(statusLabels).map(([value, label]) => ({
+  value,
+  label,
+  indicatorClassName: statusIndicators[value],
+}));
+
+const filterOptions = [
+  { value: "all", label: "Semua status", indicatorClassName: "bg-slate-300" },
+  ...statusOptions,
+];
 
 const methodLabels = {
   manual: "Transfer manual",
@@ -39,6 +58,25 @@ function StatusBadge({ status }) {
     >
       {statusLabels[status] ?? status}
     </span>
+  );
+}
+
+function StatusSelectField({ value, disabled, loading, onChange, className = "" }) {
+  return (
+    <div className={className}>
+      <AdminSelect
+        value={value}
+        options={statusOptions}
+        onChange={onChange}
+        disabled={disabled}
+        loading={loading}
+        size="sm"
+        className="min-w-[10rem]"
+      />
+      {loading ? (
+        <p className="mt-1 text-[11px] font-medium text-[var(--admin-primary)]">Menyimpan status...</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -200,6 +238,7 @@ export default function PaymentList({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const [pendingStatusById, setPendingStatusById] = useState({});
   const [deletingId, setDeletingId] = useState(null);
   const [proofPayment, setProofPayment] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -241,6 +280,7 @@ export default function PaymentList({
 
   const handleStatusChange = async (id, status) => {
     setUpdatingId(id);
+    setPendingStatusById((prev) => ({ ...prev, [id]: status }));
     setMessage(null);
     try {
       const res = await fetch(`/api/spmb-admin/payments/${id}`, {
@@ -257,6 +297,11 @@ export default function PaymentList({
       setMessage({ type: "error", text: err.message });
     } finally {
       setUpdatingId(null);
+      setPendingStatusById((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -301,19 +346,14 @@ export default function PaymentList({
       {message ? <FormMessage message={message} /> : null}
 
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <SelectInput
+        <AdminSelect
           value={statusFilter}
-          onChange={(e) => handleStatusFilterChange(e.target.value)}
-          className="sm:w-52"
+          options={filterOptions}
+          onChange={handleStatusFilterChange}
+          className="sm:w-56"
           disabled={loading}
-        >
-          <option value="all">Semua status</option>
-          {Object.entries(statusLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </SelectInput>
+          size="md"
+        />
         {loading ? <p className="text-sm text-slate-500">Memuat...</p> : null}
       </div>
 
@@ -335,9 +375,15 @@ export default function PaymentList({
                 const canManage =
                   manualManagementEnabled && item.method === "manual";
                 const canViewProof = canManage && Boolean(item.proofUrl);
+                const isUpdating = updatingId === item.id;
+                const displayStatus = pendingStatusById[item.id] ?? item.status;
 
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50/80">
+                  <tr
+                    key={item.id}
+                    className={`hover:bg-slate-50/80 ${isUpdating ? "bg-amber-50/40" : ""}`}
+                    aria-busy={isUpdating}
+                  >
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{item.applicant.name}</p>
                       <p className="text-xs text-slate-500">{item.applicant.email}</p>
@@ -350,18 +396,11 @@ export default function PaymentList({
                     </td>
                     <td className="px-4 py-3">
                       {canManage ? (
-                        <SelectInput
-                          value={item.status}
-                          disabled={updatingId === item.id}
-                          onChange={(e) => handleStatusChange(item.id, e.target.value)}
-                          className="min-w-[10rem] py-1.5 text-xs"
-                        >
-                          {Object.entries(statusLabels).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </SelectInput>
+                        <StatusSelectField
+                          value={displayStatus}
+                          loading={isUpdating}
+                          onChange={(nextStatus) => handleStatusChange(item.id, nextStatus)}
+                        />
                       ) : (
                         <StatusBadge status={item.status} />
                       )}
@@ -398,15 +437,25 @@ export default function PaymentList({
           {items.map((item) => {
             const canManage = manualManagementEnabled && item.method === "manual";
             const canViewProof = canManage && Boolean(item.proofUrl);
+            const isUpdating = updatingId === item.id;
+            const displayStatus = pendingStatusById[item.id] ?? item.status;
 
             return (
-              <div key={item.id} className="px-4 py-4">
+              <div
+                key={item.id}
+                className={`px-4 py-4 ${isUpdating ? "bg-amber-50/40" : ""}`}
+                aria-busy={isUpdating}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-slate-900">{item.applicant.name}</p>
                     <p className="text-sm text-slate-500">{item.applicant.email}</p>
                   </div>
-                  <StatusBadge status={item.status} />
+                  {canManage ? (
+                    <StatusBadge status={displayStatus} />
+                  ) : (
+                    <StatusBadge status={item.status} />
+                  )}
                 </div>
                 <p className="mt-2 text-sm font-medium text-slate-900">
                   {formatRupiah(item.amount)}
@@ -416,18 +465,12 @@ export default function PaymentList({
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {canManage ? (
-                    <SelectInput
-                      value={item.status}
-                      disabled={updatingId === item.id}
-                      onChange={(e) => handleStatusChange(item.id, e.target.value)}
-                      className="flex-1 py-1.5 text-xs"
-                    >
-                      {Object.entries(statusLabels).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </SelectInput>
+                    <StatusSelectField
+                      value={displayStatus}
+                      loading={isUpdating}
+                      onChange={(nextStatus) => handleStatusChange(item.id, nextStatus)}
+                      className="w-full min-w-0 flex-1"
+                    />
                   ) : null}
                   {canViewProof ? (
                     <button

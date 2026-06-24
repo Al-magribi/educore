@@ -5,7 +5,7 @@ export const spmbNavItems = [
   { href: '/spmb-admin/pembayaran', label: 'Pembayaran', icon: IconPayment },
   { href: '/spmb-admin/formulir', label: 'Formulir', icon: IconForm },
   { href: '/spmb-admin/pendaftaran', label: 'Pendaftaran', icon: IconUsers },
-  { href: '/spmb-admin/test', label: 'Test', icon: IconTest },
+  { href: '/spmb-admin/kuesioner', label: 'Kuesioner', icon: IconTest },
   { href: '/spmb-admin/pengaturan', label: 'Pengaturan', icon: IconSettings },
 ];
 

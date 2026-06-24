@@ -110,6 +110,10 @@ export async function updatePaymentStatus(id, status, { allowManualManagement = 
   }
 
   const paidAt = status === PAYMENT_STATUS.PAID ? new Date() : null;
+  const prePaymentApplicationStatuses = new Set([
+    APPLICATION_STATUS.DRAFT,
+    APPLICATION_STATUS.PENDING_PAYMENT,
+  ]);
 
   const row = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.update({
@@ -145,13 +149,24 @@ export async function updatePaymentStatus(id, status, { allowManualManagement = 
 
     if (
       status === PAYMENT_STATUS.PAID &&
-      existing.application.status === APPLICATION_STATUS.PENDING_PAYMENT
+      prePaymentApplicationStatuses.has(existing.application.status)
     ) {
       await tx.application.update({
         where: { id: existing.applicationId },
         data: { status: APPLICATION_STATUS.PAID },
       });
       payment.application.status = APPLICATION_STATUS.PAID;
+    }
+
+    if (
+      status !== PAYMENT_STATUS.PAID &&
+      existing.application.status === APPLICATION_STATUS.PAID
+    ) {
+      await tx.application.update({
+        where: { id: existing.applicationId },
+        data: { status: APPLICATION_STATUS.PENDING_PAYMENT },
+      });
+      payment.application.status = APPLICATION_STATUS.PENDING_PAYMENT;
     }
 
     return payment;
