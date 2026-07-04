@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomBytes } from "crypto";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { applyRfidScanToDailyAttendance } from "../../services/attendance/rfidDailyAttendance.js";
 
 const router = Router();
 
@@ -1559,16 +1560,33 @@ router.post(
       ],
     );
 
+    const scanLogId = accepted.rows[0].id;
+    let attendanceResult = null;
+
+    if (device.device_type === "gate") {
+      attendanceResult = await applyRfidScanToDailyAttendance(client, {
+        homebaseId: device.homebase_id,
+        periodeId: activePeriodeId,
+        userId: card.user_id,
+        scanAction: finalScanAction,
+        scannedAt,
+        scanLogId,
+      });
+    }
+
     return res.json({
       status: "success",
       result_status: "accepted",
       message: `Scan diterima untuk ${card.full_name}.`,
       data: {
-        scan_log_id: accepted.rows[0].id,
+        scan_log_id: scanLogId,
         user_id: card.user_id,
         user_name: card.full_name,
         scan_action: finalScanAction,
         scan_source: device.device_type,
+        attendance_id: attendanceResult?.attendance_id || null,
+        attendance_status: attendanceResult?.attendance_status || null,
+        attendance_date: attendanceResult?.attendance_date || null,
       },
     });
   }),
