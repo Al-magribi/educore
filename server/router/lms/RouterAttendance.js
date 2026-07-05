@@ -2,9 +2,38 @@ import { Router } from "express";
 import { randomBytes } from "crypto";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
-import { applyRfidScanToDailyAttendance } from "../../services/attendance/rfidDailyAttendance.js";
+import {
+  applyRfidScanToDailyAttendance,
+  checkDuplicateScan,
+  DAILY_GATE_ACTION,
+  isDailyGateAction,
+  jakartaLocalToDate,
+  reconcilePendingScanLogs,
+  resolveDailyGateScanAction,
+  resolveScanPolicyDayRule,
+  toJakartaDateString,
+  validateScanTimeWindow,
+} from "../../services/attendance/rfidDailyAttendance.js";
+import { applyRfidScanToTeacherSession } from "../../services/attendance/rfidTeacherSession.js";
+import {
+  deleteDailyAttendanceCascade,
+  deleteDailyAttendanceCascadeBulk,
+  deleteScanLogsCascade,
+} from "../../services/attendance/attendanceReportDelete.js";
+import "../../services/attendance/attendanceJobs.js";
 
 const router = Router();
+
+const DAILY_ATTENDANCE_STATUSES = new Set([
+  "pending",
+  "present",
+  "late",
+  "absent",
+  "excused",
+  "not_scheduled",
+  "incomplete",
+  "insufficient_hours",
+]);
 
 const ALLOWED_STATUSES = new Set([
   "Hadir",
@@ -45,7 +74,7 @@ const ASSIGNMENT_SCOPES = new Set(["user", "class", "grade", "homebase"]);
 const JAKARTA_TZ = "Asia/Jakarta";
 
 const toJakartaTimestampSql = (columnSql) =>
-  `CASE WHEN ${columnSql} IS NULL THEN NULL ELSE TO_CHAR(((${columnSql} AT TIME ZONE 'UTC') AT TIME ZONE '${JAKARTA_TZ}'), 'YYYY-MM-DD HH24:MI:SS') END`;
+  `CASE WHEN ${columnSql} IS NULL THEN NULL ELSE TO_CHAR((${columnSql} AT TIME ZONE '${JAKARTA_TZ}'), 'YYYY-MM-DD HH24:MI:SS') END`;
 
 const getDefaultDateRange = () => {
   const now = new Date();
@@ -77,6 +106,121 @@ const normalizeNumberOrNull = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
   return Math.trunc(num);
+};
+
+const normalizeBulkIds = (value, { maxItems = 200 } = {}) => {
+  const raw = Array.isArray(value) ? value : [];
+  const ids = [
+    ...new Set(
+      raw
+        .map((item) => normalizeNumberOrNull(item))
+        .filter((item) => item !== null),
+    ),
+  ];
+
+  if (ids.length === 0) {
+    return { ids: [], error: "Daftar ID wajib diisi." };
+  }
+  if (ids.length > maxItems) {
+    return {
+      ids: [],
+      error: `Maksimal ${maxItems} item per permintaan.`,
+    };
+  }
+
+  return { ids, error: null };
+};
+
+const parseTimestampOrNull = (value) => {
+  if (value === null || value === "") return null;
+  if (value === undefined) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+};
+
+const evaluateManualCheckinStatus = (checkinAt, dayRule) => {
+  if (!dayRule?.reference_checkin_time) {
+    return { attendanceStatus: "present", lateMinutes: 0 };
+  }
+
+  const attendanceDate = toJakartaDateString(checkinAt);
+  const referenceAt = jakartaLocalToDate(
+    attendanceDate,
+    dayRule.reference_checkin_time,
+  );
+  if (!referenceAt) {
+    return { attendanceStatus: "present", lateMinutes: 0 };
+  }
+
+  const toleranceMinutes = Number(dayRule.late_tolerance_minutes || 0);
+  const diffMinutes = Math.floor(
+    (checkinAt.getTime() - referenceAt.getTime()) / 60000,
+  );
+
+  if (diffMinutes <= toleranceMinutes) {
+    return { attendanceStatus: "present", lateMinutes: 0 };
+  }
+
+  return { attendanceStatus: "late", lateMinutes: diffMinutes };
+};
+
+const recalculateDailyAttendanceFields = ({
+  checkinAt,
+  checkoutAt,
+  dayRule,
+}) => {
+  if (!checkinAt && !checkoutAt) {
+    return {
+      attendanceStatus: "pending",
+      lateMinutes: 0,
+      presenceMinutes: null,
+    };
+  }
+
+  if (!checkinAt) {
+    return {
+      attendanceStatus: "incomplete",
+      lateMinutes: 0,
+      presenceMinutes: null,
+    };
+  }
+
+  const { attendanceStatus, lateMinutes } = evaluateManualCheckinStatus(
+    checkinAt,
+    dayRule,
+  );
+
+  if (!checkoutAt) {
+    return {
+      attendanceStatus,
+      lateMinutes,
+      presenceMinutes: null,
+    };
+  }
+
+  const presenceMinutes = Math.max(
+    0,
+    Math.floor((checkoutAt.getTime() - checkinAt.getTime()) / 60000),
+  );
+  const minimumRequiredMinutes = dayRule?.min_presence_minutes ?? null;
+  let finalStatus = attendanceStatus;
+
+  if (
+    minimumRequiredMinutes &&
+    presenceMinutes < minimumRequiredMinutes &&
+    finalStatus !== "late"
+  ) {
+    finalStatus = "insufficient_hours";
+  }
+
+  return {
+    attendanceStatus: finalStatus,
+    lateMinutes,
+    presenceMinutes,
+  };
 };
 
 const getAttendanceFeatureRows = async (pool, homebaseId) => {
@@ -174,6 +318,17 @@ const getPoliciesWithRules = async (pool, homebaseId, filters = {}) => {
     ...policy,
     day_rules: ruleMap.get(policy.id) || [],
   }));
+};
+
+const getAttendanceClasses = async (pool, homebaseId) => {
+  const result = await pool.query(
+    `SELECT id, name
+     FROM a_class
+     WHERE homebase_id = $1
+     ORDER BY name ASC`,
+    [homebaseId],
+  );
+  return result.rows;
 };
 
 const getRfidDevices = async (pool, homebaseId) => {
@@ -532,10 +687,11 @@ router.get(
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
 
-    const [features, policies, devices] = await Promise.all([
+    const [features, policies, devices, classes] = await Promise.all([
       getAttendanceFeatureRows(pool, homebase_id),
       getPoliciesWithRules(pool, homebase_id),
       getRfidDevices(pool, homebase_id),
+      getAttendanceClasses(pool, homebase_id),
     ]);
 
     return res.json({
@@ -544,6 +700,7 @@ router.get(
         features,
         policies,
         devices,
+        classes,
       },
     });
   }),
@@ -828,6 +985,66 @@ router.put(
   ),
 );
 
+router.delete(
+  "/attendance/config/policies/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const policyId = Number(req.params.id || 0);
+    if (!policyId) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "id policy tidak valid." });
+    }
+
+    const existing = await client.query(
+      `SELECT id, name
+       FROM attendance.attendance_policy
+       WHERE id = $1 AND homebase_id = $2
+       LIMIT 1`,
+      [policyId, homebase_id],
+    );
+    if (existing.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Policy tidak ditemukan.",
+      });
+    }
+
+    const [assignmentCountRes, dayRuleCountRes] = await Promise.all([
+      client.query(
+        `SELECT COUNT(*)::int AS total
+         FROM attendance.attendance_policy_assignment
+         WHERE policy_id = $1`,
+        [policyId],
+      ),
+      client.query(
+        `SELECT COUNT(*)::int AS total
+         FROM attendance.attendance_policy_day_rule
+         WHERE policy_id = $1`,
+        [policyId],
+      ),
+    ]);
+
+    await client.query(
+      `DELETE FROM attendance.attendance_policy
+       WHERE id = $1 AND homebase_id = $2`,
+      [policyId, homebase_id],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Policy absensi berhasil dihapus.",
+      data: {
+        policy_id: policyId,
+        policy_name: existing.rows[0].name,
+        deleted_assignment_count: assignmentCountRes.rows[0]?.total || 0,
+        deleted_day_rule_count: dayRuleCountRes.rows[0]?.total || 0,
+      },
+    });
+  }),
+);
+
 // ==========================================
 // Attendance Config - RFID Device
 // ==========================================
@@ -1003,6 +1220,38 @@ router.put(
   withTransaction(async (req, res, client) =>
     upsertDeviceHandler(req, res, client, Number(req.params.id || 0) || null),
   ),
+);
+
+router.post(
+  "/attendance/config/devices/bulk-delete",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const { ids, error } = normalizeBulkIds(req.body?.ids);
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error,
+      });
+    }
+
+    const deleted = await client.query(
+      `DELETE FROM attendance.rfid_device
+       WHERE homebase_id = $1
+         AND id = ANY($2::int[])
+       RETURNING id`,
+      [homebase_id, ids],
+    );
+
+    return res.json({
+      status: "success",
+      message: `${deleted.rowCount} device RFID berhasil dihapus.`,
+      data: {
+        deleted_count: deleted.rowCount,
+        deleted_ids: deleted.rows.map((row) => row.id),
+      },
+    });
+  }),
 );
 
 // ==========================================
@@ -1376,6 +1625,38 @@ router.delete(
   }),
 );
 
+router.post(
+  "/attendance/config/policy-assignments/bulk-delete",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const { ids, error } = normalizeBulkIds(req.body?.ids);
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error,
+      });
+    }
+
+    const deleted = await client.query(
+      `DELETE FROM attendance.attendance_policy_assignment
+       WHERE homebase_id = $1
+         AND id = ANY($2::int[])
+       RETURNING id`,
+      [homebase_id, ids],
+    );
+
+    return res.json({
+      status: "success",
+      message: `${deleted.rowCount} assignment policy berhasil dihapus.`,
+      data: {
+        deleted_count: deleted.rowCount,
+        deleted_ids: deleted.rows.map((row) => row.id),
+      },
+    });
+  }),
+);
+
 // ==========================================
 // RFID Scan Endpoint (for ESP32/MFRC522)
 // ==========================================
@@ -1521,8 +1802,56 @@ router.post(
     const finalScanAction =
       scanAction ||
       (device.device_type === "gate"
-        ? "daily_checkin"
+        ? DAILY_GATE_ACTION
         : "teacher_session_checkin");
+
+    let requestedScanAction = finalScanAction;
+    let resolvedScanAction = finalScanAction;
+
+    if (device.device_type === "gate" && isDailyGateAction(finalScanAction)) {
+      const gateResolution = await resolveDailyGateScanAction(client, {
+        homebaseId: device.homebase_id,
+        userId: card.user_id,
+        cardUid,
+        scannedAt,
+      });
+
+      if (!gateResolution.resolvedAction) {
+        return rejectAndLog("duplicate", gateResolution.error);
+      }
+
+      resolvedScanAction = gateResolution.resolvedAction;
+    }
+
+    const duplicateCheck = await checkDuplicateScan(client, {
+      homebaseId: device.homebase_id,
+      cardUid,
+      scanAction: resolvedScanAction,
+      scannedAt,
+    });
+    if (duplicateCheck.isDuplicate) {
+      return rejectAndLog("duplicate", duplicateCheck.reason);
+    }
+
+    if (
+      device.device_type === "gate" &&
+      (resolvedScanAction === "daily_checkin" ||
+        resolvedScanAction === "daily_checkout")
+    ) {
+      const dayRule = await resolveScanPolicyDayRule(client, {
+        homebaseId: device.homebase_id,
+        userId: card.user_id,
+        scannedAt,
+      });
+      const windowCheck = validateScanTimeWindow(
+        scannedAt,
+        dayRule,
+        resolvedScanAction,
+      );
+      if (!windowCheck.valid) {
+        return rejectAndLog("out_of_window", windowCheck.reason);
+      }
+    }
 
     const accepted = await client.query(
       `INSERT INTO attendance.rfid_scan_log (
@@ -1552,11 +1881,15 @@ router.post(
         card.user_id,
         device.class_id,
         device.device_type,
-        finalScanAction,
+        resolvedScanAction,
         cardUid,
         scannedAt.toISOString(),
         scannedAt.toISOString(),
-        JSON.stringify(payload),
+        JSON.stringify({
+          ...payload,
+          requested_scan_action: requestedScanAction,
+          resolved_scan_action: resolvedScanAction,
+        }),
       ],
     );
 
@@ -1568,25 +1901,64 @@ router.post(
         homebaseId: device.homebase_id,
         periodeId: activePeriodeId,
         userId: card.user_id,
+        scanAction: resolvedScanAction,
+        scannedAt,
+        scanLogId,
+      });
+
+      if (
+        !attendanceResult?.attendance_id &&
+        (resolvedScanAction === "daily_checkin" ||
+          resolvedScanAction === "daily_checkout")
+      ) {
+        console.warn(
+          `[attendance] Scan ${scanLogId} diterima tetapi daily_attendance tidak terbentuk untuk user ${card.user_id}.`,
+        );
+      }
+    } else if (device.device_type === "classroom") {
+      attendanceResult = await applyRfidScanToTeacherSession(client, {
+        homebaseId: device.homebase_id,
+        periodeId: activePeriodeId,
+        userId: card.user_id,
+        classId: device.class_id,
         scanAction: finalScanAction,
         scannedAt,
         scanLogId,
       });
+
+      if (!attendanceResult?.attendance_id) {
+        console.warn(
+          `[attendance] Scan kelas ${scanLogId} diterima tetapi sesi guru tidak terbentuk untuk user ${card.user_id} (kelas ${device.class_id}).`,
+        );
+      }
     }
+
+    const scanLabel =
+      device.device_type === "gate"
+        ? resolvedScanAction === "daily_checkout"
+          ? "Tap pulang"
+          : "Tap datang"
+        : "Scan";
 
     return res.json({
       status: "success",
       result_status: "accepted",
-      message: `Scan diterima untuk ${card.full_name}.`,
+      message: `${scanLabel} diterima untuk ${card.full_name}.`,
       data: {
         scan_log_id: scanLogId,
         user_id: card.user_id,
         user_name: card.full_name,
-        scan_action: finalScanAction,
+        scan_action: resolvedScanAction,
+        requested_scan_action: requestedScanAction,
+        resolved_scan_action: resolvedScanAction,
         scan_source: device.device_type,
         attendance_id: attendanceResult?.attendance_id || null,
         attendance_status: attendanceResult?.attendance_status || null,
         attendance_date: attendanceResult?.attendance_date || null,
+        schedule_entry_id: attendanceResult?.schedule_entry_id || null,
+        teacher_session_log_id:
+          attendanceResult?.teacher_session_log_id || null,
+        session_status: attendanceResult?.session_status || null,
       },
     });
   }),
@@ -1604,6 +1976,13 @@ router.get(
     const classId = normalizeNumberOrNull(req.query?.class_id);
     const gradeId = normalizeNumberOrNull(req.query?.grade_id);
     const status = String(req.query?.status || "").trim() || null;
+    const userName = String(req.query?.user_name || "").trim() || null;
+
+    await reconcilePendingScanLogs(pool, {
+      homebaseId: homebase_id,
+      startDate,
+      endDate,
+    });
 
     if (classId) {
       const classCheck = await pool.query(
@@ -1656,6 +2035,10 @@ router.get(
       params.push(status);
       where.push(`da.attendance_status = $${params.length}`);
     }
+    if (userName) {
+      params.push(`%${userName}%`);
+      where.push(`u.full_name ILIKE $${params.length}`);
+    }
 
     const rowsResult = await pool.query(
       `SELECT
@@ -1694,6 +2077,7 @@ router.get(
          COUNT(*) FILTER (WHERE da.attendance_status = 'excused')::int AS excused_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count
        FROM attendance.daily_attendance da
+       JOIN u_users u ON u.id = da.user_id
        JOIN u_students st ON st.user_id = da.user_id
        LEFT JOIN a_class c ON c.id = st.current_class_id
        WHERE ${where.join(" AND ")}`,
@@ -1711,6 +2095,7 @@ router.get(
           class_id: classId,
           grade_id: gradeId,
           status,
+          user_name: userName,
         },
       },
     });
@@ -1724,17 +2109,36 @@ router.get(
     const { homebase_id } = req.user;
     const { startDate, endDate } = resolveReportRange(req.query);
     const status = String(req.query?.status || "").trim() || null;
+    const userName = String(req.query?.user_name || "").trim() || null;
+
+    await reconcilePendingScanLogs(pool, {
+      homebaseId: homebase_id,
+      startDate,
+      endDate,
+    });
 
     const params = [homebase_id, startDate, endDate];
     const where = [
       "da.homebase_id = $1",
       "da.target_role = 'teacher'",
       "da.attendance_date BETWEEN $2::date AND $3::date",
+      `EXISTS (
+         SELECT 1
+         FROM attendance.rfid_scan_log sl
+         JOIN attendance.rfid_device d ON d.id = sl.device_id
+         WHERE sl.attendance_id = da.id
+           AND sl.result_status = 'accepted'
+           AND d.device_type = 'gate'
+       )`,
     ];
 
     if (status) {
       params.push(status);
       where.push(`da.attendance_status = $${params.length}`);
+    }
+    if (userName) {
+      params.push(`%${userName}%`);
+      where.push(`u.full_name ILIKE $${params.length}`);
     }
 
     const rowsResult = await pool.query(
@@ -1770,10 +2174,21 @@ router.get(
          COUNT(*) FILTER (WHERE da.attendance_status = 'insufficient_hours')::int AS insufficient_hours_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'not_scheduled')::int AS not_scheduled_count
        FROM attendance.daily_attendance da
+       JOIN u_users u ON u.id = da.user_id
        JOIN u_teachers t ON t.user_id = da.user_id
        WHERE ${where.join(" AND ")}`,
       params,
     );
+
+    const sessionSummaryParams = [homebase_id, startDate, endDate];
+    const sessionSummaryWhere = [
+      "da.homebase_id = $1",
+      "da.attendance_date BETWEEN $2::date AND $3::date",
+    ];
+    if (userName) {
+      sessionSummaryParams.push(`%${userName}%`);
+      sessionSummaryWhere.push(`u.full_name ILIKE $${sessionSummaryParams.length}`);
+    }
 
     const sessionSummaryResult = await pool.query(
       `SELECT
@@ -1785,9 +2200,9 @@ router.get(
          COUNT(*) FILTER (WHERE tsr.session_status = 'excused')::int AS excused_sessions
        FROM attendance.teacher_schedule_requirement tsr
        JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
-       WHERE da.homebase_id = $1
-         AND da.attendance_date BETWEEN $2::date AND $3::date`,
-      [homebase_id, startDate, endDate],
+       JOIN u_users u ON u.id = da.user_id
+       WHERE ${sessionSummaryWhere.join(" AND ")}`,
+      sessionSummaryParams,
     );
 
     return res.json({
@@ -1800,8 +2215,401 @@ router.get(
           start_date: startDate,
           end_date: endDate,
           status,
+          user_name: userName,
         },
       },
+    });
+  }),
+);
+
+router.get(
+  "/attendance/reports/scan-logs",
+  authorize("satuan"),
+  withQuery(async (req, res, pool) => {
+    const { homebase_id } = req.user;
+    const { startDate, endDate } = resolveReportRange(req.query);
+    const deviceId = normalizeNumberOrNull(req.query?.device_id);
+    const resultStatus = String(req.query?.result_status || "").trim() || null;
+    const userName = String(req.query?.user_name || "").trim() || null;
+
+    if (deviceId) {
+      const deviceCheck = await pool.query(
+        `SELECT 1
+         FROM attendance.rfid_device
+         WHERE id = $1 AND homebase_id = $2
+         LIMIT 1`,
+        [deviceId, homebase_id],
+      );
+      if (deviceCheck.rowCount === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "device_id tidak valid untuk homebase ini.",
+        });
+      }
+    }
+
+    const params = [homebase_id, startDate, endDate];
+    const where = [
+      "sl.homebase_id = $1",
+      `(sl.scanned_at AT TIME ZONE '${JAKARTA_TZ}')::date BETWEEN $2::date AND $3::date`,
+    ];
+
+    if (deviceId) {
+      params.push(deviceId);
+      where.push(`sl.device_id = $${params.length}`);
+    }
+    if (resultStatus) {
+      params.push(resultStatus);
+      where.push(`sl.result_status = $${params.length}`);
+    }
+    if (userName) {
+      params.push(`%${userName}%`);
+      where.push(`u.full_name ILIKE $${params.length}`);
+    }
+
+    const joinUser = userName ? "JOIN u_users u ON u.id = sl.user_id" : "LEFT JOIN u_users u ON u.id = sl.user_id";
+
+    const rowsResult = await pool.query(
+      `SELECT
+         sl.id,
+         sl.user_id,
+         sl.device_id,
+         sl.attendance_id,
+         ${toJakartaTimestampSql("sl.scanned_at")} AS scanned_at,
+         ${toJakartaTimestampSql("sl.device_time_at")} AS device_time_at,
+         ${toJakartaTimestampSql("sl.server_received_at")} AS server_received_at,
+         ${toJakartaTimestampSql("sl.created_at")} AS created_at,
+         sl.scan_source,
+         sl.scan_action,
+         sl.card_uid,
+         sl.result_status,
+         sl.rejection_reason,
+         sl.raw_payload,
+         d.code AS device_code,
+         d.name AS device_name,
+         u.full_name AS user_name
+       FROM attendance.rfid_scan_log sl
+       LEFT JOIN attendance.rfid_device d ON d.id = sl.device_id
+       ${joinUser}
+       WHERE ${where.join(" AND ")}
+       ORDER BY sl.scanned_at DESC, sl.id DESC`,
+      params,
+    );
+
+    const summaryResult = await pool.query(
+      `SELECT
+         COUNT(*)::int AS total_records,
+         COUNT(*) FILTER (WHERE sl.result_status = 'accepted')::int AS accepted_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'duplicate')::int AS duplicate_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'rejected')::int AS rejected_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'out_of_window')::int AS out_of_window_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'not_scheduled')::int AS not_scheduled_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'card_inactive')::int AS card_inactive_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'device_inactive')::int AS device_inactive_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'user_inactive')::int AS user_inactive_count,
+         COUNT(*) FILTER (WHERE sl.result_status = 'policy_missing')::int AS policy_missing_count
+       FROM attendance.rfid_scan_log sl
+       ${userName ? "JOIN u_users u ON u.id = sl.user_id" : ""}
+       WHERE ${where.join(" AND ")}`,
+      params,
+    );
+
+    return res.json({
+      status: "success",
+      data: {
+        summary: summaryResult.rows[0] || {},
+        rows: rowsResult.rows,
+        filters: {
+          start_date: startDate,
+          end_date: endDate,
+          device_id: deviceId,
+          result_status: resultStatus,
+          user_name: userName,
+        },
+      },
+    });
+  }),
+);
+
+router.delete(
+  "/attendance/reports/scan-logs/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const logId = normalizeNumberOrNull(req.params?.id);
+    if (!logId) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID log scan tidak valid.",
+      });
+    }
+
+    const deleted = await deleteScanLogsCascade(client, {
+      homebaseId: homebase_id,
+      scanLogIds: [logId],
+    });
+    if (deleted.deleted_scan_log_count === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Log scan tidak ditemukan.",
+      });
+    }
+
+    return res.json({
+      status: "success",
+      message: "Log scan dan data presensi terkait berhasil dihapus.",
+      data: deleted,
+    });
+  }),
+);
+
+router.post(
+  "/attendance/reports/scan-logs/bulk-delete",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const { ids, error } = normalizeBulkIds(req.body?.ids);
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error,
+      });
+    }
+
+    const deleted = await deleteScanLogsCascade(client, {
+      homebaseId: homebase_id,
+      scanLogIds: ids,
+    });
+
+    return res.json({
+      status: "success",
+      message: `${deleted.deleted_scan_log_count} log scan dan data presensi terkait berhasil dihapus.`,
+      data: deleted,
+    });
+  }),
+);
+
+router.put(
+  "/attendance/reports/daily/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const recordId = normalizeNumberOrNull(req.params?.id);
+    if (!recordId) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID absensi tidak valid.",
+      });
+    }
+
+    const existingRes = await client.query(
+      `SELECT
+         id,
+         user_id,
+         attendance_date,
+         checkin_at,
+         checkout_at
+       FROM attendance.daily_attendance
+       WHERE id = $1
+         AND homebase_id = $2
+       LIMIT 1`,
+      [recordId, homebase_id],
+    );
+    if (existingRes.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Data absensi tidak ditemukan.",
+      });
+    }
+
+    const existing = existingRes.rows[0];
+    const payload = req.body || {};
+    const hasCheckinField = Object.prototype.hasOwnProperty.call(
+      payload,
+      "checkin_at",
+    );
+    const hasCheckoutField = Object.prototype.hasOwnProperty.call(
+      payload,
+      "checkout_at",
+    );
+    const hasStatusField = Object.prototype.hasOwnProperty.call(
+      payload,
+      "attendance_status",
+    );
+    const hasNotesField = Object.prototype.hasOwnProperty.call(payload, "notes");
+
+    if (
+      !hasCheckinField &&
+      !hasCheckoutField &&
+      !hasStatusField &&
+      !hasNotesField
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "Minimal satu field checkin_at, checkout_at, attendance_status, atau notes wajib diisi.",
+      });
+    }
+
+    const checkinAt = hasCheckinField
+      ? parseTimestampOrNull(payload.checkin_at)
+      : existing.checkin_at
+        ? new Date(existing.checkin_at)
+        : null;
+    const checkoutAt = hasCheckoutField
+      ? parseTimestampOrNull(payload.checkout_at)
+      : existing.checkout_at
+        ? new Date(existing.checkout_at)
+        : null;
+
+    if (hasCheckinField && payload.checkin_at && !checkinAt) {
+      return res.status(400).json({
+        status: "error",
+        message: "Format checkin_at tidak valid.",
+      });
+    }
+    if (hasCheckoutField && payload.checkout_at && !checkoutAt) {
+      return res.status(400).json({
+        status: "error",
+        message: "Format checkout_at tidak valid.",
+      });
+    }
+    if (checkinAt && checkoutAt && checkoutAt.getTime() < checkinAt.getTime()) {
+      return res.status(400).json({
+        status: "error",
+        message: "checkout_at tidak boleh lebih awal dari checkin_at.",
+      });
+    }
+
+    const referenceAt = checkinAt || checkoutAt || new Date(existing.attendance_date);
+    const dayRule = await resolveScanPolicyDayRule(client, {
+      homebaseId: homebase_id,
+      userId: existing.user_id,
+      scannedAt: referenceAt,
+    });
+    const recalculated = recalculateDailyAttendanceFields({
+      checkinAt,
+      checkoutAt,
+      dayRule,
+    });
+
+    let attendanceStatus = recalculated.attendanceStatus;
+    let lateMinutes = recalculated.lateMinutes;
+    let presenceMinutes = recalculated.presenceMinutes;
+
+    if (hasStatusField) {
+      const requestedStatus = String(payload.attendance_status || "").trim();
+      if (!DAILY_ATTENDANCE_STATUSES.has(requestedStatus)) {
+        return res.status(400).json({
+          status: "error",
+          message: "attendance_status tidak valid.",
+        });
+      }
+      attendanceStatus = requestedStatus;
+    }
+
+    const notesValue = hasNotesField
+      ? String(payload.notes || "").trim() || null
+      : undefined;
+
+    const updated = await client.query(
+      `UPDATE attendance.daily_attendance
+       SET
+         checkin_at = $3::timestamptz,
+         checkout_at = $4::timestamptz,
+         attendance_status = $5,
+         late_minutes = $6,
+         presence_minutes = $7,
+         minimum_required_minutes = COALESCE($8, minimum_required_minutes),
+         notes = CASE WHEN $9::boolean THEN $10 ELSE notes END,
+         evaluated_at = NOW(),
+         updated_at = NOW()
+       WHERE id = $1
+         AND homebase_id = $2
+       RETURNING
+         id,
+         attendance_status,
+         ${toJakartaTimestampSql("checkin_at")} AS checkin_at,
+         ${toJakartaTimestampSql("checkout_at")} AS checkout_at,
+         late_minutes,
+         presence_minutes,
+         notes`,
+      [
+        recordId,
+        homebase_id,
+        checkinAt ? checkinAt.toISOString() : null,
+        checkoutAt ? checkoutAt.toISOString() : null,
+        attendanceStatus,
+        lateMinutes,
+        presenceMinutes,
+        dayRule?.min_presence_minutes ?? null,
+        hasNotesField,
+        notesValue,
+      ],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Data absensi berhasil diperbarui.",
+      data: updated.rows[0],
+    });
+  }),
+);
+
+router.delete(
+  "/attendance/reports/daily/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const recordId = normalizeNumberOrNull(req.params?.id);
+    if (!recordId) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID absensi tidak valid.",
+      });
+    }
+
+    const deleted = await deleteDailyAttendanceCascade(client, {
+      homebaseId: homebase_id,
+      attendanceId: recordId,
+    });
+    if (!deleted.deleted) {
+      return res.status(404).json({
+        status: "error",
+        message: "Data absensi tidak ditemukan.",
+      });
+    }
+
+    return res.json({
+      status: "success",
+      message: "Data absensi dan log scan terkait berhasil dihapus.",
+      data: deleted,
+    });
+  }),
+);
+
+router.post(
+  "/attendance/reports/daily/bulk-delete",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const { ids, error } = normalizeBulkIds(req.body?.ids);
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error,
+      });
+    }
+
+    const deleted = await deleteDailyAttendanceCascadeBulk(client, {
+      homebaseId: homebase_id,
+      attendanceIds: ids,
+    });
+
+    return res.json({
+      status: "success",
+      message: `${deleted.deleted_count} data absensi dan log scan terkait berhasil dihapus.`,
+      data: deleted,
     });
   }),
 );

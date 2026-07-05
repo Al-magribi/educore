@@ -27,7 +27,7 @@ router.get(
 // ==========================================
 router.get(
   "/get-classes",
-  authorize("admin", "teacher"),
+  authorize("admin", "teacher", "satuan"),
   withQuery(async (req, res, pool) => {
     const homebase_id = req.user.homebase_id;
     const { gradeId } = req.query;

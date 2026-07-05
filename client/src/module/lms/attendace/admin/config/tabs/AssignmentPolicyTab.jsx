@@ -5,19 +5,20 @@ import {
   DatePicker,
   Flex,
   Form,
+  Input,
   Modal,
-  Popconfirm,
   Select,
-  Space,
   Switch,
   Table,
   Tag,
+  Typography,
   message,
 } from "antd";
 import dayjs from "dayjs";
 import { motion } from "framer-motion";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import {
+  useBulkDeletePolicyAssignmentsMutation,
   useDeletePolicyAssignmentMutation,
   useGetPolicyAssignmentBootstrapQuery,
   useGetPolicyAssignmentsQuery,
@@ -25,7 +26,10 @@ import {
 } from "../../../../../../service/lms/ApiAttendance";
 import { innerCardStyle, itemVariants } from "../configShared";
 
+const { Text } = Typography;
+
 const MotionDiv = motion.div;
+const PAGE_SIZE_OPTIONS = ["8", "10", "20", "50"];
 
 const parseDbDateToDayjs = (value) => {
   if (!value) return null;
@@ -46,6 +50,9 @@ const AssignmentPolicyTab = () => {
   const [form] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
+  const [nameFilter, setNameFilter] = useState("");
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 8 });
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const selectedRole = Form.useWatch("target_role", form);
   const selectedScope = Form.useWatch("assignment_scope", form);
 
@@ -57,9 +64,27 @@ const AssignmentPolicyTab = () => {
     useSavePolicyAssignmentMutation();
   const [deletePolicyAssignment, { isLoading: deletingAssignment }] =
     useDeletePolicyAssignmentMutation();
+  const [bulkDeletePolicyAssignments, { isLoading: bulkDeleting }] =
+    useBulkDeletePolicyAssignmentsMutation();
 
   const options = bootstrapRes?.data?.options || {};
-  const assignments = listRes?.data || bootstrapRes?.data?.assignments || [];
+  const assignments =
+    listRes !== undefined
+      ? listRes?.data ?? []
+      : bootstrapRes?.data?.assignments ?? [];
+  const filteredAssignments = useMemo(() => {
+    const keyword = nameFilter.trim().toLowerCase();
+    if (!keyword) return assignments;
+    return assignments.filter((item) => {
+      const targetName =
+        item.user_name || item.class_name || item.grade_name || "Semua Homebase";
+      return [item.policy_name, targetName].some((value) =>
+        String(value || "")
+          .toLowerCase()
+          .includes(keyword),
+      );
+    });
+  }, [assignments, nameFilter]);
   const policies = options.policies || [];
   const teachers = options.teachers || [];
   const students = options.students || [];
@@ -169,10 +194,62 @@ const AssignmentPolicyTab = () => {
     try {
       await deletePolicyAssignment(id).unwrap();
       message.success("Assignment policy berhasil dihapus.");
+      setSelectedRowKeys((prev) =>
+        prev.filter((key) => String(key) !== String(id)),
+      );
     } catch (error) {
       message.error(
         error?.data?.message || "Gagal menghapus assignment policy.",
       );
+      throw error;
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) return;
+
+    Modal.confirm({
+      title: `Hapus ${selectedRowKeys.length} assignment policy terpilih?`,
+      content:
+        "Data pemetaan policy ke target terkait akan dihapus permanen. Policy utama, rule harian, dan data presensi yang sudah tercatat tidak akan terhapus.",
+      okText: "Hapus",
+      okType: "danger",
+      cancelText: "Batal",
+      okButtonProps: { loading: bulkDeleting },
+      onOk: async () => {
+        try {
+          const result = await bulkDeletePolicyAssignments(selectedRowKeys).unwrap();
+          message.success(
+            result?.message || "Assignment policy terpilih berhasil dihapus.",
+          );
+          setSelectedRowKeys([]);
+        } catch (error) {
+          message.error(
+            error?.data?.message || "Gagal menghapus assignment policy terpilih.",
+          );
+          throw error;
+        }
+      },
+    });
+  };
+
+  const handleRowAction = (action, row) => {
+    if (action === "edit") {
+      openEditModal(row);
+      return;
+    }
+
+    if (action === "delete") {
+      Modal.confirm({
+        title: "Hapus assignment policy ini?",
+        content:
+          "Data pemetaan policy ke target terkait akan dihapus permanen. Policy utama, rule harian, dan data presensi yang sudah tercatat tidak akan terhapus.",
+        okText: "Hapus",
+        okType: "danger",
+        cancelText: "Batal",
+        okButtonProps: { loading: deletingAssignment },
+        onOk: () => handleDelete(row.id),
+      });
     }
   };
 
@@ -192,11 +269,62 @@ const AssignmentPolicyTab = () => {
         }
       >
         <MotionDiv variants={itemVariants} initial='hidden' animate='show'>
+          <Flex gap={12} wrap='wrap' style={{ marginBottom: 16 }}>
+            <Input
+              allowClear
+              value={nameFilter}
+              onChange={(event) => {
+                setNameFilter(event.target.value);
+                setPagination((prev) => ({ ...prev, current: 1 }));
+              }}
+              prefix={<Search size={16} />}
+              placeholder='Filter nama policy / target'
+              style={{ width: 300, maxWidth: "100%" }}
+            />
+          </Flex>
+          {filteredAssignments.length > 0 && (
+            <Flex
+              justify='space-between'
+              align='center'
+              wrap='wrap'
+              gap={12}
+              style={{ marginBottom: 16 }}
+            >
+              <Text type='secondary'>
+                {selectedRowKeys.length > 0
+                  ? `${selectedRowKeys.length} assignment terpilih`
+                  : "Centang baris untuk hapus bulk"}
+              </Text>
+              <Button
+                danger
+                icon={<Trash2 size={16} />}
+                disabled={selectedRowKeys.length === 0}
+                loading={bulkDeleting}
+                onClick={handleBulkDelete}
+              >
+                Hapus Terpilih
+              </Button>
+            </Flex>
+          )}
           <Table
             rowKey='id'
             loading={loadingBootstrap || loadingList}
-            dataSource={assignments}
-            pagination={{ pageSize: 8 }}
+            dataSource={filteredAssignments}
+            rowSelection={{
+              selectedRowKeys,
+              onChange: setSelectedRowKeys,
+            }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              showSizeChanger: true,
+              pageSizeOptions: PAGE_SIZE_OPTIONS,
+              showTotal: (total, range) =>
+                `${range[0]}-${range[1]} dari ${total} assignment`,
+              onChange: (page, pageSize) => {
+                setPagination({ current: page, pageSize });
+              },
+            }}
             scroll={{ x: 500 }}
             columns={[
               { title: "Policy", dataIndex: "policy_name", width: 220 },
@@ -238,26 +366,19 @@ const AssignmentPolicyTab = () => {
               },
               {
                 title: "Aksi",
-                width: 150,
+                width: 110,
                 render: (_, row) => (
-                  <Space>
-                    <Button size='small' onClick={() => openEditModal(row)}>
-                      Edit
-                    </Button>
-                    <Popconfirm
-                      title='Hapus assignment policy?'
-                      okText='Hapus'
-                      cancelText='Batal'
-                      onConfirm={() => handleDelete(row.id)}
-                    >
-                      <Button
-                        size='small'
-                        danger
-                        icon={<Trash2 size={14} />}
-                        loading={deletingAssignment}
-                      />
-                    </Popconfirm>
-                  </Space>
+                  <Select
+                    placeholder='Aksi'
+                    value={null}
+                    virtual={false}
+                    style={{ width: "100%", maxWidth: 110 }}
+                    options={[
+                      { value: "edit", label: "Edit" },
+                      { value: "delete", label: "Hapus" },
+                    ]}
+                    onChange={(value) => handleRowAction(value, row)}
+                  />
                 ),
               },
             ]}

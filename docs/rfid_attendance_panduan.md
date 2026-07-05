@@ -48,12 +48,18 @@ Sistem mendukung **dua tipe perangkat**. Tipe ini menentukan **sumber scan** dan
 | Siswa | `daily_checkin` | Tap kartu saat masuk sekolah |
 | Siswa | `daily_checkout` | Tap kartu saat pulang (jika fitur checkout aktif) |
 | Guru | `daily_checkin` / `daily_checkout` | Kehadiran harian guru (policy `teacher_fixed_daily` atau `teacher_schedule_based`) |
+| Semua (gate) | `daily_gate` | **Direkomendasikan** — satu aksi untuk semua unit gate; server otomatis menentukan datang atau pulang |
 
-**Default server:** Jika `scan_action` tidak dikirim, server otomatis memakai `daily_checkin`.
+**Default server:** Jika `scan_action` tidak dikirim pada device `gate`, server otomatis memakai `daily_gate`.
 
-**Praktik lapangan:** Pasang **dua unit gate terpisah** (atau satu unit dengan konfigurasi berbeda):
-- Gerbang masuk → set `SCAN_ACTION = "daily_checkin"`
-- Gerbang keluar → set `SCAN_ACTION = "daily_checkout"`
+**Praktik lapangan (direkomendasikan):** Pasang **satu atau lebih unit gate** dengan konfigurasi yang sama:
+- Semua gerbang (masuk, keluar, parkir, dll.) → set `SCAN_ACTION = "daily_gate"`
+- Tap pertama hari itu = datang, tap kedua (min. 15 menit setelah datang) = pulang
+- Boleh tap di device manapun — server menentukan berdasarkan status presensi hari ini, bukan lokasi device
+
+**Mode legacy (masih didukung):** Dua unit terpisah dengan aksi eksplisit:
+- Gerbang masuk → `SCAN_ACTION = "daily_checkin"`
+- Gerbang keluar → `SCAN_ACTION = "daily_checkout"`
 
 ### 2.2 Device `classroom` — Ruang Kelas
 
@@ -112,7 +118,7 @@ Mirip siswa, tetapi memakai policy guru:
 
 Fitur terkait: **Absensi Harian Guru** (`teacher_daily_attendance`).
 
-Guru tap di device `gate` dengan `daily_checkin` / `daily_checkout`.
+Guru tap di device `gate`. Gunakan `daily_gate` (disarankan) agar server otomatis menentukan datang/pulang, atau `daily_checkin` / `daily_checkout` pada mode legacy.
 
 ### 3.3 Guru — Absensi Sesi Kelas via Classroom
 
@@ -259,8 +265,9 @@ Content-Type: application/json
 
 | Nilai | Device | Penggunaan |
 |-------|--------|------------|
-| `daily_checkin` | gate | Masuk sekolah |
-| `daily_checkout` | gate | Pulang sekolah |
+| `daily_gate` | gate | Tap gate — server resolve datang/pulang (disarankan) |
+| `daily_checkin` | gate | Masuk sekolah (legacy) |
+| `daily_checkout` | gate | Pulang sekolah (legacy) |
 | `teacher_session_checkin` | classroom | Mulai sesi mengajar |
 | `teacher_session_checkout` | classroom | Selesai sesi mengajar |
 
@@ -275,6 +282,8 @@ Content-Type: application/json
     "user_id": 101,
     "user_name": "Budi Santoso",
     "scan_action": "daily_checkin",
+    "requested_scan_action": "daily_gate",
+    "resolved_scan_action": "daily_checkin",
     "scan_source": "gate"
   }
 }
@@ -298,6 +307,10 @@ Semua scan (termasuk yang ditolak) dicatat di `attendance.rfid_scan_log` untuk a
 Firmware referensi ada di [`esp32_rfid_attendance_mfrc522.ino`](./esp32_rfid_attendance_mfrc522.ino). File tersebut **tidak perlu diubah** di repository; salin ke folder sketch Arduino IDE Anda dan sesuaikan konstanta di bagian atas file.
 
 ### 7.1 Hardware yang Dibutuhkan
+
+Panduan perakitan lengkap (ESP32 + MFRC522 + LCD + Buzzer, wiring, urutan uji): [`esp32_rfid_hardware_assembly.md`](./esp32_rfid_hardware_assembly.md).
+
+Sketch uji hardware sebelum produksi: [`esp32_rfid_hardware_test.ino`](./esp32_rfid_hardware_test.ino).
 
 | Komponen | Spesifikasi |
 |----------|-------------|
@@ -343,8 +356,9 @@ const char* API_URL = "http://192.168.1.10:2310/api/lms/attendance/rfid/scan";
 const char* DEVICE_CODE = "RFID-GATE-HB-0008";
 const char* DEVICE_TOKEN = "rfid_abc123...";  // token setelah create/rotate
 
-// Sesuaikan dengan fungsi fisik perangkat ini
-const char* SCAN_ACTION = "daily_checkin";
+// Mode gate tunggal (disarankan): server tentukan datang/pulang otomatis
+const char* SCAN_ACTION = "daily_gate";
+// Legacy: "daily_checkin" atau "daily_checkout" per unit fisik
 ```
 
 **Port default server LMS:** `2310` (development). Sesuaikan dengan environment production Anda.
@@ -355,12 +369,13 @@ Salin sketch yang sama untuk setiap unit fisik; **hanya ubah** `DEVICE_CODE`, `D
 
 | Unit fisik | device_type (di admin) | SCAN_ACTION |
 |------------|------------------------|-------------|
-| Gerbang masuk depan | `gate` | `daily_checkin` |
-| Gerbang keluar belakang | `gate` | `daily_checkout` |
+| Gerbang (masuk/keluar/parkir — semua sama) | `gate` | `daily_gate` |
+| Gerbang masuk (legacy) | `gate` | `daily_checkin` |
+| Gerbang keluar (legacy) | `gate` | `daily_checkout` |
 | RFID Kelas 7A | `classroom` | `teacher_session_checkin` |
 | RFID Kelas 7A (keluar) | `classroom` | `teacher_session_checkout` |
 
-> **Tips:** Satu device admin = satu `DEVICE_CODE` unik. Jika gerbang masuk dan keluar adalah dua ESP32 terpisah, daftarkan keduanya di admin (masing-masing punya code & token sendiri).
+> **Tips:** Satu device admin = satu `DEVICE_CODE` unik. Untuk skenario multi-gate, daftarkan setiap ESP32 di admin (masing-masing punya code & token sendiri) tetapi semua bisa memakai `daily_gate` yang sama.
 
 ### 7.6 Alur Program Firmware
 
@@ -424,8 +439,7 @@ loop()
    - `POL-GURU-JADWAL` (teacher_schedule_based)
 3. **Assignment** → assign policy siswa ke `homebase`; policy guru sesuai kebutuhan.
 4. **Device RFID** → daftarkan:
-   - `gate-masuk-01` (gate)
-   - `gate-keluar-01` (gate)
+   - `gate-depan-01`, `gate-parkir-01`, `gate-belakang-01` (gate — semua `daily_gate`)
    - `class-7a-01` (classroom, kelas 7A)
    - `class-8b-01` (classroom, kelas 8B)
 5. **Siswa/Guru** → isi No RFID sesuai UID kartu fisik.
@@ -434,8 +448,8 @@ loop()
 
 | Device admin | File sketch | SCAN_ACTION |
 |--------------|-------------|-------------|
-| `gate-masuk-01` | `gate_masuk.ino` | `daily_checkin` |
-| `gate-keluar-01` | `gate_keluar.ino` | `daily_checkout` |
+| `gate-depan-01` | `gate.ino` | `daily_gate` |
+| `gate-parkir-01` | `gate.ino` | `daily_gate` |
 | `class-7a-01` | `kelas_7a.ino` | `teacher_session_checkin` |
 
 Upload, uji tap, verifikasi di Scan Log.
@@ -459,6 +473,8 @@ attendance.teacher_schedule_requirement → sesi mengajar guru
 
 | Scan source | Scan action | Target data |
 |-------------|-------------|-------------|
+| `gate` | `daily_gate` → `daily_checkin` | `daily_attendance.checkin_at` |
+| `gate` | `daily_gate` → `daily_checkout` | `daily_attendance.checkout_at` |
 | `gate` | `daily_checkin` | `daily_attendance.checkin_at` |
 | `gate` | `daily_checkout` | `daily_attendance.checkout_at` |
 | `classroom` | `teacher_session_checkin` | `teacher_schedule_requirement.actual_checkin_at` |

@@ -34,7 +34,11 @@ const char* API_URL = "http://YOUR_SERVER_HOST:2310/api/lms/attendance/rfid/scan
 
 const char* DEVICE_CODE = "RFID-GATE-HB-0008";
 const char* DEVICE_TOKEN = "PUT_DEVICE_API_TOKEN_HERE";
-const char* SCAN_ACTION = "daily_checkin";
+
+// daily_gate untuk datang / pulang
+// teacher_session_checkin untuk absen masuk kelas
+
+const char* SCAN_ACTION = "daily_gate";
 
 // =============================
 // MFRC522 Pins (sesuai hasil uji)

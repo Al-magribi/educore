@@ -241,6 +241,7 @@ CREATE TABLE rfid_scan_log(
         CHECK (
             scan_action IS NULL
             OR scan_action IN (
+                'daily_gate',
                 'daily_checkin',
                 'daily_checkout',
                 'teacher_session_checkin',

@@ -18,6 +18,7 @@ import {
 import { motion } from "framer-motion";
 import { CalendarRange, FileText, Plus } from "lucide-react";
 import {
+  useDeleteAttendancePolicyMutation,
   useGetAttendancePoliciesQuery,
   useSaveAttendancePolicyMutation,
 } from "../../../../../../service/lms/ApiAttendance";
@@ -44,8 +45,11 @@ const PolicySettingsTab = ({
     useGetAttendancePoliciesQuery();
   const [saveAttendancePolicy, { isLoading: savingPolicy }] =
     useSaveAttendancePolicyMutation();
+  const [deleteAttendancePolicy, { isLoading: deletingPolicy }] =
+    useDeleteAttendancePolicyMutation();
 
-  const policyRows = policiesRes?.data || fallbackPolicies;
+  const policyRows =
+    policiesRes !== undefined ? policiesRes?.data ?? [] : fallbackPolicies;
 
   const openCreatePolicyModal = () => {
     setEditingPolicy(null);
@@ -132,6 +136,52 @@ const PolicySettingsTab = ({
     }
   };
 
+  const handleDeletePolicy = async (id) => {
+    try {
+      await deleteAttendancePolicy(id).unwrap();
+      message.success("Policy absensi berhasil dihapus.");
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal menghapus policy absensi.");
+      throw error;
+    }
+  };
+
+  const handleRowAction = (action, record) => {
+    if (action === "edit") {
+      openEditPolicyModal(record);
+      return;
+    }
+
+    if (action === "delete") {
+      const dayRuleCount = (record.day_rules || []).filter(
+        (item) => item.is_active !== false,
+      ).length;
+
+      Modal.confirm({
+        title: "Hapus policy absensi ini?",
+        content: (
+          <div>
+            <p>
+              Policy <strong>{record.name}</strong> akan dihapus permanen.
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              Semua data terkait ikut terhapus, termasuk rule harian
+              {dayRuleCount > 0 ? ` (${dayRuleCount} hari aktif)` : ""} dan
+              seluruh assignment policy yang memakai policy ini. Data presensi
+              yang sudah tercatat tidak akan terhapus, namun referensi
+              policy-nya akan dikosongkan.
+            </p>
+          </div>
+        ),
+        okText: "Hapus",
+        okType: "danger",
+        cancelText: "Batal",
+        okButtonProps: { loading: deletingPolicy },
+        onOk: () => handleDeletePolicy(record.id),
+      });
+    }
+  };
+
   return (
     <>
       <Card
@@ -188,14 +238,19 @@ const PolicySettingsTab = ({
               },
               {
                 title: "Aksi",
-                width: 100,
+                width: 110,
                 render: (_, record) => (
-                  <Button
-                    size='small'
-                    onClick={() => openEditPolicyModal(record)}
-                  >
-                    Edit
-                  </Button>
+                  <Select
+                    placeholder='Aksi'
+                    value={null}
+                    virtual={false}
+                    style={{ width: "100%", maxWidth: 110 }}
+                    options={[
+                      { value: "edit", label: "Edit" },
+                      { value: "delete", label: "Hapus" },
+                    ]}
+                    onChange={(value) => handleRowAction(value, record)}
+                  />
                 ),
               },
             ]}

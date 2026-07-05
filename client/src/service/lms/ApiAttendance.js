@@ -51,6 +51,82 @@ export const ApiAttendance = createApi({
       invalidatesTags: [
         { type: "AttendancePolicy", id: "LIST" },
         { type: "AttendanceConfig", id: "BOOTSTRAP" },
+        { type: "AttendanceAssignment", id: "LIST" },
+        { type: "AttendanceAssignment", id: "BOOTSTRAP" },
+      ],
+    }),
+    deleteAttendancePolicy: builder.mutation({
+      query: (id) => ({
+        url: `/attendance/config/policies/${id}`,
+        method: "DELETE",
+      }),
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        const patchResults = [
+          dispatch(
+            ApiAttendance.util.updateQueryData(
+              "getAttendancePolicies",
+              undefined,
+              (draft) => {
+                if (Array.isArray(draft?.data)) {
+                  draft.data = draft.data.filter((item) => item.id !== id);
+                }
+              },
+            ),
+          ),
+          dispatch(
+            ApiAttendance.util.updateQueryData(
+              "getAttendanceConfig",
+              undefined,
+              (draft) => {
+                if (Array.isArray(draft?.data?.policies)) {
+                  draft.data.policies = draft.data.policies.filter(
+                    (item) => item.id !== id,
+                  );
+                }
+              },
+            ),
+          ),
+          dispatch(
+            ApiAttendance.util.updateQueryData(
+              "getPolicyAssignmentBootstrap",
+              undefined,
+              (draft) => {
+                if (Array.isArray(draft?.data?.options?.policies)) {
+                  draft.data.options.policies =
+                    draft.data.options.policies.filter((item) => item.id !== id);
+                }
+                if (Array.isArray(draft?.data?.assignments)) {
+                  draft.data.assignments = draft.data.assignments.filter(
+                    (item) => item.policy_id !== id,
+                  );
+                }
+              },
+            ),
+          ),
+          dispatch(
+            ApiAttendance.util.updateQueryData(
+              "getPolicyAssignments",
+              undefined,
+              (draft) => {
+                if (Array.isArray(draft?.data)) {
+                  draft.data = draft.data.filter((item) => item.policy_id !== id);
+                }
+              },
+            ),
+          ),
+        ];
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patchResults.forEach((patch) => patch.undo());
+        }
+      },
+      invalidatesTags: [
+        { type: "AttendancePolicy", id: "LIST" },
+        { type: "AttendanceConfig", id: "BOOTSTRAP" },
+        { type: "AttendanceAssignment", id: "LIST" },
+        { type: "AttendanceAssignment", id: "BOOTSTRAP" },
       ],
     }),
     getRfidDevices: builder.query({
@@ -74,6 +150,17 @@ export const ApiAttendance = createApi({
       query: (id) => ({
         url: `/attendance/config/devices/${id}/rotate-token`,
         method: "POST",
+      }),
+      invalidatesTags: [
+        { type: "AttendanceDevice", id: "LIST" },
+        { type: "AttendanceConfig", id: "BOOTSTRAP" },
+      ],
+    }),
+    bulkDeleteRfidDevices: builder.mutation({
+      query: (ids) => ({
+        url: "/attendance/config/devices/bulk-delete",
+        method: "POST",
+        body: { ids },
       }),
       invalidatesTags: [
         { type: "AttendanceDevice", id: "LIST" },
@@ -109,13 +196,59 @@ export const ApiAttendance = createApi({
         url: `/attendance/config/policy-assignments/${id}`,
         method: "DELETE",
       }),
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        const patchResults = [
+          dispatch(
+            ApiAttendance.util.updateQueryData(
+              "getPolicyAssignments",
+              undefined,
+              (draft) => {
+                if (Array.isArray(draft?.data)) {
+                  draft.data = draft.data.filter((item) => item.id !== id);
+                }
+              },
+            ),
+          ),
+          dispatch(
+            ApiAttendance.util.updateQueryData(
+              "getPolicyAssignmentBootstrap",
+              undefined,
+              (draft) => {
+                if (Array.isArray(draft?.data?.assignments)) {
+                  draft.data.assignments = draft.data.assignments.filter(
+                    (item) => item.id !== id,
+                  );
+                }
+              },
+            ),
+          ),
+        ];
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patchResults.forEach((patch) => patch.undo());
+        }
+      },
       invalidatesTags: [
         { type: "AttendanceAssignment", id: "LIST" },
         { type: "AttendanceAssignment", id: "BOOTSTRAP" },
       ],
     }),
+    bulkDeletePolicyAssignments: builder.mutation({
+      query: (ids) => ({
+        url: "/attendance/config/policy-assignments/bulk-delete",
+        method: "POST",
+        body: { ids },
+      }),
+      invalidatesTags: [
+        { type: "AttendanceAssignment", id: "LIST" },
+        { type: "AttendanceAssignment", id: "BOOTSTRAP" },
+        { type: "AttendanceConfig", id: "BOOTSTRAP" },
+      ],
+    }),
     getStudentAttendanceReport: builder.query({
-      query: ({ startDate, endDate, classId, gradeId, status } = {}) => ({
+      query: ({ startDate, endDate, classId, gradeId, status, userName } = {}) => ({
         url: "/attendance/reports/students",
         params: {
           start_date: startDate,
@@ -123,33 +256,58 @@ export const ApiAttendance = createApi({
           class_id: classId,
           grade_id: gradeId,
           status,
+          user_name: userName,
         },
       }),
       providesTags: [{ type: "Attendance", id: "STUDENT_REPORT" }],
     }),
     getTeacherAttendanceReport: builder.query({
-      query: ({ startDate, endDate, status } = {}) => ({
+      query: ({ startDate, endDate, status, userName } = {}) => ({
         url: "/attendance/reports/teachers",
         params: {
           start_date: startDate,
           end_date: endDate,
           status,
+          user_name: userName,
         },
       }),
       providesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
     getAttendanceScanLogReport: builder.query({
-      query: ({ startDate, endDate, deviceId, resultStatus, onlyFailed } = {}) => ({
+      query: ({ startDate, endDate, deviceId, resultStatus, userName } = {}) => ({
         url: "/attendance/reports/scan-logs",
         params: {
           start_date: startDate,
           end_date: endDate,
           device_id: deviceId,
           result_status: resultStatus,
-          only_failed: onlyFailed,
+          user_name: userName,
         },
       }),
       providesTags: [{ type: "Attendance", id: "SCAN_LOG_REPORT" }],
+    }),
+    deleteAttendanceScanLog: builder.mutation({
+      query: (id) => ({
+        url: `/attendance/reports/scan-logs/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [
+        { type: "Attendance", id: "SCAN_LOG_REPORT" },
+        { type: "Attendance", id: "STUDENT_REPORT" },
+        { type: "Attendance", id: "TEACHER_REPORT" },
+      ],
+    }),
+    bulkDeleteAttendanceScanLogs: builder.mutation({
+      query: (ids) => ({
+        url: "/attendance/reports/scan-logs/bulk-delete",
+        method: "POST",
+        body: { ids },
+      }),
+      invalidatesTags: [
+        { type: "Attendance", id: "SCAN_LOG_REPORT" },
+        { type: "Attendance", id: "STUDENT_REPORT" },
+        { type: "Attendance", id: "TEACHER_REPORT" },
+      ],
     }),
     updateDailyAttendanceRecord: builder.mutation({
       query: ({ id, ...body }) => ({
@@ -170,6 +328,19 @@ export const ApiAttendance = createApi({
       invalidatesTags: [
         { type: "Attendance", id: "STUDENT_REPORT" },
         { type: "Attendance", id: "TEACHER_REPORT" },
+        { type: "Attendance", id: "SCAN_LOG_REPORT" },
+      ],
+    }),
+    bulkDeleteDailyAttendanceRecords: builder.mutation({
+      query: (ids) => ({
+        url: "/attendance/reports/daily/bulk-delete",
+        method: "POST",
+        body: { ids },
+      }),
+      invalidatesTags: [
+        { type: "Attendance", id: "STUDENT_REPORT" },
+        { type: "Attendance", id: "TEACHER_REPORT" },
+        { type: "Attendance", id: "SCAN_LOG_REPORT" },
       ],
     }),
   }),
@@ -182,16 +353,22 @@ export const {
   useUpdateAttendanceFeaturesMutation,
   useGetAttendancePoliciesQuery,
   useSaveAttendancePolicyMutation,
+  useDeleteAttendancePolicyMutation,
   useGetRfidDevicesQuery,
   useSaveRfidDeviceMutation,
   useRotateRfidDeviceTokenMutation,
+  useBulkDeleteRfidDevicesMutation,
   useGetPolicyAssignmentBootstrapQuery,
   useGetPolicyAssignmentsQuery,
   useSavePolicyAssignmentMutation,
   useDeletePolicyAssignmentMutation,
+  useBulkDeletePolicyAssignmentsMutation,
   useGetStudentAttendanceReportQuery,
   useGetTeacherAttendanceReportQuery,
   useGetAttendanceScanLogReportQuery,
+  useDeleteAttendanceScanLogMutation,
+  useBulkDeleteAttendanceScanLogsMutation,
   useUpdateDailyAttendanceRecordMutation,
   useDeleteDailyAttendanceRecordMutation,
+  useBulkDeleteDailyAttendanceRecordsMutation,
 } = ApiAttendance;

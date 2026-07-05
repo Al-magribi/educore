@@ -1,12 +1,13 @@
-import { Card, Flex, Grid, Skeleton, Tabs, Typography, theme } from "antd";
+import { useState } from "react";
+import { Button, Card, Flex, Grid, Skeleton, Tabs, Typography, theme } from "antd";
 import { motion } from "framer-motion";
 import {
+  BookOpenCheck,
   CalendarClock,
   ClipboardList,
   Cpu,
   Network,
   Settings2,
-  Sparkles,
 } from "lucide-react";
 import { useGetAttendanceConfigQuery } from "../../../../../service/lms/ApiAttendance";
 import FeatureSettingsTab from "./tabs/FeatureSettingsTab";
@@ -14,6 +15,7 @@ import PolicySettingsTab from "./tabs/PolicySettingsTab";
 import DeviceSettingsTab from "./tabs/DeviceSettingsTab";
 import AssignmentPolicyTab from "./tabs/AssignmentPolicyTab";
 import AttendanceReport from "../report/AttendanceReport";
+import AttendanceGuideModal from "./AttendanceGuideModal";
 import { containerVariants, itemVariants } from "./configShared";
 
 const { Text, Title } = Typography;
@@ -24,6 +26,7 @@ const AttendanceConfig = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const { token } = theme.useToken();
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const {
     data: bootstrap,
@@ -38,6 +41,7 @@ const AttendanceConfig = () => {
   const featureRows = bootstrap?.data?.features || [];
   const policyRows = bootstrap?.data?.policies || [];
   const deviceRows = bootstrap?.data?.devices || [];
+  const classRows = bootstrap?.data?.classes || [];
 
   const createTabLabel = (label, icon, caption) => (
     <Flex align='center' gap={10}>
@@ -103,6 +107,7 @@ const AttendanceConfig = () => {
       children: (
         <DeviceSettingsTab
           fallbackDevices={deviceRows}
+          classRows={classRows}
           loadingFallback={fetchingBootstrap}
         />
       ),
@@ -212,49 +217,24 @@ const AttendanceConfig = () => {
               </Text>
             </Flex>
 
-            {!isMobile && (
-              <Card
-                bordered={false}
-                style={{
-                  minWidth: 250,
-                  borderRadius: 22,
-                  background: "rgba(15, 23, 42, 0.18)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  backdropFilter: "blur(8px)",
-                }}
-                styles={{ body: { padding: 16 } }}
-              >
-                <Flex vertical gap={10}>
-                  <Text
-                    style={{
-                      color: "#d1fae5",
-                      fontWeight: 700,
-                      letterSpacing: 0.3,
-                    }}
-                  >
-                    Status Sistem
-                  </Text>
-                  {[
-                    "Konfigurasi fitur operasional",
-                    "Policy & aturan tersimpan",
-                    "Device RFID siap integrasi",
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 14,
-                        background: "rgba(255,255,255,0.10)",
-                        color: "#f8fafc",
-                        fontSize: 14,
-                      }}
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </Flex>
-              </Card>
-            )}
+            <Button
+              type='default'
+              size='large'
+              icon={<BookOpenCheck size={16} />}
+              onClick={() => setGuideOpen(true)}
+              style={{
+                alignSelf: isMobile ? "stretch" : "center",
+                height: 48,
+                borderRadius: 14,
+                fontWeight: 600,
+                background: "rgba(255,255,255,0.95)",
+                border: "1px solid rgba(255,255,255,0.3)",
+                color: "#0f766e",
+                boxShadow: "0 8px 20px rgba(15, 23, 42, 0.12)",
+              }}
+            >
+              Panduan Presensi
+            </Button>
           </Flex>
         </Card>
       </MotionDiv>
@@ -277,6 +257,8 @@ const AttendanceConfig = () => {
           />
         </Card>
       </MotionDiv>
+
+      <AttendanceGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
     </MotionDiv>
   );
 };
