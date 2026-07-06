@@ -30,7 +30,9 @@
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
 
-const char* API_URL = "http://YOUR_SERVER_HOST:2310/api/lms/attendance/rfid/scan";
+// Gunakan https jika server menggunakan SSL
+// Gunakan http jika server tidak menggunakan SSL
+const char* API_URL = "https://YOUR_SERVER_HOST:2310/api/lms/attendance/rfid/scan";
 
 const char* DEVICE_CODE = "RFID-GATE-HB-0008";
 const char* DEVICE_TOKEN = "PUT_DEVICE_API_TOKEN_HERE";

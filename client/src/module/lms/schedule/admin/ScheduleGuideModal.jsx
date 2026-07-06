@@ -38,7 +38,7 @@ const ScheduleGuideModal = ({ open, onClose }) => {
             2. Slot & Hari
           </Tag>
           <Tag color='gold' style={SCHEDULE_TAG_STYLE}>
-            3. Beban & Ketentuan
+            3. Kegiatan
           </Tag>
           <Tag color='green' style={SCHEDULE_TAG_STYLE}>
             4. Susun Final Manual
@@ -49,7 +49,7 @@ const ScheduleGuideModal = ({ open, onClose }) => {
       <Alert
         showIcon
         type='info'
-        message='Urutan paling aman: Master Jadwal -> Konfigurasi Shift & Slot -> Beban Ajar -> Ketentuan Guru -> Susun Jadwal Final Manual.'
+        message='Urutan paling aman: Master Jadwal -> Konfigurasi Shift & Slot -> Kegiatan -> Susun Jadwal Final Manual.'
         style={{ marginBottom: 16 }}
       />
 
@@ -70,50 +70,36 @@ const ScheduleGuideModal = ({ open, onClose }) => {
             ),
           },
           {
-            title: "2) Isi Beban Ajar Per Kelas",
+            title: "2) Atur Kegiatan Sekolah (Opsional)",
             description: (
               <Space direction='vertical' size={4}>
                 <Text>
-                  Pilih kelas, mapel, guru, lalu isi jumlah sesi per minggu.
+                  Blok slot untuk upacara, ekstrakurikuler, atau agenda khusus
+                  lainnya.
                 </Text>
                 <Text>
-                  Contoh: Inggris 7A = <Tag>4 sesi</Tag>, maka sistem akan cari{" "}
-                  <Tag>2 + 2</Tag>.
-                </Text>
-                <Text>
-                  Jika 3 sesi, sistem akan cari <Tag>2 + 1</Tag>.
+                  Kegiatan bisa berlaku untuk semua kelas atau kelas tertentu.
                 </Text>
               </Space>
             ),
           },
           {
-            title: "3) Isi Ketentuan Guru (Tidak Tersedia)",
+            title: "3) Susun Jadwal Final",
             description: (
               <Space direction='vertical' size={4}>
-                <Text>Tambahkan hari/jam yang tidak bisa diambil guru.</Text>
                 <Text>
-                  Contoh: tidak bisa Jumat, atau tidak bisa 08:00 - 10:00.
+                  Tambahkan jadwal manual berdasarkan alokasi guru, mapel, dan
+                  kelas yang sudah terdaftar.
+                </Text>
+                <Text>
+                  Sistem memvalidasi bentrok kelas, guru, dan kegiatan saat
+                  penyimpanan.
                 </Text>
               </Space>
             ),
           },
           {
-            title: "4) Susun Jadwal Final",
-            description: (
-              <Space direction='vertical' size={4}>
-                <Text>
-                  Tambahkan jadwal manual berdasarkan beban ajar yang masih
-                  tersedia pada shift aktif.
-                </Text>
-                <Text>
-                  Sistem tetap memvalidasi bentrok kelas, guru, slot
-                  istirahat, dan ketentuan guru saat penyimpanan.
-                </Text>
-              </Space>
-            ),
-          },
-          {
-            title: "5) Review Board dan Rapikan",
+            title: "4) Review Board dan Rapikan",
             description: (
               <Space direction='vertical' size={4}>
                 <Text>
@@ -132,17 +118,13 @@ const ScheduleGuideModal = ({ open, onClose }) => {
         <Text strong>Tips cepat saat terjadi konflik:</Text>
       </Paragraph>
       <Space direction='vertical' size={2}>
-        <Text>
-          1. Kurangi beban sesi mapel yang terlalu padat di hari tertentu.
-        </Text>
-        <Text>
-          2. Longgarkan ketentuan guru yang terlalu sempit (jika memungkinkan).
-        </Text>
+        <Text>1. Pindahkan jadwal ke hari atau slot lain yang masih kosong.</Text>
+        <Text>2. Periksa apakah slot sudah terblokir oleh kegiatan sekolah.</Text>
         <Text>
           3. Tambah jam sekolah atau kurangi istirahat jika kebijakan sekolah
           mengizinkan.
         </Text>
-        <Text>4. Tambahkan atau pindahkan jadwal manual sampai alokasi sesi terpenuhi.</Text>
+        <Text>4. Tambahkan atau pindahkan jadwal manual sampai alokasi terpenuhi.</Text>
       </Space>
     </Modal>
   );

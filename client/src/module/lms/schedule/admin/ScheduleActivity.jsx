@@ -39,8 +39,11 @@ const DAY_OPTIONS = [
 
 const SCOPE_OPTIONS = [
   { value: "all_classes", label: "Kegiatan Umum Semua Kelas" },
-  { value: "teaching_load", label: "Kegiatan dari Beban Ajar" },
+  { value: "teaching_load", label: "Kegiatan untuk Kelas Tertentu" },
 ];
+
+const assignmentKey = (item) =>
+  `${Number(item.teacher_id)}:${Number(item.subject_id)}:${Number(item.class_id)}`;
 
 const formatTime = (value) => (value ? String(value).slice(0, 5) : "-");
 
@@ -103,12 +106,10 @@ const ScheduleActivity = ({
 
   const assignmentOptions = useMemo(
     () =>
-      (teacherAssignments || [])
-        .filter((item) => item.teaching_load_id)
-        .map((item) => ({
-          value: Number(item.teaching_load_id),
-          label: `${item.teacher_name} | ${item.subject_name} | ${item.class_name} | ${item.weekly_sessions || 0} sesi`,
-        })),
+      (teacherAssignments || []).map((item) => ({
+        value: assignmentKey(item),
+        label: `${item.teacher_name} | ${item.subject_name} | ${item.class_name}`,
+      })),
     [teacherAssignments],
   );
 
@@ -139,6 +140,7 @@ const ScheduleActivity = ({
       slot_count: 1,
       is_active: true,
       teaching_load_ids: [],
+      assignment_keys: [],
     });
     setOpenModal(true);
   };
@@ -162,8 +164,8 @@ const ScheduleActivity = ({
       scope_type: record.scope_type || "all_classes",
       description: record.description || null,
       is_active: record.is_active ?? true,
-      teaching_load_ids: (activityTargetsById[Number(record.id)] || []).map(
-        (item) => Number(item.teaching_load_id),
+      assignment_keys: (activityTargetsById[Number(record.id)] || []).map((item) =>
+        assignmentKey(item),
       ),
     });
     setOpenModal(true);
@@ -176,9 +178,10 @@ const ScheduleActivity = ({
       id: editing?.id || values.id,
       config_group_id:
         Number(values.config_group_id || selectedGroup?.id || 0) || undefined,
-      teaching_load_ids:
+      teaching_load_ids: [],
+      assignment_keys:
         values.scope_type === "teaching_load"
-          ? values.teaching_load_ids || []
+          ? values.assignment_keys || []
           : [],
     };
     await onSave(payload);
@@ -201,10 +204,10 @@ const ScheduleActivity = ({
     form.setFieldsValue({
       day_of_week: undefined,
       slot_start_id: undefined,
-      teaching_load_ids:
+      assignment_keys:
         selectedScope === "teaching_load"
           ? []
-          : form.getFieldValue("teaching_load_ids"),
+          : form.getFieldValue("assignment_keys"),
     });
   }, [
     form,
@@ -498,10 +501,13 @@ const ScheduleActivity = ({
 
           {selectedScope === "teaching_load" ? (
             <Form.Item
-              name='teaching_load_ids'
-              label='Beban ajar yang digunakan'
+              name='assignment_keys'
+              label='Alokasi mengajar yang digunakan'
               rules={[
-                { required: true, message: "Pilih minimal satu beban ajar." },
+                {
+                  required: true,
+                  message: "Pilih minimal satu alokasi mengajar.",
+                },
               ]}
             >
               <Select

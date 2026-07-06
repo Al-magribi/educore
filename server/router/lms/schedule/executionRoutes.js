@@ -3,7 +3,9 @@ import { withTransaction } from "../../../utils/wrapper.js";
 import {
   dayLabels,
   ensureActivePeriode,
+  ensureTeachingLoad,
   resolveScheduleSegment,
+  resolveTeacherAssignment,
   toInt,
   validateScheduleEntryPlacement,
 } from "./shared.js";
@@ -26,44 +28,51 @@ export const registerScheduleExecutionRoutes = (router) => {
           .json({ status: "error", message: "Periode aktif tidak ditemukan." });
       }
 
-      const teachingLoadId = toInt(req.body?.teaching_load_id, null);
+      const teacherId = toInt(req.body?.teacher_id, null);
+      const subjectId = toInt(req.body?.subject_id, null);
+      const classId = toInt(req.body?.class_id, null);
       const nextDay = toInt(req.body?.day_of_week, null);
       const nextSlotStartId = toInt(req.body?.slot_start_id, null);
       const nextSlotCount = toInt(req.body?.slot_count, null);
 
-      if (!teachingLoadId || !nextDay || !nextSlotStartId || !nextSlotCount) {
+      if (
+        !teacherId ||
+        !subjectId ||
+        !classId ||
+        !nextDay ||
+        !nextSlotStartId ||
+        !nextSlotCount
+      ) {
         return res.status(400).json({
           status: "error",
-          message: "Beban ajar, hari, slot mulai, dan jumlah sesi wajib diisi.",
+          message:
+            "Guru, mapel, kelas, hari, slot mulai, dan jumlah sesi wajib diisi.",
         });
       }
 
-      const loadResult = await client.query(
-        `SELECT *
-         FROM lms.l_teaching_load
-         WHERE id = $1
-           AND homebase_id = $2
-           AND periode_id = $3
-           AND is_active = true
-         LIMIT 1`,
-        [teachingLoadId, homebase_id, periodeId],
-      );
-      if (loadResult.rowCount === 0) {
+      const assignment = await resolveTeacherAssignment({
+        client,
+        homebaseId: homebase_id,
+        teacherId,
+        subjectId,
+        classId,
+      });
+      if (!assignment) {
         return res.status(404).json({
           status: "error",
-          message: "Beban ajar tidak ditemukan atau tidak aktif.",
+          message: "Kombinasi guru, mapel, dan kelas tidak ditemukan.",
         });
       }
 
-      const load = loadResult.rows[0];
-      const maxSessionsPerMeeting = Number(load.max_sessions_per_meeting || 1);
-      if (Number(nextSlotCount) > maxSessionsPerMeeting) {
-        return res.status(409).json({
-          status: "error",
-          message:
-            "Jumlah sesi melebihi batas maksimal sesi per pertemuan pada beban ajar.",
-        });
-      }
+      const teachingLoadId = await ensureTeachingLoad({
+        client,
+        homebaseId: homebase_id,
+        periodeId,
+        classId,
+        subjectId,
+        teacherId,
+        userId,
+      });
 
       const resolvedSegment = await resolveScheduleSegment({
         client,
@@ -79,26 +88,6 @@ export const registerScheduleExecutionRoutes = (router) => {
           .json({ status: "error", message: resolvedSegment.error });
       }
 
-      const allocationResult = await client.query(
-        `SELECT COALESCE(SUM(slot_count), 0) AS allocated_sessions
-         FROM lms.l_schedule_entry
-         WHERE config_id = $1
-           AND teaching_load_id = $2
-           AND status <> 'archived'`,
-        [resolvedSegment.configId, teachingLoadId],
-      );
-      const allocatedSessions = Number(
-        allocationResult.rows[0]?.allocated_sessions || 0,
-      );
-      const requestedSessions = Number(nextSlotCount || 0);
-
-      if (allocatedSessions + requestedSessions > Number(load.weekly_sessions || 0)) {
-        return res.status(409).json({
-          status: "error",
-          message: "Jumlah sesi manual melebihi target beban sesi per minggu.",
-        });
-      }
-
       const segmentRows = resolvedSegment.segmentRows;
       const slotIds = segmentRows.map((row) => Number(row.id));
       const placementValidation = await validateScheduleEntryPlacement({
@@ -106,8 +95,8 @@ export const registerScheduleExecutionRoutes = (router) => {
         configId: resolvedSegment.configId,
         periodeId,
         homebaseId: homebase_id,
-        teacherId: Number(load.teacher_id),
-        classId: Number(load.class_id),
+        teacherId,
+        classId,
         dayOfWeek: nextDay,
         slotIds,
       });
@@ -152,9 +141,9 @@ export const registerScheduleExecutionRoutes = (router) => {
           periodeId,
           resolvedSegment.configId,
           teachingLoadId,
-          load.class_id,
-          load.subject_id,
-          load.teacher_id,
+          classId,
+          subjectId,
+          teacherId,
           nextDay,
           resolvedSegment.startSlotId,
           nextSlotCount,
@@ -176,7 +165,7 @@ export const registerScheduleExecutionRoutes = (router) => {
              teacher_id
            )
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [entry.id, periodeId, nextDay, slot.id, load.class_id, load.teacher_id],
+          [entry.id, periodeId, nextDay, slot.id, classId, teacherId],
         );
       }
 
@@ -192,7 +181,9 @@ export const registerScheduleExecutionRoutes = (router) => {
         [
           entry.id,
           JSON.stringify({
-            teaching_load_id: teachingLoadId,
+            teacher_id: teacherId,
+            subject_id: subjectId,
+            class_id: classId,
             day_of_week: nextDay,
             slot_start_id: resolvedSegment.startSlotId,
             slot_count: nextSlotCount,
@@ -254,6 +245,20 @@ export const registerScheduleExecutionRoutes = (router) => {
       );
 
       await client.query(
+        `UPDATE lms.l_schedule_entry_history
+         SET schedule_entry_id = NULL
+         WHERE schedule_entry_id = $1`,
+        [entryId],
+      );
+
+      await client.query(
+        `UPDATE lms.l_teacher_session_log
+         SET schedule_entry_id = NULL
+         WHERE schedule_entry_id = $1`,
+        [entryId],
+      );
+
+      await client.query(
         `INSERT INTO lms.l_schedule_entry_history (
            schedule_entry_id,
            action_type,
@@ -261,8 +266,8 @@ export const registerScheduleExecutionRoutes = (router) => {
            new_data,
            changed_by
          )
-         VALUES ($1, 'delete', $2::jsonb, NULL, $3)`,
-        [entryId, JSON.stringify(existing), userId],
+         VALUES (NULL, 'delete', $1::jsonb, NULL, $2)`,
+        [JSON.stringify(existing), userId],
       );
 
       await client.query(`DELETE FROM lms.l_schedule_entry WHERE id = $1`, [entryId]);
@@ -302,47 +307,6 @@ export const registerScheduleExecutionRoutes = (router) => {
       const nextDay = toInt(req.body?.day_of_week, existing.day_of_week);
       const nextSlotStartId = toInt(req.body?.slot_start_id, existing.slot_start_id);
       const nextSlotCount = toInt(req.body?.slot_count, existing.slot_count);
-
-      const allocationResult = await client.query(
-        `SELECT COALESCE(SUM(slot_count), 0) AS allocated_sessions
-         FROM lms.l_schedule_entry
-         WHERE config_id = $1
-           AND teaching_load_id = $2
-           AND status <> 'archived'
-           AND id <> $3`,
-        [existing.config_id, existing.teaching_load_id, entryId],
-      );
-      const maxWeeklyResult = await client.query(
-        `SELECT weekly_sessions, max_sessions_per_meeting
-         FROM lms.l_teaching_load
-         WHERE id = $1
-         LIMIT 1`,
-        [existing.teaching_load_id],
-      );
-      const allocatedSessions = Number(
-        allocationResult.rows[0]?.allocated_sessions || 0,
-      );
-      const maxWeeklySessions = Number(
-        maxWeeklyResult.rows[0]?.weekly_sessions || 0,
-      );
-      const maxSessionsPerMeeting = Number(
-        maxWeeklyResult.rows[0]?.max_sessions_per_meeting || 1,
-      );
-
-      if (Number(nextSlotCount) > maxSessionsPerMeeting) {
-        return res.status(409).json({
-          status: "error",
-          message:
-            "Jumlah sesi melebihi batas maksimal sesi per pertemuan pada beban ajar.",
-        });
-      }
-
-      if (allocatedSessions + Number(nextSlotCount || 0) > maxWeeklySessions) {
-        return res.status(409).json({
-          status: "error",
-          message: "Jumlah sesi melebihi target beban sesi per minggu.",
-        });
-      }
 
       const resolvedSegment = await resolveScheduleSegment({
         client,

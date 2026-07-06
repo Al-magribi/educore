@@ -114,7 +114,6 @@ const ScheduleConfigCard = ({
   dayTemplates,
   breaks,
   scheduleCapacity,
-  sessionShortages,
   onSave,
   onSaveGroup,
   onDeleteGroup,
@@ -522,25 +521,6 @@ const ScheduleConfigCard = ({
             </Tag>
           </Space>
         </Card>
-
-        {(sessionShortages || []).length > 0 ? (
-          <Alert
-            showIcon
-            type='warning'
-            title={`Masih ada ${(sessionShortages || []).length} beban ajar yang kekurangan sesi`}
-            description={`${sessionShortages
-              .slice(0, 2)
-              .map(
-                (item) =>
-                  `${item.teacher_name} - ${item.subject_name} ${item.class_name}: kurang ${item.missing_sessions} sesi`,
-              )
-              .join(" | ")}${
-              sessionShortages.length > 2
-                ? " | Cek tab Beban Ajar/Jadwal Final untuk detail."
-                : ""
-            }`}
-          />
-        ) : null}
 
         <Card
           size='small'

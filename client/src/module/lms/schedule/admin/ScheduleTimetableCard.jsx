@@ -40,6 +40,9 @@ const DAY_OPTIONS = [
 
 const { useBreakpoint } = Grid;
 
+const assignmentKey = (item) =>
+  `${Number(item.teacher_id)}:${Number(item.subject_id)}:${Number(item.class_id)}`;
+
 const ScheduleTimetableCard = ({
   canManage,
   configs,
@@ -53,7 +56,6 @@ const ScheduleTimetableCard = ({
   grades,
   teachers,
   teacherAssignments,
-  sessionShortages,
   selectedConfig,
   selectedGroup,
   groupCount = 0,
@@ -302,87 +304,38 @@ const ScheduleTimetableCard = ({
       }
     });
 
-    (sessionShortages || []).forEach((item) => {
-      const teacherId = Number(item.teacher_id);
-      if (!grouped.has(teacherId)) {
-        grouped.set(teacherId, {
-          key: teacherId,
-          teacher_name: item.teacher_name || "-",
-          subject_names: [],
-        });
-      }
-      const row = grouped.get(teacherId);
-      if (!row.shortages) {
-        row.shortages = [];
-      }
-      row.shortages.push(item);
-    });
-
     return [...grouped.values()].sort((a, b) =>
       (a.teacher_name || "").localeCompare(b.teacher_name || ""),
     );
-  }, [sessionShortages, teacherAssignments, teachers]);
+  }, [teacherAssignments, teachers]);
 
-  const teachingLoadMap = useMemo(
+  const assignmentMap = useMemo(
     () =>
       new Map(
-        (teacherAssignments || [])
-          .filter((item) => item.teaching_load_id)
-          .map((item) => [Number(item.teaching_load_id), item]),
+        (teacherAssignments || []).map((item) => [
+          assignmentKey(item),
+          item,
+        ]),
       ),
     [teacherAssignments],
   );
 
-  const manualEntryOptions = useMemo(() => {
-    const scheduledSessionsByLoad = (entries || []).reduce((acc, item) => {
-      const key = Number(item.teaching_load_id);
-      if (!key) return acc;
-      acc[key] = (acc[key] || 0) + Number(item.slot_count || 0);
-      return acc;
-    }, {});
-
-    const activityLoadIds = new Set(
-      (activityTargets || [])
-        .map((item) => Number(item.teaching_load_id))
-        .filter(Boolean),
-    );
-
-    return (teacherAssignments || [])
-      .filter((item) => {
-        const teachingLoadId = Number(item.teaching_load_id);
-        if (!teachingLoadId) return false;
-        if (activityLoadIds.has(teachingLoadId)) return false;
-
-        const allocatedSessions = Number(
-          scheduledSessionsByLoad[teachingLoadId] || 0,
-        );
-        const weeklySessions = Number(item.weekly_sessions || 0);
-        return allocatedSessions < weeklySessions;
-      })
-      .map((item) => {
-        const teachingLoadId = Number(item.teaching_load_id);
-        const allocatedSessions = Number(
-          scheduledSessionsByLoad[teachingLoadId] || 0,
-        );
-        const remainingSessions = Math.max(
-          Number(item.weekly_sessions || 0) - allocatedSessions,
-          0,
-        );
-
-        return {
-          value: teachingLoadId,
-          label: `${item.teacher_name} | ${item.subject_name} | ${item.class_name} | sisa ${remainingSessions} sesi`,
-        };
-      })
-      .sort((left, right) => left.label.localeCompare(right.label));
-  }, [activityTargets, entries, teacherAssignments]);
+  const manualEntryOptions = useMemo(
+    () =>
+      (teacherAssignments || [])
+        .map((item) => ({
+          value: assignmentKey(item),
+          label: `${item.teacher_name} | ${item.subject_name} | ${item.class_name}`,
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label)),
+    [teacherAssignments],
+  );
 
   const openEditor = useCallback(
     (record) => {
       setModalMode("edit");
       setEditing(record);
       form.setFieldsValue({
-        teaching_load_id: Number(record.teaching_load_id) || undefined,
         day_of_week: Number(record.day_of_week),
         slot_count: Number(record.slot_count) || 1,
         slot_start_id: Number(record.slot_start_id) || null,
@@ -397,7 +350,7 @@ const ScheduleTimetableCard = ({
     setEditing(null);
     form.resetFields();
     form.setFieldsValue({
-      teaching_load_id: undefined,
+      assignment_key: undefined,
       day_of_week: undefined,
       slot_start_id: undefined,
       slot_count: 1,
@@ -415,8 +368,12 @@ const ScheduleTimetableCard = ({
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (modalMode === "create") {
+      const assignment = assignmentMap.get(values.assignment_key);
+      if (!assignment) return;
       await onCreateEntry({
-        teaching_load_id: values.teaching_load_id,
+        teacher_id: assignment.teacher_id,
+        subject_id: assignment.subject_id,
+        class_id: assignment.class_id,
         day_of_week: values.day_of_week,
         slot_start_id: values.slot_start_id,
         slot_count: values.slot_count,
@@ -441,45 +398,27 @@ const ScheduleTimetableCard = ({
   }, [closeEntryModal, editing?.id, onDeleteEntry]);
 
   const currentDay = Form.useWatch("day_of_week", form);
-  const currentTeachingLoadId = Form.useWatch("teaching_load_id", form);
+  const currentAssignmentKey = Form.useWatch("assignment_key", form);
   const currentSlotCount = Form.useWatch("slot_count", form);
-  const currentManualLoad = useMemo(() => {
+  const currentAssignment = useMemo(() => {
     if (modalMode === "create") {
-      return teachingLoadMap.get(Number(currentTeachingLoadId)) || null;
+      return assignmentMap.get(currentAssignmentKey) || null;
     }
-    if (!editing?.teaching_load_id) return null;
-    return teachingLoadMap.get(Number(editing.teaching_load_id)) || null;
-  }, [currentTeachingLoadId, editing, modalMode, teachingLoadMap]);
-
-  const currentAllocatedSessions = useMemo(() => {
-    if (!currentManualLoad?.teaching_load_id) return 0;
-    return (entries || []).reduce((acc, item) => {
-      if (
-        Number(item.teaching_load_id) !==
-        Number(currentManualLoad.teaching_load_id)
-      ) {
-        return acc;
-      }
-      if (editing?.id && Number(item.id) === Number(editing.id)) {
-        return acc;
-      }
-      return acc + Number(item.slot_count || 0);
-    }, 0);
-  }, [currentManualLoad, editing, entries]);
+    if (!editing) return null;
+    return {
+      teacher_id: editing.teacher_id,
+      class_id: editing.class_id,
+      subject_id: editing.subject_id,
+      teacher_name: editing.teacher_name,
+      subject_name: editing.subject_name,
+      class_name: editing.class_name,
+    };
+  }, [assignmentMap, currentAssignmentKey, editing, modalMode]);
 
   const manualSlotCountLimit = useMemo(() => {
-    if (!currentManualLoad) return 1;
-    const weeklySessions = Number(currentManualLoad.weekly_sessions || 0);
-    const maxSessionsPerMeeting = Math.max(
-      1,
-      Number(currentManualLoad.max_sessions_per_meeting || 1),
-    );
-    const remainingSessions = Math.max(
-      weeklySessions - Number(currentAllocatedSessions || 0),
-      0,
-    );
-    return Math.max(1, Math.min(remainingSessions || 1, maxSessionsPerMeeting));
-  }, [currentAllocatedSessions, currentManualLoad]);
+    const daySlots = slotByDay.get(Number(currentDay)) || [];
+    return Math.max(1, daySlots.length || 1);
+  }, [currentDay, slotByDay]);
 
   const slotStartOptions = useMemo(() => {
     const rows = slotByDay.get(Number(currentDay)) || [];
@@ -487,9 +426,9 @@ const ScheduleTimetableCard = ({
       1,
       Math.min(Number(currentSlotCount || 1), manualSlotCountLimit),
     );
-    const activeLoad =
+    const activeAssignment =
       modalMode === "create"
-        ? currentManualLoad
+        ? currentAssignment
         : editing
           ? {
               teacher_id: editing.teacher_id,
@@ -497,7 +436,7 @@ const ScheduleTimetableCard = ({
             }
           : null;
 
-    if (!rows.length || !activeLoad) {
+    if (!rows.length || !activeAssignment) {
       return rows.map((slot) => ({
         value: slot.id,
         label: `Jam ${slot.slot_no} (${formatTime(slot.start_time)} - ${formatTime(slot.end_time)})`,
@@ -505,8 +444,8 @@ const ScheduleTimetableCard = ({
     }
 
     const day = Number(currentDay);
-    const classId = Number(activeLoad.class_id);
-    const teacherId = Number(activeLoad.teacher_id);
+    const classId = Number(activeAssignment.class_id);
+    const teacherId = Number(activeAssignment.teacher_id);
     const occupiedSlotNos = new Set();
 
     expandedEntries.forEach((entry) => {
@@ -582,25 +521,8 @@ const ScheduleTimetableCard = ({
     manualSlotCountLimit,
     modalMode,
     slotByDay,
-    currentManualLoad,
+    currentAssignment,
   ]);
-
-  const selectedLoadHelper = useMemo(() => {
-    if (!currentManualLoad) return null;
-    const weeklySessions = Number(currentManualLoad.weekly_sessions || 0);
-    const maxSessionsPerMeeting = Number(
-      currentManualLoad.max_sessions_per_meeting || 1,
-    );
-    const remainingSessions = Math.max(
-      weeklySessions - Number(currentAllocatedSessions || 0),
-      0,
-    );
-    return {
-      weeklySessions,
-      maxSessionsPerMeeting,
-      remainingSessions,
-    };
-  }, [currentAllocatedSessions, currentManualLoad]);
 
   const isManualEditing = Boolean(
     editing &&
@@ -722,25 +644,8 @@ const ScheduleTimetableCard = ({
           showIcon
           type='info'
           message='Penyusunan jadwal dilakukan manual'
-          description='Gunakan tombol Tambah Jadwal Manual untuk menempatkan sesi, lalu klik kotak pelajaran di board untuk mengubah hari, slot, atau jumlah sesi. Validasi bentrok kelas, guru, kegiatan, dan batas beban tetap berjalan.'
+          description='Gunakan tombol Tambah Jadwal Manual untuk menempatkan sesi, lalu klik kotak pelajaran di board untuk mengubah hari, slot, atau jumlah sesi. Validasi bentrok kelas, guru, dan kegiatan tetap berjalan.'
         />
-
-        {sessionShortages.length > 0 ? (
-          <Alert
-            showIcon
-            type='warning'
-            message={`Masih ada ${sessionShortages.length} beban ajar yang belum terpenuhi`}
-            description={`${sessionShortages
-              .slice(0, 3)
-              .map(
-                (item) =>
-                  `${item.teacher_name} - ${item.subject_name} ${item.class_name}: ${item.allocated_sessions}/${item.required_sessions} sesi`,
-              )
-              .join(" | ")}${
-              sessionShortages.length > 3 ? " | ..." : ""
-            }`}
-          />
-        ) : null}
 
         {!timetableRows.length ? (
           <Card
@@ -831,9 +736,11 @@ const ScheduleTimetableCard = ({
         <Form form={form} layout='vertical'>
           {modalMode === "create" ? (
             <Form.Item
-              name='teaching_load_id'
-              label='Beban ajar'
-              rules={[{ required: true, message: "Beban ajar wajib dipilih." }]}
+              name='assignment_key'
+              label='Guru / Mapel / Kelas'
+              rules={[
+                { required: true, message: "Alokasi mengajar wajib dipilih." },
+              ]}
             >
               <Select
                 showSearch
@@ -873,7 +780,7 @@ const ScheduleTimetableCard = ({
                   if (numericValue > manualSlotCountLimit) {
                     return Promise.reject(
                       new Error(
-                        `Jumlah sesi maksimal ${manualSlotCountLimit} sesuai sisa beban dan batas per pertemuan.`,
+                        `Jumlah sesi maksimal ${manualSlotCountLimit} sesuai slot tersedia pada hari tersebut.`,
                       ),
                     );
                   }
@@ -888,15 +795,6 @@ const ScheduleTimetableCard = ({
               style={{ width: "100%" }}
             />
           </Form.Item>
-          {selectedLoadHelper ? (
-            <Alert
-              type='info'
-              showIcon
-              style={{ marginBottom: 16 }}
-              message='Batas sesi manual'
-              description={`Sisa beban: ${selectedLoadHelper.remainingSessions} sesi. Maks sesi per pertemuan: ${selectedLoadHelper.maxSessionsPerMeeting} sesi. Input yang diizinkan maksimal ${manualSlotCountLimit} sesi.`}
-            />
-          ) : null}
           {editing ? (
             <Alert
               type='warning'
@@ -909,7 +807,7 @@ const ScheduleTimetableCard = ({
               type='info'
               showIcon
               message='Tambahkan jadwal final secara manual'
-              description='Pilih beban ajar yang valid, lalu tentukan hari, slot mulai, dan jumlah sesi.'
+              description='Pilih guru, mapel, dan kelas dari alokasi mengajar, lalu tentukan hari, slot mulai, dan jumlah sesi.'
             />
           ) : null}
         </Form>

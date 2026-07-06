@@ -83,25 +83,14 @@ const ScheduleTeacherMapelTable = ({ loading, rows }) => {
         }),
       },
       {
-        title: "Catatan Alokasi",
-        key: "shortages",
-        width: 320,
+        title: "Status",
+        key: "status",
+        width: 180,
         render: (_, record) =>
-          record.shortages?.length ? (
-            <Space direction="vertical" size={4}>
-              {record.shortages.map((item) => (
-                <div key={item.key}>
-                  <Text strong>{item.subject_name}</Text>{" "}
-                  <Text type="secondary">{item.class_name}</Text>{" "}
-                  <Tag color="gold">
-                    {item.allocated_sessions}/{item.required_sessions} sesi
-                  </Tag>
-                  <Tag color="red">Kurang {item.missing_sessions}</Tag>
-                </div>
-              ))}
-            </Space>
+          record.subject_names.length > 0 ? (
+            <Tag color="green">Terdaftar di alokasi mengajar</Tag>
           ) : (
-            <Tag color="green">Semua sesi terpenuhi</Tag>
+            <Text type="secondary">Belum ada mapel</Text>
           ),
         onHeaderCell: () => ({
           style: {

@@ -586,66 +586,8 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           )
         : { rows: [] };
 
-      const [
-        loadResult,
-        unavailabilityResult,
-        activityResult,
-        activityTargetResult,
-        allActivityResult,
-        allActivityTargetResult,
-      ] =
+      const [activityResult, activityTargetResult, allActivityResult, allActivityTargetResult] =
         await Promise.all([
-          pool.query(
-            `SELECT
-               l.*,
-               c.name AS class_name,
-               s.name AS subject_name,
-               u.full_name AS teacher_name
-             FROM lms.l_teaching_load l
-             JOIN public.a_class c ON c.id = l.class_id
-             JOIN public.a_subject s ON s.id = l.subject_id
-             JOIN public.u_users u ON u.id = l.teacher_id
-             WHERE l.periode_id = $1
-               AND l.homebase_id = $2
-             ORDER BY c.name, s.name, u.full_name`,
-            [periodeId, homebase_id],
-          ),
-          pool.query(
-            `SELECT
-               ua.*,
-               u.full_name AS teacher_name,
-               COALESCE(shift_match.matched_group_ids, ARRAY[]::integer[]) AS matched_group_ids,
-               COALESCE(shift_match.matched_group_names, ARRAY[]::text[]) AS matched_group_names
-             FROM lms.l_teacher_unavailability ua
-             JOIN public.u_users u ON u.id = ua.teacher_id
-             LEFT JOIN LATERAL (
-               SELECT
-                 ARRAY_AGG(match_row.id ORDER BY match_row.sort_order, match_row.id) AS matched_group_ids,
-                 ARRAY_AGG(match_row.name ORDER BY match_row.sort_order, match_row.id) AS matched_group_names
-               FROM (
-                 SELECT DISTINCT scg.id, scg.name, COALESCE(scg.sort_order, 9999) AS sort_order
-                 FROM lms.l_time_slot ts
-                 JOIN lms.l_schedule_config_group scg ON scg.id = ts.config_group_id
-                 WHERE ts.config_id = $3
-                   AND ts.day_of_week = ua.day_of_week
-                   AND ts.is_break = false
-                   AND (
-                     ua.start_time IS NULL OR ua.end_time IS NULL OR (
-                       ts.start_time >= ua.start_time
-                       AND ts.end_time <= ua.end_time
-                     )
-                   )
-               ) match_row
-             ) shift_match ON true
-             WHERE ua.periode_id = $1
-               AND u.id IN (
-                 SELECT user_id
-                 FROM public.u_teachers
-                 WHERE homebase_id = $2
-               )
-             ORDER BY ua.teacher_id, ua.day_of_week, ua.start_time`,
-            [periodeId, homebase_id, configId],
-          ),
           pool.query(
             `SELECT
                a.*,
@@ -767,29 +709,16 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
            s.name AS subject_name,
            COALESCE(NULLIF(s.code, ''), s.name) AS subject_code,
            c.name AS class_name,
-           g.name AS grade_name,
-           l.id AS teaching_load_id,
-           l.weekly_sessions,
-           l.max_sessions_per_meeting,
-           l.require_different_days,
-           l.allow_same_day_with_gap,
-           l.minimum_gap_slots,
-           l.is_active
+           g.name AS grade_name
          FROM base_assignment b
          JOIN public.a_class c ON c.id = b.class_id
          JOIN public.u_users u ON u.id = b.teacher_id
          JOIN public.a_subject s ON s.id = b.subject_id
          LEFT JOIN public.a_grade g ON g.id = c.grade_id
-         LEFT JOIN lms.l_teaching_load l
-           ON l.homebase_id = $1
-          AND l.periode_id = $2
-          AND l.class_id = b.class_id
-          AND l.subject_id = b.subject_id
-          AND l.teacher_id = b.teacher_id
          WHERE c.homebase_id = $1
            AND COALESCE(c.is_active, true) = true
          ORDER BY u.full_name, s.name, g.name, c.name`,
-        [homebase_id, periodeId],
+        [homebase_id],
       );
 
       const teacherFilterClause = role === "teacher" ? "AND e.teacher_id = $3" : "";
@@ -893,9 +822,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           breaks: breakResult.rows,
           slots: slotResult.rows,
           all_slots: allSlotResult.rows,
-          loads: loadResult.rows,
           teacher_assignments: assignmentResult.rows,
-          unavailability: unavailabilityResult.rows,
           activities: activityResult.rows,
           activity_targets: activityTargetResult.rows,
           all_activities: allActivityResult.rows,

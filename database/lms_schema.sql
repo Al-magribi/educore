@@ -382,7 +382,7 @@ CREATE TABLE l_schedule_entry_history(
     changed_by integer,
     changed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT l_schedule_entry_history_schedule_entry_id_fkey FOREIGN KEY(schedule_entry_id) REFERENCES lms.l_schedule_entry(id),
+    CONSTRAINT l_schedule_entry_history_schedule_entry_id_fkey FOREIGN KEY(schedule_entry_id) REFERENCES lms.l_schedule_entry(id) ON DELETE SET NULL,
     CONSTRAINT l_schedule_entry_history_changed_by_fkey FOREIGN KEY(changed_by) REFERENCES public.u_users(id),
     CONSTRAINT l_schedule_entry_history_action_type_check CHECK (((action_type)::text = ANY ((ARRAY['create'::character varying, 'update'::character varying, 'delete'::character varying])::text[])))
 );
@@ -449,7 +449,7 @@ CREATE TABLE l_teacher_session_log(
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT l_teacher_session_log_schedule_entry_id_fkey FOREIGN KEY(schedule_entry_id) REFERENCES lms.l_schedule_entry(id),
+    CONSTRAINT l_teacher_session_log_schedule_entry_id_fkey FOREIGN KEY(schedule_entry_id) REFERENCES lms.l_schedule_entry(id) ON DELETE SET NULL,
     CONSTRAINT l_teacher_session_log_class_id_fkey FOREIGN KEY(class_id) REFERENCES public.a_class(id),
     CONSTRAINT l_teacher_session_log_teacher_id_fkey FOREIGN KEY(teacher_id) REFERENCES public.u_teachers(user_id),
     CONSTRAINT l_teacher_session_log_duty_assignment_id_fkey FOREIGN KEY(duty_assignment_id) REFERENCES lms.l_duty_assignment(id),

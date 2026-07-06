@@ -54,29 +54,6 @@ export const ApiSchedule = createApi({
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
-    saveTeachingLoad: builder.mutation({
-      query: (body) => ({
-        url: "/schedule/load",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
-    }),
-    importTeachingLoad: builder.mutation({
-      query: (body) => ({
-        url: "/schedule/load/import",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
-    }),
-    deleteTeachingLoad: builder.mutation({
-      query: (id) => ({
-        url: `/schedule/load/${id}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
-    }),
     saveScheduleActivity: builder.mutation({
       query: (body) => ({
         url: "/schedule/activity",
@@ -88,21 +65,6 @@ export const ApiSchedule = createApi({
     deleteScheduleActivity: builder.mutation({
       query: (id) => ({
         url: `/schedule/activity/${id}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
-    }),
-    saveUnavailability: builder.mutation({
-      query: (body) => ({
-        url: "/schedule/unavailability",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
-    }),
-    deleteUnavailability: builder.mutation({
-      query: (id) => ({
-        url: `/schedule/unavailability/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
@@ -140,13 +102,8 @@ export const {
   useDeleteScheduleConfigMutation,
   useSaveScheduleConfigGroupMutation,
   useDeleteScheduleConfigGroupMutation,
-  useSaveTeachingLoadMutation,
-  useImportTeachingLoadMutation,
-  useDeleteTeachingLoadMutation,
   useSaveScheduleActivityMutation,
   useDeleteScheduleActivityMutation,
-  useSaveUnavailabilityMutation,
-  useDeleteUnavailabilityMutation,
   useCreateManualScheduleEntryMutation,
   useUpdateScheduleEntryMutation,
   useDeleteScheduleEntryMutation,

@@ -216,7 +216,6 @@ export const validateScheduleEntryPlacement = async ({
   classId,
   dayOfWeek,
   slotIds,
-  enforceTeacherUnavailability = true,
 }) => {
   const candidateSlotResult = await client.query(
     `SELECT id, day_of_week, start_time, end_time, config_group_id
@@ -334,34 +333,78 @@ export const validateScheduleEntryPlacement = async ({
     };
   }
 
-  if (!enforceTeacherUnavailability) {
-    return { ok: true };
-  }
-
-  const teacherBlockResult = await client.query(
-    `SELECT day_of_week, start_time, end_time
-     FROM lms.l_teacher_unavailability
-     WHERE teacher_id = $1
-       AND periode_id = $2
-       AND is_active = true
-       AND specific_date IS NULL`,
-    [teacherId, periodeId],
-  );
-
-  const violating = candidateSlots.some((slot) =>
-    teacherBlockResult.rows.some((block) => {
-      const blockDay = toInt(block.day_of_week, null);
-      if (blockDay && blockDay !== dayOfWeek) return false;
-      const blockStart = block.start_time ? parseMinute(block.start_time) : null;
-      const blockEnd = block.end_time ? parseMinute(block.end_time) : null;
-      if (blockStart === null || blockEnd === null) return true;
-      return overlapTime(slot.start_minute, slot.end_minute, blockStart, blockEnd);
-    }),
-  );
-
-  if (violating) {
-    return { error: "Perubahan melanggar ketentuan waktu guru.", status: 409 };
-  }
-
   return { ok: true };
+};
+
+export const ensureTeachingLoad = async ({
+  client,
+  homebaseId,
+  periodeId,
+  classId,
+  subjectId,
+  teacherId,
+  userId,
+}) => {
+  const existing = await client.query(
+    `SELECT id
+     FROM lms.l_teaching_load
+     WHERE periode_id = $1
+       AND class_id = $2
+       AND subject_id = $3
+       AND teacher_id = $4
+     LIMIT 1`,
+    [periodeId, classId, subjectId, teacherId],
+  );
+  if (existing.rowCount > 0) {
+    return Number(existing.rows[0].id);
+  }
+
+  const result = await client.query(
+    `INSERT INTO lms.l_teaching_load (
+       homebase_id,
+       periode_id,
+       class_id,
+       subject_id,
+       teacher_id,
+       weekly_sessions,
+       max_sessions_per_meeting,
+       require_different_days,
+       allow_same_day_with_gap,
+       minimum_gap_slots,
+       is_active,
+       created_by
+     )
+     VALUES ($1, $2, $3, $4, $5, 99, 4, false, true, 0, true, $6)
+     ON CONFLICT (periode_id, class_id, subject_id, teacher_id)
+     DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+     RETURNING id`,
+    [homebaseId, periodeId, classId, subjectId, teacherId, userId],
+  );
+
+  return Number(result.rows[0].id);
+};
+
+export const resolveTeacherAssignment = async ({
+  client,
+  homebaseId,
+  teacherId,
+  subjectId,
+  classId,
+}) => {
+  const result = await client.query(
+    `SELECT ats.teacher_id, ats.subject_id, ats.class_id
+     FROM public.at_subject ats
+     JOIN public.u_teachers t ON t.user_id = ats.teacher_id
+     JOIN public.a_subject s ON s.id = ats.subject_id
+     JOIN public.a_class c ON c.id = ats.class_id
+     WHERE ats.teacher_id = $1
+       AND ats.subject_id = $2
+       AND ats.class_id = $3
+       AND t.homebase_id = $4
+       AND s.homebase_id = $4
+       AND c.homebase_id = $4
+     LIMIT 1`,
+    [teacherId, subjectId, classId, homebaseId],
+  );
+  return result.rowCount > 0 ? result.rows[0] : null;
 };

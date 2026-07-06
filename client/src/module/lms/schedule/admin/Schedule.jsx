@@ -21,8 +21,6 @@ import {
   LayoutGrid,
   Settings2,
   SlidersHorizontal,
-  UserRoundCog,
-  UsersRound,
 } from "lucide-react";
 import {
   useActivateScheduleConfigMutation,
@@ -31,24 +29,17 @@ import {
   useDeleteScheduleConfigGroupMutation,
   useDeleteScheduleConfigMutation,
   useDeleteScheduleEntryMutation,
-  useDeleteTeachingLoadMutation,
-  useDeleteUnavailabilityMutation,
   useGetScheduleBootstrapQuery,
-  useImportTeachingLoadMutation,
   useSaveScheduleActivityMutation,
   useSaveScheduleConfigGroupMutation,
   useSaveScheduleConfigMutation,
-  useSaveTeachingLoadMutation,
-  useSaveUnavailabilityMutation,
   useUpdateScheduleEntryMutation,
 } from "../../../../service/lms/ApiSchedule";
 import ScheduleConfigCard from "./ScheduleConfigCard";
 import ScheduleActivity from "./ScheduleActivity";
 import ScheduleGuideModal from "./ScheduleGuideModal";
-import ScheduleLoadCard from "./ScheduleLoadCard";
 import ScheduleMasterCard from "./ScheduleMasterCard";
 import ScheduleTimetableCard from "./ScheduleTimetableCard";
-import ScheduleUnavailabilityCard from "./ScheduleUnavailabilityCard";
 import { SCHEDULE_ICON_BOX, SCHEDULE_TAG_STYLE } from "./scheduleAdminStyles";
 
 const { useBreakpoint } = Grid;
@@ -79,20 +70,10 @@ const Schedule = () => {
     useSaveScheduleConfigGroupMutation();
   const [deleteScheduleConfigGroup, { isLoading: deletingConfigGroup }] =
     useDeleteScheduleConfigGroupMutation();
-  const [saveTeachingLoad, { isLoading: savingLoad }] =
-    useSaveTeachingLoadMutation();
-  const [importTeachingLoad, { isLoading: importingLoad }] =
-    useImportTeachingLoadMutation();
-  const [deleteTeachingLoad, { isLoading: deletingLoad }] =
-    useDeleteTeachingLoadMutation();
   const [saveScheduleActivity, { isLoading: savingActivity }] =
     useSaveScheduleActivityMutation();
   const [deleteScheduleActivity, { isLoading: deletingActivity }] =
     useDeleteScheduleActivityMutation();
-  const [saveUnavailability, { isLoading: savingRule }] =
-    useSaveUnavailabilityMutation();
-  const [deleteUnavailability, { isLoading: deletingRule }] =
-    useDeleteUnavailabilityMutation();
   const [createManualScheduleEntry, { isLoading: creatingEntry }] =
     useCreateManualScheduleEntryMutation();
   const [updateScheduleEntry, { isLoading: updatingEntry }] =
@@ -193,73 +174,6 @@ const Schedule = () => {
     );
   }, [payload.teacher_assignments, selectedGroupClassIds]);
 
-  const sessionShortages = useMemo(() => {
-    const allocatedByAssignment = (payload.entries || []).reduce(
-      (acc, item) => {
-        const key = [item.teacher_id, item.subject_id, item.class_id].join(":");
-        acc[key] = (acc[key] || 0) + Number(item.slot_count || 0);
-        return acc;
-      },
-      {},
-    );
-
-    return (payload.teacher_assignments || [])
-      .filter((item) => activeClassIds.has(Number(item.class_id)))
-      .filter(
-        (item) =>
-          selectedGroupClassIds.size === 0 ||
-          selectedGroupClassIds.has(Number(item.class_id)),
-      )
-      .map((item) => {
-        const requiredSessions = Number(item.weekly_sessions || 0);
-        const allocatedSessions =
-          allocatedByAssignment[
-            [item.teacher_id, item.subject_id, item.class_id].join(":")
-          ] || 0;
-        const missingSessions = Math.max(
-          requiredSessions - allocatedSessions,
-          0,
-        );
-
-        return {
-          key: [item.teacher_id, item.subject_id, item.class_id].join(":"),
-          teacher_id: item.teacher_id,
-          teacher_name: item.teacher_name,
-          subject_id: item.subject_id,
-          subject_name: item.subject_name,
-          subject_code: item.subject_code,
-          class_id: item.class_id,
-          class_name: item.class_name,
-          grade_id: item.grade_id,
-          grade_name: item.grade_name,
-          teaching_load_id: item.teaching_load_id,
-          required_sessions: requiredSessions,
-          allocated_sessions: allocatedSessions,
-          missing_sessions: missingSessions,
-          is_configured: Boolean(item.teaching_load_id),
-        };
-      })
-      .filter((item) => item.is_configured && item.missing_sessions > 0)
-      .sort((left, right) => {
-        const byTeacher = String(left.teacher_name || "").localeCompare(
-          String(right.teacher_name || ""),
-        );
-        if (byTeacher !== 0) return byTeacher;
-        const bySubject = String(left.subject_name || "").localeCompare(
-          String(right.subject_name || ""),
-        );
-        if (bySubject !== 0) return bySubject;
-        return String(left.class_name || "").localeCompare(
-          String(right.class_name || ""),
-        );
-      });
-  }, [
-    activeClassIds,
-    payload.entries,
-    payload.teacher_assignments,
-    selectedGroupClassIds,
-  ]);
-
   const scheduleCapacity = useMemo(() => {
     const totalConfiguredSlots = (payload.slots || []).filter(
       (item) => !item?.is_break,
@@ -275,21 +189,6 @@ const Schedule = () => {
     );
     const totalActiveClasses = activeClasses.length;
     const totalAvailableSessions = totalConfiguredSlots * totalActiveClasses;
-    const totalDistributedSessions = (payload.teacher_assignments || []).reduce(
-      (acc, item) => {
-        if (!item?.teaching_load_id || item?.is_active === false) return acc;
-        const classId = Number(item.class_id);
-        if (!activeClassIds.has(classId)) return acc;
-        if (
-          selectedGroupClassIds.size > 0 &&
-          !selectedGroupClassIds.has(classId)
-        ) {
-          return acc;
-        }
-        return acc + Number(item.weekly_sessions || 0);
-      },
-      0,
-    );
     const activityTargetsById = (payload.activity_targets || []).reduce(
       (acc, item) => {
         const key = Number(item.activity_id);
@@ -338,21 +237,14 @@ const Schedule = () => {
     });
 
     const totalActivitySessions = blockedActivitySlots.size;
-    const remainingAfterDistribution =
-      totalAvailableSessions - totalDistributedSessions;
 
     return {
       total_configured_slots: totalConfiguredSlots,
       total_classes: totalActiveClasses,
       active_class_count: totalActiveClasses,
       total_available_sessions: totalAvailableSessions,
-      total_distributed_sessions: totalDistributedSessions,
       total_activity_sessions: totalActivitySessions,
-      remaining_after_distribution: remainingAfterDistribution,
-      remaining_sessions:
-        totalAvailableSessions -
-        totalDistributedSessions -
-        totalActivitySessions,
+      remaining_sessions: totalAvailableSessions - totalActivitySessions,
     };
   }, [
     activeClassIds,
@@ -360,7 +252,6 @@ const Schedule = () => {
     payload.activities,
     payload.classes,
     payload.slots,
-    payload.teacher_assignments,
     selectedGroupClassIds,
   ]);
 
@@ -505,24 +396,6 @@ const Schedule = () => {
     }
   };
 
-  const handleLoadSave = async (body) => {
-    try {
-      await saveTeachingLoad(body).unwrap();
-      message.success("Beban ajar tersimpan.");
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan beban ajar.");
-    }
-  };
-
-  const handleDeleteLoad = async (id) => {
-    try {
-      await deleteTeachingLoad(id).unwrap();
-      message.success("Beban ajar dihapus.");
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus beban ajar.");
-    }
-  };
-
   const handleActivitySave = async (body) => {
     try {
       await saveScheduleActivity(body).unwrap();
@@ -540,45 +413,6 @@ const Schedule = () => {
       message.success("Kegiatan dihapus.");
     } catch (error) {
       message.error(error?.data?.message || "Gagal menghapus kegiatan.");
-    }
-  };
-
-  const handleImportLoad = async (body) => {
-    try {
-      const response = await importTeachingLoad(body).unwrap();
-      const summary = response?.data || {};
-      const errorCount = summary.error_count || 0;
-      if (errorCount > 0) {
-        message.warning(
-          `Import selesai. ${summary.updated_count || 0} baris diproses, ${errorCount} baris bermasalah.`,
-        );
-      } else {
-        message.success(
-          `Import beban ajar berhasil. ${summary.updated_count || 0} baris diproses.`,
-        );
-      }
-      return response;
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal import beban ajar.");
-      throw error;
-    }
-  };
-
-  const handleRuleSave = async (body) => {
-    try {
-      await saveUnavailability(body).unwrap();
-      message.success("Ketentuan guru tersimpan.");
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan ketentuan guru.");
-    }
-  };
-
-  const handleDeleteRule = async (id) => {
-    try {
-      await deleteUnavailability(id).unwrap();
-      message.success("Ketentuan guru dihapus.");
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus ketentuan guru.");
     }
   };
 
@@ -650,7 +484,7 @@ const Schedule = () => {
         showIcon
         type='info'
         title='Jadwal yang dipilih masih nonaktif'
-        description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada beban ajar, kegiatan, ketentuan guru, dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
+        description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada kegiatan dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
           scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
             ?.name || "belum ditentukan"
         }.`}
@@ -704,7 +538,7 @@ const Schedule = () => {
                   level={isMobile ? 4 : 2}
                   style={{ margin: 0, color: "#f8fafc", lineHeight: 1.15 }}
                 >
-                  Kelola master, shift, beban ajar, dan jadwal final dari satu
+                  Kelola master, shift, kegiatan, dan jadwal final dari satu
                   alur yang lebih rapi.
                 </Title>
                 <Text
@@ -809,7 +643,6 @@ const Schedule = () => {
                     dayTemplates={payload.day_templates || []}
                     breaks={payload.breaks || []}
                     scheduleCapacity={scheduleCapacity}
-                    sessionShortages={sessionShortages}
                     loading={
                       savingConfig ||
                       savingConfigGroup ||
@@ -829,34 +662,6 @@ const Schedule = () => {
                     message='Belum ada master jadwal'
                     description='Buat master jadwal terlebih dahulu untuk mulai mengatur hari, jam belajar, dan durasi sesi.'
                   />
-                ),
-              },
-              {
-                key: "load",
-                label: createTabLabel(
-                  "Beban Ajar",
-                  <UsersRound size={16} />,
-                  "Distribusi sesi guru per kelas",
-                ),
-                children: isConfigOperational ? (
-                  <ScheduleLoadCard
-                    canManage={canManage}
-                    classes={scopedClasses}
-                    grades={payload.grades || []}
-                    subjects={payload.subjects || []}
-                    teachers={payload.teachers || []}
-                    teacherAssignments={scopedTeacherAssignments}
-                    scheduleCapacity={scheduleCapacity}
-                    sessionShortages={sessionShortages}
-                    loading={
-                      savingLoad || deletingLoad || importingLoad || isFetching
-                    }
-                    onSave={handleLoadSave}
-                    onImport={handleImportLoad}
-                    onDelete={handleDeleteLoad}
-                  />
-                ) : (
-                  renderInactiveConfigAlert()
                 ),
               },
               {
@@ -894,33 +699,6 @@ const Schedule = () => {
                 ),
               },
               {
-                key: "unavailability",
-                label: createTabLabel(
-                  "Ketentuan Guru",
-                  <UserRoundCog size={16} />,
-                  "Hari dan jam yang diblokir",
-                ),
-                children: isConfigOperational ? (
-                  <ScheduleUnavailabilityCard
-                    canManage={canManage}
-                    teachers={payload.teachers || []}
-                    rules={payload.unavailability || []}
-                    slots={payload.slots || []}
-                    allSlots={payload.all_slots || payload.slots || []}
-                    selectedConfig={selectedConfig}
-                    groups={configGroups}
-                    selectedGroup={selectedGroup}
-                    groupCount={configGroups.length}
-                    loading={savingRule || deletingRule || isFetching}
-                    onSave={handleRuleSave}
-                    onDelete={handleDeleteRule}
-                    onSelectGroup={setSelectedGroupId}
-                  />
-                ) : (
-                  renderInactiveConfigAlert()
-                ),
-              },
-              {
                 key: "final",
                 label: createTabLabel(
                   "Jadwal Final",
@@ -941,7 +719,6 @@ const Schedule = () => {
                     grades={payload.grades || []}
                     teacherAssignments={scopedTeacherAssignments}
                     teachers={payload.teachers || []}
-                    sessionShortages={sessionShortages}
                     selectedConfig={selectedConfig}
                     selectedGroup={selectedGroup}
                     groupCount={configGroups.length}
