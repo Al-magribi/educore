@@ -17,7 +17,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { AlertTriangle, ClipboardX, RefreshCw, ScanLine, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, BookOpen, ClipboardX, RefreshCw, ScanLine, Search, Trash2 } from 'lucide-react';
 import {
   useBulkDeleteAttendanceScanLogsMutation,
   useDeleteAttendanceScanLogMutation,
@@ -26,7 +26,7 @@ import {
 } from '../../../../../service/lms/ApiAttendance';
 
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
+const { Text, Title, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
 
 const surfaceCardStyle = {
@@ -78,6 +78,190 @@ const formatRawPayload = (value) => {
   return JSON.stringify(value, null, 2);
 };
 
+const GUIDE_RESULT_ITEMS = [
+  {
+    status: 'accepted',
+    label: 'Accepted (Diterima)',
+    description:
+      'Tap kartu lolos validasi (device, token, kartu, user, duplikat, jendela waktu). Scan dicatat dan diproses ke presensi harian atau sesi kelas. Kolom Result tetap accepted meskipun status presensi harian bisa present, late, atau not_scheduled.',
+  },
+  {
+    status: 'duplicate',
+    label: 'Duplicate (Duplikat)',
+    description:
+      'Tap ditolak karena sudah ada scan yang sama dalam rentang debounce (5 menit) atau check-in/check-out hari itu sudah tercatat. Contoh: tap datang dua kali, tap pulang terlalu cepat (< 15 menit setelah datang), atau tap ketiga setelah datang+pulang lengkap.',
+  },
+  {
+    status: 'rejected',
+    label: 'Rejected (Ditolak)',
+    description:
+      'Tap gagal validasi dasar: token device salah, kartu UID tidak terdaftar di sistem, atau data request tidak valid. Perbaiki konfigurasi firmware (DEVICE_CODE, DEVICE_TOKEN) atau daftarkan kartu di admin.',
+  },
+  {
+    status: 'out_of_window',
+    label: 'Out of Window (Di Luar Jendela Waktu)',
+    description:
+      'Tap di luar jam check-in atau check-out yang diatur policy untuk hari tersebut. Scan tidak membentuk/mengubah presensi harian. Perluas jendela waktu di policy atau tap pada jam yang diizinkan.',
+  },
+  {
+    status: 'card_inactive',
+    label: 'Card Inactive (Kartu Nonaktif)',
+    description:
+      'UID kartu terdaftar tetapi status kartu RFID dinonaktifkan di admin. Aktifkan kartu di data RFID user.',
+  },
+  {
+    status: 'device_inactive',
+    label: 'Device Inactive (Device Nonaktif)',
+    description:
+      'Device dikenali tetapi statusnya nonaktif di tab Device RFID. Aktifkan device sebelum digunakan di lapangan.',
+  },
+  {
+    status: 'user_inactive',
+    label: 'User Inactive (User Nonaktif)',
+    description: 'Pemilik kartu ada di sistem tetapi akun user dinonaktifkan. Aktifkan user terlebih dahulu.',
+  },
+  {
+    status: 'policy_missing',
+    label: 'Policy Missing (Policy Tidak Ditemukan)',
+    description:
+      'User tidak memiliki policy absensi yang aktif melalui assignment (user/kelas/grade/homebase). Petakan policy di tab Assignment agar tap bisa dievaluasi.',
+  },
+  {
+    status: 'not_scheduled',
+    label: 'Not Scheduled (Tidak Berjadwal)',
+    description:
+      'Status ini jarang muncul di kolom Result scan. Umumnya tap guru tanpa jadwal tetap accepted di log scan, sedangkan status not_scheduled tercatat di presensi harian (Laporan Presensi Guru).',
+  },
+];
+
+const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
+  <Modal
+    title="Panduan Log Scan RFID"
+    open={open}
+    onCancel={onClose}
+    footer={null}
+    centered
+    width={isMobile ? '100%' : 760}>
+    <Flex vertical gap={20}>
+      <div>
+        <Title level={5} style={{ marginTop: 0 }}>
+          Apa yang ditampilkan di laporan ini?
+        </Title>
+        <Paragraph style={{ marginBottom: 0 }}>
+          Laporan ini menampilkan <Text strong>semua percobaan tap kartu RFID</Text> dari device gate dan classroom —
+          baik yang diterima maupun ditolak. Setiap baris adalah satu event scan mentah dari alat, berguna untuk audit,
+          troubleshooting koneksi device, dan investigasi tap yang gagal.
+        </Paragraph>
+      </div>
+
+      <div>
+        <Title level={5} style={{ marginTop: 0 }}>
+          Alur sistem saat kartu di-tap
+        </Title>
+        <Flex vertical gap={10}>
+          {[
+            'Device RFID (ESP32) mengirim UID kartu, kode device, token, dan scan_action ke server.',
+            'Server memvalidasi device (aktif, token benar) dan kartu (terdaftar, aktif, user aktif).',
+            'Untuk device gate dengan daily_gate: server menentukan otomatis tap datang atau pulang.',
+            'Server mengecek duplikat dan jendela waktu policy (check-in / check-out).',
+            'Jika lolos, scan disimpan dengan Result accepted dan diproses ke presensi harian atau sesi kelas.',
+            'Jika gagal, scan tetap dicatat dengan Result sesuai penyebab penolakan beserta alasan di detail log.',
+          ].map((step, index) => (
+            <Flex key={step} gap={10} align="flex-start">
+              <span
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: '#eff6ff',
+                  color: '#1d4ed8',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}>
+                {index + 1}
+              </span>
+              <Text>{step}</Text>
+            </Flex>
+          ))}
+        </Flex>
+      </div>
+
+      <div>
+        <Title level={5} style={{ marginTop: 0 }}>
+          Perbedaan Result vs status presensi
+        </Title>
+        <Flex vertical gap={8}>
+          <Paragraph style={{ marginBottom: 0 }}>
+            <Text strong>Result (kolom di laporan ini)</Text> = hasil validasi <Text strong>scan RFID</Text> itu sendiri
+            (diterima sistem atau ditolak).
+          </Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>
+            <Text strong>Status presensi</Text> (present, late, not_scheduled, dll.) ada di{' '}
+            <Text strong>Laporan Presensi Siswa/Guru</Text> — dievaluasi setelah scan accepted diproses sesuai policy.
+          </Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>
+            Contoh: guru tap di hari libur → Result bisa <Tag color={RESULT_STATUS_COLORS.accepted}>accepted</Tag>,
+            tetapi status harian di laporan guru = <Tag color={RESULT_STATUS_COLORS.not_scheduled}>not_scheduled</Tag>.
+          </Paragraph>
+        </Flex>
+      </div>
+
+      <div>
+        <Title level={5} style={{ marginTop: 0 }}>
+          Penjelasan setiap Result
+        </Title>
+        <Flex vertical gap={12}>
+          {GUIDE_RESULT_ITEMS.map((item) => (
+            <Flex key={item.status} gap={10} align="flex-start">
+              <Tag color={RESULT_STATUS_COLORS[item.status] || 'default'} style={{ marginTop: 2 }}>
+                {item.status}
+              </Tag>
+              <div>
+                <Text strong>{item.label}</Text>
+                <div>
+                  <Text type="secondary">{item.description}</Text>
+                </div>
+              </div>
+            </Flex>
+          ))}
+        </Flex>
+      </div>
+
+      <div>
+        <Title level={5} style={{ marginTop: 0 }}>
+          Hal lain yang perlu diketahui admin
+        </Title>
+        <Flex vertical gap={8}>
+          <Text>
+            • Kartu statistik <Text strong>Butuh Tindak Lanjut</Text> menjumlahkan rejected, out_of_window, dan status
+            terkait kartu/device/user/policy yang perlu perbaikan konfigurasi.
+          </Text>
+          <Text>
+            • Filter <Text strong>device</Text> dan <Text strong>result status</Text> dapat menyembunyikan data.
+            Kosongkan filter jika laporan tampak kosong padahal tap sudah dilakukan.
+          </Text>
+          <Text>
+            • Rentang tanggal memakai zona waktu <Text strong>Asia/Jakarta (WIB)</Text> berdasarkan waktu scan di
+            server.
+          </Text>
+          <Text>
+            • Admin dapat <Text strong>Detail</Text> untuk melihat alasan penolakan dan raw payload, serta{' '}
+            <Text strong>Hapus</Text> log untuk koreksi data (hati-hati: hapus log dapat memutus hubungan dengan
+            presensi harian).
+          </Text>
+          <Text>
+            • Untuk uji koneksi device baru, pastikan tap muncul di sini dulu sebelum mengecek Laporan Presensi
+            Siswa/Guru.
+          </Text>
+        </Flex>
+      </div>
+    </Flex>
+  </Modal>
+);
+
 const ScanLogReport = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
@@ -87,6 +271,7 @@ const ScanLogReport = () => {
   const [userName, setUserName] = useState('');
   const [detailRow, setDetailRow] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const { data: devicesRes } = useGetRfidDevicesQuery();
   const { data, isLoading, isFetching, refetch } = useGetAttendanceScanLogReportQuery({
@@ -169,21 +354,18 @@ const ScanLogReport = () => {
     <Flex vertical gap={18}>
       <Card style={surfaceCardStyle} bordered={false}>
         <Flex vertical gap={16}>
-          <Flex
-            justify="space-between"
-            align={isMobile ? 'stretch' : 'center'}
-            vertical={isMobile}
-            gap={12}>
-            <div>
+          <Flex justify="space-between" align={isMobile ? 'stretch' : 'flex-start'} vertical={isMobile} gap={12}>
+            <Flex vertical gap={10}>
               <Text strong style={{ color: '#0f172a', fontSize: 16 }}>
                 Laporan Scan RFID
               </Text>
-              <div>
-                <Text type="secondary">
-                  Tampilkan semua log scan dari alat absen RFID, tanpa batasan jam atau device.
-                </Text>
-              </div>
-            </div>
+              <Button
+                icon={<BookOpen size={16} />}
+                onClick={() => setGuideOpen(true)}
+                style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
+                Panduan Log Scan
+              </Button>
+            </Flex>
             <Button
               icon={<RefreshCw size={16} />}
               loading={isFetching}
@@ -353,7 +535,9 @@ const ScanLogReport = () => {
                 ellipsis: true,
                 render: (_, row) => (
                   <Flex vertical gap={2}>
-                    <Text strong ellipsis>{row.device_name || '-'}</Text>
+                    <Text strong ellipsis>
+                      {row.device_name || '-'}
+                    </Text>
                     <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
                       {row.device_code || '-'}
                     </Text>
@@ -365,7 +549,9 @@ const ScanLogReport = () => {
                 ellipsis: true,
                 render: (_, row) => (
                   <Flex vertical gap={2}>
-                    <Text strong ellipsis>{row.user_name || '-'}</Text>
+                    <Text strong ellipsis>
+                      {row.user_name || '-'}
+                    </Text>
                     <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
                       UID {row.card_uid || '-'}
                     </Text>
@@ -451,6 +637,8 @@ const ScanLogReport = () => {
           </Descriptions>
         )}
       </Modal>
+
+      <ScanLogGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} isMobile={isMobile} />
     </Flex>
   );
 };

@@ -73,6 +73,19 @@ const DEVICE_TYPES = new Set(["gate", "classroom"]);
 const ASSIGNMENT_SCOPES = new Set(["user", "class", "grade", "homebase"]);
 const JAKARTA_TZ = "Asia/Jakarta";
 
+const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
+  SELECT 1
+  FROM attendance.rfid_scan_log sl
+  JOIN attendance.rfid_device d ON d.id = sl.device_id
+  WHERE sl.result_status = 'accepted'
+    AND d.device_type = 'gate'
+    AND (
+      sl.attendance_id = da.id
+      OR sl.id = da.first_gate_scan_id
+      OR sl.id = da.last_gate_scan_id
+    )
+)`;
+
 const toJakartaTimestampSql = (columnSql) =>
   `CASE WHEN ${columnSql} IS NULL THEN NULL ELSE TO_CHAR((${columnSql} AT TIME ZONE '${JAKARTA_TZ}'), 'YYYY-MM-DD HH24:MI:SS') END`;
 
@@ -2019,8 +2032,8 @@ router.get(
     const where = [
       "da.homebase_id = $1",
       "da.target_role = 'student'",
-      "st.homebase_id = $1",
       "da.attendance_date BETWEEN $2::date AND $3::date",
+      GATE_LINKED_SCAN_EXISTS_SQL,
     ];
 
     if (classId) {
@@ -2122,14 +2135,7 @@ router.get(
       "da.homebase_id = $1",
       "da.target_role = 'teacher'",
       "da.attendance_date BETWEEN $2::date AND $3::date",
-      `EXISTS (
-         SELECT 1
-         FROM attendance.rfid_scan_log sl
-         JOIN attendance.rfid_device d ON d.id = sl.device_id
-         WHERE sl.attendance_id = da.id
-           AND sl.result_status = 'accepted'
-           AND d.device_type = 'gate'
-       )`,
+      GATE_LINKED_SCAN_EXISTS_SQL,
     ];
 
     if (status) {

@@ -875,6 +875,44 @@ export const applyRfidScanToDailyAttendance = async (
   return result;
 };
 
+const parseScanLogPayload = (rawPayload) => {
+  if (!rawPayload) return {};
+  if (typeof rawPayload === "object") return rawPayload;
+  try {
+    return JSON.parse(rawPayload);
+  } catch {
+    return {};
+  }
+};
+
+export const resolvePendingScanAction = async (client, scan) => {
+  const action = String(scan?.scan_action || "").trim();
+  if (action === "daily_checkin" || action === "daily_checkout") {
+    return action;
+  }
+
+  if (action !== DAILY_GATE_ACTION) {
+    return null;
+  }
+
+  const payload = parseScanLogPayload(scan.raw_payload);
+  const fromPayload = String(
+    payload.resolved_scan_action || payload.resolvedScanAction || "",
+  ).trim();
+  if (fromPayload === "daily_checkin" || fromPayload === "daily_checkout") {
+    return fromPayload;
+  }
+
+  const resolution = await resolveDailyGateScanAction(client, {
+    homebaseId: scan.homebase_id,
+    userId: scan.user_id,
+    cardUid: scan.card_uid,
+    scannedAt: new Date(scan.scanned_at),
+  });
+
+  return resolution.resolvedAction || null;
+};
+
 export const reconcilePendingScanLogs = async (
   pool,
   { homebaseId, startDate = null, endDate = null } = {},
@@ -899,8 +937,10 @@ export const reconcilePendingScanLogs = async (
        sl.homebase_id,
        sl.periode_id,
        sl.user_id,
+       sl.card_uid,
        sl.scan_action,
-       sl.scanned_at
+       sl.scanned_at,
+       sl.raw_payload
      FROM attendance.rfid_scan_log sl
      JOIN attendance.rfid_device d ON d.id = sl.device_id
      WHERE sl.homebase_id = $1
@@ -908,7 +948,7 @@ export const reconcilePendingScanLogs = async (
        AND sl.attendance_id IS NULL
        AND sl.user_id IS NOT NULL
        AND d.device_type = 'gate'
-       AND sl.scan_action IN ('daily_checkin', 'daily_checkout')
+       AND sl.scan_action IN ('daily_checkin', 'daily_checkout', '${DAILY_GATE_ACTION}')
        ${dateFilter}
      ORDER BY sl.scanned_at ASC, sl.id ASC`,
     params,
@@ -920,11 +960,26 @@ export const reconcilePendingScanLogs = async (
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      const scanAction = await resolvePendingScanAction(client, scan);
+      if (!scanAction) {
+        await client.query("ROLLBACK");
+        continue;
+      }
+
+      if (scan.scan_action !== scanAction) {
+        await client.query(
+          `UPDATE attendance.rfid_scan_log
+           SET scan_action = $2
+           WHERE id = $1`,
+          [scan.id, scanAction],
+        );
+      }
+
       const result = await applyRfidScanToDailyAttendance(client, {
         homebaseId: scan.homebase_id,
         periodeId: scan.periode_id,
         userId: scan.user_id,
-        scanAction: scan.scan_action,
+        scanAction,
         scannedAt: new Date(scan.scanned_at),
         scanLogId: scan.id,
       });

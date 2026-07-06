@@ -24,6 +24,35 @@
 #include <LiquidCrystal_I2C.h>
 #include <time.h>
 
+enum ScanOutcome {
+  SCAN_OUTCOME_ACCEPTED = 0,
+  SCAN_OUTCOME_DUPLICATE = 1,
+  SCAN_OUTCOME_ERROR = 2,
+  SCAN_OUTCOME_NETWORK = 3,
+};
+
+struct ScanResult {
+  bool ok;
+  int outcome;
+  int httpCode;
+  String resultStatus;
+  String message;
+  String userName;
+  String resolvedAction;
+  String attendanceStatus;
+};
+
+void resetScanResult(ScanResult& result) {
+  result.ok = false;
+  result.outcome = SCAN_OUTCOME_NETWORK;
+  result.httpCode = 0;
+  result.resultStatus = "";
+  result.message = "";
+  result.userName = "";
+  result.resolvedAction = "";
+  result.attendanceStatus = "";
+}
+
 // =============================
 // WiFi & API Config
 // =============================
@@ -161,8 +190,159 @@ String truncateLcdLine(const String& text) {
   return text.substring(0, LCD_COLS);
 }
 
-bool sendScanToServer(const String& cardUid, String& userNameOut) {
-  userNameOut = "";
+bool messageContains(const String& haystack, const char* needle) {
+  return haystack.indexOf(needle) >= 0;
+}
+
+void parseScanResponseBody(const String& body, ScanResult& result) {
+  DynamicJsonDocument resp(768);
+  DeserializationError err = deserializeJson(resp, body);
+  if (err) {
+    return;
+  }
+
+  result.resultStatus = resp["result_status"].as<String>();
+  result.message = resp["message"].as<String>();
+
+  JsonObject data = resp["data"].as<JsonObject>();
+  if (!data.isNull()) {
+    result.userName = data["user_name"].as<String>();
+    result.resolvedAction = data["resolved_scan_action"].as<String>();
+    if (result.resolvedAction.length() == 0) {
+      result.resolvedAction = data["scan_action"].as<String>();
+    }
+    result.attendanceStatus = data["attendance_status"].as<String>();
+  }
+}
+
+void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
+  if (result.ok) {
+    String name = result.userName.length() > 0 ? result.userName : "Pemegang Kartu";
+    line1 = truncateLcdLine(name);
+
+    if (result.attendanceStatus == "not_scheduled") {
+      line2 = "Tdk Berjadwal";
+    } else if (result.attendanceStatus == "late") {
+      line2 = "Terlambat";
+    } else if (result.resolvedAction == "daily_checkout") {
+      line2 = "Pulang OK";
+    } else if (result.resolvedAction == "daily_checkin") {
+      line2 = "Datang OK";
+    } else if (result.resolvedAction == "teacher_session_checkout") {
+      line2 = "Sesi Selesai";
+    } else if (result.resolvedAction == "teacher_session_checkin") {
+      line2 = "Sesi Masuk";
+    } else {
+      line2 = "Berhasil";
+    }
+    return;
+  }
+
+  if (result.httpCode == 0) {
+    if (WiFi.status() != WL_CONNECTED) {
+      line1 = "No WiFi";
+      line2 = "Cek Koneksi";
+    } else {
+      line1 = "Server Error";
+      line2 = "Coba Lagi";
+    }
+    return;
+  }
+
+  if (result.httpCode == 404) {
+    line1 = "Device Salah";
+    line2 = "Cek Kode";
+    return;
+  }
+
+  const String& status = result.resultStatus;
+  const String& msg = result.message;
+
+  if (status == "duplicate") {
+    if (messageContains(msg, "Checkin hari ini")) {
+      line1 = result.userName.length() > 0 ? truncateLcdLine(result.userName) : "Sudah Tap";
+      line2 = "Datang Tercatat";
+    } else if (messageContains(msg, "Checkout hari ini")) {
+      line1 = "Sudah Tap";
+      line2 = "Pulang Tercatat";
+    } else if (messageContains(msg, "duplikat dalam")) {
+      line1 = "Sudah Tap";
+      line2 = "Tunggu Sebentar";
+    } else if (messageContains(msg, "terlalu cepat")) {
+      line1 = "Terlalu Cepat";
+      line2 = "Tunggu 15 Menit";
+    } else if (messageContains(msg, "sudah lengkap")) {
+      line1 = "Sudah Lengkap";
+      line2 = "Datang+Pulang";
+    } else {
+      line1 = "Sudah Tap";
+      line2 = truncateLcdLine(msg.length() > 0 ? msg : "Duplikat");
+    }
+    return;
+  }
+
+  if (status == "out_of_window") {
+    line1 = "Di Luar Jam";
+    if (messageContains(msg, "mulai")) {
+      line2 = "Belum Waktu Masuk";
+    } else if (messageContains(msg, "batas")) {
+      line2 = "Lewat Batas Waktu";
+    } else {
+      line2 = "Cek Jam Policy";
+    }
+    return;
+  }
+
+  if (status == "rejected") {
+    if (messageContains(msg, "Token")) {
+      line1 = "Konfigurasi";
+      line2 = "Token Salah";
+    } else if (messageContains(msg, "tidak terdaftar")) {
+      line1 = "Kartu Gagal";
+      line2 = "Tdk Terdaftar";
+    } else {
+      line1 = "Kartu Gagal";
+      line2 = truncateLcdLine(msg.length() > 0 ? msg : "Ditolak");
+    }
+    return;
+  }
+
+  if (status == "device_inactive") {
+    line1 = "Device Off";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "card_inactive") {
+    line1 = "Kartu Off";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "user_inactive") {
+    line1 = "Akun Off";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "policy_missing") {
+    line1 = "Policy Kosong";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "not_scheduled") {
+    line1 = "Tdk Berjadwal";
+    line2 = "Tap Ditolak";
+    return;
+  }
+
+  line1 = "Gagal";
+  line2 = truncateLcdLine(msg.length() > 0 ? msg : "Tap Kartu");
+}
+
+bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
+  resetScanResult(resultOut);
 
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[RFID] WiFi tidak tersambung.");
@@ -191,22 +371,27 @@ bool sendScanToServer(const String& cardUid, String& userNameOut) {
   String body = http.getString();
   http.end();
 
+  resultOut.httpCode = httpCode;
+  parseScanResponseBody(body, resultOut);
+
   Serial.printf("[RFID] HTTP %d | UID=%s\n", httpCode, cardUid.c_str());
   Serial.println(body);
 
-  if (httpCode < 200 || httpCode >= 300) {
-    return false;
+  if (httpCode >= 200 && httpCode < 300) {
+    resultOut.ok = true;
+    resultOut.outcome = SCAN_OUTCOME_ACCEPTED;
+    if (resultOut.userName.length() == 0) {
+      resultOut.userName = "Pemegang Kartu";
+    }
+    return true;
   }
 
-  DynamicJsonDocument resp(768);
-  DeserializationError err = deserializeJson(resp, body);
-  if (!err) {
-    userNameOut = resp["data"]["user_name"].as<String>();
+  if (resultOut.resultStatus == "duplicate") {
+    resultOut.outcome = SCAN_OUTCOME_DUPLICATE;
+  } else {
+    resultOut.outcome = SCAN_OUTCOME_ERROR;
   }
-  if (userNameOut.length() == 0) {
-    userNameOut = "Pemegang Kartu";
-  }
-  return true;
+  return false;
 }
 
 void connectWifi() {
@@ -292,21 +477,37 @@ void loop() {
 
   if (uidHex == lastUid && (now - lastScanMillis) < dedupeWindowMs) {
     Serial.printf("[RFID] Duplicate ignored: %s\n", uidHex.c_str());
+    lcdShow("Tunggu...", "");
+    delay(800);
+    lcdShow("Tap Kartu", "");
   } else {
     Serial.printf("[RFID] Card UID: %s\n", uidHex.c_str());
     lcdShow("Memproses...", uidHex.c_str());
-    String userName;
-    bool ok = sendScanToServer(uidHex, userName);
+    ScanResult result;
+    resetScanResult(result);
+    bool ok = sendScanToServer(uidHex, result);
+    String line1;
+    String line2;
+    resolveLcdMessage(result, line1, line2);
+
     if (ok) {
-      Serial.println("[RFID] Scan accepted.");
-      lcdShow(truncateLcdLine(userName).c_str(), "Berhasil");
+      Serial.printf("[RFID] Scan accepted (%s).\n", result.resolvedAction.c_str());
+      lcdShow(line1.c_str(), line2.c_str());
       buzzerSuccess();
       delay(3000);
+    } else if (result.outcome == SCAN_OUTCOME_DUPLICATE) {
+      Serial.printf("[RFID] Scan duplicate: %s\n", result.message.c_str());
+      lcdShow(line1.c_str(), line2.c_str());
+      buzzerSuccess();
+      delay(2000);
     } else {
-      Serial.println("[RFID] Scan failed/rejected.");
-      lcdShow("Gagal", "Tap Kartu");
+      Serial.printf(
+        "[RFID] Scan failed: %s | %s\n",
+        result.resultStatus.c_str(),
+        result.message.c_str());
+      lcdShow(line1.c_str(), line2.c_str());
       buzzerError();
-      delay(1500);
+      delay(2000);
     }
     lastUid = uidHex;
     lastScanMillis = now;

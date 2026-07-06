@@ -9,7 +9,7 @@ const router = Router();
 // ==========================================
 router.get(
   "/get-grades",
-  authorize("admin", "teacher"),
+  authorize("admin", "teacher", "satuan"),
   withQuery(async (req, res, pool) => {
     const homebase_id = req.user.homebase_id;
 
