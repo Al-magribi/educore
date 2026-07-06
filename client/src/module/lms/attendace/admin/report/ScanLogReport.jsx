@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
 import {
   Button,
   Card,
@@ -17,7 +18,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { AlertTriangle, BookOpen, ClipboardX, RefreshCw, ScanLine, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, BookOpen, ClipboardX, Download, RefreshCw, ScanLine, Search, Trash2 } from 'lucide-react';
 import {
   useBulkDeleteAttendanceScanLogsMutation,
   useDeleteAttendanceScanLogMutation,
@@ -47,6 +48,7 @@ const RESULT_STATUS_COLORS = {
   accepted: 'green',
   duplicate: 'gold',
   rejected: 'red',
+  unregistered: 'red',
   out_of_window: 'volcano',
   card_inactive: 'orange',
   device_inactive: 'orange',
@@ -54,6 +56,12 @@ const RESULT_STATUS_COLORS = {
   policy_missing: 'purple',
   not_scheduled: 'blue',
 };
+
+const isUnregisteredScan = (row) =>
+  row?.result_status === 'unregistered' ||
+  (row?.result_status === 'rejected' && String(row?.rejection_reason || '').toLowerCase().includes('tidak terdaftar'));
+
+const resolveResultStatus = (row) => (isUnregisteredScan(row) ? 'unregistered' : row?.result_status);
 
 const formatScanTimeCell = (value) => {
   if (!value) return '-';
@@ -78,6 +86,8 @@ const formatRawPayload = (value) => {
   return JSON.stringify(value, null, 2);
 };
 
+const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
+
 const GUIDE_RESULT_ITEMS = [
   {
     status: 'accepted',
@@ -95,7 +105,13 @@ const GUIDE_RESULT_ITEMS = [
     status: 'rejected',
     label: 'Rejected (Ditolak)',
     description:
-      'Tap gagal validasi dasar: token device salah, kartu UID tidak terdaftar di sistem, atau data request tidak valid. Perbaiki konfigurasi firmware (DEVICE_CODE, DEVICE_TOKEN) atau daftarkan kartu di admin.',
+      'Tap gagal validasi dasar: token device salah atau data request tidak valid. Perbaiki konfigurasi firmware (DEVICE_CODE, DEVICE_TOKEN).',
+  },
+  {
+    status: 'unregistered',
+    label: 'Unregistered (Kartu Tidak Terdaftar)',
+    description:
+      'UID kartu tidak terdaftar di sistem. Daftarkan kartu di admin RFID user agar tap dapat diproses.',
   },
   {
     status: 'out_of_window',
@@ -236,8 +252,8 @@ const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
         </Title>
         <Flex vertical gap={8}>
           <Text>
-            • Kartu statistik <Text strong>Butuh Tindak Lanjut</Text> menjumlahkan rejected, out_of_window, dan status
-            terkait kartu/device/user/policy yang perlu perbaikan konfigurasi.
+            • Kartu statistik <Text strong>Butuh Tindak Lanjut</Text> menjumlahkan rejected, unregistered,
+            out_of_window, dan status terkait kartu/device/user/policy yang perlu perbaikan konfigurasi.
           </Text>
           <Text>
             • Filter <Text strong>device</Text> dan <Text strong>result status</Text> dapat menyembunyikan data.
@@ -272,6 +288,7 @@ const ScanLogReport = () => {
   const [detailRow, setDetailRow] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
 
   const { data: devicesRes } = useGetRfidDevicesQuery();
   const { data, isLoading, isFetching, refetch } = useGetAttendanceScanLogReportQuery({
@@ -350,6 +367,34 @@ const ScanLogReport = () => {
     }
   };
 
+  const handleDownloadExcel = () => {
+    if (!rows.length) {
+      message.warning('Tidak ada data log scan untuk diunduh.');
+      return;
+    }
+
+    const exportRows = rows.map((row, index) => ({
+      No: index + 1,
+      'Waktu Scan': formatScanTimeCell(row.scanned_at),
+      Device: row.device_name || '-',
+      'Kode Device': row.device_code || '-',
+      User: row.user_name || '-',
+      'UID Kartu': row.card_uid || '-',
+      Result: resolveResultStatus(row) || '-',
+      'Alasan Penolakan': row.rejection_reason || '-',
+      Source: row.scan_source || '-',
+      Action: row.scan_action || '-',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Log Scan RFID');
+
+    const startLabel = range?.[0]?.format('YYYYMMDD') || 'awal';
+    const endLabel = range?.[1]?.format('YYYYMMDD') || 'akhir';
+    XLSX.writeFile(workbook, `Laporan_Scan_RFID_${startLabel}_${endLabel}.xlsx`);
+  };
+
   return (
     <Flex vertical gap={18}>
       <Card style={surfaceCardStyle} bordered={false}>
@@ -366,13 +411,22 @@ const ScanLogReport = () => {
                 Panduan Log Scan
               </Button>
             </Flex>
-            <Button
-              icon={<RefreshCw size={16} />}
-              loading={isFetching}
-              onClick={() => refetch()}
-              style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
-              Refresh
-            </Button>
+            <Flex gap={8} wrap="wrap" style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
+              <Button
+                icon={<Download size={16} />}
+                onClick={handleDownloadExcel}
+                disabled={rows.length === 0}
+                style={{ flex: isMobile ? '1 1 100%' : undefined }}>
+                Download Excel
+              </Button>
+              <Button
+                icon={<RefreshCw size={16} />}
+                loading={isFetching}
+                onClick={() => refetch()}
+                style={{ flex: isMobile ? '1 1 100%' : undefined }}>
+                Refresh
+              </Button>
+            </Flex>
           </Flex>
 
           <Flex
@@ -416,6 +470,7 @@ const ScanLogReport = () => {
                 { value: 'accepted', label: 'accepted' },
                 { value: 'duplicate', label: 'duplicate' },
                 { value: 'rejected', label: 'rejected' },
+                { value: 'unregistered', label: 'unregistered' },
                 { value: 'out_of_window', label: 'out_of_window' },
                 { value: 'card_inactive', label: 'card_inactive' },
                 { value: 'device_inactive', label: 'device_inactive' },
@@ -469,6 +524,7 @@ const ScanLogReport = () => {
               title="Butuh Tindak Lanjut"
               value={
                 Number(summary.rejected_count || 0) +
+                Number(summary.unregistered_count || 0) +
                 Number(summary.out_of_window_count || 0) +
                 Number(summary.device_inactive_count || 0) +
                 Number(summary.card_inactive_count || 0) +
@@ -518,7 +574,13 @@ const ScanLogReport = () => {
             loading={isLoading || (isFetching && rows.length > 0)}
             dataSource={rows}
             tableLayout="fixed"
-            pagination={{ pageSize: 10 }}
+            pagination={{
+              pageSize,
+              showSizeChanger: true,
+              pageSizeOptions: PAGE_SIZE_OPTIONS,
+              showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} log`,
+              onChange: (_page, size) => setPageSize(size),
+            }}
             rowSelection={{
               selectedRowKeys,
               onChange: setSelectedRowKeys,
@@ -561,7 +623,10 @@ const ScanLogReport = () => {
               {
                 title: 'Result',
                 dataIndex: 'result_status',
-                render: (value) => <Tag color={RESULT_STATUS_COLORS[value] || 'default'}>{value}</Tag>,
+                render: (_, row) => {
+                  const status = resolveResultStatus(row);
+                  return <Tag color={RESULT_STATUS_COLORS[status] || 'default'}>{status}</Tag>;
+                },
               },
               {
                 title: 'Aksi',
@@ -596,7 +661,9 @@ const ScanLogReport = () => {
           <Descriptions bordered column={isMobile ? 1 : 2} size="small">
             <Descriptions.Item label="ID Log">{detailRow.id}</Descriptions.Item>
             <Descriptions.Item label="Result">
-              <Tag color={RESULT_STATUS_COLORS[detailRow.result_status] || 'default'}>{detailRow.result_status}</Tag>
+              <Tag color={RESULT_STATUS_COLORS[resolveResultStatus(detailRow)] || 'default'}>
+                {resolveResultStatus(detailRow)}
+              </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Waktu Scan" span={2}>
               {formatDetailValue(detailRow.scanned_at)}

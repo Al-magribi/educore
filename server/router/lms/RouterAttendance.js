@@ -1802,7 +1802,7 @@ router.post(
       [cardUid],
     );
     if (cardRes.rowCount === 0) {
-      return rejectAndLog("rejected", "Kartu RFID tidak terdaftar.");
+      return rejectAndLog("unregistered", "Kartu RFID tidak terdaftar.");
     }
     const card = cardRes.rows[0];
     if (card.card_is_active !== true) {
@@ -2265,8 +2265,14 @@ router.get(
       where.push(`sl.device_id = $${params.length}`);
     }
     if (resultStatus) {
-      params.push(resultStatus);
-      where.push(`sl.result_status = $${params.length}`);
+      if (resultStatus === "unregistered") {
+        where.push(
+          `(sl.result_status = 'unregistered' OR (sl.result_status = 'rejected' AND sl.rejection_reason ILIKE '%tidak terdaftar%'))`,
+        );
+      } else {
+        params.push(resultStatus);
+        where.push(`sl.result_status = $${params.length}`);
+      }
     }
     if (userName) {
       params.push(`%${userName}%`);
@@ -2307,7 +2313,14 @@ router.get(
          COUNT(*)::int AS total_records,
          COUNT(*) FILTER (WHERE sl.result_status = 'accepted')::int AS accepted_count,
          COUNT(*) FILTER (WHERE sl.result_status = 'duplicate')::int AS duplicate_count,
-         COUNT(*) FILTER (WHERE sl.result_status = 'rejected')::int AS rejected_count,
+         COUNT(*) FILTER (
+           WHERE sl.result_status = 'rejected'
+             AND NOT (sl.rejection_reason ILIKE '%tidak terdaftar%')
+         )::int AS rejected_count,
+         COUNT(*) FILTER (
+           WHERE sl.result_status = 'unregistered'
+              OR (sl.result_status = 'rejected' AND sl.rejection_reason ILIKE '%tidak terdaftar%')
+         )::int AS unregistered_count,
          COUNT(*) FILTER (WHERE sl.result_status = 'out_of_window')::int AS out_of_window_count,
          COUNT(*) FILTER (WHERE sl.result_status = 'not_scheduled')::int AS not_scheduled_count,
          COUNT(*) FILTER (WHERE sl.result_status = 'card_inactive')::int AS card_inactive_count,

@@ -89,6 +89,8 @@ const parseReportDateTime = (value) => {
   return parsed.isValid() ? parsed : null;
 };
 
+const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
+
 const TEACHER_STATUS_OPTIONS = [
   { value: 'present', label: 'Present' },
   { value: 'late', label: 'Late' },
@@ -289,6 +291,7 @@ const TeacherReport = () => {
   const [editNotes, setEditNotes] = useState('');
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
 
   const [updateDailyAttendance, { isLoading: savingEdit }] = useUpdateDailyAttendanceRecordMutation();
   const [deleteDailyAttendance, { isLoading: deletingRow }] = useDeleteDailyAttendanceRecordMutation();
@@ -552,7 +555,13 @@ const TeacherReport = () => {
             loading={isLoading || (isFetching && rows.length > 0)}
             dataSource={rows}
             tableLayout="fixed"
-            pagination={{ pageSize: 10 }}
+            pagination={{
+              pageSize,
+              showSizeChanger: true,
+              pageSizeOptions: PAGE_SIZE_OPTIONS,
+              showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} catatan`,
+              onChange: (_page, size) => setPageSize(size),
+            }}
             rowSelection={{
               selectedRowKeys,
               onChange: setSelectedRowKeys,

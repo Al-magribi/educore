@@ -221,7 +221,7 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
     line1 = truncateLcdLine(name);
 
     if (result.attendanceStatus == "not_scheduled") {
-      line2 = "Tdk Berjadwal";
+      line2 = "Tdk ada jadwal";
     } else if (result.attendanceStatus == "late") {
       line2 = "Terlambat";
     } else if (result.resolvedAction == "daily_checkout") {
@@ -284,9 +284,9 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
   if (status == "out_of_window") {
     line1 = "Di Luar Jam";
     if (messageContains(msg, "mulai")) {
-      line2 = "Belum Waktu Masuk";
+      line2 = "Blm Waktu Masuk";
     } else if (messageContains(msg, "batas")) {
-      line2 = "Lewat Batas Waktu";
+      line2 = "Lewat Bts Waktu";
     } else {
       line2 = "Cek Jam Policy";
     }
@@ -332,7 +332,7 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
   }
 
   if (status == "not_scheduled") {
-    line1 = "Tdk Berjadwal";
+    line1 = "Tdk ada jadwal";
     line2 = "Tap Ditolak";
     return;
   }

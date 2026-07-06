@@ -255,6 +255,7 @@ CREATE TABLE rfid_scan_log(
                 'accepted',
                 'duplicate',
                 'rejected',
+                'unregistered',
                 'out_of_window',
                 'not_scheduled',
                 'card_inactive',
