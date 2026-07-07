@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { auth } from "@/auth.js";
 import { canAccessPath, getLoginRedirect } from "@/lib/auth-redirect.js";
-import { getAuthTokenOptions } from "@/lib/auth-cookie.js";
 
-export async function proxy(request) {
+function resolvePostLoginPath(request, role) {
+  const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
+  if (callbackUrl && canAccessPath(role, callbackUrl)) {
+    return callbackUrl;
+  }
+  return getLoginRedirect(role);
+}
+
+const authProxy = auth((request) => {
   const { pathname } = request.nextUrl;
-  const token = await getToken(getAuthTokenOptions(request));
-  const role = token?.role;
+  const role = request.auth?.user?.role;
+  const isLoggedIn = Boolean(request.auth?.user);
 
-  if ((pathname === "/masuk" || pathname === "/daftar") && token) {
-    return NextResponse.redirect(new URL(getLoginRedirect(role), request.url));
+  if ((pathname === "/masuk" || pathname === "/daftar") && isLoggedIn) {
+    return NextResponse.redirect(
+      new URL(resolvePostLoginPath(request, role), request.url),
+    );
   }
 
   const needsAuth =
@@ -22,7 +31,7 @@ export async function proxy(request) {
 
   if (!needsAuth) return NextResponse.next();
 
-  if (!token) {
+  if (!isLoggedIn) {
     const login = new URL("/masuk", request.url);
     login.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(login);
@@ -55,6 +64,10 @@ export async function proxy(request) {
   }
 
   return NextResponse.next();
+});
+
+export async function proxy(request, event) {
+  return authProxy(request, event);
 }
 
 export const config = {
