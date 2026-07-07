@@ -13,10 +13,11 @@ import {
   Grid,
   Input,
 } from "antd";
-import { Plus, Trash2, Layers, Loader2, CheckCircle } from "lucide-react";
+import { Plus, Trash2, Layers, Loader2, CheckCircle, Edit2 } from "lucide-react";
 import {
   useGetSubjectCategoriesQuery,
   useAddSubjectCategoryMutation,
+  useUpdateSubjectCategoryMutation,
   useDeleteSubjectCategoryMutation,
 } from "../../../../service/academic/ApiSubject";
 import { InfiniteScrollList } from "../../../../components";
@@ -31,21 +32,50 @@ const CategoryPanel = ({ screens }) => {
   const isMobile = !activeScreens.md;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
 
   const { data, isLoading } = useGetSubjectCategoriesQuery();
   const [addCategory, { isLoading: isAdding }] =
     useAddSubjectCategoryMutation();
+  const [updateCategory, { isLoading: isUpdating }] =
+    useUpdateSubjectCategoryMutation();
   const [deleteCategory] = useDeleteSubjectCategoryMutation();
 
-  const handleAdd = async (values) => {
+  const isSaving = isAdding || isUpdating;
+
+  const handleOpenAdd = () => {
+    setEditingItem(null);
+    form.resetFields();
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    form.setFieldsValue({ name: item.name });
+    setIsModalOpen(true);
+  };
+
+  const handleClose = () => {
+    setIsModalOpen(false);
+    setEditingItem(null);
+    form.resetFields();
+  };
+
+  const handleSubmit = async (values) => {
     try {
-      await addCategory(values).unwrap();
-      message.success("Kategori berhasil dibuat");
-      setIsModalOpen(false);
-      form.resetFields();
+      if (editingItem) {
+        await updateCategory({ id: editingItem.id, ...values }).unwrap();
+        message.success("Kategori berhasil diperbarui");
+      } else {
+        await addCategory(values).unwrap();
+        message.success("Kategori berhasil dibuat");
+      }
+      handleClose();
     } catch {
-      message.error("Gagal membuat kategori");
+      message.error(
+        editingItem ? "Gagal memperbarui kategori" : "Gagal membuat kategori",
+      );
     }
   };
 
@@ -93,7 +123,7 @@ const CategoryPanel = ({ screens }) => {
           <Button
             type="primary"
             icon={<Plus size={18} />}
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenAdd}
             size="large"
           >
             Tambah Kategori
@@ -118,6 +148,15 @@ const CategoryPanel = ({ screens }) => {
               }}
               styles={{ body: { padding: "22px 18px" } }}
               actions={[
+                <Tooltip title="Edit" key="edit">
+                  <Button
+                    type="text"
+                    icon={<Edit2 size={16} color="#d97706" />}
+                    onClick={() => handleEdit(item)}
+                  >
+                    Edit
+                  </Button>
+                </Tooltip>,
                 <Popconfirm
                   key="delete"
                   title="Hapus kategori?"
@@ -163,7 +202,7 @@ const CategoryPanel = ({ screens }) => {
 
       <Modal
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={handleClose}
         footer={null}
         destroyOnHidden
         closable={false}
@@ -188,7 +227,7 @@ const CategoryPanel = ({ screens }) => {
           </MotionDiv>
         )}
       >
-        <Form form={form} onFinish={handleAdd} layout="vertical">
+        <Form form={form} onFinish={handleSubmit} layout="vertical">
           <div
             style={{
               background:
@@ -210,14 +249,16 @@ const CategoryPanel = ({ screens }) => {
                   boxShadow: "0 16px 30px rgba(217, 119, 6, 0.28)",
                 }}
               >
-                <Layers size={22} />
+                {editingItem ? <Edit2 size={22} /> : <Layers size={22} />}
               </div>
               <div style={{ flex: 1 }}>
                 <Title level={4} style={{ margin: 0 }}>
-                  Tambah Kategori
+                  {editingItem ? "Edit Kategori" : "Tambah Kategori"}
                 </Title>
                 <Text type="secondary" style={{ display: "block", marginTop: 6 }}>
-                  Tambahkan kategori baru untuk menjaga struktur mapel tetap rapi.
+                  {editingItem
+                    ? "Perbarui nama kategori agar tetap konsisten di seluruh struktur mapel."
+                    : "Tambahkan kategori baru untuk menjaga struktur mapel tetap rapi."}
                 </Text>
               </div>
             </Flex>
@@ -278,7 +319,7 @@ const CategoryPanel = ({ screens }) => {
               <Flex justify="flex-end" gap={10} vertical={isMobile}>
                 <Button
                   size="large"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleClose}
                   style={{ borderRadius: 14, minWidth: isMobile ? "100%" : 120 }}
                 >
                   Batal
@@ -287,10 +328,12 @@ const CategoryPanel = ({ screens }) => {
                   type="primary"
                   htmlType="submit"
                   size="large"
-                  loading={isAdding}
+                  loading={isSaving}
                   icon={
-                    isAdding ? (
+                    isSaving ? (
                       <Loader2 className="animate-spin" size={16} />
+                    ) : editingItem ? (
+                      <Edit2 size={16} />
                     ) : (
                       <Plus size={16} />
                     )
@@ -301,7 +344,7 @@ const CategoryPanel = ({ screens }) => {
                     boxShadow: "0 12px 24px rgba(217, 119, 6, 0.22)",
                   }}
                 >
-                  Buat Kategori
+                  {editingItem ? "Simpan Perubahan" : "Buat Kategori"}
                 </Button>
               </Flex>
             </MotionDiv>

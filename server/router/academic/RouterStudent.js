@@ -67,7 +67,7 @@ router.get(
         AND ce.periode_id = $5 
         AND (u.full_name ILIKE $2 OR s.nis ILIKE $2)
       
-      ORDER BY u.full_name ASC
+      ORDER BY g.name ASC NULLS LAST, c.name ASC, u.full_name ASC
       LIMIT $3 OFFSET $4
     `;
 
