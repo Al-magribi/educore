@@ -19,6 +19,10 @@ import {
   Typography,
   theme,
 } from "antd";
+import {
+  DownloadOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { motion } from "framer-motion";
 import {
   Database,
@@ -32,15 +36,20 @@ import {
 } from "lucide-react";
 import {
   useGetStudentDatabaseQuery,
+  useGetStudentReferenceStudentsQuery,
+  useLazyGetStudentDatabaseExportQuery,
   useUpdateStudentDatabaseMutation,
 } from "../../../service/database/ApiDatabase";
 import DbForm from "../form/DbForm";
+import StudentImportDrawer from "./StudentImportDrawer";
+import { exportStudentsToExcel } from "./studentImportTemplate";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 const { useToken } = theme;
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const EMPTY_OPTIONS = [];
 const MotionDiv = motion.div;
 
@@ -168,22 +177,27 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
   const [gradeFilter, setGradeFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [updateStudentDatabase, { isLoading: isUpdating }] =
     useUpdateStudentDatabaseMutation();
+  const [fetchStudentExport] = useLazyGetStudentDatabaseExportQuery();
+  const { data: referenceData } = useGetStudentReferenceStudentsQuery({ scope });
 
   const query = useMemo(
     () => ({
       page,
-      limit: PAGE_SIZE,
+      limit: pageSize,
       search: searchText,
       grade_id: gradeFilter,
       class_id: classFilter,
       scope,
     }),
-    [page, searchText, gradeFilter, classFilter, scope],
+    [page, pageSize, searchText, gradeFilter, classFilter, scope],
   );
 
   const { data, isLoading, isFetching } = useGetStudentDatabaseQuery(query);
@@ -203,6 +217,10 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
 
   const gradeOptions = data?.filters?.grades || EMPTY_OPTIONS;
   const classOptions = data?.filters?.classes || EMPTY_OPTIONS;
+  const studentReferenceOptions = useMemo(
+    () => referenceData?.data || [],
+    [referenceData],
+  );
   const stats = [
     {
       key: "total",
@@ -272,7 +290,7 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
       width: 64,
       align: "center",
       responsive: ["sm"],
-      render: (_, __, index) => (page - 1) * PAGE_SIZE + index + 1,
+      render: (_, __, index) => (page - 1) * pageSize + index + 1,
     },
     {
       title: "Nama Siswa",
@@ -348,6 +366,31 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
       setSelectedStudent(null);
     } catch (error) {
       message.error(error?.data?.message || "Gagal memperbarui data siswa.");
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const result = await fetchStudentExport({
+        search: searchText,
+        grade_id: gradeFilter,
+        class_id: classFilter,
+        scope,
+      }).unwrap();
+      const students = result?.data || [];
+
+      if (students.length === 0) {
+        message.warning("Tidak ada data siswa untuk diekspor.");
+        return;
+      }
+
+      exportStudentsToExcel({ students });
+      message.success(`Berhasil mengekspor ${students.length} data siswa.`);
+    } catch (error) {
+      message.error(error?.data?.message || "Gagal mengekspor data siswa.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -770,38 +813,26 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
               </Col>
             </Row>
             <Flex
-              justify='space-between'
-              align={isSmallMobile ? "flex-start" : "center"}
               vertical={isSmallMobile}
+              justify='flex-end'
               gap={10}
-              style={{
-                marginTop: 14,
-                padding: "12px 14px",
-                borderRadius: 16,
-                background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
-                border: "1px solid #edf2f7",
-              }}
+              style={{ marginTop: 14 }}
             >
-              <div>
-                <Text strong style={{ color: "#0f172a", display: "block" }}>
-                  Tampilan data
-                </Text>
-                <Text type='secondary' style={{ fontSize: 12 }}>
-                  Gunakan pencarian dan filter untuk fokus pada kelompok siswa
-                  yang membutuhkan validasi.
-                </Text>
-              </div>
-              <Tag
-                color='blue'
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  fontWeight: 600,
-                }}
+              <Button
+                icon={<UploadOutlined />}
+                onClick={() => setIsImportOpen(true)}
+                style={{ width: isSmallMobile ? "100%" : undefined }}
               >
-                {data?.meta?.total_data || 0} data
-              </Tag>
+                Import Excel
+              </Button>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleExportExcel}
+                loading={isExporting}
+                style={{ width: isSmallMobile ? "100%" : undefined }}
+              >
+                Export Excel
+              </Button>
             </Flex>
             {scope === "homeroom" && (
               <Text
@@ -837,17 +868,48 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
                     perlu.
                   </Text>
                 </Space>
-                <Tag
-                  color='geekblue'
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    fontWeight: 600,
-                  }}
+                <Flex
+                  align='center'
+                  gap={8}
+                  wrap='wrap'
+                  style={{ width: isSmallMobile ? "100%" : "auto" }}
                 >
-                  Halaman {page}
-                </Tag>
+                  <Tag
+                    color='geekblue'
+                    style={{
+                      margin: 0,
+                      borderRadius: 999,
+                      paddingInline: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Halaman {page}
+                  </Tag>
+                  <Tag
+                    color='blue'
+                    style={{
+                      margin: 0,
+                      borderRadius: 999,
+                      paddingInline: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {data?.meta?.total_data || 0} data
+                  </Tag>
+                  <Select
+                    size='small'
+                    value={pageSize}
+                    style={{ minWidth: 130 }}
+                    options={PAGE_SIZE_OPTIONS.map((value) => ({
+                      value,
+                      label: `${value} / halaman`,
+                    }))}
+                    onChange={(value) => {
+                      setPageSize(value);
+                      setPage(1);
+                    }}
+                  />
+                </Flex>
               </Flex>
             }
             style={panelCardStyle}
@@ -873,12 +935,22 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
               rowClassName={() => "student-database-row"}
               pagination={{
                 current: page,
-                pageSize: PAGE_SIZE,
+                pageSize,
                 total: data?.meta?.total_data || 0,
-                showSizeChanger: false,
+                showSizeChanger: true,
+                pageSizeOptions: PAGE_SIZE_OPTIONS,
                 size: isMobile ? "small" : "default",
                 showLessItems: isMobile,
-                onChange: (nextPage) => setPage(nextPage),
+                onChange: (nextPage, nextPageSize) => {
+                  setPage(nextPage);
+                  if (nextPageSize !== pageSize) {
+                    setPageSize(nextPageSize);
+                  }
+                },
+                onShowSizeChange: (_, nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setPage(1);
+                },
               }}
             />
           </Card>
@@ -910,6 +982,13 @@ const StudentDatabaseManager = ({ scope = "all" }) => {
           setSelectedStudent(null);
         }}
         onSubmit={handleUpdate}
+      />
+
+      <StudentImportDrawer
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        studentOptions={studentReferenceOptions}
+        scope={scope}
       />
     </MotionDiv>
   );

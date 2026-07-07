@@ -1451,6 +1451,263 @@ router.put(
   }),
 );
 
+const STUDENT_EXPORT_SELECT = `
+  SELECT
+    u.id AS student_id,
+    u.full_name,
+    u.gender,
+    s.nis,
+    s.nisn,
+    s.birth_place,
+    s.birth_date,
+    s.height,
+    s.weight,
+    s.head_circumference,
+    s.order_number,
+    s.siblings_count,
+    s.address,
+    s.postal_code,
+    gr.name AS grade_name,
+    cl.name AS class_name,
+    fam.father_name,
+    fam.father_nik,
+    fam.father_birth_place,
+    fam.father_birth_date,
+    fam.father_phone,
+    fam.mother_name,
+    fam.mother_nik,
+    fam.mother_birth_place,
+    fam.mother_birth_date,
+    fam.mother_phone,
+    COALESCE(sib.siblings, '[]'::json) AS siblings
+  FROM u_users u
+  JOIN u_students s ON s.user_id = u.id
+  JOIN u_class_enrollments ce ON ce.student_id = u.id
+  LEFT JOIN a_class cl ON cl.id = ce.class_id
+  LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+  LEFT JOIN LATERAL (
+    SELECT
+      sf.father_name,
+      sf.father_nik,
+      sf.father_birth_place,
+      sf.father_birth_date,
+      sf.father_phone,
+      sf.mother_name,
+      sf.mother_nik,
+      sf.mother_birth_place,
+      sf.mother_birth_date,
+      sf.mother_phone
+    FROM "database".u_student_families sf
+    WHERE sf.student_id = u.id
+    ORDER BY sf.id DESC
+    LIMIT 1
+  ) fam ON true
+  LEFT JOIN LATERAL (
+    SELECT json_agg(
+      json_build_object(
+        'name', ss.name,
+        'gender', ss.gender,
+        'birth_date', ss.birth_date
+      )
+      ORDER BY ss.birth_date ASC NULLS LAST, ss.id ASC
+    ) AS siblings
+    FROM "database".u_student_siblings ss
+    WHERE ss.student_id = u.id
+  ) sib ON true
+  WHERE u.role = 'student'
+    AND s.homebase_id = $1
+    AND ce.periode_id = $2
+    AND ($3::boolean = false OR cl.id = ANY($4::int[]))
+`;
+
+const findStudentByNis = async ({
+  client,
+  homebaseId,
+  nis,
+  activePeriodeId,
+  restrictToHomeroom,
+  classIds,
+}) => {
+  const normalizedNis = normalizeText(nis);
+  if (!normalizedNis) return null;
+
+  const result = await client.query(
+    `
+      SELECT u.id AS student_id, u.full_name, s.nis, cl.name AS class_name
+      FROM u_users u
+      JOIN u_students s ON s.user_id = u.id
+      JOIN u_class_enrollments ce
+        ON ce.student_id = u.id
+       AND ce.periode_id = $4
+      LEFT JOIN a_class cl ON cl.id = ce.class_id
+      WHERE u.role = 'student'
+        AND s.homebase_id = $1
+        AND TRIM(s.nis) = $2
+        AND ($3::boolean = false OR ce.class_id = ANY($5::int[]))
+      LIMIT 1
+    `,
+    [homebaseId, normalizedNis, restrictToHomeroom, activePeriodeId, classIds],
+  );
+
+  return result.rows[0] || null;
+};
+
+router.get(
+  "/students/reference",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    try {
+      const accessScope = await getParentAccessScope({
+        db: pool,
+        user: req.user,
+        scope: req.query.scope || "all",
+      });
+
+      const result = await pool.query(
+        `
+          SELECT DISTINCT
+            u.id AS student_id,
+            u.full_name,
+            s.nis,
+            cl.name AS class_name,
+            gr.name AS grade_name
+          FROM u_users u
+          JOIN u_students s ON s.user_id = u.id
+          JOIN u_class_enrollments ce
+            ON ce.student_id = u.id
+           AND ce.periode_id = $3
+          LEFT JOIN a_class cl ON cl.id = ce.class_id
+          LEFT JOIN a_grade gr ON gr.id = cl.grade_id
+          WHERE u.role = 'student'
+            AND s.homebase_id = $1
+            AND ($2::boolean = false OR ce.class_id = ANY($4::int[]))
+          ORDER BY u.full_name ASC
+        `,
+        [
+          accessScope.homebaseId,
+          accessScope.restrictToHomeroom,
+          accessScope.activePeriodeId,
+          accessScope.classIds,
+        ],
+      );
+
+      res.status(200).json({ data: result.rows });
+    } catch (error) {
+      res.status(403).json({ message: error.message || "Akses ditolak." });
+    }
+  }),
+);
+
+router.get(
+  "/students/export",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    try {
+      const accessScope = await getParentAccessScope({
+        db: pool,
+        user: req.user,
+        scope: req.query.scope || "all",
+      });
+      const {
+        search = "",
+        grade_id: gradeId = "",
+        class_id: classId = "",
+      } = req.query;
+
+      const result = await pool.query(
+        `
+          ${STUDENT_EXPORT_SELECT}
+            AND ($5 = '' OR u.full_name ILIKE $6 OR s.nis ILIKE $6 OR s.nisn ILIKE $6)
+            AND ($7 = '' OR gr.id = $7::integer)
+            AND ($8 = '' OR cl.id = $8::integer)
+          ORDER BY u.full_name ASC
+        `,
+        [
+          accessScope.homebaseId,
+          accessScope.activePeriodeId,
+          accessScope.restrictToHomeroom,
+          accessScope.classIds,
+          search,
+          `%${search}%`,
+          gradeId,
+          classId,
+        ],
+      );
+
+      res.status(200).json({ data: result.rows });
+    } catch (error) {
+      res.status(403).json({ message: error.message || "Akses ditolak." });
+    }
+  }),
+);
+
+router.post(
+  "/students/import",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const students = Array.isArray(req.body?.students) ? req.body.students : [];
+
+    if (students.length === 0) {
+      return res.status(400).json({ message: "Data import siswa kosong." });
+    }
+
+    const accessScope = await getParentAccessScope({
+      db: client,
+      user: req.user,
+      scope: req.body.scope || "all",
+    });
+
+    const updated = [];
+    const failed = [];
+
+    for (const [index, item] of students.entries()) {
+      const nis = normalizeText(item.nis);
+
+      try {
+        if (!nis) {
+          throw new Error("NIS wajib diisi.");
+        }
+
+        const student = await findStudentByNis({
+          client,
+          homebaseId: accessScope.homebaseId,
+          nis,
+          activePeriodeId: accessScope.activePeriodeId,
+          restrictToHomeroom: accessScope.restrictToHomeroom,
+          classIds: accessScope.classIds,
+        });
+
+        if (!student) {
+          throw new Error(
+            accessScope.restrictToHomeroom
+              ? `Siswa dengan NIS ${nis} tidak ditemukan di kelas wali Anda.`
+              : `Siswa dengan NIS ${nis} tidak ditemukan.`,
+          );
+        }
+
+        await updateStudentProfileData(client, student.student_id, item);
+
+        updated.push({
+          row: index + 1,
+          nis,
+          full_name: student.full_name,
+        });
+      } catch (error) {
+        failed.push({
+          row: index + 1,
+          nis: nis || "-",
+          message: error.message || "Data gagal diproses.",
+        });
+      }
+    }
+
+    res.status(200).json({
+      message: `Import selesai. ${updated.length} diperbarui, ${failed.length} gagal.`,
+      data: { updated, failed },
+    });
+  }),
+);
+
 router.get(
   "/student-profile",
   authorize("student"),

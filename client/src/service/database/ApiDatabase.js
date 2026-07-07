@@ -150,6 +150,41 @@ export const ApiStudentDatabase = createApi({
       }),
       invalidatesTags: ["ParentAccount"],
     }),
+    getStudentReferenceStudents: builder.query({
+      query: (params = {}) => ({
+        url: "/students/reference",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["StudentDatabase"],
+    }),
+    getStudentDatabaseExport: builder.query({
+      query: (params = {}) => {
+        const queryParams = new URLSearchParams();
+        const {
+          search = "",
+          grade_id = "",
+          class_id = "",
+          scope = "all",
+        } = params;
+
+        queryParams.set("search", search);
+        queryParams.set("grade_id", String(grade_id));
+        queryParams.set("class_id", String(class_id));
+        queryParams.set("scope", String(scope));
+
+        return `/students/export?${queryParams.toString()}`;
+      },
+      providesTags: ["StudentDatabase"],
+    }),
+    importStudentDatabase: builder.mutation({
+      query: (body) => ({
+        url: "/students/import",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["StudentDatabase"],
+    }),
   }),
 });
 
@@ -169,4 +204,7 @@ export const {
   useUpdateParentAccountMutation,
   useDeleteParentAccountMutation,
   useImportParentAccountsMutation,
+  useGetStudentReferenceStudentsQuery,
+  useLazyGetStudentDatabaseExportQuery,
+  useImportStudentDatabaseMutation,
 } = ApiStudentDatabase;
