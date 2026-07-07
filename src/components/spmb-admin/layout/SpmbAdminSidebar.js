@@ -31,6 +31,24 @@ export function SpmbAdminSidebar({ collapsed, onToggleCollapse, schoolName, logo
   const renderNavAction = (action) => {
     const Icon = action.icon;
 
+    if (action.href) {
+      const active = pathname === action.href || pathname.startsWith(`${action.href}/`);
+      return (
+        <Link
+          key={action.id}
+          href={action.href}
+          title={collapsed ? action.label : undefined}
+          data-active={active ? "true" : "false"}
+          className={`admin-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+            collapsed ? "justify-center px-2" : ""
+          }`}
+        >
+          <Icon className="h-5 w-5 shrink-0" />
+          {!collapsed ? <span className="truncate">{action.label}</span> : null}
+        </Link>
+      );
+    }
+
     return (
       <button
         key={action.id}

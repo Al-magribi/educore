@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db.js";
 import { isAppUploadUrl } from "@/lib/storage/urls.js";
 import { toAdminThemeVars } from "@/lib/admin/theme-vars.js";
 import { getThemeSettings } from "@/modules/theme/index.js";
+import { getSession } from "@/lib/auth.js";
 import { AdminShell } from "@/components/admin/layout/index.js";
 import "./admin.css";
 
@@ -31,7 +32,8 @@ async function getAdminLayoutData() {
 }
 
 export default async function AdminLayout({ children }) {
-  const { schoolName, logoUrl, hasLogo, themeStyle } = await getAdminLayoutData();
+  const [layoutData, session] = await Promise.all([getAdminLayoutData(), getSession()]);
+  const { schoolName, logoUrl, hasLogo, themeStyle } = layoutData;
 
   return (
     <AdminShell
@@ -39,6 +41,7 @@ export default async function AdminLayout({ children }) {
       logoUrl={logoUrl}
       hasLogo={hasLogo}
       themeStyle={themeStyle}
+      userName={session?.user?.name}
     >
       {children}
     </AdminShell>

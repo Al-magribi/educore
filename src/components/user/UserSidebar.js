@@ -36,6 +36,37 @@ export function UserSidebar({
   };
 
   const userInitial = userName?.charAt(0).toUpperCase() ?? "?";
+  const profileActive = pathname === "/profile" || pathname.startsWith("/profile/");
+
+  const userProfileLink = userName ? (
+    <Link
+      href="/profile"
+      onClick={onNavigate}
+      title={collapsed ? userName : "Buka profil"}
+      className={collapsed ? "flex justify-center" : "block"}
+    >
+      {collapsed ? (
+        <span
+          className={`flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ${
+            profileActive ? "ring-2 ring-primary/40 ring-offset-2" : ""
+          }`}
+        >
+          {userInitial}
+        </span>
+      ) : (
+        <div
+          className={`rounded-xl border px-3 py-3 transition hover:border-primary/30 hover:bg-primary/5 ${
+            profileActive
+              ? "border-primary/40 bg-primary/5"
+              : "border-slate-200 bg-slate-50"
+          }`}
+        >
+          <p className="text-xs text-slate-500">Masuk sebagai</p>
+          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{userName}</p>
+        </div>
+      )}
+    </Link>
+  ) : null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -71,6 +102,12 @@ export function UserSidebar({
           </button>
         ) : null}
       </div>
+
+      {userProfileLink ? (
+        <div className={`shrink-0 border-b border-slate-200 px-3 py-3 ${collapsed ? "px-2" : ""}`}>
+          {userProfileLink}
+        </div>
+      ) : null}
 
       <nav
         className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4"
@@ -142,22 +179,6 @@ export function UserSidebar({
             </Link>
           );
         })}
-
-        {userName ? (
-          collapsed ? (
-            <div
-              className="mx-auto mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
-              title={userName}
-            >
-              {userInitial}
-            </div>
-          ) : (
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="text-xs text-slate-500">Masuk sebagai</p>
-              <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{userName}</p>
-            </div>
-          )
-        ) : null}
 
         {collapsed && onToggleCollapse ? (
           <button

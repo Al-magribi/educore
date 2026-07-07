@@ -44,5 +44,8 @@ export function canAccessPath(role, pathname) {
   if (pathname.startsWith("/spmb/")) {
     return role === ROLES.APPLICANT;
   }
+  if (pathname.startsWith("/profile")) {
+    return role != null;
+  }
   return true;
 }

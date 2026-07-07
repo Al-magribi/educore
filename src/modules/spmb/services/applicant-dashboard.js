@@ -53,7 +53,6 @@ function deriveMenuStatus(application) {
     return {
       pembayaran: "pending",
       formulir: "pending",
-      upload: "pending",
       kuesioner: "pending",
     };
   }
@@ -80,15 +79,6 @@ function deriveMenuStatus(application) {
         ? "pending"
         : "locked";
 
-  const upload =
-    counts.files > 0
-      ? "done"
-      : PAID_STATUSES.has(status) && counts.answers > 0
-        ? "in_progress"
-        : PAID_STATUSES.has(status)
-          ? "pending"
-          : "locked";
-
   const kuesioner = !hasQuestionnaire
     ? "optional"
     : counts.questionnaireResponses > 0
@@ -97,7 +87,7 @@ function deriveMenuStatus(application) {
         ? "pending"
         : "locked";
 
-  return { pembayaran, formulir, upload, kuesioner };
+  return { pembayaran, formulir, kuesioner };
 }
 
 export async function getApplicantDashboardData(userId) {

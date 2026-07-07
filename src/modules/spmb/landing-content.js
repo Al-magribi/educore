@@ -3,6 +3,7 @@ import { spmbLandingDefaults } from "@/data/spmb-landing-defaults.js";
 import { getPublicPaymentSettings } from "@/modules/payment/settings.js";
 import { formatDateId, formatDateRange } from "@/modules/spmb/date-format.js";
 import { listAdmissionPeriods } from "@/modules/spmb/periods.js";
+import { getActiveAdmissionAcademicYear } from "@/modules/spmb/academic-years.js";
 import { formatRupiah } from "@/modules/spmb/period-fees.js";
 
 const DEFAULT_ID = "default";
@@ -60,31 +61,45 @@ function normalizeLandingRow(row) {
 }
 
 async function enrichLandingContent(content) {
-  const [periods, paymentSettings] = await Promise.all([
+  const [activeAcademicYear, periods, paymentSettings] = await Promise.all([
+    getActiveAdmissionAcademicYear(),
     listAdmissionPeriods(),
     getPublicPaymentSettings(),
   ]);
 
-  const activePeriod = periods.find((period) => period.isActive);
+  const activeYearPeriods = activeAcademicYear
+    ? periods.filter((period) => period.academicYearId === activeAcademicYear.id)
+    : [];
+
+  const activePeriod = activeYearPeriods.find((period) => period.isActive);
   const registrationFee = paymentSettings?.registrationFee ?? 350000;
+  const academicYearLabel =
+    activeAcademicYear?.academicYear ?? content.page.academicYear ?? content.academicYear;
 
   return {
     ...content,
     page: {
       ...content.page,
+      academicYear: academicYearLabel,
       deadline: activePeriod ? formatDateId(activePeriod.closesAt) : "",
+      status: activeAcademicYear ? content.page.status ?? "open" : "closed",
+      statusLabel: activeAcademicYear
+        ? content.page.statusLabel ?? "Pendaftaran Dibuka"
+        : "Pendaftaran Ditutup",
     },
     fees: {
       ...content.fees,
       registration: formatRupiah(registrationFee),
     },
-    gelombang: periods.map((period) => ({
+    gelombang: activeYearPeriods.map((period) => ({
       id: period.id,
       name: period.name,
       academicYear: period.academicYear,
       dateRange: formatDateRange(period.opensAt, period.closesAt),
       isActive: period.isActive,
+      financialFees: period.financialFees ?? { items: [], total: 0, title: "", note: "" },
     })),
+    activeAcademicYear,
   };
 }
 

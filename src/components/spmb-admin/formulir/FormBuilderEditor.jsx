@@ -9,6 +9,11 @@ import {
 } from "@/components/admin/home/AdminFormFields.js";
 import { AdminSelect } from "@/components/admin/home/AdminSelect.js";
 import {
+  fileAcceptPresetOptions,
+  getFileAcceptForPreset,
+  resolveFileAcceptPreset,
+} from "@/lib/file-accept.js";
+import {
   FIELD_TYPES,
   OPTION_TYPES,
   createField,
@@ -604,7 +609,7 @@ export function FormBuilderEditor({ form, onCancel, onSaved }) {
                               : undefined,
                             accept:
                               type === "file"
-                                ? "image/jpeg,image/png,application/pdf"
+                                ? getFileAcceptForPreset("image")
                                 : undefined,
                           });
                         }}
@@ -623,11 +628,14 @@ export function FormBuilderEditor({ form, onCancel, onSaved }) {
                       </Field>
                     ) : null}
                     {selectedField.type === "file" ? (
-                      <Field label="Tipe file (accept)">
-                        <TextInput
-                          value={selectedField.accept ?? ""}
-                          onChange={(e) =>
-                            updateField(selectedField.id, { accept: e.target.value })
+                      <Field label="Tipe file">
+                        <AdminSelect
+                          value={resolveFileAcceptPreset(selectedField.accept)}
+                          options={fileAcceptPresetOptions}
+                          onChange={(preset) =>
+                            updateField(selectedField.id, {
+                              accept: getFileAcceptForPreset(preset),
+                            })
                           }
                         />
                       </Field>

@@ -4,6 +4,10 @@ import {
   resolveAllPeriodFinancialFees,
   resolvePeriodFinancialFees,
 } from "@/modules/spmb/fee-items.js";
+import {
+  getActiveAdmissionAcademicYear,
+  requireActiveAcademicYear,
+} from "@/modules/spmb/academic-years.js";
 
 function parseDate(value, fieldName) {
   const date = new Date(value);
@@ -16,6 +20,7 @@ function parseDate(value, fieldName) {
 function mapPeriod(row, financialFees) {
   return {
     id: row.id,
+    academicYearId: row.academicYearId,
     academicYear: row.academicYear,
     name: row.name,
     opensAt: row.opensAt.toISOString(),
@@ -30,12 +35,6 @@ function mapPeriod(row, financialFees) {
 
 function validatePeriodPayload(payload, { partial = false } = {}) {
   const data = {};
-
-  if (!partial || payload.academicYear !== undefined) {
-    const academicYear = payload.academicYear?.trim();
-    if (!academicYear) throw new Error("Tahun pelajaran wajib diisi");
-    data.academicYear = academicYear;
-  }
 
   if (!partial || payload.name !== undefined) {
     const name = payload.name?.trim();
@@ -62,8 +61,21 @@ function validatePeriodPayload(payload, { partial = false } = {}) {
   return data;
 }
 
-export async function listAdmissionPeriods() {
+async function assertPeriodBelongsToActiveYear(period) {
+  const activeYear = await getActiveAdmissionAcademicYear();
+  if (!activeYear) {
+    throw new Error("Tidak ada tahun pelajaran aktif");
+  }
+  if (period.academicYearId !== activeYear.id) {
+    throw new Error("Gelombang hanya dapat diaktifkan pada tahun pelajaran yang sedang aktif");
+  }
+}
+
+export async function listAdmissionPeriods({ academicYearId } = {}) {
+  const where = academicYearId ? { academicYearId } : {};
+
   const rows = await prisma.admissionPeriod.findMany({
+    where,
     orderBy: [{ academicYear: "desc" }, { opensAt: "asc" }],
     include: { _count: { select: { applications: true } } },
   });
@@ -86,15 +98,18 @@ export async function getAdmissionPeriod(id) {
 }
 
 export async function createAdmissionPeriod(payload) {
+  const activeYear = await requireActiveAcademicYear();
   const data = validatePeriodPayload(payload);
 
   if (data.isActive) {
+    await assertPeriodBelongsToActiveYear({ academicYearId: activeYear.id });
     await prisma.admissionPeriod.updateMany({ data: { isActive: false } });
   }
 
   const row = await prisma.admissionPeriod.create({
     data: {
-      academicYear: data.academicYear,
+      academicYearId: activeYear.id,
+      academicYear: activeYear.academicYear,
       name: data.name,
       opensAt: data.opensAt,
       closesAt: data.closesAt,
@@ -116,6 +131,7 @@ export async function updateAdmissionPeriod(id, payload) {
   const data = validatePeriodPayload(payload, { partial: true });
 
   if (data.isActive) {
+    await assertPeriodBelongsToActiveYear(existing);
     await prisma.admissionPeriod.updateMany({
       where: { id: { not: id } },
       data: { isActive: false },
@@ -136,6 +152,7 @@ export async function activateAdmissionPeriod(id) {
   const existing = await prisma.admissionPeriod.findUnique({ where: { id } });
   if (!existing) throw new Error("Periode tidak ditemukan");
 
+  await assertPeriodBelongsToActiveYear(existing);
   await prisma.admissionPeriod.updateMany({ data: { isActive: false } });
 
   const row = await prisma.admissionPeriod.update({

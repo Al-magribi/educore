@@ -35,7 +35,10 @@ export async function DELETE(_request, { params }) {
   try {
     const { id } = await params;
     const result = await deletePayment(id);
-    return NextResponse.json({ ...result, message: "Pembayaran dihapus" });
+    return NextResponse.json({
+      ...result,
+      message: "Pembayaran, bukti fisik, dan formulir terkait (jika ada) berhasil dihapus",
+    });
   } catch (error) {
     console.error("[spmb-admin/payments DELETE]", error);
     return NextResponse.json(

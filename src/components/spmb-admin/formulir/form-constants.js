@@ -1,3 +1,5 @@
+import { getFileAcceptForPreset } from "@/lib/file-accept.js";
+
 export const FIELD_TYPES = [
   { value: "text", label: "Teks singkat" },
   { value: "textarea", label: "Teks panjang" },
@@ -65,14 +67,14 @@ export const defaultFormGroups = [
         type: "file",
         label: "Pas Foto 3x4",
         required: true,
-        accept: "image/jpeg,image/png",
+        accept: getFileAcceptForPreset("image"),
       },
       {
         id: "birth_certificate",
         type: "file",
         label: "Akta Kelahiran",
         required: true,
-        accept: "image/jpeg,image/png,application/pdf",
+        accept: "application/pdf,.pdf",
       },
     ],
   },
@@ -167,7 +169,7 @@ export function createField(type = "text") {
     required: false,
     placeholder: "",
     options: OPTION_TYPES.has(type) ? ["Opsi 1", "Opsi 2"] : undefined,
-    accept: type === "file" ? "image/jpeg,image/png,application/pdf" : undefined,
+    accept: type === "file" ? getFileAcceptForPreset("image") : undefined,
   };
 }
 

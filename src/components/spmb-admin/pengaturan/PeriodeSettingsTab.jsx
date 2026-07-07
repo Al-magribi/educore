@@ -34,7 +34,6 @@ function toDateInputValue(iso) {
 function buildGelombangForm(period) {
   if (!period) {
     return {
-      academicYear: "2026/2027",
       name: "",
       opensAt: "",
       closesAt: "",
@@ -43,7 +42,6 @@ function buildGelombangForm(period) {
   }
 
   return {
-    academicYear: period.academicYear,
     name: period.name,
     opensAt: toDateInputValue(period.opensAt),
     closesAt: toDateInputValue(period.closesAt),
@@ -213,15 +211,33 @@ function FeeDetailModal({ open, period, onClose }) {
   );
 }
 
-function GelombangCard({ period, onEdit, onActivate, onDelete, onViewFees, deleting }) {
+function ChevronIcon({ expanded }) {
+  return (
+    <svg
+      className={`h-5 w-5 shrink-0 text-slate-500 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+function GelombangCard({ period, onEdit, onActivate, onDelete, onViewFees, deleting, canActivate, nested = false }) {
   const itemCount = period.financialFees?.items?.length ?? 0;
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article
+      className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${
+        nested ? "border-slate-100 bg-slate-50/50" : ""
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-lg font-semibold text-slate-900">{period.name}</h4>
+            <h4 className="text-base font-semibold text-slate-900">{period.name}</h4>
             {period.isActive ? (
               <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                 Aktif
@@ -241,7 +257,7 @@ function GelombangCard({ period, onEdit, onActivate, onDelete, onViewFees, delet
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!period.isActive ? (
+          {!period.isActive && canActivate ? (
             <button
               type="button"
               onClick={() => onActivate(period.id)}
@@ -255,7 +271,7 @@ function GelombangCard({ period, onEdit, onActivate, onDelete, onViewFees, delet
             onClick={() => onEdit(period)}
             className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
           >
-            Edit periode
+            Edit gelombang
           </button>
           <button
             type="button"
@@ -278,13 +294,214 @@ function GelombangCard({ period, onEdit, onActivate, onDelete, onViewFees, delet
   );
 }
 
+function AcademicYearAccordionItem({
+  year,
+  periods,
+  expanded,
+  onToggle,
+  onActivate,
+  onDeactivate,
+  onDelete,
+  onEdit,
+  onCreateGelombang,
+  onEditGelombang,
+  onActivateGelombang,
+  onDeleteGelombang,
+  onViewFees,
+  deletingYear,
+  deletingGelombangId,
+}) {
+  const panelId = `gelombang-panel-${year.id}`;
+  const headerId = `periode-header-${year.id}`;
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 p-5">
+        <button
+          type="button"
+          id={headerId}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+        >
+          <ChevronIcon expanded={expanded} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="text-lg font-semibold text-slate-900">Tahun Pelajaran {year.academicYear}</h4>
+              {year.isActive ? (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  Aktif
+                </span>
+              ) : (
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                  Nonaktif
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-slate-600">
+              {periods.length} gelombang pendaftaran
+              {expanded ? "" : " · klik untuk melihat gelombang"}
+            </p>
+          </div>
+        </button>
+        <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+          {year.isActive ? (
+            <button
+              type="button"
+              onClick={() => onDeactivate(year.id)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Nonaktifkan
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onActivate(year.id)}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+            >
+              Aktifkan
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onEdit(year)}
+            className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(year)}
+            disabled={deletingYear}
+            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+          >
+            {deletingYear ? "Menghapus..." : "Hapus"}
+          </button>
+        </div>
+      </div>
+
+      <div
+        id={panelId}
+        role="region"
+        aria-labelledby={headerId}
+        hidden={!expanded}
+        className={expanded ? "border-t border-slate-100" : ""}
+      >
+        {expanded ? (
+          <div className="space-y-4 bg-slate-50/40 px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-medium text-slate-700">Gelombang pendaftaran</p>
+              {year.isActive ? (
+                <button
+                  type="button"
+                  onClick={() => onCreateGelombang(year)}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
+                >
+                  + Buat gelombang
+                </button>
+              ) : (
+                <p className="text-xs text-amber-700">Aktifkan tahun pelajaran ini untuk menambah gelombang.</p>
+              )}
+            </div>
+
+            {periods.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                {year.isActive
+                  ? "Belum ada gelombang. Klik \"Buat gelombang\" untuk memulai."
+                  : "Belum ada gelombang pada tahun pelajaran ini."}
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {periods.map((period) => (
+                  <GelombangCard
+                    key={period.id}
+                    period={period}
+                    onEdit={onEditGelombang}
+                    onActivate={onActivateGelombang}
+                    onDelete={onDeleteGelombang}
+                    onViewFees={onViewFees}
+                    deleting={deletingGelombangId === period.id}
+                    canActivate={year.isActive}
+                    nested
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function AcademicYearModal({ open, mode, value, saving, onChange, onSubmit, onClose }) {
+  const isCreate = mode === "create";
+  const titleId = "academic-year-modal-title";
+
+  return (
+    <ModalShell
+      open={open}
+      titleId={titleId}
+      title={isCreate ? "Buat tahun pelajaran" : "Edit tahun pelajaran"}
+      description="Format tahun pelajaran seperti 2027/2028. Hanya satu tahun pelajaran yang boleh aktif."
+      onClose={onClose}
+      disabled={saving}
+      footer={
+        <div className="flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            form="academic-year-modal-form"
+            disabled={saving}
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-60"
+          >
+            {saving ? "Menyimpan..." : isCreate ? "Buat tahun pelajaran" : "Simpan perubahan"}
+          </button>
+        </div>
+      }
+    >
+      <div className="px-5 py-5">
+        <form id="academic-year-modal-form" onSubmit={onSubmit} className="space-y-4">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Tahun pelajaran</span>
+            <input
+              type="text"
+              required
+              placeholder="2027/2028"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+            />
+          </label>
+        </form>
+      </div>
+    </ModalShell>
+  );
+}
+
 function PeriodeListPanel({
+  academicYears,
   periods,
   loading,
   message,
   onMessage,
   onPeriodsChange,
+  onAcademicYearsChange,
 }) {
+  const [yearFormMode, setYearFormMode] = useState(null);
+  const [yearFormOpen, setYearFormOpen] = useState(false);
+  const [editingYear, setEditingYear] = useState(null);
+  const [yearFormValue, setYearFormValue] = useState("2027/2028");
+  const [yearSaving, setYearSaving] = useState(false);
+  const [deletingYearId, setDeletingYearId] = useState(null);
   const [formMode, setFormMode] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
@@ -293,26 +510,68 @@ function PeriodeListPanel({
   const [viewingPeriod, setViewingPeriod] = useState(null);
   const [feeModalOpen, setFeeModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [expandedYearIds, setExpandedYearIds] = useState(() => new Set());
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
 
-  const groupedPeriods = useMemo(() => {
-    const groups = new Map();
+  const periodsByYearId = useMemo(() => {
+    const map = new Map();
     for (const period of periods) {
-      const key = period.academicYear;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(period);
+      if (!map.has(period.academicYearId)) map.set(period.academicYearId, []);
+      map.get(period.academicYearId).push(period);
     }
-    return [...groups.entries()];
+    return map;
   }, [periods]);
 
-  const openCreate = () => {
+  useEffect(() => {
+    if (loading || academicYears.length === 0 || expandedYearIds.size > 0) return;
+    const active = academicYears.find((year) => year.isActive);
+    setExpandedYearIds(new Set([active?.id ?? academicYears[0].id]));
+  }, [loading, academicYears, expandedYearIds.size]);
+
+  const toggleYearExpanded = (yearId) => {
+    setExpandedYearIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(yearId)) next.delete(yearId);
+      else next.add(yearId);
+      return next;
+    });
+  };
+
+  const openCreate = (year) => {
+    if (!year?.isActive) {
+      onMessage({ type: "error", text: "Aktifkan tahun pelajaran terlebih dahulu sebelum membuat gelombang" });
+      return;
+    }
+    setExpandedYearIds((prev) => new Set([...prev, year.id]));
     setFormMode("create");
     setEditingPeriod(null);
     setGelombangForm(buildGelombangForm(null));
     setFormOpen(true);
   };
 
+  const openCreateYear = () => {
+    setYearFormMode("create");
+    setEditingYear(null);
+    setYearFormValue("2027/2028");
+    setYearFormOpen(true);
+  };
+
+  const openEditYear = (year) => {
+    setYearFormMode("edit");
+    setEditingYear(year);
+    setYearFormValue(year.academicYear);
+    setYearFormOpen(true);
+  };
+
+  const closeYearForm = () => {
+    if (yearSaving) return;
+    setYearFormOpen(false);
+    setYearFormMode(null);
+    setEditingYear(null);
+  };
+
   const openEdit = (period) => {
+    setExpandedYearIds((prev) => new Set([...prev, period.academicYearId]));
     setFormMode("edit");
     setEditingPeriod(period);
     setGelombangForm(buildGelombangForm(period));
@@ -334,6 +593,88 @@ function PeriodeListPanel({
   const closeFeeDetail = () => {
     setFeeModalOpen(false);
     setViewingPeriod(null);
+  };
+
+  const handleSaveYear = async (e) => {
+    e.preventDefault();
+    setYearSaving(true);
+    onMessage(null);
+    try {
+      const isCreate = yearFormMode === "create";
+      const res = await fetch(
+        isCreate ? "/api/spmb-admin/academic-years" : `/api/spmb-admin/academic-years/${editingYear.id}`,
+        {
+          method: isCreate ? "POST" : "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ academicYear: yearFormValue }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan tahun pelajaran");
+
+      onMessage({ type: "success", text: data.message || "Tahun pelajaran disimpan" });
+      setYearFormOpen(false);
+      setYearFormMode(null);
+      setEditingYear(null);
+      await onAcademicYearsChange();
+    } catch (err) {
+      onMessage({ type: "error", text: err.message });
+    } finally {
+      setYearSaving(false);
+    }
+  };
+
+  const handleActivateYear = async (id) => {
+    onMessage(null);
+    try {
+      const res = await fetch(`/api/spmb-admin/academic-years/${id}/activate`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal mengaktifkan tahun pelajaran");
+      onMessage({ type: "success", text: data.message });
+      setExpandedYearIds((prev) => new Set([...prev, id]));
+      await Promise.all([onAcademicYearsChange(), onPeriodsChange()]);
+    } catch (err) {
+      onMessage({ type: "error", text: err.message });
+    }
+  };
+
+  const handleDeactivateYear = async (id) => {
+    onMessage(null);
+    try {
+      const res = await fetch(`/api/spmb-admin/academic-years/${id}/deactivate`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menonaktifkan tahun pelajaran");
+      onMessage({ type: "success", text: data.message });
+      await Promise.all([onAcademicYearsChange(), onPeriodsChange()]);
+    } catch (err) {
+      onMessage({ type: "error", text: err.message });
+    }
+  };
+
+  const handleDeleteYear = async (year) => {
+    const ok = await confirmDelete({
+      title: `Hapus tahun pelajaran ${year.academicYear}?`,
+      description:
+        year.periodCount > 0
+          ? `Tahun pelajaran ini memiliki ${year.periodCount} gelombang. Semua gelombang tanpa pendaftar akan ikut terhapus.`
+          : "Tahun pelajaran akan dihapus permanen.",
+    });
+    if (!ok) return;
+
+    onMessage(null);
+    setDeletingYearId(year.id);
+    try {
+      const res = await fetch(`/api/spmb-admin/academic-years/${year.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus tahun pelajaran");
+      onMessage({ type: "success", text: data.message });
+      if (editingYear?.id === year.id) closeYearForm();
+      await Promise.all([onAcademicYearsChange(), onPeriodsChange()]);
+    } catch (err) {
+      onMessage({ type: "error", text: err.message });
+    } finally {
+      setDeletingYearId(null);
+    }
   };
 
   const handleSave = async (e) => {
@@ -408,11 +749,11 @@ function PeriodeListPanel({
   };
 
   if (loading) {
-    return <p className="text-sm text-slate-500">Memuat periode SPMB...</p>;
+    return <p className="text-sm text-slate-500">Memuat pengaturan periode SPMB...</p>;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {message ? (
         <div
           className={`rounded-lg px-4 py-3 text-sm ${
@@ -428,50 +769,68 @@ function PeriodeListPanel({
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <p className="text-sm font-medium text-slate-900">Alur pengaturan periode</p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-600">
-          <li>Buat gelombang — tentukan jadwal dan status aktif</li>
+          <li>Buat dan aktifkan tahun pelajaran (hanya satu yang aktif)</li>
+          <li>Buka tahun pelajaran, lalu buat gelombang pendaftaran di dalamnya</li>
           <li>Lanjut ke tab Persyaratan untuk menambahkan item biaya per gelombang</li>
         </ol>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600">
-          Setiap gelombang memiliki jadwal sendiri. Item biaya diatur di tab Persyaratan.
-        </p>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
-        >
-          + Buat gelombang baru
-        </button>
-      </div>
-
-      {groupedPeriods.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center text-sm text-slate-600">
-          Belum ada gelombang. Klik &quot;Buat gelombang baru&quot; untuk memulai.
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Periode Tahun Pelajaran</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Klik tahun pelajaran untuk membuka daftar gelombang. Hanya satu tahun pelajaran yang boleh aktif.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openCreateYear}
+            className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+          >
+            + Buat tahun pelajaran
+          </button>
         </div>
-      ) : (
-        groupedPeriods.map(([academicYear, yearPeriods]) => (
-          <section key={academicYear} className="space-y-3">
-            <h3 className="text-base font-semibold text-slate-900">
-              Tahun pelajaran {academicYear}
-            </h3>
-            <div className="grid gap-4">
-              {yearPeriods.map((period) => (
-                <GelombangCard
-                  key={period.id}
-                  period={period}
-                  onEdit={openEdit}
-                  onActivate={handleActivate}
-                  onDelete={handleDelete}
-                  onViewFees={openFeeDetail}
-                  deleting={deletingId === period.id}
-                />
-              ))}
-            </div>
-          </section>
-        ))
-      )}
+
+        {academicYears.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center text-sm text-slate-600">
+            Belum ada tahun pelajaran. Buat tahun pelajaran terlebih dahulu.
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {academicYears.map((year) => (
+              <AcademicYearAccordionItem
+                key={year.id}
+                year={year}
+                periods={periodsByYearId.get(year.id) ?? []}
+                expanded={expandedYearIds.has(year.id)}
+                onToggle={() => toggleYearExpanded(year.id)}
+                onActivate={handleActivateYear}
+                onDeactivate={handleDeactivateYear}
+                onDelete={handleDeleteYear}
+                onEdit={openEditYear}
+                onCreateGelombang={openCreate}
+                onEditGelombang={openEdit}
+                onActivateGelombang={handleActivate}
+                onDeleteGelombang={handleDelete}
+                onViewFees={openFeeDetail}
+                deletingYear={deletingYearId === year.id}
+                deletingGelombangId={deletingId}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <AcademicYearModal
+        open={yearFormOpen}
+        mode={yearFormMode ?? "create"}
+        value={yearFormValue}
+        saving={yearSaving}
+        onChange={setYearFormValue}
+        onSubmit={handleSaveYear}
+        onClose={closeYearForm}
+      />
       <GelombangModal
         open={formOpen}
         mode={formMode ?? "create"}
@@ -489,12 +848,23 @@ function PeriodeListPanel({
 
 export default function PeriodeSettingsTab() {
   const [activeSubTab, setActiveSubTab] = useState("periode");
+  const [academicYears, setAcademicYears] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
 
+  const loadAcademicYears = useCallback(async () => {
+    try {
+      const res = await fetch("/api/spmb-admin/academic-years");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal memuat tahun pelajaran");
+      setAcademicYears(data.academicYears ?? []);
+    } catch (err) {
+      setMessage({ type: "error", text: err.message });
+    }
+  }, []);
+
   const loadPeriods = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await fetch("/api/spmb-admin/periods");
       const data = await res.json();
@@ -502,14 +872,18 @@ export default function PeriodeSettingsTab() {
       setPeriods(data.periods ?? []);
     } catch (err) {
       setMessage({ type: "error", text: err.message });
-    } finally {
-      setLoading(false);
     }
   }, []);
 
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadAcademicYears(), loadPeriods()]);
+    setLoading(false);
+  }, [loadAcademicYears, loadPeriods]);
+
   useEffect(() => {
-    loadPeriods();
-  }, [loadPeriods]);
+    loadAll();
+  }, [loadAll]);
 
   return (
     <div className="space-y-6">
@@ -543,11 +917,13 @@ export default function PeriodeSettingsTab() {
 
       {activeSubTab === "periode" ? (
         <PeriodeListPanel
+          academicYears={academicYears}
           periods={periods}
           loading={loading}
           message={message}
           onMessage={setMessage}
           onPeriodsChange={loadPeriods}
+          onAcademicYearsChange={loadAcademicYears}
         />
       ) : (
         <>
@@ -562,7 +938,11 @@ export default function PeriodeSettingsTab() {
               {message.text}
             </div>
           ) : null}
-          <PersyaratanItemsTab periods={periods} onMessage={setMessage} />
+          <PersyaratanItemsTab
+            academicYears={academicYears}
+            periods={periods}
+            onMessage={setMessage}
+          />
         </>
       )}
     </div>

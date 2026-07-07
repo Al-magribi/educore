@@ -1,21 +1,45 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 
 const TYPE_LABELS = {
-  kepribadian: "Kepribadian",
-  gaya_belajar: "Gaya Belajar",
-  survey: "Survey",
-  custom: "Kuesioner",
+  kepribadian: 'Kepribadian',
+  gaya_belajar: 'Gaya Belajar',
+  survey: 'Survey',
+  custom: 'Kuesioner',
 };
 
 function isAnswered(question, value) {
   if (value == null) return false;
-  if (question.type === "jawaban_panjang") {
-    return typeof value === "string" && value.trim() !== "";
+  if (question.type === 'jawaban_panjang') {
+    return typeof value === 'string' && value.trim() !== '';
   }
-  return typeof value === "string" && value.trim() !== "";
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function QuestionnaireProgressNotice({ progress, access }) {
+  if (!access.canFill || progress.total === 0) return null;
+
+  if (progress.completed >= progress.total) {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <p>
+          Semua kuesioner telah selesai.{' '}
+          <Link href="/spmb/formulir" className="font-semibold text-emerald-800 underline-offset-2 hover:underline">
+            Ajukan formulir pendaftaran
+          </Link>{' '}
+          setelah melengkapi field wajib.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      Selesaikan semua kuesioner ({progress.completed}/{progress.total}) sebelum mengajukan formulir pendaftaran.
+    </div>
+  );
 }
 
 function LockedPaymentCard({ paymentState }) {
@@ -33,8 +57,7 @@ function LockedPaymentCard({ paymentState }) {
             </p>
             <Link
               href="/spmb/pembayaran"
-              className="mt-5 inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-2.5 text-sm font-medium text-blue-900 transition hover:bg-blue-100"
-            >
+              className="mt-5 inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-2.5 text-sm font-medium text-blue-900 transition hover:bg-blue-100">
               Lihat status pembayaran
             </Link>
           </div>
@@ -56,8 +79,7 @@ function LockedPaymentCard({ paymentState }) {
           </p>
           <Link
             href="/spmb/pembayaran"
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700"
-          >
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700">
             Ke halaman pembayaran
             <span aria-hidden>→</span>
           </Link>
@@ -70,16 +92,13 @@ function LockedPaymentCard({ paymentState }) {
 function PageHeader({ period, progress, access }) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-br from-primary via-secondary to-accent p-6 text-primary-foreground shadow-sm md:p-8">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-white/80">Kuesioner SPMB</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">
-            Kepribadian & Gaya Belajar
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Kuesioner SPMB</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/85">
             {period
               ? `Gelombang ${period.name} · ${period.academicYear}`
-              : "Jawab kuesioner untuk membantu sekolah memahami profil Anda."}
+              : 'Jawab kuesioner untuk membantu sekolah memahami profil Anda.'}
           </p>
         </div>
         {access.canFill && progress.total > 0 ? (
@@ -98,9 +117,7 @@ function PageHeader({ period, progress, access }) {
           </div>
         ) : null}
       </div>
-      {period?.closesAt ? (
-        <p className="mt-5 text-sm text-white/80">Batas pendaftaran: {period.closesAt}</p>
-      ) : null}
+      {period?.closesAt ? <p className="mt-5 text-sm text-white/80">Batas pendaftaran: {period.closesAt}</p> : null}
     </section>
   );
 }
@@ -117,11 +134,65 @@ function SubmittedBanner({ response }) {
           <p className="font-semibold text-emerald-950">Jawaban telah dikirim</p>
           <p className="mt-1 text-sm text-emerald-900/80">
             {response.answeredCount}/{response.totalQuestions} soal terjawab
-            {response.submittedAt ? ` · ${response.submittedAt}` : ""}
+            {response.submittedAt ? ` · ${response.submittedAt}` : ''}
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+function QuestionnairePickerCard({ questionnaire, selections, onSelect, disabled }) {
+  const { schema, response } = questionnaire;
+  const typeLabel = TYPE_LABELS[schema.type] ?? TYPE_LABELS.custom;
+  const answeredCount = schema.questions.filter((q) => isAnswered(q, selections[q.id])).length;
+  const totalQuestions = schema.questions.length;
+  const isComplete = response.isComplete;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      className="group w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 sm:p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+            {typeLabel}
+          </span>
+          <h2 className="mt-2 text-lg font-bold text-slate-900 transition group-hover:text-primary sm:text-xl">
+            {questionnaire.title}
+          </h2>
+          {schema.description ? (
+            <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-600">{schema.description}</p>
+          ) : null}
+        </div>
+        <span
+          className="shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-primary"
+          aria-hidden>
+          →
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+          {totalQuestions} soal
+        </span>
+        {isComplete ? (
+          <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+            Selesai
+          </span>
+        ) : answeredCount > 0 ? (
+          <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+            {answeredCount}/{totalQuestions} terjawab
+          </span>
+        ) : (
+          <span className="inline-flex rounded-full bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+            Belum diisi
+          </span>
+        )}
+      </div>
+    </button>
   );
 }
 
@@ -134,6 +205,7 @@ function QuestionnaireCard({
   onSave,
   onSubmit,
   canSubmit,
+  onBack,
 }) {
   const { schema, response } = questionnaire;
   const typeLabel = TYPE_LABELS[schema.type] ?? TYPE_LABELS.custom;
@@ -143,6 +215,13 @@ function QuestionnaireCard({
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition hover:text-primary">
+          <span aria-hidden>←</span>
+          Kembali ke daftar kuesioner
+        </button>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
@@ -174,12 +253,12 @@ function QuestionnaireCard({
               {question.text}
             </legend>
 
-            {question.type === "jawaban_panjang" ? (
+            {question.type === 'jawaban_panjang' ? (
               <div className="pl-0 sm:pl-8">
                 <textarea
-                  value={selections[question.id] ?? ""}
+                  value={selections[question.id] ?? ''}
                   onChange={(e) => onAnswer(questionnaire.id, question.id, e.target.value)}
-                  placeholder={question.placeholder || "Tuliskan jawaban Anda..."}
+                  placeholder={question.placeholder || 'Tuliskan jawaban Anda...'}
                   disabled={disabled}
                   rows={4}
                   className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
@@ -187,17 +266,17 @@ function QuestionnaireCard({
               </div>
             ) : (
               <div className="space-y-2.5 pl-0 sm:pl-8">
-                {(question.options ?? []).map((option) => {
+                {(question.options ?? []).map((option, optIndex) => {
                   const selected = selections[question.id] === option.id;
+                  const optionLetter = String.fromCharCode(65 + optIndex);
                   return (
                     <label
                       key={option.id}
                       className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
                         selected
-                          ? "border-primary bg-primary/5 text-slate-900 ring-1 ring-primary/20"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                      } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
-                    >
+                          ? 'border-primary bg-primary/5 text-slate-900 ring-1 ring-primary/20'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}>
                       <input
                         type="radio"
                         name={question.id}
@@ -207,6 +286,9 @@ function QuestionnaireCard({
                         disabled={disabled}
                         className="h-4 w-4 shrink-0 border-slate-300 text-primary focus:ring-primary/30"
                       />
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                        {optionLetter}
+                      </span>
                       <span className="leading-relaxed">{option.label}</span>
                     </label>
                   );
@@ -223,17 +305,15 @@ function QuestionnaireCard({
             type="button"
             onClick={() => onSave(questionnaire.id)}
             disabled={saving}
-            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? "Menyimpan..." : "Simpan sementara"}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+            {saving ? 'Menyimpan...' : 'Simpan sementara'}
           </button>
           <button
             type="button"
             onClick={() => onSubmit(questionnaire.id)}
             disabled={saving || !canSubmit(questionnaire.id)}
-            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? "Menyimpan..." : isComplete ? "Perbarui jawaban" : "Kirim jawaban"}
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+            {saving ? 'Menyimpan...' : isComplete ? 'Perbarui jawaban' : 'Kirim jawaban'}
           </button>
         </div>
       ) : null}
@@ -248,6 +328,7 @@ export function KuesionerPageView({ initialData }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(!initialData);
   const [savingId, setSavingId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
 
   function buildSelectionsMap(pageData) {
     const map = {};
@@ -258,7 +339,7 @@ export function KuesionerPageView({ initialData }) {
   }
 
   const refresh = useCallback(async () => {
-    const res = await fetch("/api/spmb/kuesioner", { cache: "no-store" });
+    const res = await fetch('/api/spmb/kuesioner', { cache: 'no-store' });
     const json = await res.json();
     if (res.ok) {
       setData(json);
@@ -285,25 +366,15 @@ export function KuesionerPageView({ initialData }) {
     setError(null);
   }, []);
 
-  const canSubmitQuestionnaire = useCallback(
-    (questionnaireId) => {
-      const questionnaire = data?.questionnaires?.find((q) => q.id === questionnaireId);
-      if (!questionnaire) return false;
-      const selections = selectionsMap[questionnaireId] ?? {};
-      return questionnaire.schema.questions.every((q) => isAnswered(q, selections[q.id]));
-    },
-    [data?.questionnaires, selectionsMap]
-  );
-
   const persist = async (questionnaireId, submit) => {
     setNotice(null);
     setError(null);
     setSavingId(questionnaireId);
 
     try {
-      const res = await fetch("/api/spmb/kuesioner", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/spmb/kuesioner', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           questionnaireId,
           selections: selectionsMap[questionnaireId] ?? {},
@@ -313,24 +384,40 @@ export function KuesionerPageView({ initialData }) {
       const json = await res.json();
 
       if (!res.ok) {
-        setError(json.error || "Gagal menyimpan kuesioner");
+        setError(json.error || 'Gagal menyimpan kuesioner');
         return;
       }
 
       setData(json);
       setSelectionsMap(buildSelectionsMap(json));
       setNotice({
-        type: "success",
-        text: submit
-          ? "Jawaban kuesioner berhasil dikirim."
-          : "Jawaban tersimpan sementara.",
+        type: 'success',
+        text: submit ? 'Jawaban kuesioner berhasil dikirim.' : 'Jawaban tersimpan sementara.',
       });
     } catch {
-      setError("Terjadi kesalahan jaringan. Coba lagi.");
+      setError('Terjadi kesalahan jaringan. Coba lagi.');
     } finally {
       setSavingId(null);
     }
   };
+
+  const questionnaires = data?.questionnaires ?? [];
+
+  useEffect(() => {
+    if (selectedId && !questionnaires.some((q) => q.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [selectedId, questionnaires]);
+
+  const canSubmitQuestionnaire = useCallback(
+    (questionnaireId) => {
+      const questionnaire = questionnaires.find((q) => q.id === questionnaireId);
+      if (!questionnaire) return false;
+      const selections = selectionsMap[questionnaireId] ?? {};
+      return questionnaire.schema.questions.every((q) => isAnswered(q, selections[q.id]));
+    },
+    [questionnaires, selectionsMap],
+  );
 
   if (loading) {
     return (
@@ -354,8 +441,7 @@ export function KuesionerPageView({ initialData }) {
           </p>
           <Link
             href="/user"
-            className="mt-5 inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
-          >
+            className="mt-5 inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-medium text-amber-900 transition hover:bg-amber-100">
             Kembali ke dashboard
           </Link>
         </div>
@@ -363,7 +449,7 @@ export function KuesionerPageView({ initialData }) {
     );
   }
 
-  const questionnaires = data.questionnaires ?? [];
+  const selectedQuestionnaire = selectedId ? (questionnaires.find((q) => q.id === selectedId) ?? null) : null;
 
   return (
     <div className="space-y-6 pb-8">
@@ -371,22 +457,21 @@ export function KuesionerPageView({ initialData }) {
 
       {!access.canFill ? <LockedPaymentCard paymentState={data.paymentState} /> : null}
 
+      {access.canFill ? <QuestionnaireProgressNotice progress={progress} access={access} /> : null}
+
       {notice ? (
         <div
           className={`rounded-xl px-4 py-3 text-sm ${
-            notice.type === "success"
-              ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
-              : "bg-rose-50 text-rose-800 ring-1 ring-rose-200"
-          }`}
-        >
+            notice.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+              : 'bg-rose-50 text-rose-800 ring-1 ring-rose-200'
+          }`}>
           {notice.text}
         </div>
       ) : null}
 
       {error ? (
-        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-rose-200">
-          {error}
-        </div>
+        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-rose-200">{error}</div>
       ) : null}
 
       {questionnaires.length === 0 ? (
@@ -396,31 +481,45 @@ export function KuesionerPageView({ initialData }) {
           </div>
           <h2 className="mt-4 text-lg font-semibold text-slate-900">Belum ada kuesioner aktif</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Admin belum mempublikasikan kuesioner untuk periode ini. Anda dapat melanjutkan langkah
-            pendaftaran lainnya.
+            Admin belum mempublikasikan kuesioner untuk periode ini. Anda dapat melanjutkan langkah pendaftaran lainnya.
           </p>
           <Link
             href="/user"
-            className="mt-5 inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
+            className="mt-5 inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
             Kembali ke dashboard
           </Link>
         </div>
+      ) : selectedQuestionnaire ? (
+        <QuestionnaireCard
+          questionnaire={selectedQuestionnaire}
+          selections={selectionsMap[selectedQuestionnaire.id] ?? {}}
+          onAnswer={handleAnswer}
+          disabled={isReadOnly || !access.canFill}
+          saving={savingId === selectedQuestionnaire.id}
+          onSave={(id) => persist(id, false)}
+          onSubmit={(id) => persist(id, true)}
+          canSubmit={canSubmitQuestionnaire}
+          onBack={() => setSelectedId(null)}
+        />
       ) : (
-        <div className="space-y-6">
-          {questionnaires.map((questionnaire) => (
-            <QuestionnaireCard
-              key={questionnaire.id}
-              questionnaire={questionnaire}
-              selections={selectionsMap[questionnaire.id] ?? {}}
-              onAnswer={handleAnswer}
-              disabled={isReadOnly || !access.canFill}
-              saving={savingId === questionnaire.id}
-              onSave={(id) => persist(id, false)}
-              onSubmit={(id) => persist(id, true)}
-              canSubmit={canSubmitQuestionnaire}
-            />
-          ))}
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Pilih kuesioner</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Pilih salah satu kuesioner di bawah untuk mulai mengisi jawaban.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {questionnaires.map((questionnaire) => (
+              <QuestionnairePickerCard
+                key={questionnaire.id}
+                questionnaire={questionnaire}
+                selections={selectionsMap[questionnaire.id] ?? {}}
+                onSelect={() => setSelectedId(questionnaire.id)}
+                disabled={!access.canFill}
+              />
+            ))}
+          </div>
         </div>
       )}
 

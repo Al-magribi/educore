@@ -16,6 +16,17 @@ export const PAYMENT_STATUS = {
   MANUAL_REVIEW: "manual_review",
 };
 
+export const PAYMENT_CATEGORY = {
+  REGISTRATION: "registration",
+  WAVE_FEE: "wave_fee",
+};
+
+export const PAYMENT_METHOD = {
+  MANUAL: "manual",
+  MIDTRANS: "midtrans",
+  CASH: "cash",
+};
+
 export const HOME_SECTION_TYPES = {
   HERO: "hero",
   ACHIEVEMENTS: "achievements",

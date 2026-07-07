@@ -12,6 +12,7 @@ export function SpmbAdminShell({
   logoUrl,
   hasLogo,
   themeStyle,
+  userName,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -71,6 +72,7 @@ export function SpmbAdminShell({
           collapsed={collapsed}
           onToggleCollapse={onToggleCollapse}
           schoolName={schoolName}
+          userName={userName}
         />
         <main
           className="admin-content min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 md:p-6 lg:p-8"

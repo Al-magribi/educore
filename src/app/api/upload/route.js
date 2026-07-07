@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth.js";
 import {
   UPLOAD_CATEGORY_ROLES,
+  UPLOAD_DOCUMENT_MIME_TO_EXT,
   UPLOAD_MAX_BYTES,
   saveUploadedImage,
 } from "@/lib/storage/index.js";
@@ -45,12 +46,16 @@ export async function POST(request) {
 
     const result = await saveUploadedImage(category, buffer, mimeType);
 
+    const isDocument = Boolean(UPLOAD_DOCUMENT_MIME_TO_EXT[result.mimeType]);
+
     return NextResponse.json({
       url: result.url,
       size: result.size,
       originalSize: result.originalSize,
       mimeType: result.mimeType,
-      message: "Gambar berhasil diunggah dan dioptimasi",
+      message: isDocument
+        ? "Berkas berhasil diunggah"
+        : "Gambar berhasil diunggah dan dioptimasi",
     });
   } catch (error) {
     console.error("[upload POST]", error);

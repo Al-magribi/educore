@@ -2,10 +2,17 @@ import { prisma } from "@/lib/db.js";
 import { APPLICATION_STATUS } from "@/lib/constants.js";
 import { getActiveFormDefinition } from "@/modules/spmb/forms.js";
 import { deriveApplicantPaymentState } from "@/modules/payment/applicant-payment.js";
+import {
+  createApplicationIfNeeded,
+  ensureApplicationForActivePeriod,
+  findRegistrationSourceApplication,
+} from "@/modules/payment/period-migration.js";
+import {
+  assertAllQuestionnairesComplete,
+  getQuestionnaireCompletionStatus,
+} from "@/modules/spmb/services/applicant-questionnaire.js";
 
-const SUBMITTED_STATUSES = new Set([
-  APPLICATION_STATUS.SUBMITTED,
-  APPLICATION_STATUS.UNDER_REVIEW,
+const FINAL_STATUSES = new Set([
   APPLICATION_STATUS.ACCEPTED,
   APPLICATION_STATUS.REJECTED,
 ]);
@@ -13,6 +20,13 @@ const SUBMITTED_STATUSES = new Set([
 const EDITABLE_STATUSES = new Set([
   APPLICATION_STATUS.PAID,
   APPLICATION_STATUS.FORM_IN_PROGRESS,
+  APPLICATION_STATUS.SUBMITTED,
+  APPLICATION_STATUS.UNDER_REVIEW,
+]);
+
+const SUBMITTED_INFO_STATUSES = new Set([
+  APPLICATION_STATUS.SUBMITTED,
+  APPLICATION_STATUS.UNDER_REVIEW,
 ]);
 
 function formatDateTime(value) {
@@ -65,11 +79,16 @@ function collectFormFields(groups) {
   return fields;
 }
 
-function validateRequiredFields(groups, answers) {
+export function isFieldRequiredForSubmit(field, { skipFileFields = false } = {}) {
+  if (!field.required) return false;
+  if (skipFileFields && field.type === "file") return false;
+  return true;
+}
+
+function validateRequiredFields(groups, answers, { skipFileFields = false } = {}) {
   const missing = [];
   for (const field of collectFormFields(groups)) {
-    if (field.type === "file") continue;
-    if (!field.required) continue;
+    if (!isFieldRequiredForSubmit(field, { skipFileFields })) continue;
     if (isEmptyValue(answers[field.id])) {
       missing.push(field.label || field.id);
     }
@@ -81,17 +100,18 @@ function validateRequiredFields(groups, answers) {
 
 export function deriveFormAccess(paymentState, applicationStatus) {
   const canFill = paymentState.isPaid === true;
-  const isSubmitted = SUBMITTED_STATUSES.has(applicationStatus);
-  const isEditable = canFill && !isSubmitted && EDITABLE_STATUSES.has(applicationStatus);
+  const isFinal = FINAL_STATUSES.has(applicationStatus);
+  const isSubmitted = SUBMITTED_INFO_STATUSES.has(applicationStatus);
+  const isEditable = canFill && !isFinal && EDITABLE_STATUSES.has(applicationStatus);
   const lockReason = !canFill
     ? paymentState.isReview
       ? "review"
       : "payment"
-    : isSubmitted
-      ? "submitted"
+    : isFinal
+      ? "final"
       : null;
 
-  return { canFill, isEditable, isSubmitted, lockReason };
+  return { canFill, isEditable, isSubmitted, isFinal, lockReason };
 }
 
 export async function getApplicantFormPageData(userId) {
@@ -126,6 +146,11 @@ export async function getApplicantFormPageData(userId) {
     };
   }
 
+  const migration = await ensureApplicationForActivePeriod(userId, activePeriod);
+  if (!migration.application && migration.needsCreate) {
+    await createApplicationIfNeeded(userId, activePeriod.id);
+  }
+
   const applicationRow = await prisma.application.findUnique({
     where: {
       userId_periodId: { userId, periodId: activePeriod.id },
@@ -154,18 +179,28 @@ export async function getApplicantFormPageData(userId) {
     },
   });
 
-  const payment = mapPayment(applicationRow?.payments?.[0] ?? null);
-  const paymentState = deriveApplicantPaymentState(payment, applicationRow?.status);
+  const registrationSource = await findRegistrationSourceApplication(
+    userId,
+    activePeriod,
+    applicationRow
+  );
+  const payment = mapPayment(registrationSource.payment ?? applicationRow?.payments?.[0] ?? null);
+  const paymentState = deriveApplicantPaymentState(
+    payment,
+    registrationSource.application?.status ?? applicationRow?.status
+  );
   const access = deriveFormAccess(paymentState, applicationRow?.status ?? APPLICATION_STATUS.DRAFT);
   const answers = answersToMap(applicationRow?.answers);
 
   const fields = collectFormFields(formDefinition?.schema?.groups ?? []);
-  const requiredCount = fields.filter((f) => f.required && f.type !== "file").length;
-  const filledRequired = fields.filter(
-    (f) => f.required && f.type !== "file" && !isEmptyValue(answers[f.id])
-  ).length;
-  const totalFields = fields.filter((f) => f.type !== "file").length;
-  const filledFields = fields.filter((f) => f.type !== "file" && !isEmptyValue(answers[f.id])).length;
+  const requiredCount = fields.filter((f) => f.required).length;
+  const filledRequired = fields.filter((f) => f.required && !isEmptyValue(answers[f.id])).length;
+  const totalFields = fields.length;
+  const filledFields = fields.filter((f) => !isEmptyValue(answers[f.id])).length;
+
+  const questionnaireProgress = applicationRow
+    ? await getQuestionnaireCompletionStatus(applicationRow.id, activePeriod.id)
+    : { total: 0, completed: 0, percent: 100, isComplete: true, incomplete: [] };
 
   return {
     activePeriod: {
@@ -200,8 +235,79 @@ export async function getApplicantFormPageData(userId) {
       filledFields,
       percent: totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0,
     },
+    questionnaireProgress,
     applicant: user,
   };
+}
+
+export async function saveApplicationAnswers(
+  application,
+  formDefinition,
+  { answers, submit = false, periodId, skipRequiredFileFields = false, adminOverride = false }
+) {
+  if (!adminOverride && !EDITABLE_STATUSES.has(application.status)) {
+    throw new Error("Status pendaftaran tidak mengizinkan pengisian formulir");
+  }
+
+  const groups = formDefinition.schema?.groups ?? [];
+  const allowedFieldIds = new Set(collectFormFields(groups).map((f) => f.id));
+
+  const sanitized = {};
+  for (const [fieldId, value] of Object.entries(answers)) {
+    if (!allowedFieldIds.has(fieldId)) continue;
+    if (typeof value === "string") {
+      sanitized[fieldId] = value.trim();
+    } else {
+      sanitized[fieldId] = value;
+    }
+  }
+
+  if (submit) {
+    validateRequiredFields(groups, answers, { skipFileFields: skipRequiredFileFields });
+    await assertAllQuestionnairesComplete(application.id, periodId);
+  }
+
+  const nextStatus = submit
+    ? APPLICATION_STATUS.SUBMITTED
+    : adminOverride
+      ? application.status
+      : application.status === APPLICATION_STATUS.PAID
+        ? APPLICATION_STATUS.FORM_IN_PROGRESS
+        : application.status;
+
+  await prisma.$transaction(async (tx) => {
+    for (const [fieldId, value] of Object.entries(sanitized)) {
+      if (isEmptyValue(value)) {
+        await tx.applicationAnswer.deleteMany({
+          where: { applicationId: application.id, fieldId },
+        });
+        continue;
+      }
+
+      await tx.applicationAnswer.upsert({
+        where: {
+          applicationId_fieldId: {
+            applicationId: application.id,
+            fieldId,
+          },
+        },
+        create: {
+          applicationId: application.id,
+          fieldId,
+          value,
+        },
+        update: { value },
+      });
+    }
+
+    await tx.application.update({
+      where: { id: application.id },
+      data: {
+        status: nextStatus,
+        submittedAt: submit ? new Date() : undefined,
+      },
+    });
+  });
 }
 
 export async function saveApplicationForm(userId, { answers, submit = false }) {
@@ -249,73 +355,14 @@ export async function saveApplicationForm(userId, { answers, submit = false }) {
     throw new Error("Pembayaran belum terverifikasi. Selesaikan pembayaran terlebih dahulu.");
   }
 
-  if (access.isSubmitted) {
-    throw new Error("Formulir sudah diajukan dan tidak dapat diubah");
+  if (!access.isEditable) {
+    throw new Error("Formulir tidak dapat diubah pada status pendaftaran saat ini.");
   }
 
-  if (!EDITABLE_STATUSES.has(application.status)) {
-    throw new Error("Status pendaftaran tidak mengizinkan pengisian formulir");
-  }
-
-  const groups = formDefinition.schema?.groups ?? [];
-  const allowedFieldIds = new Set(
-    collectFormFields(groups)
-      .filter((f) => f.type !== "file")
-      .map((f) => f.id)
-  );
-
-  const sanitized = {};
-  for (const [fieldId, value] of Object.entries(answers)) {
-    if (!allowedFieldIds.has(fieldId)) continue;
-    if (typeof value === "string") {
-      sanitized[fieldId] = value.trim();
-    } else {
-      sanitized[fieldId] = value;
-    }
-  }
-
-  if (submit) {
-    validateRequiredFields(groups, answers);
-  }
-
-  const nextStatus = submit
-    ? APPLICATION_STATUS.SUBMITTED
-    : application.status === APPLICATION_STATUS.PAID
-      ? APPLICATION_STATUS.FORM_IN_PROGRESS
-      : application.status;
-
-  await prisma.$transaction(async (tx) => {
-    for (const [fieldId, value] of Object.entries(sanitized)) {
-      if (isEmptyValue(value)) {
-        await tx.applicationAnswer.deleteMany({
-          where: { applicationId: application.id, fieldId },
-        });
-        continue;
-      }
-
-      await tx.applicationAnswer.upsert({
-        where: {
-          applicationId_fieldId: {
-            applicationId: application.id,
-            fieldId,
-          },
-        },
-        create: {
-          applicationId: application.id,
-          fieldId,
-          value,
-        },
-        update: { value },
-      });
-    }
-
-    await tx.application.update({
-      where: { id: application.id },
-      data: {
-        status: nextStatus,
-        submittedAt: submit ? new Date() : undefined,
-      },
-    });
+  await saveApplicationAnswers(application, formDefinition, {
+    answers,
+    submit,
+    periodId: activePeriod.id,
   });
 
   return getApplicantFormPageData(userId);

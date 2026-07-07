@@ -23,4 +23,10 @@ export const SETTINGS_TABS = [
     shortLabel: "Periode",
     description: "Kelola gelombang pendaftaran dan item persyaratan keuangan",
   },
+  {
+    id: "invoice",
+    label: "Invoice",
+    shortLabel: "Invoice",
+    description: "Nama bendahara, tanda tangan, dan header invoice pembayaran",
+  },
 ];

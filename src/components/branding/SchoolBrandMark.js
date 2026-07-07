@@ -9,7 +9,23 @@ function SchoolLogoImage({
   className,
   priority = false,
   style,
+  fill = false,
+  sizes,
 }) {
+  if (fill) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        priority={priority}
+        className={className}
+        style={style}
+        sizes={sizes ?? `${width ?? 40}px`}
+      />
+    );
+  }
+
   return (
     <Image
       src={src}
@@ -18,14 +34,8 @@ function SchoolLogoImage({
       height={height}
       priority={priority}
       className={className}
-      style={{
-        width: "auto",
-        height: "auto",
-        maxWidth: "100%",
-        maxHeight: "100%",
-        ...style,
-      }}
-      sizes={`${width}px`}
+      style={{ width: "auto", height: "auto", ...style }}
+      sizes={sizes ?? `${width}px`}
     />
   );
 }
@@ -63,15 +73,15 @@ export function SchoolBrandMark({
 
   if (variant === "banner" && hasLogo && logoUrl) {
     return (
-      <span className={`inline-flex h-10 max-w-[180px] shrink-0 items-center ${bannerClassName}`}>
+      <span className={`relative inline-flex h-10 w-[180px] shrink-0 ${bannerClassName}`}>
         <SchoolLogoImage
           src={logoUrl}
           alt={schoolName}
           width={180}
           height={40}
           priority={priority}
+          fill
           className="object-contain object-left"
-          style={{ height: "2.5rem", width: "auto", maxWidth: "180px" }}
         />
       </span>
     );
@@ -80,7 +90,7 @@ export function SchoolBrandMark({
   if (hasLogo && logoUrl) {
     return (
       <span
-        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 ${markClassName}`}
+        className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 ${markClassName}`}
       >
         <SchoolLogoImage
           src={logoUrl}
@@ -88,6 +98,7 @@ export function SchoolBrandMark({
           width={36}
           height={36}
           priority={priority}
+          fill
           className="object-contain p-0.5"
         />
       </span>
@@ -129,27 +140,30 @@ export function PublicSchoolBrand({
     if (context === "footer") {
       return (
         <div className="rounded-xl bg-white/95 px-3 py-2">
-          <SchoolLogoImage
-            src={logoUrl}
-            alt={schoolName}
-            width={200}
-            height={40}
-            className="object-contain object-left"
-            style={{ height: "2.5rem", width: "auto", maxWidth: "200px" }}
-          />
+          <span className="relative block h-10 w-[200px]">
+            <SchoolLogoImage
+              src={logoUrl}
+              alt={schoolName}
+              width={200}
+              height={40}
+              fill
+              className="object-contain object-left"
+            />
+          </span>
         </div>
       );
     }
 
     return (
       <>
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200/80">
+        <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200/80">
           <SchoolLogoImage
             src={logoUrl}
             alt={schoolName}
             width={40}
             height={40}
             priority
+            fill
             className="object-contain p-1"
           />
         </span>

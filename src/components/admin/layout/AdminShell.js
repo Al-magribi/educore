@@ -6,7 +6,7 @@ import { AdminSidebar } from "./AdminSidebar.js";
 
 const STORAGE_KEY = "educore-admin-sidebar-collapsed";
 
-export function AdminShell({ children, schoolName, logoUrl, hasLogo, themeStyle }) {
+export function AdminShell({ children, schoolName, logoUrl, hasLogo, themeStyle, userName }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -66,6 +66,7 @@ export function AdminShell({ children, schoolName, logoUrl, hasLogo, themeStyle 
           collapsed={collapsed}
           onToggleCollapse={onToggleCollapse}
           schoolName={schoolName}
+          userName={userName}
         />
         <main
           className="admin-content min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8"

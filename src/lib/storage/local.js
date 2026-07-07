@@ -2,9 +2,45 @@ import "server-only";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { UPLOAD_MAX_BYTES } from "./constants.js";
+import {
+  UPLOAD_DOCUMENT_MIME_TO_EXT,
+  UPLOAD_MAX_BYTES,
+  UPLOAD_MIME_TO_EXT,
+} from "./constants.js";
 import { getUploadRoot, resolveUploadFromPublicUrl, toPublicUploadUrl } from "./paths.js";
 import { processImageForStorage } from "./process-image.js";
+
+function detectMimeType(buffer, declaredMime) {
+  if (UPLOAD_MIME_TO_EXT[declaredMime] || UPLOAD_DOCUMENT_MIME_TO_EXT[declaredMime]) {
+    return declaredMime;
+  }
+
+  if (buffer.length >= 4 && buffer.subarray(0, 4).toString("ascii") === "%PDF") {
+    return "application/pdf";
+  }
+
+  return declaredMime;
+}
+
+async function prepareUploadBuffer(buffer, mimeType) {
+  if (UPLOAD_MIME_TO_EXT[mimeType]) {
+    return processImageForStorage(buffer, mimeType);
+  }
+
+  if (UPLOAD_DOCUMENT_MIME_TO_EXT[mimeType]) {
+    return {
+      buffer,
+      mimeType,
+      ext: UPLOAD_DOCUMENT_MIME_TO_EXT[mimeType],
+      originalSize: buffer.length,
+      compressedSize: buffer.length,
+    };
+  }
+
+  throw new Error(
+    "Format file tidak didukung. Gunakan JPEG, PNG, WebP, GIF, PDF, DOC, atau Excel."
+  );
+}
 
 /**
  * @param {string} category
@@ -16,7 +52,8 @@ export async function saveUploadedImage(category, buffer, mimeType) {
     throw new Error(`Ukuran file maksimal ${UPLOAD_MAX_BYTES / (1024 * 1024)} MB`);
   }
 
-  const processed = await processImageForStorage(buffer, mimeType);
+  const resolvedMimeType = detectMimeType(buffer, mimeType);
+  const processed = await prepareUploadBuffer(buffer, resolvedMimeType);
 
   const safeCategory = category.replace(/[^a-z0-9_-]/gi, "") || "cms";
   const now = new Date();

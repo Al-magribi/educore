@@ -4,26 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const STATUS_CONFIG = {
-  pending: {
-    label: "Menunggu pembayaran",
-    tone: "amber",
-    description: "Selesaikan pembayaran untuk melanjutkan pendaftaran.",
-  },
-  paid: {
-    label: "Lunas",
-    tone: "emerald",
-    description: "Pembayaran telah dikonfirmasi. Anda dapat melanjutkan ke formulir.",
-  },
-  failed: {
-    label: "Gagal",
-    tone: "rose",
-    description: "Pembayaran tidak berhasil. Silakan coba lagi.",
-  },
-  manual_review: {
-    label: "Menunggu verifikasi",
-    tone: "blue",
-    description: "Bukti transfer sedang diverifikasi oleh admin SPMB.",
-  },
+  pending: { label: "Menunggu pembayaran", tone: "amber" },
+  paid: { label: "Lunas", tone: "emerald" },
+  failed: { label: "Gagal", tone: "rose" },
+  manual_review: { label: "Menunggu verifikasi", tone: "blue" },
 };
 
 const TONE_CLASSES = {
@@ -43,15 +27,9 @@ function formatRupiah(amount) {
 }
 
 function StatusBadge({ status }) {
-  const config = STATUS_CONFIG[status] ?? {
-    label: status,
-    tone: "slate",
-  };
-
+  const config = STATUS_CONFIG[status] ?? { label: status, tone: "slate" };
   return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${TONE_CLASSES[config.tone] ?? TONE_CLASSES.slate}`}
-    >
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${TONE_CLASSES[config.tone] ?? TONE_CLASSES.slate}`}>
       {config.label}
     </span>
   );
@@ -59,25 +37,16 @@ function StatusBadge({ status }) {
 
 function CopyButton({ value, label }) {
   const [copied, setCopied] = useState(false);
-
   const handleCopy = async () => {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   };
-
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-      aria-label={`Salin ${label}`}
-    >
+    <button type="button" onClick={handleCopy} className="shrink-0 rounded-lg border bg-white px-3 py-1.5 text-xs font-medium">
       {copied ? "Tersalin" : "Salin"}
     </button>
   );
@@ -86,9 +55,9 @@ function CopyButton({ value, label }) {
 function BankDetailRow({ label, value, copyable = false }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
+      <div>
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-        <p className="mt-1 break-all text-sm font-semibold text-slate-900">{value || "—"}</p>
+        <p className="mt-1 break-all text-sm font-semibold">{value || "—"}</p>
       </div>
       {copyable && value ? <CopyButton value={value} label={label} /> : null}
     </div>
@@ -101,14 +70,12 @@ function loadMidtransSnap(scriptUrl, clientKey) {
       resolve(window.snap);
       return;
     }
-
     const existing = document.querySelector("script[data-midtrans-snap]");
     if (existing) {
       existing.addEventListener("load", () => resolve(window.snap));
       existing.addEventListener("error", reject);
       return;
     }
-
     const script = document.createElement("script");
     script.src = scriptUrl;
     script.setAttribute("data-client-key", clientKey);
@@ -122,26 +89,14 @@ function loadMidtransSnap(scriptUrl, clientKey) {
 
 function MethodTabs({ methods, selected, onSelect }) {
   if (methods.length <= 1) return null;
-
   return (
     <div className="flex flex-col gap-2 sm:flex-row">
       {methods.map((method) => {
         const active = selected === method.id;
         return (
-          <button
-            key={method.id}
-            type="button"
-            onClick={() => onSelect(method.id)}
-            className={`flex-1 rounded-xl border px-4 py-3 text-left transition ${
-              active
-                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                : "border-slate-200 bg-white hover:border-slate-300"
-            }`}
-          >
-            <p className={`text-sm font-semibold ${active ? "text-primary" : "text-slate-900"}`}>
-              {method.label}
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600">{method.description}</p>
+          <button key={method.id} type="button" onClick={() => onSelect(method.id)} className={`flex-1 rounded-xl border px-4 py-3 text-left ${active ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-slate-200 bg-white"}`}>
+            <p className={`text-sm font-semibold ${active ? "text-primary" : "text-slate-900"}`}>{method.label}</p>
+            <p className="mt-1 text-xs text-slate-600">{method.description}</p>
           </button>
         );
       })}
@@ -149,7 +104,7 @@ function MethodTabs({ methods, selected, onSelect }) {
   );
 }
 
-function ManualPaymentForm({ settings, amount, onSuccess, disabled }) {
+function ManualPaymentForm({ settings, amount, category, feeItemIds, onSuccess, disabled }) {
   const inputRef = useRef(null);
   const [proofUrl, setProofUrl] = useState("");
   const [previewName, setPreviewName] = useState("");
@@ -161,16 +116,13 @@ function ManualPaymentForm({ settings, amount, onSuccess, disabled }) {
     if (!file) return;
     setUploading(true);
     setError(null);
-
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("category", "spmb_docs");
-
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal mengunggah bukti");
-
       setProofUrl(data.url);
       setPreviewName(file.name);
     } catch (err) {
@@ -189,19 +141,16 @@ function ManualPaymentForm({ settings, amount, onSuccess, disabled }) {
       setError("Unggah bukti transfer terlebih dahulu");
       return;
     }
-
     setSubmitting(true);
     setError(null);
-
     try {
       const res = await fetch("/api/spmb/payment/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proofUrl }),
+        body: JSON.stringify({ proofUrl, category, feeItemIds }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal mengirim bukti");
-
       onSuccess(data.payment, data.message);
     } catch (err) {
       setError(err.message);
@@ -210,119 +159,58 @@ function ManualPaymentForm({ settings, amount, onSuccess, disabled }) {
     }
   };
 
-  const hasBankInfo =
-    settings.bankName || settings.bankAccountNumber || settings.bankAccountName;
-
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {hasBankInfo ? (
+      {(settings.bankName || settings.bankAccountNumber) && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-900">Rekening tujuan transfer</h3>
+          <h3 className="text-sm font-semibold">Rekening tujuan transfer</h3>
           <BankDetailRow label="Bank" value={settings.bankName} />
-          <BankDetailRow
-            label="Nomor rekening"
-            value={settings.bankAccountNumber}
-            copyable
-          />
+          <BankDetailRow label="Nomor rekening" value={settings.bankAccountNumber} copyable />
           <BankDetailRow label="Atas nama" value={settings.bankAccountName} copyable />
         </div>
-      ) : (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Detail rekening belum dikonfigurasi admin. Hubungi sekolah untuk informasi transfer.
-        </div>
       )}
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          Nominal transfer
-        </p>
-        <p className="mt-1 text-2xl font-bold text-slate-900">{formatRupiah(amount)}</p>
-        <p className="mt-2 text-xs text-slate-500">
-          Transfer sesuai nominal di atas agar verifikasi lebih cepat.
-        </p>
+      <div className="rounded-xl border bg-white p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Nominal transfer</p>
+        <p className="mt-1 text-2xl font-bold">{formatRupiah(amount)}</p>
       </div>
-
       {settings.manualInstructions ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-900">Petunjuk pembayaran</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
-            {settings.manualInstructions}
-          </p>
+        <div className="rounded-xl border bg-slate-50 p-4">
+          <p className="text-sm font-semibold">Petunjuk pembayaran</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{settings.manualInstructions}</p>
         </div>
       ) : null}
-
-      <div className="space-y-3">
-        <label className="block text-sm font-semibold text-slate-900">
-          Bukti transfer
-          <span className="ml-1 text-rose-500">*</span>
-        </label>
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 p-5 text-center">
-          {proofUrl ? (
-            <div className="space-y-3">
-              {/\.(jpe?g|png|gif|webp)(\?|$)/i.test(proofUrl) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={proofUrl}
-                  alt="Pratinjau bukti pembayaran"
-                  className="mx-auto max-h-48 rounded-lg border border-slate-200 object-contain"
-                />
-              ) : (
-                <p className="text-sm text-slate-600">{previewName || "Bukti terunggah"}</p>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setProofUrl("");
-                  setPreviewName("");
-                }}
-                className="text-sm font-medium text-slate-600 underline-offset-2 hover:underline"
-              >
-                Ganti file
-              </button>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-slate-600">
-                Unggah screenshot atau foto bukti transfer (JPG, PNG, WebP — maks. 5 MB)
-              </p>
-              <label className="mt-4 inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800">
-                {uploading ? "Mengunggah..." : "Pilih file"}
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="sr-only"
-                  disabled={uploading || disabled}
-                  onChange={(e) => handleUpload(e.target.files?.[0])}
-                />
-              </label>
-            </>
-          )}
-        </div>
+      <div className="rounded-xl border border-dashed p-5 text-center">
+        {proofUrl ? (
+          <div className="space-y-3">
+            {/\.(jpe?g|png|gif|webp)(\?|$)/i.test(proofUrl) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={proofUrl} alt="Bukti" className="mx-auto max-h-48 rounded-lg border object-contain" />
+            ) : (
+              <p className="text-sm">{previewName || "Bukti terunggah"}</p>
+            )}
+            <button type="button" onClick={() => { setProofUrl(""); setPreviewName(""); }} className="text-sm underline">
+              Ganti file
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-slate-600">Unggah bukti transfer (JPG, PNG, WebP)</p>
+            <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white">
+              {uploading ? "Mengunggah..." : "Pilih file"}
+              <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading || disabled} onChange={(e) => handleUpload(e.target.files?.[0])} />
+            </label>
+          </>
+        )}
       </div>
-
-      {error ? (
-        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
-      ) : null}
-
-      <button
-        type="submit"
-        disabled={disabled || submitting || uploading || !proofUrl}
-        className="inline-flex w-full items-center justify-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
+      {error ? <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div> : null}
+      <button type="submit" disabled={disabled || submitting || uploading || !proofUrl} className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">
         {submitting ? "Mengirim..." : "Kirim bukti pembayaran"}
       </button>
     </form>
   );
 }
 
-function MidtransPaymentPanel({
-  scriptUrl,
-  clientKey,
-  payment,
-  onRefresh,
-  disabled,
-}) {
+function MidtransPaymentPanel({ scriptUrl, clientKey, category, feeItemIds, payment, onRefresh, disabled }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -330,30 +218,20 @@ function MidtransPaymentPanel({
   const openSnap = async () => {
     setLoading(true);
     setError(null);
-    setMessage(null);
-
     try {
-      const res = await fetch("/api/spmb/payment/midtrans", { method: "POST" });
+      const res = await fetch("/api/spmb/payment/midtrans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, feeItemIds }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal memulai pembayaran");
-
       const snap = await loadMidtransSnap(scriptUrl, clientKey || data.clientKey);
-
       snap.pay(data.snapToken, {
-        onSuccess: async () => {
-          setMessage("Pembayaran berhasil. Memperbarui status...");
-          await onRefresh(data.payment?.id);
-        },
-        onPending: async () => {
-          setMessage("Pembayaran tertunda. Status akan diperbarui otomatis.");
-          await onRefresh(data.payment?.id);
-        },
-        onError: () => {
-          setError("Pembayaran gagal atau dibatalkan. Silakan coba lagi.");
-        },
-        onClose: () => {
-          setLoading(false);
-        },
+        onSuccess: async () => { setMessage("Pembayaran berhasil."); await onRefresh(data.payment?.id); },
+        onPending: async () => { setMessage("Pembayaran tertunda."); await onRefresh(data.payment?.id); },
+        onError: () => setError("Pembayaran gagal atau dibatalkan."),
+        onClose: () => setLoading(false),
       });
     } catch (err) {
       setError(err.message);
@@ -364,185 +242,232 @@ function MidtransPaymentPanel({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Pembayaran instan via Midtrans</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">
-              Kartu kredit/debit, transfer bank virtual account, QRIS, GoPay, ShopeePay, dan lainnya.
-            </p>
-          </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-lg font-bold text-primary">
-            M
-          </div>
-        </div>
-      </div>
-
+      {message ? <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div> : null}
+      {error ? <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div> : null}
       {payment?.status === "pending" && payment?.externalId ? (
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          Transaksi sebelumnya masih aktif. Anda dapat melanjutkan atau membuat pembayaran baru.
+          Transaksi sebelumnya masih aktif untuk kategori ini.
         </div>
       ) : null}
-
-      {message ? (
-        <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>
-      ) : null}
-
-      {error ? (
-        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={openSnap}
-        disabled={disabled || loading}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
+      <button type="button" onClick={openSnap} disabled={disabled || loading} className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">
         {loading ? "Membuka pembayaran..." : "Bayar sekarang"}
       </button>
     </div>
   );
 }
 
-function PaidSuccessCard({ payment }) {
+function WaveFeeSelector({ waveFee, selectedIds, onChange }) {
+  const remaining = waveFee.remainingItems ?? [];
+
+  const toggleItem = (id) => {
+    onChange(selectedIds.includes(id) ? selectedIds.filter((item) => item !== id) : [...selectedIds, id]);
+  };
+
+  const selectAll = () => onChange(remaining.map((item) => item.id));
+
   return (
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center sm:p-8">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white">
-        ✓
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-slate-900">Pilih item biaya</h3>
+        <button type="button" onClick={selectAll} className="text-sm font-medium text-primary hover:underline">
+          Pilih semua (bayar lunas)
+        </button>
       </div>
-      <h2 className="mt-4 text-xl font-bold text-emerald-950">Pembayaran berhasil</h2>
-      <p className="mt-2 text-sm leading-relaxed text-emerald-900/80">
-        Biaya formulir sebesar {formatRupiah(payment?.amount)} telah dikonfirmasi.
-        {payment?.paidAt ? ` Dibayar pada ${payment.paidAt}.` : ""}
-      </p>
-      <Link
-        href="/spmb/formulir"
-        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
-      >
-        Lanjut ke formulir
-        <span aria-hidden>→</span>
-      </Link>
+      <div className="space-y-2">
+        {remaining.map((item) => (
+          <label key={item.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-primary/30">
+            <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleItem(item.id)} className="mt-1" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-slate-900">{item.label}</p>
+              <p className="mt-1 text-sm font-semibold text-primary">{formatRupiah(item.amount)}</p>
+            </div>
+          </label>
+        ))}
+      </div>
+      {waveFee.items?.some((item) => item.isPaid) ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm font-semibold text-emerald-900">Sudah dibayar</p>
+          <ul className="mt-2 space-y-1 text-sm text-emerald-800">
+            {waveFee.items.filter((item) => item.isPaid).map((item) => (
+              <li key={item.id}>✓ {item.label} — {formatRupiah(item.amount)}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ReviewPendingCard({ payment, syncing }) {
-  return (
-    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 sm:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-500 text-xl text-white">
-          ⏳
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-bold text-blue-950">Bukti pembayaran diterima</h2>
-            {syncing ? (
-              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-blue-800">
-                Memeriksa status...
-              </span>
+function PaymentSection({
+  title,
+  description,
+  amount,
+  payment,
+  paymentState,
+  settings,
+  methods,
+  midtransScriptUrl,
+  category,
+  feeItemIds,
+  onRefresh,
+  onSuccess,
+  extraContent,
+}) {
+  const [selectedMethod, setSelectedMethod] = useState(methods[0]?.id ?? "manual");
+  const { isPaid, isReview, isFailed, canPay } = paymentState;
+  const activeMethod = methods.length === 1 ? methods[0].id : selectedMethod;
+
+  if (isPaid) {
+    return (
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
+        <h2 className="text-lg font-bold text-emerald-950">{title} — Lunas</h2>
+        <p className="mt-2 text-sm text-emerald-900/80">
+          {formatRupiah(payment?.amount ?? amount)} telah dikonfirmasi.
+          {payment?.paidAt ? ` Dibayar pada ${payment.paidAt}.` : ""}
+        </p>
+        {category === "registration" ? (
+          <Link href="/spmb/formulir" className="mt-4 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">
+            Lanjut ke formulir →
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (isReview) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700" aria-hidden>
+            ⏳
+          </span>
+          <div>
+            <h2 className="text-lg font-bold text-amber-950">{title} — Menunggu verifikasi admin</h2>
+            <p className="mt-2 text-sm leading-relaxed text-amber-900/90">
+              Bukti pembayaran Anda sudah kami terima. Admin sedang memverifikasi transfer Anda.
+              Anda tidak perlu mengirim ulang bukti pembayaran.
+            </p>
+            {payment?.createdAt ? (
+              <p className="mt-2 text-xs text-amber-800/80">Dikirim pada {payment.createdAt}</p>
             ) : null}
           </div>
-          <p className="mt-2 text-sm leading-relaxed text-blue-900/80">
-            Admin SPMB sedang memverifikasi bukti transfer Anda. Halaman ini diperbarui otomatis
-            setelah admin mengubah status pembayaran.
-          </p>
-          {payment?.proofUrl && /\.(jpe?g|png|gif|webp)(\?|$)/i.test(payment.proofUrl) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={payment.proofUrl}
-              alt="Bukti pembayaran yang dikirim"
-              className="mt-4 max-h-40 rounded-lg border border-blue-200 object-contain"
-            />
-          ) : null}
         </div>
+        {payment?.proofUrl && /\.(jpe?g|png|gif|webp)(\?|$)/i.test(payment.proofUrl) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={payment.proofUrl} alt="Bukti transfer" className="mt-4 max-h-40 rounded-lg border border-amber-200 object-contain" />
+        ) : null}
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function FailedPaymentCard({ onRetry }) {
   return (
-    <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 sm:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xl text-white">
-          ✕
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-rose-950">Pembayaran ditolak atau gagal</h2>
-          <p className="mt-2 text-sm leading-relaxed text-rose-900/80">
-            Admin belum dapat memverifikasi pembayaran Anda, atau transaksi online tidak berhasil.
-            Silakan lakukan pembayaran ulang atau hubungi admin SPMB jika Anda yakin sudah transfer.
-          </p>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-4 inline-flex rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700"
-          >
-            Coba bayar lagi
-          </button>
-        </div>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <p className="mt-1 text-sm text-slate-600">{description}</p>
+        <p className="mt-3 text-2xl font-bold text-primary">{formatRupiah(amount)}</p>
       </div>
-    </div>
+
+      {extraContent}
+
+      {isFailed ? (
+        <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          Pembayaran sebelumnya gagal. Silakan coba lagi.
+        </div>
+      ) : null}
+
+      {!canPay ? (
+        <p className="text-sm text-slate-600">Pembayaran belum tersedia untuk tahap ini.</p>
+      ) : methods.length === 0 ? (
+        <p className="text-sm text-slate-600">Metode pembayaran belum diaktifkan admin.</p>
+      ) : (
+        <>
+          <MethodTabs methods={methods} selected={activeMethod} onSelect={setSelectedMethod} />
+          <div className={methods.length > 1 ? "mt-6" : "mt-2"}>
+            {activeMethod === "manual" ? (
+              <ManualPaymentForm settings={settings} amount={amount} category={category} feeItemIds={feeItemIds} onSuccess={onSuccess} disabled={!canPay} />
+            ) : null}
+            {activeMethod === "midtrans" ? (
+              <MidtransPaymentPanel scriptUrl={midtransScriptUrl} clientKey={settings?.midtransClientKey} category={category} feeItemIds={feeItemIds} payment={payment} onRefresh={onRefresh} disabled={!canPay} />
+            ) : null}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
 export function PaymentPageView({ initialData }) {
   const [data, setData] = useState(initialData);
-  const [selectedMethod, setSelectedMethod] = useState(initialData.methods[0]?.id ?? "manual");
+  const [activeSection, setActiveSection] = useState("registration");
+  const [selectedFeeItemIds, setSelectedFeeItemIds] = useState([]);
   const [notice, setNotice] = useState(null);
   const [loading, setLoading] = useState(!initialData);
   const [syncing, setSyncing] = useState(false);
-  const prevPaidRef = useRef(initialData?.paymentState?.isPaid ?? false);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/spmb/payment", { cache: "no-store" });
     const json = await res.json();
-    if (res.ok) {
-      setData(json);
-      if (json.methods?.length && !json.methods.find((m) => m.id === selectedMethod)) {
-        setSelectedMethod(json.methods[0].id);
-      }
-    }
+    if (res.ok) setData(json);
     return json;
-  }, [selectedMethod]);
+  }, []);
 
   useEffect(() => {
-    if (!initialData) {
-      refresh().finally(() => setLoading(false));
-    }
+    if (!initialData) refresh().finally(() => setLoading(false));
   }, [initialData, refresh]);
 
-  const payment = data?.payment;
-  const paymentState = data?.paymentState ?? {
-    isPaid: false,
-    isReview: false,
-    isFailed: false,
-    canPay: true,
-  };
-  const settings = data?.settings;
-  const methods = data?.methods ?? [];
-  const amount = settings?.registrationFee ?? 0;
+  useEffect(() => {
+    const remaining = data?.waveFee?.remainingItems ?? [];
+    if (remaining.length > 0 && selectedFeeItemIds.length === 0) {
+      setSelectedFeeItemIds([remaining[0].id]);
+    }
+  }, [data?.waveFee?.remainingItems, selectedFeeItemIds.length]);
 
-  const { isPaid, isReview, isFailed, canPay } = paymentState;
+  const registrationPayment = data?.registrationPayment;
+  const registrationState = data?.registrationPaymentState ?? { isPaid: false, isReview: false, isFailed: false, canPay: true };
+  const waveFee = data?.waveFee;
+  const wavePayments = data?.wavePayments ?? [];
+  const latestWavePayment = wavePayments[0] ?? null;
+  const wavePaymentState = (() => {
+    if (waveFee?.isFullyPaid) {
+      return { isPaid: true, isReview: false, isFailed: false, canPay: false };
+    }
+    if (latestWavePayment) {
+      return {
+        isPaid: false,
+        isReview: latestWavePayment.status === "manual_review",
+        isFailed: latestWavePayment.status === "failed",
+        canPay: waveFee?.canPay && !waveFee?.hasPendingPayment,
+      };
+    }
+    return {
+      isPaid: false,
+      isReview: false,
+      isFailed: false,
+      canPay: waveFee?.canPay ?? false,
+    };
+  })();
+
+  const selectedWaveAmount = useMemo(() => {
+    const remaining = waveFee?.remainingItems ?? [];
+    return remaining.filter((item) => selectedFeeItemIds.includes(item.id)).reduce((sum, item) => sum + item.amount, 0);
+  }, [waveFee?.remainingItems, selectedFeeItemIds]);
 
   const shouldPoll =
-    payment?.status === "manual_review" ||
-    (payment?.status === "pending" && payment?.method === "midtrans");
-
-  useEffect(() => {
-    if (isPaid && !prevPaidRef.current) {
-      setNotice({ type: "success", text: "Pembayaran telah dikonfirmasi. Anda dapat melanjutkan." });
-    }
-    prevPaidRef.current = isPaid;
-  }, [isPaid]);
+    registrationPayment?.status === "manual_review" ||
+    (registrationPayment?.status === "pending" && registrationPayment?.method === "midtrans") ||
+    latestWavePayment?.status === "manual_review" ||
+    (latestWavePayment?.status === "pending" && latestWavePayment?.method === "midtrans");
 
   useEffect(() => {
     if (!shouldPoll) return undefined;
-
     const syncStatus = async () => {
       setSyncing(true);
       try {
-        if (payment?.method === "midtrans" && payment?.id) {
+        const pending = [registrationPayment, latestWavePayment].filter(
+          (payment) => payment?.method === "midtrans" && payment?.status === "pending"
+        );
+        for (const payment of pending) {
           await fetch("/api/spmb/payment/midtrans", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -554,268 +479,153 @@ export function PaymentPageView({ initialData }) {
         setSyncing(false);
       }
     };
-
     const interval = setInterval(syncStatus, 15000);
+    return () => clearInterval(interval);
+  }, [shouldPoll, registrationPayment, latestWavePayment, refresh]);
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible") syncStatus();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [shouldPoll, payment?.id, payment?.method, refresh]);
-
-  const activeMethod = useMemo(() => {
-    if (methods.length === 1) return methods[0].id;
-    return selectedMethod;
-  }, [methods, selectedMethod]);
-
-  const handleManualSuccess = async (_updatedPayment, msg) => {
+  const handleSuccess = async (_payment, msg) => {
     await refresh();
     setNotice({ type: "success", text: msg });
   };
 
   const handleMidtransRefresh = async (paymentId) => {
-    if (!paymentId) {
-      await refresh();
-      return;
+    if (paymentId) {
+      await fetch("/api/spmb/payment/midtrans", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId }),
+      });
     }
-
-    const res = await fetch("/api/spmb/payment/midtrans", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentId }),
-    });
-    const json = await res.json();
-    if (res.ok) {
-      await refresh();
-      if (json.payment?.status === "paid") {
-        setNotice({ type: "success", text: "Pembayaran berhasil dikonfirmasi." });
-      }
-    } else {
-      await refresh();
-    }
-  };
-
-  const handleRetryAfterFailed = () => {
-    setNotice(null);
-    refresh();
+    await refresh();
   };
 
   if (loading) {
     return (
       <div className="flex min-h-[320px] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="mt-3 text-sm text-slate-600">Memuat halaman pembayaran...</p>
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
   if (!data?.activePeriod) {
     return (
-      <div className="space-y-6">
-        <PageHeader amount={amount} period={null} />
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
-          <h2 className="text-lg font-semibold text-amber-950">Periode pendaftaran belum dibuka</h2>
-          <p className="mt-2 text-sm leading-relaxed text-amber-900/80">
-            Saat ini tidak ada gelombang pendaftaran aktif. Silakan cek kembali nanti atau hubungi
-            admin SPMB sekolah.
-          </p>
-          <Link
-            href="/user"
-            className="mt-5 inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
-          >
-            Kembali ke dashboard
-          </Link>
-        </div>
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+        <h2 className="text-lg font-semibold text-amber-950">Periode pendaftaran belum dibuka</h2>
+        <p className="mt-2 text-sm text-amber-900/80">Saat ini tidak ada gelombang pendaftaran aktif.</p>
       </div>
     );
   }
 
-  if (methods.length === 0) {
-    return (
-      <div className="space-y-6">
-        <PageHeader amount={amount} period={data.activePeriod} />
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Metode pembayaran belum tersedia</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Admin belum mengaktifkan metode pembayaran. Hubungi sekolah untuk informasi lebih lanjut.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const settings = data.settings;
+  const methods = data.methods ?? [];
+  const registrationAmount = settings?.registrationFee ?? 0;
 
   return (
     <div className="space-y-6 pb-4">
-      <PageHeader amount={amount} period={data.activePeriod} payment={payment} />
+      <section className="overflow-hidden rounded-[28px] border bg-gradient-to-br from-primary via-secondary to-accent p-6 text-primary-foreground shadow-sm md:p-8">
+        <p className="text-sm font-medium text-white/80">Pembayaran SPMB</p>
+        <h1 className="mt-2 text-2xl font-bold md:text-3xl">Pembayaran Gelombang {data.activePeriod.name}</h1>
+        <p className="mt-2 text-sm text-white/85">
+          {data.activePeriod.academicYear} · Batas pendaftaran: {data.activePeriod.closesAt}
+        </p>
+        {syncing ? <p className="mt-3 text-xs text-white/70">Memeriksa status pembayaran...</p> : null}
+      </section>
 
       {notice ? (
-        <div
-          className={`rounded-xl px-4 py-3 text-sm ${
-            notice.type === "success"
-              ? "bg-emerald-50 text-emerald-800"
-              : "bg-rose-50 text-rose-800"
-          }`}
-        >
+        <div className={`rounded-xl px-4 py-3 text-sm ${notice.type === "success" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>
           {notice.text}
         </div>
       ) : null}
 
-      {isPaid ? (
-        <PaidSuccessCard payment={payment} />
-      ) : isReview ? (
-        <ReviewPendingCard payment={payment} syncing={syncing} />
-      ) : isFailed ? (
-        <div className="space-y-6">
-          <FailedPaymentCard onRetry={handleRetryAfterFailed} />
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <div className="mb-5">
-                <h2 className="text-lg font-semibold text-slate-900">Pembayaran ulang</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Pilih metode pembayaran untuk mencoba kembali.
-                </p>
-              </div>
-              <MethodTabs methods={methods} selected={activeMethod} onSelect={setSelectedMethod} />
-              <div className={methods.length > 1 ? "mt-6" : ""}>
-                {activeMethod === "manual" ? (
-                  <ManualPaymentForm
-                    settings={settings}
-                    amount={amount}
-                    onSuccess={handleManualSuccess}
-                    disabled={!canPay}
-                  />
-                ) : null}
-                {activeMethod === "midtrans" ? (
-                  <MidtransPaymentPanel
-                    scriptUrl={data.midtransScriptUrl}
-                    clientKey={settings?.midtransClientKey}
-                    payment={payment}
-                    onRefresh={handleMidtransRefresh}
-                    disabled={!canPay}
-                  />
-                ) : null}
-              </div>
-            </section>
-            <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Status terakhir</h3>
-              <div className="mt-3">
-                <StatusBadge status={payment?.status ?? "failed"} />
-              </div>
-            </aside>
-          </div>
+      {data.migratedFrom ? (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Batas pembayaran <strong>{data.migratedFrom.periodName}</strong> telah berakhir. Anda
+          otomatis dipindahkan ke <strong>{data.activePeriod.name}</strong> untuk melanjutkan
+          pembayaran gelombang.
         </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setActiveSection("registration")} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${activeSection === "registration" ? "bg-primary text-primary-foreground" : "border border-slate-200 bg-white text-slate-700"}`}>
+          1. Pendaftaran Formulir
+        </button>
+        <button type="button" onClick={() => setActiveSection("wave_fee")} disabled={!registrationState.isPaid} className={`rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${activeSection === "wave_fee" ? "bg-primary text-primary-foreground" : "border border-slate-200 bg-white text-slate-700"}`}>
+          2. Pembayaran Gelombang Aktif
+        </button>
+      </div>
+
+      {activeSection === "registration" ? (
+        <PaymentSection
+          title="Biaya Formulir Pendaftaran"
+          description="Bayar biaya pendaftaran untuk mengisi formulir SPMB."
+          amount={registrationAmount}
+          payment={registrationPayment}
+          paymentState={registrationState}
+          settings={settings}
+          methods={methods}
+          midtransScriptUrl={data.midtransScriptUrl}
+          category="registration"
+          feeItemIds={[]}
+          onRefresh={handleMidtransRefresh}
+          onSuccess={handleSuccess}
+        />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Pilih metode pembayaran</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Sesuai pengaturan admin sekolah
-                </p>
-              </div>
-              {payment ? <StatusBadge status={payment.status} /> : null}
+        <>
+          {!registrationState.isPaid ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+              Selesaikan pembayaran pendaftaran formulir terlebih dahulu.
             </div>
-
-            <MethodTabs methods={methods} selected={activeMethod} onSelect={setSelectedMethod} />
-
-            <div className={methods.length > 1 ? "mt-6" : ""}>
-              {activeMethod === "manual" ? (
-                <ManualPaymentForm
-                  settings={settings}
-                  amount={amount}
-                  onSuccess={handleManualSuccess}
-                  disabled={!canPay}
-                />
-              ) : null}
-
-              {activeMethod === "midtrans" ? (
-                <MidtransPaymentPanel
-                  scriptUrl={data.midtransScriptUrl}
-                  clientKey={settings?.midtransClientKey}
-                  payment={payment}
-                  onRefresh={handleMidtransRefresh}
-                  disabled={!canPay}
-                />
-              ) : null}
+          ) : waveFee?.totalCount === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+              Admin belum mengatur item biaya untuk gelombang aktif ini.
             </div>
-          </section>
-
-          <aside className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Ringkasan</h3>
-              <dl className="mt-4 space-y-3 text-sm">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Biaya formulir</dt>
-                  <dd className="font-semibold text-slate-900">{formatRupiah(amount)}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Gelombang</dt>
-                  <dd className="text-right font-medium text-slate-900">{data.activePeriod.name}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Tahun ajaran</dt>
-                  <dd className="font-medium text-slate-900">{data.activePeriod.academicYear}</dd>
-                </div>
-              </dl>
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <div className="flex justify-between gap-3 text-sm">
-                  <span className="font-medium text-slate-700">Total</span>
-                  <span className="text-lg font-bold text-primary">{formatRupiah(amount)}</span>
-                </div>
-              </div>
+          ) : waveFee?.isEnrolled ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 sm:p-8">
+              <h2 className="text-lg font-bold text-emerald-950">Anda resmi masuk {data.activePeriod.name}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-emerald-900/80">
+                Pembayaran gelombang aktif telah lunas sebelum batas akhir pendaftaran (
+                {data.activePeriod.closesAt}).
+              </p>
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <h3 className="text-sm font-semibold text-slate-900">Tips</h3>
-              <ul className="mt-3 space-y-2 text-sm leading-relaxed text-slate-600">
-                <li>• Pastikan nominal transfer sesuai tanpa pembulatan.</li>
-                <li>• Simpan bukti pembayaran hingga pendaftaran selesai.</li>
-                <li>• Pembayaran online diproses otomatis setelah berhasil.</li>
-              </ul>
+          ) : waveFee?.isFullyPaid && waveFee?.enrollmentStatus === "late" ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+              Biaya gelombang sudah lunas, tetapi pembayaran melewati batas akhir gelombang sehingga
+              status masuk gelombang tidak berlaku.
             </div>
-          </aside>
-        </div>
+          ) : data.activePeriod?.isOpen === false && !waveFee?.isFullyPaid ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+              Batas pembayaran gelombang {data.activePeriod.name} telah berakhir pada{" "}
+              {data.activePeriod.closesAt}.
+            </div>
+          ) : (
+            <PaymentSection
+              title={waveFee.title}
+              description="Bayar biaya gelombang aktif sekaligus atau per cicilan (pilih item biaya)."
+              amount={selectedWaveAmount}
+              payment={latestWavePayment}
+              paymentState={wavePaymentState}
+              settings={settings}
+              methods={methods}
+              midtransScriptUrl={data.midtransScriptUrl}
+              category="wave_fee"
+              feeItemIds={selectedFeeItemIds}
+              onRefresh={handleMidtransRefresh}
+              onSuccess={handleSuccess}
+              extraContent={
+                !waveFee.isFullyPaid ? (
+                  <div className="mb-6">
+                    <WaveFeeSelector waveFee={waveFee} selectedIds={selectedFeeItemIds} onChange={setSelectedFeeItemIds} />
+                    <p className="mt-4 text-sm text-slate-600">
+                      Progress: {formatRupiah(waveFee.paidAmount)} dari {formatRupiah(waveFee.totalAmount)}
+                      {waveFee.enrollmentStatusLabel ? ` · ${waveFee.enrollmentStatusLabel}` : ""}
+                    </p>
+                  </div>
+                ) : null
+              }
+            />
+          )}
+        </>
       )}
     </div>
-  );
-}
-
-function PageHeader({ amount, period, payment }) {
-  return (
-    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-br from-primary via-secondary to-accent p-6 text-primary-foreground shadow-sm md:p-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-white/80">Pembayaran SPMB</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">
-            Biaya Formulir Pendaftaran
-          </h1>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/85">
-            {period
-              ? `Gelombang ${period.name} · ${period.academicYear}`
-              : "Lakukan pembayaran untuk melanjutkan proses pendaftaran."}
-          </p>
-        </div>
-        <div className="shrink-0 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-white/70">Total bayar</p>
-          <p className="mt-1 text-2xl font-bold">{formatRupiah(amount)}</p>
-          {payment ? (
-            <div className="mt-2">
-              <StatusBadge status={payment.status} />
-            </div>
-          ) : null}
-        </div>
-      </div>
-      {period?.closesAt ? (
-        <p className="mt-5 text-sm text-white/80">Batas pendaftaran: {period.closesAt}</p>
-      ) : null}
-    </section>
   );
 }

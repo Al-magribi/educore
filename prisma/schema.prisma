@@ -39,6 +39,12 @@ enum PaymentStatus {
 enum PaymentMethod {
   manual
   midtrans
+  cash
+}
+
+enum PaymentCategory {
+  registration
+  wave_fee
 }
 
 enum NewsStatus {
@@ -332,22 +338,38 @@ model SpmbLandingContent {
 
 // ─── SPMB: periode, form, kuesioner ─────────────────────────────────────────
 
-model AdmissionPeriod {
+model AdmissionAcademicYear {
   id           String   @id @default(cuid())
-  academicYear String   @map("academic_year")
-  name         String
-  opensAt      DateTime @map("opens_at")
-  closesAt     DateTime @map("closes_at")
+  academicYear String   @unique @map("academic_year")
   isActive     Boolean  @default(false) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  periods AdmissionPeriod[]
+
+  @@index([isActive])
+  @@map("admission_academic_years")
+}
+
+model AdmissionPeriod {
+  id             String   @id @default(cuid())
+  academicYearId String   @map("academic_year_id")
+  academicYear   String   @map("academic_year")
+  name           String
+  opensAt        DateTime @map("opens_at")
+  closesAt       DateTime @map("closes_at")
+  isActive       Boolean  @default(false) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  academicYearRef AdmissionAcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   formDefinitions FormDefinition[]
   questionnaires  Questionnaire[]
   applications    Application[]
   feeItemPeriods  FinancialFeeItemPeriod[]
 
   @@index([isActive])
+  @@index([academicYearId])
   @@map("admission_periods")
 }
 
@@ -484,23 +506,39 @@ model QuestionnaireResponse {
 // ─── SPMB: pembayaran ───────────────────────────────────────────────────────
 
 model Payment {
-  id            String        @id @default(cuid())
-  applicationId String        @map("application_id")
-  amount        Int
-  status        PaymentStatus @default(pending)
-  method        PaymentMethod
-  externalId    String?       @map("external_id")
-  proofUrl      String?       @map("proof_url")
-  paidAt        DateTime?     @map("paid_at")
-  metadata      Json?
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  id              String          @id @default(cuid())
+  applicationId   String          @map("application_id")
+  category        PaymentCategory @default(registration)
+  amount          Int
+  status          PaymentStatus   @default(pending)
+  method          PaymentMethod
+  externalId      String?         @map("external_id")
+  proofUrl        String?         @map("proof_url")
+  paidAt          DateTime?       @map("paid_at")
+  invoiceNumber   String?         @unique @map("invoice_number")
+  invoiceIssuedAt DateTime?       @map("invoice_issued_at")
+  metadata        Json?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@index([applicationId])
+  @@index([applicationId, category])
   @@index([externalId])
   @@map("payments")
+}
+
+model InvoiceSettings {
+  id                    String   @id @default("default")
+  treasurerName         String?  @map("treasurer_name")
+  treasurerSignatureUrl String?  @map("treasurer_signature_url")
+  invoiceLogoUrl          String?  @map("invoice_logo_url")
+  invoiceSchoolName       String?  @map("invoice_school_name")
+  invoiceSchoolAddress    String?  @map("invoice_school_address") @db.Text
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("invoice_settings")
 }
 
 model PaymentSettings {

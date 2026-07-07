@@ -287,14 +287,26 @@ async function main() {
     });
   }
 
+  const academicYear = await prisma.admissionAcademicYear.upsert({
+    where: { academicYear: "2026/2027" },
+    update: { isActive: true },
+    create: {
+      id: "ay-2026-2027",
+      academicYear: "2026/2027",
+      isActive: true,
+    },
+  });
+
   const period = await prisma.admissionPeriod.upsert({
     where: { id: "period-2026-2027-g1" },
     update: {
       opensAt: new Date("2025-12-01"),
       closesAt: new Date("2026-02-28"),
+      academicYearId: academicYear.id,
     },
     create: {
       id: "period-2026-2027-g1",
+      academicYearId: academicYear.id,
       academicYear: "2026/2027",
       name: "Gelombang 1",
       opensAt: new Date("2025-12-01"),
@@ -305,9 +317,12 @@ async function main() {
 
   const period2 = await prisma.admissionPeriod.upsert({
     where: { id: "period-2026-2027-g2" },
-    update: {},
+    update: {
+      academicYearId: academicYear.id,
+    },
     create: {
       id: "period-2026-2027-g2",
+      academicYearId: academicYear.id,
       academicYear: "2026/2027",
       name: "Gelombang 2",
       opensAt: new Date("2026-03-01"),

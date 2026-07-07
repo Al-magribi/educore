@@ -14,6 +14,15 @@ export const UPLOAD_MIME_TO_EXT = {
   "image/gif": "gif",
 };
 
+/** Dokumen yang disimpan apa adanya (tanpa optimasi Sharp). */
+export const UPLOAD_DOCUMENT_MIME_TO_EXT = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+};
+
 export const UPLOAD_EXT_TO_MIME = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",

@@ -70,6 +70,57 @@ function mapResponse(row, questionnaire) {
   };
 }
 
+export async function getQuestionnaireCompletionStatus(applicationId, periodId) {
+  const questionnaires = await getActiveQuestionnaires(periodId);
+  if (questionnaires.length === 0) {
+    return { total: 0, completed: 0, percent: 100, isComplete: true, incomplete: [] };
+  }
+
+  const responses = applicationId
+    ? await prisma.questionnaireResponse.findMany({
+        where: {
+          applicationId,
+          questionnaireId: { in: questionnaires.map((q) => q.id) },
+        },
+        select: { id: true, questionnaireId: true, answers: true },
+      })
+    : [];
+
+  const responseMap = new Map(responses.map((r) => [r.questionnaireId, r]));
+  const incomplete = [];
+  let completed = 0;
+
+  for (const q of questionnaires) {
+    const row = responseMap.get(q.id);
+    const answers = row?.answers && typeof row.answers === "object" ? row.answers : null;
+    const isComplete = Boolean(row?.id && answers?.isComplete);
+    if (isComplete) {
+      completed++;
+    } else {
+      incomplete.push({ id: q.id, title: q.title });
+    }
+  }
+
+  return {
+    total: questionnaires.length,
+    completed,
+    percent: Math.round((completed / questionnaires.length) * 100),
+    isComplete: completed === questionnaires.length,
+    incomplete,
+  };
+}
+
+export async function assertAllQuestionnairesComplete(applicationId, periodId) {
+  const status = await getQuestionnaireCompletionStatus(applicationId, periodId);
+  if (!status.isComplete) {
+    const titles = status.incomplete.map((q) => q.title).slice(0, 3).join(", ");
+    throw new Error(
+      `Selesaikan semua kuesioner terlebih dahulu${titles ? `: ${titles}${status.incomplete.length > 3 ? "..." : ""}` : ""}`
+    );
+  }
+  return status;
+}
+
 export async function getApplicantQuestionnairePageData(userId) {
   const activePeriod = await prisma.admissionPeriod.findFirst({
     where: { isActive: true },

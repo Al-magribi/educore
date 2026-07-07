@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSpmbAdminApi } from "@/lib/api/spmb-auth.js";
 import { getAdminPaymentSettings } from "@/modules/payment/settings.js";
-import { listPayments } from "@/modules/payment/payments.js";
+import { listPayments, listWaveFeeApplicants } from "@/modules/payment/payments.js";
 
 export async function GET(request) {
   const authResult = await requireSpmbAdminApi();
@@ -12,9 +12,16 @@ export async function GET(request) {
     const page = searchParams.get("page");
     const limit = searchParams.get("limit");
     const status = searchParams.get("status");
+    const category = searchParams.get("category");
+    const view = searchParams.get("view");
+
+    if (view === "wave_applicants") {
+      const waveApplicants = await listWaveFeeApplicants();
+      return NextResponse.json(waveApplicants);
+    }
 
     const [result, settings] = await Promise.all([
-      listPayments({ page, limit, status }),
+      listPayments({ page, limit, status, category }),
       getAdminPaymentSettings(),
     ]);
 

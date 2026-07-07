@@ -6,15 +6,20 @@ import { IconChevronRight, IconSearch } from "./icons.js";
 import { adminNavItems } from "./nav-config.js";
 
 function getPageTitle(pathname) {
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) {
+    return "Profil";
+  }
   const item = adminNavItems.find((nav) =>
     nav.exact ? pathname === nav.href : pathname === nav.href || pathname.startsWith(`${nav.href}/`)
   );
   return item?.label ?? "Admin";
 }
 
-export function AdminHeader({ collapsed, onToggleCollapse, schoolName }) {
+export function AdminHeader({ collapsed, onToggleCollapse, schoolName, userName }) {
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
+  const displayName = userName?.trim() || "Admin";
+  const userInitial = displayName.charAt(0).toUpperCase();
 
   return (
     <header
@@ -70,21 +75,23 @@ export function AdminHeader({ collapsed, onToggleCollapse, schoolName }) {
           />
         </Link>
 
-        <div
-          className="flex items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-3"
+        <Link
+          href="/profile"
+          className="flex max-w-[200px] items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-3 transition hover:bg-slate-50"
           style={{ borderColor: "var(--admin-surface-border)" }}
+          title="Profil saya"
         >
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
             style={{
               background: "var(--admin-primary)",
               color: "var(--admin-primary-foreground)",
             }}
           >
-            AD
+            {userInitial}
           </span>
-          <span className="hidden text-sm font-medium text-slate-700 md:inline">Admin</span>
-        </div>
+          <span className="hidden truncate text-sm font-medium text-slate-700 md:inline">{displayName}</span>
+        </Link>
       </div>
     </header>
   );

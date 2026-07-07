@@ -32,34 +32,11 @@ const JENIS_ALIASES = {
 const OPTION_COLUMNS = ["opsi_a", "opsi_b", "opsi_c", "opsi_d", "opsi_e", "opsi_f"];
 
 const TEMPLATE_SAMPLE = {
-  title: "Tes Gaya Belajar",
+  title: "Kuesioner Baru",
   schema: {
-    type: "gaya_belajar",
-    description: "Identifikasi preferensi belajar calon siswa.",
-    questions: [
-      {
-        type: QUESTION_TYPES.PILIHAN,
-        text: "Saat mempelajari materi baru, saya paling suka...",
-        placeholder: "",
-        options: [
-          "Melihat diagram atau video",
-          "Mendengarkan penjelasan guru",
-          "Langsung mencoba sendiri",
-        ],
-      },
-      {
-        type: QUESTION_TYPES.PILIHAN,
-        text: "Saya lebih mudah mengingat informasi melalui...",
-        placeholder: "",
-        options: ["Gambar, warna, dan tulisan", "Penjelasan lisan dan musik", "Aktivitas fisik dan simulasi"],
-      },
-      {
-        type: QUESTION_TYPES.JAWABAN_PANJANG,
-        text: "Ceritakan cara belajar yang paling efektif bagi Anda.",
-        placeholder: "Tuliskan pengalaman belajar Anda...",
-        options: [],
-      },
-    ],
+    type: "custom",
+    description: "",
+    questions: [],
   },
 };
 

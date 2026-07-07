@@ -5,6 +5,9 @@ import { IconChevronRight, IconMenu } from "./icons.js";
 import { userNavItems } from "./nav-config.js";
 
 function getPageTitle(pathname) {
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) {
+    return "Profil";
+  }
   const item = userNavItems.find((nav) =>
     nav.exact ? pathname === nav.href : pathname === nav.href || pathname.startsWith(`${nav.href}/`)
   );

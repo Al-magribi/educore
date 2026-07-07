@@ -5,12 +5,16 @@ import {
   refreshMidtransPayment,
 } from "@/modules/payment/applicant-payment.js";
 
-export async function POST() {
+export async function POST(request) {
   const authResult = await requireApplicantApi();
   if (authResult.error) return authResult.error;
 
   try {
-    const result = await initiateMidtransPayment(authResult.session.user.id);
+    const body = await request.json().catch(() => ({}));
+    const result = await initiateMidtransPayment(authResult.session.user.id, {
+      category: body.category,
+      feeItemIds: body.feeItemIds,
+    });
     return NextResponse.json(result);
   } catch (error) {
     console.error("[spmb/payment/midtrans POST]", error);

@@ -2,11 +2,17 @@
   "name": "cms",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "nodemon",
     "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npm run dev",
     "build": "prisma generate && node scripts/ensure-upload-dir.js && next build",
     "start": "node scripts/ensure-upload-dir.js && next start",
+    "start:prod": "node scripts/ensure-upload-dir.js && next start",
+    "prod": "npm run build && npm run start:prod",
+    "prod:only": "npm run start:prod",
     "postinstall": "prisma generate && node scripts/ensure-upload-dir.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

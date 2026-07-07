@@ -25,18 +25,7 @@ export function GelombangStepForm({
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">Tahun pelajaran</span>
-          <input
-            type="text"
-            required
-            placeholder="2026/2027"
-            value={form.academicYear}
-            onChange={(e) => setField("academicYear", e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
+        <label className="block sm:col-span-2">
           <span className="text-sm font-medium text-slate-700">Nama gelombang</span>
           <input
             type="text"
@@ -80,8 +69,8 @@ export function GelombangStepForm({
           <span>
             <span className="block text-sm font-medium text-slate-900">Aktifkan gelombang ini</span>
             <span className="mt-0.5 block text-xs text-slate-500">
-              Hanya satu gelombang yang boleh aktif. Gelombang aktif digunakan untuk pendaftaran
-              SPMB saat ini.
+              Hanya satu gelombang yang boleh aktif pada tahun pelajaran aktif. Gelombang aktif
+              digunakan untuk pendaftaran SPMB saat ini.
             </span>
           </span>
         </label>

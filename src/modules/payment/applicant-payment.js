@@ -1,6 +1,23 @@
 import { prisma } from "@/lib/db.js";
-import { APPLICATION_STATUS, PAYMENT_STATUS } from "@/lib/constants.js";
+import {
+  APPLICATION_STATUS,
+  PAYMENT_CATEGORY,
+  PAYMENT_STATUS,
+} from "@/lib/constants.js";
 import { getPublicPaymentSettings, getPaymentSettingsForServer } from "./settings.js";
+import {
+  buildWaveFeeSummary,
+  getActivePeriodWaveFees,
+  isPeriodPaymentOpen,
+  resolveWaveEnrollmentStatus,
+  validateSelectedFeeItems,
+} from "./wave-fees.js";
+import {
+  createApplicationIfNeeded,
+  ensureApplicationForActivePeriod,
+  findRegistrationSourceApplication,
+  isRegistrationPaidForApplication,
+} from "./period-migration.js";
 import {
   buildOrderId,
   createSnapTransaction,
@@ -18,6 +35,19 @@ const PAID_APPLICATION_STATUSES = new Set([
   APPLICATION_STATUS.REJECTED,
 ]);
 
+const PAYMENT_SELECT = {
+  id: true,
+  category: true,
+  amount: true,
+  status: true,
+  method: true,
+  proofUrl: true,
+  externalId: true,
+  paidAt: true,
+  createdAt: true,
+  metadata: true,
+};
+
 function formatDateTime(value) {
   if (!value) return null;
   return new Intl.DateTimeFormat("id-ID", {
@@ -31,8 +61,10 @@ function formatDateTime(value) {
 
 function mapPayment(row) {
   if (!row) return null;
+  const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : null;
   return {
     id: row.id,
+    category: row.category,
     amount: row.amount,
     status: row.status,
     method: row.method,
@@ -40,6 +72,7 @@ function mapPayment(row) {
     externalId: row.externalId,
     paidAt: formatDateTime(row.paidAt),
     createdAt: formatDateTime(row.createdAt),
+    metadata,
   };
 }
 
@@ -67,17 +100,7 @@ async function getUserApplication(userId, periodId) {
       status: true,
       payments: {
         orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          id: true,
-          amount: true,
-          status: true,
-          method: true,
-          proofUrl: true,
-          externalId: true,
-          paidAt: true,
-          createdAt: true,
-        },
+        select: PAYMENT_SELECT,
       },
     },
   });
@@ -87,7 +110,7 @@ async function ensureApplication(userId, periodId) {
   const existing = await getUserApplication(userId, periodId);
   if (existing) return existing;
 
-  const created = await prisma.application.create({
+  return prisma.application.create({
     data: {
       userId,
       periodId,
@@ -98,25 +121,21 @@ async function ensureApplication(userId, periodId) {
       status: true,
       payments: {
         orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          id: true,
-          amount: true,
-          status: true,
-          method: true,
-          proofUrl: true,
-          externalId: true,
-          paidAt: true,
-          createdAt: true,
-        },
+        select: PAYMENT_SELECT,
       },
     },
   });
-
-  return created;
 }
 
-/** Status tampilan calon siswa — mengutamakan record pembayaran terbaru dari admin. */
+function getLatestPaymentByCategory(payments, category) {
+  return payments?.find((payment) => payment.category === category) ?? null;
+}
+
+function getPaymentsByCategory(payments, category) {
+  return (payments ?? []).filter((payment) => payment.category === category);
+}
+
+/** Status tampilan calon siswa — mengutamakan record pembayaran terbaru per kategori. */
 export function deriveApplicantPaymentState(payment, applicationStatus) {
   const paymentStatus = payment?.status ?? null;
 
@@ -157,6 +176,49 @@ function buildMethods(settings) {
   return methods;
 }
 
+function buildSettingsPayload(settings) {
+  if (!settings) return null;
+  return {
+    registrationFee: settings.registrationFee,
+    manualEnabled: settings.manualEnabled,
+    manualInstructions: settings.manualInstructions,
+    bankName: settings.bankName,
+    bankAccountNumber: settings.bankAccountNumber,
+    bankAccountName: settings.bankAccountName,
+    midtransEnabled: settings.midtransEnabled,
+    midtransClientKey: settings.midtransClientKey,
+    midtransProduction: settings.midtransProduction,
+    midtransServerKeySet: settings.midtransServerKeySet,
+  };
+}
+
+async function resolveApplicantApplication(userId, activePeriod) {
+  const migration = await ensureApplicationForActivePeriod(userId, activePeriod);
+
+  let application = migration.application;
+  if (!application && migration.needsCreate) {
+    application = await createApplicationIfNeeded(userId, activePeriod.id);
+  }
+
+  if (!application) {
+    throw new Error("Gagal memuat data pendaftaran");
+  }
+
+  const registrationSource = await findRegistrationSourceApplication(
+    userId,
+    activePeriod,
+    application
+  );
+
+  return {
+    application,
+    migratedFrom: migration.migratedFrom,
+    registrationPayment: registrationSource.payment,
+    registrationApplicationStatus:
+      registrationSource.application?.status ?? application.status,
+  };
+}
+
 export async function getApplicantPaymentPageData(userId) {
   const [settings, activePeriod, user] = await Promise.all([
     getPublicPaymentSettings(),
@@ -167,35 +229,53 @@ export async function getApplicantPaymentPageData(userId) {
     }),
   ]);
 
-  if (!activePeriod) {
-    return {
-      activePeriod: null,
-      settings: settings
-        ? {
-            registrationFee: settings.registrationFee,
-            manualEnabled: settings.manualEnabled,
-            manualInstructions: settings.manualInstructions,
-            bankName: settings.bankName,
-            bankAccountNumber: settings.bankAccountNumber,
-            bankAccountName: settings.bankAccountName,
-            midtransEnabled: settings.midtransEnabled,
-            midtransClientKey: settings.midtransClientKey,
-            midtransProduction: settings.midtransProduction,
-            midtransServerKeySet: settings.midtransServerKeySet,
-          }
-        : null,
-      application: null,
-      payment: null,
-      methods: [],
-      midtransScriptUrl: null,
-      applicant: user,
-    };
+  const basePayload = {
+    activePeriod: null,
+    settings: buildSettingsPayload(settings),
+    application: null,
+    registrationPayment: null,
+    registrationPaymentState: deriveApplicantPaymentState(null, null),
+    waveFee: null,
+    wavePayments: [],
+    methods: [],
+    midtransScriptUrl: null,
+    applicant: user,
+    migratedFrom: null,
+  };
+
+  if (!activePeriod) return basePayload;
+
+  let migratedFrom = null;
+  let application;
+  let registrationPaymentRaw = null;
+  let registrationApplicationStatus = null;
+
+  try {
+    const resolved = await resolveApplicantApplication(userId, activePeriod);
+    application = resolved.application;
+    migratedFrom = resolved.migratedFrom;
+    registrationPaymentRaw = resolved.registrationPayment;
+    registrationApplicationStatus = resolved.registrationApplicationStatus;
+  } catch {
+    return basePayload;
   }
 
-  const application = await getUserApplication(userId, activePeriod.id);
-  const payment = mapPayment(application?.payments?.[0] ?? null);
-  const methods = settings ? buildMethods(settings) : [];
-  const paymentState = deriveApplicantPaymentState(payment, application?.status);
+  const registrationPayment = mapPayment(registrationPaymentRaw);
+  const registrationPaymentState = deriveApplicantPaymentState(
+    registrationPayment,
+    registrationApplicationStatus ?? application.status
+  );
+  const wavePaymentsRaw = getPaymentsByCategory(application?.payments, PAYMENT_CATEGORY.WAVE_FEE);
+  const wavePayments = wavePaymentsRaw.map(mapPayment);
+  const feeItems = await getActivePeriodWaveFees(activePeriod.id);
+  const waveFee = buildWaveFeeSummary(feeItems, wavePaymentsRaw);
+  const enrollmentStatus = resolveWaveEnrollmentStatus(
+    waveFee,
+    wavePaymentsRaw,
+    activePeriod.closesAt
+  );
+  const registrationPaid = registrationPaymentState.isPaid;
+  const periodOpen = isPeriodPaymentOpen(activePeriod.closesAt);
 
   return {
     activePeriod: {
@@ -203,35 +283,37 @@ export async function getApplicantPaymentPageData(userId) {
       name: activePeriod.name,
       academicYear: activePeriod.academicYear,
       closesAt: formatDateTime(activePeriod.closesAt),
+      isOpen: periodOpen,
     },
-    settings: settings
-      ? {
-          registrationFee: settings.registrationFee,
-          manualEnabled: settings.manualEnabled,
-          manualInstructions: settings.manualInstructions,
-          bankName: settings.bankName,
-          bankAccountNumber: settings.bankAccountNumber,
-          bankAccountName: settings.bankAccountName,
-          midtransEnabled: settings.midtransEnabled,
-          midtransClientKey: settings.midtransClientKey,
-          midtransProduction: settings.midtransProduction,
-          midtransServerKeySet: settings.midtransServerKeySet,
-        }
-      : null,
+    settings: buildSettingsPayload(settings),
     application: application
       ? {
           id: application.id,
           status: application.status,
-          isPaid: paymentState.isPaid,
+          registrationPaid,
         }
       : null,
-    payment,
-    paymentState,
-    methods,
+    registrationPayment,
+    registrationPaymentState,
+    waveFee: {
+      ...waveFee,
+      canPay: registrationPaid && !waveFee.isFullyPaid && periodOpen,
+      hasPendingPayment: wavePayments.some(
+        (payment) =>
+          payment.status === PAYMENT_STATUS.PENDING ||
+          payment.status === PAYMENT_STATUS.MANUAL_REVIEW
+      ),
+      isEnrolled: enrollmentStatus.status === "enrolled",
+      enrollmentStatus: enrollmentStatus.status,
+      enrollmentStatusLabel: enrollmentStatus.statusLabel,
+    },
+    wavePayments,
+    methods: settings ? buildMethods(settings) : [],
     midtransScriptUrl: settings?.midtransEnabled
       ? getMidtransSnapScriptUrl(settings.midtransProduction)
       : null,
     applicant: user,
+    migratedFrom,
   };
 }
 
@@ -249,70 +331,143 @@ function assertPaymentAllowed(settings, method) {
   }
 }
 
-async function assertCanInitiatePayment(userId, periodId) {
-  const [application, settings] = await Promise.all([
-    ensureApplication(userId, periodId),
-    getPaymentSettingsForServer(),
-  ]);
-
-  const latest = application.payments[0];
-  if (latest?.status === PAYMENT_STATUS.PAID) {
-    throw new Error("Pembayaran sudah lunas");
-  }
-  if (latest?.status === PAYMENT_STATUS.MANUAL_REVIEW) {
-    throw new Error("Bukti pembayaran sedang diverifikasi admin");
-  }
-  if (PAID_APPLICATION_STATUSES.has(application.status)) {
-    throw new Error("Pendaftaran sudah dibayar");
-  }
-
-  return { application, settings, latestPayment: latest };
+function normalizeCategory(category) {
+  return category === PAYMENT_CATEGORY.WAVE_FEE
+    ? PAYMENT_CATEGORY.WAVE_FEE
+    : PAYMENT_CATEGORY.REGISTRATION;
 }
 
-export async function submitManualPayment(userId, proofUrl) {
-  if (!proofUrl?.trim()) throw new Error("Bukti pembayaran wajib diunggah");
-
+async function resolvePaymentContext(userId, category, feeItemIds = []) {
   const activePeriod = await getActivePeriod();
   if (!activePeriod) throw new Error("Periode pendaftaran tidak aktif");
 
-  const { application, settings, latestPayment } = await assertCanInitiatePayment(
-    userId,
-    activePeriod.id
-  );
-  assertPaymentAllowed(settings, "manual");
+  const [resolved, settings] = await Promise.all([
+    resolveApplicantApplication(userId, activePeriod),
+    getPaymentSettingsForServer(),
+  ]);
 
-  if (latestPayment?.method === "midtrans" && latestPayment.status === PAYMENT_STATUS.PENDING) {
-    throw new Error("Anda memiliki transaksi online yang belum selesai");
+  const { application, registrationPayment, registrationApplicationStatus } = resolved;
+  const normalizedCategory = normalizeCategory(category);
+  const latest = getLatestPaymentByCategory(application.payments, normalizedCategory);
+  const wavePayments = getPaymentsByCategory(application.payments, PAYMENT_CATEGORY.WAVE_FEE);
+  const feeItems = await getActivePeriodWaveFees(activePeriod.id);
+  const waveSummary = buildWaveFeeSummary(feeItems, wavePayments);
+  const registrationState = deriveApplicantPaymentState(
+    registrationPayment ? mapPayment(registrationPayment) : null,
+    registrationApplicationStatus ?? application.status
+  );
+
+  if (normalizedCategory === PAYMENT_CATEGORY.REGISTRATION) {
+    if (registrationState.isPaid || isRegistrationPaidForApplication(application)) {
+      throw new Error("Pembayaran pendaftaran sudah lunas");
+    }
+    if (registrationState.isReview) throw new Error("Bukti pembayaran sedang diverifikasi admin");
+
+    return {
+      activePeriod,
+      application,
+      settings,
+      latestPayment: latest,
+      category: normalizedCategory,
+      amount: settings?.registrationFee ?? 350000,
+      metadata: null,
+    };
   }
 
-  const amount = settings?.registrationFee ?? 350000;
+  if (!registrationState.isPaid) {
+    throw new Error("Selesaikan pembayaran pendaftaran terlebih dahulu");
+  }
+  if (!isPeriodPaymentOpen(activePeriod.closesAt)) {
+    throw new Error("Batas pembayaran gelombang ini telah berakhir");
+  }
+  if (waveSummary.isFullyPaid) throw new Error("Semua biaya gelombang aktif sudah lunas");
+
+  const pendingWave = wavePayments.find(
+    (payment) =>
+      payment.status === PAYMENT_STATUS.MANUAL_REVIEW || payment.status === PAYMENT_STATUS.PENDING
+  );
+  if (pendingWave) {
+    throw new Error("Masih ada pembayaran gelombang yang belum selesai diverifikasi");
+  }
+
+  const selection = validateSelectedFeeItems(feeItemIds, waveSummary.remainingItems);
+
+  return {
+    activePeriod,
+    application,
+    settings,
+    latestPayment: latest,
+    category: normalizedCategory,
+    amount: selection.amount,
+    metadata: {
+      feeItemIds: selection.feeItemIds,
+      feeItems: selection.feeItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        amount: item.amount,
+      })),
+      paymentMode: selection.paymentMode,
+    },
+  };
+}
+
+export async function submitManualPayment(userId, proofUrl, { category, feeItemIds } = {}) {
+  if (!proofUrl?.trim()) throw new Error("Bukti pembayaran wajib diunggah");
+
+  const ctx = await resolvePaymentContext(userId, category, feeItemIds);
+  assertPaymentAllowed(ctx.settings, "manual");
+
+  if (
+    ctx.latestPayment?.category === ctx.category &&
+    ctx.latestPayment.status === PAYMENT_STATUS.MANUAL_REVIEW
+  ) {
+    throw new Error("Bukti pembayaran sedang diverifikasi admin");
+  }
+
+  if (
+    ctx.latestPayment?.method === "midtrans" &&
+    ctx.latestPayment.status === PAYMENT_STATUS.PENDING
+  ) {
+    throw new Error("Anda memiliki transaksi online yang belum selesai");
+  }
 
   const payment = await prisma.$transaction(async (tx) => {
     let row;
 
-    if (latestPayment?.method === "manual" && latestPayment.status === PAYMENT_STATUS.PENDING) {
+    if (
+      ctx.latestPayment?.method === "manual" &&
+      ctx.latestPayment.status === PAYMENT_STATUS.PENDING &&
+      ctx.latestPayment.category === ctx.category
+    ) {
       row = await tx.payment.update({
-        where: { id: latestPayment.id },
+        where: { id: ctx.latestPayment.id },
         data: {
           proofUrl: proofUrl.trim(),
           status: PAYMENT_STATUS.MANUAL_REVIEW,
+          amount: ctx.amount,
+          metadata: ctx.metadata ?? undefined,
         },
       });
     } else {
       row = await tx.payment.create({
         data: {
-          applicationId: application.id,
-          amount,
+          applicationId: ctx.application.id,
+          category: ctx.category,
+          amount: ctx.amount,
           method: "manual",
           status: PAYMENT_STATUS.MANUAL_REVIEW,
           proofUrl: proofUrl.trim(),
+          metadata: ctx.metadata ?? undefined,
         },
       });
     }
 
-    if (application.status === APPLICATION_STATUS.DRAFT) {
+    if (
+      ctx.category === PAYMENT_CATEGORY.REGISTRATION &&
+      ctx.application.status === APPLICATION_STATUS.DRAFT
+    ) {
       await tx.application.update({
-        where: { id: application.id },
+        where: { id: ctx.application.id },
         data: { status: APPLICATION_STATUS.PENDING_PAYMENT },
       });
     }
@@ -323,51 +478,61 @@ export async function submitManualPayment(userId, proofUrl) {
   return mapPayment(payment);
 }
 
-export async function initiateMidtransPayment(userId) {
-  const activePeriod = await getActivePeriod();
-  if (!activePeriod) throw new Error("Periode pendaftaran tidak aktif");
+export async function initiateMidtransPayment(userId, { category, feeItemIds } = {}) {
+  const ctx = await resolvePaymentContext(userId, category, feeItemIds);
+  assertPaymentAllowed(ctx.settings, "midtrans");
 
-  const { application, settings, latestPayment } = await assertCanInitiatePayment(
-    userId,
-    activePeriod.id
-  );
-  assertPaymentAllowed(settings, "midtrans");
-
-  if (latestPayment?.method === "manual" && latestPayment.status === PAYMENT_STATUS.MANUAL_REVIEW) {
+  if (
+    ctx.latestPayment?.method === "manual" &&
+    ctx.latestPayment.status === PAYMENT_STATUS.MANUAL_REVIEW &&
+    ctx.latestPayment.category === ctx.category
+  ) {
     throw new Error("Bukti transfer sedang diverifikasi. Tunggu konfirmasi admin.");
   }
 
-  const amount = settings.registrationFee ?? 350000;
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { name: true, email: true, phone: true },
   });
-
   if (!user) throw new Error("Pengguna tidak ditemukan");
 
-  let paymentId = latestPayment?.id;
+  let paymentId = ctx.latestPayment?.id;
 
   if (
-    !latestPayment ||
-    latestPayment.method !== "midtrans" ||
-    latestPayment.status === PAYMENT_STATUS.FAILED
+    !ctx.latestPayment ||
+    ctx.latestPayment.method !== "midtrans" ||
+    ctx.latestPayment.status === PAYMENT_STATUS.FAILED ||
+    ctx.latestPayment.category !== ctx.category
   ) {
     const created = await prisma.payment.create({
       data: {
-        applicationId: application.id,
-        amount,
+        applicationId: ctx.application.id,
+        category: ctx.category,
+        amount: ctx.amount,
         method: "midtrans",
         status: PAYMENT_STATUS.PENDING,
+        metadata: ctx.metadata ?? undefined,
       },
     });
     paymentId = created.id;
 
-    if (application.status === APPLICATION_STATUS.DRAFT) {
+    if (
+      ctx.category === PAYMENT_CATEGORY.REGISTRATION &&
+      ctx.application.status === APPLICATION_STATUS.DRAFT
+    ) {
       await prisma.application.update({
-        where: { id: application.id },
+        where: { id: ctx.application.id },
         data: { status: APPLICATION_STATUS.PENDING_PAYMENT },
       });
     }
+  } else {
+    await prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        amount: ctx.amount,
+        metadata: ctx.metadata ?? undefined,
+      },
+    });
   }
 
   const orderId = buildOrderId(paymentId);
@@ -378,10 +543,10 @@ export async function initiateMidtransPayment(userId) {
   });
 
   const snap = await createSnapTransaction({
-    serverKey: settings.midtransServerKey,
-    production: settings.midtransProduction,
+    serverKey: ctx.settings.midtransServerKey,
+    production: ctx.settings.midtransProduction,
     orderId,
-    amount,
+    amount: ctx.amount,
     customer: {
       name: user.name,
       email: user.email,
@@ -393,20 +558,11 @@ export async function initiateMidtransPayment(userId) {
     payment: mapPayment(
       await prisma.payment.findUnique({
         where: { id: paymentId },
-        select: {
-          id: true,
-          amount: true,
-          status: true,
-          method: true,
-          proofUrl: true,
-          externalId: true,
-          paidAt: true,
-          createdAt: true,
-        },
+        select: PAYMENT_SELECT,
       })
     ),
     snapToken: snap.token,
-    clientKey: settings.midtransClientKey,
+    clientKey: ctx.settings.midtransClientKey,
     orderId,
   };
 }
@@ -419,15 +575,8 @@ export async function refreshMidtransPayment(userId, paymentId) {
       method: "midtrans",
     },
     select: {
-      id: true,
+      ...PAYMENT_SELECT,
       applicationId: true,
-      amount: true,
-      status: true,
-      method: true,
-      proofUrl: true,
-      externalId: true,
-      paidAt: true,
-      createdAt: true,
       application: { select: { status: true } },
     },
   });
@@ -454,25 +603,18 @@ export async function refreshMidtransPayment(userId, paymentId) {
         status: nextStatus,
         paidAt: nextStatus === PAYMENT_STATUS.PAID ? paidAt : null,
         metadata: {
+          ...(payment.metadata && typeof payment.metadata === "object" ? payment.metadata : {}),
           transactionStatus: remote.transactionStatus,
           fraudStatus: remote.fraudStatus,
           checkedAt: new Date().toISOString(),
         },
       },
-      select: {
-        id: true,
-        amount: true,
-        status: true,
-        method: true,
-        proofUrl: true,
-        externalId: true,
-        paidAt: true,
-        createdAt: true,
-      },
+      select: PAYMENT_SELECT,
     });
 
     if (
       nextStatus === PAYMENT_STATUS.PAID &&
+      payment.category === PAYMENT_CATEGORY.REGISTRATION &&
       (payment.application.status === APPLICATION_STATUS.PENDING_PAYMENT ||
         payment.application.status === APPLICATION_STATUS.DRAFT)
     ) {
@@ -497,8 +639,7 @@ export async function handleMidtransNotification(body) {
     where: { id: paymentId },
     select: {
       id: true,
-      applicationId: true,
-      application: { select: { status: true, userId: true } },
+      application: { select: { userId: true } },
     },
   });
 

@@ -21,7 +21,6 @@ const menuStatusConfig = {
 const menuStatusKeys = {
   "/spmb/pembayaran": "pembayaran",
   "/spmb/formulir": "formulir",
-  "/spmb/upload": "upload",
   "/spmb/kuesioner": "kuesioner",
 };
 
@@ -101,11 +100,6 @@ export function UserDashboard({ userName, data }) {
       active: menuStatus.formulir === "in_progress" || menuStatus.formulir === "pending",
     },
     {
-      title: "Upload berkas",
-      done: menuStatus.upload === "done",
-      active: menuStatus.upload === "in_progress" || menuStatus.upload === "pending",
-    },
-    {
       title:
         menuStatus.kuesioner === "optional" ? "Kuesioner (opsional)" : "Kuesioner",
       done: menuStatus.kuesioner === "done",
@@ -130,7 +124,7 @@ export function UserDashboard({ userName, data }) {
               Halo, {firstName}
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/85 md:text-base">
-              Kelola pembayaran, formulir, upload berkas, dan kuesioner dari satu tempat.
+              Kelola pembayaran, formulir, dan kuesioner dari satu tempat.
               Pantau status pendaftaran Anda kapan saja.
             </p>
           </div>

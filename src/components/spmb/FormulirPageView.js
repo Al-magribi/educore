@@ -13,7 +13,7 @@ function isEmptyValue(value) {
 }
 
 function computeProgress(groups, values) {
-  const fields = (groups ?? []).flatMap((g) => g.fields ?? []).filter((f) => f.type !== "file");
+  const fields = (groups ?? []).flatMap((g) => g.fields ?? []);
   const required = fields.filter((f) => f.required);
   const filled = fields.filter((f) => !isEmptyValue(values?.[f.id]));
   const filledRequired = required.filter((f) => !isEmptyValue(values?.[f.id]));
@@ -80,25 +80,82 @@ function LockedPaymentCard({ paymentState, payment }) {
   );
 }
 
+function IncompletePrerequisitesBanner({ formComplete, questionnaireProgress }) {
+  const missingFields = !formComplete;
+  const missingQuestionnaires =
+    questionnaireProgress?.total > 0 && !questionnaireProgress?.isComplete;
+
+  if (!missingFields && !missingQuestionnaires) return null;
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-amber-950">Belum dapat mengajukan formulir</h2>
+          <ul className="mt-2 space-y-1 text-sm text-amber-900/80">
+            {missingFields ? (
+              <li>Lengkapi semua field wajib (<span className="text-rose-500">*</span>) pada formulir.</li>
+            ) : null}
+            {missingQuestionnaires ? (
+              <li>
+                Selesaikan semua kuesioner ({questionnaireProgress.completed}/
+                {questionnaireProgress.total} selesai).
+              </li>
+            ) : null}
+          </ul>
+        </div>
+        {missingQuestionnaires ? (
+          <Link
+            href="/spmb/kuesioner"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700"
+          >
+            Ke kuesioner
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function SubmittedBanner({ application }) {
   return (
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-emerald-950">Formulir telah diajukan</h2>
-          <p className="mt-1 text-sm text-emerald-900/80">
-            Data pendaftaran Anda sudah terkirim
-            {application?.submittedAt ? ` pada ${application.submittedAt}` : ""}. Lanjutkan ke
-            unggah berkas jika diperlukan.
-          </p>
-        </div>
-        <Link
-          href="/spmb/upload"
-          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
-        >
-          Upload berkas
-        </Link>
-      </div>
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 sm:p-6">
+      <h2 className="text-lg font-bold text-blue-950">Formulir telah diajukan</h2>
+      <p className="mt-1 text-sm text-blue-900/80">
+        Data pendaftaran Anda sudah terkirim
+        {application?.submittedAt ? ` pada ${application.submittedAt}` : ""}. Anda masih dapat
+        mengubah isian dan menyimpan ulang, atau mengajukan kembali jika ada perbaikan.
+      </p>
+    </div>
+  );
+}
+
+function FinalStatusBanner({ status }) {
+  const accepted = status === "accepted";
+  return (
+    <div
+      className={`rounded-2xl border p-5 sm:p-6 ${
+        accepted
+          ? "border-emerald-200 bg-emerald-50"
+          : "border-rose-200 bg-rose-50"
+      }`}
+    >
+      <h2
+        className={`text-lg font-bold ${
+          accepted ? "text-emerald-950" : "text-rose-950"
+        }`}
+      >
+        Formulir tidak dapat diubah
+      </h2>
+      <p
+        className={`mt-1 text-sm ${
+          accepted ? "text-emerald-900/80" : "text-rose-900/80"
+        }`}
+      >
+        {accepted
+          ? "Pendaftaran Anda sudah diterima. Hubungi admin SPMB jika perlu perubahan data."
+          : "Pendaftaran Anda sudah ditolak. Hubungi admin SPMB untuk informasi lebih lanjut."}
+      </p>
     </div>
   );
 }
@@ -176,11 +233,11 @@ export function FormulirPageView({ initialData }) {
   }, [data?.answers]);
 
   const groups = data?.formDefinition?.schema?.groups ?? [];
-  const access = data?.access ?? { canFill: false, isEditable: false, isSubmitted: false };
+  const access = data?.access ?? { canFill: false, isEditable: false, isSubmitted: false, isFinal: false };
   const isReadOnly = !access.isEditable;
   const progress = useMemo(
-    () => (access.isEditable ? computeProgress(groups, values) : data?.progress),
-    [access.isEditable, groups, values, data?.progress]
+    () => (access.canFill && access.isEditable ? computeProgress(groups, values) : data?.progress),
+    [access.canFill, access.isEditable, groups, values, data?.progress]
   );
 
   const handleChange = useCallback((fieldId, value) => {
@@ -207,12 +264,15 @@ export function FormulirPageView({ initialData }) {
         return;
       }
 
+      const wasSubmitted = data?.access?.isSubmitted;
       setData(json);
       setValues(json.answers ?? {});
       setNotice({
         type: "success",
         text: submit
-          ? "Formulir berhasil diajukan. Silakan lanjut ke upload berkas."
+          ? wasSubmitted
+            ? "Perubahan formulir berhasil diajukan kembali."
+            : "Formulir berhasil diajukan."
           : "Perubahan berhasil disimpan.",
       });
     } catch {
@@ -233,12 +293,25 @@ export function FormulirPageView({ initialData }) {
     persist(true);
   };
 
-  const canSubmit = useMemo(() => {
-    if (!access.isEditable) return false;
+  const questionnaireProgress = data?.questionnaireProgress ?? {
+    total: 0,
+    completed: 0,
+    isComplete: true,
+    incomplete: [],
+  };
+
+  const formFieldsComplete = useMemo(() => {
     const required = progress?.requiredCount ?? 0;
     const filled = progress?.filledRequired ?? 0;
     return required === 0 || filled >= required;
-  }, [access.isEditable, progress]);
+  }, [progress]);
+
+  const canSubmit = useMemo(() => {
+    if (!access.isEditable) return false;
+    const questionnairesComplete =
+      questionnaireProgress.total === 0 || questionnaireProgress.isComplete === true;
+    return formFieldsComplete && questionnairesComplete;
+  }, [access.isEditable, formFieldsComplete, questionnaireProgress]);
 
   if (loading) {
     return (
@@ -296,9 +369,17 @@ export function FormulirPageView({ initialData }) {
 
       {!access.canFill ? (
         <LockedPaymentCard paymentState={data.paymentState} payment={data.payment} />
-      ) : access.isSubmitted ? (
-        <SubmittedBanner application={data.application} />
-      ) : null}
+      ) : access.isFinal ? (
+        <FinalStatusBanner status={data.application?.status} />
+      ) : (
+        <>
+          {access.isSubmitted ? <SubmittedBanner application={data.application} /> : null}
+          <IncompletePrerequisitesBanner
+            formComplete={formFieldsComplete}
+            questionnaireProgress={questionnaireProgress}
+          />
+        </>
+      )}
 
       {notice ? (
         <div
@@ -337,7 +418,9 @@ export function FormulirPageView({ initialData }) {
           <div className="sticky bottom-0 z-10 -mx-1 border-t border-slate-200/80 bg-white/95 px-1 py-4 backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-center text-xs text-slate-500 sm:text-left">
-                Field bertanda <span className="text-rose-500">*</span> wajib diisi sebelum mengajukan.
+                {canSubmit
+                  ? "Semua persyaratan terpenuhi. Anda dapat mengajukan formulir."
+                  : "Lengkapi field wajib dan semua kuesioner sebelum mengajukan."}
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
                 <button
@@ -353,14 +436,18 @@ export function FormulirPageView({ initialData }) {
                   disabled={saving || submitting || !canSubmit}
                   className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {submitting ? "Mengajukan..." : "Ajukan formulir"}
+                  {submitting
+                    ? "Mengajukan..."
+                    : access.isSubmitted
+                      ? "Ajukan ulang"
+                      : "Ajukan formulir"}
                 </button>
               </div>
             </div>
           </div>
         ) : null}
 
-        {access.canFill && isReadOnly && !access.isSubmitted ? (
+        {access.canFill && isReadOnly ? (
           <p className="text-center text-sm text-slate-500">
             Formulir dalam mode baca saja.
           </p>

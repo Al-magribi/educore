@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { describeFileAccept } from "@/lib/file-accept.js";
 import { FormSelect } from "@/components/spmb/FormSelect.js";
 
 function FieldPreview({ field }) {
@@ -43,7 +44,7 @@ function FieldPreview({ field }) {
   if (field.type === "file") {
     return (
       <div className={`${baseClass} border-dashed bg-slate-50 text-center text-slate-500`}>
-        Unggah berkas {field.accept ? `(${field.accept})` : ""}
+        Unggah berkas {field.accept ? `(${describeFileAccept(field.accept)})` : ""}
       </div>
     );
   }

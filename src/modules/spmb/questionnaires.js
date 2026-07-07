@@ -159,10 +159,6 @@ export async function createQuestionnaire(payload) {
   const total = await prisma.questionnaire.count();
   const isActive = total === 0 ? true : Boolean(payload.isActive);
 
-  if (isActive) {
-    await prisma.questionnaire.updateMany({ data: { isActive: false } });
-  }
-
   const row = await prisma.questionnaire.create({
     data: {
       periodId: period.id,
@@ -202,10 +198,16 @@ export async function activateQuestionnaire(id) {
   const existing = await prisma.questionnaire.findUnique({ where: { id } });
   if (!existing) throw new Error("Kuesioner tidak ditemukan");
 
-  await prisma.$transaction([
-    prisma.questionnaire.updateMany({ data: { isActive: false } }),
-    prisma.questionnaire.update({ where: { id }, data: { isActive: true } }),
-  ]);
+  await prisma.questionnaire.update({ where: { id }, data: { isActive: true } });
+
+  return getQuestionnaire(id);
+}
+
+export async function deactivateQuestionnaire(id) {
+  const existing = await prisma.questionnaire.findUnique({ where: { id } });
+  if (!existing) throw new Error("Kuesioner tidak ditemukan");
+
+  await prisma.questionnaire.update({ where: { id }, data: { isActive: false } });
 
   return getQuestionnaire(id);
 }
@@ -230,11 +232,28 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function getOptionLetter(index) {
+  if (index < 0) return "";
+  return String.fromCharCode(65 + index);
+}
+
 function resolveAnswerLabel(question, answerValue) {
   if (!answerValue) return "—";
   if (question.type === "jawaban_panjang") return answerValue;
-  const option = question.options?.find((o) => o.id === answerValue);
-  return option?.label ?? answerValue;
+
+  const options = question.options ?? [];
+  const optionIndex = options.findIndex((o) => o.id === answerValue);
+  if (optionIndex >= 0) return getOptionLetter(optionIndex);
+
+  const trimmed = String(answerValue).trim();
+  if (/^[A-Z]$/i.test(trimmed)) return trimmed.toUpperCase();
+
+  const labelIndex = options.findIndex(
+    (o) => o.label?.trim().toLowerCase() === trimmed.toLowerCase()
+  );
+  if (labelIndex >= 0) return getOptionLetter(labelIndex);
+
+  return answerValue;
 }
 
 export async function listQuestionnaireResponses({ questionnaireId } = {}) {

@@ -1,100 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SelectInput, FormMessage } from "@/components/admin/home/AdminFormFields.js";
-
-const statusLabels = {
-  draft: "Draft",
-  pending_payment: "Menunggu bayar",
-  paid: "Sudah bayar",
-  form_in_progress: "Mengisi form",
-  submitted: "Diajukan",
-  under_review: "Review",
-  accepted: "Diterima",
-  rejected: "Ditolak",
-};
-
-const statusTone = {
-  accepted: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  rejected: "bg-rose-50 text-rose-800 ring-rose-200",
-  pending_payment: "bg-amber-50 text-amber-800 ring-amber-200",
-  submitted: "bg-blue-50 text-blue-800 ring-blue-200",
-  under_review: "bg-violet-50 text-violet-800 ring-violet-200",
-};
-
-function StatusBadge({ status }) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
-        statusTone[status] ?? "bg-slate-100 text-slate-700 ring-slate-200"
-      }`}
-    >
-      {statusLabels[status] ?? status}
-    </span>
-  );
-}
-
-function DetailPanel({ applicant, onClose, onStatusChange, updating }) {
-  if (!applicant) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button type="button" className="absolute inset-0 bg-slate-900/40" onClick={onClose} aria-label="Tutup" />
-      <aside className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">Detail pendaftar</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-            aria-label="Tutup panel"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5">
-          <p className="text-xl font-semibold text-slate-900">{applicant.name}</p>
-          <p className="mt-1 text-sm text-slate-600">{applicant.email}</p>
-          <p className="text-sm text-slate-600">{applicant.phone}</p>
-          <div className="mt-4">
-            <StatusBadge status={applicant.status} />
-          </div>
-
-          <dl className="mt-6 space-y-4 text-sm">
-            <div>
-              <dt className="text-slate-500">Asal sekolah</dt>
-              <dd className="mt-0.5 font-medium text-slate-900">{applicant.school}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Tanggal ajuan</dt>
-              <dd className="mt-0.5 font-medium text-slate-900">
-                {applicant.submittedAt ?? "Belum diajukan"}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <div className="flex flex-col gap-2 border-t border-slate-100 p-5 sm:flex-row">
-          <button
-            type="button"
-            disabled={updating}
-            onClick={() => onStatusChange(applicant.id, "accepted")}
-            className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            Terima
-          </button>
-          <button
-            type="button"
-            disabled={updating}
-            onClick={() => onStatusChange(applicant.id, "rejected")}
-            className="flex-1 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-          >
-            Tolak
-          </button>
-        </div>
-      </aside>
-    </div>
-  );
-}
+import { DetailPanel } from "./DetailPanel.jsx";
+import { ManualRegistrationWizard } from "./ManualRegistrationWizard.jsx";
+import { StatusBadge } from "./StatusBadge.jsx";
+import { getFormEditLabel, statusLabels } from "./constants.js";
 
 export default function PendaftaranAdmin({ initialApplicants = [] }) {
   const [applicants, setApplicants] = useState(initialApplicants);
@@ -103,6 +15,9 @@ export default function PendaftaranAdmin({ initialApplicants = [] }) {
   const [selected, setSelected] = useState(null);
   const [message, setMessage] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const [resettingId, setResettingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -148,13 +63,68 @@ export default function PendaftaranAdmin({ initialApplicants = [] }) {
     }
   };
 
+  const handleReset = async (id) => {
+    setResettingId(id);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/spmb-admin/applications/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal mereset status");
+
+      const updated = data.application;
+      setApplicants((prev) => prev.map((a) => (a.id === id ? updated : a)));
+      setSelected((prev) => (prev?.id === id ? updated : prev));
+      setMessage({ type: "success", text: data.message ?? "Status direset ke diajukan" });
+    } catch (err) {
+      setMessage({ type: "error", text: err.message });
+    } finally {
+      setResettingId(null);
+    }
+  };
+
+  const handleManualCreated = (application) => {
+    setApplicants((prev) => [application, ...prev]);
+    setMessage({ type: "success", text: "Pendaftaran manual berhasil dibuat." });
+  };
+
+  const handleDelete = async (id) => {
+    setDeletingId(id);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/spmb-admin/applications/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus pendaftaran");
+
+      setApplicants((prev) => prev.filter((a) => a.id !== id));
+      setSelected((prev) => (prev?.id === id ? null : prev));
+      setMessage({ type: "success", text: data.message ?? "Pendaftaran dihapus" });
+    } catch (err) {
+      setMessage({ type: "error", text: err.message });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Pendaftaran</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Review berkas calon siswa, ubah status, dan pantau proses seleksi.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Pendaftaran</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Review berkas calon siswa, buat pendaftaran manual, dan pantau proses seleksi.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setWizardOpen(true)}
+          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[var(--admin-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+        >
+          + Buat pendaftaran
+        </button>
       </div>
 
       {message ? <FormMessage message={message} /> : null}
@@ -196,7 +166,7 @@ export default function PendaftaranAdmin({ initialApplicants = [] }) {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-3">Calon siswa</th>
@@ -219,13 +189,21 @@ export default function PendaftaranAdmin({ initialApplicants = [] }) {
                   </td>
                   <td className="px-4 py-3 text-slate-500">{item.submittedAt ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setSelected(item)}
-                      className="rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--admin-primary)] hover:bg-slate-100"
-                    >
-                      Detail
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <Link
+                        href={`/spmb-admin/pendaftaran/${item.id}/formulir`}
+                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+                      >
+                        {getFormEditLabel(item.status)}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setSelected(item)}
+                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--admin-primary)] hover:bg-slate-100"
+                      >
+                        Detail
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -243,13 +221,21 @@ export default function PendaftaranAdmin({ initialApplicants = [] }) {
                 </div>
                 <StatusBadge status={item.status} />
               </div>
-              <button
-                type="button"
-                onClick={() => setSelected(item)}
-                className="mt-3 text-sm font-medium text-[var(--admin-primary)]"
-              >
-                Lihat detail
-              </button>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Link
+                  href={`/spmb-admin/pendaftaran/${item.id}/formulir`}
+                  className="text-sm font-medium text-emerald-700"
+                >
+                  {getFormEditLabel(item.status)}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setSelected(item)}
+                  className="text-sm font-medium text-[var(--admin-primary)]"
+                >
+                  Lihat detail
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -263,7 +249,17 @@ export default function PendaftaranAdmin({ initialApplicants = [] }) {
         applicant={selected}
         onClose={() => setSelected(null)}
         onStatusChange={handleStatusChange}
+        onReset={handleReset}
+        onDelete={handleDelete}
         updating={updatingId === selected?.id}
+        resetting={resettingId === selected?.id}
+        deleting={deletingId === selected?.id}
+      />
+
+      <ManualRegistrationWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onCreated={handleManualCreated}
       />
     </div>
   );

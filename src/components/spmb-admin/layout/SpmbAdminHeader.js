@@ -1,19 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconChevronRight } from "./icons.js";
 import { spmbNavItems } from "./nav-config.js";
 
 function getPageTitle(pathname) {
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) {
+    return "Profil";
+  }
   const item = spmbNavItems.find((nav) =>
     nav.exact ? pathname === nav.href : pathname === nav.href || pathname.startsWith(`${nav.href}/`)
   );
   return item?.label ?? "Admin SPMB";
 }
 
-export function SpmbAdminHeader({ collapsed, onToggleCollapse, schoolName }) {
+export function SpmbAdminHeader({ collapsed, onToggleCollapse, schoolName, userName }) {
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
+  const displayName = userName?.trim() || "Admin SPMB";
+  const userInitial = displayName.charAt(0).toUpperCase();
 
   return (
     <header
@@ -42,21 +48,23 @@ export function SpmbAdminHeader({ collapsed, onToggleCollapse, schoolName }) {
       <h1 className="truncate text-base font-semibold text-slate-900 sm:hidden">{pageTitle}</h1>
 
       <div className="ml-auto flex items-center gap-3">
-        <div
-          className="flex items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-3"
+        <Link
+          href="/profile"
+          className="flex max-w-[200px] items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-3 transition hover:bg-slate-50"
           style={{ borderColor: "var(--admin-surface-border)" }}
+          title="Profil saya"
         >
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
             style={{
               background: "var(--admin-primary)",
               color: "var(--admin-primary-foreground)",
             }}
           >
-            SP
+            {userInitial}
           </span>
-          <span className="hidden text-sm font-medium text-slate-700 md:inline">Admin SPMB</span>
-        </div>
+          <span className="hidden truncate text-sm font-medium text-slate-700 md:inline">{displayName}</span>
+        </Link>
       </div>
     </header>
   );

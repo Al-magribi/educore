@@ -6,6 +6,7 @@ import LandingSettingsTab from "@/components/spmb-admin/pengaturan/LandingSettin
 import PaymentSettingsTab from "@/components/spmb-admin/pengaturan/PaymentSettingsTab.jsx";
 import SmtpSettingsTab from "@/components/spmb-admin/pengaturan/SmtpSettingsTab.jsx";
 import PeriodeSettingsTab from "@/components/spmb-admin/pengaturan/PeriodeSettingsTab.jsx";
+import InvoiceSettingsTab from "@/components/spmb-admin/pengaturan/InvoiceSettingsTab.jsx";
 import { SETTINGS_TABS } from "@/components/spmb-admin/pengaturan/settings-tabs.js";
 
 const TAB_PANELS = {
@@ -13,6 +14,7 @@ const TAB_PANELS = {
   pembayaran: PaymentSettingsTab,
   smtp: SmtpSettingsTab,
   periode: PeriodeSettingsTab,
+  invoice: InvoiceSettingsTab,
 };
 
 export default function SpmbSettings() {
@@ -43,7 +45,7 @@ export default function SpmbSettings() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Pengaturan SPMB</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Kustomisasi landing page, pembayaran, email, dan periode penerimaan siswa baru.
+          Kustomisasi landing page, pembayaran, email, periode penerimaan, dan invoice.
         </p>
       </div>
 

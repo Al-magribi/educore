@@ -8,7 +8,10 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const payment = await submitManualPayment(authResult.session.user.id, body.proofUrl);
+    const payment = await submitManualPayment(authResult.session.user.id, body.proofUrl, {
+      category: body.category,
+      feeItemIds: body.feeItemIds,
+    });
     return NextResponse.json({
       payment,
       message: "Bukti pembayaran berhasil dikirim. Menunggu verifikasi admin.",

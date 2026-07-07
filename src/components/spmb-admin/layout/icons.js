@@ -4,6 +4,7 @@ export {
   IconDashboard,
   IconExternal,
   IconLogout,
+  IconProfile,
   IconSearch,
   IconSettings,
   IconUsers,

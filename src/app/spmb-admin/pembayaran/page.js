@@ -18,6 +18,7 @@ export default async function SpmbAdminPembayaranPage() {
     <PaymentList
       initialItems={payments.items}
       initialPagination={payments.pagination}
+      initialActivePeriod={payments.activePeriod}
       initialSettings={{
         midtransEnabled: settings?.midtransEnabled ?? false,
         manualEnabled: settings?.manualEnabled ?? true,
