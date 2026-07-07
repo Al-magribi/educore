@@ -10,15 +10,16 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+  AUTH_SECRET: ci-build-secret-minimum-32-characters
+  AUTH_TRUST_HOST: "true"
+  AUTH_URL: https://asdh.sch.id
+
 jobs:
   build:
     name: Build Next.js
     runs-on: ubuntu-latest
-
-    env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
-      AUTH_SECRET: ci-build-secret-minimum-32-characters
-      AUTH_TRUST_HOST: "true"
 
     steps:
       - name: Checkout
@@ -35,3 +36,62 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Pack deployment bundle
+        if: github.event_name == 'push'
+        run: |
+          tar -czf deploy.tar.gz \
+            .next \
+            public \
+            package.json \
+            package-lock.json \
+            prisma \
+            scripts \
+            src \
+            next.config.mjs \
+            postcss.config.mjs
+
+      - name: Upload build artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build-${{ github.sha }}
+          retention-days: 7
+          path: deploy.tar.gz
+
+  deploy:
+    name: Deploy to VPS
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/cms-spmb' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: next-build-${{ github.sha }}
+
+      - name: Copy bundle to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: deploy.tar.gz
+          target: ${{ secrets.VPS_PATH }}
+
+      - name: Extract and install on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            cd "${{ secrets.VPS_PATH }}"
+            tar -xzf deploy.tar.gz
+            rm -f deploy.tar.gz
+            npm ci --omit=dev
+            echo "Deploy selesai. Restart project Node.js di aaPanel."
