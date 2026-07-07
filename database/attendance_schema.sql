@@ -127,6 +127,19 @@ ON attendance.attendance_holiday(homebase_id, holiday_date, applies_to_role);
 CREATE INDEX idx_attendance_holiday_lookup
 ON attendance.attendance_holiday(homebase_id, holiday_date, is_active);
 
+CREATE TABLE attendance_calendar_config(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    skip_saturday boolean NOT NULL DEFAULT false,
+    skip_sunday boolean NOT NULL DEFAULT true,
+    created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id)
+);
+CREATE UNIQUE INDEX uq_attendance_calendar_config_homebase
+ON attendance.attendance_calendar_config(homebase_id);
+
 CREATE TABLE attendance_feature_setting(
     id SERIAL NOT NULL,
     homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
@@ -456,6 +469,155 @@ ON attendance.attendance_manual_adjustment(teacher_session_log_id, created_at DE
 ALTER TABLE attendance.rfid_scan_log
 ADD CONSTRAINT rfid_scan_log_attendance_id_fkey
 FOREIGN KEY(attendance_id) REFERENCES attendance.daily_attendance(id) ON DELETE SET NULL;
+
+-- ================================================================
+-- WHATSAPP NOTIFICATION (LAPORAN KEHADIRAN KE ORANG TUA)
+-- ================================================================
+
+CREATE TABLE whatsapp_notification_config(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    is_enabled boolean NOT NULL DEFAULT false,
+    send_time time without time zone NOT NULL DEFAULT '08:00:00',
+    send_delay_min_seconds integer NOT NULL DEFAULT 15,
+    send_delay_max_seconds integer NOT NULL DEFAULT 20,
+    message_template text NOT NULL DEFAULT
+        'Assalamu''alaikum Bapak/Ibu {parent_name},
+
+Berikut laporan kehadiran anak Anda hari ini ({date_label}):
+
+{students_block}
+
+Terima kasih.
+-{school_name}',
+    skip_on_holiday boolean NOT NULL DEFAULT true,
+    last_run_date date,
+    created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT whatsapp_notification_config_delay_min_check
+        CHECK (send_delay_min_seconds >= 1),
+    CONSTRAINT whatsapp_notification_config_delay_max_check
+        CHECK (send_delay_max_seconds >= send_delay_min_seconds),
+    CONSTRAINT whatsapp_notification_config_delay_cap_check
+        CHECK (send_delay_max_seconds <= 120)
+);
+CREATE UNIQUE INDEX uq_whatsapp_notification_config_homebase
+ON attendance.whatsapp_notification_config(homebase_id);
+CREATE INDEX idx_whatsapp_notification_config_schedule
+ON attendance.whatsapp_notification_config(is_enabled, send_time);
+
+CREATE TABLE whatsapp_session(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    session_status varchar(20) NOT NULL DEFAULT 'disconnected',
+    connected_phone varchar(30),
+    qr_code text,
+    qr_generated_at timestamp with time zone,
+    last_connected_at timestamp with time zone,
+    last_disconnected_at timestamp with time zone,
+    last_error text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT whatsapp_session_status_check
+        CHECK (
+            session_status IN (
+                'disconnected',
+                'initializing',
+                'qr_pending',
+                'authenticated',
+                'ready',
+                'auth_failure'
+            )
+        )
+);
+CREATE UNIQUE INDEX uq_whatsapp_session_homebase
+ON attendance.whatsapp_session(homebase_id);
+CREATE INDEX idx_whatsapp_session_status
+ON attendance.whatsapp_session(session_status, updated_at DESC);
+
+CREATE TABLE whatsapp_notification_batch(
+    id BIGSERIAL NOT NULL,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer REFERENCES public.a_periode(id) ON DELETE SET NULL,
+    attendance_date date NOT NULL,
+    batch_status varchar(20) NOT NULL DEFAULT 'pending',
+    scheduled_at timestamp with time zone,
+    started_at timestamp with time zone,
+    completed_at timestamp with time zone,
+    total_recipients integer NOT NULL DEFAULT 0,
+    sent_count integer NOT NULL DEFAULT 0,
+    failed_count integer NOT NULL DEFAULT 0,
+    skipped_count integer NOT NULL DEFAULT 0,
+    error_message text,
+    created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT whatsapp_notification_batch_status_check
+        CHECK (
+            batch_status IN (
+                'pending',
+                'running',
+                'completed',
+                'failed',
+                'cancelled'
+            )
+        ),
+    CONSTRAINT whatsapp_notification_batch_count_check
+        CHECK (
+            total_recipients >= 0
+            AND sent_count >= 0
+            AND failed_count >= 0
+            AND skipped_count >= 0
+        )
+);
+CREATE UNIQUE INDEX uq_whatsapp_notification_batch_homebase_date
+ON attendance.whatsapp_notification_batch(homebase_id, attendance_date);
+CREATE INDEX idx_whatsapp_notification_batch_status
+ON attendance.whatsapp_notification_batch(batch_status, attendance_date DESC);
+CREATE INDEX idx_whatsapp_notification_batch_homebase_lookup
+ON attendance.whatsapp_notification_batch(homebase_id, attendance_date DESC, batch_status);
+
+CREATE TABLE whatsapp_notification_log(
+    id BIGSERIAL NOT NULL,
+    batch_id bigint NOT NULL REFERENCES attendance.whatsapp_notification_batch(id) ON DELETE CASCADE,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    parent_user_id integer REFERENCES public.u_users(id) ON DELETE SET NULL,
+    parent_name text,
+    phone varchar(30) NOT NULL,
+    message text NOT NULL,
+    students_payload jsonb NOT NULL DEFAULT '[]'::jsonb,
+    delivery_status varchar(20) NOT NULL DEFAULT 'queued',
+    whatsapp_message_id varchar(120),
+    error_message text,
+    queued_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT whatsapp_notification_log_delivery_status_check
+        CHECK (
+            delivery_status IN (
+                'queued',
+                'sent',
+                'failed',
+                'skipped'
+            )
+        ),
+    CONSTRAINT whatsapp_notification_log_students_payload_check
+        CHECK (jsonb_typeof(students_payload) = 'array')
+);
+CREATE UNIQUE INDEX uq_whatsapp_notification_log_batch_parent
+ON attendance.whatsapp_notification_log(batch_id, parent_user_id)
+WHERE parent_user_id IS NOT NULL;
+CREATE INDEX idx_whatsapp_notification_log_batch_status
+ON attendance.whatsapp_notification_log(batch_id, delivery_status);
+CREATE INDEX idx_whatsapp_notification_log_homebase_sent
+ON attendance.whatsapp_notification_log(homebase_id, sent_at DESC);
+CREATE INDEX idx_whatsapp_notification_log_phone
+ON attendance.whatsapp_notification_log(phone, created_at DESC);
 
 SET search_path TO public;
 COMMIT;

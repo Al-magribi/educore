@@ -146,7 +146,7 @@ const AttendanceConfig = () => {
     >
       <MotionDiv variants={itemVariants}>
         <Card
-          bordered={false}
+          variant="borderless"
           style={{
             borderRadius: token.borderRadiusXL,
             overflow: "hidden",
@@ -241,7 +241,7 @@ const AttendanceConfig = () => {
 
       <MotionDiv variants={itemVariants}>
         <Card
-          bordered={false}
+          variant="borderless"
           style={{
             borderRadius: token.borderRadiusXL,
             boxShadow: token.boxShadowSecondary,

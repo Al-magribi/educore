@@ -3,7 +3,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 export const ApiAttendance = createApi({
   reducerPath: "ApiAttendance",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/lms" }),
-  tagTypes: ["Attendance", "AttendanceConfig", "AttendancePolicy", "AttendanceDevice", "AttendanceAssignment"],
+  tagTypes: ["Attendance", "AttendanceConfig", "AttendancePolicy", "AttendanceDevice", "AttendanceAssignment", "WhatsappNotification", "AttendanceCalendar"],
   endpoints: (builder) => ({
     getAttendanceStudents: builder.query({
       query: ({ subjectId, classId, date }) =>
@@ -343,6 +343,132 @@ export const ApiAttendance = createApi({
         { type: "Attendance", id: "SCAN_LOG_REPORT" },
       ],
     }),
+
+    getWhatsappNotificationConfig: builder.query({
+      query: () => "/attendance/whatsapp/config",
+      providesTags: [{ type: "WhatsappNotification", id: "CONFIG" }],
+    }),
+    updateWhatsappNotificationConfig: builder.mutation({
+      query: (body) => ({
+        url: "/attendance/whatsapp/config",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: [{ type: "WhatsappNotification", id: "CONFIG" }],
+    }),
+    getWhatsappSession: builder.query({
+      query: ({ autoStart } = {}) =>
+        `/attendance/whatsapp/session?auto_start=${autoStart ? "true" : "false"}`,
+      providesTags: [{ type: "WhatsappNotification", id: "SESSION" }],
+    }),
+    reconnectWhatsappSession: builder.mutation({
+      query: () => ({
+        url: "/attendance/whatsapp/session/reconnect",
+        method: "POST",
+      }),
+      invalidatesTags: [{ type: "WhatsappNotification", id: "SESSION" }],
+    }),
+    sendWhatsappTestMessage: builder.mutation({
+      query: (body) => ({
+        url: "/attendance/whatsapp/test",
+        method: "POST",
+        body,
+      }),
+    }),
+    getWhatsappNotificationBatches: builder.query({
+      query: ({ startDate, endDate, limit } = {}) => ({
+        url: "/attendance/whatsapp/batches",
+        params: {
+          start_date: startDate,
+          end_date: endDate,
+          limit,
+        },
+      }),
+      providesTags: [{ type: "WhatsappNotification", id: "BATCHES" }],
+    }),
+    getWhatsappNotificationLogs: builder.query({
+      query: ({ batchId, attendanceDate, deliveryStatus, limit } = {}) => ({
+        url: "/attendance/whatsapp/logs",
+        params: {
+          batch_id: batchId,
+          attendance_date: attendanceDate,
+          delivery_status: deliveryStatus,
+          limit,
+        },
+      }),
+      providesTags: [{ type: "WhatsappNotification", id: "LOGS" }],
+    }),
+    retryFailedWhatsappBatch: builder.mutation({
+      query: (batchId) => ({
+        url: `/attendance/whatsapp/batches/${batchId}/retry-failed`,
+        method: "POST",
+      }),
+      invalidatesTags: [
+        { type: "WhatsappNotification", id: "BATCHES" },
+        { type: "WhatsappNotification", id: "LOGS" },
+      ],
+    }),
+    runWhatsappNotificationNow: builder.mutation({
+      query: (body) => ({
+        url: "/attendance/whatsapp/run-now",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [
+        { type: "WhatsappNotification", id: "BATCHES" },
+        { type: "WhatsappNotification", id: "LOGS" },
+        { type: "WhatsappNotification", id: "CONFIG" },
+      ],
+    }),
+
+    getAttendanceCalendarConfig: builder.query({
+      query: () => "/attendance/calendar/config",
+      providesTags: [{ type: "AttendanceCalendar", id: "CONFIG" }],
+    }),
+    updateAttendanceCalendarConfig: builder.mutation({
+      query: (body) => ({
+        url: "/attendance/calendar/config",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: [{ type: "AttendanceCalendar", id: "CONFIG" }],
+    }),
+    getAttendanceHolidays: builder.query({
+      query: ({ year, startDate, endDate } = {}) => ({
+        url: "/attendance/calendar/holidays",
+        params: {
+          year,
+          start_date: startDate,
+          end_date: endDate,
+        },
+      }),
+      providesTags: [{ type: "AttendanceCalendar", id: "HOLIDAYS" }],
+    }),
+    saveAttendanceHoliday: builder.mutation({
+      query: (body) => ({
+        url: body?.id
+          ? `/attendance/calendar/holidays/${body.id}`
+          : "/attendance/calendar/holidays",
+        method: body?.id ? "PUT" : "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "AttendanceCalendar", id: "HOLIDAYS" }],
+    }),
+    deleteAttendanceHoliday: builder.mutation({
+      query: (id) => ({
+        url: `/attendance/calendar/holidays/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "AttendanceCalendar", id: "HOLIDAYS" }],
+    }),
+    bulkDeleteAttendanceHolidays: builder.mutation({
+      query: (ids) => ({
+        url: "/attendance/calendar/holidays/bulk-delete",
+        method: "POST",
+        body: { ids },
+      }),
+      invalidatesTags: [{ type: "AttendanceCalendar", id: "HOLIDAYS" }],
+    }),
   }),
 });
 
@@ -371,4 +497,19 @@ export const {
   useUpdateDailyAttendanceRecordMutation,
   useDeleteDailyAttendanceRecordMutation,
   useBulkDeleteDailyAttendanceRecordsMutation,
+  useGetWhatsappNotificationConfigQuery,
+  useUpdateWhatsappNotificationConfigMutation,
+  useGetWhatsappSessionQuery,
+  useReconnectWhatsappSessionMutation,
+  useSendWhatsappTestMessageMutation,
+  useGetWhatsappNotificationBatchesQuery,
+  useGetWhatsappNotificationLogsQuery,
+  useRetryFailedWhatsappBatchMutation,
+  useRunWhatsappNotificationNowMutation,
+  useGetAttendanceCalendarConfigQuery,
+  useUpdateAttendanceCalendarConfigMutation,
+  useGetAttendanceHolidaysQuery,
+  useSaveAttendanceHolidayMutation,
+  useDeleteAttendanceHolidayMutation,
+  useBulkDeleteAttendanceHolidaysMutation,
 } = ApiAttendance;

@@ -21,6 +21,7 @@ import {
   deleteScanLogsCascade,
 } from "../../services/attendance/attendanceReportDelete.js";
 import "../../services/attendance/attendanceJobs.js";
+import "../../services/whatsapp/whatsappJobs.js";
 
 const router = Router();
 
