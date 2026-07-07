@@ -49,8 +49,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          checkout_owned_paths() {
+            local source_ref="$1"
+            shift
+            local path
+
+            for path in "$@"; do
+              if git ls-tree -r --name-only "${source_ref}" -- "${path}" | grep -q .; then
+                git checkout "${source_ref}" -- "${path}"
+              else
+                echo "Skipping missing path on ${source_ref}: ${path}"
+              fi
+            done
+          }
+
           restore_lms_owned_paths() {
-            git checkout origin/feature/lms -- \
+            checkout_owned_paths origin/feature/lms \
               client/src/App.jsx \
               client/src/components/editor \
               client/src/components/index.js \
@@ -68,14 +82,14 @@ jobs:
           }
 
           ensure_parent_report_components() {
-            git checkout origin/feature/lms -- \
+            checkout_owned_paths origin/feature/lms \
               client/src/module/parent/dashboard/ParentDash.jsx \
               client/src/module/lms/report/AcademicReport.jsx
             git add -A
           }
 
           restore_finance_owned_paths() {
-            git checkout origin/feature/finance -- \
+            checkout_owned_paths origin/feature/finance \
               client/src/components/layout/menus/financeMenus.jsx \
               client/src/module/finance \
               client/src/routes/modules/financeRoutes.jsx \
