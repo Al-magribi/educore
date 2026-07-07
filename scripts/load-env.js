@@ -2,6 +2,14 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const FORCE_IN_PRODUCTION = new Set([
+  "AUTH_URL",
+  "NEXTAUTH_URL",
+  "AUTH_SECRET",
+  "DATABASE_URL",
+  "PORT",
+]);
+
 function parseEnvLine(line) {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith("#")) return null;
@@ -23,11 +31,15 @@ function parseEnvLine(line) {
 }
 
 /**
- * Load .env files into process.env (does not override existing vars).
- * aaPanel / PM2 often run `npm start` without loading .env automatically.
+ * Load .env files into process.env.
+ * In production, never load `.env.local` (dev-only) and force critical vars from `.env`.
  */
 function loadEnvFiles(cwd = process.cwd()) {
-  const files = [".env", ".env.local", ".env.production", ".env.production.local"];
+  const isProduction =
+    process.env.NODE_ENV === "production" || process.env.NODE_ENV === undefined;
+  const files = isProduction
+    ? [".env", ".env.production", ".env.production.local"]
+    : [".env", ".env.local", ".env.development", ".env.development.local"];
 
   for (const file of files) {
     const filePath = path.join(cwd, file);
@@ -37,7 +49,9 @@ function loadEnvFiles(cwd = process.cwd()) {
     for (const line of content.split(/\r?\n/)) {
       const parsed = parseEnvLine(line);
       if (!parsed) continue;
-      if (process.env[parsed.key] === undefined) {
+
+      const shouldForce = isProduction && FORCE_IN_PRODUCTION.has(parsed.key);
+      if (shouldForce || process.env[parsed.key] === undefined) {
         process.env[parsed.key] = parsed.value;
       }
     }

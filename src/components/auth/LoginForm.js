@@ -27,10 +27,16 @@ export function LoginForm() {
     setLoading(true);
     setErrors({});
 
+    const rawCallback = searchParams.get("callbackUrl");
+    const callbackPath = rawCallback?.startsWith("/") ? rawCallback : null;
+
     const result = await signIn("credentials", {
       email: form.email.trim().toLowerCase(),
       password: form.password,
       redirect: false,
+      callbackUrl: callbackPath
+        ? `${window.location.origin}${callbackPath}`
+        : window.location.origin,
     });
 
     if (result?.error) {
