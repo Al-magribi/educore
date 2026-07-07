@@ -7,6 +7,8 @@ export const authConfig = {
     strategy: "jwt",
   },
   trustHost: true,
+  useSecureCookies:
+    (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "").startsWith("https://"),
   providers: [],
   callbacks: {
     jwt({ token, user }) {

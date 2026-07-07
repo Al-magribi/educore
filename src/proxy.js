@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth.js";
 import { canAccessPath, getLoginRedirect } from "@/lib/auth-redirect.js";
+import { readProxyAuthToken } from "@/lib/proxy-auth.js";
 
 function resolvePostLoginPath(request, role) {
   const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
@@ -10,10 +10,11 @@ function resolvePostLoginPath(request, role) {
   return getLoginRedirect(role);
 }
 
-const authProxy = auth((request) => {
+export async function proxy(request) {
   const { pathname } = request.nextUrl;
-  const role = request.auth?.user?.role;
-  const isLoggedIn = Boolean(request.auth?.user);
+  const token = await readProxyAuthToken(request);
+  const role = token?.role;
+  const isLoggedIn = Boolean(token);
 
   if ((pathname === "/masuk" || pathname === "/daftar") && isLoggedIn) {
     return NextResponse.redirect(
@@ -64,10 +65,6 @@ const authProxy = auth((request) => {
   }
 
   return NextResponse.next();
-});
-
-export async function proxy(request, event) {
-  return authProxy(request, event);
 }
 
 export const config = {
