@@ -38,6 +38,33 @@ router.post(
   }),
 );
 
+router.put(
+  "/category/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { id } = req.params;
+    const { name } = req.body;
+    const { homebase_id } = req.user;
+
+    const result = await client.query(
+      `UPDATE a_subject_category SET name = $1
+       WHERE id = $2 AND homebase_id = $3
+       RETURNING *`,
+      [name, id, homebase_id],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Kategori tidak ditemukan." });
+    }
+
+    res.json({
+      status: "success",
+      message: "Kategori diupdate",
+      data: result.rows[0],
+    });
+  }),
+);
+
 router.delete(
   "/category/:id",
   authorize("satuan"),
