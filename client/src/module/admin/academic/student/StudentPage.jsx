@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   Input,
   Button,
@@ -14,7 +14,11 @@ import {
   Tag,
   Tooltip,
   Popconfirm,
-} from "antd";
+  List,
+  Divider,
+  Space,
+  Empty,
+} from 'antd';
 import {
   Search as SearchIcon,
   Plus,
@@ -26,15 +30,15 @@ import {
   User,
   Pencil,
   Trash2,
-} from "lucide-react";
+} from 'lucide-react';
 import {
   useGetStudentsQuery,
   useAddStudentMutation,
   useUpdateStudentMutation,
   useDeleteStudentMutation,
-} from "../../../../service/academic/ApiStudent";
+} from '../../../../service/academic/ApiStudent';
 
-import StudentForm from "./StudentForm";
+import StudentForm from './StudentForm';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -45,7 +49,7 @@ const containerVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.35, ease: "easeOut", staggerChildren: 0.08 },
+    transition: { duration: 0.35, ease: 'easeOut', staggerChildren: 0.08 },
   },
 };
 
@@ -54,9 +58,32 @@ const itemVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.28, ease: "easeOut" },
+    transition: { duration: 0.28, ease: 'easeOut' },
   },
 };
+
+const getAkademikLabel = (record) => {
+  if (record.current_grade && record.current_class) {
+    return `${record.current_grade} - ${record.current_class}`;
+  }
+  const latestClass = record.class_history?.[0];
+  return latestClass ? `${latestClass.grade} - ${latestClass.class}` : 'Belum diatur';
+};
+
+const StudentAvatar = ({ record, size = 40 }) => (
+  <Avatar
+    size={size}
+    icon={<User size={size === 40 ? 20 : 18} />}
+    style={{
+      background:
+        record.gender === 'P'
+          ? 'linear-gradient(135deg, #fbcfe8, #f9a8d4)'
+          : 'linear-gradient(135deg, #bfdbfe, #93c5fd)',
+      color: record.gender === 'P' ? '#9d174d' : '#1d4ed8',
+      flexShrink: 0,
+    }}
+  />
+);
 
 const StudentPage = ({ screens }) => {
   const breakpointScreens = useBreakpoint();
@@ -64,11 +91,12 @@ const StudentPage = ({ screens }) => {
   const isMobile = !activeScreens.md;
 
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [accumulatedData, setAccumulatedData] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const loadMoreRef = useRef(null);
   const { data: apiData, isFetching } = useGetStudentsQuery({
     page,
     limit: 12,
@@ -87,9 +115,7 @@ const StudentPage = ({ screens }) => {
       } else {
         setAccumulatedData((prev) => {
           const existingIds = new Set(prev.map((item) => item.id));
-          const newUniqueItems = apiData.data.filter(
-            (item) => !existingIds.has(item.id),
-          );
+          const newUniqueItems = apiData.data.filter((item) => !existingIds.has(item.id));
           return [...prev, ...newUniqueItems];
         });
       }
@@ -104,6 +130,7 @@ const StudentPage = ({ screens }) => {
     setSearch(e.target.value);
     setPage(1);
     setHasMore(true);
+    setAccumulatedData([]);
   };
 
   const handleLoadMore = () => {
@@ -111,6 +138,23 @@ const StudentPage = ({ screens }) => {
       setPage((prev) => prev + 1);
     }
   };
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !isFetching && hasMore) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1, root: null },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isFetching, hasMore, accumulatedData.length]);
 
   const handleOpenDrawer = (record = null) => {
     setEditingItem(record);
@@ -131,12 +175,8 @@ const StudentPage = ({ screens }) => {
         };
 
         await updateStudent({ id: editingItem.id, ...payload }).unwrap();
-        setAccumulatedData((prev) =>
-          prev.map((item) =>
-            item.id === editingItem.id ? { ...item, ...payload } : item,
-          ),
-        );
-        message.success("Data siswa berhasil diperbarui");
+        setAccumulatedData((prev) => prev.map((item) => (item.id === editingItem.id ? { ...item, ...payload } : item)));
+        message.success('Data siswa berhasil diperbarui');
       } else {
         const payload = {
           username: values.username,
@@ -151,11 +191,11 @@ const StudentPage = ({ screens }) => {
 
         await addStudent(payload).unwrap();
         setPage(1);
-        message.success("Siswa baru berhasil ditambahkan");
+        message.success('Siswa baru berhasil ditambahkan');
       }
       setIsDrawerOpen(false);
     } catch {
-      message.error("Gagal menyimpan data siswa");
+      message.error('Gagal menyimpan data siswa');
     }
   };
 
@@ -163,147 +203,121 @@ const StudentPage = ({ screens }) => {
     try {
       await deleteStudent(id).unwrap();
       setAccumulatedData((prev) => prev.filter((item) => item.id !== id));
-      message.success("Data siswa berhasil dihapus");
+      message.success('Data siswa berhasil dihapus');
     } catch {
-      message.error("Gagal menghapus data siswa");
+      message.error('Gagal menghapus data siswa');
     }
   };
 
   const totalStudents = apiData?.totalData || 0;
-  const activeStudents = accumulatedData.filter(
-    (item) => item.is_active,
-  ).length;
+  const activeStudents = accumulatedData.filter((item) => item.is_active).length;
   const loadedStudents = accumulatedData.length;
   const summaryCards = [
     {
-      key: "students",
-      title: "Total Siswa",
+      key: 'students',
+      title: 'Total Siswa',
       value: totalStudents,
       icon: <Users size={18} />,
-      tint: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-      color: "#1d4ed8",
+      tint: 'linear-gradient(135deg, #dbeafe, #e0f2fe)',
+      color: '#1d4ed8',
     },
     {
-      key: "active",
-      title: "Aktif di List",
+      key: 'active',
+      title: 'Aktif di List',
       value: activeStudents,
       icon: <UserCheck size={18} />,
-      tint: "linear-gradient(135deg, #dcfce7, #ccfbf1)",
-      color: "#047857",
+      tint: 'linear-gradient(135deg, #dcfce7, #ccfbf1)',
+      color: '#047857',
     },
     {
-      key: "loaded",
-      title: "Data Dimuat",
+      key: 'loaded',
+      title: 'Data Dimuat',
       value: loadedStudents,
       icon: <Layers3 size={18} />,
-      tint: "linear-gradient(135deg, #ede9fe, #dbeafe)",
-      color: "#5b21b6",
+      tint: 'linear-gradient(135deg, #ede9fe, #dbeafe)',
+      color: '#5b21b6',
     },
   ];
 
   const columns = [
     {
-      title: "Profil Siswa",
-      dataIndex: "full_name",
-      key: "profil",
+      title: 'Profil Siswa',
+      dataIndex: 'full_name',
+      key: 'profil',
       render: (text, record) => (
-        <Flex align='center' gap={12}>
-          <Avatar
-            size={40}
-            icon={<User size={20} />}
-            style={{
-              background:
-                record.gender === "P"
-                  ? "linear-gradient(135deg, #fbcfe8, #f9a8d4)"
-                  : "linear-gradient(135deg, #bfdbfe, #93c5fd)",
-              color: record.gender === "P" ? "#9d174d" : "#1d4ed8",
-              flexShrink: 0,
-            }}
-          />
+        <Flex align="center" gap={12}>
+          <StudentAvatar record={record} />
           <div style={{ minWidth: 0 }}>
-            <Text strong ellipsis style={{ display: "block", maxWidth: 220 }}>
+            <Text strong ellipsis style={{ display: 'block', maxWidth: 220 }}>
               {text}
             </Text>
-            <Text type='secondary' style={{ fontSize: 12 }}>
-              NIS : {record.username} | RFID : {record.rfid_no || "-"}
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              NIS : {record.username} | RFID : {record.rfid_no || '-'}
             </Text>
           </div>
         </Flex>
       ),
     },
     {
-      title: "Akademik",
-      key: "akademik",
-      render: (_, record) => {
-        const latestClass = record.class_history?.[0];
-        return (
-          <div>
-            <Text strong style={{ display: "block", fontSize: 13 }}>
-              {latestClass
-                ? `${latestClass.grade} - ${latestClass.class}`
-                : "Belum diatur"}
-            </Text>
-            <Text type='secondary' style={{ fontSize: 12 }}>
-              NIS: {record.nis || "-"}{" "}
-              {record.nisn ? ` • NISN: ${record.nisn}` : ""}
-            </Text>
-          </div>
-        );
-      },
+      title: 'Akademik',
+      key: 'akademik',
+      render: (_, record) => (
+        <div>
+          <Text strong style={{ display: 'block', fontSize: 13 }}>
+            {getAkademikLabel(record)}
+          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            NIS: {record.nis || '-'} {record.nisn ? ` • NISN: ${record.nisn}` : ''}
+          </Text>
+        </div>
+      ),
     },
     {
-      title: "Status",
-      key: "status",
+      title: 'Status',
+      key: 'status',
       width: 140,
       render: (_, record) => (
-        <Flex gap={6} wrap='wrap'>
+        <Flex gap={6} wrap="wrap">
           <Tag
-            color={record.is_active ? "success" : "error"}
+            color={record.is_active ? 'success' : 'error'}
             style={{
               borderRadius: 999,
               margin: 0,
               fontWeight: 600,
               fontSize: 11,
-            }}
-          >
-            {record.is_active ? "AKTIF" : "NONAKTIF"}
+            }}>
+            {record.is_active ? 'AKTIF' : 'NONAKTIF'}
           </Tag>
           <Tag
-            color={record.gender === "P" ? "magenta" : "blue"}
+            color={record.gender === 'P' ? 'magenta' : 'blue'}
             style={{
               borderRadius: 999,
               margin: 0,
               fontWeight: 600,
               fontSize: 11,
-            }}
-          >
-            {record.gender === "P" ? "PR" : "LK"}
+            }}>
+            {record.gender === 'P' ? 'PR' : 'LK'}
           </Tag>
         </Flex>
       ),
     },
     {
-      title: "Aksi",
-      key: "aksi",
+      title: 'Aksi',
+      key: 'aksi',
       width: 100,
-      align: "right",
+      align: 'right',
       render: (_, record) => (
-        <Flex gap={4} justify='flex-end'>
-          <Tooltip title='Edit Data'>
-            <Button
-              type='text'
-              icon={<Pencil size={16} color='#f59e0b' />}
-              onClick={() => handleOpenDrawer(record)}
-            />
+        <Flex gap={4} justify="flex-end">
+          <Tooltip title="Edit Data">
+            <Button type="text" icon={<Pencil size={16} color="#f59e0b" />} onClick={() => handleOpenDrawer(record)} />
           </Tooltip>
           <Popconfirm
-            title='Hapus Siswa?'
-            description='Riwayat akademik akan ikut terhapus.'
+            title="Hapus Siswa?"
+            description="Riwayat akademik akan ikut terhapus."
             onConfirm={() => handleDelete(record.id)}
-            okButtonProps={{ danger: true, loading: isDeleting }}
-          >
-            <Tooltip title='Hapus Data'>
-              <Button type='text' danger icon={<Trash2 size={16} />} />
+            okButtonProps={{ danger: true, loading: isDeleting }}>
+            <Tooltip title="Hapus Data">
+              <Button type="text" danger icon={<Trash2 size={16} />} />
             </Tooltip>
           </Popconfirm>
         </Flex>
@@ -315,63 +329,52 @@ const StudentPage = ({ screens }) => {
     <>
       <MotionDiv
         variants={containerVariants}
-        initial='hidden'
-        animate='visible'
-        style={{ display: "flex", flexDirection: "column", gap: 20 }}
-      >
+        initial="hidden"
+        animate="visible"
+        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <MotionDiv variants={itemVariants}>
           <Card
-            variant='borderless'
+            variant="borderless"
             style={{
               borderRadius: 24,
-              overflow: "hidden",
-              background:
-                "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(236,253,245,0.98))",
-              boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, rgba(239,246,255,0.98), rgba(236,253,245,0.98))',
+              boxShadow: '0 18px 40px rgba(15, 23, 42, 0.08)',
             }}
-            styles={{ body: { padding: activeScreens.md ? 24 : 18 } }}
-          >
+            styles={{ body: { padding: activeScreens.md ? 24 : 18 } }}>
             <Flex
-              justify='space-between'
-              align={activeScreens.md ? "center" : "stretch"}
+              justify="space-between"
+              align={activeScreens.md ? 'center' : 'stretch'}
               vertical={!activeScreens.md}
-              gap={16}
-            >
+              gap={16}>
               <div>
-                <Flex
-                  align='center'
-                  gap={10}
-                  wrap='wrap'
-                  style={{ marginBottom: 8 }}
-                >
+                <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 8 }}>
                   <Text
                     style={{
-                      color: "#1d4ed8",
+                      color: '#1d4ed8',
                       fontWeight: 700,
                       letterSpacing: 0.4,
-                    }}
-                  >
+                    }}>
                     DIREKTORI SISWA
                   </Text>
                   <Flex
-                    align='center'
+                    align="center"
                     gap={6}
                     style={{
-                      padding: "6px 12px",
+                      padding: '6px 12px',
                       borderRadius: 999,
-                      background: "rgba(29, 78, 216, 0.10)",
-                      color: "#1d4ed8",
+                      background: 'rgba(29, 78, 216, 0.10)',
+                      color: '#1d4ed8',
                       fontWeight: 600,
-                    }}
-                  >
+                    }}>
                     <Sparkles size={14} />
                     <span>Administrasi peserta didik</span>
                   </Flex>
                 </Flex>
-                <Title level={4} style={{ margin: "0 0 4px" }}>
+                <Title level={4} style={{ margin: '0 0 4px' }}>
                   Kelola data siswa secara lebih tertata dan akurat
                 </Title>
-                <Text type='secondary' style={{ maxWidth: 760 }}>
+                <Text type="secondary" style={{ maxWidth: 760 }}>
                   Lakukan pencarian, pembaruan biodata, dan penambahan siswa
                 </Text>
               </div>
@@ -382,13 +385,12 @@ const StudentPage = ({ screens }) => {
                     width: 58,
                     height: 58,
                     borderRadius: 20,
-                    display: "grid",
-                    placeItems: "center",
-                    background: "linear-gradient(135deg, #2563eb, #14b8a6)",
-                    color: "#fff",
-                    boxShadow: "0 18px 32px rgba(37, 99, 235, 0.24)",
-                  }}
-                >
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: 'linear-gradient(135deg, #2563eb, #14b8a6)',
+                    color: '#fff',
+                    boxShadow: '0 18px 32px rgba(37, 99, 235, 0.24)',
+                  }}>
                   <GraduationCap size={24} />
                 </div>
               )}
@@ -397,38 +399,35 @@ const StudentPage = ({ screens }) => {
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
-          <Flex gap={16} wrap='wrap'>
+          <Flex gap={16} wrap="wrap">
             {summaryCards.map((item) => (
               <MotionDiv
                 key={item.key}
                 whileHover={{ y: -4 }}
                 transition={{ duration: 0.18 }}
                 style={{
-                  flex: activeScreens.md ? "1 1 0" : "1 1 100%",
-                  minWidth: activeScreens.md ? 0 : "100%",
-                }}
-              >
+                  flex: activeScreens.md ? '1 1 0' : '1 1 100%',
+                  minWidth: activeScreens.md ? 0 : '100%',
+                }}>
                 <Card
                   style={{
                     borderRadius: 22,
-                    boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
+                    boxShadow: '0 12px 24px rgba(15, 23, 42, 0.06)',
                   }}
-                  styles={{ body: { padding: "18px 20px" } }}
-                  hoverable
-                >
-                  <Flex justify='space-between' align='start'>
+                  styles={{ body: { padding: '18px 20px' } }}
+                  hoverable>
+                  <Flex justify="space-between" align="start">
                     <Statistic title={item.title} value={item.value} />
                     <div
                       style={{
                         width: 42,
                         height: 42,
-                        display: "grid",
-                        placeItems: "center",
+                        display: 'grid',
+                        placeItems: 'center',
                         borderRadius: 14,
                         background: item.tint,
                         color: item.color,
-                      }}
-                    >
+                      }}>
                       {item.icon}
                     </div>
                   </Flex>
@@ -440,49 +439,35 @@ const StudentPage = ({ screens }) => {
 
         <MotionDiv variants={itemVariants}>
           <Card
-            variant='borderless'
+            variant="borderless"
             styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
             hoverable
             style={{
               borderRadius: 22,
-              boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
-            }}
-          >
+              boxShadow: '0 16px 32px rgba(15, 23, 42, 0.06)',
+            }}>
             <Flex
-              justify='space-between'
-              align={activeScreens.md ? "center" : "stretch"}
+              justify="space-between"
+              align={activeScreens.md ? 'center' : 'stretch'}
               vertical={!activeScreens.md}
-              gap={16}
-            >
+              gap={16}>
               <div>
                 <Title level={4} style={{ margin: 0 }}>
                   Pencarian & Aksi Cepat
                 </Title>
-                <Text type='secondary'>
-                  Temukan siswa lebih cepat lalu lanjutkan proses edit atau
-                  penambahan data.
-                </Text>
+                <Text type="secondary">Temukan siswa lebih cepat lalu lanjutkan proses edit atau penambahan data.</Text>
               </div>
 
-              <Flex
-                gap={10}
-                vertical={!activeScreens.md}
-                style={{ width: !activeScreens.md ? "100%" : "auto" }}
-              >
+              <Flex gap={10} vertical={!activeScreens.md} style={{ width: !activeScreens.md ? '100%' : 'auto' }}>
                 <Input
-                  placeholder='Cari siswa...'
-                  prefix={<SearchIcon size={16} color='rgba(0,0,0,.25)' />}
+                  placeholder="Cari siswa..."
+                  prefix={<SearchIcon size={16} color="rgba(0,0,0,.25)" />}
                   onChange={handleSearch}
-                  style={{ width: !activeScreens.md ? "100%" : 280 }}
-                  size='large'
+                  style={{ width: !activeScreens.md ? '100%' : 280 }}
+                  size="large"
                   allowClear
                 />
-                <Button
-                  type='primary'
-                  icon={<Plus size={18} />}
-                  onClick={() => handleOpenDrawer(null)}
-                  size='large'
-                >
+                <Button type="primary" icon={<Plus size={18} />} onClick={() => handleOpenDrawer(null)} size="large">
                   Tambah Siswa
                 </Button>
               </Flex>
@@ -492,66 +477,114 @@ const StudentPage = ({ screens }) => {
 
         <MotionDiv variants={itemVariants}>
           <Card
-            variant='borderless'
-            styles={{ body: { padding: 0 } }}
+            variant="borderless"
+            styles={{ body: { padding: isMobile ? 12 : 0 } }}
             style={{
               borderRadius: 22,
-              overflow: "hidden",
-              boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
-              border: "1px solid rgba(148, 163, 184, 0.16)",
-            }}
-          >
-            <div
-              id='student-scroll-container'
-              style={{
-                height: activeScreens.md
-                  ? "calc(100vh - 420px)"
-                  : "calc(100vh - 360px)",
-                overflow: "auto",
-              }}
-              onScroll={(e) => {
-                const { scrollTop, clientHeight, scrollHeight } =
-                  e.currentTarget;
-                if (scrollHeight - scrollTop <= clientHeight + 50) {
-                  handleLoadMore();
-                }
-              }}
-            >
+              overflow: 'hidden',
+              boxShadow: '0 16px 32px rgba(15, 23, 42, 0.06)',
+              border: '1px solid rgba(148, 163, 184, 0.16)',
+            }}>
+            {isMobile ? (
+              <List
+                dataSource={accumulatedData}
+                loading={isFetching && page === 1}
+                locale={{
+                  emptyText: <Empty description="Belum ada data siswa yang dapat ditampilkan" />,
+                }}
+                renderItem={(record) => (
+                  <List.Item style={{ padding: 0, marginBottom: 10 }}>
+                    <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.18 }} style={{ width: '100%' }}>
+                      <Card size="small" style={{ width: '100%', borderRadius: 18 }}>
+                        <Flex justify="space-between" align="start" gap={10}>
+                          <Space align="start">
+                            <StudentAvatar record={record} size={36} />
+                            <Flex vertical style={{ minWidth: 0 }}>
+                              <Text strong ellipsis>
+                                {record.full_name}
+                              </Text>
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                NIS: {record.username || '-'}
+                              </Text>
+                            </Flex>
+                          </Space>
+                          <Space>
+                            <Tooltip title="Edit Data">
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<Pencil size={15} color="#f59e0b" />}
+                                onClick={() => handleOpenDrawer(record)}
+                              />
+                            </Tooltip>
+                            <Popconfirm
+                              title="Hapus Siswa?"
+                              description="Riwayat akademik akan ikut terhapus."
+                              onConfirm={() => handleDelete(record.id)}
+                              okText="Ya"
+                              cancelText="Batal"
+                              okButtonProps={{ danger: true, loading: isDeleting }}>
+                              <Tooltip title="Hapus Data">
+                                <Button size="small" type="text" danger icon={<Trash2 size={15} />} />
+                              </Tooltip>
+                            </Popconfirm>
+                          </Space>
+                        </Flex>
+                        <Divider style={{ margin: '10px 0' }} />
+                        <Flex vertical gap={8}>
+                          <Text strong style={{ fontSize: 13 }}>
+                            {getAkademikLabel(record)}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            NIS: {record.nis || '-'}
+                            {record.nisn ? ` • NISN: ${record.nisn}` : ''}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            RFID: {record.rfid_no || '-'}
+                          </Text>
+                          <Flex gap={6} wrap="wrap">
+                            <Tag
+                              color={record.is_active ? 'success' : 'error'}
+                              style={{ borderRadius: 999, margin: 0, fontWeight: 600, fontSize: 11 }}>
+                              {record.is_active ? 'AKTIF' : 'NONAKTIF'}
+                            </Tag>
+                            <Tag
+                              color={record.gender === 'P' ? 'magenta' : 'blue'}
+                              style={{ borderRadius: 999, margin: 0, fontWeight: 600, fontSize: 11 }}>
+                              {record.gender === 'P' ? 'PR' : 'LK'}
+                            </Tag>
+                          </Flex>
+                        </Flex>
+                      </Card>
+                    </MotionDiv>
+                  </List.Item>
+                )}
+              />
+            ) : (
               <Table
                 dataSource={accumulatedData}
                 columns={columns}
                 pagination={false}
-                rowKey='id'
+                rowKey="id"
                 loading={isFetching && page === 1}
-                scroll={{ x: 700 }}
-                sticky={{
-                  getContainer: () =>
-                    document.getElementById("student-scroll-container"),
-                }}
+                sticky
+                size="middle"
                 locale={{
-                  emptyText: "Belum ada data siswa yang dapat ditampilkan",
-                }}
-                footer={() => {
-                  if (isFetching && page > 1) {
-                    return (
-                      <div style={{ textAlign: "center", padding: "16px 0" }}>
-                        <Text type='secondary'>Memuat data...</Text>
-                      </div>
-                    );
-                  }
-                  if (!hasMore && accumulatedData.length > 0) {
-                    return (
-                      <div style={{ textAlign: "center", padding: "16px 0" }}>
-                        <Text type='secondary'>
-                          Semua data siswa telah dimuat
-                        </Text>
-                      </div>
-                    );
-                  }
-                  return null;
+                  emptyText: 'Belum ada data siswa yang dapat ditampilkan',
                 }}
               />
-            </div>
+            )}
+            <div ref={loadMoreRef} style={{ height: 1, width: '100%' }} aria-hidden />
+            {isFetching && page > 1 ? (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <Text type="secondary">Memuat data...</Text>
+              </div>
+            ) : null}
+            {!hasMore && accumulatedData.length > 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <Text type="secondary">Semua data siswa telah dimuat</Text>
+              </div>
+            ) : null}
           </Card>
         </MotionDiv>
       </MotionDiv>
