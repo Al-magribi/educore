@@ -14,6 +14,14 @@ export const ApiSubject = createApi({
       query: (body) => ({ url: "/category", method: "POST", body }),
       invalidatesTags: ["Category"],
     }),
+    updateSubjectCategory: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/category/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Category", "Branch", "Subject"],
+    }),
     deleteSubjectCategory: builder.mutation({
       query: (id) => ({ url: `/category/${id}`, method: "DELETE" }),
       invalidatesTags: ["Category", "Branch", "Subject"],
@@ -76,6 +84,7 @@ export const ApiSubject = createApi({
 export const {
   useGetSubjectCategoriesQuery,
   useAddSubjectCategoryMutation,
+  useUpdateSubjectCategoryMutation,
   useDeleteSubjectCategoryMutation,
   useGetSubjectBranchesQuery,
   useAddSubjectBranchMutation,
