@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { canAccessPath, getLoginRedirect } from "@/lib/auth-redirect.js";
+import { getAuthTokenOptions } from "@/lib/auth-cookie.js";
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
-  const token = await getToken({
-    req: request,
-    secret: process.env.AUTH_SECRET,
-  });
+  const token = await getToken(getAuthTokenOptions(request));
   const role = token?.role;
 
   if ((pathname === "/masuk" || pathname === "/daftar") && token) {

@@ -21,10 +21,10 @@ export default async function MasukPage() {
       title="Masuk"
       subtitle="Gunakan email dan password yang telah Anda daftarkan."
     >
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-slate-100" />}>
         <LoginNotice />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-slate-100" />}>
         <LoginForm />
       </Suspense>
     </AuthShell>

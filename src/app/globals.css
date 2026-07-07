@@ -38,6 +38,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+@keyframes fadeInUp {
+  from {
+    transform: translateY(16px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 
 button {
   cursor: pointer

@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { AuthField } from "./AuthField.js";
 import { AuthButton } from "./AuthButton.js";
 import { canAccessPath, getLoginRedirect } from "@/lib/auth-redirect.js";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -46,21 +45,25 @@ export function LoginForm() {
       return;
     }
 
-    const sessionRes = await fetch("/api/auth/session");
+    const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
     const session = await sessionRes.json();
     const role = session?.user?.role;
     const callbackUrl = searchParams.get("callbackUrl");
 
-    setLoading(false);
-
-    if (callbackUrl && canAccessPath(role, callbackUrl)) {
-      router.push(callbackUrl);
-      router.refresh();
+    if (!role) {
+      setLoading(false);
+      setErrors({
+        form: "Sesi login belum tersedia. Muat ulang halaman dan coba lagi.",
+      });
       return;
     }
 
-    router.push(getLoginRedirect(role));
-    router.refresh();
+    const destination =
+      callbackUrl && canAccessPath(role, callbackUrl)
+        ? callbackUrl
+        : getLoginRedirect(role);
+
+    window.location.assign(destination);
   };
 
   return (

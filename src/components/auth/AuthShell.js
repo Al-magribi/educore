@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 
 export function AuthShell({ children, title, subtitle }) {
   return (
@@ -49,12 +48,7 @@ export function AuthShell({ children, title, subtitle }) {
             </Link>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="mx-auto w-full max-w-md"
-          >
+          <div className="mx-auto w-full max-w-md animate-[fadeInUp_0.45s_ease-out_both]">
             {(title || subtitle) && (
               <div className="mb-6 md:mb-8">
                 {title && (
@@ -70,7 +64,7 @@ export function AuthShell({ children, title, subtitle }) {
             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-200/50 md:p-8">
               {children}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>
