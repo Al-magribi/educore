@@ -2,7 +2,8 @@ import { prisma } from "@/lib/db.js";
 import { isAppUploadUrl } from "@/lib/storage/urls.js";
 import { toAdminThemeVars } from "@/lib/admin/theme-vars.js";
 import { getThemeSettings } from "@/modules/theme/index.js";
-import { getSession } from "@/lib/auth.js";
+import { requireRole } from "@/lib/auth.js";
+import { ROLES } from "@/config/roles.js";
 import { SpmbAdminShell } from "@/components/spmb-admin/layout/index.js";
 import "@/app/admin/admin.css";
 
@@ -32,7 +33,10 @@ async function getSpmbAdminLayoutData() {
 }
 
 export default async function SpmbAdminLayout({ children }) {
-  const [layoutData, session] = await Promise.all([getSpmbAdminLayoutData(), getSession()]);
+  const [layoutData, session] = await Promise.all([
+    getSpmbAdminLayoutData(),
+    requireRole(ROLES.SUPER_ADMIN, ROLES.SPMB_ADMIN),
+  ]);
   const { schoolName, logoUrl, hasLogo, themeStyle } = layoutData;
 
   return (
