@@ -14,8 +14,50 @@ const AUTH_BASE_PATH =
 
 const clientRegistry = new Map();
 
+const resolveChromeExecutablePath = () => {
+  const candidates = [
+    process.env.WWEBJS_CHROME_PATH,
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_BIN,
+    process.env.CHROMIUM_PATH,
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  const commonLinuxPaths = [
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/snap/bin/chromium",
+  ];
+
+  for (const candidate of commonLinuxPaths) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
+
+const CHROME_EXECUTABLE_PATH = resolveChromeExecutablePath();
+
+if (CHROME_EXECUTABLE_PATH) {
+  console.log(`[whatsapp] menggunakan Chrome: ${CHROME_EXECUTABLE_PATH}`);
+} else {
+  console.log(
+    "[whatsapp] executablePath Chrome tidak diset, memakai Chrome bawaan Puppeteer.",
+  );
+}
+
 const PUPPETEER_OPTIONS = {
   headless: true,
+  ...(CHROME_EXECUTABLE_PATH ? { executablePath: CHROME_EXECUTABLE_PATH } : {}),
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",
