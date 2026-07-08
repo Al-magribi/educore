@@ -83,12 +83,15 @@ export const getDueWhatsappConfigs = async (executor, currentHHmm, attendanceDat
      FROM attendance.whatsapp_notification_config c
      JOIN public.a_homebase h ON h.id = c.homebase_id
      WHERE c.is_enabled = true
-       AND TO_CHAR(c.send_time, 'HH24:MI') = $1
-       AND (c.last_run_date IS NULL OR c.last_run_date < $2::date)`,
-    [currentHHmm, attendanceDate],
+       AND (c.last_run_date IS NULL OR c.last_run_date < $1::date)
+     ORDER BY c.homebase_id`,
+    [attendanceDate],
   );
 
-  return result.rows;
+  return result.rows.filter((config) => {
+    const sendTime = String(config.send_time || "").slice(0, 5);
+    return sendTime === currentHHmm || sendTime < currentHHmm;
+  });
 };
 
 export const claimWhatsappRunDate = async (executor, homebaseId, attendanceDate) => {
@@ -141,6 +144,11 @@ export const formatWhatsappTime = (value) => {
   if (!value) return "08:00";
   const text = String(value);
   return text.length >= 5 ? text.slice(0, 5) : text;
+};
+
+export const isWhatsappSendTimeDue = (sendTimeValue, currentHHmm) => {
+  const sendTime = formatWhatsappTime(sendTimeValue);
+  return sendTime === currentHHmm || sendTime < currentHHmm;
 };
 
 export const normalizeWhatsappTimeInput = (value) => {

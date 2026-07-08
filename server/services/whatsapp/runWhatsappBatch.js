@@ -8,7 +8,12 @@ import {
   resolveWhatsappRecipients,
 } from "./recipientResolver.js";
 import { randomDelayMs, sleep } from "./sendQueue.js";
-import { sendWhatsappMessage } from "./whatsappClientManager.js";
+import {
+  isWhatsappClientReady,
+  needsWhatsappClientRestore,
+  startWhatsappClient,
+  sendWhatsappMessage,
+} from "./whatsappClientManager.js";
 import {
   claimWhatsappRunDate,
   getDueWhatsappConfigs,
@@ -16,6 +21,59 @@ import {
   getWhatsappSession,
   releaseWhatsappRunDate,
 } from "./whatsappSessionStore.js";
+
+const CLIENT_READY_WAIT_MS = Number(process.env.WWEBJS_BATCH_READY_WAIT_MS || 90000);
+const CLIENT_READY_POLL_MS = 3000;
+
+const waitForOperationalWhatsappClient = async (homebaseId) => {
+  const deadline = Date.now() + CLIENT_READY_WAIT_MS;
+
+  while (Date.now() < deadline) {
+    if (isWhatsappClientReady(homebaseId)) {
+      return true;
+    }
+    await sleep(CLIENT_READY_POLL_MS);
+  }
+
+  return isWhatsappClientReady(homebaseId);
+};
+
+const ensureWhatsappClientOperational = async (homebaseId, session) => {
+  if (session?.session_status !== "ready") {
+    return {
+      ready: false,
+      reason: "whatsapp_not_ready",
+      session_status: session?.session_status || "missing",
+    };
+  }
+
+  if (isWhatsappClientReady(homebaseId)) {
+    return { ready: true };
+  }
+
+  if (needsWhatsappClientRestore(homebaseId, session)) {
+    try {
+      await startWhatsappClient(homebaseId);
+    } catch (error) {
+      return {
+        ready: false,
+        reason: "whatsapp_client_start_failed",
+        error: String(error?.message || error),
+      };
+    }
+  }
+
+  const ready = await waitForOperationalWhatsappClient(homebaseId);
+  if (ready) {
+    return { ready: true };
+  }
+
+  return {
+    ready: false,
+    reason: "whatsapp_client_not_ready",
+    session_status: session.session_status,
+  };
+};
 
 const finalizeBatch = async (executor, batchId, fields) => {
   await executor.query(
@@ -151,7 +209,6 @@ const prepareWhatsappBatch = async (executor, config, attendanceDate) => {
   if (config.skip_on_holiday !== false) {
     const holiday = await isStudentHoliday(executor, homebaseId, attendanceDate);
     if (holiday) {
-      await releaseWhatsappRunDate(executor, homebaseId, attendanceDate);
       return {
         homebase_id: homebaseId,
         status: "skipped",
@@ -161,13 +218,15 @@ const prepareWhatsappBatch = async (executor, config, attendanceDate) => {
   }
 
   const session = await getWhatsappSession(executor, homebaseId);
-  if (session?.session_status !== "ready") {
+  const clientState = await ensureWhatsappClientOperational(homebaseId, session);
+  if (!clientState.ready) {
     await releaseWhatsappRunDate(executor, homebaseId, attendanceDate);
     return {
       homebase_id: homebaseId,
       status: "skipped",
-      reason: "whatsapp_not_ready",
-      session_status: session?.session_status || "missing",
+      reason: clientState.reason || "whatsapp_not_ready",
+      session_status: clientState.session_status || session?.session_status || "missing",
+      error: clientState.error || null,
     };
   }
 
@@ -370,6 +429,10 @@ export const runWhatsappNotificationJob = async (dbPool = pool, now = new Date()
       return [];
     }
 
+    console.log(
+      `[whatsapp] ${configs.length} konfigurasi due pada ${currentHHmm} WIB (${attendanceDate})`,
+    );
+
     const preparedBatches = [];
 
     for (const config of configs) {
@@ -400,6 +463,9 @@ export const runWhatsappNotificationJob = async (dbPool = pool, now = new Date()
 
     for (const prepared of preparedBatches) {
       if (prepared.status !== "prepared") {
+        console.log(
+          `[whatsapp] homebase=${prepared.homebase_id} dilewati: ${prepared.reason || prepared.status}`,
+        );
         results.push(prepared);
         continue;
       }
@@ -531,11 +597,13 @@ export const retryFailedWhatsappBatch = async ({
     }
 
     const session = await getWhatsappSession(client, homebaseId);
-    if (session?.session_status !== "ready") {
+    const clientState = await ensureWhatsappClientOperational(homebaseId, session);
+    if (!clientState.ready) {
       return {
         status: "error",
         message: "Sesi WhatsApp belum siap.",
-        session_status: session?.session_status || "missing",
+        session_status: clientState.session_status || session?.session_status || "missing",
+        error: clientState.error || null,
       };
     }
 

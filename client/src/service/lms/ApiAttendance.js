@@ -360,6 +360,7 @@ export const ApiAttendance = createApi({
       query: ({ autoStart } = {}) =>
         `/attendance/whatsapp/session?auto_start=${autoStart ? "true" : "false"}`,
       providesTags: [{ type: "WhatsappNotification", id: "SESSION" }],
+      keepUnusedDataFor: 0,
     }),
     reconnectWhatsappSession: builder.mutation({
       query: () => ({
@@ -402,6 +403,36 @@ export const ApiAttendance = createApi({
       query: (batchId) => ({
         url: `/attendance/whatsapp/batches/${batchId}/retry-failed`,
         method: "POST",
+      }),
+      invalidatesTags: [
+        { type: "WhatsappNotification", id: "BATCHES" },
+        { type: "WhatsappNotification", id: "LOGS" },
+      ],
+    }),
+    deleteWhatsappNotificationBatch: builder.mutation({
+      query: (batchId) => ({
+        url: `/attendance/whatsapp/batches/${batchId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [
+        { type: "WhatsappNotification", id: "BATCHES" },
+        { type: "WhatsappNotification", id: "LOGS" },
+      ],
+    }),
+    deleteWhatsappNotificationBatchLogs: builder.mutation({
+      query: (batchId) => ({
+        url: `/attendance/whatsapp/batches/${batchId}/logs`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [
+        { type: "WhatsappNotification", id: "BATCHES" },
+        { type: "WhatsappNotification", id: "LOGS" },
+      ],
+    }),
+    deleteWhatsappNotificationLog: builder.mutation({
+      query: (logId) => ({
+        url: `/attendance/whatsapp/logs/${logId}`,
+        method: "DELETE",
       }),
       invalidatesTags: [
         { type: "WhatsappNotification", id: "BATCHES" },
@@ -505,6 +536,9 @@ export const {
   useGetWhatsappNotificationBatchesQuery,
   useGetWhatsappNotificationLogsQuery,
   useRetryFailedWhatsappBatchMutation,
+  useDeleteWhatsappNotificationBatchMutation,
+  useDeleteWhatsappNotificationBatchLogsMutation,
+  useDeleteWhatsappNotificationLogMutation,
   useRunWhatsappNotificationNowMutation,
   useGetAttendanceCalendarConfigQuery,
   useUpdateAttendanceCalendarConfigMutation,

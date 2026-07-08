@@ -31,6 +31,11 @@ const buildAuthPath = (homebaseId) =>
 
 const buildSessionDirName = (homebaseId) => `session-homebase_${Number(homebaseId)}`;
 
+const hasPersistedAuth = (homebaseId) => {
+  const sessionDir = path.join(buildAuthPath(homebaseId), buildSessionDirName(homebaseId));
+  return fs.existsSync(sessionDir);
+};
+
 const getAuthPathsToClear = (homebaseId) => {
   const normalizedHomebaseId = Number(homebaseId);
   const homebaseAuthPath = buildAuthPath(normalizedHomebaseId);
@@ -187,6 +192,21 @@ const attachClientEvents = (homebaseId, client, entry) => {
   });
 };
 
+const destroyClientSafely = async (client) => {
+  if (!client) return;
+  try {
+    await client.logout().catch(() => {});
+  } catch {
+    // logout bisa gagal jika sesi sudah putus.
+  }
+
+  try {
+    await client.destroy();
+  } catch (error) {
+    console.error("[whatsapp] gagal destroy client", error);
+  }
+};
+
 const createClientEntry = (homebaseId) => {
   const entry = {
     client: null,
@@ -237,6 +257,41 @@ export const isWhatsappClientReady = (homebaseId) => {
   return entry?.isReady === true;
 };
 
+export const isWhatsappClientStarting = (homebaseId) => {
+  const entry = getWhatsappClientEntry(homebaseId);
+  return Boolean(entry?.initPromise || entry?.client);
+};
+
+const IN_PROGRESS_STATUSES = new Set([
+  "initializing",
+  "qr_pending",
+  "authenticated",
+]);
+
+export const needsWhatsappClientRecovery = (homebaseId, sessionRow) => {
+  const status = sessionRow?.session_status || "disconnected";
+  if (!IN_PROGRESS_STATUSES.has(status)) return false;
+  return !isWhatsappClientStarting(homebaseId);
+};
+
+export const needsWhatsappClientRestore = (homebaseId, sessionRow) => {
+  const status = sessionRow?.session_status || "disconnected";
+  if (status !== "ready") return false;
+  if (isWhatsappClientReady(homebaseId) || isWhatsappClientStarting(homebaseId)) {
+    return false;
+  }
+  return hasPersistedAuth(homebaseId);
+};
+
+export const canAutoStartWhatsappClient = (homebaseId, sessionRow) => {
+  if (isWhatsappClientStarting(homebaseId)) return false;
+
+  const status = sessionRow?.session_status || "disconnected";
+  if (status === "ready") return false;
+  if (needsWhatsappClientRecovery(homebaseId, sessionRow)) return true;
+  return status === "disconnected" || status === "auth_failure";
+};
+
 export const resetWhatsappClient = async (homebaseId) => {
   const normalizedHomebaseId = Number(homebaseId);
   const entry = clientRegistry.get(normalizedHomebaseId);
@@ -252,20 +307,7 @@ export const resetWhatsappClient = async (homebaseId) => {
   rejectPendingReady(entry, "Session di-reset");
 
   if (entry?.client) {
-    try {
-      await entry.client.logout().catch(() => {});
-    } catch {
-      // logout bisa gagal jika sesi sudah putus.
-    }
-
-    try {
-      await entry.client.destroy();
-    } catch (error) {
-      console.error(
-        `[whatsapp] gagal destroy client homebase=${normalizedHomebaseId}`,
-        error,
-      );
-    }
+    await destroyClientSafely(entry.client);
   }
 
   clientRegistry.delete(normalizedHomebaseId);
@@ -295,15 +337,18 @@ export const startWhatsappClient = async (homebaseId) => {
   }
 
   if (existing?.client) {
+    await destroyClientSafely(existing.client);
     clientRegistry.delete(normalizedHomebaseId);
+    await sleep(500);
   }
 
   const entry = createClientEntry(normalizedHomebaseId);
+  const isRestoringSession = hasPersistedAuth(normalizedHomebaseId);
 
   entry.initPromise = (async () => {
     await persistSession(normalizedHomebaseId, {
-      session_status: "initializing",
-      connected_phone: null,
+      session_status: isRestoringSession ? "authenticated" : "initializing",
+      ...(isRestoringSession ? {} : { connected_phone: null }),
       qr_code: null,
       qr_generated_at: null,
       last_error: null,
@@ -379,6 +424,15 @@ export const destroyWhatsappClient = async (homebaseId) => {
 
 export const reconnectWhatsappClient = async (homebaseId) => {
   await resetWhatsappClient(homebaseId);
-  await sleep(1500);
-  return startWhatsappClient(homebaseId);
+  await sleep(1200);
+
+  try {
+    await startWhatsappClient(homebaseId);
+  } catch (error) {
+    console.error(
+      `[whatsapp] start setelah reconnect gagal homebase=${homebaseId}`,
+      error,
+    );
+    throw error;
+  }
 };

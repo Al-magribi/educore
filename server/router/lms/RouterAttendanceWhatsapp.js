@@ -3,7 +3,11 @@ import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { toJakartaDateString } from "../../services/attendance/rfidDailyAttendance.js";
 import {
+  canAutoStartWhatsappClient,
   isWhatsappClientReady,
+  isWhatsappClientStarting,
+  needsWhatsappClientRecovery,
+  needsWhatsappClientRestore,
   reconnectWhatsappClient,
   sendWhatsappMessage,
   startWhatsappClient,
@@ -26,6 +30,7 @@ const router = Router();
 const mapConfigResponse = (row) => ({
   ...row,
   send_time: formatWhatsappTime(row.send_time),
+  last_run_date: row?.last_run_date || null,
 });
 
 const mapSessionResponse = (row, homebaseId) => ({
@@ -38,6 +43,7 @@ const mapSessionResponse = (row, homebaseId) => ({
   last_disconnected_at: row?.last_disconnected_at || null,
   last_error: row?.last_error || null,
   client_ready: isWhatsappClientReady(homebaseId),
+  client_starting: isWhatsappClientStarting(homebaseId),
 });
 
 const startWhatsappClientInBackground = (homebaseId) => {
@@ -101,13 +107,12 @@ router.get(
     await ensureWhatsappSessionRow(pool, homebase_id);
     let session = await getWhatsappSession(pool, homebase_id);
 
-    if (
-      autoStart &&
-      session?.session_status !== "ready" &&
-      session?.session_status !== "initializing" &&
-      session?.session_status !== "qr_pending" &&
-      session?.session_status !== "authenticated"
-    ) {
+    const shouldStartClient =
+      needsWhatsappClientRecovery(homebase_id, session) ||
+      needsWhatsappClientRestore(homebase_id, session) ||
+      (autoStart && canAutoStartWhatsappClient(homebase_id, session));
+
+    if (shouldStartClient) {
       startWhatsappClientInBackground(homebase_id);
       session = await getWhatsappSession(pool, homebase_id);
     }
@@ -129,7 +134,11 @@ router.post(
       await reconnectWhatsappClient(homebase_id);
       await ensureWhatsappSessionRow(pool, homebase_id);
 
-      const session = await getWhatsappSession(pool, homebase_id);
+      let session = await getWhatsappSession(pool, homebase_id);
+      if (!session?.qr_code && session?.session_status === "initializing") {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        session = await getWhatsappSession(pool, homebase_id);
+      }
 
       return res.json({
         status: "success",
@@ -302,6 +311,221 @@ router.post(
       status: "success",
       message: result.message || "Retry pesan gagal selesai diproses.",
       data: result,
+    });
+  }),
+);
+
+router.delete(
+  "/attendance/whatsapp/batches/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const batchId = Number(req.params.id);
+
+    if (!Number.isFinite(batchId) || batchId <= 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID batch tidak valid.",
+      });
+    }
+
+    const batchResult = await client.query(
+      `SELECT id, batch_status, attendance_date
+       FROM attendance.whatsapp_notification_batch
+       WHERE id = $1
+         AND homebase_id = $2
+       LIMIT 1`,
+      [batchId, homebase_id],
+    );
+
+    const batch = batchResult.rows[0];
+    if (!batch) {
+      return res.status(404).json({
+        status: "error",
+        message: "Batch tidak ditemukan.",
+      });
+    }
+
+    if (batch.batch_status === "running") {
+      return res.status(400).json({
+        status: "error",
+        message: "Batch yang sedang berjalan tidak dapat dihapus.",
+      });
+    }
+
+    const logCountResult = await client.query(
+      `SELECT COUNT(*)::int AS total
+       FROM attendance.whatsapp_notification_log
+       WHERE batch_id = $1
+         AND homebase_id = $2`,
+      [batchId, homebase_id],
+    );
+
+    await client.query(
+      `DELETE FROM attendance.whatsapp_notification_batch
+       WHERE id = $1
+         AND homebase_id = $2`,
+      [batchId, homebase_id],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Riwayat batch dan log pengiriman berhasil dihapus.",
+      data: {
+        batch_id: batchId,
+        deleted_log_count: logCountResult.rows[0]?.total || 0,
+      },
+    });
+  }),
+);
+
+router.delete(
+  "/attendance/whatsapp/batches/:id/logs",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const batchId = Number(req.params.id);
+
+    if (!Number.isFinite(batchId) || batchId <= 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID batch tidak valid.",
+      });
+    }
+
+    const batchResult = await client.query(
+      `SELECT id, batch_status
+       FROM attendance.whatsapp_notification_batch
+       WHERE id = $1
+         AND homebase_id = $2
+       LIMIT 1`,
+      [batchId, homebase_id],
+    );
+
+    if (!batchResult.rows[0]) {
+      return res.status(404).json({
+        status: "error",
+        message: "Batch tidak ditemukan.",
+      });
+    }
+
+    if (batchResult.rows[0].batch_status === "running") {
+      return res.status(400).json({
+        status: "error",
+        message: "Log batch yang sedang berjalan tidak dapat dihapus.",
+      });
+    }
+
+    const deleteResult = await client.query(
+      `DELETE FROM attendance.whatsapp_notification_log
+       WHERE batch_id = $1
+         AND homebase_id = $2
+       RETURNING id`,
+      [batchId, homebase_id],
+    );
+
+    await client.query(
+      `UPDATE attendance.whatsapp_notification_batch
+       SET total_recipients = 0,
+           sent_count = 0,
+           failed_count = 0,
+           skipped_count = 0,
+           updated_at = NOW()
+       WHERE id = $1
+         AND homebase_id = $2`,
+      [batchId, homebase_id],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Log pengiriman batch berhasil dihapus.",
+      data: {
+        batch_id: batchId,
+        deleted_log_count: deleteResult.rowCount,
+      },
+    });
+  }),
+);
+
+router.delete(
+  "/attendance/whatsapp/logs/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const logId = Number(req.params.id);
+
+    if (!Number.isFinite(logId) || logId <= 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID log tidak valid.",
+      });
+    }
+
+    const logResult = await client.query(
+      `SELECT
+         l.id,
+         l.batch_id,
+         l.delivery_status,
+         b.batch_status
+       FROM attendance.whatsapp_notification_log l
+       JOIN attendance.whatsapp_notification_batch b ON b.id = l.batch_id
+       WHERE l.id = $1
+         AND l.homebase_id = $2
+       LIMIT 1`,
+      [logId, homebase_id],
+    );
+
+    const log = logResult.rows[0];
+    if (!log) {
+      return res.status(404).json({
+        status: "error",
+        message: "Log pengiriman tidak ditemukan.",
+      });
+    }
+
+    if (log.batch_status === "running") {
+      return res.status(400).json({
+        status: "error",
+        message: "Log batch yang sedang berjalan tidak dapat dihapus.",
+      });
+    }
+
+    await client.query(
+      `DELETE FROM attendance.whatsapp_notification_log
+       WHERE id = $1
+         AND homebase_id = $2`,
+      [logId, homebase_id],
+    );
+
+    await client.query(
+      `UPDATE attendance.whatsapp_notification_batch b
+       SET total_recipients = stats.total_recipients,
+           sent_count = stats.sent_count,
+           failed_count = stats.failed_count,
+           skipped_count = stats.skipped_count,
+           updated_at = NOW()
+       FROM (
+         SELECT
+           COUNT(*)::int AS total_recipients,
+           COUNT(*) FILTER (WHERE delivery_status = 'sent')::int AS sent_count,
+           COUNT(*) FILTER (WHERE delivery_status = 'failed')::int AS failed_count,
+           COUNT(*) FILTER (WHERE delivery_status = 'skipped')::int AS skipped_count
+         FROM attendance.whatsapp_notification_log
+         WHERE batch_id = $1
+           AND homebase_id = $2
+       ) stats
+       WHERE b.id = $1
+         AND b.homebase_id = $2`,
+      [log.batch_id, homebase_id],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Log pengiriman berhasil dihapus.",
+      data: {
+        log_id: logId,
+        batch_id: Number(log.batch_id),
+      },
     });
   }),
 );

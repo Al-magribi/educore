@@ -44,6 +44,17 @@ const registerWorker = async () => {
   await boss.work(WHATSAPP_NOTIFY_QUEUE, async () => {
     const results = await runWhatsappNotificationJob(pool);
     const activeResults = results.filter((item) => item?.status !== "skipped");
+    const skippedResults = results.filter((item) => item?.status === "skipped");
+
+    if (skippedResults.length > 0) {
+      console.log(
+        `[whatsapp] ${skippedResults.length} batch dilewati:`,
+        skippedResults.map((item) => ({
+          homebase_id: item.homebase_id,
+          reason: item.reason || item.status,
+        })),
+      );
+    }
 
     if (activeResults.length === 0) {
       return results;

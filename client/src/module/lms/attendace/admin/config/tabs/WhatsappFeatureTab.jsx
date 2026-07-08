@@ -21,8 +21,11 @@ import {
   message,
 } from 'antd';
 import { motion } from 'framer-motion';
-import { MessageCircle, Play, RefreshCw, RotateCcw, Save, Send, Smartphone } from 'lucide-react';
+import { MessageCircle, Play, RefreshCw, RotateCcw, Save, Send, Smartphone, Trash2 } from 'lucide-react';
 import {
+  useDeleteWhatsappNotificationBatchLogsMutation,
+  useDeleteWhatsappNotificationBatchMutation,
+  useDeleteWhatsappNotificationLogMutation,
   useGetWhatsappNotificationBatchesQuery,
   useGetWhatsappNotificationConfigQuery,
   useGetWhatsappNotificationLogsQuery,
@@ -79,7 +82,23 @@ const parseSendTime = (value) => {
   return dayjs('08:00', 'HH:mm');
 };
 
-const shouldPollSession = (status) => ['initializing', 'qr_pending', 'authenticated', 'disconnected'].includes(status);
+const formatWhatsappTime = (value) => {
+  if (!value) return '08:00';
+  const text = String(value);
+  return text.length >= 5 ? text.slice(0, 5) : text;
+};
+
+const shouldPollSession = (status, clientReady) => {
+  if (status === 'ready' && !clientReady) return true;
+  return ['initializing', 'qr_pending', 'authenticated'].includes(status);
+};
+
+const getSessionPollInterval = (status, clientReady) => {
+  if (status === 'ready' && !clientReady) return 3000;
+  if (status === 'qr_pending') return 2000;
+  if (shouldPollSession(status, clientReady)) return 5000;
+  return 0;
+};
 
 const WhatsappFeatureTab = () => {
   const screens = useBreakpoint();
@@ -87,8 +106,11 @@ const WhatsappFeatureTab = () => {
   const [configForm] = Form.useForm();
   const [testPhone, setTestPhone] = useState('');
   const [selectedBatchId, setSelectedBatchId] = useState(null);
-  const [autoStartSession, setAutoStartSession] = useState(true);
+  const [shouldAutoStart, setShouldAutoStart] = useState(true);
   const [sessionStatus, setSessionStatus] = useState('disconnected');
+  const [clientReadyForPoll, setClientReadyForPoll] = useState(false);
+  const [qrRefreshKey, setQrRefreshKey] = useState(0);
+  const [hideQrUntilRefresh, setHideQrUntilRefresh] = useState(false);
 
   const { data: configRes, isLoading: loadingConfig } = useGetWhatsappNotificationConfigQuery();
   const [updateConfig, { isLoading: savingConfig }] = useUpdateWhatsappNotificationConfigMutation();
@@ -100,18 +122,35 @@ const WhatsappFeatureTab = () => {
     isFetching: fetchingSession,
     refetch: refetchSession,
   } = useGetWhatsappSessionQuery(
-    { autoStart: autoStartSession },
+    { autoStart: shouldAutoStart },
     {
-      pollingInterval: shouldPollSession(sessionStatus) ? 3000 : 0,
+      pollingInterval: getSessionPollInterval(sessionStatus, clientReadyForPoll),
+      refetchOnMountOrArgChange: true,
     },
   );
 
   const session = sessionRes?.data;
   const activeSessionStatus = session?.session_status || 'disconnected';
+  const isClientReady = session?.client_ready === true;
+  const isClientStarting = session?.client_starting === true;
+  const canSendMessages = isClientReady;
 
   useEffect(() => {
     setSessionStatus(activeSessionStatus);
-  }, [activeSessionStatus]);
+    setClientReadyForPoll(isClientReady);
+  }, [activeSessionStatus, isClientReady]);
+
+  useEffect(() => {
+    if (!session?.qr_code) return;
+    setHideQrUntilRefresh(false);
+    setQrRefreshKey((current) => current + 1);
+  }, [session?.qr_code, session?.qr_generated_at]);
+
+  useEffect(() => {
+    if (shouldAutoStart && sessionRes) {
+      setShouldAutoStart(false);
+    }
+  }, [shouldAutoStart, sessionRes]);
 
   const {
     data: batchesRes,
@@ -129,6 +168,9 @@ const WhatsappFeatureTab = () => {
   const [reconnectSession, { isLoading: reconnecting }] = useReconnectWhatsappSessionMutation();
   const [sendTestMessage, { isLoading: sendingTest }] = useSendWhatsappTestMessageMutation();
   const [retryFailedBatch, { isLoading: retryingBatch }] = useRetryFailedWhatsappBatchMutation();
+  const [deleteBatch, { isLoading: deletingBatch }] = useDeleteWhatsappNotificationBatchMutation();
+  const [deleteBatchLogs, { isLoading: deletingBatchLogs }] = useDeleteWhatsappNotificationBatchLogsMutation();
+  const [deleteLog, { isLoading: deletingLog }] = useDeleteWhatsappNotificationLogMutation();
   const [runNow, { isLoading: runningNow }] = useRunWhatsappNotificationNowMutation();
 
   const batches = batchesRes?.data || [];
@@ -158,7 +200,13 @@ const WhatsappFeatureTab = () => {
   }, [config, configForm, configInitialValues]);
 
   useEffect(() => {
-    if (!selectedBatchId && batches.length > 0) {
+    if (!batches.length) {
+      if (selectedBatchId) setSelectedBatchId(null);
+      return;
+    }
+
+    const selectedExists = batches.some((batch) => Number(batch.id) === Number(selectedBatchId));
+    if (!selectedBatchId || !selectedExists) {
       setSelectedBatchId(Number(batches[0].id));
     }
   }, [batches, selectedBatchId]);
@@ -182,16 +230,21 @@ const WhatsappFeatureTab = () => {
 
   const handleReconnect = async () => {
     try {
-      setAutoStartSession(true);
-      setSessionStatus("initializing");
+      setHideQrUntilRefresh(true);
+      setQrRefreshKey((current) => current + 1);
+      setSessionStatus('initializing');
       const result = await reconnectSession().unwrap();
-      message.info(result?.message || "Sesi WhatsApp direset. Tunggu QR code muncul.");
-      refetchSession();
+      message.info(result?.message || 'Sesi WhatsApp direset. Tunggu QR code muncul.');
+      await refetchSession();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghubungkan ulang sesi WhatsApp.");
+      message.error(error?.data?.message || 'Gagal menghubungkan ulang sesi WhatsApp.');
+      setHideQrUntilRefresh(false);
       refetchSession();
     }
   };
+
+  const showQrCode = Boolean(session?.qr_code) && !hideQrUntilRefresh;
+  const qrCodeKey = `${qrRefreshKey}-${session?.qr_generated_at || session?.qr_code || 'empty'}`;
 
   const handleSendTest = async () => {
     const phone = testPhone.trim();
@@ -238,7 +291,117 @@ const WhatsappFeatureTab = () => {
     }
   };
 
+  const handleDeleteBatch = (batch) => {
+    const batchDate = batch.attendance_date ? dayjs(batch.attendance_date).format('DD MMM YYYY') : '-';
+
+    Modal.confirm({
+      title: 'Hapus riwayat batch ini?',
+      content: `Batch tanggal ${batchDate} beserta semua log pengiriman akan dihapus permanen.`,
+      okText: 'Hapus',
+      okType: 'danger',
+      cancelText: 'Batal',
+      okButtonProps: { loading: deletingBatch },
+      onOk: async () => {
+        try {
+          const result = await deleteBatch(batch.id).unwrap();
+          message.success(result?.message || 'Riwayat batch berhasil dihapus.');
+          if (Number(selectedBatchId) === Number(batch.id)) {
+            setSelectedBatchId(null);
+          }
+          refetchBatches();
+        } catch (error) {
+          message.error(error?.data?.message || 'Gagal menghapus batch.');
+          throw error;
+        }
+      },
+    });
+  };
+
+  const handleDeleteBatchLogs = () => {
+    if (!selectedBatchId) return;
+
+    Modal.confirm({
+      title: 'Hapus semua log batch ini?',
+      content: 'Semua log pengiriman pada batch terpilih akan dihapus permanen. Data batch tetap ada.',
+      okText: 'Hapus Log',
+      okType: 'danger',
+      cancelText: 'Batal',
+      okButtonProps: { loading: deletingBatchLogs },
+      onOk: async () => {
+        try {
+          const result = await deleteBatchLogs(selectedBatchId).unwrap();
+          message.success(result?.message || 'Log pengiriman berhasil dihapus.');
+          refetchBatches();
+        } catch (error) {
+          message.error(error?.data?.message || 'Gagal menghapus log batch.');
+          throw error;
+        }
+      },
+    });
+  };
+
+  const handleDeleteLog = (log) => {
+    Modal.confirm({
+      title: 'Hapus log pengiriman ini?',
+      content: `Log untuk ${log.parent_name || 'orang tua'} (${log.phone}) akan dihapus permanen.`,
+      okText: 'Hapus',
+      okType: 'danger',
+      cancelText: 'Batal',
+      okButtonProps: { loading: deletingLog },
+      onOk: async () => {
+        try {
+          const result = await deleteLog(log.id).unwrap();
+          message.success(result?.message || 'Log pengiriman berhasil dihapus.');
+          refetchBatches();
+        } catch (error) {
+          message.error(error?.data?.message || 'Gagal menghapus log.');
+          throw error;
+        }
+      },
+    });
+  };
+
+  const selectedBatch = batches.find((batch) => Number(batch.id) === Number(selectedBatchId));
+  const canDeleteSelectedBatchLogs =
+    Boolean(selectedBatch) && selectedBatch.batch_status !== 'running' && logs.length > 0;
+
   const sessionMeta = SESSION_STATUS_META[activeSessionStatus] || SESSION_STATUS_META.disconnected;
+
+  const scheduleStatus = useMemo(() => {
+    if (config?.is_default) {
+      return {
+        type: 'warning',
+        message: 'Konfigurasi belum disimpan',
+        description: 'Aktifkan notifikasi lalu klik Simpan agar batch otomatis bisa berjalan.',
+      };
+    }
+
+    if (!config?.is_enabled) {
+      return {
+        type: 'info',
+        message: 'Notifikasi otomatis nonaktif',
+        description: 'Aktifkan dan simpan konfigurasi untuk menjadwalkan pengiriman harian.',
+      };
+    }
+
+    const sendTime = formatWhatsappTime(config?.send_time);
+    const lastRunLabel = config?.last_run_date
+      ? dayjs(config.last_run_date).format('DD MMM YYYY')
+      : null;
+    const ranToday =
+      config?.last_run_date &&
+      dayjs(config.last_run_date).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD');
+
+    return {
+      type: ranToday ? 'success' : 'info',
+      message: `Batch otomatis setiap hari pukul ${sendTime} WIB`,
+      description: ranToday
+        ? `Sudah berjalan hari ini. Riwayat batch akan muncul di bawah.`
+        : lastRunLabel
+          ? `Terakhir berjalan: ${lastRunLabel}. Jika jam kirim sudah lewat, batch akan catch-up dalam 1 menit.`
+          : 'Belum pernah berjalan. Batch dimulai otomatis pada jam kirim, atau segera jika jam kirim sudah lewat.',
+    };
+  }, [config]);
 
   return (
     <Flex vertical gap={16}>
@@ -253,6 +416,13 @@ const WhatsappFeatureTab = () => {
                 Simpan
               </Button>
             }>
+            <Alert
+              type={scheduleStatus.type}
+              showIcon
+              message={scheduleStatus.message}
+              description={scheduleStatus.description}
+              style={{ marginBottom: 16 }}
+            />
             <Form form={configForm} layout="vertical" initialValues={configInitialValues}>
               <Form.Item name="is_enabled" label="Aktifkan Notifikasi WhatsApp" valuePropName="checked">
                 <Switch checkedChildren="Aktif" unCheckedChildren="Nonaktif" />
@@ -328,7 +498,13 @@ const WhatsappFeatureTab = () => {
                   {session?.connected_phone ? `+${session.connected_phone}` : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Client Aktif">
-                  {session?.client_ready ? <Tag color="success">Ya</Tag> : <Tag>Belum</Tag>}
+                  {isClientReady ? (
+                    <Tag color="success">Ya</Tag>
+                  ) : isClientStarting ? (
+                    <Tag color="processing">Memulai</Tag>
+                  ) : (
+                    <Tag>Belum</Tag>
+                  )}
                 </Descriptions.Item>
                 {session?.last_error ? (
                   <Descriptions.Item label="Error Terakhir">
@@ -337,25 +513,45 @@ const WhatsappFeatureTab = () => {
                 ) : null}
               </Descriptions>
 
-              {session?.qr_code ? (
+              {showQrCode ? (
                 <Flex vertical align="center" gap={8}>
                   <Smartphone size={18} color="#16a34a" />
                   <Title level={5} style={{ margin: 0 }}>
                     Scan QR dengan WhatsApp
                   </Title>
-                  <QRCode value={session.qr_code} size={isMobile ? 180 : 220} />
+                  <QRCode key={qrCodeKey} value={session.qr_code} size={isMobile ? 180 : 220} />
                   <Text type="secondary" style={{ textAlign: 'center' }}>
                     Buka WhatsApp di HP → Perangkat Tertaut → Tautkan Perangkat
                   </Text>
+                  {session?.qr_generated_at ? (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      QR diperbarui: {dayjs(session.qr_generated_at).format('HH:mm:ss')}
+                    </Text>
+                  ) : null}
                 </Flex>
-              ) : activeSessionStatus === 'ready' ? (
+              ) : canSendMessages ? (
                 <Alert type="success" showIcon message="WhatsApp siap mengirim pesan." />
+              ) : activeSessionStatus === 'ready' ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Menghidupkan client WhatsApp..."
+                  description="Sesi masih tersimpan. Client sedang dipulihkan otomatis setelah restart server. Tunggu beberapa detik."
+                />
               ) : (
                 <Alert
                   type="warning"
                   showIcon
-                  message="WhatsApp belum terhubung"
-                  description="Klik Hubungkan Ulang untuk memunculkan QR code."
+                  message={
+                    hideQrUntilRefresh || activeSessionStatus === 'initializing'
+                      ? 'Menyiapkan QR code baru...'
+                      : 'WhatsApp belum terhubung'
+                  }
+                  description={
+                    hideQrUntilRefresh || activeSessionStatus === 'initializing'
+                      ? 'Tunggu beberapa detik hingga QR code baru muncul, lalu scan ulang.'
+                      : 'Klik Hubungkan Ulang untuk memunculkan QR code.'
+                  }
                 />
               )}
 
@@ -367,7 +563,7 @@ const WhatsappFeatureTab = () => {
                   type="primary"
                   icon={<Play size={14} />}
                   loading={runningNow}
-                  disabled={activeSessionStatus !== 'ready'}
+                  disabled={!canSendMessages}
                   onClick={handleRunNow}>
                   Kirim Sekarang
                 </Button>
@@ -385,7 +581,7 @@ const WhatsappFeatureTab = () => {
                     type="default"
                     icon={<Send size={14} />}
                     loading={sendingTest}
-                    disabled={activeSessionStatus !== 'ready'}
+                    disabled={!canSendMessages}
                     onClick={handleSendTest}
                     block={isMobile}>
                     Kirim Pesan Uji
@@ -446,21 +642,28 @@ const WhatsappFeatureTab = () => {
               },
               {
                 title: 'Aksi',
-                width: 120,
-                render: (_, row) =>
-                  Number(row.failed_count) > 0 ? (
-                    <Button
-                      size="small"
-                      loading={retryingBatch}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleRetryBatch(row.id);
-                      }}>
-                      Retry
-                    </Button>
-                  ) : (
-                    '-'
-                  ),
+                width: 180,
+                render: (_, row) => {
+                  const isRunning = row.batch_status === 'running';
+
+                  return (
+                    <Space size={4} onClick={(event) => event.stopPropagation()}>
+                      {Number(row.failed_count) > 0 ? (
+                        <Button size="small" loading={retryingBatch} onClick={() => handleRetryBatch(row.id)}>
+                          Retry
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="small"
+                        danger
+                        icon={<Trash2 size={14} />}
+                        loading={deletingBatch}
+                        disabled={isRunning}
+                        onClick={() => handleDeleteBatch(row)}
+                      />
+                    </Space>
+                  );
+                },
               },
             ]}
           />
@@ -469,7 +672,19 @@ const WhatsappFeatureTab = () => {
 
       {selectedBatchId ? (
         <MotionDiv variants={itemVariants} initial="hidden" animate="show">
-          <Card title="Log Pengiriman Batch Terpilih" style={innerCardStyle}>
+          <Card
+            title="Log Pengiriman Batch Terpilih"
+            style={innerCardStyle}
+            extra={
+              <Button
+                danger
+                icon={<Trash2 size={14} />}
+                loading={deletingBatchLogs}
+                disabled={!canDeleteSelectedBatchLogs}
+                onClick={handleDeleteBatchLogs}>
+                Hapus Semua Log
+              </Button>
+            }>
             <Table
               rowKey="id"
               size="small"
@@ -504,6 +719,21 @@ const WhatsappFeatureTab = () => {
                   dataIndex: 'error_message',
                   ellipsis: true,
                   render: (value) => value || '-',
+                },
+                {
+                  title: 'Aksi',
+                  width: 72,
+                  render: (_, row) => (
+                    <Button
+                      type="text"
+                      danger
+                      size="small"
+                      icon={<Trash2 size={14} />}
+                      loading={deletingLog}
+                      disabled={selectedBatch?.batch_status === 'running'}
+                      onClick={() => handleDeleteLog(row)}
+                    />
+                  ),
                 },
               ]}
             />
