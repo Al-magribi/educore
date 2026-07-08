@@ -183,11 +183,13 @@ const WhatsappFeatureTab = () => {
   const handleReconnect = async () => {
     try {
       setAutoStartSession(true);
-      await reconnectSession().unwrap();
-      message.info('Sesi WhatsApp dihubungkan ulang. Scan QR jika diminta.');
+      setSessionStatus("initializing");
+      const result = await reconnectSession().unwrap();
+      message.info(result?.message || "Sesi WhatsApp direset. Tunggu QR code muncul.");
       refetchSession();
     } catch (error) {
-      message.error(error?.data?.message || 'Gagal menghubungkan ulang sesi WhatsApp.');
+      message.error(error?.data?.message || "Gagal menghubungkan ulang sesi WhatsApp.");
+      refetchSession();
     }
   };
 

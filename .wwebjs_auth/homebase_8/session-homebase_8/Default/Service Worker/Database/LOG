@@ -1,3 +1,2 @@
-2026/07/08-05:48:37.041 30dc Reusing MANIFEST D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Service Worker\Database/MANIFEST-000001
-2026/07/08-05:48:37.053 30dc Recovering log #3
-2026/07/08-05:48:37.054 30dc Reusing old log D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Service Worker\Database/000003.log 
+2026/07/08-11:49:49.909 3d5c Creating DB D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Service Worker\Database since it was missing.
+2026/07/08-11:49:49.928 3d5c Reusing MANIFEST D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Service Worker\Database/MANIFEST-000001

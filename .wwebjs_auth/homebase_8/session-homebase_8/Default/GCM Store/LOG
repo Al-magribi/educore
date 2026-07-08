@@ -1,3 +1,2 @@
-2026/07/08-05:48:42.993 33cc Reusing MANIFEST D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\GCM Store/MANIFEST-000001
-2026/07/08-05:48:42.997 33cc Recovering log #3
-2026/07/08-05:48:43.021 33cc Reusing old log D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\GCM Store/000003.log 
+2026/07/08-11:49:56.776 2b9c Creating DB D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\GCM Store since it was missing.
+2026/07/08-11:49:56.794 2b9c Reusing MANIFEST D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\GCM Store/MANIFEST-000001

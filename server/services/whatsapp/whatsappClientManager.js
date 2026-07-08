@@ -3,6 +3,7 @@ import fs from "fs";
 import whatsappWeb from "whatsapp-web.js";
 import pool from "../../config/connection.js";
 import { toWhatsAppChatId } from "./phoneUtils.js";
+import { sleep } from "./sendQueue.js";
 import { updateWhatsappSession } from "./whatsappSessionStore.js";
 
 const { Client, LocalAuth } = whatsappWeb;
@@ -13,13 +14,77 @@ const AUTH_BASE_PATH =
 
 const clientRegistry = new Map();
 
+const PUPPETEER_OPTIONS = {
+  headless: true,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-zygote",
+  ],
+};
+
 const buildAuthPath = (homebaseId) =>
   path.join(AUTH_BASE_PATH, `homebase_${homebaseId}`);
+
+const buildSessionDirName = (homebaseId) => `session-homebase_${Number(homebaseId)}`;
+
+const getAuthPathsToClear = (homebaseId) => {
+  const normalizedHomebaseId = Number(homebaseId);
+  const homebaseAuthPath = buildAuthPath(normalizedHomebaseId);
+  const sessionDirName = buildSessionDirName(normalizedHomebaseId);
+
+  return [
+    path.join(homebaseAuthPath, sessionDirName),
+    homebaseAuthPath,
+    path.join(AUTH_BASE_PATH, sessionDirName),
+  ];
+};
+
+const removePathWithRetry = async (targetPath, maxAttempts = 6) => {
+  if (!targetPath || !fs.existsSync(targetPath)) return true;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await fs.promises.rm(targetPath, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 300,
+      });
+      return true;
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        console.error(`[whatsapp] gagal hapus folder auth: ${targetPath}`, error);
+        return false;
+      }
+      await sleep(400 * attempt);
+    }
+  }
+
+  return false;
+};
 
 const ensureAuthDirectory = (homebaseId) => {
   const authPath = buildAuthPath(homebaseId);
   fs.mkdirSync(authPath, { recursive: true });
   return authPath;
+};
+
+const clearAuthDirectory = async (homebaseId) => {
+  const paths = getAuthPathsToClear(homebaseId);
+  let cleared = 0;
+
+  for (const authPath of paths) {
+    const removed = await removePathWithRetry(authPath);
+    if (removed) cleared += 1;
+  }
+
+  console.log(
+    `[whatsapp] auth folder dibersihkan homebase=${homebaseId} (${cleared}/${paths.length} path)`,
+  );
 };
 
 const resolveMessageId = (message) => {
@@ -39,6 +104,13 @@ const persistSession = async (homebaseId, fields) => {
   }
 };
 
+const rejectPendingReady = (entry, reason = "Session di-reset") => {
+  if (!entry?.readyReject) return;
+  entry.readyReject(new Error(reason));
+  entry.readyResolve = null;
+  entry.readyReject = null;
+};
+
 const attachClientEvents = (homebaseId, client, entry) => {
   client.on("qr", async (qr) => {
     entry.isReady = false;
@@ -46,6 +118,7 @@ const attachClientEvents = (homebaseId, client, entry) => {
       session_status: "qr_pending",
       qr_code: qr,
       qr_generated_at: new Date(),
+      connected_phone: null,
       last_error: null,
     });
   });
@@ -88,25 +161,55 @@ const attachClientEvents = (homebaseId, client, entry) => {
     entry.isReady = false;
     await persistSession(homebaseId, {
       session_status: "auth_failure",
+      connected_phone: null,
+      qr_code: null,
       last_error: String(message || "auth_failure"),
       last_disconnected_at: new Date(),
     });
 
-    if (entry.readyReject) {
-      entry.readyReject(new Error(String(message || "auth_failure")));
-      entry.readyResolve = null;
-      entry.readyReject = null;
-    }
+    rejectPendingReady(entry, String(message || "auth_failure"));
   });
 
   client.on("disconnected", async (reason) => {
     entry.isReady = false;
+    entry.client = null;
+    clientRegistry.delete(Number(homebaseId));
+
     await persistSession(homebaseId, {
       session_status: "disconnected",
+      connected_phone: null,
+      qr_code: null,
       last_error: String(reason || "disconnected"),
       last_disconnected_at: new Date(),
     });
+
+    rejectPendingReady(entry, String(reason || "disconnected"));
   });
+};
+
+const createClientEntry = (homebaseId) => {
+  const entry = {
+    client: null,
+    isReady: false,
+    initPromise: null,
+    readyResolve: null,
+    readyReject: null,
+  };
+
+  const authPath = ensureAuthDirectory(homebaseId);
+  const client = new Client({
+    authStrategy: new LocalAuth({
+      clientId: `homebase_${homebaseId}`,
+      dataPath: authPath,
+    }),
+    puppeteer: PUPPETEER_OPTIONS,
+  });
+
+  entry.client = client;
+  attachClientEvents(homebaseId, client, entry);
+  clientRegistry.set(Number(homebaseId), entry);
+
+  return entry;
 };
 
 const waitForClientReady = (entry) =>
@@ -134,7 +237,52 @@ export const isWhatsappClientReady = (homebaseId) => {
   return entry?.isReady === true;
 };
 
-export const initializeWhatsappClient = async (homebaseId) => {
+export const resetWhatsappClient = async (homebaseId) => {
+  const normalizedHomebaseId = Number(homebaseId);
+  const entry = clientRegistry.get(normalizedHomebaseId);
+
+  if (entry?.initPromise) {
+    try {
+      await entry.initPromise;
+    } catch {
+      // Init gagal — lanjut reset.
+    }
+  }
+
+  rejectPendingReady(entry, "Session di-reset");
+
+  if (entry?.client) {
+    try {
+      await entry.client.logout().catch(() => {});
+    } catch {
+      // logout bisa gagal jika sesi sudah putus.
+    }
+
+    try {
+      await entry.client.destroy();
+    } catch (error) {
+      console.error(
+        `[whatsapp] gagal destroy client homebase=${normalizedHomebaseId}`,
+        error,
+      );
+    }
+  }
+
+  clientRegistry.delete(normalizedHomebaseId);
+  await sleep(800);
+  await clearAuthDirectory(normalizedHomebaseId);
+
+  await persistSession(normalizedHomebaseId, {
+    session_status: "disconnected",
+    connected_phone: null,
+    qr_code: null,
+    qr_generated_at: null,
+    last_error: null,
+    last_disconnected_at: new Date(),
+  });
+};
+
+export const startWhatsappClient = async (homebaseId) => {
   const normalizedHomebaseId = Number(homebaseId);
   const existing = clientRegistry.get(normalizedHomebaseId);
 
@@ -142,49 +290,43 @@ export const initializeWhatsappClient = async (homebaseId) => {
     return existing.initPromise;
   }
 
-  if (existing?.isReady) {
+  if (existing?.isReady && existing.client) {
     return existing.client;
   }
 
-  const entry = existing || {
-    client: null,
-    isReady: false,
-    initPromise: null,
-    readyResolve: null,
-    readyReject: null,
-  };
+  if (existing?.client) {
+    clientRegistry.delete(normalizedHomebaseId);
+  }
+
+  const entry = createClientEntry(normalizedHomebaseId);
 
   entry.initPromise = (async () => {
     await persistSession(normalizedHomebaseId, {
       session_status: "initializing",
+      connected_phone: null,
+      qr_code: null,
+      qr_generated_at: null,
       last_error: null,
     });
 
-    if (!entry.client) {
-      const authPath = ensureAuthDirectory(normalizedHomebaseId);
-      const client = new Client({
-        authStrategy: new LocalAuth({
-          clientId: `homebase_${normalizedHomebaseId}`,
-          dataPath: authPath,
-        }),
-        puppeteer: {
-          headless: true,
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        },
+    try {
+      await entry.client.initialize();
+      return entry.client;
+    } catch (error) {
+      clientRegistry.delete(normalizedHomebaseId);
+      entry.client = null;
+      entry.isReady = false;
+
+      await persistSession(normalizedHomebaseId, {
+        session_status: "disconnected",
+        connected_phone: null,
+        qr_code: null,
+        last_error: String(error?.message || error),
+        last_disconnected_at: new Date(),
       });
 
-      entry.client = client;
-      attachClientEvents(normalizedHomebaseId, client, entry);
-      clientRegistry.set(normalizedHomebaseId, entry);
-
-      await client.initialize();
+      throw error;
     }
-
-    if (!entry.isReady) {
-      await waitForClientReady(entry);
-    }
-
-    return entry.client;
   })();
 
   try {
@@ -192,6 +334,17 @@ export const initializeWhatsappClient = async (homebaseId) => {
   } finally {
     entry.initPromise = null;
   }
+};
+
+export const initializeWhatsappClient = async (homebaseId) => {
+  const entry = await startWhatsappClient(homebaseId);
+  const registryEntry = clientRegistry.get(Number(homebaseId));
+
+  if (!registryEntry?.isReady) {
+    await waitForClientReady(registryEntry);
+  }
+
+  return entry;
 };
 
 export const ensureWhatsappClientReady = async (homebaseId) => {
@@ -221,22 +374,11 @@ export const sendWhatsappMessage = async ({ homebaseId, phone, message }) => {
 };
 
 export const destroyWhatsappClient = async (homebaseId) => {
-  const normalizedHomebaseId = Number(homebaseId);
-  const entry = clientRegistry.get(normalizedHomebaseId);
-  if (!entry?.client) return;
+  await resetWhatsappClient(homebaseId);
+};
 
-  try {
-    await entry.client.destroy();
-  } catch (error) {
-    console.error(
-      `[whatsapp] gagal destroy client homebase=${normalizedHomebaseId}`,
-      error,
-    );
-  }
-
-  clientRegistry.delete(normalizedHomebaseId);
-  await persistSession(normalizedHomebaseId, {
-    session_status: "disconnected",
-    last_disconnected_at: new Date(),
-  });
+export const reconnectWhatsappClient = async (homebaseId) => {
+  await resetWhatsappClient(homebaseId);
+  await sleep(1500);
+  return startWhatsappClient(homebaseId);
 };

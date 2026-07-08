@@ -3,10 +3,10 @@ import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { toJakartaDateString } from "../../services/attendance/rfidDailyAttendance.js";
 import {
-  destroyWhatsappClient,
-  initializeWhatsappClient,
   isWhatsappClientReady,
+  reconnectWhatsappClient,
   sendWhatsappMessage,
+  startWhatsappClient,
 } from "../../services/whatsapp/whatsappClientManager.js";
 import { isValidPhone } from "../../services/whatsapp/phoneUtils.js";
 import {
@@ -41,7 +41,7 @@ const mapSessionResponse = (row, homebaseId) => ({
 });
 
 const startWhatsappClientInBackground = (homebaseId) => {
-  initializeWhatsappClient(homebaseId).catch((error) => {
+  startWhatsappClient(homebaseId).catch((error) => {
     console.error(`[whatsapp] background init gagal homebase=${homebaseId}`, error);
   });
 };
@@ -125,17 +125,23 @@ router.post(
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
 
-    await destroyWhatsappClient(homebase_id);
-    await ensureWhatsappSessionRow(pool, homebase_id);
-    startWhatsappClientInBackground(homebase_id);
+    try {
+      await reconnectWhatsappClient(homebase_id);
+      await ensureWhatsappSessionRow(pool, homebase_id);
 
-    const session = await getWhatsappSession(pool, homebase_id);
+      const session = await getWhatsappSession(pool, homebase_id);
 
-    return res.json({
-      status: "success",
-      message: "Sesi WhatsApp sedang dihubungkan ulang. Scan QR jika diminta.",
-      data: mapSessionResponse(session, homebase_id),
-    });
+      return res.json({
+        status: "success",
+        message: "Sesi WhatsApp direset. Scan QR baru jika diminta.",
+        data: mapSessionResponse(session, homebase_id),
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: "error",
+        message: String(error?.message || "Gagal menghubungkan ulang sesi WhatsApp."),
+      });
+    }
   }),
 );
 

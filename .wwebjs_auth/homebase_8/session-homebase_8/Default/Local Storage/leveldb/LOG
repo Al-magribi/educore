@@ -1,3 +1,2 @@
-2026/07/08-05:48:37.189 2e50 Reusing MANIFEST D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Local Storage\leveldb/MANIFEST-000001
-2026/07/08-05:48:37.203 2e50 Recovering log #3
-2026/07/08-05:48:37.208 2e50 Reusing old log D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Local Storage\leveldb/000003.log 
+2026/07/08-11:49:47.245 28d4 Creating DB D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Local Storage\leveldb since it was missing.
+2026/07/08-11:49:47.300 28d4 Reusing MANIFEST D:\projects\educore\lms\.wwebjs_auth\homebase_8\session-homebase_8\Default\Local Storage\leveldb/MANIFEST-000001
