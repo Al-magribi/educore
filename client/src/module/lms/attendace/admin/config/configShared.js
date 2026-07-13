@@ -25,6 +25,11 @@ export const FEATURE_META = {
     title: "Absensi Sesi Kelas Guru",
     description: "Aktifkan pelacakan kepatuhan guru per sesi kelas.",
   },
+  activity_attendance: {
+    title: "Absensi Kegiatan Ekstra",
+    description:
+      "Aktifkan absensi kegiatan ekstrakurikuler dari device khusus (policy per user/hari/jam).",
+  },
 };
 
 export const POLICY_TYPE_OPTIONS = [
@@ -39,6 +44,17 @@ export const POLICY_TYPE_OPTIONS = [
     value: "teacher_fixed_daily",
     role: "teacher",
   },
+  {
+    label: "Kegiatan Ekstra - Fixed",
+    value: "activity_fixed",
+    role: "all",
+  },
+];
+
+export const POLICY_TARGET_ROLE_OPTIONS = [
+  { label: "Siswa", value: "student" },
+  { label: "Guru", value: "teacher" },
+  { label: "Guru & Siswa", value: "all" },
 ];
 
 export const containerVariants = {

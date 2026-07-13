@@ -24,6 +24,7 @@ import {
 } from "../../../../../../service/lms/ApiAttendance";
 import {
   DAY_OPTIONS,
+  POLICY_TARGET_ROLE_OPTIONS,
   POLICY_TYPE_OPTIONS,
   innerCardStyle,
   itemVariants,
@@ -112,7 +113,7 @@ const PolicySettingsTab = ({
           };
         }
 
-        if (values.policy_type === "student_fixed") {
+        if (values.policy_type === "student_fixed" || values.policy_type === "activity_fixed") {
           return {
             ...baseRule,
             min_presence_minutes: null,
@@ -212,8 +213,16 @@ const PolicySettingsTab = ({
                 dataIndex: "target_role",
                 width: 120,
                 render: (value) => (
-                  <Tag color={value === "teacher" ? "blue" : "green"}>
-                    {value}
+                  <Tag
+                    color={
+                      value === "teacher"
+                        ? "blue"
+                        : value === "all"
+                          ? "purple"
+                          : "green"
+                    }
+                  >
+                    {value === "all" ? "guru & siswa" : value}
                   </Tag>
                 ),
               },
@@ -297,10 +306,11 @@ const PolicySettingsTab = ({
               rules={[{ required: true, message: "Target role wajib diisi." }]}
             >
               <Select
-                options={[
-                  { label: "Siswa", value: "student" },
-                  { label: "Guru", value: "teacher" },
-                ]}
+                options={
+                  selectedPolicyType === "activity_fixed"
+                    ? POLICY_TARGET_ROLE_OPTIONS
+                    : POLICY_TARGET_ROLE_OPTIONS.filter((item) => item.value !== "all")
+                }
               />
             </Form.Item>
             <Form.Item
@@ -309,7 +319,15 @@ const PolicySettingsTab = ({
               label='Tipe Policy'
               rules={[{ required: true, message: "Tipe policy wajib diisi." }]}
             >
-              <Select options={POLICY_TYPE_OPTIONS} />
+              <Select
+                options={POLICY_TYPE_OPTIONS}
+                onChange={(value) => {
+                  const matched = POLICY_TYPE_OPTIONS.find((item) => item.value === value);
+                  if (matched?.role) {
+                    policyForm.setFieldValue("target_role", matched.role);
+                  }
+                }}
+              />
             </Form.Item>
             <Form.Item name='is_active' label='Status' valuePropName='checked'>
               <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />

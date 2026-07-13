@@ -16,6 +16,10 @@ import {
 } from "../../services/attendance/rfidDailyAttendance.js";
 import { applyRfidScanToTeacherSession } from "../../services/attendance/rfidTeacherSession.js";
 import {
+  ACTIVITY_GATE_ACTION,
+  applyRfidScanToActivityAttendance,
+} from "../../services/attendance/rfidActivityAttendance.js";
+import {
   deleteDailyAttendanceCascade,
   deleteDailyAttendanceCascadeBulk,
   deleteScanLogsCascade,
@@ -62,15 +66,17 @@ const ATTENDANCE_FEATURE_CODES = [
   "teacher_class_session_attendance",
   "student_daily_attendance",
   "student_checkout_logging",
+  "activity_attendance",
 ];
 
-const POLICY_TARGET_ROLES = new Set(["student", "teacher"]);
+const POLICY_TARGET_ROLES = new Set(["student", "teacher", "all"]);
 const POLICY_TYPES = new Set([
   "student_fixed",
   "teacher_schedule_based",
   "teacher_fixed_daily",
+  "activity_fixed",
 ]);
-const DEVICE_TYPES = new Set(["gate", "classroom"]);
+const DEVICE_TYPES = new Set(["gate", "classroom", "extracurricular"]);
 const ASSIGNMENT_SCOPES = new Set(["user", "class", "grade", "homebase"]);
 const JAKARTA_TZ = "Asia/Jakarta";
 
@@ -353,24 +359,99 @@ const getRfidDevices = async (pool, homebaseId) => {
        d.name,
        d.device_type,
        d.class_id,
-       c.name AS class_name,
+       d.policy_id,
+       p.name AS policy_name,
+       p.code AS policy_code,
+       p.policy_type,
+       COALESCE(
+         (
+           SELECT ARRAY_AGG(dc.class_id ORDER BY c2.name ASC, dc.class_id ASC)
+           FROM attendance.rfid_device_class dc
+           JOIN a_class c2 ON c2.id = dc.class_id
+           WHERE dc.device_id = d.id
+         ),
+         CASE WHEN d.class_id IS NOT NULL THEN ARRAY[d.class_id] ELSE ARRAY[]::int[] END
+       ) AS class_ids,
+       COALESCE(
+         (
+           SELECT STRING_AGG(c2.name, ', ' ORDER BY c2.name ASC, dc.class_id ASC)
+           FROM attendance.rfid_device_class dc
+           JOIN a_class c2 ON c2.id = dc.class_id
+           WHERE dc.device_id = d.id
+         ),
+         c.name
+       ) AS class_name,
+       COALESCE(
+         (
+           SELECT JSON_AGG(
+             JSON_BUILD_OBJECT('id', c2.id, 'name', c2.name)
+             ORDER BY c2.name ASC, dc.class_id ASC
+           )
+           FROM attendance.rfid_device_class dc
+           JOIN a_class c2 ON c2.id = dc.class_id
+           WHERE dc.device_id = d.id
+         ),
+         CASE
+           WHEN d.class_id IS NOT NULL AND c.name IS NOT NULL
+             THEN JSON_BUILD_ARRAY(JSON_BUILD_OBJECT('id', d.class_id, 'name', c.name))
+           ELSE '[]'::json
+         END
+       ) AS classes,
        d.location_group,
        d.location_detail,
        d.ip_address,
        d.mac_address,
        d.firmware_version,
+       d.api_token,
        d.is_active,
        d.last_seen_at,
        d.installed_at,
        d.updated_at
      FROM attendance.rfid_device d
      LEFT JOIN a_class c ON c.id = d.class_id
+     LEFT JOIN attendance.attendance_policy p ON p.id = d.policy_id
      WHERE d.homebase_id = $1
      ORDER BY d.device_type ASC, d.name ASC`,
     [homebaseId],
   );
 
-  return result.rows;
+  return result.rows.map((row) => ({
+    ...row,
+    class_ids: Array.isArray(row.class_ids)
+      ? row.class_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+      : [],
+    classes: Array.isArray(row.classes) ? row.classes : [],
+  }));
+};
+
+const syncRfidDeviceClasses = async (client, deviceId, classIds = []) => {
+  await client.query(
+    `DELETE FROM attendance.rfid_device_class
+     WHERE device_id = $1`,
+    [deviceId],
+  );
+
+  if (!classIds.length) return;
+
+  await client.query(
+    `INSERT INTO attendance.rfid_device_class (device_id, class_id)
+     SELECT $1, UNNEST($2::int[])
+     ON CONFLICT (device_id, class_id) DO NOTHING`,
+    [deviceId, classIds],
+  );
+};
+
+const getDeviceClassIds = async (client, deviceId) => {
+  const result = await client.query(
+    `SELECT class_id
+     FROM attendance.rfid_device_class
+     WHERE device_id = $1
+     ORDER BY class_id ASC`,
+    [deviceId],
+  );
+  return result.rows
+    .map((row) => Number(row.class_id))
+    .filter((id) => Number.isFinite(id) && id > 0);
 };
 
 const getPolicyAssignments = async (pool, homebaseId, filters = {}) => {
@@ -412,11 +493,109 @@ const getPolicyAssignments = async (pool, homebaseId, filters = {}) => {
      LEFT JOIN a_class c ON c.id = a.class_id
      LEFT JOIN a_grade g ON g.id = a.grade_id
      WHERE ${where.join(" AND ")}
-     ORDER BY a.assignment_scope ASC, p.target_role ASC, p.name ASC, a.id DESC`,
+     ORDER BY p.name ASC, a.assignment_scope ASC, a.id DESC`,
     params,
   );
 
   return result.rows;
+};
+
+const groupPolicyAssignments = (rows = []) => {
+  const groups = new Map();
+
+  for (const row of rows) {
+    const key = [
+      Number(row.policy_id),
+      String(row.assignment_scope || ""),
+      row.effective_start_date || "",
+      row.effective_end_date || "",
+      row.is_active === true ? "1" : "0",
+    ].join("|");
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        group_key: key,
+        id: Number(row.id),
+        ids: [],
+        policy_id: Number(row.policy_id),
+        policy_name: row.policy_name,
+        policy_code: row.policy_code,
+        target_role: row.target_role,
+        policy_type: row.policy_type,
+        assignment_scope: row.assignment_scope,
+        effective_start_date: row.effective_start_date,
+        effective_end_date: row.effective_end_date,
+        is_active: row.is_active === true,
+        updated_at: row.updated_at,
+        user_ids: [],
+        class_ids: [],
+        grade_ids: [],
+        targets: [],
+      });
+    }
+
+    const group = groups.get(key);
+    group.ids.push(Number(row.id));
+    // Keep latest updated_at / representative id as first id for compatibility.
+    if (row.updated_at && (!group.updated_at || row.updated_at > group.updated_at)) {
+      group.updated_at = row.updated_at;
+      group.id = Number(row.id);
+    }
+
+    if (row.assignment_scope === "user" && row.user_id) {
+      const userId = Number(row.user_id);
+      if (!group.user_ids.includes(userId)) {
+        group.user_ids.push(userId);
+        group.targets.push({
+          id: userId,
+          name: row.user_name || `User #${userId}`,
+          type: "user",
+        });
+      }
+    } else if (row.assignment_scope === "class" && row.class_id) {
+      const classId = Number(row.class_id);
+      if (!group.class_ids.includes(classId)) {
+        group.class_ids.push(classId);
+        group.targets.push({
+          id: classId,
+          name: row.class_name || `Kelas #${classId}`,
+          type: "class",
+        });
+      }
+    } else if (row.assignment_scope === "grade" && row.grade_id) {
+      const gradeId = Number(row.grade_id);
+      if (!group.grade_ids.includes(gradeId)) {
+        group.grade_ids.push(gradeId);
+        group.targets.push({
+          id: gradeId,
+          name: row.grade_name || `Grade #${gradeId}`,
+          type: "grade",
+        });
+      }
+    } else if (row.assignment_scope === "homebase") {
+      if (group.targets.length === 0) {
+        group.targets.push({
+          id: null,
+          name: "Semua Homebase",
+          type: "homebase",
+        });
+      }
+    }
+  }
+
+  return [...groups.values()].map((group) => ({
+    ...group,
+    target_label:
+      group.assignment_scope === "homebase"
+        ? "Semua Homebase"
+        : group.targets.map((item) => item.name).join(", ") || "-",
+    target_count: group.targets.length,
+  }));
+};
+
+const getGroupedPolicyAssignments = async (pool, homebaseId, filters = {}) => {
+  const rows = await getPolicyAssignments(pool, homebaseId, filters);
+  return groupPolicyAssignments(rows);
 };
 
 const getAssignmentBootstrapData = async (pool, homebaseId) => {
@@ -1080,16 +1259,36 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
   const code = String(payload.code || "").trim();
   const name = String(payload.name || "").trim();
   const deviceType = String(payload.device_type || "").trim();
-  const classId = normalizeNumberOrNull(payload.class_id);
+  const classIdsFromPayload = Array.isArray(payload.class_ids)
+    ? payload.class_ids
+        .map((value) => normalizeNumberOrNull(value))
+        .filter((value) => value !== null)
+    : [];
+  const singleClassId = normalizeNumberOrNull(payload.class_id);
+  const classIds =
+    deviceType === "classroom"
+      ? [
+          ...new Set(
+            classIdsFromPayload.length
+              ? classIdsFromPayload
+              : singleClassId
+                ? [singleClassId]
+                : [],
+          ),
+        ]
+      : [];
+  const primaryClassId = classIds[0] || null;
+  const policyId =
+    deviceType === "extracurricular"
+      ? normalizeNumberOrNull(payload.policy_id)
+      : null;
   const isActive = payload.is_active !== false;
   const locationGroup = String(payload.location_group || "").trim() || null;
   const locationDetail = String(payload.location_detail || "").trim() || null;
   const ipAddress = String(payload.ip_address || "").trim() || null;
   const macAddress = String(payload.mac_address || "").trim() || null;
   const firmwareVersion = String(payload.firmware_version || "").trim() || null;
-  const apiToken =
-    String(payload.api_token || "").trim() ||
-    `rfid_${randomBytes(16).toString("hex")}`;
+  const providedApiToken = String(payload.api_token || "").trim();
 
   if (!code || !name || !deviceType) {
     return res.status(400).json({
@@ -1100,41 +1299,80 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
   if (!DEVICE_TYPES.has(deviceType)) {
     return res.status(400).json({
       status: "error",
-      message: "device_type harus gate atau classroom.",
+      message: "device_type harus gate, classroom, atau extracurricular.",
     });
   }
-  if (deviceType === "classroom" && !classId) {
+  if (deviceType === "classroom" && classIds.length === 0) {
     return res.status(400).json({
       status: "error",
-      message: "class_id wajib untuk device_type classroom.",
+      message: "Minimal satu kelas wajib dipilih untuk device classroom.",
     });
   }
-  if (deviceType === "gate" && classId) {
+  if (deviceType === "extracurricular" && !policyId) {
     return res.status(400).json({
       status: "error",
-      message: "class_id harus kosong untuk device_type gate.",
+      message: "policy_id wajib untuk device extracurricular.",
+    });
+  }
+  if (
+    (deviceType === "gate" || deviceType === "extracurricular") &&
+    classIds.length > 0
+  ) {
+    return res.status(400).json({
+      status: "error",
+      message: "Kelas hanya untuk device classroom.",
+    });
+  }
+  if ((deviceType === "gate" || deviceType === "classroom") && policyId) {
+    return res.status(400).json({
+      status: "error",
+      message: "Policy hanya untuk device extracurricular.",
     });
   }
 
-  if (classId) {
+  if (classIds.length > 0) {
     const classResult = await client.query(
       `SELECT id
        FROM a_class
-       WHERE id = $1 AND homebase_id = $2
-       LIMIT 1`,
-      [classId, homebase_id],
+       WHERE homebase_id = $1
+         AND id = ANY($2::int[])`,
+      [homebase_id, classIds],
     );
-    if (classResult.rowCount === 0) {
+    if (classResult.rowCount !== classIds.length) {
       return res.status(400).json({
         status: "error",
-        message: "class_id tidak valid untuk homebase ini.",
+        message: "Satu atau lebih class_id tidak valid untuk homebase ini.",
       });
     }
   }
 
+  if (policyId) {
+    const policyResult = await client.query(
+      `SELECT id, policy_type, is_active
+       FROM attendance.attendance_policy
+       WHERE id = $1 AND homebase_id = $2
+       LIMIT 1`,
+      [policyId, homebase_id],
+    );
+    if (policyResult.rowCount === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "policy_id tidak valid untuk homebase ini.",
+      });
+    }
+    if (policyResult.rows[0].policy_type !== "activity_fixed") {
+      return res.status(400).json({
+        status: "error",
+        message: "Device ekstra harus memakai policy bertipe activity_fixed.",
+      });
+    }
+  }
+
+  let savedDeviceId = editingDeviceId;
+
   if (editingDeviceId) {
     const existing = await client.query(
-      `SELECT id
+      `SELECT id, api_token
        FROM attendance.rfid_device
        WHERE id = $1 AND homebase_id = $2
        LIMIT 1`,
@@ -1144,24 +1382,28 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
       return res.status(404).json({ status: "error", message: "Device tidak ditemukan." });
     }
 
+    const apiToken = providedApiToken || existing.rows[0].api_token;
+
     await client.query(
       `UPDATE attendance.rfid_device
        SET
          class_id = $1,
-         code = $2,
-         name = $3,
-         device_type = $4,
-         location_group = $5,
-         location_detail = $6,
-         ip_address = $7,
-         mac_address = $8,
-         api_token = $9,
-         firmware_version = $10,
-         is_active = $11,
+         policy_id = $2,
+         code = $3,
+         name = $4,
+         device_type = $5,
+         location_group = $6,
+         location_detail = $7,
+         ip_address = $8,
+         mac_address = $9,
+         api_token = $10,
+         firmware_version = $11,
+         is_active = $12,
          updated_at = NOW()
-       WHERE id = $12`,
+       WHERE id = $13`,
       [
-        classId,
+        primaryClassId,
+        policyId,
         code,
         name,
         deviceType,
@@ -1176,10 +1418,14 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
       ],
     );
   } else {
-    await client.query(
+    const apiToken =
+      providedApiToken || `rfid_${randomBytes(16).toString("hex")}`;
+
+    const inserted = await client.query(
       `INSERT INTO attendance.rfid_device (
          homebase_id,
          class_id,
+         policy_id,
          code,
          name,
          device_type,
@@ -1194,11 +1440,13 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
          updated_at
        )
        VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW()
-       )`,
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW()
+       )
+       RETURNING id`,
       [
         homebase_id,
-        classId,
+        primaryClassId,
+        policyId,
         code,
         name,
         deviceType,
@@ -1212,7 +1460,10 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
         userId,
       ],
     );
+    savedDeviceId = inserted.rows[0].id;
   }
+
+  await syncRfidDeviceClasses(client, savedDeviceId, classIds);
 
   const devices = await getRfidDevices(client, homebase_id);
   return res.json({
@@ -1234,6 +1485,53 @@ router.put(
   withTransaction(async (req, res, client) =>
     upsertDeviceHandler(req, res, client, Number(req.params.id || 0) || null),
   ),
+);
+
+router.post(
+  "/attendance/config/devices/:id/rotate-token",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const deviceId = Number(req.params.id || 0) || null;
+    if (!deviceId) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID device tidak valid.",
+      });
+    }
+
+    const existing = await client.query(
+      `SELECT id, name
+       FROM attendance.rfid_device
+       WHERE id = $1 AND homebase_id = $2
+       LIMIT 1`,
+      [deviceId, homebase_id],
+    );
+    if (existing.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Device tidak ditemukan.",
+      });
+    }
+
+    const apiToken = `rfid_${randomBytes(16).toString("hex")}`;
+    await client.query(
+      `UPDATE attendance.rfid_device
+       SET api_token = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [apiToken, deviceId],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Token device berhasil dirotasi.",
+      data: {
+        id: deviceId,
+        name: existing.rows[0].name,
+        api_token: apiToken,
+      },
+    });
+  }),
 );
 
 router.post(
@@ -1278,7 +1576,7 @@ router.get(
     const { homebase_id } = req.user;
     const [options, assignments] = await Promise.all([
       getAssignmentBootstrapData(pool, homebase_id),
-      getPolicyAssignments(pool, homebase_id),
+      getGroupedPolicyAssignments(pool, homebase_id),
     ]);
 
     return res.json({
@@ -1311,7 +1609,7 @@ router.get(
         .json({ status: "error", message: "assignment_scope tidak valid." });
     }
 
-    const rows = await getPolicyAssignments(pool, homebase_id, {
+    const rows = await getGroupedPolicyAssignments(pool, homebase_id, {
       targetRole,
       assignmentScope,
     });
@@ -1333,25 +1631,46 @@ const upsertAssignmentHandler = async (
   const payload = req.body || {};
   const assignmentId =
     assignmentIdFromParam || Number(payload.id || 0) || null;
+  const groupIds = Array.isArray(payload.group_ids)
+    ? [
+        ...new Set(
+          payload.group_ids
+            .map((value) => normalizeNumberOrNull(value))
+            .filter((value) => Boolean(value)),
+        ),
+      ]
+    : [];
   const policyId = normalizeNumberOrNull(payload.policy_id);
   const assignmentScope = String(payload.assignment_scope || "").trim();
   const scopeUserId = normalizeNumberOrNull(payload.user_id);
   const scopeUserIds = Array.isArray(payload.user_ids)
-    ? payload.user_ids
-        .map((value) => normalizeNumberOrNull(value))
-        .filter((value) => Boolean(value))
+    ? [
+        ...new Set(
+          payload.user_ids
+            .map((value) => normalizeNumberOrNull(value))
+            .filter((value) => Boolean(value)),
+        ),
+      ]
     : [];
   const scopeClassId = normalizeNumberOrNull(payload.class_id);
   const scopeClassIds = Array.isArray(payload.class_ids)
-    ? payload.class_ids
-        .map((value) => normalizeNumberOrNull(value))
-        .filter((value) => Boolean(value))
+    ? [
+        ...new Set(
+          payload.class_ids
+            .map((value) => normalizeNumberOrNull(value))
+            .filter((value) => Boolean(value)),
+        ),
+      ]
     : [];
   const scopeGradeId = normalizeNumberOrNull(payload.grade_id);
   const scopeGradeIds = Array.isArray(payload.grade_ids)
-    ? payload.grade_ids
-        .map((value) => normalizeNumberOrNull(value))
-        .filter((value) => Boolean(value))
+    ? [
+        ...new Set(
+          payload.grade_ids
+            .map((value) => normalizeNumberOrNull(value))
+            .filter((value) => Boolean(value)),
+        ),
+      ]
     : [];
   const isActive = payload.is_active !== false;
   const startDate = String(payload.effective_start_date || "").trim() || null;
@@ -1390,26 +1709,45 @@ const upsertAssignmentHandler = async (
   }
   const policyTargetRole = policyRes.rows[0].target_role;
 
-  if (assignmentScope === "user") {
-    const targetUserIds = assignmentId
-      ? [scopeUserId].filter(Boolean)
-      : scopeUserIds.length > 0
+  const targetUserIds =
+    assignmentScope === "user"
+      ? scopeUserIds.length > 0
         ? scopeUserIds
-        : [scopeUserId].filter(Boolean);
+        : [scopeUserId].filter(Boolean)
+      : [];
+  const targetClassIds =
+    assignmentScope === "class"
+      ? scopeClassIds.length > 0
+        ? scopeClassIds
+        : [scopeClassId].filter(Boolean)
+      : [];
+  const targetGradeIds =
+    assignmentScope === "grade"
+      ? scopeGradeIds.length > 0
+        ? scopeGradeIds
+        : [scopeGradeId].filter(Boolean)
+      : [];
 
+  if (assignmentScope === "user") {
     if (targetUserIds.length === 0) {
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "user_id atau user_ids wajib untuk scope user.",
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "user_id atau user_ids wajib untuk scope user.",
+      });
     }
 
     const roleCheckQuery =
       policyTargetRole === "teacher"
         ? `SELECT 1 FROM u_teachers WHERE user_id = $1 AND homebase_id = $2 LIMIT 1`
-        : `SELECT 1 FROM u_students WHERE user_id = $1 AND homebase_id = $2 LIMIT 1`;
+        : policyTargetRole === "student"
+          ? `SELECT 1 FROM u_students WHERE user_id = $1 AND homebase_id = $2 LIMIT 1`
+          : `SELECT 1
+             WHERE EXISTS (
+               SELECT 1 FROM u_teachers WHERE user_id = $1 AND homebase_id = $2
+             )
+             OR EXISTS (
+               SELECT 1 FROM u_students WHERE user_id = $1 AND homebase_id = $2
+             )`;
 
     for (const targetUserId of targetUserIds) {
       const roleCheck = await client.query(roleCheckQuery, [
@@ -1419,26 +1757,22 @@ const upsertAssignmentHandler = async (
       if (roleCheck.rowCount === 0) {
         return res.status(400).json({
           status: "error",
-          message: `user_id ${targetUserId} tidak sesuai target_role ${policyTargetRole}.`,
+          message:
+            policyTargetRole === "all"
+              ? `user_id ${targetUserId} harus guru atau siswa aktif di homebase ini.`
+              : `user_id ${targetUserId} tidak sesuai target_role ${policyTargetRole}.`,
         });
       }
     }
   }
 
   if (assignmentScope === "class") {
-    const targetClassIds = assignmentId
-      ? [scopeClassId].filter(Boolean)
-      : scopeClassIds.length > 0
-        ? scopeClassIds
-        : [scopeClassId].filter(Boolean);
-
     if (targetClassIds.length === 0) {
       return res.status(400).json({
         status: "error",
         message: "class_id atau class_ids wajib untuk scope class.",
       });
     }
-
     for (const targetClassId of targetClassIds) {
       const classCheck = await client.query(
         `SELECT 1 FROM a_class WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
@@ -1454,19 +1788,12 @@ const upsertAssignmentHandler = async (
   }
 
   if (assignmentScope === "grade") {
-    const targetGradeIds = assignmentId
-      ? [scopeGradeId].filter(Boolean)
-      : scopeGradeIds.length > 0
-        ? scopeGradeIds
-        : [scopeGradeId].filter(Boolean);
-
     if (targetGradeIds.length === 0) {
       return res.status(400).json({
         status: "error",
         message: "grade_id atau grade_ids wajib untuk scope grade.",
       });
     }
-
     for (const targetGradeId of targetGradeIds) {
       const gradeCheck = await client.query(
         `SELECT 1 FROM a_grade WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
@@ -1481,109 +1808,84 @@ const upsertAssignmentHandler = async (
     }
   }
 
-  if (assignmentId) {
+  const replaceIds = [
+    ...new Set(
+      [...groupIds, ...(assignmentId ? [assignmentId] : [])].filter(Boolean),
+    ),
+  ];
+
+  if (replaceIds.length > 0) {
     const existing = await client.query(
       `SELECT id
        FROM attendance.attendance_policy_assignment
-       WHERE id = $1 AND homebase_id = $2
-       LIMIT 1`,
-      [assignmentId, homebase_id],
+       WHERE homebase_id = $1
+         AND id = ANY($2::int[])`,
+      [homebase_id, replaceIds],
     );
-    if (existing.rowCount === 0) {
+    if (existing.rowCount !== replaceIds.length) {
       return res.status(404).json({
         status: "error",
-        message: "Assignment policy tidak ditemukan.",
+        message: "Satu atau lebih assignment policy tidak ditemukan.",
       });
     }
 
     await client.query(
-      `UPDATE attendance.attendance_policy_assignment
-       SET
-         policy_id = $1,
-         assignment_scope = $2,
-         user_id = $3,
-         class_id = $4,
-         grade_id = $5,
-         effective_start_date = $6::date,
-         effective_end_date = $7::date,
-         is_active = $8,
-         updated_at = NOW()
-       WHERE id = $9`,
+      `DELETE FROM attendance.attendance_policy_assignment
+       WHERE homebase_id = $1
+         AND id = ANY($2::int[])`,
+      [homebase_id, replaceIds],
+    );
+  }
+
+  const insertTargets =
+    assignmentScope === "user"
+      ? targetUserIds.map((id) => ({ user_id: id, class_id: null, grade_id: null }))
+      : assignmentScope === "class"
+        ? targetClassIds.map((id) => ({
+            user_id: null,
+            class_id: id,
+            grade_id: null,
+          }))
+        : assignmentScope === "grade"
+          ? targetGradeIds.map((id) => ({
+              user_id: null,
+              class_id: null,
+              grade_id: id,
+            }))
+          : [{ user_id: null, class_id: null, grade_id: null }];
+
+  for (const target of insertTargets) {
+    await client.query(
+      `INSERT INTO attendance.attendance_policy_assignment (
+         policy_id,
+         assignment_scope,
+         user_id,
+         class_id,
+         grade_id,
+         homebase_id,
+         effective_start_date,
+         effective_end_date,
+         is_active,
+         created_by,
+         updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9, $10, NOW())`,
       [
         policyId,
         assignmentScope,
-        assignmentScope === "user"
-          ? scopeUserId || scopeUserIds[0] || null
-          : null,
-        assignmentScope === "class"
-          ? scopeClassId || scopeClassIds[0] || null
-          : null,
-        assignmentScope === "grade"
-          ? scopeGradeId || scopeGradeIds[0] || null
-          : null,
+        target.user_id,
+        target.class_id,
+        target.grade_id,
+        homebase_id,
         startDate,
         endDate,
         isActive,
-        assignmentId,
+        userId,
       ],
     );
-  } else {
-    const targetUserIds =
-      assignmentScope === "user"
-        ? scopeUserIds.length > 0
-          ? scopeUserIds
-          : [scopeUserId].filter(Boolean)
-        : [null];
-    const targetClassIds =
-      assignmentScope === "class"
-        ? scopeClassIds.length > 0
-          ? scopeClassIds
-          : [scopeClassId].filter(Boolean)
-        : [null];
-    const targetGradeIds =
-      assignmentScope === "grade"
-        ? scopeGradeIds.length > 0
-          ? scopeGradeIds
-          : [scopeGradeId].filter(Boolean)
-        : [null];
-
-    for (const targetUserId of targetUserIds) {
-      for (const targetClassId of targetClassIds) {
-        for (const targetGradeId of targetGradeIds) {
-          await client.query(
-            `INSERT INTO attendance.attendance_policy_assignment (
-               policy_id,
-               assignment_scope,
-               user_id,
-               class_id,
-               grade_id,
-               homebase_id,
-               effective_start_date,
-               effective_end_date,
-               is_active,
-               created_by,
-               updated_at
-             )
-             VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9, $10, NOW())`,
-            [
-              policyId,
-              assignmentScope,
-              assignmentScope === "user" ? targetUserId : null,
-              assignmentScope === "class" ? targetClassId : null,
-              assignmentScope === "grade" ? targetGradeId : null,
-              homebase_id,
-              startDate,
-              endDate,
-              isActive,
-              userId,
-            ],
-          );
-        }
-      }
-    }
   }
 
-  const assignments = await getPolicyAssignments(client, homebase_id);
+  const assignments = await getGroupedPolicyAssignments(client, homebase_id);
   return res.json({
     status: "success",
     message: "Assignment policy berhasil disimpan.",
@@ -1613,7 +1915,18 @@ router.delete(
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const assignmentId = Number(req.params.id || 0);
-    if (!assignmentId) {
+    const groupIds = Array.isArray(req.body?.group_ids)
+      ? [
+          ...new Set(
+            req.body.group_ids
+              .map((value) => normalizeNumberOrNull(value))
+              .filter((value) => Boolean(value)),
+          ),
+        ]
+      : [];
+    const deleteIds = groupIds.length > 0 ? groupIds : assignmentId ? [assignmentId] : [];
+
+    if (deleteIds.length === 0) {
       return res
         .status(400)
         .json({ status: "error", message: "id assignment tidak valid." });
@@ -1621,9 +1934,10 @@ router.delete(
 
     const deleted = await client.query(
       `DELETE FROM attendance.attendance_policy_assignment
-       WHERE id = $1 AND homebase_id = $2
+       WHERE homebase_id = $1
+         AND id = ANY($2::int[])
        RETURNING id`,
-      [assignmentId, homebase_id],
+      [homebase_id, deleteIds],
     );
     if (deleted.rowCount === 0) {
       return res.status(404).json({
@@ -1634,7 +1948,11 @@ router.delete(
 
     return res.json({
       status: "success",
-      message: "Assignment policy berhasil dihapus.",
+      message: `${deleted.rowCount} assignment policy berhasil dihapus.`,
+      data: {
+        deleted_count: deleted.rowCount,
+        deleted_ids: deleted.rows.map((row) => row.id),
+      },
     });
   }),
 );
@@ -1706,7 +2024,7 @@ router.post(
     }
 
     const deviceRes = await client.query(
-      `SELECT id, homebase_id, class_id, device_type, api_token, is_active
+      `SELECT id, homebase_id, class_id, policy_id, device_type, api_token, is_active
        FROM attendance.rfid_device
        WHERE code = $1
        LIMIT 1`,
@@ -1719,6 +2037,18 @@ router.post(
       });
     }
     const device = deviceRes.rows[0];
+    let deviceClassIds =
+      device.device_type === "classroom"
+        ? await getDeviceClassIds(client, device.id)
+        : [];
+    if (
+      device.device_type === "classroom" &&
+      deviceClassIds.length === 0 &&
+      device.class_id
+    ) {
+      deviceClassIds = [Number(device.class_id)];
+    }
+    const devicePrimaryClassId = deviceClassIds[0] || device.class_id || null;
 
     const scannedAt = (() => {
       if (!scannedAtRaw) return new Date();
@@ -1761,7 +2091,7 @@ router.post(
           device.homebase_id,
           activePeriodeId,
           device.id,
-          device.class_id,
+          devicePrimaryClassId,
           device.device_type,
           scanAction || "unknown",
           cardUid,
@@ -1813,11 +2143,22 @@ router.post(
       return rejectAndLog("user_inactive", "User pemilik kartu tidak aktif.");
     }
 
+    if (device.device_type === "extracurricular" && !device.policy_id) {
+      return rejectAndLog(
+        "policy_missing",
+        "Device ekstra belum terhubung ke policy kegiatan.",
+      );
+    }
+
+    const scanActionProvided = Boolean(String(payload.scan_action || "").trim());
+
     const finalScanAction =
       scanAction ||
       (device.device_type === "gate"
         ? DAILY_GATE_ACTION
-        : "teacher_session_checkin");
+        : device.device_type === "extracurricular"
+          ? ACTIVITY_GATE_ACTION
+          : "teacher_session_checkin");
 
     let requestedScanAction = finalScanAction;
     let resolvedScanAction = finalScanAction;
@@ -1836,6 +2177,9 @@ router.post(
 
       resolvedScanAction = gateResolution.resolvedAction;
     }
+
+    // For extracurricular, keep activity_gate until apply resolves checkin/checkout.
+    // Duplicate debounce uses the provisional action string.
 
     const duplicateCheck = await checkDuplicateScan(client, {
       homebaseId: device.homebase_id,
@@ -1893,7 +2237,7 @@ router.post(
         device.id,
         card.card_id,
         card.user_id,
-        device.class_id,
+        devicePrimaryClassId,
         device.device_type,
         resolvedScanAction,
         cardUid,
@@ -1903,6 +2247,7 @@ router.post(
           ...payload,
           requested_scan_action: requestedScanAction,
           resolved_scan_action: resolvedScanAction,
+          device_class_ids: deviceClassIds,
         }),
       ],
     );
@@ -1934,16 +2279,72 @@ router.post(
         homebaseId: device.homebase_id,
         periodeId: activePeriodeId,
         userId: card.user_id,
-        classId: device.class_id,
+        classIds: deviceClassIds,
+        classId: devicePrimaryClassId,
         scanAction: finalScanAction,
         scannedAt,
         scanLogId,
+        autoResolveSessionAction: !scanActionProvided,
       });
+
+      if (attendanceResult?.scan_action) {
+        resolvedScanAction = attendanceResult.scan_action;
+        await client.query(
+          `UPDATE attendance.rfid_scan_log
+           SET scan_action = $2
+           WHERE id = $1`,
+          [scanLogId, resolvedScanAction],
+        );
+      }
 
       if (!attendanceResult?.attendance_id) {
         console.warn(
-          `[attendance] Scan kelas ${scanLogId} diterima tetapi sesi guru tidak terbentuk untuk user ${card.user_id} (kelas ${device.class_id}).`,
+          `[attendance] Scan kelas ${scanLogId} diterima tetapi sesi guru tidak terbentuk untuk user ${card.user_id} (kelas ${deviceClassIds.join(",") || "-"}).`,
         );
+      }
+    } else if (device.device_type === "extracurricular") {
+      attendanceResult = await applyRfidScanToActivityAttendance(client, {
+        homebaseId: device.homebase_id,
+        periodeId: activePeriodeId,
+        userId: card.user_id,
+        policyId: device.policy_id,
+        deviceId: device.id,
+        scanAction: finalScanAction,
+        scannedAt,
+        scanLogId,
+        autoResolveAction: !scanActionProvided || finalScanAction === ACTIVITY_GATE_ACTION,
+      });
+
+      if (!attendanceResult?.ok) {
+        await client.query(
+          `UPDATE attendance.rfid_scan_log
+           SET
+             result_status = $2,
+             rejection_reason = $3,
+             scan_action = COALESCE($4, scan_action)
+           WHERE id = $1`,
+          [
+            scanLogId,
+            attendanceResult?.result_status || "rejected",
+            attendanceResult?.message || "Scan kegiatan ditolak.",
+            attendanceResult?.scan_action || null,
+          ],
+        );
+
+        return res.status(400).json({
+          status: "error",
+          result_status: attendanceResult?.result_status || "rejected",
+          message: attendanceResult?.message || "Scan kegiatan ditolak.",
+          scan_log_id: scanLogId,
+          data: {
+            policy_id: device.policy_id,
+            policy_name: attendanceResult?.policy_name || null,
+          },
+        });
+      }
+
+      if (attendanceResult?.scan_action) {
+        resolvedScanAction = attendanceResult.scan_action;
       }
     }
 
@@ -1952,7 +2353,13 @@ router.post(
         ? resolvedScanAction === "daily_checkout"
           ? "Tap pulang"
           : "Tap datang"
-        : "Scan";
+        : device.device_type === "extracurricular"
+          ? resolvedScanAction === "activity_checkout"
+            ? "Checkout ekstra"
+            : "Checkin ekstra"
+          : resolvedScanAction === "teacher_session_checkout"
+            ? "Checkout sesi"
+            : "Checkin sesi";
 
     return res.json({
       status: "success",
@@ -1967,12 +2374,31 @@ router.post(
         resolved_scan_action: resolvedScanAction,
         scan_source: device.device_type,
         attendance_id: attendanceResult?.attendance_id || null,
+        activity_attendance_id:
+          attendanceResult?.activity_attendance_id || null,
         attendance_status: attendanceResult?.attendance_status || null,
         attendance_date: attendanceResult?.attendance_date || null,
         schedule_entry_id: attendanceResult?.schedule_entry_id || null,
         teacher_session_log_id:
           attendanceResult?.teacher_session_log_id || null,
         session_status: attendanceResult?.session_status || null,
+        class_id: attendanceResult?.class_id || devicePrimaryClassId,
+        class_name: attendanceResult?.class_name || null,
+        subject_id: attendanceResult?.subject_id || null,
+        subject_name: attendanceResult?.subject_name || null,
+        first_slot_no: attendanceResult?.first_slot_no || null,
+        last_slot_no: attendanceResult?.last_slot_no || null,
+        slot_label: attendanceResult?.slot_label || null,
+        policy_id: attendanceResult?.policy_id || device.policy_id || null,
+        policy_name: attendanceResult?.policy_name || null,
+        policy_code: attendanceResult?.policy_code || null,
+        planned_checkin_time: attendanceResult?.planned_checkin_time || null,
+        planned_checkout_time: attendanceResult?.planned_checkout_time || null,
+        planned_start_at: attendanceResult?.planned_start_at || null,
+        planned_end_at: attendanceResult?.planned_end_at || null,
+        actual_checkin_at: attendanceResult?.actual_checkin_at || null,
+        actual_checkout_at: attendanceResult?.actual_checkout_at || null,
+        device_class_ids: deviceClassIds,
       },
     });
   }),

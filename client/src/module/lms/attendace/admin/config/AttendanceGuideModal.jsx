@@ -116,8 +116,11 @@ const AttendanceGuideModal = ({ open, onClose }) => {
                   (gerbang, kelas, dll.).
                 </Text>
                 <Text>
-                  Isi kode, nama, tipe device, lokasi, dan kelas terkait jika
-                  perlu.
+                  Isi kode, nama, tipe device, lokasi, dan satu/lebih kelas
+                  terkait untuk device classroom (mis. Device 1 untuk 7A–7D).
+                  Untuk ekstrakurikuler, pilih tipe{" "}
+                  <Tag>extracurricular</Tag> dan hubungkan ke policy kegiatan
+                  (mis. Silat).
                 </Text>
                 <Text>
                   Salin <Tag>API Token</Tag> ke firmware reader agar perangkat

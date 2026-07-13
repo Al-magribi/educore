@@ -179,56 +179,36 @@ export const ApiAttendance = createApi({
       providesTags: [{ type: "AttendanceAssignment", id: "LIST" }],
     }),
     savePolicyAssignment: builder.mutation({
-      query: (body) => ({
-        url: body?.id
-          ? `/attendance/config/policy-assignments/${body.id}`
-          : "/attendance/config/policy-assignments",
-        method: body?.id ? "PUT" : "POST",
-        body,
-      }),
+      query: (body) => {
+        const editId =
+          Number(body?.id || 0) ||
+          (Array.isArray(body?.group_ids) ? Number(body.group_ids[0] || 0) : 0) ||
+          null;
+        return {
+          url: editId
+            ? `/attendance/config/policy-assignments/${editId}`
+            : "/attendance/config/policy-assignments",
+          method: editId ? "PUT" : "POST",
+          body,
+        };
+      },
       invalidatesTags: [
         { type: "AttendanceAssignment", id: "LIST" },
         { type: "AttendanceAssignment", id: "BOOTSTRAP" },
       ],
     }),
     deletePolicyAssignment: builder.mutation({
-      query: (id) => ({
-        url: `/attendance/config/policy-assignments/${id}`,
-        method: "DELETE",
-      }),
-      async onQueryStarted(id, { dispatch, queryFulfilled }) {
-        const patchResults = [
-          dispatch(
-            ApiAttendance.util.updateQueryData(
-              "getPolicyAssignments",
-              undefined,
-              (draft) => {
-                if (Array.isArray(draft?.data)) {
-                  draft.data = draft.data.filter((item) => item.id !== id);
-                }
-              },
-            ),
-          ),
-          dispatch(
-            ApiAttendance.util.updateQueryData(
-              "getPolicyAssignmentBootstrap",
-              undefined,
-              (draft) => {
-                if (Array.isArray(draft?.data?.assignments)) {
-                  draft.data.assignments = draft.data.assignments.filter(
-                    (item) => item.id !== id,
-                  );
-                }
-              },
-            ),
-          ),
-        ];
-
-        try {
-          await queryFulfilled;
-        } catch {
-          patchResults.forEach((patch) => patch.undo());
-        }
+      query: (payload) => {
+        const id = typeof payload === "object" ? payload?.id : payload;
+        const groupIds =
+          typeof payload === "object" && Array.isArray(payload?.group_ids)
+            ? payload.group_ids
+            : undefined;
+        return {
+          url: `/attendance/config/policy-assignments/${id}`,
+          method: "DELETE",
+          ...(groupIds ? { body: { group_ids: groupIds } } : {}),
+        };
       },
       invalidatesTags: [
         { type: "AttendanceAssignment", id: "LIST" },

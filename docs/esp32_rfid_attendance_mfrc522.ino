@@ -13,6 +13,12 @@
   Wiring Buzzer (active):
     (+) -> D4    (-) -> GND
     Jika tidak bunyi, ubah BUZZER_ON ke LOW dan BUZZER_OFF ke HIGH
+
+  Catatan device classroom (1 device banyak kelas):
+    - Device TIDAK perlu mengirim class_id.
+    - Mapping kelas diatur di LMS (Device RFID → pilih banyak kelas).
+    - Server mencocokkan guru + jadwal published + kelas yang terikat device
+      untuk menentukan kelas, jam keberapa, dan check-in/check-out.
 */
 
 #include <WiFi.h>
@@ -40,6 +46,13 @@ struct ScanResult {
   String userName;
   String resolvedAction;
   String attendanceStatus;
+  String sessionStatus;
+  String className;
+  String slotLabel;
+  String policyName;
+  bool hasAttendance;
+  bool hasSession;
+  bool hasActivity;
 };
 
 void resetScanResult(ScanResult& result) {
@@ -51,6 +64,13 @@ void resetScanResult(ScanResult& result) {
   result.userName = "";
   result.resolvedAction = "";
   result.attendanceStatus = "";
+  result.sessionStatus = "";
+  result.className = "";
+  result.slotLabel = "";
+  result.policyName = "";
+  result.hasAttendance = false;
+  result.hasSession = false;
+  result.hasActivity = false;
 }
 
 // =============================
@@ -63,12 +83,18 @@ const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
 // Gunakan http jika server tidak menggunakan SSL
 const char* API_URL = "https://YOUR_SERVER_HOST:2310/api/lms/attendance/rfid/scan";
 
+// Samakan dengan Code Device di LMS (tab Device RFID)
 const char* DEVICE_CODE = "RFID-GATE-HB-0008";
 const char* DEVICE_TOKEN = "PUT_DEVICE_API_TOKEN_HERE";
 
-// daily_gate untuk datang / pulang
-// teacher_session_checkin untuk absen masuk kelas
+// "gate"             -> absensi harian (datang/pulang)
+// "classroom"        -> absensi sesi guru (1 device boleh banyak kelas di LMS)
+// "extracurricular"  -> absensi kegiatan ekstra (policy Silat/dll di LMS)
+const char* DEVICE_TYPE = "gate";
 
+// gate: "daily_gate" (server auto datang/pulang)
+// classroom / extracurricular: biarkan kosong agar server auto
+//   tap 1 = check-in, tap 2 = check-out
 const char* SCAN_ACTION = "daily_gate";
 
 // =============================
@@ -101,6 +127,18 @@ LiquidCrystal_I2C lcd(LCD_I2C_ADDR, LCD_COLS, LCD_ROWS);
 String lastUid = "";
 unsigned long lastScanMillis = 0;
 const unsigned long dedupeWindowMs = 2500;
+
+bool isClassroomDevice() {
+  return String(DEVICE_TYPE).equalsIgnoreCase("classroom");
+}
+
+bool isExtracurricularDevice() {
+  return String(DEVICE_TYPE).equalsIgnoreCase("extracurricular");
+}
+
+bool isAutoSessionDevice() {
+  return isClassroomDevice() || isExtracurricularDevice();
+}
 
 bool mfrc522VersionOk(byte version) {
   return (version == 0x91 || version == 0x92 ||
@@ -194,8 +232,16 @@ bool messageContains(const String& haystack, const char* needle) {
   return haystack.indexOf(needle) >= 0;
 }
 
+String jsonStringOrEmpty(JsonObject obj, const char* key) {
+  if (obj.isNull() || !obj.containsKey(key) || obj[key].isNull()) {
+    return "";
+  }
+  return obj[key].as<String>();
+}
+
 void parseScanResponseBody(const String& body, ScanResult& result) {
-  DynamicJsonDocument resp(768);
+  // Response classroom bisa berisi class_name / slot_label / planned times.
+  DynamicJsonDocument resp(1536);
   DeserializationError err = deserializeJson(resp, body);
   if (err) {
     return;
@@ -206,19 +252,103 @@ void parseScanResponseBody(const String& body, ScanResult& result) {
 
   JsonObject data = resp["data"].as<JsonObject>();
   if (!data.isNull()) {
-    result.userName = data["user_name"].as<String>();
-    result.resolvedAction = data["resolved_scan_action"].as<String>();
+    result.userName = jsonStringOrEmpty(data, "user_name");
+    result.resolvedAction = jsonStringOrEmpty(data, "resolved_scan_action");
     if (result.resolvedAction.length() == 0) {
-      result.resolvedAction = data["scan_action"].as<String>();
+      result.resolvedAction = jsonStringOrEmpty(data, "scan_action");
     }
-    result.attendanceStatus = data["attendance_status"].as<String>();
+    result.attendanceStatus = jsonStringOrEmpty(data, "attendance_status");
+    result.sessionStatus = jsonStringOrEmpty(data, "session_status");
+    result.className = jsonStringOrEmpty(data, "class_name");
+    result.slotLabel = jsonStringOrEmpty(data, "slot_label");
+    result.policyName = jsonStringOrEmpty(data, "policy_name");
+    result.hasAttendance = !data["attendance_id"].isNull();
+    result.hasSession = !data["schedule_entry_id"].isNull();
+    result.hasActivity = !data["activity_attendance_id"].isNull();
   }
+}
+
+String buildClassroomSuccessLine2(const ScanResult& result) {
+  if (!result.hasSession) {
+    return "Tdk ada jadwal";
+  }
+
+  if (result.sessionStatus == "late") {
+    if (result.className.length() > 0) {
+      return truncateLcdLine(String("Telat ") + result.className);
+    }
+    return "Sesi Terlambat";
+  }
+
+  if (result.resolvedAction == "teacher_session_checkout") {
+    if (result.className.length() > 0) {
+      return truncateLcdLine(String("Out ") + result.className);
+    }
+    return "Sesi Selesai";
+  }
+
+  if (result.resolvedAction == "teacher_session_checkin") {
+    if (result.className.length() > 0) {
+      return truncateLcdLine(String("In ") + result.className);
+    }
+    if (result.slotLabel.length() > 0) {
+      return truncateLcdLine(result.slotLabel);
+    }
+    return "Sesi Masuk";
+  }
+
+  if (result.className.length() > 0) {
+    return truncateLcdLine(result.className);
+  }
+  return "Sesi OK";
+}
+
+String buildActivitySuccessLine2(const ScanResult& result) {
+  if (!result.hasActivity) {
+    return "Tdk tercatat";
+  }
+
+  if (result.attendanceStatus == "late") {
+    if (result.policyName.length() > 0) {
+      return truncateLcdLine(String("Telat ") + result.policyName);
+    }
+    return "Terlambat";
+  }
+
+  if (result.resolvedAction == "activity_checkout") {
+    if (result.policyName.length() > 0) {
+      return truncateLcdLine(String("Out ") + result.policyName);
+    }
+    return "Ekstra Selesai";
+  }
+
+  if (result.resolvedAction == "activity_checkin") {
+    if (result.policyName.length() > 0) {
+      return truncateLcdLine(String("In ") + result.policyName);
+    }
+    return "Ekstra Masuk";
+  }
+
+  if (result.policyName.length() > 0) {
+    return truncateLcdLine(result.policyName);
+  }
+  return "Ekstra OK";
 }
 
 void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
   if (result.ok) {
     String name = result.userName.length() > 0 ? result.userName : "Pemegang Kartu";
     line1 = truncateLcdLine(name);
+
+    if (isClassroomDevice()) {
+      line2 = buildClassroomSuccessLine2(result);
+      return;
+    }
+
+    if (isExtracurricularDevice()) {
+      line2 = buildActivitySuccessLine2(result);
+      return;
+    }
 
     if (result.attendanceStatus == "not_scheduled") {
       line2 = "Tdk ada jadwal";
@@ -232,6 +362,10 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
       line2 = "Sesi Selesai";
     } else if (result.resolvedAction == "teacher_session_checkin") {
       line2 = "Sesi Masuk";
+    } else if (result.resolvedAction == "activity_checkout") {
+      line2 = "Ekstra Selesai";
+    } else if (result.resolvedAction == "activity_checkin") {
+      line2 = "Ekstra Masuk";
     } else {
       line2 = "Berhasil";
     }
@@ -363,7 +497,24 @@ bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
   doc["device_code"] = DEVICE_CODE;
   doc["device_token"] = DEVICE_TOKEN;
   doc["card_uid"] = cardUid;
-  doc["scan_action"] = SCAN_ACTION;
+
+  // Gate: kirim daily_gate.
+  // Classroom / extracurricular: JANGAN kirim scan_action (atau kosong) agar server
+  // auto resolve check-in lalu check-out.
+  String scanAction = String(SCAN_ACTION);
+  scanAction.trim();
+  if (isAutoSessionDevice()) {
+    if (scanAction.length() > 0 &&
+        scanAction != "daily_gate" &&
+        !scanAction.startsWith("daily_")) {
+      doc["scan_action"] = scanAction;
+    }
+    // else: omit scan_action → server auto-resolve
+  } else if (scanAction.length() > 0) {
+    doc["scan_action"] = scanAction;
+  } else {
+    doc["scan_action"] = "daily_gate";
+  }
 
   String scannedAt = getIso8601NowUtc();
   if (scannedAt.length() > 0) {
@@ -380,7 +531,7 @@ bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
   resultOut.httpCode = httpCode;
   parseScanResponseBody(body, resultOut);
 
-  Serial.printf("[RFID] HTTP %d | UID=%s\n", httpCode, cardUid.c_str());
+  Serial.printf("[RFID] HTTP %d | UID=%s | type=%s\n", httpCode, cardUid.c_str(), DEVICE_TYPE);
   Serial.println(body);
 
   if (httpCode >= 200 && httpCode < 300) {
@@ -464,7 +615,17 @@ void setup() {
     }
   }
 
-  Serial.println("Tap Kartu");
+  Serial.printf("[RFID] Device ready | code=%s | type=%s\n", DEVICE_CODE, DEVICE_TYPE);
+  if (isClassroomDevice()) {
+    lcdShow("Tap Kartu", "Mode Kelas");
+    Serial.println("[RFID] Classroom mode: class_id tidak dikirim; server resolve dari jadwal.");
+  } else if (isExtracurricularDevice()) {
+    lcdShow("Tap Kartu", "Mode Ekstra");
+    Serial.println("[RFID] Extracurricular mode: policy peserta diatur di LMS.");
+  } else {
+    lcdShow("Tap Kartu", "Mode Gerbang");
+  }
+  delay(1200);
   lcdShow("Tap Kartu", "");
 }
 
@@ -497,9 +658,21 @@ void loop() {
     resolveLcdMessage(result, line1, line2);
 
     if (ok) {
-      Serial.printf("[RFID] Scan accepted (%s).\n", result.resolvedAction.c_str());
+      Serial.printf(
+        "[RFID] Scan accepted action=%s class=%s slot=%s policy=%s session=%s\n",
+        result.resolvedAction.c_str(),
+        result.className.c_str(),
+        result.slotLabel.c_str(),
+        result.policyName.c_str(),
+        result.sessionStatus.c_str());
       lcdShow(line1.c_str(), line2.c_str());
-      buzzerSuccess();
+      // Classroom tanpa jadwal / ekstra tanpa record: accepted di log, tapi nada error ringan.
+      if ((isClassroomDevice() && !result.hasSession) ||
+          (isExtracurricularDevice() && !result.hasActivity)) {
+        buzzerError();
+      } else {
+        buzzerSuccess();
+      }
       delay(3000);
     } else if (result.outcome == SCAN_OUTCOME_DUPLICATE) {
       Serial.printf("[RFID] Scan duplicate: %s\n", result.message.c_str());

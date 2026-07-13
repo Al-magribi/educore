@@ -256,8 +256,9 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
             ini hanya menampilkan hasil akhir kehadiran harian dari tap gate yang berhasil diproses.
           </Text>
           <Text>
-            • <Text strong>Device classroom</Text> (di kelas) digunakan untuk presensi sesi mengajar per jadwal, bukan
-            untuk status harian gate di laporan ini.
+            • <Text strong>Device classroom</Text> dapat dipetakan ke banyak kelas. Saat guru
+            tap, sistem mencocokkan jadwal published (kelas, jam keberapa, jam mulai/selesai)
+            lalu mencatat check-in/check-out sesi — bukan status harian gate di laporan ini.
           </Text>
           <Text>
             • Kartu statistik <Text strong>Perlu Tindak Lanjut</Text> menjumlahkan status absent, incomplete, dan

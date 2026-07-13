@@ -8,6 +8,7 @@ import {
   Input,
   Modal,
   Select,
+  Space,
   Switch,
   Table,
   Tag,
@@ -46,6 +47,39 @@ const formatDateLabel = (value) => {
   return parsed ? parsed.format("DD MMM YYYY") : "-";
 };
 
+const TargetTags = ({ row }) => {
+  const targets = Array.isArray(row.targets) ? row.targets : [];
+  if (targets.length === 0) {
+    return <Text type='secondary'>-</Text>;
+  }
+
+  const visible = targets.slice(0, 4);
+  const rest = targets.length - visible.length;
+
+  return (
+    <Space size={[4, 4]} wrap style={{ maxWidth: "100%" }}>
+      {visible.map((item) => (
+        <Tag
+          key={`${item.type}-${item.id ?? "all"}`}
+          color={
+            item.type === "user"
+              ? "blue"
+              : item.type === "class"
+                ? "purple"
+                : item.type === "grade"
+                  ? "geekblue"
+                  : "default"
+          }
+          style={{ marginInlineEnd: 0 }}
+        >
+          {item.name}
+        </Tag>
+      ))}
+      {rest > 0 ? <Tag style={{ marginInlineEnd: 0 }}>+{rest} lainnya</Tag> : null}
+    </Space>
+  );
+};
+
 const AssignmentPolicyTab = () => {
   const [form] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
@@ -72,19 +106,32 @@ const AssignmentPolicyTab = () => {
     listRes !== undefined
       ? listRes?.data ?? []
       : bootstrapRes?.data?.assignments ?? [];
+
   const filteredAssignments = useMemo(() => {
     const keyword = nameFilter.trim().toLowerCase();
     if (!keyword) return assignments;
     return assignments.filter((item) => {
-      const targetName =
-        item.user_name || item.class_name || item.grade_name || "Semua Homebase";
-      return [item.policy_name, targetName].some((value) =>
+      const targetText =
+        item.target_label ||
+        (Array.isArray(item.targets)
+          ? item.targets.map((target) => target.name).join(" ")
+          : "");
+      return [item.policy_name, item.policy_code, targetText].some((value) =>
         String(value || "")
           .toLowerCase()
           .includes(keyword),
       );
     });
   }, [assignments, nameFilter]);
+
+  const assignmentByKey = useMemo(() => {
+    const map = new Map();
+    for (const row of assignments) {
+      map.set(row.group_key || String(row.id), row);
+    }
+    return map;
+  }, [assignments]);
+
   const policies = options.policies || [];
   const teachers = options.teachers || [];
   const students = options.students || [];
@@ -94,7 +141,10 @@ const AssignmentPolicyTab = () => {
   const policyOptions = useMemo(() => {
     if (!selectedRole) return [];
     return policies
-      .filter((item) => item.target_role === selectedRole)
+      .filter((item) => {
+        if (selectedRole === "all") return item.target_role === "all";
+        return item.target_role === selectedRole || item.target_role === "all";
+      })
       .map((item) => ({
         value: Number(item.id),
         label: `${item.name} (${item.code})`,
@@ -114,18 +164,30 @@ const AssignmentPolicyTab = () => {
         label: `${item.full_name}${item.nis ? ` (${item.nis})` : ""}`,
       }));
     }
+    if (selectedRole === "all") {
+      const teacherOpts = teachers.map((item) => ({
+        value: Number(item.user_id),
+        label: `[Guru] ${item.full_name}`,
+      }));
+      const studentOpts = students.map((item) => ({
+        value: Number(item.user_id),
+        label: `[Siswa] ${item.full_name}${item.nis ? ` (${item.nis})` : ""}`,
+      }));
+      return [...teacherOpts, ...studentOpts];
+    }
     return [];
   }, [selectedRole, students, teachers]);
 
   const openCreateModal = () => {
     setEditingRow(null);
     form.setFieldsValue({
+      group_ids: [],
       target_role: "teacher",
       assignment_scope: "user",
       policy_id: undefined,
       user_ids: [],
-      class_id: undefined,
-      grade_id: undefined,
+      class_ids: [],
+      grade_ids: [],
       effective_start_date: null,
       effective_end_date: null,
       is_active: true,
@@ -137,12 +199,13 @@ const AssignmentPolicyTab = () => {
     setEditingRow(row);
     form.setFieldsValue({
       id: row.id,
+      group_ids: Array.isArray(row.ids) ? row.ids : [row.id],
       target_role: row.target_role,
       assignment_scope: row.assignment_scope,
       policy_id: Number(row.policy_id),
-      user_ids: row.user_id ? [Number(row.user_id)] : [],
-      class_id: row.class_id ? Number(row.class_id) : undefined,
-      grade_id: row.grade_id ? Number(row.grade_id) : undefined,
+      user_ids: Array.isArray(row.user_ids) ? row.user_ids.map(Number) : [],
+      class_ids: Array.isArray(row.class_ids) ? row.class_ids.map(Number) : [],
+      grade_ids: Array.isArray(row.grade_ids) ? row.grade_ids.map(Number) : [],
       effective_start_date: row.effective_start_date
         ? parseDbDateToDayjs(row.effective_start_date)
         : null,
@@ -157,18 +220,20 @@ const AssignmentPolicyTab = () => {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
+      const groupIds = Array.isArray(values.group_ids)
+        ? values.group_ids.map(Number).filter(Boolean)
+        : editingRow?.ids || [];
       const payload = {
-        id: values.id,
+        id: groupIds[0] || values.id || undefined,
+        group_ids: groupIds,
         policy_id: values.policy_id,
         assignment_scope: values.assignment_scope,
-        user_id:
-          values.assignment_scope === "user"
-            ? values.user_ids?.[0] || null
-            : null,
         user_ids:
           values.assignment_scope === "user" ? values.user_ids || [] : [],
-        class_id: values.assignment_scope === "class" ? values.class_id : null,
-        grade_id: values.assignment_scope === "grade" ? values.grade_id : null,
+        class_ids:
+          values.assignment_scope === "class" ? values.class_ids || [] : [],
+        grade_ids:
+          values.assignment_scope === "grade" ? values.grade_ids || [] : [],
         effective_start_date: values.effective_start_date
           ? values.effective_start_date.format("YYYY-MM-DD")
           : null,
@@ -190,12 +255,16 @@ const AssignmentPolicyTab = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (row) => {
     try {
-      await deletePolicyAssignment(id).unwrap();
+      const groupIds = Array.isArray(row.ids) ? row.ids : [row.id];
+      await deletePolicyAssignment({
+        id: row.id,
+        group_ids: groupIds,
+      }).unwrap();
       message.success("Assignment policy berhasil dihapus.");
       setSelectedRowKeys((prev) =>
-        prev.filter((key) => String(key) !== String(id)),
+        prev.filter((key) => String(key) !== String(row.group_key || row.id)),
       );
     } catch (error) {
       message.error(
@@ -208,24 +277,35 @@ const AssignmentPolicyTab = () => {
   const handleBulkDelete = () => {
     if (selectedRowKeys.length === 0) return;
 
+    const deleteIds = [
+      ...new Set(
+        selectedRowKeys.flatMap((key) => {
+          const row = assignmentByKey.get(key);
+          if (!row) return [];
+          return Array.isArray(row.ids) ? row.ids : [row.id];
+        }),
+      ),
+    ];
+
     Modal.confirm({
       title: `Hapus ${selectedRowKeys.length} assignment policy terpilih?`,
       content:
-        "Data pemetaan policy ke target terkait akan dihapus permanen. Policy utama, rule harian, dan data presensi yang sudah tercatat tidak akan terhapus.",
+        "Semua target dalam grup assignment terpilih akan dihapus permanen. Policy utama, rule harian, dan data presensi yang sudah tercatat tidak akan terhapus.",
       okText: "Hapus",
       okType: "danger",
       cancelText: "Batal",
       okButtonProps: { loading: bulkDeleting },
       onOk: async () => {
         try {
-          const result = await bulkDeletePolicyAssignments(selectedRowKeys).unwrap();
+          const result = await bulkDeletePolicyAssignments(deleteIds).unwrap();
           message.success(
             result?.message || "Assignment policy terpilih berhasil dihapus.",
           );
           setSelectedRowKeys([]);
         } catch (error) {
           message.error(
-            error?.data?.message || "Gagal menghapus assignment policy terpilih.",
+            error?.data?.message ||
+              "Gagal menghapus assignment policy terpilih.",
           );
           throw error;
         }
@@ -240,15 +320,15 @@ const AssignmentPolicyTab = () => {
     }
 
     if (action === "delete") {
+      const count = Array.isArray(row.ids) ? row.ids.length : 1;
       Modal.confirm({
         title: "Hapus assignment policy ini?",
-        content:
-          "Data pemetaan policy ke target terkait akan dihapus permanen. Policy utama, rule harian, dan data presensi yang sudah tercatat tidak akan terhapus.",
+        content: `Grup ini berisi ${count} target. Semua target dalam grup akan dihapus permanen. Policy utama, rule harian, dan data presensi yang sudah tercatat tidak akan terhapus.`,
         okText: "Hapus",
         okType: "danger",
         cancelText: "Batal",
         okButtonProps: { loading: deletingAssignment },
-        onOk: () => handleDelete(row.id),
+        onOk: () => handleDelete(row),
       });
     }
   };
@@ -307,9 +387,10 @@ const AssignmentPolicyTab = () => {
             </Flex>
           )}
           <Table
-            rowKey='id'
+            rowKey={(row) => row.group_key || String(row.id)}
             loading={loadingBootstrap || loadingList}
             dataSource={filteredAssignments}
+            tableLayout='fixed'
             rowSelection={{
               selectedRowKeys,
               onChange: setSelectedRowKeys,
@@ -325,39 +406,67 @@ const AssignmentPolicyTab = () => {
                 setPagination({ current: page, pageSize });
               },
             }}
-            scroll={{ x: 500 }}
             columns={[
-              { title: "Policy", dataIndex: "policy_name", width: 220 },
+              {
+                title: "Policy",
+                key: "policy",
+                render: (_, row) => (
+                  <Flex vertical gap={2} style={{ minWidth: 0 }}>
+                    <Text strong style={{ wordBreak: "break-word" }}>
+                      {row.policy_name}
+                    </Text>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      {row.policy_code || "-"}
+                    </Text>
+                  </Flex>
+                ),
+              },
               {
                 title: "Role",
                 dataIndex: "target_role",
                 width: 110,
                 render: (value) => (
-                  <Tag color={value === "teacher" ? "blue" : "green"}>
-                    {value}
+                  <Tag
+                    color={
+                      value === "teacher"
+                        ? "blue"
+                        : value === "all"
+                          ? "purple"
+                          : "green"
+                    }
+                  >
+                    {value === "all" ? "guru & siswa" : value}
                   </Tag>
                 ),
               },
-              { title: "Scope", dataIndex: "assignment_scope", width: 130 },
               {
-                title: "Target",
-                width: 210,
-                render: (_, row) =>
-                  row.user_name ||
-                  row.class_name ||
-                  row.grade_name ||
-                  "Semua Homebase",
+                title: "Scope",
+                dataIndex: "assignment_scope",
+                width: 110,
               },
               {
-                title: "Periode Berlaku",
-                width: 220,
+                title: "Target",
+                key: "targets",
+                render: (_, row) => (
+                  <Flex vertical gap={4} style={{ minWidth: 0 }}>
+                    <TargetTags row={row} />
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      {row.target_count || 0} target
+                    </Text>
+                  </Flex>
+                ),
+              },
+              {
+                title: "Periode",
+                width: 170,
+                responsive: ["md"],
                 render: (_, row) =>
                   `${formatDateLabel(row.effective_start_date)} s/d ${formatDateLabel(row.effective_end_date)}`,
               },
               {
                 title: "Status",
                 dataIndex: "is_active",
-                width: 120,
+                width: 96,
                 render: (value) => (
                   <Tag color={value ? "success" : "default"}>
                     {value ? "Aktif" : "Nonaktif"}
@@ -372,7 +481,7 @@ const AssignmentPolicyTab = () => {
                     placeholder='Aksi'
                     value={null}
                     virtual={false}
-                    style={{ width: "100%", maxWidth: 110 }}
+                    style={{ width: "100%" }}
                     options={[
                       { value: "edit", label: "Edit" },
                       { value: "delete", label: "Hapus" },
@@ -394,12 +503,15 @@ const AssignmentPolicyTab = () => {
         onCancel={() => setModalOpen(false)}
         onOk={handleSave}
         confirmLoading={savingAssignment}
-        width={760}
+        width={780}
         centered
       >
         <Form form={form} layout='vertical'>
           <Form.Item name='id' hidden>
-            <Select />
+            <Input />
+          </Form.Item>
+          <Form.Item name='group_ids' hidden>
+            <Select mode='multiple' />
           </Form.Item>
           <Flex gap={12} wrap='wrap'>
             <Form.Item
@@ -412,7 +524,14 @@ const AssignmentPolicyTab = () => {
                 options={[
                   { value: "teacher", label: "Guru" },
                   { value: "student", label: "Siswa" },
+                  { value: "all", label: "Guru & Siswa (Ekstra)" },
                 ]}
+                onChange={() => {
+                  form.setFieldsValue({
+                    policy_id: undefined,
+                    user_ids: [],
+                  });
+                }}
               />
             </Form.Item>
             <Form.Item
@@ -446,6 +565,13 @@ const AssignmentPolicyTab = () => {
                   { value: "grade", label: "Per Grade" },
                   { value: "homebase", label: "Semua Homebase" },
                 ]}
+                onChange={() => {
+                  form.setFieldsValue({
+                    user_ids: [],
+                    class_ids: [],
+                    grade_ids: [],
+                  });
+                }}
               />
             </Form.Item>
 
@@ -460,7 +586,9 @@ const AssignmentPolicyTab = () => {
                       if (Array.isArray(value) && value.length > 0) {
                         return Promise.resolve();
                       }
-                      return Promise.reject(new Error("User wajib dipilih."));
+                      return Promise.reject(
+                        new Error("Minimal satu user wajib dipilih."),
+                      );
                     },
                   },
                 ]}
@@ -470,51 +598,72 @@ const AssignmentPolicyTab = () => {
                   showSearch={{ optionFilterProp: "label" }}
                   virtual={false}
                   options={userOptions}
-                  placeholder={
-                    editingRow
-                      ? "Edit assignment per user"
-                      : "Pilih satu atau lebih user"
-                  }
+                  placeholder='Pilih satu atau lebih user'
                   maxTagCount='responsive'
-                  maxCount={editingRow ? 1 : undefined}
                 />
               </Form.Item>
             )}
 
             {selectedScope === "class" && (
               <Form.Item
-                name='class_id'
+                name='class_ids'
                 label='Kelas'
                 style={{ minWidth: 320, flex: 1 }}
-                rules={[{ required: true, message: "Kelas wajib dipilih." }]}
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      if (Array.isArray(value) && value.length > 0) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(
+                        new Error("Minimal satu kelas wajib dipilih."),
+                      );
+                    },
+                  },
+                ]}
               >
                 <Select
+                  mode='multiple'
                   showSearch={{ optionFilterProp: "label" }}
                   virtual={false}
                   options={classes.map((item) => ({
                     value: Number(item.id),
                     label: item.name,
                   }))}
-                  placeholder='Pilih kelas'
+                  placeholder='Pilih satu atau lebih kelas'
+                  maxTagCount='responsive'
                 />
               </Form.Item>
             )}
 
             {selectedScope === "grade" && (
               <Form.Item
-                name='grade_id'
+                name='grade_ids'
                 label='Grade'
                 style={{ minWidth: 320, flex: 1 }}
-                rules={[{ required: true, message: "Grade wajib dipilih." }]}
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      if (Array.isArray(value) && value.length > 0) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(
+                        new Error("Minimal satu grade wajib dipilih."),
+                      );
+                    },
+                  },
+                ]}
               >
                 <Select
+                  mode='multiple'
                   showSearch={{ optionFilterProp: "label" }}
                   virtual={false}
                   options={grades.map((item) => ({
                     value: Number(item.id),
                     label: item.name,
                   }))}
-                  placeholder='Pilih grade'
+                  placeholder='Pilih satu atau lebih grade'
+                  maxTagCount='responsive'
                 />
               </Form.Item>
             )}

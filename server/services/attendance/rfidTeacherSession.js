@@ -11,6 +11,25 @@ const SESSION_CHECKIN_ACTION = "teacher_session_checkin";
 const SESSION_CHECKOUT_ACTION = "teacher_session_checkout";
 const SESSION_MATCH_BUFFER_MINUTES = 15;
 
+const formatTimeHHmm = (value) => {
+  if (!value) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.length >= 5 ? text.slice(0, 5) : text;
+};
+
+const normalizeClassIds = (value) => {
+  const raw = Array.isArray(value) ? value : value != null ? [value] : [];
+  return [
+    ...new Set(
+      raw
+        .map((item) => Number(item))
+        .filter((item) => Number.isFinite(item) && item > 0)
+        .map((item) => Math.trunc(item)),
+    ),
+  ];
+};
+
 const isFeatureEnabled = async (client, homebaseId, featureCode) => {
   const result = await client.query(
     `SELECT is_enabled
@@ -74,24 +93,41 @@ const pickScheduleEntry = (entries, scannedAt, attendanceDate) => {
   return nearest;
 };
 
-const fetchTeacherScheduleEntries = async (
+/**
+ * Find published schedule entries for a teacher across one or more classes
+ * mapped to a classroom RFID device.
+ */
+export const fetchTeacherScheduleEntries = async (
   client,
-  { homebaseId, periodeId, teacherId, classId, dayOfWeek },
+  { homebaseId, periodeId, teacherId, classIds, dayOfWeek },
 ) => {
+  const normalizedClassIds = normalizeClassIds(classIds);
+  if (!normalizedClassIds.length || !periodeId) {
+    return [];
+  }
+
   const result = await client.query(
     `SELECT
        se.id,
        se.class_id,
+       c.name AS class_name,
+       se.subject_id,
+       sub.name AS subject_name,
        se.slot_start_id AS first_slot_id,
+       start_slot.slot_no AS first_slot_no,
        start_slot.start_time,
        COALESCE(slot_last.last_slot_id, se.slot_start_id) AS last_slot_id,
+       COALESCE(slot_last.last_slot_no, start_slot.slot_no) AS last_slot_no,
        COALESCE(slot_last.last_end_time, start_slot.end_time) AS end_time
      FROM lms.l_schedule_entry se
+     JOIN public.a_class c ON c.id = se.class_id
+     LEFT JOIN public.a_subject sub ON sub.id = se.subject_id
      JOIN lms.l_time_slot start_slot
        ON start_slot.id = se.slot_start_id
      LEFT JOIN LATERAL (
        SELECT
          ses.slot_id AS last_slot_id,
+         ts.slot_no AS last_slot_no,
          ts.end_time AS last_end_time
        FROM lms.l_schedule_entry_slot ses
        JOIN lms.l_time_slot ts ON ts.id = ses.slot_id
@@ -102,11 +138,11 @@ const fetchTeacherScheduleEntries = async (
      WHERE se.homebase_id = $1
        AND se.periode_id = $2
        AND se.teacher_id = $3
-       AND se.class_id = $4
+       AND se.class_id = ANY($4::int[])
        AND se.day_of_week = $5
        AND se.status = 'published'
      ORDER BY start_slot.start_time ASC, se.id ASC`,
-    [homebaseId, periodeId, teacherId, classId, dayOfWeek],
+    [homebaseId, periodeId, teacherId, normalizedClassIds, dayOfWeek],
   );
 
   return result.rows;
@@ -281,16 +317,58 @@ const upsertTeacherSessionLog = async (
   return sessionLogId;
 };
 
+const resolveEffectiveSessionAction = ({
+  scanAction,
+  autoResolveSessionAction,
+  requirement,
+  scannedAt,
+  plannedStartAt,
+  plannedEndAt,
+}) => {
+  if (
+    scanAction !== SESSION_CHECKIN_ACTION &&
+    scanAction !== SESSION_CHECKOUT_ACTION
+  ) {
+    return scanAction;
+  }
+
+  if (!autoResolveSessionAction) {
+    return scanAction;
+  }
+
+  const hasCheckin = Boolean(requirement?.actual_checkin_at);
+  const hasCheckout = Boolean(requirement?.actual_checkout_at);
+
+  // Second tap on same session (without explicit action) → checkout.
+  if (hasCheckin && !hasCheckout) {
+    return SESSION_CHECKOUT_ACTION;
+  }
+
+  if (!plannedStartAt || !plannedEndAt) {
+    return SESSION_CHECKIN_ACTION;
+  }
+
+  const toStart = Math.abs(scannedAt.getTime() - plannedStartAt.getTime());
+  const toEnd = Math.abs(scannedAt.getTime() - plannedEndAt.getTime());
+  if (toEnd < toStart && hasCheckin && !hasCheckout) {
+    return SESSION_CHECKOUT_ACTION;
+  }
+
+  return SESSION_CHECKIN_ACTION;
+};
+
 export const applyRfidScanToTeacherSession = async (
   client,
   {
     homebaseId,
     periodeId,
     userId,
-    classId,
+    classId = null,
+    classIds = null,
     scanAction,
     scannedAt,
     scanLogId,
+    autoResolveSessionAction = false,
   },
 ) => {
   if (
@@ -322,13 +400,20 @@ export const applyRfidScanToTeacherSession = async (
     return null;
   }
 
+  const resolvedClassIds = normalizeClassIds(
+    classIds?.length ? classIds : classId != null ? [classId] : [],
+  );
+  if (!resolvedClassIds.length) {
+    return null;
+  }
+
   const attendanceDate = toJakartaDateString(scannedAt);
   const dayOfWeek = getJakartaIsoDow(scannedAt);
   const scheduleEntries = await fetchTeacherScheduleEntries(client, {
     homebaseId,
     periodeId,
     teacherId: userId,
-    classId,
+    classIds: resolvedClassIds,
     dayOfWeek,
   });
 
@@ -340,6 +425,8 @@ export const applyRfidScanToTeacherSession = async (
   if (!scheduleEntry) {
     return null;
   }
+
+  const matchedClassId = Number(scheduleEntry.class_id);
 
   const policy = await resolvePolicyForUser(client, {
     homebaseId,
@@ -382,6 +469,15 @@ export const applyRfidScanToTeacherSession = async (
     plannedEndAt,
   });
 
+  const effectiveScanAction = resolveEffectiveSessionAction({
+    scanAction,
+    autoResolveSessionAction,
+    requirement,
+    scannedAt,
+    plannedStartAt,
+    plannedEndAt,
+  });
+
   const scannedAtLocal = scannedAt
     .toLocaleString("sv-SE", { timeZone: JAKARTA_TZ })
     .replace("T", " ");
@@ -391,7 +487,7 @@ export const applyRfidScanToTeacherSession = async (
   let actualCheckinAt = requirement.actual_checkin_at;
   let actualCheckoutAt = requirement.actual_checkout_at;
 
-  if (scanAction === SESSION_CHECKIN_ACTION) {
+  if (effectiveScanAction === SESSION_CHECKIN_ACTION) {
     const evaluated = evaluateSessionCheckinStatus(
       scannedAt,
       plannedStartAt,
@@ -411,13 +507,13 @@ export const applyRfidScanToTeacherSession = async (
 
   const sessionLogId = await upsertTeacherSessionLog(client, {
     scheduleEntryId: scheduleEntry.id,
-    classId,
+    classId: matchedClassId,
     attendanceDate,
     teacherId: userId,
     checkinAt:
-      scanAction === SESSION_CHECKIN_ACTION ? scannedAtLocal : null,
+      effectiveScanAction === SESSION_CHECKIN_ACTION ? scannedAtLocal : null,
     checkoutAt:
-      scanAction === SESSION_CHECKOUT_ACTION ? scannedAtLocal : null,
+      effectiveScanAction === SESSION_CHECKOUT_ACTION ? scannedAtLocal : null,
     userId,
   });
 
@@ -435,8 +531,12 @@ export const applyRfidScanToTeacherSession = async (
     [
       requirement.id,
       attendanceId,
-      scanAction === SESSION_CHECKIN_ACTION ? scannedAt.toISOString() : null,
-      scanAction === SESSION_CHECKOUT_ACTION ? scannedAt.toISOString() : null,
+      effectiveScanAction === SESSION_CHECKIN_ACTION
+        ? scannedAt.toISOString()
+        : null,
+      effectiveScanAction === SESSION_CHECKOUT_ACTION
+        ? scannedAt.toISOString()
+        : null,
       sessionLogId,
       sessionStatus,
       lateMinutes,
@@ -451,8 +551,13 @@ export const applyRfidScanToTeacherSession = async (
        teacher_session_log_id = $4,
        class_id = $5
      WHERE id = $1`,
-    [scanLogId, attendanceId, scheduleEntry.id, sessionLogId, classId],
+    [scanLogId, attendanceId, scheduleEntry.id, sessionLogId, matchedClassId],
   );
+
+  const firstSlotNo = Number(scheduleEntry.first_slot_no || 0) || null;
+  const lastSlotNo = Number(scheduleEntry.last_slot_no || 0) || null;
+  const plannedCheckinTime = formatTimeHHmm(scheduleEntry.start_time);
+  const plannedCheckoutTime = formatTimeHHmm(scheduleEntry.end_time);
 
   return {
     attendance_id: attendanceId,
@@ -460,5 +565,36 @@ export const applyRfidScanToTeacherSession = async (
     teacher_session_log_id: sessionLogId,
     session_status: sessionStatus,
     attendance_date: attendanceDate,
+    scan_action: effectiveScanAction,
+    class_id: matchedClassId,
+    class_name: scheduleEntry.class_name || null,
+    subject_id: scheduleEntry.subject_id
+      ? Number(scheduleEntry.subject_id)
+      : null,
+    subject_name: scheduleEntry.subject_name || null,
+    first_slot_no: firstSlotNo,
+    last_slot_no: lastSlotNo,
+    slot_label:
+      firstSlotNo && lastSlotNo && firstSlotNo !== lastSlotNo
+        ? `Jam ke-${firstSlotNo} s/d ${lastSlotNo}`
+        : firstSlotNo
+          ? `Jam ke-${firstSlotNo}`
+          : null,
+    planned_checkin_time: plannedCheckinTime,
+    planned_checkout_time: plannedCheckoutTime,
+    planned_start_at: plannedStartAt.toISOString(),
+    planned_end_at: plannedEndAt.toISOString(),
+    actual_checkin_at:
+      effectiveScanAction === SESSION_CHECKIN_ACTION
+        ? scannedAt.toISOString()
+        : actualCheckinAt
+          ? new Date(actualCheckinAt).toISOString()
+          : null,
+    actual_checkout_at:
+      effectiveScanAction === SESSION_CHECKOUT_ACTION
+        ? scannedAt.toISOString()
+        : actualCheckoutAt
+          ? new Date(actualCheckoutAt).toISOString()
+          : null,
   };
 };

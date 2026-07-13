@@ -18,9 +18,9 @@ CREATE TABLE attendance_policy(
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT attendance_policy_target_role_check
-        CHECK (target_role IN ('student', 'teacher')),
+        CHECK (target_role IN ('student', 'teacher', 'all')),
     CONSTRAINT attendance_policy_type_check
-        CHECK (policy_type IN ('student_fixed', 'teacher_schedule_based', 'teacher_fixed_daily'))
+        CHECK (policy_type IN ('student_fixed', 'teacher_schedule_based', 'teacher_fixed_daily', 'activity_fixed'))
 );
 CREATE UNIQUE INDEX uq_attendance_policy_code
 ON attendance.attendance_policy(homebase_id, code);
@@ -156,7 +156,8 @@ CREATE TABLE attendance_feature_setting(
                 'teacher_daily_attendance',
                 'teacher_class_session_attendance',
                 'student_daily_attendance',
-                'student_checkout_logging'
+                'student_checkout_logging',
+                'activity_attendance'
             )
         )
 );
@@ -168,7 +169,11 @@ ON attendance.attendance_feature_setting(homebase_id, feature_code, is_enabled);
 CREATE TABLE rfid_device(
     id SERIAL NOT NULL,
     homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    -- Legacy single-class pointer (first mapped class). Source of truth for classroom
+    -- mappings is attendance.rfid_device_class (one device -> many classes).
     class_id integer REFERENCES public.a_class(id) ON DELETE SET NULL,
+    -- Extracurricular device must bind to an activity_fixed policy.
+    policy_id integer REFERENCES attendance.attendance_policy(id) ON DELETE SET NULL,
     code varchar(60) NOT NULL,
     name varchar(120) NOT NULL,
     device_type varchar(20) NOT NULL,
@@ -186,12 +191,14 @@ CREATE TABLE rfid_device(
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT rfid_device_type_check
-        CHECK (device_type IN ('gate', 'classroom')),
-    CONSTRAINT rfid_device_classroom_check
+        CHECK (device_type IN ('gate', 'classroom', 'extracurricular')),
+    CONSTRAINT rfid_device_device_binding_check
         CHECK (
-            (device_type = 'gate' AND class_id IS NULL)
+            (device_type = 'gate' AND class_id IS NULL AND policy_id IS NULL)
             OR
-            (device_type = 'classroom' AND class_id IS NOT NULL)
+            (device_type = 'classroom' AND policy_id IS NULL)
+            OR
+            (device_type = 'extracurricular' AND class_id IS NULL AND policy_id IS NOT NULL)
         )
 );
 CREATE UNIQUE INDEX uq_rfid_device_code
@@ -200,6 +207,20 @@ CREATE INDEX idx_rfid_device_lookup
 ON attendance.rfid_device(homebase_id, device_type, class_id, is_active);
 CREATE INDEX idx_rfid_device_location_group
 ON attendance.rfid_device(location_group, device_type, is_active);
+CREATE INDEX idx_rfid_device_policy
+ON attendance.rfid_device(policy_id, device_type, is_active);
+
+-- Classroom device may cover multiple classes (e.g. Device 1 -> 7A/7B/7C/7D).
+CREATE TABLE rfid_device_class(
+    device_id integer NOT NULL REFERENCES attendance.rfid_device(id) ON DELETE CASCADE,
+    class_id integer NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(device_id, class_id)
+);
+CREATE INDEX idx_rfid_device_class_class
+ON attendance.rfid_device_class(class_id, device_id);
+CREATE INDEX idx_rfid_device_class_device
+ON attendance.rfid_device_class(device_id, class_id);
 
 CREATE TABLE rfid_card(
     id SERIAL NOT NULL,
@@ -237,6 +258,7 @@ CREATE TABLE rfid_scan_log(
     schedule_entry_id integer REFERENCES lms.l_schedule_entry(id) ON DELETE SET NULL,
     teacher_session_log_id integer REFERENCES lms.l_teacher_session_log(id) ON DELETE SET NULL,
     attendance_id bigint,
+    activity_attendance_id bigint,
     scan_source varchar(20) NOT NULL,
     scan_action varchar(30),
     card_uid varchar(100) NOT NULL,
@@ -249,7 +271,7 @@ CREATE TABLE rfid_scan_log(
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
     CONSTRAINT rfid_scan_log_source_check
-        CHECK (scan_source IN ('gate', 'classroom')),
+        CHECK (scan_source IN ('gate', 'classroom', 'extracurricular')),
     CONSTRAINT rfid_scan_log_action_check
         CHECK (
             scan_action IS NULL
@@ -259,6 +281,9 @@ CREATE TABLE rfid_scan_log(
                 'daily_checkout',
                 'teacher_session_checkin',
                 'teacher_session_checkout',
+                'activity_gate',
+                'activity_checkin',
+                'activity_checkout',
                 'unknown'
             )
         ),
@@ -428,6 +453,55 @@ CREATE INDEX idx_teacher_schedule_requirement_teacher
 ON attendance.teacher_schedule_requirement(teacher_id, planned_start_at, session_status);
 CREATE INDEX idx_teacher_schedule_requirement_session_log
 ON attendance.teacher_schedule_requirement(teacher_session_log_id);
+
+-- Extracurricular / activity attendance (independent from daily gate attendance).
+CREATE TABLE activity_attendance(
+    id BIGSERIAL NOT NULL,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id integer REFERENCES public.a_periode(id) ON DELETE SET NULL,
+    user_id integer NOT NULL REFERENCES public.u_users(id) ON DELETE CASCADE,
+    policy_id integer NOT NULL REFERENCES attendance.attendance_policy(id) ON DELETE CASCADE,
+    device_id integer REFERENCES attendance.rfid_device(id) ON DELETE SET NULL,
+    attendance_date date NOT NULL,
+    target_role varchar(20) NOT NULL,
+    checkin_at timestamp with time zone,
+    checkout_at timestamp with time zone,
+    first_scan_id bigint REFERENCES attendance.rfid_scan_log(id) ON DELETE SET NULL,
+    last_scan_id bigint REFERENCES attendance.rfid_scan_log(id) ON DELETE SET NULL,
+    attendance_status varchar(30) NOT NULL DEFAULT 'pending',
+    late_minutes integer NOT NULL DEFAULT 0,
+    presence_minutes integer,
+    notes text,
+    evaluated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT activity_attendance_role_check
+        CHECK (target_role IN ('student', 'teacher')),
+    CONSTRAINT activity_attendance_status_check
+        CHECK (
+            attendance_status IN (
+                'pending',
+                'present',
+                'late',
+                'absent',
+                'excused',
+                'incomplete'
+            )
+        ),
+    CONSTRAINT activity_attendance_time_order_check
+        CHECK (checkout_at IS NULL OR checkin_at IS NULL OR checkout_at >= checkin_at),
+    CONSTRAINT activity_attendance_late_check
+        CHECK (late_minutes >= 0),
+    CONSTRAINT activity_attendance_presence_check
+        CHECK (presence_minutes IS NULL OR presence_minutes >= 0)
+);
+CREATE UNIQUE INDEX uq_activity_attendance_user_policy_date
+ON attendance.activity_attendance(user_id, policy_id, attendance_date);
+CREATE INDEX idx_activity_attendance_lookup
+ON attendance.activity_attendance(homebase_id, policy_id, attendance_date, attendance_status);
+CREATE INDEX idx_activity_attendance_user_date
+ON attendance.activity_attendance(user_id, attendance_date DESC);
 
 CREATE TABLE attendance_manual_adjustment(
     id BIGSERIAL NOT NULL,
