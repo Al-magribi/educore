@@ -60,6 +60,7 @@ export const ApiHomeTeacher = createApi({
 
 export const {
   useGetTeachersQuery,
+  useLazyGetTeachersQuery,
   useAddTeacherMutation,
   useUpdateTeacherMutation,
   useDeleteTeacherMutation,
