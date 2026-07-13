@@ -29,6 +29,7 @@ import UploadTeacher from "./UploadTeacher"; // 1. Import UploadTeacher
 import { downloadTeacherTemplate } from "./teacherImportTemplate";
 import {
   useGetTeachersQuery,
+  useLazyGetTeachersQuery,
   useAddTeacherMutation,
   useUpdateTeacherMutation,
   useDeleteTeacherMutation,
@@ -82,11 +83,13 @@ const Teacher = () => {
     limit: pagination.pageSize,
     search: debouncedSearch,
   });
+  const [fetchTeachersExport] = useLazyGetTeachersQuery();
   const [addTeacher, { isLoading: isAdding }] = useAddTeacherMutation();
   const [updateTeacher, { isLoading: isUpdating }] = useUpdateTeacherMutation();
   const [deleteTeacher] = useDeleteTeacherMutation();
   const { data: classesData = [] } = useGetClassesListQuery();
   const { data: subjectsData = [] } = useGetSubjectsListQuery();
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
   const handleEdit = (teacher) => {
     setEditingTeacher(teacher);
@@ -157,11 +160,32 @@ const Teacher = () => {
 
   const showUpload = () => setIsUploadOpen(true);
   const closeUpload = () => setIsUploadOpen(false);
-  const handleDownloadTemplate = () => {
-    downloadTeacherTemplate({
-      classes: classesData,
-      subjects: subjectsData,
-    });
+  const handleDownloadTemplate = async () => {
+    setIsDownloadingTemplate(true);
+    try {
+      const result = await fetchTeachersExport({
+        page: 1,
+        limit: 10000,
+        search: "",
+      }).unwrap();
+
+      downloadTeacherTemplate({
+        teachers: result?.data || [],
+        classes: classesData,
+        subjects: subjectsData,
+      });
+      message.success(
+        (result?.data || []).length > 0
+          ? `Template berisi ${(result?.data || []).length} data guru siap diedit.`
+          : "Template contoh berhasil diunduh. Belum ada data guru tersimpan.",
+      );
+    } catch (error) {
+      message.error(
+        error?.data?.message || "Gagal mengunduh template data guru.",
+      );
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
   };
 
   const teacherItems = teachersData?.data || [];
@@ -366,6 +390,7 @@ const Teacher = () => {
                 <Button
                   icon={<DownloadOutlined />}
                   onClick={handleDownloadTemplate}
+                  loading={isDownloadingTemplate}
                 >
                   Template
                 </Button>

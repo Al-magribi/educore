@@ -35,6 +35,7 @@ import * as XLSX from "xlsx";
 import {
   useGetClassesListQuery,
   useGetSubjectsListQuery,
+  useLazyGetTeachersQuery,
   useUploadTeachersMutation,
 } from "../../../../service/academic/ApiTeacher";
 import {
@@ -239,7 +240,7 @@ const buildRow = ({ row, index, classes, subjects }) => {
   return {
     key: index,
     username,
-    password: password || "123456",
+    password: password,
     full_name: fullName,
     nip,
     rfid_no: rfidNo,
@@ -269,8 +270,10 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
     useGetClassesListQuery();
   const { data: subjectsData = [], isLoading: subjectsLoading } =
     useGetSubjectsListQuery();
+  const [fetchTeachersExport] = useLazyGetTeachersQuery();
   const [uploadTeachers, { isLoading: isUploading }] =
     useUploadTeachersMutation();
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
   const referencesReady =
     !classesLoading && !subjectsLoading && classesData.length > 0;
@@ -294,11 +297,32 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
   }, [classesData, referencesReady, subjectsData, tableData.length]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const downloadTemplateFile = () => {
-    downloadTeacherTemplate({
-      classes: classesData,
-      subjects: subjectsData,
-    });
+  const downloadTemplateFile = async () => {
+    setIsDownloadingTemplate(true);
+    try {
+      const result = await fetchTeachersExport({
+        page: 1,
+        limit: 10000,
+        search: "",
+      }).unwrap();
+
+      downloadTeacherTemplate({
+        teachers: result?.data || [],
+        classes: classesData,
+        subjects: subjectsData,
+      });
+      message.success(
+        (result?.data || []).length > 0
+          ? `Template berisi ${(result?.data || []).length} data guru siap diedit.`
+          : "Template contoh berhasil diunduh. Belum ada data guru tersimpan.",
+      );
+    } catch (error) {
+      message.error(
+        error?.data?.message || "Gagal mengunduh template data guru.",
+      );
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
   };
 
   const updateRow = (rowKey, field, value) => {
@@ -380,7 +404,9 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
 
       await uploadTeachers(payload).unwrap();
 
-      message.success("Data guru berhasil diimpor ke server.");
+      message.success(
+        "Data guru berhasil diimpor. Guru baru dibuat, data lama diperbarui jika username sudah ada.",
+      );
       setTableData([]);
       setFileList([]);
       onClose();
@@ -419,7 +445,7 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
       render: (text, record) => (
         <Input
           value={text}
-          placeholder='123456'
+          placeholder='Kosong = tetap / 123456'
           onChange={(e) => updateRow(record.key, "password", e.target.value)}
         />
       ),
@@ -629,7 +655,12 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
             </div>
           </Flex>
           <Flex gap={10} wrap="wrap" justify="flex-end">
-            <Button icon={<DownloadOutlined />} onClick={downloadTemplateFile} style={{ borderRadius: 14 }}>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={downloadTemplateFile}
+              loading={isDownloadingTemplate}
+              style={{ borderRadius: 14 }}
+            >
               Template
             </Button>
             <Button onClick={onClose} icon={<X size={16} />} style={{ borderRadius: 14 }}>
@@ -690,11 +721,12 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
                       <ol style={{ paddingLeft: 20, margin: "0 0 10px" }}>
                         <li>
                           Klik tombol <strong>Template</strong> untuk unduh file
-                          import terbaru.
+                          terbaru. Jika sudah ada data guru, file berisi data
+                          aktual siap diedit.
                         </li>
                         <li>
-                          Isi data pada sheet <strong>Template Guru</strong> saja.
-                          Jangan ubah nama kolom.
+                          Isi/ubah data pada sheet <strong>Template Guru</strong>{" "}
+                          saja. Jangan ubah nama kolom.
                         </li>
                         <li>
                           Cocokkan <strong>Wali Kelas</strong> dengan sheet{" "}
@@ -717,8 +749,13 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
                           <strong>Nama Lengkap</strong>.
                         </li>
                         <li>
-                          <strong>Password</strong> opsional. Jika kosong akan
-                          otomatis jadi <strong>123456</strong>.
+                          <strong>Username</strong> dipakai sebagai kunci update.
+                          Jika sudah ada, data guru akan diperbarui.
+                        </li>
+                        <li>
+                          <strong>Password</strong> opsional. Kosongkan saat
+                          update agar password lama tetap. Untuk guru baru, jika
+                          kosong otomatis jadi <strong>123456</strong>.
                         </li>
                         <li>
                           Nama mapel persis sistem juga didukung jika kode mapel
