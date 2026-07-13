@@ -520,17 +520,23 @@ CREATE TABLE l_attendance(
     PRIMARY KEY(id)
 );
 
-CREATE TABLE l_score_weighting(
-    id SERIAL NOT NULL,
-    teacher_id integer REFERENCES public.u_teachers(user_id),
-    subject_id integer REFERENCES public.a_subject(id),
-    weight_attendance integer DEFAULT 0,
-    weight_attitude integer DEFAULT 0,
-    weight_daily integer DEFAULT 0,
-    weight_mid integer DEFAULT 0,
-    weight_final integer DEFAULT 0,
-    PRIMARY KEY(id),
-    CONSTRAINT total_weight_100 CHECK ((weight_attendance + weight_attitude + weight_daily + weight_mid + weight_final) = 100)
+CREATE TABLE lms.l_score_weighting (
+    id SERIAL PRIMARY KEY,
+    teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id),
+    subject_id integer NOT NULL REFERENCES public.a_subject(id),
+    weight_formative integer NOT NULL DEFAULT 0
+        CHECK (weight_formative >= 0 AND weight_formative <= 100),
+    weight_summative integer NOT NULL DEFAULT 0
+        CHECK (weight_summative >= 0 AND weight_summative <= 100),
+    weight_final integer NOT NULL DEFAULT 0
+        CHECK (weight_final >= 0 AND weight_final <= 100),
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_score_weighting_teacher_subject UNIQUE (teacher_id, subject_id),
+    CONSTRAINT chk_score_weighting_total_100
+        CHECK (
+            (weight_formative + weight_summative + weight_final) = 0
+            OR (weight_formative + weight_summative + weight_final) = 100
+        )
 );
 
 CREATE TABLE l_score_attitude(

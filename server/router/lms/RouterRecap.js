@@ -2546,12 +2546,58 @@ router.get(
       [class_id, activePeriode.id],
     );
 
+    const teacherFilterFormativeQuery =
+      role === "teacher" || effectiveTeacherId ? "AND f.teacher_id = $5" : "";
     const teacherFilterSummativeQuery =
       role === "teacher" || effectiveTeacherId ? "AND s.teacher_id = $5" : "";
     const teacherFilterFinalQuery =
       role === "teacher" || effectiveTeacherId ? "AND f.teacher_id = $5" : "";
     const teacherFilterParams =
       role === "teacher" || effectiveTeacherId ? [effectiveTeacherId] : [];
+
+    const weighting =
+      effectiveTeacherId != null
+        ? (
+            await pool.query(
+              `SELECT
+                 weight_formative,
+                 weight_summative,
+                 weight_final
+               FROM lms.l_score_weighting
+               WHERE teacher_id = $1 AND subject_id = $2
+               LIMIT 1`,
+              [effectiveTeacherId, subject_id],
+            )
+          ).rows[0]
+        : null;
+
+    const weightFormative = Number(weighting?.weight_formative ?? 0);
+    const weightSummative = Number(weighting?.weight_summative ?? 0);
+    const weightFinal = Number(weighting?.weight_final ?? 0);
+    const weightTotal = weightFormative + weightSummative + weightFinal;
+    const weightConfigured = weightTotal === 100;
+
+    const formativeResult = await pool.query(
+      `SELECT
+         f.student_id,
+         f.month,
+         f.type,
+         f.score
+       FROM lms.l_score_formative f
+       WHERE f.subject_id = $1
+         AND f.class_id = $2
+         AND f.periode_id = $3
+         AND f.semester = $4
+         ${teacherFilterFormativeQuery}
+       ORDER BY f.student_id ASC, f.id ASC`,
+      [
+        subject_id,
+        class_id,
+        activePeriode.id,
+        semesterValue,
+        ...teacherFilterParams,
+      ],
+    );
 
     const summativeResult = await pool.query(
       `SELECT
@@ -2596,6 +2642,21 @@ router.get(
       ],
     );
 
+    const formativeScoresByStudent = new Map();
+    for (const row of formativeResult.rows) {
+      const monthNumber =
+        monthNameToNumber(row.month) ?? monthNameToNumber(row.type);
+      if (monthNumber !== null && !semesterMonths.includes(monthNumber)) {
+        continue;
+      }
+      if (row.score === null || row.score === undefined) continue;
+      const key = String(row.student_id);
+      if (!formativeScoresByStudent.has(key)) {
+        formativeScoresByStudent.set(key, []);
+      }
+      formativeScoresByStudent.get(key).push(Number(row.score));
+    }
+
     const summativeScoresByStudent = new Map();
     const filteredSummativeRows = summativeResult.rows.filter((row) => {
       const monthNumber = monthNameToNumber(row.month);
@@ -2630,6 +2691,13 @@ router.get(
 
     const students = studentsResult.rows.map((student) => {
       const studentKey = String(student.student_id);
+      const formativeValues = formativeScoresByStudent.get(studentKey) || [];
+      const formativeAverage = formativeValues.length
+        ? round2(
+            formativeValues.reduce((sum, value) => sum + Number(value), 0) /
+              formativeValues.length,
+          )
+        : null;
       const summativeValues = summativeScoresByStudent.get(studentKey) || [];
       const summativeAverage = summativeValues.length
         ? round2(
@@ -2638,21 +2706,42 @@ router.get(
           )
         : null;
       const finalGrade = finalMap.get(studentKey) ?? null;
-      const reportGrade =
-        summativeAverage !== null && finalGrade !== null
-          ? round2((Number(summativeAverage) + Number(finalGrade)) / 2)
-          : null;
+
+      let reportGrade = null;
+      if (weightConfigured) {
+        let weightedSum = 0;
+        let hasComponent = false;
+
+        if (weightFormative > 0 && formativeAverage !== null) {
+          weightedSum += (weightFormative / 100) * Number(formativeAverage);
+          hasComponent = true;
+        }
+        if (weightSummative > 0 && summativeAverage !== null) {
+          weightedSum += (weightSummative / 100) * Number(summativeAverage);
+          hasComponent = true;
+        }
+        if (weightFinal > 0 && finalGrade !== null) {
+          weightedSum += (weightFinal / 100) * Number(finalGrade);
+          hasComponent = true;
+        }
+
+        reportGrade = hasComponent ? round2(weightedSum) : null;
+      }
 
       return {
         student_id: student.student_id,
         nis: student.nis,
         full_name: student.full_name,
+        formative_average: formativeAverage,
         summative_average: summativeAverage,
         final_grade: finalGrade,
         report_grade: reportGrade,
       };
     });
 
+    const formativeAverages = students
+      .map((item) => item.formative_average)
+      .filter((value) => value !== null && value !== undefined);
     const summativeAverages = students
       .map((item) => item.summative_average)
       .filter((value) => value !== null && value !== undefined);
@@ -2675,8 +2764,23 @@ router.get(
           periode_name: activePeriode.name,
           semester: semesterValue,
           total_students: students.length,
+          teacher_id: effectiveTeacherId,
+        },
+        weighting: {
+          weight_formative: weightFormative,
+          weight_summative: weightSummative,
+          weight_final: weightFinal,
+          configured: weightConfigured,
         },
         summary: {
+          formative_average: formativeAverages.length
+            ? round2(
+                formativeAverages.reduce(
+                  (sum, value) => sum + Number(value),
+                  0,
+                ) / formativeAverages.length,
+              )
+            : 0,
           summative_average: summativeAverages.length
             ? round2(
                 summativeAverages.reduce(
@@ -2700,6 +2804,177 @@ router.get(
           total_graded: reportAverages.length,
         },
         students,
+      },
+    });
+  }),
+);
+
+router.put(
+  "/recap/score-weighting",
+  authorize("satuan", "teacher", "admin"),
+  withQuery(async (req, res, pool) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const {
+      subject_id,
+      teacher_id,
+      weight_formative,
+      weight_summative,
+      weight_final,
+    } = req.body || {};
+
+    if (!subject_id) {
+      return res.status(400).json({
+        status: "error",
+        message: "subject_id wajib diisi.",
+      });
+    }
+
+    const weightFormative = Number(weight_formative);
+    const weightSummative = Number(weight_summative);
+    const weightFinal = Number(weight_final);
+
+    if (
+      ![weightFormative, weightSummative, weightFinal].every((value) =>
+        Number.isInteger(value),
+      )
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "Bobot harus bilangan bulat.",
+      });
+    }
+
+    if (
+      weightFormative < 0 ||
+      weightFormative > 100 ||
+      weightSummative < 0 ||
+      weightSummative > 100 ||
+      weightFinal < 0 ||
+      weightFinal > 100
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "Setiap bobot harus antara 0 dan 100.",
+      });
+    }
+
+    const weightTotal = weightFormative + weightSummative + weightFinal;
+    if (weightTotal !== 0 && weightTotal !== 100) {
+      return res.status(400).json({
+        status: "error",
+        message: "Total bobot harus 0 (belum diatur) atau tepat 100.",
+      });
+    }
+
+    const effectiveTeacherId =
+      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const subjectCheck = await pool.query(
+      `SELECT id, homebase_id FROM a_subject WHERE id = $1 LIMIT 1`,
+      [subject_id],
+    );
+    if (subjectCheck.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Mata pelajaran tidak ditemukan.",
+      });
+    }
+
+    if (
+      homebase_id &&
+      Number(subjectCheck.rows[0].homebase_id) !== Number(homebase_id)
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message: "Mapel tidak berada di homebase yang sama.",
+      });
+    }
+
+    if (role === "teacher") {
+      const accessCheck = await pool.query(
+        `SELECT 1
+         FROM at_subject
+         WHERE teacher_id = $1 AND subject_id = $2
+         LIMIT 1`,
+        [userId, subject_id],
+      );
+      if (accessCheck.rowCount === 0) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+    } else {
+      const teacherAccessCheck = await pool.query(
+        `SELECT 1
+         FROM at_subject
+         WHERE teacher_id = $1 AND subject_id = $2
+         LIMIT 1`,
+        [effectiveTeacherId, subject_id],
+      );
+      if (teacherAccessCheck.rowCount === 0) {
+        return res.status(403).json({
+          status: "error",
+          message: "Guru tidak mengampu mata pelajaran ini.",
+        });
+      }
+    }
+
+    const upsertResult = await pool.query(
+      `INSERT INTO lms.l_score_weighting (
+         teacher_id,
+         subject_id,
+         weight_formative,
+         weight_summative,
+         weight_final,
+         updated_at
+       ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+       ON CONFLICT (teacher_id, subject_id)
+       DO UPDATE SET
+         weight_formative = EXCLUDED.weight_formative,
+         weight_summative = EXCLUDED.weight_summative,
+         weight_final = EXCLUDED.weight_final,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING
+         teacher_id,
+         subject_id,
+         weight_formative,
+         weight_summative,
+         weight_final,
+         updated_at`,
+      [
+        effectiveTeacherId,
+        subject_id,
+        weightFormative,
+        weightSummative,
+        weightFinal,
+      ],
+    );
+
+    const saved = upsertResult.rows[0];
+    const configured =
+      Number(saved.weight_formative) +
+        Number(saved.weight_summative) +
+        Number(saved.weight_final) ===
+      100;
+
+    return res.json({
+      status: "success",
+      message: configured
+        ? "Bobot nilai raport berhasil disimpan."
+        : "Bobot nilai raport direset (belum diatur).",
+      data: {
+        teacher_id: saved.teacher_id,
+        subject_id: saved.subject_id,
+        weight_formative: Number(saved.weight_formative),
+        weight_summative: Number(saved.weight_summative),
+        weight_final: Number(saved.weight_final),
+        configured,
+        updated_at: saved.updated_at,
       },
     });
   }),

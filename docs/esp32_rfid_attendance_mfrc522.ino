@@ -293,6 +293,12 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
     return;
   }
 
+  if (status == "unregistered") {
+    line1 = "Kartu Gagal";
+    line2 = "Tdk Terdaftar";
+    return;
+  }
+
   if (status == "rejected") {
     if (messageContains(msg, "Token")) {
       line1 = "Konfigurasi";

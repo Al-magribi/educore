@@ -60,6 +60,14 @@ export const ApiRecap = createApi({
         }&semester=${semester || ""}&teacher_id=${teacherId || ""}`,
       providesTags: ["RecapReportScore"],
     }),
+    upsertScoreWeighting: builder.mutation({
+      query: (body) => ({
+        url: "/score-weighting",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["RecapReportScore"],
+    }),
     getLearningSummaryRecap: builder.query({
       query: ({ subjectId, teacherId, classId }) =>
         `/learning-summary?subject_id=${subjectId || ""}&teacher_id=${
@@ -85,6 +93,7 @@ export const {
   useGetScoreSummativeRecapQuery,
   useGetFinalScoreRecapQuery,
   useGetReportScoreRecapQuery,
+  useUpsertScoreWeightingMutation,
   useGetLearningSummaryRecapQuery,
   useGetJournalSummaryRecapQuery,
 } = ApiRecap;
