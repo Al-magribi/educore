@@ -298,25 +298,110 @@ router.delete(
 );
 
 
-// --- UPLOAD TEACHERS (BULK) ---
+// --- UPLOAD TEACHERS (BULK CREATE / UPDATE) ---
 router.post(
   "/teacher/upload",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const teachers = req.body;
     const homebaseId = req.user.homebase_id;
-    let importedCount = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
     let skippedInvalid = 0;
-    let skippedDuplicate = 0;
+    let skippedConflict = 0;
 
     if (!Array.isArray(teachers) || teachers.length === 0) {
       return res.status(400).json({ message: "Data tidak valid." });
     }
 
+    const syncTeacherRelations = async ({
+      userId,
+      rfidNo,
+      homeroomClassId,
+      allocations,
+    }) => {
+      if (rfidNo !== undefined) {
+        const normalizedRfid = `${rfidNo || ""}`.trim();
+        if (!normalizedRfid) {
+          await client.query(
+            `UPDATE attendance.rfid_card
+             SET is_active = false
+             WHERE user_id = $1`,
+            [userId],
+          );
+        } else {
+          const existingCard = await client.query(
+            `SELECT id, user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+            [normalizedRfid],
+          );
+
+          if (
+            existingCard.rowCount > 0 &&
+            Number(existingCard.rows[0].user_id) !== Number(userId)
+          ) {
+            throw new Error("No RFID sudah dipakai user lain.");
+          }
+
+          if (existingCard.rowCount > 0) {
+            await client.query(
+              `UPDATE attendance.rfid_card
+               SET user_id = $1, is_active = true, is_primary = true
+               WHERE id = $2`,
+              [userId, existingCard.rows[0].id],
+            );
+          } else {
+            await client.query(
+              `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+               VALUES ($1, $2, 'rfid', true, true)`,
+              [userId, normalizedRfid],
+            );
+          }
+        }
+      }
+
+      await client.query(
+        `UPDATE a_class SET homeroom_teacher_id = NULL WHERE homeroom_teacher_id = $1`,
+        [userId],
+      );
+      await client.query(
+        `UPDATE u_teachers SET is_homeroom = false WHERE user_id = $1`,
+        [userId],
+      );
+
+      if (homeroomClassId) {
+        await client.query(
+          `UPDATE u_teachers SET is_homeroom = false WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
+          [homeroomClassId],
+        );
+        await client.query(
+          `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
+          [userId, homeroomClassId],
+        );
+        await client.query(
+          `UPDATE u_teachers SET is_homeroom = true WHERE user_id = $1`,
+          [userId],
+        );
+      }
+
+      await client.query(`DELETE FROM at_subject WHERE teacher_id = $1`, [userId]);
+
+      for (const item of allocations) {
+        if (!item?.subject_id || !item?.class_id) continue;
+        await client.query(
+          `INSERT INTO at_subject (teacher_id, subject_id, class_id) VALUES ($1, $2, $3)`,
+          [userId, item.subject_id, item.class_id],
+        );
+      }
+    };
+
     for (const teacher of teachers) {
-      const username = (teacher?.username || teacher?.nip || "").toString().trim();
-      const password = (teacher?.password || "123456").toString().trim();
-      const fullName = (teacher?.full_name || teacher?.name || "").toString().trim();
+      const username = (teacher?.username || teacher?.nip || "")
+        .toString()
+        .trim();
+      const password = (teacher?.password || "").toString().trim();
+      const fullName = (teacher?.full_name || teacher?.name || "")
+        .toString()
+        .trim();
       const nip = (teacher?.nip || "").toString().trim();
       const rfidNo = (teacher?.rfid_no || teacher?.rfid || "").toString().trim();
       const phone = (teacher?.phone || "").toString().trim();
@@ -331,95 +416,137 @@ router.post(
         continue;
       }
 
-      if (nip) {
-        const existing = await client.query(
-          "SELECT user_id FROM u_teachers WHERE nip = $1 AND homebase_id = $2",
-          [nip, homebaseId],
+      try {
+        let userId = null;
+
+        const byUsername = await client.query(
+          `
+            SELECT u.id
+            FROM u_users u
+            JOIN u_teachers t ON t.user_id = u.id
+            WHERE u.username = $1
+              AND u.role = 'teacher'
+              AND t.homebase_id = $2
+            LIMIT 1
+          `,
+          [username, homebaseId],
         );
-        if (existing.rows.length > 0) {
-          skippedDuplicate++;
+
+        if (byUsername.rows.length > 0) {
+          userId = byUsername.rows[0].id;
+        } else if (nip) {
+          const byNip = await client.query(
+            `
+              SELECT t.user_id
+              FROM u_teachers t
+              JOIN u_users u ON u.id = t.user_id
+              WHERE t.nip = $1
+                AND t.homebase_id = $2
+                AND u.role = 'teacher'
+              LIMIT 1
+            `,
+            [nip, homebaseId],
+          );
+          if (byNip.rows.length > 0) {
+            userId = byNip.rows[0].user_id;
+          }
+        }
+
+        if (userId) {
+          await client.query(
+            `UPDATE u_users SET username = $1, full_name = $2 WHERE id = $3`,
+            [username, fullName, userId],
+          );
+
+          if (password) {
+            const salt = await bcrypt.genSalt(10);
+            const hashPassword = await bcrypt.hash(password, salt);
+            await client.query(`UPDATE u_users SET password = $1 WHERE id = $2`, [
+              hashPassword,
+              userId,
+            ]);
+          }
+
+          await client.query(
+            `UPDATE u_teachers
+             SET nip = $1, phone = $2, email = $3, is_homeroom = false
+             WHERE user_id = $4`,
+            [nip || null, phone || null, email || null, userId],
+          );
+
+          await syncTeacherRelations({
+            userId,
+            rfidNo,
+            homeroomClassId,
+            allocations,
+          });
+          updatedCount++;
           continue;
         }
-      }
 
-      const existingUsername = await client.query(
-        "SELECT id FROM u_users WHERE username = $1",
-        [username],
-      );
-      if (existingUsername.rows.length > 0) {
-        skippedDuplicate++;
-        continue;
-      }
+        const usernameTaken = await client.query(
+          `SELECT id, role FROM u_users WHERE username = $1 LIMIT 1`,
+          [username],
+        );
+        if (usernameTaken.rows.length > 0) {
+          skippedConflict++;
+          continue;
+        }
 
-      const salt = await bcrypt.genSalt(10);
-      const hashPassword = await bcrypt.hash(password || "123456", salt);
-      const userRes = await client.query(
-        `INSERT INTO u_users (username, password, full_name, role) VALUES ($1, $2, $3, 'teacher') RETURNING id`,
-        [username, hashPassword, fullName],
-      );
-      const userId = userRes.rows[0].id;
+        if (nip) {
+          const nipTaken = await client.query(
+            `SELECT user_id FROM u_teachers WHERE nip = $1 AND homebase_id = $2 LIMIT 1`,
+            [nip, homebaseId],
+          );
+          if (nipTaken.rows.length > 0) {
+            skippedConflict++;
+            continue;
+          }
+        }
 
-      await client.query(
-        `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
+        const salt = await bcrypt.genSalt(10);
+        const hashPassword = await bcrypt.hash(password || "123456", salt);
+        const userRes = await client.query(
+          `INSERT INTO u_users (username, password, full_name, role) VALUES ($1, $2, $3, 'teacher') RETURNING id`,
+          [username, hashPassword, fullName],
+        );
+        userId = userRes.rows[0].id;
+
+        await client.query(
+          `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            userId,
+            nip || null,
+            phone || null,
+            email || null,
+            Boolean(homeroomClassId),
+            homebaseId,
+          ],
+        );
+
+        await syncTeacherRelations({
           userId,
-          nip || null,
-          phone || null,
-          email || null,
-          Boolean(homeroomClassId),
-          homebaseId,
-        ],
-      );
-
-      if (rfidNo) {
-        const existingCard = await client.query(
-          `SELECT user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
-          [rfidNo],
-        );
-        if (existingCard.rowCount > 0) {
-          skippedDuplicate++;
-          continue;
-        }
-        await client.query(
-          `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
-           VALUES ($1, $2, 'rfid', true, true)`,
-          [userId, rfidNo],
-        );
+          rfidNo,
+          homeroomClassId,
+          allocations,
+        });
+        createdCount++;
+      } catch (error) {
+        skippedConflict++;
       }
-
-      if (homeroomClassId) {
-        await client.query(
-          `UPDATE u_teachers SET is_homeroom = false WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
-          [homeroomClassId],
-        );
-        await client.query(
-          `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
-          [userId, homeroomClassId],
-        );
-      }
-
-      for (const item of allocations) {
-        if (!item?.subject_id || !item?.class_id) {
-          continue;
-        }
-
-        await client.query(
-          `INSERT INTO at_subject (teacher_id, subject_id, class_id) VALUES ($1, $2, $3)`,
-          [userId, item.subject_id, item.class_id],
-        );
-      }
-
-      importedCount++;
     }
 
     res.status(201).json({
       status: "success",
-      message: `Berhasil mengimpor ${importedCount} dari ${teachers.length} data guru.`,
+      message: `Berhasil memproses ${createdCount + updatedCount} dari ${teachers.length} data guru (${createdCount} baru, ${updatedCount} diperbarui).`,
       summary: {
         total: teachers.length,
-        imported: importedCount,
+        created: createdCount,
+        updated: updatedCount,
+        imported: createdCount + updatedCount,
         skipped_invalid: skippedInvalid,
-        skipped_duplicate: skippedDuplicate,
+        skipped_conflict: skippedConflict,
+        skipped_duplicate: skippedConflict,
       },
     });
   }),
