@@ -1184,7 +1184,7 @@ router.get(
         AND ($5 = '' OR cl.id = $5::integer)
         AND ce.periode_id = $6
         AND ($9::boolean = false OR cl.id = ANY($10::int[]))
-      ORDER BY u.full_name ASC
+      ORDER BY gr.name ASC NULLS LAST, cl.name ASC NULLS LAST, u.full_name ASC
       LIMIT $7 OFFSET $8
     `;
 
@@ -1581,7 +1581,7 @@ router.get(
           WHERE u.role = 'student'
             AND s.homebase_id = $1
             AND ($2::boolean = false OR ce.class_id = ANY($4::int[]))
-          ORDER BY u.full_name ASC
+          ORDER BY gr.name ASC NULLS LAST, cl.name ASC NULLS LAST, u.full_name ASC
         `,
         [
           accessScope.homebaseId,
@@ -1620,7 +1620,7 @@ router.get(
             AND ($5 = '' OR u.full_name ILIKE $6 OR s.nis ILIKE $6 OR s.nisn ILIKE $6)
             AND ($7 = '' OR gr.id = $7::integer)
             AND ($8 = '' OR cl.id = $8::integer)
-          ORDER BY u.full_name ASC
+          ORDER BY gr.name ASC NULLS LAST, cl.name ASC NULLS LAST, u.full_name ASC
         `,
         [
           accessScope.homebaseId,
