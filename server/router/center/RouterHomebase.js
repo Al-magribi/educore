@@ -123,6 +123,141 @@ router.delete(
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
 
+    const check = await client.query(
+      `SELECT id FROM a_homebase WHERE id = $1`,
+      [id],
+    );
+    if (check.rows.length === 0) {
+      res.status(404);
+      throw new Error("Data tidak ditemukan atau sudah dihapus");
+    }
+
+    // Finance: hapus dulu data yang FK-nya NO ACTION (invoice/payment)
+    // payment_allocation ikut cascade dari payment
+    await client.query(`DELETE FROM finance.payment WHERE homebase_id = $1`, [
+      id,
+    ]);
+    // invoice_item ikut cascade dari invoice; hapus invoice sebelum fee_component cascade
+    await client.query(`DELETE FROM finance.invoice WHERE homebase_id = $1`, [
+      id,
+    ]);
+
+    // LMS: hapus anak dulu, lalu tabel ber-homebase_id (NO ACTION)
+    await client.query(
+      `DELETE FROM lms.l_schedule_entry_slot
+       WHERE schedule_entry_id IN (
+         SELECT id FROM lms.l_schedule_entry WHERE homebase_id = $1
+       )`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_teacher_session_log
+       WHERE duty_assignment_id IN (
+         SELECT id FROM lms.l_duty_assignment WHERE homebase_id = $1
+       )
+       OR schedule_entry_id IN (
+         SELECT id FROM lms.l_schedule_entry WHERE homebase_id = $1
+       )`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_schedule_activity_target
+       WHERE teaching_load_id IN (
+         SELECT id FROM lms.l_teaching_load WHERE homebase_id = $1
+       )`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_schedule_day_template
+       WHERE config_id IN (
+         SELECT id FROM lms.l_schedule_config WHERE homebase_id = $1
+       )`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_point_entry WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_schedule_activity WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_schedule_entry WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_duty_assignment WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_daily_absence_report WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_schedule_config WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_teaching_load WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_teaching_load_grade_rule WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_point_rule WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM lms.l_point_config WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(`DELETE FROM lms.l_task WHERE homebase_id = $1`, [id]);
+    await client.query(
+      `DELETE FROM lms.l_teacher_journal WHERE homebase_id = $1`,
+      [id],
+    );
+
+    // Public: homebase_id nullable → lepaskan referensi soft
+    await client.query(
+      `UPDATE u_admin SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE u_class_enrollments SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE a_class SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE a_grade SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE a_major SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE a_periode SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE a_subject SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE a_subject_branch SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
+      `UPDATE a_subject_category SET homebase_id = NULL WHERE homebase_id = $1`,
+      [id],
+    );
+
     const result = await client.query(`DELETE FROM a_homebase WHERE id = $1`, [
       id,
     ]);

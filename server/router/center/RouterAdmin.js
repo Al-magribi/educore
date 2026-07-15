@@ -144,13 +144,42 @@ router.put(
   }),
 );
 
-// 4. DELETE (Sama seperti sebelumnya)
+// 4. DELETE
 router.delete(
   "/delete-admin/:id",
   authorize("pusat"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
+
+    const existing = await client.query(
+      `SELECT u.id
+       FROM u_users u
+       JOIN u_admin a ON a.user_id = u.id
+       WHERE u.id = $1 AND u.role = 'admin'`,
+      [id],
+    );
+    if (existing.rows.length === 0) {
+      res.status(404);
+      throw new Error("Admin tidak ditemukan");
+    }
+
+    // Hapus relasi RESTRICT yang memblokir penghapusan user
+    await client.query(
+      `DELETE FROM finance.class_cash_officers WHERE assigned_by = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM cbt.c_ai_grading_job WHERE requested_by = $1`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM cbt.c_ai_question_job WHERE requested_by = $1`,
+      [id],
+    );
+
+    await client.query(`DELETE FROM u_admin WHERE user_id = $1`, [id]);
     await client.query(`DELETE FROM u_users WHERE id = $1`, [id]);
+
     res.status(200).json({ success: true, message: "Admin berhasil dihapus" });
   }),
 );
