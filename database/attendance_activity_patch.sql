@@ -1,3 +1,4 @@
+-- Active: 1783378140119@@103.150.226.142@5432@ibnusyinaedu@attendance
 -- Patch: extracurricular / activity attendance
 -- Safe to re-run.
 
@@ -146,20 +147,13 @@ CREATE INDEX IF NOT EXISTS idx_activity_attendance_user_date
 ON attendance.activity_attendance(user_id, attendance_date DESC);
 
 -- Link scan_log.activity_attendance_id after table exists
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'rfid_scan_log_activity_attendance_id_fkey'
-  ) THEN
-    ALTER TABLE attendance.rfid_scan_log
-      ADD CONSTRAINT rfid_scan_log_activity_attendance_id_fkey
-      FOREIGN KEY (activity_attendance_id)
-      REFERENCES attendance.activity_attendance(id)
-      ON DELETE SET NULL;
-  END IF;
-END $$;
+ALTER TABLE attendance.rfid_scan_log
+  DROP CONSTRAINT IF EXISTS rfid_scan_log_activity_attendance_id_fkey;
+ALTER TABLE attendance.rfid_scan_log
+  ADD CONSTRAINT rfid_scan_log_activity_attendance_id_fkey
+  FOREIGN KEY (activity_attendance_id)
+  REFERENCES attendance.activity_attendance(id)
+  ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_rfid_scan_log_activity_attendance
 ON attendance.rfid_scan_log(activity_attendance_id);

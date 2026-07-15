@@ -1,3 +1,4 @@
+-- Active: 1783378140119@@103.150.226.142@5432@ibnusyinaedu@attendance
 -- Patch: allow one RFID classroom device to map to many classes.
 -- Safe to re-run (IF NOT EXISTS / ON CONFLICT).
 
