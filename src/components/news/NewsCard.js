@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { formatNewsDate } from "@/lib/news.js";
 import { hasImageUrl } from "@/lib/images.js";
 
@@ -18,7 +18,7 @@ export function NewsCard({ post, featured = false }) {
     categoryColors[post.category] ?? "bg-slate-100 text-slate-700";
 
   const coverBlock = hasImageUrl(post.coverImage) ? (
-    <Image
+    <AppImage
       src={post.coverImage}
       alt={post.coverAlt || post.title}
       fill

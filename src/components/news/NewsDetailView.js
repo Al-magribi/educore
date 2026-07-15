@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { formatNewsDate } from "@/lib/news.js";
 import { hasImageUrl } from "@/lib/images.js";
 import { NewsCard } from "./NewsCard.js";
@@ -14,7 +14,7 @@ export function NewsDetailView({ post, related = [] }) {
       <header className="relative overflow-hidden bg-slate-900">
         {hasImageUrl(post.coverImage) && (
           <>
-            <Image
+            <AppImage
               src={post.coverImage}
               alt={post.coverAlt || post.title}
               fill

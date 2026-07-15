@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { SectionHeading } from "./SectionHeading.js";
 import { StaggerChildren, StaggerItem } from "@/components/motion/StaggerChildren.js";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { hasImageUrl } from "@/lib/images.js";
 
 const PAGE_SIZE = 8;
@@ -114,7 +114,7 @@ export function PaginatedImageCardsSection({
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 className="group relative min-h-[240px] overflow-hidden rounded-2xl shadow-md"
               >
-                <Image
+                <AppImage
                   src={item.imageUrl}
                   alt={item.imageAlt || item.title}
                   fill

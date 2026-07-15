@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { hasImageUrl } from "@/lib/images.js";
 
 export function AboutPageHero({ title, subtitle, imageUrl, imageAlt }) {
@@ -11,7 +11,7 @@ export function AboutPageHero({ title, subtitle, imageUrl, imageAlt }) {
     <section className="relative overflow-hidden bg-gradient-to-br from-primary via-[#1d4ed8] to-secondary">
       {useImage && (
         <>
-          <Image
+          <AppImage
             src={imageUrl}
             alt={imageAlt || title}
             fill

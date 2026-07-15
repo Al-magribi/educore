@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { AppImage } from "@/components/ui/AppImage.js";
 
 function HeroGradientBackground() {
   return (
@@ -25,7 +25,7 @@ function HeroImageBackground({ imageUrl, imageAlt, overlayOpacity }) {
 
   return (
     <>
-      <Image
+      <AppImage
         src={imageUrl}
         alt={imageAlt}
         fill

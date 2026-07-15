@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { useRef, useState } from "react";
 import { Field } from "./AdminFormFields.js";
 import { useConfirmDelete } from "./ConfirmDeleteModal.js";
@@ -129,26 +129,24 @@ export function ImageUploadField({
                   }
                 >
                   <div className={preview.inner}>
-                    <Image
+                    <AppImage
                       src={value}
                       alt={alt || label}
                       fill
                       className={preview.imageClass}
                       sizes={preview.sizes}
-                      unoptimized
                     />
                   </div>
                 </div>
               </div>
             ) : (
               <div className={preview.container}>
-                <Image
+                <AppImage
                   src={value}
                   alt={alt || label}
                   fill
                   className={preview.imageClass}
                   sizes={preview.sizes}
-                  unoptimized
                 />
               </div>
             )}

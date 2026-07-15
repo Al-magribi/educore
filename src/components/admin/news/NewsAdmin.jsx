@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { AppImage } from '@/components/ui/AppImage.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NEWS_CATEGORIES } from '@/modules/cms/news/index.js';
 import { isBodyHtmlEmpty } from '@/modules/cms/news/mapper.js';
@@ -50,7 +50,7 @@ function NewsCoverThumb({ post, className = 'h-12 w-16' }) {
   return (
     <div className={`relative shrink-0 overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200 ${className}`}>
       {hasImageUrl(post.coverImage) ? (
-        <Image src={post.coverImage} alt={post.coverAlt || post.title} fill className="object-cover" sizes="80px" />
+        <AppImage src={post.coverImage} alt={post.coverAlt || post.title} fill className="object-cover" sizes="80px" />
       ) : (
         <div className="flex h-full items-center justify-center text-slate-300">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>

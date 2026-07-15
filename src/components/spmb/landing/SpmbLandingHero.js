@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { hasImageUrl } from "@/lib/images.js";
 
 export function SpmbLandingHero({ page }) {
@@ -13,7 +13,7 @@ export function SpmbLandingHero({ page }) {
     <section className="relative overflow-hidden bg-gradient-to-br from-primary via-[#1d4ed8] to-secondary">
       {useImage && (
         <>
-          <Image
+          <AppImage
             src={page.imageUrl}
             alt={page.imageAlt || page.title}
             fill

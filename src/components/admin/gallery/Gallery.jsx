@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
+import { AppImage } from '@/components/ui/AppImage.js';
 import {
   Field,
   FormMessage,
@@ -253,7 +253,7 @@ function AlbumImageGrid({ album, onAlbumChange, onMessage }) {
                   isCover ? 'border-amber-300 ring-2 ring-amber-200' : 'border-slate-200'
                 }`}>
                 <div className="relative aspect-[4/3] bg-slate-100">
-                  <Image
+                  <AppImage
                     src={image.imageUrl}
                     alt={image.imageAlt || album.title}
                     fill
@@ -558,7 +558,7 @@ export default function Gallery() {
               className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:border-slate-300 hover:shadow-md">
               <div className="relative aspect-[16/10] bg-slate-100">
                 {hasImageUrl(album.coverImage) ? (
-                  <Image
+                  <AppImage
                     src={album.coverImage}
                     alt={album.coverAlt || album.title}
                     fill

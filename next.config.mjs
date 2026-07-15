@@ -2,7 +2,14 @@
 const nextConfig = {
   reactCompiler: true,
   images: {
-    // Gambar CMS disimpan lokal di /uploads/* (lihat docs/UPLOADS.md)
+    // Upload CMS dilayani lewat /uploads/* (AppImage biasanya unoptimized).
+    // localPatterns tetap diizinkan jika ada komponen yang memakai optimizer.
+    localPatterns: [
+      {
+        pathname: "/uploads/**",
+        search: "",
+      },
+    ],
     remotePatterns: [],
   },
 };

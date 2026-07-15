@@ -9,7 +9,10 @@ export function getUploadRoot() {
   return path.join(process.cwd(), "public", "uploads");
 }
 
-/** Apakah file dilayani langsung dari folder `public/` Next.js. */
+/**
+ * Apakah root upload sama dengan `public/uploads`.
+ * File tetap dilayani lewat `app/uploads/[...path]/route.js` di kedua kasus.
+ */
 export function isServedFromPublicDir() {
   const root = getUploadRoot();
   const publicUploads = path.join(process.cwd(), "public", "uploads");

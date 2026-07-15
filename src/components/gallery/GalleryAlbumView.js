@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { formatGalleryDate } from "@/lib/gallery-utils.js";
 import { hasImageUrl } from "@/lib/images.js";
 
@@ -77,7 +77,7 @@ function Lightbox({ images, index, onClose, onPrev, onNext }) {
           className="relative z-[1] flex max-h-[85dvh] w-full max-w-5xl flex-col items-center"
         >
           <div className="relative max-h-[75dvh] w-full">
-            <Image
+            <AppImage
               src={image.imageUrl}
               alt={image.imageAlt}
               width={1600}
@@ -170,7 +170,7 @@ export function GalleryAlbumView({ album }) {
                   className="group mb-4 block w-full break-inside-avoid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <div className="relative w-full">
-                    <Image
+                    <AppImage
                       src={image.imageUrl}
                       alt={image.imageAlt}
                       width={800}

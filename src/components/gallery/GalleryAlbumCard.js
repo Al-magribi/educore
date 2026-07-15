@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { formatGalleryDate } from "@/lib/gallery-utils.js";
 import { hasImageUrl } from "@/lib/images.js";
 
@@ -16,7 +16,7 @@ export function GalleryAlbumCard({ album, priority = false }) {
         <div className="relative aspect-[4/3] overflow-hidden bg-slate-200">
           {hasImageUrl(album.coverImage) ? (
             <>
-              <Image
+              <AppImage
                 src={album.coverImage}
                 alt={album.coverAlt || album.title}
                 fill

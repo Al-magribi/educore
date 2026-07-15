@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { AppImage } from "./AppImage.js";
 import { AvatarPlaceholder } from "./AvatarPlaceholder.js";
 
 /**
@@ -15,7 +15,7 @@ export function PersonAvatar({
 
   if (hasImage) {
     return (
-      <Image
+      <AppImage
         src={imageUrl}
         alt={alt || name || "Foto profil"}
         width={size}

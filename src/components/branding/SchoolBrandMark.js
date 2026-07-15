@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { AppImage } from "@/components/ui/AppImage.js";
 import { isAppUploadUrl } from "@/lib/storage/urls.js";
 
 function SchoolLogoImage({
@@ -14,7 +14,7 @@ function SchoolLogoImage({
 }) {
   if (fill) {
     return (
-      <Image
+      <AppImage
         src={src}
         alt={alt}
         fill
@@ -27,7 +27,7 @@ function SchoolLogoImage({
   }
 
   return (
-    <Image
+    <AppImage
       src={src}
       alt={alt}
       width={width}
