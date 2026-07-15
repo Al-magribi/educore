@@ -243,14 +243,14 @@ const CenterHome = () => {
             <Space vertical size={[10, 10]} style={{ marginBottom: 10, width: '100%' }}>
               <Title
                 level={4}
-                ellipsis={{ tooltip: true, suffix: '...' }}
+                ellipsis={{ tooltip: item.name }}
                 style={{
                   margin: 0,
                   color: '#0f172a',
                   fontSize: isMobile ? 18 : 20,
                   lineHeight: 1.25,
                 }}>
-                {item.name}
+                {item.name?.length > 16 ? `${item.name.slice(0, 16)}...` : item.name}
               </Title>
               <Tag
                 color="blue"
