@@ -22,12 +22,12 @@ const buildStudentSegmentQueryParts = ({ search = "", age, gender }) => {
   }
 
   const baseJoin = `
-    FROM u_student_siblings sib
+    FROM "database".u_student_siblings sib
     JOIN u_students s ON sib.student_id = s.user_id
     JOIN u_users u ON s.user_id = u.id
-    LEFT JOIN u_student_families sf ON s.user_id = sf.student_id
+    LEFT JOIN "database".u_student_families sf ON s.user_id = sf.student_id
     LEFT JOIN a_homebase h ON s.homebase_id = h.id
-    LEFT JOIN db_city c ON s.city_id = c.id
+    LEFT JOIN "database".db_city c ON s.city_id = c.id
   `;
 
   const queryParams = [`%${search}%`];
