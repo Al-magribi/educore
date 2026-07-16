@@ -80,6 +80,7 @@ const OthersChargesTable = ({
       NIS: item.nis || "-",
       Periode: item.periode_name || "-",
       "Jenis Biaya": item.type_name || "-",
+      Cakupan: item.type_scope === "student" ? "Individu" : "Tingkat",
       Tagihan: Number(item.amount_due || 0),
       Dibayar: Number(item.paid_amount || 0),
       Sisa: Number(item.remaining_amount || 0),
@@ -105,21 +106,30 @@ const OthersChargesTable = ({
             type='secondary'
             style={{ whiteSpace: "normal", wordBreak: "break-word" }}
           >
-            {`${record.nis || "-"} | ${record.grade_name || "-"} | ${record.class_name || "-"} | ${getPeriodeName(record) || "-"}`}
+            {`${record.nis || "-"} | ${record.grade_name || "-"} | ${record.class_name || "-"}`}
           </Text>
         </Space>
       ),
     },
     {
-      title: "Jenis Biaya / Tagihan",
-      key: "type_name",
-      width: 220,
+      title: "Jenis Biaya / Periode",
+      key: "type_periode",
+      width: 260,
       render: (_, record) => (
-        <Space direction='vertical' size={0}>
+        <Space direction='vertical' size={4}>
           <Text strong>{record.type_name || "-"}</Text>
-          <Text type='secondary'>
-            {currencyFormatter.format(Number(record.amount_due || 0))}
-          </Text>
+          <Text type='secondary'>{getPeriodeName(record)}</Text>
+          <Space size={6} wrap>
+            <Text type='secondary'>
+              {currencyFormatter.format(Number(record.amount_due || 0))}
+            </Text>
+            <Tag
+              color={record.type_scope === "student" ? "blue" : "cyan"}
+              style={{ borderRadius: 999, margin: 0 }}
+            >
+              {record.type_scope === "student" ? "Individu" : "Tingkat"}
+            </Tag>
+          </Space>
         </Space>
       ),
     },
@@ -231,16 +241,27 @@ const OthersChargesTable = ({
           loading={loading}
           title={() => (
             <Space style={{ width: "100%", justifyContent: "space-between" }} wrap>
-              <Text strong>
-                Data pembayaran lain terurut berdasarkan tingkat, kelas, nama, dan
-                jenis biaya.
-              </Text>
+              <div>
+                <Text strong style={{ display: "block" }}>
+                  Daftar tagihan pembayaran lainnya
+                </Text>
+                <Text type='secondary' style={{ fontSize: 13 }}>
+                  Hanya menampilkan siswa yang memenuhi cakupan jenis biaya
+                  (tingkat atau roster individu) pada periode terpilih.
+                </Text>
+              </div>
               <Button icon={<Download size={16} />} onClick={handleExportExcel}>
                 Download Excel
               </Button>
             </Space>
           )}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            showTotal: (total, range) =>
+              `${range[0]}-${range[1]} dari ${total} tagihan`,
+          }}
           expandable={{
             expandedRowRender: (record) => (
               <OthersInstallmentHistory charge={record} />

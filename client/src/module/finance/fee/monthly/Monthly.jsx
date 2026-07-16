@@ -76,33 +76,30 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const [editingTariff, setEditingTariff] = useState(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
+  const [periodeInitialized, setPeriodeInitialized] = useState(false);
 
   const [tariffForm] = Form.useForm();
   const [paymentForm] = Form.useForm();
   const selectedTariffHomebaseId = Form.useWatch("homebase_id", tariffForm);
   const selectedPaymentStudentId = Form.useWatch("student_id", paymentForm);
   const selectedPaymentPeriodeId = Form.useWatch("periode_id", paymentForm);
-  const hasPrimaryFilters = Boolean(filters.homebase_id && filters.periode_id);
+  const hasPeriodeFilter = Boolean(filters.periode_id);
 
-  const tariffQueryFilters = hasPrimaryFilters
-    ? {
-        homebase_id: filters.homebase_id,
-        periode_id: filters.periode_id,
-        grade_id: filters.grade_id,
-      }
-    : {};
+  const tariffQueryFilters = {
+    ...(filters.homebase_id ? { homebase_id: filters.homebase_id } : {}),
+    ...(filters.periode_id ? { periode_id: filters.periode_id } : {}),
+    ...(filters.grade_id ? { grade_id: filters.grade_id } : {}),
+  };
 
   const paymentQueryFilters = {
     bill_month: filters.bill_month,
-    ...(hasPrimaryFilters
-      ? {
-          homebase_id: filters.homebase_id,
-          periode_id: filters.periode_id,
-          grade_id: filters.grade_id,
-          class_id: filters.class_id,
-          student_id: filters.student_id,
-          student_search: filters.student_search,
-        }
+    ...(filters.homebase_id ? { homebase_id: filters.homebase_id } : {}),
+    ...(filters.periode_id ? { periode_id: filters.periode_id } : {}),
+    ...(filters.grade_id ? { grade_id: filters.grade_id } : {}),
+    ...(filters.class_id ? { class_id: filters.class_id } : {}),
+    ...(filters.student_id ? { student_id: filters.student_id } : {}),
+    ...(filters.student_search
+      ? { student_search: filters.student_search }
       : {}),
   };
 
@@ -116,7 +113,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   );
   const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } =
     useGetMonthlyOptionsQuery(
-      hasPrimaryFilters
+      hasPeriodeFilter
         ? {
             homebase_id: filters.homebase_id,
             periode_id: filters.periode_id,
@@ -124,7 +121,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
             class_id: filters.class_id,
             search: filters.student_search,
           }
-        : undefined,
+        : filters.homebase_id
+          ? { homebase_id: filters.homebase_id }
+          : undefined,
     );
   const {
     data: tariffResponse,
@@ -219,6 +218,63 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!homebases.length || filters.homebase_id) {
+      return;
+    }
+
+    const defaultHomebase =
+      options.selected_homebase_id ||
+      (homebases.length === 1 ? homebases[0]?.id : undefined);
+
+    if (defaultHomebase) {
+      setFilters((previous) => ({
+        ...previous,
+        homebase_id: defaultHomebase,
+      }));
+    }
+  }, [filters.homebase_id, homebases, options.selected_homebase_id]);
+
+  useEffect(() => {
+    if (!periodes.length || periodeInitialized) {
+      return;
+    }
+
+    const activePeriode =
+      periodes.find((item) => item.is_active) || periodes[0];
+
+    setFilters((previous) => ({
+      ...previous,
+      periode_id: previous.periode_id || activePeriode?.id,
+    }));
+    setPeriodeInitialized(true);
+  }, [periodes, periodeInitialized]);
+
+  useEffect(() => {
+    if (!periodes.length || !filters.periode_id) {
+      return;
+    }
+
+    const periodeExists = periodes.some(
+      (item) => Number(item.id) === Number(filters.periode_id),
+    );
+    if (periodeExists) {
+      return;
+    }
+
+    const activePeriode =
+      periodes.find((item) => item.is_active) || periodes[0];
+    setFilters((previous) => ({
+      ...previous,
+      periode_id: activePeriode?.id,
+      grade_id: undefined,
+      class_id: undefined,
+      student_id: undefined,
+      student_search: "",
+    }));
+  }, [periodes, filters.periode_id]);
+
   useEffect(() => {
     if (
       filters.class_id &&
@@ -243,6 +299,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       }));
     }
   }, [filters.student_id, mainStudents]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!tariffModalOpen || !selectedTariffHomebaseId) {
@@ -543,11 +600,11 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const isPageBootstrapping =
     isLoadingOptions ||
     (!optionsResponse && !periodes.length) ||
-    (hasPrimaryFilters &&
-      (isLoadingFilterOptions || isLoadingTariffs || isLoadingPayments) &&
+    ((isLoadingFilterOptions || isLoadingTariffs || isLoadingPayments) &&
       !filterOptionsResponse &&
       !tariffResponse &&
-      !paymentResponse);
+      !paymentResponse &&
+      !periodeInitialized);
 
   if (isPageBootstrapping) {
     return <LoadApp />;
@@ -556,9 +613,23 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const activeHomebaseName =
     homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
       ?.name ||
-    (hasPrimaryFilters
+    (filters.homebase_id
       ? user?.homebase_name || user?.homebase_id || "-"
       : "Semua satuan");
+  const activePeriodeName = filters.periode_id
+    ? periodes.find((item) => Number(item.id) === Number(filters.periode_id))
+        ?.name || "-"
+    : "Semua periode";
+  const activeGradeName = filters.grade_id
+    ? grades.find((item) => Number(item.id) === Number(filters.grade_id))?.name
+    : undefined;
+  const activeClassName = filters.class_id
+    ? mainClasses.find((item) => Number(item.id) === Number(filters.class_id))
+        ?.name
+    : undefined;
+  const activeMonthLabel = months.find(
+    (item) => Number(item.value) === Number(filters.bill_month),
+  )?.label;
 
   const createTabLabel = (label, icon, count, caption) => (
     <Space size={10}>
@@ -691,7 +762,20 @@ const Monthly = ({ initialTab = "tariffs" }) => {
                     undefined,
                     "Ringkasan capaian per kelas",
                   ),
-                  children: <MonthlyReportPanel payments={payments} />,
+                  children: (
+                    <MonthlyReportPanel
+                      payments={payments}
+                      filterContext={{
+                        homebaseName: activeHomebaseName,
+                        periodeName: activePeriodeName,
+                        periodeId: filters.periode_id,
+                        gradeName: activeGradeName,
+                        className: activeClassName,
+                        monthLabel: activeMonthLabel,
+                        studentSearch: filters.student_search || undefined,
+                      }}
+                    />
+                  ),
                 },
               ]}
             />
@@ -711,9 +795,10 @@ const Monthly = ({ initialTab = "tariffs" }) => {
             <Space align='center' size={8}>
               <Sparkles size={14} color='#64748b' />
               <Text type='secondary'>
-                Tampilan saat ini: {activeHomebaseName}. Data akan difilter
-                setelah satuan dan periode dipilih, lalu bisa dipersempit lagi
-                berdasarkan tingkat, kelas, dan siswa.
+                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}.
+                Default: periode aktif. Kosongkan filter periode untuk melihat
+                semua periode, lalu bisa dipersempit berdasarkan tingkat, kelas,
+                dan siswa.
               </Text>
             </Space>
           </Card>

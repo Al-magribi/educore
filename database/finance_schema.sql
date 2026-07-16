@@ -40,8 +40,11 @@ CREATE TABLE IF NOT EXISTS finance.fee_component (
     homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(120) NOT NULL,
+    description TEXT,
     category VARCHAR(20) NOT NULL CHECK (category IN ('spp', 'other', 'savings')),
     charge_type VARCHAR(20) NOT NULL CHECK (charge_type IN ('monthly', 'once', 'custom')),
+    scope VARCHAR(20) NOT NULL DEFAULT 'grade'
+      CHECK (scope IN ('grade', 'student')),
     is_savings BOOLEAN NOT NULL DEFAULT false,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_by INT REFERENCES public.u_users(id),
@@ -72,6 +75,26 @@ CREATE TABLE IF NOT EXISTS finance.fee_rule (
 
 CREATE INDEX IF NOT EXISTS idx_fee_rule_lookup
     ON finance.fee_rule(homebase_id, grade_id, periode_id, component_id, is_active);
+
+CREATE TABLE IF NOT EXISTS finance.fee_assignment (
+    id BIGSERIAL PRIMARY KEY,
+    component_id BIGINT NOT NULL REFERENCES finance.fee_component(id) ON DELETE CASCADE,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    amount NUMERIC(14, 2) CHECK (amount IS NULL OR amount >= 0),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (component_id, periode_id, student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fee_assignment_scope
+    ON finance.fee_assignment(homebase_id, periode_id, component_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_fee_assignment_student
+    ON finance.fee_assignment(student_id, periode_id, is_active);
 
 CREATE TABLE IF NOT EXISTS finance.fee_rule_month (
     id BIGSERIAL PRIMARY KEY,

@@ -66,16 +66,35 @@ const Others = () => {
   });
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState(null);
+  const [periodeInitialized, setPeriodeInitialized] = useState(false);
+  const [typeStudentFilter, setTypeStudentFilter] = useState({
+    grade_id: undefined,
+    class_id: undefined,
+    search: "",
+  });
 
   const [typeForm] = Form.useForm();
   const selectedTypeHomebaseId = Form.useWatch("homebase_id", typeForm);
-  const hasPrimaryFilters = Boolean(filters.homebase_id && filters.periode_id);
+  const selectedTypePeriodeId = Form.useWatch("periode_id", typeForm);
+  const selectedTypeScope = Form.useWatch("scope", typeForm) || "grade";
+  const selectedTypeStudentIds = Form.useWatch("student_ids", typeForm) || [];
+  const hasPeriodeFilter = Boolean(filters.periode_id);
 
-  const typeQueryFilters = filters.homebase_id
-    ? { homebase_id: filters.homebase_id }
-    : {};
+  const typeQueryFilters = {
+    ...(filters.homebase_id ? { homebase_id: filters.homebase_id } : {}),
+    ...(filters.periode_id ? { periode_id: filters.periode_id } : {}),
+  };
 
-  const chargeQueryFilters = hasPrimaryFilters ? filters : {};
+  const chargeQueryFilters = {
+    ...(filters.homebase_id ? { homebase_id: filters.homebase_id } : {}),
+    ...(filters.periode_id ? { periode_id: filters.periode_id } : {}),
+    ...(filters.grade_id ? { grade_id: filters.grade_id } : {}),
+    ...(filters.class_id ? { class_id: filters.class_id } : {}),
+    ...(filters.student_id ? { student_id: filters.student_id } : {}),
+    ...(filters.student_search ? { student_search: filters.student_search } : {}),
+    ...(filters.type_id ? { type_id: filters.type_id } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+  };
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetOtherOptionsQuery(
@@ -83,7 +102,7 @@ const Others = () => {
     );
   const { data: scopedOptionsResponse, isLoading: isLoadingScopedOptions } =
     useGetOtherOptionsQuery(
-      hasPrimaryFilters
+      hasPeriodeFilter
         ? {
             homebase_id: filters.homebase_id,
             periode_id: filters.periode_id,
@@ -91,11 +110,40 @@ const Others = () => {
             class_id: filters.class_id,
             search: filters.student_search,
           }
-        : undefined,
+        : filters.homebase_id
+          ? { homebase_id: filters.homebase_id }
+          : undefined,
     );
   const { data: typeModalOptionsResponse } = useGetOtherOptionsQuery(
-    { homebase_id: selectedTypeHomebaseId },
-    { skip: !selectedTypeHomebaseId },
+    {
+      homebase_id:
+        selectedTypeHomebaseId || filters.homebase_id || undefined,
+    },
+    {
+      skip:
+        !typeModalOpen ||
+        !(selectedTypeHomebaseId || filters.homebase_id),
+    },
+  );
+  const {
+    data: typeStudentOptionsResponse,
+    isFetching: isFetchingTypeStudents,
+  } = useGetOtherOptionsQuery(
+    {
+      homebase_id: selectedTypeHomebaseId || filters.homebase_id,
+      periode_id: selectedTypePeriodeId,
+      grade_id: typeStudentFilter.grade_id,
+      class_id: typeStudentFilter.class_id,
+      search: typeStudentFilter.search || undefined,
+      limit: 500,
+    },
+    {
+      skip:
+        !typeModalOpen ||
+        !(selectedTypeHomebaseId || filters.homebase_id) ||
+        !selectedTypePeriodeId ||
+        selectedTypeScope !== "student",
+    },
   );
   const {
     data: typeResponse,
@@ -127,6 +175,61 @@ const Others = () => {
     () => typeModalOptions.grades || grades,
     [typeModalOptions.grades, grades],
   );
+  const typeModalPeriodes = useMemo(
+    () => typeModalOptions.periodes || periodes,
+    [typeModalOptions.periodes, periodes],
+  );
+  const typeModalClasses = useMemo(() => {
+    const apiClasses = typeStudentOptionsResponse?.data?.classes || [];
+    if (!typeStudentFilter.grade_id) {
+      return apiClasses;
+    }
+
+    return apiClasses.filter(
+      (item) => Number(item.grade_id) === Number(typeStudentFilter.grade_id),
+    );
+  }, [typeStudentFilter.grade_id, typeStudentOptionsResponse?.data?.classes]);
+  const typeModalStudents = useMemo(() => {
+    const apiStudents = typeStudentOptionsResponse?.data?.students || [];
+    const studentMap = new Map();
+
+    apiStudents.forEach((item) => {
+      const id = Number(item.id);
+      if (!Number.isFinite(id)) {
+        return;
+      }
+
+      studentMap.set(id, {
+        ...item,
+        id,
+        full_name: item.full_name || item.name || `Siswa #${id}`,
+        nis: item.nis || "-",
+        class_name: item.class_name || "-",
+        grade_name: item.grade_name || "-",
+      });
+    });
+
+    selectedTypeStudentIds.forEach((studentId) => {
+      const key = Number(studentId);
+      if (!Number.isFinite(key) || studentMap.has(key)) {
+        return;
+      }
+
+      studentMap.set(key, {
+        id: key,
+        full_name: `Siswa #${key}`,
+        nis: "-",
+        class_name: "-",
+        grade_name: "-",
+      });
+    });
+
+    return [...studentMap.values()].sort((left, right) =>
+      String(left.full_name).localeCompare(String(right.full_name), "id", {
+        sensitivity: "base",
+      }),
+    );
+  }, [selectedTypeStudentIds, typeStudentOptionsResponse?.data?.students]);
   const classes = useMemo(
     () => scopedOptions.classes || [],
     [scopedOptions.classes],
@@ -146,6 +249,63 @@ const Others = () => {
   );
 
   /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!homebases.length || filters.homebase_id) {
+      return;
+    }
+
+    const defaultHomebase =
+      options.selected_homebase_id ||
+      (homebases.length === 1 ? homebases[0]?.id : undefined);
+
+    if (defaultHomebase) {
+      setFilters((previous) => ({
+        ...previous,
+        homebase_id: defaultHomebase,
+      }));
+    }
+  }, [filters.homebase_id, homebases, options.selected_homebase_id]);
+
+  useEffect(() => {
+    if (!periodes.length || periodeInitialized) {
+      return;
+    }
+
+    const activePeriode =
+      periodes.find((item) => item.is_active) || periodes[0];
+
+    setFilters((previous) => ({
+      ...previous,
+      periode_id: previous.periode_id || activePeriode?.id,
+    }));
+    setPeriodeInitialized(true);
+  }, [periodes, periodeInitialized]);
+
+  useEffect(() => {
+    if (!periodes.length || !filters.periode_id) {
+      return;
+    }
+
+    const periodeExists = periodes.some(
+      (item) => Number(item.id) === Number(filters.periode_id),
+    );
+    if (periodeExists) {
+      return;
+    }
+
+    const activePeriode =
+      periodes.find((item) => item.is_active) || periodes[0];
+    setFilters((previous) => ({
+      ...previous,
+      periode_id: activePeriode?.id,
+      grade_id: undefined,
+      class_id: undefined,
+      student_id: undefined,
+      student_search: "",
+      type_id: undefined,
+    }));
+  }, [periodes, filters.periode_id]);
+
   useEffect(() => {
     if (
       filters.class_id &&
@@ -174,16 +334,40 @@ const Others = () => {
 
   useEffect(() => {
     if (
-      typeModalOpen &&
-      homebases.length === 1 &&
-      !typeForm.getFieldValue("homebase_id")
+      filters.type_id &&
+      !types.some((item) => Number(item.type_id) === Number(filters.type_id))
     ) {
-      typeForm.setFieldValue("homebase_id", homebases[0]?.id);
+      setFilters((previous) => ({
+        ...previous,
+        type_id: undefined,
+      }));
     }
-  }, [homebases, typeForm, typeModalOpen]);
+  }, [filters.type_id, types]);
 
   useEffect(() => {
-    if (!typeModalOpen || !selectedTypeHomebaseId) {
+    if (!typeModalOpen) {
+      return;
+    }
+
+    const currentHomebaseId = typeForm.getFieldValue("homebase_id");
+    const fallbackHomebaseId =
+      filters.homebase_id ||
+      options.selected_homebase_id ||
+      homebases[0]?.id;
+
+    if (!currentHomebaseId && fallbackHomebaseId) {
+      typeForm.setFieldValue("homebase_id", fallbackHomebaseId);
+    }
+  }, [
+    filters.homebase_id,
+    homebases,
+    options.selected_homebase_id,
+    typeForm,
+    typeModalOpen,
+  ]);
+
+  useEffect(() => {
+    if (!typeModalOpen || !(selectedTypeHomebaseId || filters.homebase_id)) {
       return;
     }
 
@@ -196,24 +380,56 @@ const Others = () => {
     if (nextGradeIds.length !== currentGradeIds.length) {
       typeForm.setFieldValue("grade_ids", nextGradeIds);
     }
+
+    const currentPeriodeId = typeForm.getFieldValue("periode_id");
+    if (
+      currentPeriodeId &&
+      typeModalPeriodes.length > 0 &&
+      !typeModalPeriodes.some(
+        (item) => Number(item.id) === Number(currentPeriodeId),
+      )
+    ) {
+      const activePeriode =
+        typeModalPeriodes.find((item) => item.is_active) || typeModalPeriodes[0];
+      typeForm.setFieldValue("periode_id", activePeriode?.id);
+      typeForm.setFieldValue("student_ids", []);
+    }
   }, [
     selectedTypeHomebaseId,
     typeForm,
     typeModalOpen,
     typeModalGrades,
+    typeModalPeriodes,
   ]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const resetTypeStudentFilter = () => {
+    setTypeStudentFilter({
+      grade_id: undefined,
+      class_id: undefined,
+      search: "",
+    });
+  };
+
   const openTypeModal = (record = null) => {
     setEditingType(record);
+    resetTypeStudentFilter();
+
+    const defaultPeriode =
+      filters.periode_id ||
+      periodes.find((item) => item.is_active)?.id ||
+      periodes[0]?.id;
 
     if (record) {
       typeForm.setFieldsValue({
         homebase_id: record.homebase_id,
+        periode_id: record.periode_id || defaultPeriode,
+        scope: record.scope === "student" ? "student" : "grade",
         name: record.name,
         description: record.description,
         amount: Number(record.amount || 0),
         grade_ids: record.grade_ids || [],
+        student_ids: record.student_ids || [],
         is_active: record.is_active,
       });
     } else {
@@ -221,8 +437,11 @@ const Others = () => {
       typeForm.setFieldsValue({
         homebase_id:
           filters.homebase_id || options.selected_homebase_id || homebases[0]?.id,
+        periode_id: defaultPeriode,
+        scope: "grade",
         is_active: true,
         grade_ids: [],
+        student_ids: [],
       });
     }
 
@@ -241,6 +460,32 @@ const Others = () => {
     }
   };
 
+  const handleBulkDeleteType = async (records) => {
+    const results = await Promise.allSettled(
+      records.map((record) =>
+        deleteOtherPaymentType({
+          id: record.type_id,
+          homebase_id: record.homebase_id || filters.homebase_id,
+        }).unwrap(),
+      ),
+    );
+
+    const succeeded = results.filter((item) => item.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+
+    if (succeeded > 0) {
+      message.success(`${succeeded} jenis biaya berhasil dihapus`);
+    }
+
+    if (failed > 0) {
+      const firstError = results.find((item) => item.status === "rejected");
+      message.error(
+        firstError?.reason?.data?.message ||
+          `${failed} jenis biaya gagal dihapus`,
+      );
+    }
+  };
+
   const handleDeleteCharge = async (record) => {
     try {
       await deleteOtherCharge({
@@ -255,24 +500,37 @@ const Others = () => {
 
   const handleSubmitType = async (values) => {
     try {
+      const payload = {
+        ...values,
+        homebase_id:
+          values.homebase_id ||
+          editingType?.homebase_id ||
+          filters.homebase_id,
+        scope: values.scope === "student" ? "student" : "grade",
+      };
+
+      if (payload.scope === "student") {
+        payload.student_ids = values.student_ids || [];
+        payload.grade_ids = [];
+      } else {
+        payload.grade_ids = values.grade_ids || [];
+        payload.student_ids = [];
+      }
+
       if (editingType) {
         await updateOtherPaymentType({
           id: editingType.type_id,
-          homebase_id:
-            values.homebase_id || editingType.homebase_id || filters.homebase_id,
-          ...values,
+          ...payload,
         }).unwrap();
         message.success("Jenis biaya berhasil diperbarui");
       } else {
-        await addOtherPaymentType({
-          ...values,
-          homebase_id: values.homebase_id || filters.homebase_id,
-        }).unwrap();
+        await addOtherPaymentType(payload).unwrap();
         message.success("Jenis biaya berhasil ditambahkan");
       }
 
       setTypeModalOpen(false);
       setEditingType(null);
+      resetTypeStudentFilter();
       typeForm.resetFields();
     } catch (error) {
       message.error(error?.data?.message || "Gagal menyimpan jenis biaya");
@@ -282,11 +540,10 @@ const Others = () => {
   const isPageBootstrapping =
     isLoadingOptions ||
     (!optionsResponse && !periodes.length) ||
-    (hasPrimaryFilters &&
-      (isLoadingScopedOptions || isLoadingTypes || isLoadingCharges) &&
-      !scopedOptionsResponse &&
+    ((isLoadingTypes || isLoadingCharges || isLoadingScopedOptions) &&
       !typeResponse &&
-      !chargeResponse);
+      !chargeResponse &&
+      !periodeInitialized);
 
   if (isPageBootstrapping) {
     return <LoadApp />;
@@ -295,9 +552,13 @@ const Others = () => {
   const activeHomebaseName =
     homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
       ?.name ||
-    (hasPrimaryFilters
+    (filters.homebase_id
       ? user?.homebase_name || user?.homebase_id || "-"
       : "Semua satuan");
+  const activePeriodeName = filters.periode_id
+    ? periodes.find((item) => Number(item.id) === Number(filters.periode_id))
+        ?.name || "-"
+    : "Semua periode";
 
   const createTabLabel = (label, icon, count, caption) => (
     <Space size={10}>
@@ -384,6 +645,7 @@ const Others = () => {
                       onAddType={() => openTypeModal()}
                       onEditType={openTypeModal}
                       onDeleteType={handleDeleteType}
+                      onBulkDeleteType={handleBulkDeleteType}
                       isDeletingType={isDeletingType}
                     />
                   ),
@@ -439,9 +701,10 @@ const Others = () => {
             <Space align='center' size={8}>
               <Sparkles size={14} color='#64748b' />
               <Text type='secondary'>
-                Tampilan saat ini: {activeHomebaseName}. Data akan difilter
-                setelah satuan dan periode dipilih, lalu bisa dipersempit lagi
-                berdasarkan tingkat, kelas, siswa, jenis biaya, dan status.
+                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}.
+                Kosongkan filter periode untuk melihat semua periode. Tagihan
+                mengikuti cakupan jenis (tingkat / individu); siswa yang pindah
+                kelas tetap terikat jika masuk roster individu.
               </Text>
             </Space>
           </Card>
@@ -454,15 +717,42 @@ const Others = () => {
         onCancel={() => {
           setTypeModalOpen(false);
           setEditingType(null);
+          resetTypeStudentFilter();
         }}
         onSubmit={handleSubmitType}
         onHomebaseChange={() => {
           typeForm.setFieldValue("grade_ids", []);
+          typeForm.setFieldValue("student_ids", []);
+          typeForm.setFieldValue("periode_id", undefined);
+          resetTypeStudentFilter();
+        }}
+        onPeriodeChange={() => {
+          typeForm.setFieldValue("student_ids", []);
+          resetTypeStudentFilter();
+        }}
+        onScopeChange={(nextScope) => {
+          if (nextScope === "student") {
+            typeForm.setFieldValue("grade_ids", []);
+          } else {
+            typeForm.setFieldValue("student_ids", []);
+            resetTypeStudentFilter();
+          }
+        }}
+        onStudentFilterChange={(patch) => {
+          setTypeStudentFilter((previous) => ({
+            ...previous,
+            ...patch,
+          }));
         }}
         form={typeForm}
         confirmLoading={isAddingType || isUpdatingType}
         homebases={homebases}
+        periodes={typeModalPeriodes}
         grades={typeModalGrades}
+        classes={typeModalClasses}
+        students={typeModalStudents}
+        studentsLoading={isFetchingTypeStudents}
+        studentFilter={typeStudentFilter}
       />
     </MotionDiv>
   );

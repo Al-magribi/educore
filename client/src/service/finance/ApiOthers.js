@@ -3,13 +3,88 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 const buildQueryString = (params = {}) => {
   const searchParams = new URLSearchParams();
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      searchParams.set(key, value);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
     }
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== "") {
+          searchParams.append(key, item);
+        }
+      });
+      return;
+    }
+
+    searchParams.set(key, value);
   });
 
   return searchParams.toString();
+};
+
+const toNumberArray = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item));
+};
+
+const normalizeOtherPaymentType = (item = {}) => ({
+  ...item,
+  type_id: Number(item.type_id || item.id || 0) || null,
+  homebase_id: Number(item.homebase_id || 0) || null,
+  periode_id: Number(item.periode_id || 0) || null,
+  amount: Number(item.amount || 0),
+  scope: item.scope === "student" ? "student" : "grade",
+  description: item.description || null,
+  grade_ids: toNumberArray(item.grade_ids),
+  grade_names: Array.isArray(item.grade_names)
+    ? item.grade_names.filter(Boolean)
+    : [],
+  student_ids: toNumberArray(item.student_ids),
+  student_names: Array.isArray(item.student_names)
+    ? item.student_names.filter(Boolean)
+    : [],
+  student_count: Number(item.student_count || 0),
+  charge_count: Number(item.charge_count || 0),
+  is_active: item.is_active !== false,
+});
+
+const normalizeOtherCharge = (item = {}) => ({
+  ...item,
+  charge_id: Number(item.charge_id || 0) || null,
+  type_id: Number(item.type_id || 0) || null,
+  student_id: Number(item.student_id || 0) || null,
+  periode_id: Number(item.periode_id || 0) || null,
+  homebase_id: Number(item.homebase_id || 0) || null,
+  amount_due: Number(item.amount_due || 0),
+  paid_amount: Number(item.paid_amount || 0),
+  remaining_amount: Number(item.remaining_amount || 0),
+  type_scope: item.type_scope === "student" ? "student" : item.type_scope || "grade",
+});
+
+const buildOtherTypeBody = (payload = {}) => {
+  const body = {
+    homebase_id: payload.homebase_id,
+    periode_id: payload.periode_id,
+    name: payload.name,
+    description: payload.description,
+    amount: payload.amount,
+    scope: payload.scope === "student" ? "student" : "grade",
+    is_active: payload.is_active !== false,
+  };
+
+  if (body.scope === "student") {
+    body.student_ids = toNumberArray(payload.student_ids);
+  } else {
+    body.grade_ids = toNumberArray(payload.grade_ids);
+  }
+
+  return body;
 };
 
 const buildOtherChargeTagId = (item) =>
@@ -23,43 +98,70 @@ export const ApiOthers = createApi({
   endpoints: (builder) => ({
     getOtherOptions: builder.query({
       query: (params) => `/others/options?${buildQueryString(params)}`,
+      transformResponse: (response) => {
+        if (!response?.data) {
+          return response;
+        }
+
+        return {
+          ...response,
+          data: {
+            ...response.data,
+            types: (response.data.types || []).map(normalizeOtherPaymentType),
+          },
+        };
+      },
       providesTags: ["OtherOption"],
     }),
 
     getOtherPaymentTypes: builder.query({
       query: (params) => `/others/types?${buildQueryString(params)}`,
+      transformResponse: (response) => {
+        if (!response?.data) {
+          return response;
+        }
+
+        return {
+          ...response,
+          data: response.data.map(normalizeOtherPaymentType),
+        };
+      },
       providesTags: (result) =>
         result?.data
           ? [
-              ...result.data.map(({ type_id: id }) => ({ type: "OtherPaymentType", id })),
+              ...result.data.map(({ type_id: id }) => ({
+                type: "OtherPaymentType",
+                id,
+              })),
               { type: "OtherPaymentType", id: "LIST" },
             ]
           : [{ type: "OtherPaymentType", id: "LIST" }],
     }),
 
     addOtherPaymentType: builder.mutation({
-      query: (body) => ({
+      query: (payload) => ({
         url: "/others/types",
         method: "POST",
-        body,
+        body: buildOtherTypeBody(payload),
       }),
       invalidatesTags: [
         { type: "OtherPaymentType", id: "LIST" },
+        { type: "OtherCharge", id: "LIST" },
         "OtherOption",
       ],
     }),
 
     updateOtherPaymentType: builder.mutation({
-      query: ({ id, ...body }) => ({
+      query: ({ id, ...payload }) => ({
         url: `/others/types/${id}`,
         method: "PUT",
-        body,
+        body: buildOtherTypeBody(payload),
       }),
       invalidatesTags: (result, error, { id }) => [
         { type: "OtherPaymentType", id },
         { type: "OtherPaymentType", id: "LIST" },
-        "OtherOption",
         { type: "OtherCharge", id: "LIST" },
+        "OtherOption",
       ],
     }),
 
@@ -78,6 +180,7 @@ export const ApiOthers = createApi({
       },
       invalidatesTags: [
         { type: "OtherPaymentType", id: "LIST" },
+        { type: "OtherCharge", id: "LIST" },
         "OtherOption",
       ],
     }),
@@ -92,6 +195,16 @@ export const ApiOthers = createApi({
         }
 
         return `/others/charges?${buildQueryString(normalizedParams)}`;
+      },
+      transformResponse: (response) => {
+        if (!response?.data) {
+          return response;
+        }
+
+        return {
+          ...response,
+          data: response.data.map(normalizeOtherCharge),
+        };
       },
       providesTags: (result) =>
         result?.data
@@ -109,7 +222,14 @@ export const ApiOthers = createApi({
       query: (body) => ({
         url: "/others/charges",
         method: "POST",
-        body,
+        body: {
+          homebase_id: body.homebase_id,
+          periode_id: body.periode_id,
+          grade_id: body.grade_id,
+          type_id: body.type_id,
+          student_id: body.student_id,
+          notes: body.notes,
+        },
       }),
       invalidatesTags: [
         { type: "OtherCharge", id: "LIST" },
@@ -121,7 +241,14 @@ export const ApiOthers = createApi({
       query: ({ id, ...body }) => ({
         url: `/others/charges/${id}`,
         method: "PUT",
-        body,
+        body: {
+          homebase_id: body.homebase_id,
+          periode_id: body.periode_id,
+          grade_id: body.grade_id,
+          type_id: body.type_id,
+          student_id: body.student_id,
+          notes: body.notes,
+        },
       }),
       invalidatesTags: (result, error, { id }) => [
         { type: "OtherCharge", id },

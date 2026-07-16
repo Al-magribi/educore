@@ -15,6 +15,7 @@ import {
   getPaymentMethodId,
   parseOptionalInt,
   upsertInvoiceStatus,
+  resolveOtherChargeRule,
 } from "./financeHelpers.js";
 
 const router = Router();
@@ -164,31 +165,21 @@ const getSppRule = async (db, homebaseId, periodeId, gradeId) => {
   return result.rows[0] || null;
 };
 
-const getOtherRule = async (db, homebaseId, periodeId, gradeId, componentId) => {
-  const result = await db.query(
-    `
-      SELECT
-        fr.id,
-        fr.amount,
-        fc.id AS component_id,
-        fc.name AS component_name
-      FROM finance.fee_rule fr
-      JOIN finance.fee_component fc ON fc.id = fr.component_id
-      WHERE fr.homebase_id = $1
-        AND fr.grade_id = $2
-        AND fr.component_id = $3
-        AND fr.is_active = true
-        AND fc.category = 'other'
-        AND fc.is_active = true
-        AND (fr.periode_id = $4 OR fr.periode_id IS NULL)
-      ORDER BY CASE WHEN fr.periode_id = $4 THEN 0 ELSE 1 END, fr.id DESC
-      LIMIT 1
-    `,
-    [homebaseId, gradeId, componentId, periodeId],
-  );
-
-  return result.rows[0] || null;
-};
+const getOtherRule = async (
+  db,
+  homebaseId,
+  periodeId,
+  gradeId,
+  componentId,
+  studentId = null,
+) =>
+  resolveOtherChargeRule(db, {
+    homebaseId,
+    periodeId,
+    gradeId,
+    componentId,
+    studentId,
+  });
 
 const getOrCreateSppInvoiceItem = async ({
   client,
@@ -578,24 +569,55 @@ const getOtherItems = async ({
   const [componentResult, itemResult, installmentResult] = await Promise.all([
     db.query(
       `
-        SELECT DISTINCT ON (fc.id)
-          fc.id AS component_id,
-          fc.name AS component_name,
-          fr.id AS fee_rule_id,
-          fr.amount
-        FROM finance.fee_component fc
-        JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
-        WHERE fc.homebase_id = $1
-          AND fc.category = 'other'
-          AND fc.is_active = true
-          AND fr.grade_id = $2
-          AND (fr.periode_id = $3 OR fr.periode_id IS NULL)
-        ORDER BY
-          fc.id,
-          CASE WHEN fr.periode_id = $3 THEN 0 ELSE 1 END,
-          fr.id DESC
+        SELECT DISTINCT ON (component_id)
+          component_id,
+          component_name,
+          fee_rule_id,
+          amount
+        FROM (
+          SELECT
+            fc.id AS component_id,
+            fc.name AS component_name,
+            fr.id AS fee_rule_id,
+            fr.amount,
+            CASE WHEN fr.periode_id = $3 THEN 0 ELSE 1 END AS periode_rank,
+            fr.id AS rule_rank
+          FROM finance.fee_component fc
+          JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
+          WHERE fc.homebase_id = $1
+            AND fc.category = 'other'
+            AND fc.is_active = true
+            AND COALESCE(fc.scope, 'grade') = 'grade'
+            AND fr.grade_id = $2
+            AND (fr.periode_id = $3 OR fr.periode_id IS NULL)
+
+          UNION ALL
+
+          SELECT
+            fc.id AS component_id,
+            fc.name AS component_name,
+            fr.id AS fee_rule_id,
+            COALESCE(fa.amount, fr.amount) AS amount,
+            0 AS periode_rank,
+            fr.id AS rule_rank
+          FROM finance.fee_component fc
+          JOIN finance.fee_assignment fa
+            ON fa.component_id = fc.id
+            AND fa.is_active = true
+          JOIN finance.fee_rule fr
+            ON fr.component_id = fc.id
+            AND fr.is_active = true
+            AND fr.grade_id IS NULL
+          WHERE fc.homebase_id = $1
+            AND fc.category = 'other'
+            AND fc.is_active = true
+            AND COALESCE(fc.scope, 'grade') = 'student'
+            AND fa.periode_id = $3
+            AND fa.student_id = $4
+        ) scoped_types
+        ORDER BY component_id, periode_rank ASC, rule_rank DESC
       `,
-      [homebaseId, gradeId, periodeId],
+      [homebaseId, gradeId, periodeId, studentId],
     ),
     db.query(
       `
@@ -872,6 +894,7 @@ const ensureParentPayableItem = async ({
         periodeId,
         gradeId,
         componentId,
+        studentId,
       );
 
       if (!rule) {

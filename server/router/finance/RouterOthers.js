@@ -8,6 +8,8 @@ import {
   resolveScopedHomebaseId,
   buildEnrollmentWhereClause,
   ensureGradeAndPeriode,
+  ensurePeriode,
+  ensureStudentsInPeriode,
   ensureStudentScope,
   ensureFinalFinanceTables,
   getOrCreateComponent,
@@ -15,10 +17,19 @@ import {
   getOrCreateInvoice,
   getParentPayerUserId,
   createManualPayment,
+  resolveOtherChargeRule,
 } from "./financeHelpers.js";
 
 const router = Router();
 const SUCCESS_PAYMENT_STATUSES = ["confirmed", "paid"];
+const OTHER_TYPE_SCOPES = new Set(["grade", "student"]);
+
+const normalizeOtherTypeScope = (value) => {
+  const scope = String(value || "grade")
+    .trim()
+    .toLowerCase();
+  return OTHER_TYPE_SCOPES.has(scope) ? scope : "grade";
+};
 
 const formatChargeStatus = (status) => {
   const statusMap = {
@@ -63,15 +74,28 @@ const getOtherTypeById = async (db, homebaseId, typeId) => {
         fc.homebase_id,
         fc.code,
         fc.name,
+        fc.description,
+        COALESCE(fc.scope, 'grade') AS scope,
         fc.is_active,
         COALESCE(MAX(fr.amount), 0) AS amount,
+        COALESCE(MAX(fa.periode_id), MAX(fr.periode_id)) AS periode_id,
+        COALESCE(MAX(p_assign.name), MAX(p_rule.name)) AS periode_name,
         COALESCE(ARRAY_AGG(DISTINCT fr.grade_id) FILTER (WHERE fr.grade_id IS NOT NULL), '{}') AS grade_ids,
         COALESCE(ARRAY_AGG(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS grade_names,
+        COALESCE(ARRAY_AGG(DISTINCT fa.student_id) FILTER (WHERE fa.student_id IS NOT NULL), '{}') AS student_ids,
+        COALESCE(ARRAY_AGG(DISTINCT su.full_name) FILTER (WHERE su.full_name IS NOT NULL), '{}') AS student_names,
+        COUNT(DISTINCT fa.student_id) FILTER (WHERE fa.is_active = true)::int AS student_count,
         MAX(fc.created_at) AS created_at,
         MAX(fc.updated_at) AS updated_at
       FROM finance.fee_component fc
       LEFT JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
       LEFT JOIN a_grade g ON g.id = fr.grade_id
+      LEFT JOIN a_periode p_rule ON p_rule.id = fr.periode_id
+      LEFT JOIN finance.fee_assignment fa
+        ON fa.component_id = fc.id
+        AND fa.is_active = true
+      LEFT JOIN a_periode p_assign ON p_assign.id = fa.periode_id
+      LEFT JOIN u_users su ON su.id = fa.student_id
       WHERE fc.homebase_id = $1
         AND fc.category = 'other'
         AND fc.id = $2
@@ -84,7 +108,175 @@ const getOtherTypeById = async (db, homebaseId, typeId) => {
   return result.rows[0] || null;
 };
 
-const getOtherRuleForGrade = async (db, componentId, homebaseId, gradeId) => {
+const replaceOtherTypeGradeRules = async ({
+  client,
+  componentId,
+  homebaseId,
+  periodeId,
+  gradeIds,
+  amount,
+  isActive,
+  createdBy = null,
+}) => {
+  await client.query(`DELETE FROM finance.fee_rule WHERE component_id = $1`, [
+    componentId,
+  ]);
+
+  for (const gradeId of gradeIds) {
+    await client.query(
+      `
+        INSERT INTO finance.fee_rule (
+          component_id,
+          homebase_id,
+          grade_id,
+          periode_id,
+          billing_cycle,
+          amount,
+          is_active,
+          created_by
+        )
+        VALUES ($1, $2, $3, $4, 'once', $5, $6, $7)
+      `,
+      [componentId, homebaseId, gradeId, periodeId, amount, isActive, createdBy],
+    );
+  }
+};
+
+const replaceOtherTypeStudentRules = async ({
+  client,
+  componentId,
+  homebaseId,
+  periodeId,
+  studentIds,
+  amount,
+  isActive,
+  createdBy = null,
+}) => {
+  await client.query(`DELETE FROM finance.fee_rule WHERE component_id = $1`, [
+    componentId,
+  ]);
+  await client.query(`DELETE FROM finance.fee_assignment WHERE component_id = $1`, [
+    componentId,
+  ]);
+
+  await client.query(
+    `
+      INSERT INTO finance.fee_rule (
+        component_id,
+        homebase_id,
+        grade_id,
+        periode_id,
+        billing_cycle,
+        amount,
+        is_active,
+        created_by
+      )
+      VALUES ($1, $2, NULL, $3, 'once', $4, $5, $6)
+    `,
+    [componentId, homebaseId, periodeId, amount, isActive, createdBy],
+  );
+
+  for (const studentId of studentIds) {
+    await client.query(
+      `
+        INSERT INTO finance.fee_assignment (
+          component_id,
+          homebase_id,
+          periode_id,
+          student_id,
+          amount,
+          is_active,
+          created_by
+        )
+        VALUES ($1, $2, $3, $4, NULL, $5, $6)
+      `,
+      [componentId, homebaseId, periodeId, studentId, isActive, createdBy],
+    );
+  }
+};
+
+const getBilledStudentIdsForType = async (client, typeId) => {
+  const result = await client.query(
+    `
+      SELECT DISTINCT inv.student_id
+      FROM finance.invoice_item ii
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      WHERE ii.component_id = $1
+        AND ii.item_type = 'other'
+    `,
+    [typeId],
+  );
+
+  return new Set(result.rows.map((row) => Number(row.student_id)));
+};
+
+const getTypeChargePaymentStats = async (client, typeId) => {
+  const result = await client.query(
+    `
+      SELECT
+        ii.id AS charge_id,
+        inv.student_id,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN p.status = ANY($2::text[]) THEN pa.allocated_amount
+              ELSE 0
+            END
+          ),
+          0
+        ) AS paid_amount
+      FROM finance.invoice_item ii
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
+      LEFT JOIN finance.payment p ON p.id = pa.payment_id
+      WHERE ii.component_id = $1
+        AND ii.item_type = 'other'
+      GROUP BY ii.id, inv.student_id
+    `,
+    [typeId, SUCCESS_PAYMENT_STATUSES],
+  );
+
+  const rows = result.rows.map((row) => ({
+    charge_id: Number(row.charge_id),
+    student_id: Number(row.student_id),
+    paid_amount: Number(row.paid_amount || 0),
+  }));
+
+  return {
+    rows,
+    maxPaidAmount: rows.reduce(
+      (max, row) => Math.max(max, row.paid_amount),
+      0,
+    ),
+    paidStudentIds: new Set(
+      rows.filter((row) => row.paid_amount > 0).map((row) => row.student_id),
+    ),
+  };
+};
+
+const syncUnpaidOtherChargeAmounts = async (client, typeId, amount) => {
+  const stats = await getTypeChargePaymentStats(client, typeId);
+
+  for (const row of stats.rows) {
+    if (row.paid_amount > amount) {
+      continue;
+    }
+
+    await client.query(
+      `
+        UPDATE finance.invoice_item
+        SET unit_amount = $1
+        WHERE id = $2
+          AND item_type = 'other'
+      `,
+      [amount, row.charge_id],
+    );
+  }
+
+  return stats;
+};
+
+const getOtherRuleForGrade = async (db, componentId, homebaseId, gradeId, periodeId = null) => {
   const result = await db.query(
     `
       SELECT id, amount
@@ -93,9 +285,30 @@ const getOtherRuleForGrade = async (db, componentId, homebaseId, gradeId) => {
         AND homebase_id = $2
         AND grade_id = $3
         AND is_active = true
+        AND ($4::int IS NULL OR periode_id = $4 OR periode_id IS NULL)
+      ORDER BY CASE WHEN periode_id = $4 THEN 0 ELSE 1 END, id DESC
       LIMIT 1
     `,
-    [componentId, homebaseId, gradeId],
+    [componentId, homebaseId, gradeId, periodeId],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getOtherBaseRule = async (db, componentId, homebaseId, periodeId) => {
+  const result = await db.query(
+    `
+      SELECT id, amount
+      FROM finance.fee_rule
+      WHERE component_id = $1
+        AND homebase_id = $2
+        AND grade_id IS NULL
+        AND is_active = true
+        AND (periode_id = $3 OR periode_id IS NULL)
+      ORDER BY CASE WHEN periode_id = $3 THEN 0 ELSE 1 END, id DESC
+      LIMIT 1
+    `,
+    [componentId, homebaseId, periodeId],
   );
 
   return result.rows[0] || null;
@@ -189,6 +402,10 @@ router.get(
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const search = (req.query.search || "").trim();
+    const studentLimit = Math.min(
+      Math.max(parseOptionalInt(req.query.limit) || 100, 1),
+      500,
+    );
 
     if (!homebaseId) {
       return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
@@ -263,7 +480,7 @@ router.get(
             JOIN a_grade g ON g.id = c.grade_id
             ${enrollmentScope.whereClause}
             ORDER BY u.full_name ASC
-            LIMIT 100
+            LIMIT ${studentLimit}
           `,
           enrollmentScope.params,
         ),
@@ -273,19 +490,46 @@ router.get(
               fc.id AS type_id,
               fc.name,
               fc.code,
+              fc.description,
+              COALESCE(fc.scope, 'grade') AS scope,
               fc.is_active,
               COALESCE(MAX(fr.amount), 0) AS amount,
+              COALESCE(MAX(fa.periode_id), MAX(fr.periode_id)) AS periode_id,
+              COALESCE(MAX(p_assign.name), MAX(p_rule.name)) AS periode_name,
               COALESCE(ARRAY_AGG(DISTINCT fr.grade_id) FILTER (WHERE fr.grade_id IS NOT NULL), '{}') AS grade_ids,
-              COALESCE(ARRAY_AGG(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS grade_names
+              COALESCE(ARRAY_AGG(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS grade_names,
+              COALESCE(ARRAY_AGG(DISTINCT fa.student_id) FILTER (WHERE fa.student_id IS NOT NULL), '{}') AS student_ids,
+              COALESCE(ARRAY_AGG(DISTINCT su.full_name) FILTER (WHERE su.full_name IS NOT NULL), '{}') AS student_names,
+              COUNT(DISTINCT fa.student_id) FILTER (WHERE fa.is_active = true)::int AS student_count
             FROM finance.fee_component fc
             LEFT JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
             LEFT JOIN a_grade g ON g.id = fr.grade_id
+            LEFT JOIN a_periode p_rule ON p_rule.id = fr.periode_id
+            LEFT JOIN finance.fee_assignment fa
+              ON fa.component_id = fc.id
+              AND fa.is_active = true
+            LEFT JOIN a_periode p_assign ON p_assign.id = fa.periode_id
+            LEFT JOIN u_users su ON su.id = fa.student_id
             WHERE fc.homebase_id = $1
               AND fc.category = 'other'
+              ${
+                periodeId
+                  ? `AND (
+                      EXISTS (
+                        SELECT 1 FROM finance.fee_rule frf
+                        WHERE frf.component_id = fc.id AND frf.periode_id = $2
+                      )
+                      OR EXISTS (
+                        SELECT 1 FROM finance.fee_assignment faf
+                        WHERE faf.component_id = fc.id AND faf.periode_id = $2
+                      )
+                    )`
+                  : ""
+              }
             GROUP BY fc.id
             ORDER BY fc.is_active DESC, fc.name ASC
           `,
-          [homebaseId],
+          periodeId ? [homebaseId, periodeId] : [homebaseId],
         ),
       ]);
 
@@ -319,12 +563,27 @@ router.get(
       : requestedHomebaseId
         ? await resolveScopedHomebaseId(db, req.user, requestedHomebaseId)
         : null;
+    const periodeId = parseOptionalInt(req.query.periode_id);
     const params = [];
     let whereClause = `WHERE fc.category = 'other'`;
 
     if (homebaseId) {
       params.push(homebaseId);
       whereClause += ` AND fc.homebase_id = $${params.length}`;
+    }
+
+    if (periodeId) {
+      params.push(periodeId);
+      whereClause += ` AND (
+        EXISTS (
+          SELECT 1 FROM finance.fee_rule frf
+          WHERE frf.component_id = fc.id AND frf.periode_id = $${params.length}
+        )
+        OR EXISTS (
+          SELECT 1 FROM finance.fee_assignment faf
+          WHERE faf.component_id = fc.id AND faf.periode_id = $${params.length}
+        )
+      )`;
     }
 
     const result = await db.query(
@@ -335,16 +594,29 @@ router.get(
           hb.name AS homebase_name,
           fc.name,
           fc.code,
+          fc.description,
+          COALESCE(fc.scope, 'grade') AS scope,
           fc.is_active,
           fc.created_at,
           fc.updated_at,
           COALESCE(MAX(fr.amount), 0) AS amount,
           COUNT(DISTINCT ii.id)::int AS charge_count,
+          COALESCE(MAX(fa.periode_id), MAX(fr.periode_id)) AS periode_id,
+          COALESCE(MAX(p_assign.name), MAX(p_rule.name)) AS periode_name,
           COALESCE(ARRAY_AGG(DISTINCT fr.grade_id) FILTER (WHERE fr.grade_id IS NOT NULL), '{}') AS grade_ids,
-          COALESCE(ARRAY_AGG(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS grade_names
+          COALESCE(ARRAY_AGG(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS grade_names,
+          COALESCE(ARRAY_AGG(DISTINCT fa.student_id) FILTER (WHERE fa.student_id IS NOT NULL), '{}') AS student_ids,
+          COALESCE(ARRAY_AGG(DISTINCT su.full_name) FILTER (WHERE su.full_name IS NOT NULL), '{}') AS student_names,
+          COUNT(DISTINCT fa.student_id) FILTER (WHERE fa.is_active = true)::int AS student_count
         FROM finance.fee_component fc
         LEFT JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
         LEFT JOIN a_grade g ON g.id = fr.grade_id
+        LEFT JOIN a_periode p_rule ON p_rule.id = fr.periode_id
+        LEFT JOIN finance.fee_assignment fa
+          ON fa.component_id = fc.id
+          AND fa.is_active = true
+        LEFT JOIN a_periode p_assign ON p_assign.id = fa.periode_id
+        LEFT JOIN u_users su ON su.id = fa.student_id
         LEFT JOIN finance.invoice_item ii ON ii.component_id = fc.id AND ii.item_type = 'other'
         JOIN a_homebase hb ON hb.id = fc.homebase_id
         ${whereClause}
@@ -372,31 +644,92 @@ router.post(
     );
     const { id: userId } = req.user;
     const name = (req.body.name || "").trim();
+    const description = (req.body.description || "").trim() || null;
     const amount = Number(req.body.amount);
-    const gradeIds = parseIntArray(req.body.grade_ids).sort((left, right) => left - right);
+    const scope = normalizeOtherTypeScope(req.body.scope);
+    const gradeIds = parseIntArray(req.body.grade_ids).sort(
+      (left, right) => left - right,
+    );
+    const studentIds = parseIntArray(req.body.student_ids);
+    const periodeId = parseOptionalInt(req.body.periode_id);
     const isActive = req.body.is_active !== false;
 
-    if (!name || Number.isNaN(amount) || gradeIds.length === 0 || amount <= 0) {
+    if (!name || Number.isNaN(amount) || amount <= 0) {
       return res.status(400).json({
-        message: "Nama jenis pembayaran, nominal, dan tingkat wajib diisi",
+        message: "Nama jenis pembayaran dan nominal wajib diisi",
       });
+    }
+
+    if (!periodeId) {
+      return res.status(400).json({
+        message: "Periode wajib dipilih untuk jenis pembayaran lainnya",
+      });
+    }
+
+    const periodeCheck = await ensurePeriode(client, homebaseId, periodeId);
+    if (periodeCheck.error) {
+      return res.status(400).json({ message: periodeCheck.error });
+    }
+
+    let resolvedStudentIds = [];
+
+    if (scope === "grade") {
+      if (gradeIds.length === 0) {
+        return res.status(400).json({
+          message: "Minimal satu tingkat wajib dipilih untuk cakupan tingkat",
+        });
+      }
+
+      for (const gradeId of gradeIds) {
+        const gradeCheck = await client.query(
+          `SELECT id FROM a_grade WHERE id = $1 AND homebase_id = $2`,
+          [gradeId, homebaseId],
+        );
+        if (gradeCheck.rowCount === 0) {
+          return res.status(400).json({
+            message: "Ada tingkat yang tidak valid pada satuan ini",
+          });
+        }
+      }
+    } else {
+      const studentsCheck = await ensureStudentsInPeriode(
+        client,
+        homebaseId,
+        periodeId,
+        studentIds,
+      );
+      if (studentsCheck.error) {
+        return res.status(400).json({ message: studentsCheck.error });
+      }
+
+      resolvedStudentIds = studentsCheck.studentIds;
     }
 
     const duplicateCheck = await client.query(
       `
-        SELECT id
-        FROM finance.fee_component
-        WHERE homebase_id = $1
-          AND category = 'other'
-          AND lower(name) = lower($2)
+        SELECT fc.id
+        FROM finance.fee_component fc
+        WHERE fc.homebase_id = $1
+          AND fc.category = 'other'
+          AND lower(fc.name) = lower($2)
+          AND (
+            EXISTS (
+              SELECT 1 FROM finance.fee_rule fr
+              WHERE fr.component_id = fc.id AND fr.periode_id = $3
+            )
+            OR EXISTS (
+              SELECT 1 FROM finance.fee_assignment fa
+              WHERE fa.component_id = fc.id AND fa.periode_id = $3
+            )
+          )
         LIMIT 1
       `,
-      [homebaseId, name],
+      [homebaseId, name, periodeId],
     );
 
     if (duplicateCheck.rowCount > 0) {
       return res.status(409).json({
-        message: "Jenis pembayaran dengan nama yang sama sudah ada",
+        message: "Jenis pembayaran dengan nama yang sama sudah ada pada periode ini",
       });
     }
 
@@ -409,29 +742,52 @@ router.post(
       createdBy: userId,
     });
 
-    for (const gradeId of gradeIds) {
+    await client.query(
+      `
+        UPDATE finance.fee_component
+        SET
+          name = $1,
+          description = $2,
+          scope = $3,
+          is_active = $4,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $5
+      `,
+      [name, description, scope, isActive, component.id],
+    );
+
+    if (scope === "grade") {
       await client.query(
-        `
-          INSERT INTO finance.fee_rule (
-            component_id,
-            homebase_id,
-            grade_id,
-            periode_id,
-            billing_cycle,
-            amount,
-            is_active,
-            created_by
-          )
-          VALUES ($1, $2, $3, NULL, 'once', $4, $5, $6)
-        `,
-        [component.id, homebaseId, gradeId, amount, isActive, userId],
+        `DELETE FROM finance.fee_assignment WHERE component_id = $1`,
+        [component.id],
       );
+      await replaceOtherTypeGradeRules({
+        client,
+        componentId: component.id,
+        homebaseId,
+        periodeId,
+        gradeIds,
+        amount,
+        isActive,
+        createdBy: userId,
+      });
+    } else {
+      await replaceOtherTypeStudentRules({
+        client,
+        componentId: component.id,
+        homebaseId,
+        periodeId,
+        studentIds: resolvedStudentIds,
+        amount,
+        isActive,
+        createdBy: userId,
+      });
     }
 
     res.status(201).json({
       status: "success",
       message: "Jenis pembayaran berhasil ditambahkan",
-      data: { id: component.id },
+      data: { id: component.id, scope },
     });
   }),
 );
@@ -449,13 +805,31 @@ router.put(
       req.user,
       requestedHomebaseId,
     );
+    const { id: userId } = req.user;
     const name = (req.body.name || "").trim();
+    const description = (req.body.description || "").trim() || null;
     const amount = Number(req.body.amount);
-    const gradeIds = parseIntArray(req.body.grade_ids).sort((left, right) => left - right);
+    const scope = normalizeOtherTypeScope(req.body.scope);
+    const gradeIds = parseIntArray(req.body.grade_ids).sort(
+      (left, right) => left - right,
+    );
+    const studentIds = parseIntArray(req.body.student_ids);
+    const periodeId = parseOptionalInt(req.body.periode_id);
     const isActive = req.body.is_active !== false;
 
-    if (!typeId || !name || Number.isNaN(amount) || gradeIds.length === 0 || amount <= 0) {
+    if (!typeId || !name || Number.isNaN(amount) || amount <= 0) {
       return res.status(400).json({ message: "Data jenis pembayaran belum lengkap" });
+    }
+
+    if (!periodeId) {
+      return res.status(400).json({
+        message: "Periode wajib dipilih untuk jenis pembayaran lainnya",
+      });
+    }
+
+    const periodeCheck = await ensurePeriode(client, homebaseId, periodeId);
+    if (periodeCheck.error) {
+      return res.status(400).json({ message: periodeCheck.error });
     }
 
     const current = await getOtherTypeById(client, homebaseId, typeId);
@@ -463,38 +837,179 @@ router.put(
       return res.status(404).json({ message: "Jenis pembayaran tidak ditemukan" });
     }
 
+    const currentScope = normalizeOtherTypeScope(current.scope);
+    const billedStudentIds = await getBilledStudentIdsForType(client, typeId);
+    const chargeStats = await getTypeChargePaymentStats(client, typeId);
+    const hasCharges = billedStudentIds.size > 0;
+
+    if (amount < chargeStats.maxPaidAmount) {
+      return res.status(409).json({
+        message: `Nominal tidak boleh lebih kecil dari pembayaran yang sudah masuk (maks. Rp ${chargeStats.maxPaidAmount.toLocaleString("id-ID")})`,
+      });
+    }
+
+    if (scope !== currentScope && hasCharges) {
+      return res.status(409).json({
+        message:
+          "Cakupan jenis pembayaran yang sudah dipakai pada tagihan tidak dapat diubah",
+      });
+    }
+
+    if (
+      Number(current.periode_id) &&
+      Number(current.periode_id) !== Number(periodeId) &&
+      hasCharges
+    ) {
+      return res.status(409).json({
+        message:
+          "Periode jenis pembayaran yang sudah dipakai pada tagihan tidak dapat diubah",
+      });
+    }
+
+    let resolvedStudentIds = [];
+
+    if (scope === "grade") {
+      if (gradeIds.length === 0) {
+        return res.status(400).json({
+          message: "Minimal satu tingkat wajib dipilih untuk cakupan tingkat",
+        });
+      }
+
+      for (const gradeId of gradeIds) {
+        const gradeCheck = await client.query(
+          `SELECT id FROM a_grade WHERE id = $1 AND homebase_id = $2`,
+          [gradeId, homebaseId],
+        );
+        if (gradeCheck.rowCount === 0) {
+          return res.status(400).json({
+            message: "Ada tingkat yang tidak valid pada satuan ini",
+          });
+        }
+      }
+
+      if (hasCharges) {
+        const currentGradeIds = new Set(
+          (current.grade_ids || []).map((item) => Number(item)),
+        );
+        const nextGradeIds = new Set(gradeIds.map((item) => Number(item)));
+        const removedGrades = [...currentGradeIds].filter(
+          (item) => !nextGradeIds.has(item),
+        );
+
+        if (removedGrades.length > 0) {
+          return res.status(409).json({
+            message:
+              "Tingkat yang sudah dipakai pada tagihan tidak dapat dihapus dari jenis biaya",
+          });
+        }
+      }
+    } else {
+      const studentsCheck = await ensureStudentsInPeriode(
+        client,
+        homebaseId,
+        periodeId,
+        studentIds,
+      );
+      if (studentsCheck.error) {
+        return res.status(400).json({ message: studentsCheck.error });
+      }
+
+      resolvedStudentIds = studentsCheck.studentIds;
+      const nextStudentIds = new Set(resolvedStudentIds);
+      const removedBilled = [...billedStudentIds].filter(
+        (studentId) => !nextStudentIds.has(studentId),
+      );
+      if (removedBilled.length > 0) {
+        const removedPaid = removedBilled.filter((studentId) =>
+          chargeStats.paidStudentIds.has(studentId),
+        );
+        return res.status(409).json({
+          message:
+            removedPaid.length > 0
+              ? "Siswa yang sudah membayar tidak dapat dihapus dari daftar jenis biaya"
+              : "Siswa yang sudah punya tagihan pada jenis ini tidak dapat dihapus dari daftar",
+        });
+      }
+    }
+
+    const duplicateCheck = await client.query(
+      `
+        SELECT fc.id
+        FROM finance.fee_component fc
+        WHERE fc.homebase_id = $1
+          AND fc.category = 'other'
+          AND fc.id <> $2
+          AND lower(fc.name) = lower($3)
+          AND (
+            EXISTS (
+              SELECT 1 FROM finance.fee_rule fr
+              WHERE fr.component_id = fc.id AND fr.periode_id = $4
+            )
+            OR EXISTS (
+              SELECT 1 FROM finance.fee_assignment fa
+              WHERE fa.component_id = fc.id AND fa.periode_id = $4
+            )
+          )
+        LIMIT 1
+      `,
+      [homebaseId, typeId, name, periodeId],
+    );
+
+    if (duplicateCheck.rowCount > 0) {
+      return res.status(409).json({
+        message: "Jenis pembayaran dengan nama yang sama sudah ada pada periode ini",
+      });
+    }
+
     await client.query(
       `
         UPDATE finance.fee_component
         SET
           name = $1,
-          is_active = $2,
+          description = $2,
+          scope = $3,
+          is_active = $4,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $3
+        WHERE id = $5
       `,
-      [name, isActive, typeId],
+      [name, description, scope, isActive, typeId],
     );
 
-    await client.query(`DELETE FROM finance.fee_rule WHERE component_id = $1`, [typeId]);
-    for (const gradeId of gradeIds) {
+    if (scope === "grade") {
       await client.query(
-        `
-          INSERT INTO finance.fee_rule (
-            component_id,
-            homebase_id,
-            grade_id,
-            periode_id,
-            billing_cycle,
-            amount,
-            is_active
-          )
-          VALUES ($1, $2, $3, NULL, 'once', $4, $5)
-        `,
-        [typeId, homebaseId, gradeId, amount, isActive],
+        `DELETE FROM finance.fee_assignment WHERE component_id = $1`,
+        [typeId],
       );
+      await replaceOtherTypeGradeRules({
+        client,
+        componentId: typeId,
+        homebaseId,
+        periodeId,
+        gradeIds,
+        amount,
+        isActive,
+        createdBy: userId,
+      });
+    } else {
+      await replaceOtherTypeStudentRules({
+        client,
+        componentId: typeId,
+        homebaseId,
+        periodeId,
+        studentIds: resolvedStudentIds,
+        amount,
+        isActive,
+        createdBy: userId,
+      });
     }
 
-    res.json({ status: "success", message: "Jenis pembayaran berhasil diperbarui" });
+    await syncUnpaidOtherChargeAmounts(client, typeId, amount);
+
+    res.json({
+      status: "success",
+      message: "Jenis pembayaran berhasil diperbarui",
+      data: { id: typeId, scope },
+    });
   }),
 );
 
@@ -513,16 +1028,41 @@ router.delete(
     );
 
     const itemCheck = await client.query(
-      `SELECT id FROM finance.invoice_item WHERE component_id = $1 LIMIT 1`,
-      [typeId],
+      `
+        SELECT
+          ii.id,
+          COALESCE(
+            SUM(
+              CASE
+                WHEN p.status = ANY($2::text[]) THEN pa.allocated_amount
+                ELSE 0
+              END
+            ),
+            0
+          ) AS paid_amount
+        FROM finance.invoice_item ii
+        LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
+        LEFT JOIN finance.payment p ON p.id = pa.payment_id
+        WHERE ii.component_id = $1
+          AND ii.item_type = 'other'
+        GROUP BY ii.id
+        LIMIT 1
+      `,
+      [typeId, SUCCESS_PAYMENT_STATUSES],
     );
 
     if (itemCheck.rowCount > 0) {
+      const hasPaid = Number(itemCheck.rows[0].paid_amount || 0) > 0;
       return res.status(409).json({
-        message: "Jenis pembayaran yang sudah dipakai pada tagihan tidak dapat dihapus",
+        message: hasPaid
+          ? "Jenis pembayaran yang sudah ada pembayaran tidak dapat dihapus"
+          : "Jenis pembayaran yang sudah dipakai pada tagihan tidak dapat dihapus",
       });
     }
 
+    await client.query(`DELETE FROM finance.fee_assignment WHERE component_id = $1`, [
+      typeId,
+    ]);
     await client.query(`DELETE FROM finance.fee_rule WHERE component_id = $1`, [typeId]);
     const result = await client.query(
       `
@@ -556,6 +1096,7 @@ router.get(
     const gradeId = parseOptionalInt(req.query.grade_id);
     const classId = parseOptionalInt(req.query.class_id);
     const studentId = parseOptionalInt(req.query.student_id);
+    const typeId = parseOptionalInt(req.query.type_id);
     const status = (req.query.status || "").trim();
     const search = (req.query.search || "").trim();
 
@@ -573,9 +1114,13 @@ router.get(
             AND fc.is_active = true`
       : `WHERE fc.category = 'other'
             AND fc.is_active = true`;
+    const typeIdFilter = typeId
+      ? ` AND fc.id = $${scope.params.length + 1}`
+      : "";
     const itemScopeWhereClause = homebaseId
       ? `WHERE inv.homebase_id = $1`
       : `WHERE 1=1`;
+    const successStatusParamIndex = scope.params.length + (typeId ? 2 : 1);
 
     const result = await db.query(
       `
@@ -599,16 +1144,47 @@ router.get(
           JOIN a_grade g ON g.id = c.grade_id
           ${scope.whereClause}
         ),
-        type_scope AS (
+        grade_type_scope AS (
           SELECT
             fc.id AS type_id,
             fc.name AS type_name,
+            COALESCE(fc.scope, 'grade') AS scope,
             fr.grade_id,
+            fr.periode_id,
             fr.amount,
-            fr.id AS fee_rule_id
+            fr.id AS fee_rule_id,
+            NULL::int AS assigned_student_id
           FROM finance.fee_component fc
           JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
-          ${typeScopeWhereClause}
+          ${typeScopeWhereClause}${typeIdFilter}
+            AND COALESCE(fc.scope, 'grade') = 'grade'
+            AND fr.grade_id IS NOT NULL
+        ),
+        student_type_scope AS (
+          SELECT
+            fc.id AS type_id,
+            fc.name AS type_name,
+            'student'::varchar AS scope,
+            NULL::int AS grade_id,
+            fa.periode_id,
+            COALESCE(fa.amount, fr.amount) AS amount,
+            fr.id AS fee_rule_id,
+            fa.student_id AS assigned_student_id
+          FROM finance.fee_component fc
+          JOIN finance.fee_assignment fa
+            ON fa.component_id = fc.id
+            AND fa.is_active = true
+          JOIN finance.fee_rule fr
+            ON fr.component_id = fc.id
+            AND fr.is_active = true
+            AND fr.grade_id IS NULL
+          ${typeScopeWhereClause}${typeIdFilter}
+            AND COALESCE(fc.scope, 'grade') = 'student'
+        ),
+        type_scope AS (
+          SELECT * FROM grade_type_scope
+          UNION ALL
+          SELECT * FROM student_type_scope
         ),
         item_scope AS (
           SELECT
@@ -623,7 +1199,7 @@ router.get(
             COALESCE(
               SUM(
                 CASE
-                  WHEN p.status = ANY($${scope.params.length + 1}::text[]) THEN pa.allocated_amount
+                  WHEN p.status = ANY($${successStatusParamIndex}::text[]) THEN pa.allocated_amount
                   ELSE 0
                 END
               ),
@@ -642,6 +1218,7 @@ router.get(
           es.periode_id,
           es.periode_name,
           ts.type_id,
+          ts.scope AS type_scope,
           es.student_id,
           COALESCE(item.amount_due, ts.amount) AS amount_due,
           item.description AS notes,
@@ -654,14 +1231,28 @@ router.get(
           es.grade_name,
           COALESCE(item.paid_amount, 0) AS paid_amount
         FROM enrollment_scope es
-        JOIN type_scope ts ON ts.grade_id = es.grade_id
+        JOIN type_scope ts
+          ON (
+            (
+              ts.scope = 'grade'
+              AND ts.grade_id = es.grade_id
+              AND (ts.periode_id IS NULL OR ts.periode_id = es.periode_id)
+            )
+            OR (
+              ts.scope = 'student'
+              AND ts.assigned_student_id = es.student_id
+              AND ts.periode_id = es.periode_id
+            )
+          )
         LEFT JOIN item_scope item
           ON item.student_id = es.student_id
           AND item.periode_id = es.periode_id
           AND item.component_id = ts.type_id
         ORDER BY es.grade_name ASC, es.class_name ASC, es.student_name ASC, ts.type_name ASC
       `,
-      [...scope.params, SUCCESS_PAYMENT_STATUSES],
+      typeId
+        ? [...scope.params, typeId, SUCCESS_PAYMENT_STATUSES]
+        : [...scope.params, SUCCESS_PAYMENT_STATUSES],
     );
 
     const chargeIds = result.rows
@@ -744,31 +1335,21 @@ router.post(
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
-    const { homebase_id: homebaseId, id: userId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId || req.user.homebase_id,
+    );
+    const { id: userId } = req.user;
     const periodeId = parseOptionalInt(req.body.periode_id);
     const gradeId = parseOptionalInt(req.body.grade_id);
     const typeId = parseOptionalInt(req.body.type_id);
     const studentId = parseOptionalInt(req.body.student_id);
     const notes = (req.body.notes || "").trim() || null;
 
-    if (!periodeId || !gradeId || !typeId || !studentId) {
+    if (!periodeId || !typeId || !studentId) {
       return res.status(400).json({ message: "Data tagihan pembayaran lainnya belum lengkap" });
-    }
-
-    const scopeCheck = await ensureGradeAndPeriode(client, homebaseId, periodeId, gradeId);
-    if (scopeCheck.error) {
-      return res.status(404).json({ message: scopeCheck.error });
-    }
-
-    const studentCheck = await ensureStudentScope(
-      client,
-      homebaseId,
-      studentId,
-      periodeId,
-      gradeId,
-    );
-    if (studentCheck.error) {
-      return res.status(404).json({ message: studentCheck.error });
     }
 
     const type = await getOtherTypeById(client, homebaseId, typeId);
@@ -776,10 +1357,71 @@ router.post(
       return res.status(404).json({ message: "Jenis pembayaran tidak ditemukan" });
     }
 
-    const rule = await getOtherRuleForGrade(client, typeId, homebaseId, gradeId);
+    const typeScope = normalizeOtherTypeScope(type.scope);
+    let resolvedGradeId = gradeId;
+
+    if (typeScope === "student") {
+      const studentsCheck = await ensureStudentsInPeriode(
+        client,
+        homebaseId,
+        periodeId,
+        [studentId],
+      );
+      if (studentsCheck.error) {
+        return res.status(404).json({ message: studentsCheck.error });
+      }
+
+      if (
+        Number(type.periode_id) &&
+        Number(type.periode_id) !== Number(periodeId)
+      ) {
+        return res.status(400).json({
+          message: "Periode tagihan tidak sesuai dengan periode jenis biaya",
+        });
+      }
+    } else {
+      if (!resolvedGradeId) {
+        return res.status(400).json({
+          message: "Tingkat wajib dipilih untuk jenis biaya berbasis tingkat",
+        });
+      }
+
+      const scopeCheck = await ensureGradeAndPeriode(
+        client,
+        homebaseId,
+        periodeId,
+        resolvedGradeId,
+      );
+      if (scopeCheck.error) {
+        return res.status(404).json({ message: scopeCheck.error });
+      }
+
+      const studentCheck = await ensureStudentScope(
+        client,
+        homebaseId,
+        studentId,
+        periodeId,
+        resolvedGradeId,
+      );
+      if (studentCheck.error) {
+        return res.status(404).json({ message: studentCheck.error });
+      }
+    }
+
+    const rule = await resolveOtherChargeRule(client, {
+      homebaseId,
+      periodeId,
+      gradeId: resolvedGradeId,
+      componentId: typeId,
+      studentId,
+    });
+
     if (!rule) {
       return res.status(400).json({
-        message: "Jenis pembayaran ini tidak berlaku untuk tingkat yang dipilih",
+        message:
+          typeScope === "student"
+            ? "Siswa tidak termasuk dalam daftar jenis pembayaran ini"
+            : "Jenis pembayaran ini tidak berlaku untuk tingkat yang dipilih",
       });
     }
 
@@ -816,14 +1458,19 @@ router.put(
     await ensureFinalFinanceTables(client);
 
     const chargeId = parseOptionalInt(req.params.id);
-    const { homebase_id: homebaseId } = req.user;
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId || req.user.homebase_id,
+    );
     const periodeId = parseOptionalInt(req.body.periode_id);
     const gradeId = parseOptionalInt(req.body.grade_id);
     const typeId = parseOptionalInt(req.body.type_id);
     const studentId = parseOptionalInt(req.body.student_id);
     const notes = (req.body.notes || "").trim() || null;
 
-    if (!chargeId || !periodeId || !gradeId || !typeId || !studentId) {
+    if (!chargeId || !periodeId || !typeId || !studentId) {
       return res.status(400).json({ message: "Data tagihan pembayaran lainnya belum lengkap" });
     }
 
@@ -859,9 +1506,32 @@ router.put(
     }
 
     const type = await getOtherTypeById(client, homebaseId, typeId);
-    const rule = await getOtherRuleForGrade(client, typeId, homebaseId, gradeId);
-    if (!type || !rule) {
+    if (!type) {
       return res.status(404).json({ message: "Jenis pembayaran tidak ditemukan" });
+    }
+
+    const typeScope = normalizeOtherTypeScope(type.scope);
+    if (typeScope === "grade" && !gradeId) {
+      return res.status(400).json({
+        message: "Tingkat wajib dipilih untuk jenis biaya berbasis tingkat",
+      });
+    }
+
+    const rule = await resolveOtherChargeRule(client, {
+      homebaseId,
+      periodeId,
+      gradeId,
+      componentId: typeId,
+      studentId,
+    });
+
+    if (!rule) {
+      return res.status(404).json({
+        message:
+          typeScope === "student"
+            ? "Siswa tidak termasuk dalam daftar jenis pembayaran ini"
+            : "Jenis pembayaran tidak ditemukan untuk tingkat tersebut",
+      });
     }
 
     const paidAmount = Number(chargeResult.rows[0].paid_amount || 0);
