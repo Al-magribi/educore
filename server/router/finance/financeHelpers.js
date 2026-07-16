@@ -185,6 +185,51 @@ export const ensureGradeAndPeriode = async (
   return { periode: periodeCheck.rows[0], grade: gradeCheck.rows[0] };
 };
 
+export const ensurePeriode = async (client, homebaseId, periodeId) => {
+  const periodeCheck = await client.query(
+    `SELECT id, name FROM a_periode WHERE id = $1 AND homebase_id = $2`,
+    [periodeId, homebaseId],
+  );
+
+  if (periodeCheck.rowCount === 0) {
+    return { error: "Periode tidak ditemukan pada satuan ini" };
+  }
+
+  return { periode: periodeCheck.rows[0] };
+};
+
+export const ensureStudentsInPeriode = async (
+  client,
+  homebaseId,
+  periodeId,
+  studentIds = [],
+) => {
+  const uniqueIds = [...new Set(studentIds.map((id) => Number(id)).filter(Boolean))];
+
+  if (uniqueIds.length === 0) {
+    return { error: "Minimal satu siswa wajib dipilih" };
+  }
+
+  const result = await client.query(
+    `
+      SELECT DISTINCT e.student_id
+      FROM u_class_enrollments e
+      WHERE e.homebase_id = $1
+        AND e.periode_id = $2
+        AND e.student_id = ANY($3::int[])
+    `,
+    [homebaseId, periodeId, uniqueIds],
+  );
+
+  if (result.rowCount !== uniqueIds.length) {
+    return {
+      error: "Ada siswa yang tidak terdaftar pada satuan dan periode yang dipilih",
+    };
+  }
+
+  return { studentIds: uniqueIds };
+};
+
 export const ensureStudentScope = async (
   client,
   homebaseId,
@@ -369,8 +414,11 @@ const runEnsureFinalFinanceTables = async (db) => {
       homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
       code VARCHAR(50) NOT NULL,
       name VARCHAR(120) NOT NULL,
+      description TEXT,
       category VARCHAR(20) NOT NULL CHECK (category IN ('spp', 'other', 'savings')),
       charge_type VARCHAR(20) NOT NULL CHECK (charge_type IN ('monthly', 'once', 'custom')),
+      scope VARCHAR(20) NOT NULL DEFAULT 'grade'
+        CHECK (scope IN ('grade', 'student')),
       is_savings BOOLEAN NOT NULL DEFAULT false,
       is_active BOOLEAN NOT NULL DEFAULT true,
       created_by INT REFERENCES public.u_users(id),
@@ -641,6 +689,59 @@ const runEnsureFinalFinanceTables = async (db) => {
   await db.query(`
     ALTER TABLE finance.finance_setting
     ADD COLUMN IF NOT EXISTS officer_signature_url TEXT
+  `);
+
+  await db.query(`
+    ALTER TABLE finance.fee_component
+    ADD COLUMN IF NOT EXISTS description TEXT
+  `);
+
+  await db.query(`
+    ALTER TABLE finance.fee_component
+    ADD COLUMN IF NOT EXISTS scope VARCHAR(20) NOT NULL DEFAULT 'grade'
+  `);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE finance.fee_component
+      ADD CONSTRAINT fee_component_scope_check
+      CHECK (scope IN ('grade', 'student'));
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  await db.query(`
+    UPDATE finance.fee_component
+    SET scope = 'grade'
+    WHERE scope IS NULL OR scope = ''
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS finance.fee_assignment (
+      id BIGSERIAL PRIMARY KEY,
+      component_id BIGINT NOT NULL REFERENCES finance.fee_component(id) ON DELETE CASCADE,
+      homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+      periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+      student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+      amount NUMERIC(14,2) CHECK (amount IS NULL OR amount >= 0),
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_by INT REFERENCES public.u_users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (component_id, periode_id, student_id)
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_fee_assignment_scope
+    ON finance.fee_assignment(homebase_id, periode_id, component_id, is_active)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_fee_assignment_student
+    ON finance.fee_assignment(student_id, periode_id, is_active)
   `);
 };
 
@@ -1089,3 +1190,117 @@ export const getOrCreateSppRule = async (
 
 export const slugCode = (name, prefix = "OTHER") =>
   buildCodeFromName(name, prefix);
+
+/**
+ * Resolve active other-payment rule for a student.
+ * Supports grade-scoped (fee_rule.grade_id) and student-scoped (fee_assignment) types.
+ */
+export const resolveOtherChargeRule = async (
+  db,
+  { homebaseId, periodeId, gradeId, componentId, studentId },
+) => {
+  if (!homebaseId || !componentId) {
+    return null;
+  }
+
+  const componentResult = await db.query(
+    `
+      SELECT
+        id,
+        name,
+        COALESCE(scope, 'grade') AS scope
+      FROM finance.fee_component
+      WHERE id = $1
+        AND homebase_id = $2
+        AND category = 'other'
+        AND is_active = true
+      LIMIT 1
+    `,
+    [componentId, homebaseId],
+  );
+
+  if (componentResult.rowCount === 0) {
+    return null;
+  }
+
+  const component = componentResult.rows[0];
+
+  if (component.scope === "student") {
+    if (!studentId || !periodeId) {
+      return null;
+    }
+
+    const assignmentResult = await db.query(
+      `
+        SELECT
+          fr.id,
+          COALESCE(fa.amount, fr.amount) AS amount,
+          fc.id AS component_id,
+          fc.name AS component_name,
+          fa.periode_id
+        FROM finance.fee_assignment fa
+        JOIN finance.fee_component fc ON fc.id = fa.component_id
+        JOIN finance.fee_rule fr
+          ON fr.component_id = fc.id
+          AND fr.is_active = true
+          AND fr.grade_id IS NULL
+        WHERE fa.component_id = $1
+          AND fa.homebase_id = $2
+          AND fa.periode_id = $3
+          AND fa.student_id = $4
+          AND fa.is_active = true
+          AND fc.is_active = true
+        ORDER BY fr.id DESC
+        LIMIT 1
+      `,
+      [componentId, homebaseId, periodeId, studentId],
+    );
+
+    if (assignmentResult.rowCount === 0) {
+      return null;
+    }
+
+    return {
+      ...assignmentResult.rows[0],
+      scope: "student",
+    };
+  }
+
+  if (!gradeId) {
+    return null;
+  }
+
+  const ruleResult = await db.query(
+    `
+      SELECT
+        fr.id,
+        fr.amount,
+        fc.id AS component_id,
+        fc.name AS component_name,
+        fr.periode_id
+      FROM finance.fee_rule fr
+      JOIN finance.fee_component fc ON fc.id = fr.component_id
+      WHERE fr.homebase_id = $1
+        AND fr.grade_id = $2
+        AND fr.component_id = $3
+        AND fr.is_active = true
+        AND fc.category = 'other'
+        AND fc.is_active = true
+        AND COALESCE(fc.scope, 'grade') = 'grade'
+        AND (fr.periode_id = $4 OR fr.periode_id IS NULL)
+      ORDER BY CASE WHEN fr.periode_id = $4 THEN 0 ELSE 1 END, fr.id DESC
+      LIMIT 1
+    `,
+    [homebaseId, gradeId, componentId, periodeId],
+  );
+
+  if (ruleResult.rowCount === 0) {
+    return null;
+  }
+
+  return {
+    ...ruleResult.rows[0],
+    scope: "grade",
+  };
+};
+

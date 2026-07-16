@@ -17,6 +17,7 @@ import {
   getOrCreateInvoice,
   createManualPayment,
   upsertInvoiceStatus,
+  resolveOtherChargeRule,
 } from "./financeHelpers.js";
 
 const router = Router();
@@ -242,6 +243,7 @@ const buildTransactionAllocations = async ({
         periodeId,
         gradeId,
         item.type_id,
+        studentId,
       );
 
       if (!rule) {
@@ -321,31 +323,21 @@ const getSppRule = async (db, homebaseId, periodeId, gradeId) => {
   return result.rows[0] || null;
 };
 
-const getOtherRule = async (db, homebaseId, periodeId, gradeId, componentId) => {
-  const result = await db.query(
-    `
-      SELECT
-        fr.id,
-        fr.amount,
-        fc.id AS component_id,
-        fc.name AS component_name
-      FROM finance.fee_rule fr
-      JOIN finance.fee_component fc ON fc.id = fr.component_id
-      WHERE fr.homebase_id = $1
-        AND fr.grade_id = $3
-        AND fr.component_id = $4
-        AND fr.is_active = true
-        AND fc.category = 'other'
-        AND fc.is_active = true
-        AND (fr.periode_id = $2 OR fr.periode_id IS NULL)
-      ORDER BY CASE WHEN fr.periode_id = $2 THEN 0 ELSE 1 END, fr.id DESC
-      LIMIT 1
-    `,
-    [homebaseId, periodeId, gradeId, componentId],
-  );
-
-  return result.rows[0] || null;
-};
+const getOtherRule = async (
+  db,
+  homebaseId,
+  periodeId,
+  gradeId,
+  componentId,
+  studentId = null,
+) =>
+  resolveOtherChargeRule(db, {
+    homebaseId,
+    periodeId,
+    gradeId,
+    componentId,
+    studentId,
+  });
 
 const getExistingOtherItem = async ({
   client,
@@ -754,22 +746,49 @@ router.get(
                   AND e.student_id = $3
               ),
               type_scope AS (
-                SELECT DISTINCT ON (fc.id)
+                SELECT
                   fc.id AS type_id,
                   fc.name AS type_name,
+                  COALESCE(fc.scope, 'grade') AS scope,
                   fr.amount,
-                  fr.id AS fee_rule_id
+                  fr.id AS fee_rule_id,
+                  fr.grade_id,
+                  fr.periode_id,
+                  NULL::int AS assigned_student_id
                 FROM finance.fee_component fc
                 JOIN finance.fee_rule fr ON fr.component_id = fc.id AND fr.is_active = true
                 WHERE fc.homebase_id = $1
                   AND fc.category = 'other'
                   AND fc.is_active = true
+                  AND COALESCE(fc.scope, 'grade') = 'grade'
                   AND fr.grade_id = $4
                   AND (fr.periode_id = $2 OR fr.periode_id IS NULL)
-                ORDER BY
-                  fc.id,
-                  CASE WHEN fr.periode_id = $2 THEN 0 ELSE 1 END,
-                  fr.id DESC
+
+                UNION ALL
+
+                SELECT
+                  fc.id AS type_id,
+                  fc.name AS type_name,
+                  'student'::varchar AS scope,
+                  COALESCE(fa.amount, fr.amount) AS amount,
+                  fr.id AS fee_rule_id,
+                  NULL::int AS grade_id,
+                  fa.periode_id,
+                  fa.student_id AS assigned_student_id
+                FROM finance.fee_component fc
+                JOIN finance.fee_assignment fa
+                  ON fa.component_id = fc.id
+                  AND fa.is_active = true
+                JOIN finance.fee_rule fr
+                  ON fr.component_id = fc.id
+                  AND fr.is_active = true
+                  AND fr.grade_id IS NULL
+                WHERE fc.homebase_id = $1
+                  AND fc.category = 'other'
+                  AND fc.is_active = true
+                  AND COALESCE(fc.scope, 'grade') = 'student'
+                  AND fa.periode_id = $2
+                  AND fa.student_id = $3
               ),
               item_scope AS (
                 SELECT
@@ -795,6 +814,7 @@ router.get(
                 $1::int AS homebase_id,
                 es.periode_id,
                 ts.type_id,
+                ts.fee_rule_id,
                 es.student_id,
                 COALESCE(item.amount_due, ts.amount) AS amount_due,
                 COALESCE(item.description, ts.type_name) AS description,

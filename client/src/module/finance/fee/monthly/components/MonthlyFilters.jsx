@@ -35,7 +35,7 @@ const MonthlyFilters = ({
   classes,
   months,
 }) => {
-  const hasPrimaryFilters = Boolean(filters.homebase_id && filters.periode_id);
+  const hasPeriodeFilter = Boolean(filters.periode_id);
 
   return (
     <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -66,8 +66,8 @@ const MonthlyFilters = ({
                 Filter Pembayaran SPP
               </Text>
               <Text type='secondary'>
-                Saat satuan dan periode belum dipilih, semua data tetap
-                ditampilkan. Filter detail aktif setelah keduanya dipilih.
+                Default: periode aktif. Kosongkan periode untuk semua periode.
+                Filter detail aktif setelah periode dipilih.
               </Text>
             </div>
           </Space>
@@ -150,7 +150,7 @@ const MonthlyFilters = ({
                 placeholder='Semua tingkat'
                 style={{ width: "100%", marginTop: 8 }}
                 allowClear
-                disabled={!hasPrimaryFilters}
+                disabled={!hasPeriodeFilter}
                 showSearch={{ optionFilterProp: "label" }}
                 virtual={false}
               />
@@ -175,7 +175,7 @@ const MonthlyFilters = ({
                 placeholder='Semua kelas'
                 style={{ width: "100%", marginTop: 8 }}
                 allowClear
-                disabled={!hasPrimaryFilters}
+                disabled={!hasPeriodeFilter || classes.length === 0}
                 showSearch={{ optionFilterProp: "label" }}
                 virtual={false}
               />
@@ -224,7 +224,7 @@ const MonthlyFilters = ({
                 placeholder='Cari berdasarkan nama atau NIS'
                 style={{ width: "100%", marginTop: 8 }}
                 allowClear
-                disabled={!hasPrimaryFilters}
+                disabled={!hasPeriodeFilter}
               />
             </Col>
           </Row>

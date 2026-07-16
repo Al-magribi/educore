@@ -87,9 +87,9 @@ const OthersHeader = ({ onOpenType }) => (
                 Pengelolaan Tagihan Non-SPP
               </Title>
               <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                Kelola jenis biaya dan tagihannya di halaman ini. Input
-                pembayaran dipusatkan agar monitoring tagihan non-SPP rapi dan
-                mudah diikuti.
+                Atur biaya per tingkat (massal) atau per individu (gelombang).
+                Setiap jenis terikat periode; tagihan dan pembayaran mengikuti
+                roster yang ditentukan.
               </Text>
             </div>
           </Flex>
