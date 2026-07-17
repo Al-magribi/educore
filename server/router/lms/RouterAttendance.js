@@ -397,6 +397,52 @@ const getRfidDevices = async (pool, homebaseId) => {
            ELSE '[]'::json
          END
        ) AS classes,
+       COALESCE(
+         (
+           SELECT ARRAY_AGG(dp.policy_id ORDER BY p2.name ASC, dp.policy_id ASC)
+           FROM attendance.rfid_device_policy dp
+           JOIN attendance.attendance_policy p2 ON p2.id = dp.policy_id
+           WHERE dp.device_id = d.id
+         ),
+         CASE WHEN d.policy_id IS NOT NULL THEN ARRAY[d.policy_id] ELSE ARRAY[]::int[] END
+       ) AS policy_ids,
+       COALESCE(
+         (
+           SELECT STRING_AGG(p2.name, ', ' ORDER BY p2.name ASC, dp.policy_id ASC)
+           FROM attendance.rfid_device_policy dp
+           JOIN attendance.attendance_policy p2 ON p2.id = dp.policy_id
+           WHERE dp.device_id = d.id
+         ),
+         p.name
+       ) AS policy_names,
+       COALESCE(
+         (
+           SELECT JSON_AGG(
+             JSON_BUILD_OBJECT(
+               'id', p2.id,
+               'name', p2.name,
+               'code', p2.code,
+               'policy_type', p2.policy_type
+             )
+             ORDER BY p2.name ASC, dp.policy_id ASC
+           )
+           FROM attendance.rfid_device_policy dp
+           JOIN attendance.attendance_policy p2 ON p2.id = dp.policy_id
+           WHERE dp.device_id = d.id
+         ),
+         CASE
+           WHEN d.policy_id IS NOT NULL AND p.name IS NOT NULL
+             THEN JSON_BUILD_ARRAY(
+               JSON_BUILD_OBJECT(
+                 'id', d.policy_id,
+                 'name', p.name,
+                 'code', p.code,
+                 'policy_type', p.policy_type
+               )
+             )
+           ELSE '[]'::json
+         END
+       ) AS policies,
        d.location_group,
        d.location_detail,
        d.ip_address,
@@ -421,6 +467,11 @@ const getRfidDevices = async (pool, homebaseId) => {
       ? row.class_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
       : [],
     classes: Array.isArray(row.classes) ? row.classes : [],
+    policy_ids: Array.isArray(row.policy_ids)
+      ? row.policy_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+      : [],
+    policies: Array.isArray(row.policies) ? row.policies : [],
+    policy_name: row.policy_names || row.policy_name || null,
   }));
 };
 
@@ -441,6 +492,23 @@ const syncRfidDeviceClasses = async (client, deviceId, classIds = []) => {
   );
 };
 
+const syncRfidDevicePolicies = async (client, deviceId, policyIds = []) => {
+  await client.query(
+    `DELETE FROM attendance.rfid_device_policy
+     WHERE device_id = $1`,
+    [deviceId],
+  );
+
+  if (!policyIds.length) return;
+
+  await client.query(
+    `INSERT INTO attendance.rfid_device_policy (device_id, policy_id)
+     SELECT $1, UNNEST($2::int[])
+     ON CONFLICT (device_id, policy_id) DO NOTHING`,
+    [deviceId, policyIds],
+  );
+};
+
 const getDeviceClassIds = async (client, deviceId) => {
   const result = await client.query(
     `SELECT class_id
@@ -451,6 +519,19 @@ const getDeviceClassIds = async (client, deviceId) => {
   );
   return result.rows
     .map((row) => Number(row.class_id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+};
+
+const getDevicePolicyIds = async (client, deviceId) => {
+  const result = await client.query(
+    `SELECT policy_id
+     FROM attendance.rfid_device_policy
+     WHERE device_id = $1
+     ORDER BY policy_id ASC`,
+    [deviceId],
+  );
+  return result.rows
+    .map((row) => Number(row.policy_id))
     .filter((id) => Number.isFinite(id) && id > 0);
 };
 
@@ -1278,10 +1359,25 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
         ]
       : [];
   const primaryClassId = classIds[0] || null;
-  const policyId =
+  const policyIdsFromPayload = Array.isArray(payload.policy_ids)
+    ? payload.policy_ids
+        .map((value) => normalizeNumberOrNull(value))
+        .filter((value) => value !== null)
+    : [];
+  const singlePolicyId = normalizeNumberOrNull(payload.policy_id);
+  const policyIds =
     deviceType === "extracurricular"
-      ? normalizeNumberOrNull(payload.policy_id)
-      : null;
+      ? [
+          ...new Set(
+            policyIdsFromPayload.length
+              ? policyIdsFromPayload
+              : singlePolicyId
+                ? [singlePolicyId]
+                : [],
+          ),
+        ]
+      : [];
+  const primaryPolicyId = policyIds[0] || null;
   const isActive = payload.is_active !== false;
   const locationGroup = String(payload.location_group || "").trim() || null;
   const locationDetail = String(payload.location_detail || "").trim() || null;
@@ -1308,10 +1404,10 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
       message: "Minimal satu kelas wajib dipilih untuk device classroom.",
     });
   }
-  if (deviceType === "extracurricular" && !policyId) {
+  if (deviceType === "extracurricular" && policyIds.length === 0) {
     return res.status(400).json({
       status: "error",
-      message: "policy_id wajib untuk device extracurricular.",
+      message: "Minimal satu policy wajib dipilih untuk device extracurricular.",
     });
   }
   if (
@@ -1323,7 +1419,7 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
       message: "Kelas hanya untuk device classroom.",
     });
   }
-  if ((deviceType === "gate" || deviceType === "classroom") && policyId) {
+  if ((deviceType === "gate" || deviceType === "classroom") && policyIds.length > 0) {
     return res.status(400).json({
       status: "error",
       message: "Policy hanya untuk device extracurricular.",
@@ -1346,21 +1442,24 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
     }
   }
 
-  if (policyId) {
+  if (policyIds.length > 0) {
     const policyResult = await client.query(
       `SELECT id, policy_type, is_active
        FROM attendance.attendance_policy
-       WHERE id = $1 AND homebase_id = $2
-       LIMIT 1`,
-      [policyId, homebase_id],
+       WHERE homebase_id = $1
+         AND id = ANY($2::int[])`,
+      [homebase_id, policyIds],
     );
-    if (policyResult.rowCount === 0) {
+    if (policyResult.rowCount !== policyIds.length) {
       return res.status(400).json({
         status: "error",
-        message: "policy_id tidak valid untuk homebase ini.",
+        message: "Satu atau lebih policy_id tidak valid untuk homebase ini.",
       });
     }
-    if (policyResult.rows[0].policy_type !== "activity_fixed") {
+    const invalidType = policyResult.rows.find(
+      (row) => row.policy_type !== "activity_fixed",
+    );
+    if (invalidType) {
       return res.status(400).json({
         status: "error",
         message: "Device ekstra harus memakai policy bertipe activity_fixed.",
@@ -1403,7 +1502,7 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
        WHERE id = $13`,
       [
         primaryClassId,
-        policyId,
+        primaryPolicyId,
         code,
         name,
         deviceType,
@@ -1446,7 +1545,7 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
       [
         homebase_id,
         primaryClassId,
-        policyId,
+        primaryPolicyId,
         code,
         name,
         deviceType,
@@ -1464,6 +1563,7 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
   }
 
   await syncRfidDeviceClasses(client, savedDeviceId, classIds);
+  await syncRfidDevicePolicies(client, savedDeviceId, policyIds);
 
   const devices = await getRfidDevices(client, homebase_id);
   return res.json({
@@ -1641,6 +1741,21 @@ const upsertAssignmentHandler = async (
       ]
     : [];
   const policyId = normalizeNumberOrNull(payload.policy_id);
+  const policyIdsFromPayload = Array.isArray(payload.policy_ids)
+    ? [
+        ...new Set(
+          payload.policy_ids
+            .map((value) => normalizeNumberOrNull(value))
+            .filter((value) => Boolean(value)),
+        ),
+      ]
+    : [];
+  const policyIds =
+    policyIdsFromPayload.length > 0
+      ? policyIdsFromPayload
+      : policyId
+        ? [policyId]
+        : [];
   const assignmentScope = String(payload.assignment_scope || "").trim();
   const scopeUserId = normalizeNumberOrNull(payload.user_id);
   const scopeUserIds = Array.isArray(payload.user_ids)
@@ -1676,10 +1791,10 @@ const upsertAssignmentHandler = async (
   const startDate = String(payload.effective_start_date || "").trim() || null;
   const endDate = String(payload.effective_end_date || "").trim() || null;
 
-  if (!policyId || !assignmentScope) {
+  if (policyIds.length === 0 || !assignmentScope) {
     return res.status(400).json({
       status: "error",
-      message: "policy_id dan assignment_scope wajib diisi.",
+      message: "policy_id/policy_ids dan assignment_scope wajib diisi.",
     });
   }
   if (!ASSIGNMENT_SCOPES.has(assignmentScope)) {
@@ -1698,16 +1813,26 @@ const upsertAssignmentHandler = async (
   const policyRes = await client.query(
     `SELECT id, target_role
      FROM attendance.attendance_policy
-     WHERE id = $1 AND homebase_id = $2
-     LIMIT 1`,
-    [policyId, homebase_id],
+     WHERE homebase_id = $1
+       AND id = ANY($2::int[])`,
+    [homebase_id, policyIds],
   );
-  if (policyRes.rowCount === 0) {
+  if (policyRes.rowCount !== policyIds.length) {
     return res
       .status(404)
-      .json({ status: "error", message: "Policy tidak ditemukan." });
+      .json({ status: "error", message: "Satu atau lebih policy tidak ditemukan." });
   }
-  const policyTargetRole = policyRes.rows[0].target_role;
+  const policyTargetRoles = [
+    ...new Set(policyRes.rows.map((row) => row.target_role)),
+  ];
+  if (policyTargetRoles.length > 1) {
+    return res.status(400).json({
+      status: "error",
+      message:
+        "Semua policy yang dipilih harus punya target_role yang sama (mis. semua ekstra).",
+    });
+  }
+  const policyTargetRole = policyTargetRoles[0];
 
   const targetUserIds =
     assignmentScope === "user"
@@ -1854,35 +1979,37 @@ const upsertAssignmentHandler = async (
             }))
           : [{ user_id: null, class_id: null, grade_id: null }];
 
-  for (const target of insertTargets) {
-    await client.query(
-      `INSERT INTO attendance.attendance_policy_assignment (
-         policy_id,
-         assignment_scope,
-         user_id,
-         class_id,
-         grade_id,
-         homebase_id,
-         effective_start_date,
-         effective_end_date,
-         is_active,
-         created_by,
-         updated_at
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9, $10, NOW())`,
-      [
-        policyId,
-        assignmentScope,
-        target.user_id,
-        target.class_id,
-        target.grade_id,
-        homebase_id,
-        startDate,
-        endDate,
-        isActive,
-        userId,
-      ],
-    );
+  for (const selectedPolicyId of policyIds) {
+    for (const target of insertTargets) {
+      await client.query(
+        `INSERT INTO attendance.attendance_policy_assignment (
+           policy_id,
+           assignment_scope,
+           user_id,
+           class_id,
+           grade_id,
+           homebase_id,
+           effective_start_date,
+           effective_end_date,
+           is_active,
+           created_by,
+           updated_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9, $10, NOW())`,
+        [
+          selectedPolicyId,
+          assignmentScope,
+          target.user_id,
+          target.class_id,
+          target.grade_id,
+          homebase_id,
+          startDate,
+          endDate,
+          isActive,
+          userId,
+        ],
+      );
+    }
   }
 
   const assignments = await getGroupedPolicyAssignments(client, homebase_id);
@@ -2050,6 +2177,20 @@ router.post(
     }
     const devicePrimaryClassId = deviceClassIds[0] || device.class_id || null;
 
+    let devicePolicyIds =
+      device.device_type === "extracurricular"
+        ? await getDevicePolicyIds(client, device.id)
+        : [];
+    if (
+      device.device_type === "extracurricular" &&
+      devicePolicyIds.length === 0 &&
+      device.policy_id
+    ) {
+      devicePolicyIds = [Number(device.policy_id)];
+    }
+    const devicePrimaryPolicyId =
+      devicePolicyIds[0] || device.policy_id || null;
+
     const scannedAt = (() => {
       if (!scannedAtRaw) return new Date();
       const parsed = new Date(scannedAtRaw);
@@ -2143,7 +2284,7 @@ router.post(
       return rejectAndLog("user_inactive", "User pemilik kartu tidak aktif.");
     }
 
-    if (device.device_type === "extracurricular" && !device.policy_id) {
+    if (device.device_type === "extracurricular" && devicePolicyIds.length === 0) {
       return rejectAndLog(
         "policy_missing",
         "Device ekstra belum terhubung ke policy kegiatan.",
@@ -2307,7 +2448,8 @@ router.post(
         homebaseId: device.homebase_id,
         periodeId: activePeriodeId,
         userId: card.user_id,
-        policyId: device.policy_id,
+        policyId: devicePrimaryPolicyId,
+        policyIds: devicePolicyIds,
         deviceId: device.id,
         scanAction: finalScanAction,
         scannedAt,
@@ -2337,7 +2479,8 @@ router.post(
           message: attendanceResult?.message || "Scan kegiatan ditolak.",
           scan_log_id: scanLogId,
           data: {
-            policy_id: device.policy_id,
+            policy_id: attendanceResult?.policy_id || devicePrimaryPolicyId,
+            policy_ids: devicePolicyIds,
             policy_name: attendanceResult?.policy_name || null,
           },
         });
@@ -2389,7 +2532,7 @@ router.post(
         first_slot_no: attendanceResult?.first_slot_no || null,
         last_slot_no: attendanceResult?.last_slot_no || null,
         slot_label: attendanceResult?.slot_label || null,
-        policy_id: attendanceResult?.policy_id || device.policy_id || null,
+        policy_id: attendanceResult?.policy_id || devicePrimaryPolicyId || null,
         policy_name: attendanceResult?.policy_name || null,
         policy_code: attendanceResult?.policy_code || null,
         planned_checkin_time: attendanceResult?.planned_checkin_time || null,

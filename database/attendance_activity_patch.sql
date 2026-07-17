@@ -55,11 +55,13 @@ ALTER TABLE attendance.rfid_device
 ALTER TABLE attendance.rfid_device
   DROP CONSTRAINT IF EXISTS rfid_device_classroom_check;
 ALTER TABLE attendance.rfid_device
+  DROP CONSTRAINT IF EXISTS rfid_device_device_binding_check;
+ALTER TABLE attendance.rfid_device
   ADD CONSTRAINT rfid_device_device_binding_check
   CHECK (
     (device_type = 'gate' AND class_id IS NULL AND policy_id IS NULL)
     OR (device_type = 'classroom' AND policy_id IS NULL)
-    OR (device_type = 'extracurricular' AND class_id IS NULL AND policy_id IS NOT NULL)
+    OR (device_type = 'extracurricular' AND class_id IS NULL)
   );
 
 CREATE INDEX IF NOT EXISTS idx_rfid_device_policy

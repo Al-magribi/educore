@@ -172,7 +172,8 @@ CREATE TABLE rfid_device(
     -- Legacy single-class pointer (first mapped class). Source of truth for classroom
     -- mappings is attendance.rfid_device_class (one device -> many classes).
     class_id integer REFERENCES public.a_class(id) ON DELETE SET NULL,
-    -- Extracurricular device must bind to an activity_fixed policy.
+    -- Legacy single-policy pointer (first mapped policy). Source of truth for
+    -- extracurricular mappings is attendance.rfid_device_policy (one device -> many).
     policy_id integer REFERENCES attendance.attendance_policy(id) ON DELETE SET NULL,
     code varchar(60) NOT NULL,
     name varchar(120) NOT NULL,
@@ -198,7 +199,7 @@ CREATE TABLE rfid_device(
             OR
             (device_type = 'classroom' AND policy_id IS NULL)
             OR
-            (device_type = 'extracurricular' AND class_id IS NULL AND policy_id IS NOT NULL)
+            (device_type = 'extracurricular' AND class_id IS NULL)
         )
 );
 CREATE UNIQUE INDEX uq_rfid_device_code
@@ -217,6 +218,18 @@ CREATE TABLE rfid_device_class(
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(device_id, class_id)
 );
+
+-- Extracurricular device may cover multiple activity policies (e.g. Silat + Tari).
+CREATE TABLE rfid_device_policy(
+    device_id integer NOT NULL REFERENCES attendance.rfid_device(id) ON DELETE CASCADE,
+    policy_id integer NOT NULL REFERENCES attendance.attendance_policy(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(device_id, policy_id)
+);
+CREATE INDEX idx_rfid_device_policy_map_policy
+ON attendance.rfid_device_policy(policy_id, device_id);
+CREATE INDEX idx_rfid_device_policy_map_device
+ON attendance.rfid_device_policy(device_id, policy_id);
 CREATE INDEX idx_rfid_device_class_class
 ON attendance.rfid_device_class(class_id, device_id);
 CREATE INDEX idx_rfid_device_class_device

@@ -30,11 +30,18 @@ ALTER TABLE attendance.rfid_device
   DROP CONSTRAINT IF EXISTS rfid_device_classroom_check;
 
 ALTER TABLE attendance.rfid_device
-  ADD CONSTRAINT rfid_device_classroom_check
+  DROP CONSTRAINT IF EXISTS rfid_device_device_binding_check;
+
+-- Keep extracurricular supported. Multi-class maps live in rfid_device_class;
+-- multi-policy maps live in rfid_device_policy (see attendance_rfid_device_policy_patch).
+ALTER TABLE attendance.rfid_device
+  ADD CONSTRAINT rfid_device_device_binding_check
   CHECK (
-      (device_type = 'gate' AND class_id IS NULL)
+      (device_type = 'gate' AND class_id IS NULL AND policy_id IS NULL)
       OR
-      (device_type = 'classroom')
+      (device_type = 'classroom' AND policy_id IS NULL)
+      OR
+      (device_type = 'extracurricular' AND class_id IS NULL)
   );
 
 COMMIT;

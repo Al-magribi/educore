@@ -184,7 +184,7 @@ const AssignmentPolicyTab = () => {
       group_ids: [],
       target_role: "teacher",
       assignment_scope: "user",
-      policy_id: undefined,
+      policy_ids: [],
       user_ids: [],
       class_ids: [],
       grade_ids: [],
@@ -202,7 +202,7 @@ const AssignmentPolicyTab = () => {
       group_ids: Array.isArray(row.ids) ? row.ids : [row.id],
       target_role: row.target_role,
       assignment_scope: row.assignment_scope,
-      policy_id: Number(row.policy_id),
+      policy_ids: row.policy_id ? [Number(row.policy_id)] : [],
       user_ids: Array.isArray(row.user_ids) ? row.user_ids.map(Number) : [],
       class_ids: Array.isArray(row.class_ids) ? row.class_ids.map(Number) : [],
       grade_ids: Array.isArray(row.grade_ids) ? row.grade_ids.map(Number) : [],
@@ -223,10 +223,14 @@ const AssignmentPolicyTab = () => {
       const groupIds = Array.isArray(values.group_ids)
         ? values.group_ids.map(Number).filter(Boolean)
         : editingRow?.ids || [];
+      const policyIds = Array.isArray(values.policy_ids)
+        ? values.policy_ids.map(Number).filter(Boolean)
+        : [];
       const payload = {
         id: groupIds[0] || values.id || undefined,
         group_ids: groupIds,
-        policy_id: values.policy_id,
+        policy_id: policyIds[0],
+        policy_ids: policyIds,
         assignment_scope: values.assignment_scope,
         user_ids:
           values.assignment_scope === "user" ? values.user_ids || [] : [],
@@ -244,7 +248,11 @@ const AssignmentPolicyTab = () => {
       };
 
       await savePolicyAssignment(payload).unwrap();
-      message.success("Assignment policy berhasil disimpan.");
+      message.success(
+        policyIds.length > 1
+          ? `${policyIds.length} assignment policy berhasil disimpan.`
+          : "Assignment policy berhasil disimpan.",
+      );
       setModalOpen(false);
       setEditingRow(null);
     } catch (error) {
@@ -528,23 +536,45 @@ const AssignmentPolicyTab = () => {
                 ]}
                 onChange={() => {
                   form.setFieldsValue({
-                    policy_id: undefined,
+                    policy_ids: [],
                     user_ids: [],
                   });
                 }}
               />
             </Form.Item>
             <Form.Item
-              name='policy_id'
+              name='policy_ids'
               label='Policy'
               style={{ minWidth: 320, flex: 1 }}
-              rules={[{ required: true, message: "Policy wajib dipilih." }]}
+              rules={[
+                {
+                  validator: (_, value) => {
+                    if (Array.isArray(value) && value.length > 0) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(
+                      new Error("Minimal satu policy wajib dipilih."),
+                    );
+                  },
+                },
+              ]}
+              extra={
+                selectedRole === "all"
+                  ? "Bisa pilih beberapa policy ekstra sekaligus (mis. Silat, Tari)."
+                  : undefined
+              }
             >
               <Select
+                mode='multiple'
                 showSearch={{ optionFilterProp: "label" }}
                 virtual={false}
                 options={policyOptions}
-                placeholder='Pilih policy'
+                placeholder={
+                  selectedRole === "all"
+                    ? "Pilih satu atau lebih policy ekstra"
+                    : "Pilih satu atau lebih policy"
+                }
+                maxTagCount='responsive'
               />
             </Form.Item>
           </Flex>

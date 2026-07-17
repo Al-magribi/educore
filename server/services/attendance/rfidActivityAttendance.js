@@ -328,6 +328,126 @@ const upsertActivityAttendanceCheckout = async (
   return updated.rows[0];
 };
 
+export const resolveActivityPolicyForDeviceScan = async (
+  client,
+  {
+    homebaseId,
+    userId,
+    policyIds = [],
+    scannedAt,
+  },
+) => {
+  const candidateIds = [
+    ...new Set(
+      (Array.isArray(policyIds) ? policyIds : [])
+        .map((value) => Number(value))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    ),
+  ];
+  if (candidateIds.length === 0) {
+    return {
+      policyId: null,
+      error: "Device ekstra belum terhubung ke policy kegiatan.",
+      result_status: "policy_missing",
+    };
+  }
+
+  const userCtx = await getUserAttendanceContext(client, userId, homebaseId);
+  if (!userCtx?.target_role) {
+    return {
+      policyId: null,
+      error: "User bukan siswa/guru aktif di homebase ini.",
+      result_status: "rejected",
+    };
+  }
+
+  const attendanceDate = toJakartaDateString(scannedAt);
+  const dayOfWeek = getJakartaIsoDow(scannedAt);
+  const matched = [];
+
+  for (const policyId of candidateIds) {
+    const policyRes = await client.query(
+      `SELECT id, name, code, target_role, policy_type, is_active
+       FROM attendance.attendance_policy
+       WHERE id = $1
+         AND homebase_id = $2
+       LIMIT 1`,
+      [policyId, homebaseId],
+    );
+    if (policyRes.rowCount === 0 || policyRes.rows[0].is_active !== true) {
+      continue;
+    }
+    const policy = policyRes.rows[0];
+    if (policy.policy_type !== "activity_fixed") continue;
+    if (
+      policy.target_role !== "all" &&
+      policy.target_role !== userCtx.target_role
+    ) {
+      continue;
+    }
+
+    const assignment = await assertUserAssignedToActivityPolicy(client, {
+      homebaseId,
+      policyId: policy.id,
+      userId,
+      targetRole: userCtx.target_role,
+      classId: userCtx.current_class_id,
+      gradeId: userCtx.grade_id,
+      attendanceDate,
+    });
+    if (!assignment) continue;
+
+    const dayRule = await getDayRule(client, policy.id, dayOfWeek);
+    if (!dayRule) continue;
+
+    const openAttendance = await client.query(
+      `SELECT id, checkin_at, checkout_at
+       FROM attendance.activity_attendance
+       WHERE homebase_id = $1
+         AND user_id = $2
+         AND policy_id = $3
+         AND attendance_date = $4::date
+       LIMIT 1`,
+      [homebaseId, userId, policy.id, attendanceDate],
+    );
+    const openRow = openAttendance.rows[0] || null;
+    const needsCheckout = Boolean(openRow?.checkin_at && !openRow?.checkout_at);
+    const alreadyComplete = Boolean(openRow?.checkin_at && openRow?.checkout_at);
+
+    matched.push({
+      policyId: Number(policy.id),
+      needsCheckout,
+      alreadyComplete,
+      policyName: policy.name,
+    });
+  }
+
+  if (matched.length === 0) {
+    return {
+      policyId: null,
+      error:
+        "User belum ditugaskan ke salah satu policy kegiatan pada device ini, atau hari ini tidak ada jadwal.",
+      result_status: "policy_missing",
+    };
+  }
+
+  const checkoutCandidate = matched.find((item) => item.needsCheckout);
+  if (checkoutCandidate) {
+    return { policyId: checkoutCandidate.policyId, error: null, result_status: null };
+  }
+
+  const openCandidates = matched.filter((item) => !item.alreadyComplete);
+  if (openCandidates.length === 0) {
+    return {
+      policyId: matched[0].policyId,
+      error: "Absensi kegiatan hari ini sudah lengkap (check-in + check-out).",
+      result_status: "duplicate",
+    };
+  }
+
+  return { policyId: openCandidates[0].policyId, error: null, result_status: null };
+};
+
 export const applyRfidScanToActivityAttendance = async (
   client,
   {
@@ -335,6 +455,7 @@ export const applyRfidScanToActivityAttendance = async (
     periodeId,
     userId,
     policyId,
+    policyIds = null,
     deviceId,
     scanAction,
     scannedAt,
@@ -352,13 +473,56 @@ export const applyRfidScanToActivityAttendance = async (
     };
   }
 
+  const candidatePolicyIds = [
+    ...new Set(
+      [
+        ...(Array.isArray(policyIds) ? policyIds : []),
+        policyId,
+      ]
+        .map((value) => Number(value))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    ),
+  ];
+
+  let resolvedPolicyId = candidatePolicyIds[0] || null;
+  if (candidatePolicyIds.length > 1) {
+    const resolution = await resolveActivityPolicyForDeviceScan(client, {
+      homebaseId,
+      userId,
+      policyIds: candidatePolicyIds,
+      scannedAt,
+    });
+    if (!resolution.policyId) {
+      return {
+        ok: false,
+        result_status: resolution.result_status || "policy_missing",
+        message: resolution.error || "Policy kegiatan tidak dapat ditentukan.",
+      };
+    }
+    if (resolution.error) {
+      return {
+        ok: false,
+        result_status: resolution.result_status || "rejected",
+        message: resolution.error,
+        policy_id: resolution.policyId,
+      };
+    }
+    resolvedPolicyId = resolution.policyId;
+  } else if (!resolvedPolicyId) {
+    return {
+      ok: false,
+      result_status: "policy_missing",
+      message: "Device ekstra belum terhubung ke policy kegiatan.",
+    };
+  }
+
   const policyRes = await client.query(
     `SELECT id, name, code, target_role, policy_type, is_active
      FROM attendance.attendance_policy
      WHERE id = $1
        AND homebase_id = $2
      LIMIT 1`,
-    [policyId, homebaseId],
+    [resolvedPolicyId, homebaseId],
   );
   if (policyRes.rowCount === 0 || policyRes.rows[0].is_active !== true) {
     return {
@@ -443,6 +607,8 @@ export const applyRfidScanToActivityAttendance = async (
         ok: false,
         result_status: "duplicate",
         message: gateResolution.error,
+        policy_id: policy.id,
+        policy_name: policy.name,
       };
     }
     resolvedAction = gateResolution.resolvedAction;
@@ -474,6 +640,8 @@ export const applyRfidScanToActivityAttendance = async (
       ok: false,
       result_status: "out_of_window",
       message: windowCheck.reason,
+      policy_id: policy.id,
+      policy_name: policy.name,
     };
   }
 
@@ -496,6 +664,8 @@ export const applyRfidScanToActivityAttendance = async (
         ok: false,
         result_status: "duplicate",
         message: "Check-in kegiatan hari ini sudah tercatat.",
+        policy_id: policy.id,
+        policy_name: policy.name,
       };
     }
   } else {
@@ -512,6 +682,8 @@ export const applyRfidScanToActivityAttendance = async (
         ok: false,
         result_status: "rejected",
         message: "Belum ada check-in kegiatan hari ini.",
+        policy_id: policy.id,
+        policy_name: policy.name,
       };
     }
     if (record?.duplicate) {
@@ -519,6 +691,8 @@ export const applyRfidScanToActivityAttendance = async (
         ok: false,
         result_status: "duplicate",
         message: "Check-out kegiatan hari ini sudah tercatat.",
+        policy_id: policy.id,
+        policy_name: policy.name,
       };
     }
   }

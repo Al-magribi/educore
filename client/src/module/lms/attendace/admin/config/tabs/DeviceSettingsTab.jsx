@@ -149,7 +149,7 @@ const DeviceSettingsTab = ({
       name: '',
       device_type: 'gate',
       class_ids: [],
-      policy_id: undefined,
+      policy_ids: [],
       location_group: '',
       location_detail: '',
       ip_address: '',
@@ -168,13 +168,18 @@ const DeviceSettingsTab = ({
       : record.class_id
         ? [Number(record.class_id)]
         : [];
+    const policyIds = Array.isArray(record.policy_ids)
+      ? record.policy_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+      : record.policy_id
+        ? [Number(record.policy_id)]
+        : [];
     deviceForm.setFieldsValue({
       id: record.id,
       code: record.code,
       name: record.name,
       device_type: record.device_type,
       class_ids: classIds,
-      policy_id: record.policy_id ? Number(record.policy_id) : undefined,
+      policy_ids: policyIds,
       location_group: record.location_group || '',
       location_detail: record.location_detail || '',
       ip_address: record.ip_address || '',
@@ -196,7 +201,14 @@ const DeviceSettingsTab = ({
           values.device_type === 'classroom' && Array.isArray(values.class_ids) && values.class_ids.length
             ? values.class_ids[0]
             : null,
-        policy_id: values.device_type === 'extracurricular' ? values.policy_id || null : null,
+        policy_ids:
+          values.device_type === 'extracurricular' ? values.policy_ids || [] : [],
+        policy_id:
+          values.device_type === 'extracurricular' &&
+          Array.isArray(values.policy_ids) &&
+          values.policy_ids.length
+            ? values.policy_ids[0]
+            : null,
         api_token: editingDevice ? undefined : values.api_token || undefined,
       };
       await saveRfidDevice(payload).unwrap();
@@ -423,7 +435,7 @@ const DeviceSettingsTab = ({
                     deviceForm.setFieldValue('class_ids', []);
                   }
                   if (value !== 'extracurricular') {
-                    deviceForm.setFieldValue('policy_id', undefined);
+                    deviceForm.setFieldValue('policy_ids', []);
                   }
                 }}
               />
@@ -462,14 +474,19 @@ const DeviceSettingsTab = ({
             </Form.Item>
           </Flex>
           <Form.Item
-            name="policy_id"
+            name="policy_ids"
             label="Policy Kegiatan"
             rules={[
               {
                 validator: (_, value) => {
-                  if (deviceType === 'extracurricular' && !value) {
+                  if (
+                    deviceType === 'extracurricular' &&
+                    (!Array.isArray(value) || value.length === 0)
+                  ) {
                     return Promise.reject(
-                      new Error('Policy kegiatan wajib dipilih untuk device ekstrakurikuler.'),
+                      new Error(
+                        'Minimal satu policy kegiatan wajib dipilih untuk device ekstrakurikuler.',
+                      ),
                     );
                   }
                   return Promise.resolve();
@@ -477,6 +494,7 @@ const DeviceSettingsTab = ({
               },
             ]}>
             <Select
+              mode="multiple"
               allowClear
               showSearch={{ optionFilterProp: 'label' }}
               virtual={false}
@@ -485,10 +503,11 @@ const DeviceSettingsTab = ({
               placeholder={
                 deviceType === 'extracurricular'
                   ? activityPolicyOptions.length
-                    ? 'Pilih policy activity_fixed'
+                    ? 'Pilih satu atau lebih policy (mis. Silat, Tari)'
                     : 'Buat policy Kegiatan Ekstra dulu'
                   : 'Hanya untuk device ekstrakurikuler'
               }
+              maxTagCount="responsive"
             />
           </Form.Item>
           <Form.Item name="location_group" label="Grup Lokasi">
