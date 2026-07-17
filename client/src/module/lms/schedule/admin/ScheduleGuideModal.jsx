@@ -62,8 +62,9 @@ const ScheduleGuideModal = ({ open, onClose }) => {
             description: (
               <Space direction='vertical' size={4}>
                 <Text>
-                  Tentukan durasi sesi (mis. <Tag>40 menit</Tag>), jam sekolah
-                  per hari, dan waktu istirahat.
+                  Tentukan jam pelajaran per hari secara manual (jam ke-1,
+                  ke-2, dst. dengan rentang waktu masing-masing) dan waktu
+                  istirahat.
                 </Text>
                 <Text>Istirahat bisa lebih dari satu kali dalam sehari.</Text>
               </Space>
@@ -121,8 +122,8 @@ const ScheduleGuideModal = ({ open, onClose }) => {
         <Text>1. Pindahkan jadwal ke hari atau slot lain yang masih kosong.</Text>
         <Text>2. Periksa apakah slot sudah terblokir oleh kegiatan sekolah.</Text>
         <Text>
-          3. Tambah jam sekolah atau kurangi istirahat jika kebijakan sekolah
-          mengizinkan.
+          3. Tambah jam pelajaran manual atau sesuaikan istirahat jika
+          kebijakan sekolah mengizinkan.
         </Text>
         <Text>4. Tambahkan atau pindahkan jadwal manual sampai alokasi terpenuhi.</Text>
       </Space>

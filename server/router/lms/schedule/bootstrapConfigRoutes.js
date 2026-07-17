@@ -5,7 +5,6 @@ import {
   getColumnPresence,
   listScheduleConfigs,
   normalizeScheduleConfigName,
-  overlapTime,
   parseMinute,
   resolveSelectedScheduleConfig,
   resolveSelectedScheduleGroup,
@@ -248,173 +247,117 @@ const ensureScheduleShiftGroups = async ({
   return refreshedResult.rows;
 };
 
-const buildActivitySlotLookup = (slots) => {
-  const slotsByDay = new Map();
-  for (const slot of slots || []) {
-    const day = Number(slot.day_of_week);
-    if (!slotsByDay.has(day)) slotsByDay.set(day, []);
-    slotsByDay.get(day).push({
-      ...slot,
-      day_of_week: day,
-      slot_no: Number(slot.slot_no),
-      id: Number(slot.id),
-    });
+const normalizeManualDayConfig = (dayConfig) => {
+  const dayOfWeek = toInt(dayConfig?.day_of_week, null);
+  if (!dayOfWeek || dayOfWeek < 1 || dayOfWeek > 7) {
+    return { error: "Hari tidak valid." };
   }
 
-  for (const daySlots of slotsByDay.values()) {
-    daySlots.sort((a, b) => a.slot_no - b.slot_no);
-  }
-
-  return slotsByDay;
-};
-
-const getContiguousLength = (slotMap, startSlotNo) => {
-  let length = 0;
-  let cursor = Number(startSlotNo);
-  while (slotMap.has(cursor)) {
-    length += 1;
-    cursor += 1;
-  }
-  return length;
-};
-
-const resolveActivitySlotPlacement = (activity, slotsByDay) => {
-  const preferredDay = Number(activity.day_of_week);
-  const preferredSlotNo = Number(activity.slot_no);
-  const preferredCount = Math.max(1, Number(activity.slot_count || 1));
-
-  const availableDays = [...slotsByDay.keys()].sort((a, b) => {
-    if (a === preferredDay) return -1;
-    if (b === preferredDay) return 1;
-    return Math.abs(a - preferredDay) - Math.abs(b - preferredDay) || a - b;
-  });
-
-  for (const day of availableDays) {
-    const daySlots = slotsByDay.get(day) || [];
-    const slotMap = new Map(daySlots.map((slot) => [slot.slot_no, slot]));
-    const candidateSlotNos = daySlots
-      .map((slot) => slot.slot_no)
-      .sort((a, b) =>
-        Math.abs(a - preferredSlotNo) - Math.abs(b - preferredSlotNo) || a - b,
-      );
-
-    for (const slotNo of candidateSlotNos) {
-      if (getContiguousLength(slotMap, slotNo) >= preferredCount) {
-        return {
-          day_of_week: day,
-          slot_start_id: slotMap.get(slotNo).id,
-          slot_count: preferredCount,
-        };
-      }
+  const rawSlots = Array.isArray(dayConfig?.slots) ? dayConfig.slots : [];
+  const slots = [];
+  for (let index = 0; index < rawSlots.length; index += 1) {
+    const slot = rawSlots[index];
+    const startMinute = parseMinute(slot?.start_time);
+    const endMinute = parseMinute(slot?.end_time);
+    if (!Number.isFinite(startMinute) || !Number.isFinite(endMinute)) {
+      continue;
     }
-  }
-
-  let bestPartial = null;
-  for (const day of availableDays) {
-    const daySlots = slotsByDay.get(day) || [];
-    const slotMap = new Map(daySlots.map((slot) => [slot.slot_no, slot]));
-    for (const slot of daySlots) {
-      const contiguousLength = getContiguousLength(slotMap, slot.slot_no);
-      if (contiguousLength <= 0) continue;
-      const candidate = {
-        day_of_week: day,
-        slot_start_id: slot.id,
-        slot_count: Math.min(preferredCount, contiguousLength),
-        score: [
-          Math.min(preferredCount, contiguousLength),
-          day === preferredDay ? 1 : 0,
-          -Math.abs(slot.slot_no - preferredSlotNo),
-          -day,
-        ],
+    if (startMinute >= endMinute) {
+      return {
+        error: `Jam ke-${index + 1}: selesai harus lebih besar dari mulai.`,
       };
-      if (
-        !bestPartial ||
-        candidate.score[0] > bestPartial.score[0] ||
-        (candidate.score[0] === bestPartial.score[0] &&
-          candidate.score[1] > bestPartial.score[1]) ||
-        (candidate.score[0] === bestPartial.score[0] &&
-          candidate.score[1] === bestPartial.score[1] &&
-          candidate.score[2] > bestPartial.score[2]) ||
-        (candidate.score[0] === bestPartial.score[0] &&
-          candidate.score[1] === bestPartial.score[1] &&
-          candidate.score[2] === bestPartial.score[2] &&
-          candidate.score[3] > bestPartial.score[3])
-      ) {
-        bestPartial = candidate;
-      }
     }
-  }
-
-  if (!bestPartial) return null;
-
-  return {
-    day_of_week: bestPartial.day_of_week,
-    slot_start_id: bestPartial.slot_start_id,
-    slot_count: bestPartial.slot_count,
-  };
-};
-
-const createTemporaryActivityHoldingSlots = async ({
-  client,
-  configId,
-  activities,
-}) => {
-  const tempGroupResult = await client.query(
-    `INSERT INTO lms.l_schedule_config_group (
-       config_id,
-       name,
-       description,
-       sort_order,
-       is_default
-     )
-     VALUES ($1, $2, $3, $4, false)
-     RETURNING id`,
-    [
-      configId,
-      "__TEMP_ACTIVITY_HOLD__",
-      "Temporary holding group for activity remap.",
-      999999,
-    ],
-  );
-  const tempGroupId = Number(tempGroupResult.rows[0].id);
-  const tempSlots = [];
-
-  for (let index = 0; index < activities.length; index += 1) {
-    const activity = activities[index];
-    const dayOfWeek = (index % 7) + 1;
-    const minuteOffset = Math.floor(index / 7) + 1;
-    const startMinute = minuteOffset;
-    const endMinute = Math.min(startMinute + 1, 1439);
-    const insertResult = await client.query(
-      `INSERT INTO lms.l_time_slot (
-         config_id,
-         config_group_id,
-         day_of_week,
-         slot_no,
-         start_time,
-         end_time,
-         is_break
-       )
-       VALUES ($1, $2, $3, $4, $5::time, $6::time, false)
-       RETURNING id`,
-      [
-        configId,
-        tempGroupId,
-        dayOfWeek,
-        100000 + index,
-        toTimeString(startMinute),
-        toTimeString(endMinute),
-      ],
-    );
-    tempSlots.push({
-      activity_id: Number(activity.id),
-      temp_slot_id: Number(insertResult.rows[0].id),
+    slots.push({
+      slot_no: toInt(slot?.slot_no, index + 1) || index + 1,
+      start_minute: startMinute,
+      end_minute: endMinute,
+      duration_minutes: endMinute - startMinute,
     });
   }
 
+  if (slots.length === 0) {
+    return { error: `Hari ${dayOfWeek}: minimal 1 jam pelajaran.` };
+  }
+
+  const sortedSlots = [...slots].sort(
+    (left, right) =>
+      left.start_minute - right.start_minute || left.slot_no - right.slot_no,
+  );
+
+  for (let index = 0; index < sortedSlots.length; index += 1) {
+    sortedSlots[index] = {
+      ...sortedSlots[index],
+      slot_no: index + 1,
+    };
+    if (index === 0) continue;
+    const previous = sortedSlots[index - 1];
+    const current = sortedSlots[index];
+    if (current.start_minute < previous.end_minute) {
+      return {
+        error: `Hari ${dayOfWeek}: jam ke-${current.slot_no} bentrok dengan jam ke-${previous.slot_no}.`,
+      };
+    }
+  }
+
+  const rawBreaks = Array.isArray(dayConfig?.breaks) ? dayConfig.breaks : [];
+  const breaks = [];
+  for (const item of rawBreaks) {
+    const startMinute = parseMinute(item?.break_start);
+    const endMinute = parseMinute(item?.break_end);
+    if (!Number.isFinite(startMinute) || !Number.isFinite(endMinute)) {
+      continue;
+    }
+    if (startMinute >= endMinute) {
+      return {
+        error: "Jam istirahat: selesai harus lebih besar dari mulai.",
+      };
+    }
+    breaks.push({
+      break_start: startMinute,
+      break_end: endMinute,
+      label: String(item?.label || "Istirahat").trim() || "Istirahat",
+    });
+  }
+
+  const sortedBreaks = [...breaks].sort(
+    (left, right) => left.break_start - right.break_start,
+  );
+  for (let index = 1; index < sortedBreaks.length; index += 1) {
+    if (sortedBreaks[index].break_start < sortedBreaks[index - 1].break_end) {
+      return { error: `Hari ${dayOfWeek}: waktu istirahat saling bentrok.` };
+    }
+  }
+
+  for (const restItem of sortedBreaks) {
+    const overlapsSlot = sortedSlots.some(
+      (slot) =>
+        restItem.break_start < slot.end_minute &&
+        restItem.break_end > slot.start_minute,
+    );
+    if (overlapsSlot) {
+      return {
+        error: `Hari ${dayOfWeek}: istirahat "${restItem.label}" bentrok dengan jam pelajaran.`,
+      };
+    }
+  }
+
+  const allStartMinutes = [
+    ...sortedSlots.map((item) => item.start_minute),
+    ...sortedBreaks.map((item) => item.break_start),
+  ];
+  const allEndMinutes = [
+    ...sortedSlots.map((item) => item.end_minute),
+    ...sortedBreaks.map((item) => item.break_end),
+  ];
+
   return {
-    tempGroupId,
-    tempSlots,
+    day_of_week: dayOfWeek,
+    is_school_day: dayConfig?.is_school_day !== false,
+    slots: sortedSlots,
+    breaks: sortedBreaks,
+    start_minute: Math.min(...allStartMinutes),
+    end_minute: Math.max(...allEndMinutes),
+    session_minutes: sortedSlots[0].duration_minutes,
   };
 };
 
@@ -888,53 +831,32 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         });
       }
 
-      const normalizedDays = hasDaysPayload
-        ? days
-            .map((dayConfig) => {
-              const dayOfWeek = toInt(dayConfig.day_of_week, null);
-              const startMinute = parseMinute(dayConfig.start_time);
-              const endMinute = parseMinute(dayConfig.end_time);
-              const daySessionMinutes = toInt(
-                dayConfig.session_minutes ?? session_minutes,
-                null,
-              );
-
-              if (
-                !dayOfWeek ||
-                !Number.isFinite(startMinute) ||
-                !Number.isFinite(endMinute)
-              ) {
-                return null;
-              }
-
-              return {
-                ...dayConfig,
-                day_of_week: dayOfWeek,
-                start_minute: startMinute,
-                end_minute: endMinute,
-                session_minutes: daySessionMinutes,
-              };
-            })
-            .filter(Boolean)
-        : [];
+      const normalizedDays = [];
+      if (hasDaysPayload) {
+        const seenDays = new Set();
+        for (const dayConfig of days) {
+          const normalized = normalizeManualDayConfig(dayConfig);
+          if (normalized.error) {
+            return res.status(400).json({
+              status: "error",
+              message: normalized.error,
+            });
+          }
+          if (seenDays.has(normalized.day_of_week)) {
+            return res.status(400).json({
+              status: "error",
+              message: `Hari ke-${normalized.day_of_week} duplikat dalam payload.`,
+            });
+          }
+          seenDays.add(normalized.day_of_week);
+          normalizedDays.push(normalized);
+        }
+      }
 
       if (hasDaysPayload && normalizedDays.length === 0) {
         return res.status(400).json({
           status: "error",
           message: "Template hari valid tidak ditemukan.",
-        });
-      }
-
-      if (
-        hasDaysPayload &&
-        normalizedDays.some(
-          (dayConfig) =>
-            !dayConfig.session_minutes || Number(dayConfig.session_minutes) <= 0,
-        )
-      ) {
-        return res.status(400).json({
-          status: "error",
-          message: "session_minutes per hari wajib lebih dari 0.",
         });
       }
 
@@ -1162,11 +1084,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           });
         }
 
-        const [
-          existingActivityUsageResult,
-          existingGroupEntryUsageResult,
-          existingActivityResult,
-        ] =
+        const [existingActivityUsageResult, existingGroupEntryUsageResult] =
           await Promise.all([
             client.query(
               `SELECT COUNT(*)::int AS total
@@ -1187,16 +1105,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
                  AND ts.config_group_id = $3`,
               [homebase_id, periodeId, configGroup.id],
             ),
-            client.query(
-              `SELECT a.id, a.day_of_week, a.slot_count, ts.slot_no
-               FROM lms.l_schedule_activity a
-               JOIN lms.l_time_slot ts ON ts.id = a.slot_start_id
-               WHERE a.homebase_id = $1
-                 AND a.periode_id = $2
-                 AND ts.config_group_id = $3
-               ORDER BY a.id ASC`,
-              [homebase_id, periodeId, configGroup.id],
-            ),
           ]);
 
         const activityUsageCount = Number(
@@ -1205,7 +1113,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         const entryUsageCount = Number(
           existingGroupEntryUsageResult.rows[0]?.total || 0,
         );
-        const impactedActivities = existingActivityResult.rows;
 
         if (entryUsageCount > 0) {
           return res.status(409).json({
@@ -1215,26 +1122,31 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           });
         }
 
-        let temporaryActivityGroupId = null;
-        let temporaryActivitySlots = [];
         if (activityUsageCount > 0) {
-          const temporaryActivityHolding = await createTemporaryActivityHoldingSlots({
-            client,
-            configId: config.id,
-            activities: impactedActivities,
-          });
-          temporaryActivityGroupId = temporaryActivityHolding.tempGroupId;
-          temporaryActivitySlots = temporaryActivityHolding.tempSlots;
-
-          for (const tempSlot of temporaryActivitySlots) {
-            await client.query(
-              `UPDATE lms.l_schedule_activity
-               SET slot_start_id = $1,
-                   updated_at = CURRENT_TIMESTAMP
-               WHERE id = $2`,
-              [tempSlot.temp_slot_id, tempSlot.activity_id],
-            );
-          }
+          await client.query(
+            `DELETE FROM lms.l_schedule_activity_target
+             WHERE activity_id IN (
+               SELECT a.id
+               FROM lms.l_schedule_activity a
+               JOIN lms.l_time_slot ts ON ts.id = a.slot_start_id
+               WHERE a.homebase_id = $1
+                 AND a.periode_id = $2
+                 AND ts.config_group_id = $3
+             )`,
+            [homebase_id, periodeId, configGroup.id],
+          );
+          await client.query(
+            `DELETE FROM lms.l_schedule_activity
+             WHERE id IN (
+               SELECT a.id
+               FROM lms.l_schedule_activity a
+               JOIN lms.l_time_slot ts ON ts.id = a.slot_start_id
+               WHERE a.homebase_id = $1
+                 AND a.periode_id = $2
+                 AND ts.config_group_id = $3
+             )`,
+            [homebase_id, periodeId, configGroup.id],
+          );
         }
 
         await client.query(
@@ -1258,11 +1170,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         );
 
         for (const dayConfig of normalizedDays) {
-          const dayOfWeek = dayConfig.day_of_week;
-          const startMinute = dayConfig.start_minute;
-          const endMinute = dayConfig.end_minute;
-          const daySessionMinutes = Number(dayConfig.session_minutes);
-
           const dayTemplateResult = await client.query(
             `INSERT INTO lms.l_schedule_day_template (
                config_id,
@@ -1278,33 +1185,16 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
             [
               config.id,
               configGroup.id,
-              dayOfWeek,
-              toTimeString(startMinute),
-              toTimeString(endMinute),
-              daySessionMinutes,
+              dayConfig.day_of_week,
+              toTimeString(dayConfig.start_minute),
+              toTimeString(dayConfig.end_minute),
+              dayConfig.session_minutes,
               dayConfig.is_school_day !== false,
             ],
           );
           const dayTemplate = dayTemplateResult.rows[0];
 
-          const breakRows = Array.isArray(dayConfig.breaks) ? dayConfig.breaks : [];
-          const normalizedBreaks = breakRows
-            .map((item) => {
-              const start = parseMinute(item.break_start);
-              const end = parseMinute(item.break_end);
-              if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) {
-                return null;
-              }
-              return {
-                break_start: start,
-                break_end: end,
-                label: item.label || "Istirahat",
-              };
-            })
-            .filter(Boolean)
-            .sort((a, b) => a.break_start - b.break_start);
-
-          for (const restItem of normalizedBreaks) {
+          for (const restItem of dayConfig.breaks) {
             await client.query(
               `INSERT INTO lms.l_schedule_break (day_template_id, break_start, break_end, label)
                VALUES ($1, $2::time, $3::time, $4)`,
@@ -1317,35 +1207,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
             );
           }
 
-          let cursorMinute = startMinute;
-          let slotNo = 1;
-          while (cursorMinute < endMinute) {
-            const matchingBreak = normalizedBreaks.find(
-              (rest) =>
-                cursorMinute >= rest.break_start &&
-                cursorMinute < rest.break_end,
-            );
-            if (matchingBreak) {
-              cursorMinute = matchingBreak.break_end;
-              continue;
-            }
-
-            const nextMinute = cursorMinute + daySessionMinutes;
-            if (nextMinute > endMinute) break;
-
-            const overlapBreak = normalizedBreaks.find((rest) =>
-              overlapTime(
-                cursorMinute,
-                nextMinute,
-                rest.break_start,
-                rest.break_end,
-              ),
-            );
-            if (overlapBreak) {
-              cursorMinute = overlapBreak.break_end;
-              continue;
-            }
-
+          for (const slot of dayConfig.slots) {
             await client.query(
               `INSERT INTO lms.l_time_slot (
                  config_id,
@@ -1360,92 +1222,18 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
               [
                 config.id,
                 configGroup.id,
-                dayOfWeek,
-                slotNo,
-                toTimeString(cursorMinute),
-                toTimeString(nextMinute),
+                dayConfig.day_of_week,
+                slot.slot_no,
+                toTimeString(slot.start_minute),
+                toTimeString(slot.end_minute),
               ],
-            );
-            slotNo += 1;
-            cursorMinute = nextMinute;
-          }
-        }
-
-        let adjustedActivityCount = 0;
-        let reducedActivityCount = 0;
-        let removedActivityCount = 0;
-
-        if (activityUsageCount > 0) {
-          const temporarySlotIds = temporaryActivitySlots.map((item) => item.temp_slot_id);
-          const refreshedSlotResult = await client.query(
-            `SELECT id, day_of_week, slot_no
-             FROM lms.l_time_slot
-             WHERE config_group_id = $1
-               AND is_break = false
-             ORDER BY day_of_week ASC, slot_no ASC`,
-            [configGroup.id],
-          );
-          const slotsByDay = buildActivitySlotLookup(
-            refreshedSlotResult.rows.filter(
-              (slot) => !temporarySlotIds.includes(Number(slot.id)),
-            ),
-          );
-
-          for (const activity of impactedActivities) {
-            const placement = resolveActivitySlotPlacement(activity, slotsByDay);
-            if (!placement) {
-              await client.query(
-                `DELETE FROM lms.l_schedule_activity
-                 WHERE id = $1`,
-                [activity.id],
-              );
-              removedActivityCount += 1;
-              continue;
-            }
-
-            await client.query(
-              `UPDATE lms.l_schedule_activity
-               SET day_of_week = $1,
-                   slot_start_id = $2,
-                   slot_count = $3,
-                   updated_at = CURRENT_TIMESTAMP
-               WHERE id = $4`,
-              [
-                placement.day_of_week,
-                placement.slot_start_id,
-                placement.slot_count,
-                activity.id,
-              ],
-            );
-
-            adjustedActivityCount += 1;
-            if (Number(placement.slot_count) < Number(activity.slot_count)) {
-              reducedActivityCount += 1;
-            }
-          }
-
-          if (temporaryActivitySlots.length > 0) {
-            await client.query(
-              `DELETE FROM lms.l_time_slot
-               WHERE id = ANY($1::int[])`,
-              [temporarySlotIds],
-            );
-          }
-
-          if (temporaryActivityGroupId) {
-            await client.query(
-              `DELETE FROM lms.l_schedule_config_group
-               WHERE id = $1`,
-              [temporaryActivityGroupId],
             );
           }
         }
 
         res.locals.scheduleConfigAdjustmentSummary = {
           activityUsageCount,
-          adjustedActivityCount,
-          reducedActivityCount,
-          removedActivityCount,
+          removedActivityCount: activityUsageCount,
         };
       }
 
@@ -1454,24 +1242,10 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         message: hasDaysPayload
           ? (() => {
               const summary = res.locals.scheduleConfigAdjustmentSummary;
-              if (!summary?.activityUsageCount) {
+              if (!summary?.removedActivityCount) {
                 return "Konfigurasi jadwal berhasil disimpan.";
               }
-
-              const notes = [];
-              if (summary.adjustedActivityCount > 0) {
-                notes.push(`${summary.adjustedActivityCount} kegiatan disesuaikan`);
-              }
-              if (summary.reducedActivityCount > 0) {
-                notes.push(`${summary.reducedActivityCount} kegiatan dipendekkan`);
-              }
-              if (summary.removedActivityCount > 0) {
-                notes.push(`${summary.removedActivityCount} kegiatan dihapus`);
-              }
-
-              return notes.length
-                ? `Konfigurasi jadwal berhasil disimpan. ${notes.join(", ")} otomatis mengikuti slot baru.`
-                : "Konfigurasi jadwal berhasil disimpan.";
+              return `Konfigurasi jadwal berhasil disimpan. ${summary.removedActivityCount} kegiatan dihapus karena slot diganti ulang.`;
             })()
           : "Master jadwal berhasil disimpan.",
         data: {

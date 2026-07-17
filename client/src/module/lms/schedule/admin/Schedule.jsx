@@ -296,13 +296,15 @@ const Schedule = () => {
       return false;
     }
     try {
-      await saveScheduleConfig({
+      const response = await saveScheduleConfig({
         ...body,
         id: selectedConfig?.id,
         config_group_id: selectedGroup?.id,
         periode_id: payload.periode_id,
       }).unwrap();
-      message.success("Konfigurasi jadwal tersimpan.");
+      message.success(
+        response?.message || "Konfigurasi jadwal tersimpan.",
+      );
       return true;
     } catch (error) {
       message.error(error?.data?.message || "Gagal menyimpan konfigurasi.");
@@ -630,7 +632,7 @@ const Schedule = () => {
                 label: createTabLabel(
                   "Konfigurasi Jadwal",
                   <Settings2 size={16} />,
-                  "Atur hari, sesi, dan shift",
+                  "Atur hari, jam pelajaran, dan shift",
                 ),
                 children: selectedConfig ? (
                   <ScheduleConfigCard
@@ -642,6 +644,7 @@ const Schedule = () => {
                     classes={payload.classes || []}
                     dayTemplates={payload.day_templates || []}
                     breaks={payload.breaks || []}
+                    slots={payload.slots || []}
                     scheduleCapacity={scheduleCapacity}
                     loading={
                       savingConfig ||
@@ -660,7 +663,7 @@ const Schedule = () => {
                     showIcon
                     type='warning'
                     message='Belum ada master jadwal'
-                    description='Buat master jadwal terlebih dahulu untuk mulai mengatur hari, jam belajar, dan durasi sesi.'
+                    description='Buat master jadwal terlebih dahulu untuk mulai mengatur hari, jam pelajaran, dan istirahat.'
                   />
                 ),
               },
