@@ -312,9 +312,26 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     const scopedGrades = tariffOptions.grades || [];
 
     if (!currentPeriodeId && scopedPeriodes.length > 0) {
-      const activePeriode =
-        scopedPeriodes.find((item) => item.is_active) || scopedPeriodes[0];
-      tariffForm.setFieldValue("periode_id", activePeriode?.id);
+      const preferredPeriode =
+        scopedPeriodes.find(
+          (item) => Number(item.id) === Number(filters.periode_id),
+        ) ||
+        scopedPeriodes.find((item) => item.is_active) ||
+        scopedPeriodes[0];
+      tariffForm.setFieldValue("periode_id", preferredPeriode?.id);
+    } else if (
+      currentPeriodeId &&
+      !scopedPeriodes.some(
+        (item) => Number(item.id) === Number(currentPeriodeId),
+      )
+    ) {
+      const preferredPeriode =
+        scopedPeriodes.find(
+          (item) => Number(item.id) === Number(filters.periode_id),
+        ) ||
+        scopedPeriodes.find((item) => item.is_active) ||
+        scopedPeriodes[0];
+      tariffForm.setFieldValue("periode_id", preferredPeriode?.id);
     }
 
     if (
@@ -324,6 +341,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       tariffForm.setFieldValue("grade_id", undefined);
     }
   }, [
+    filters.periode_id,
     selectedTariffHomebaseId,
     tariffForm,
     tariffModalOpen,
@@ -381,14 +399,26 @@ const Monthly = ({ initialTab = "tariffs" }) => {
         options.selected_homebase_id ||
         homebases[0]?.id ||
         user?.homebase_id;
+      const scopedPeriodes = tariffOptions.periodes?.length
+        ? tariffOptions.periodes
+        : periodes;
       const defaultPeriode =
-        tariffOptions.periodes?.find((item) => item.is_active) ||
-        tariffOptions.periodes?.[0] ||
-        periodes.find((item) => item.is_active) ||
-        periodes[0];
+        scopedPeriodes.find(
+          (item) => Number(item.id) === Number(filters.periode_id),
+        ) ||
+        scopedPeriodes.find((item) => item.is_active) ||
+        scopedPeriodes[0];
+
+      if (!defaultPeriode?.id) {
+        message.warning(
+          "Pilih periode di filter terlebih dahulu sebelum menambah tarif SPP.",
+        );
+        return;
+      }
+
       tariffForm.setFieldsValue({
         homebase_id: defaultHomebaseId,
-        periode_id: filters.periode_id || defaultPeriode?.id,
+        periode_id: defaultPeriode.id,
         grade_id: filters.grade_id,
         is_active: true,
       });
@@ -402,6 +432,11 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     setEditingPayment(null);
     paymentForm.resetFields();
   };
+
+  const resolvePaymentPeriodeId = (fallbackPeriodeId) =>
+    Number(
+      filters.periode_id || fallbackPeriodeId || undefined,
+    ) || undefined;
 
   const getStudentPaymentContext = (
     studentId,
@@ -434,8 +469,16 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   };
 
   const openCreatePaymentModal = (record = null) => {
+    const targetPeriodeId = resolvePaymentPeriodeId(record?.periode_id);
+
+    if (!targetPeriodeId) {
+      message.warning(
+        "Pilih periode di filter terlebih dahulu sebelum input pembayaran SPP.",
+      );
+      return;
+    }
+
     const targetStudentId = record?.student_id || filters.student_id;
-    const targetPeriodeId = record?.periode_id || filters.periode_id;
     const { student } = getStudentPaymentContext(
       targetStudentId,
       targetPeriodeId,
@@ -457,14 +500,15 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   };
 
   const openEditPaymentModal = (record) => {
+    const targetPeriodeId = resolvePaymentPeriodeId(record.periode_id);
     const { student } = getStudentPaymentContext(
       record.student_id,
-      record.periode_id,
+      targetPeriodeId || record.periode_id,
     );
     paymentForm.resetFields();
     paymentForm.setFieldsValue({
       homebase_id: filters.homebase_id,
-      periode_id: record.periode_id,
+      periode_id: targetPeriodeId || record.periode_id,
       student_id: record.student_id,
       grade_id: student?.grade_id || record.grade_id,
       payment_method: record.payment_method,
@@ -527,7 +571,10 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       values.homebase_id || filters.homebase_id || user?.homebase_id,
     );
     const effectivePeriodeId = Number(
-      values.periode_id || selectedStudent?.periode_id || filters.periode_id,
+      filters.periode_id ||
+        values.periode_id ||
+        selectedStudent?.periode_id ||
+        editingPayment?.periode_id,
     );
     const effectiveStudentId = Number(values.student_id);
     const effectiveGradeId = Number(
@@ -551,7 +598,17 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       !payload.grade_id
     ) {
       message.error(
-        "Satuan, periode aktif, siswa, atau tingkat belum sinkron. Pilih siswa dari data yang tampil lalu coba lagi.",
+        "Satuan, periode filter, siswa, atau tingkat belum sinkron. Pastikan periode filter aktif lalu pilih siswa dari data yang tampil.",
+      );
+      return;
+    }
+
+    if (
+      filters.periode_id &&
+      Number(payload.periode_id) !== Number(filters.periode_id)
+    ) {
+      message.error(
+        "Periode pembayaran harus sama dengan periode yang dipilih di filter.",
       );
       return;
     }
@@ -574,20 +631,42 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     }
   };
 
+  const paymentModalPeriodeId =
+    filters.periode_id ||
+    selectedPaymentPeriodeId ||
+    editingPayment?.periode_id;
+  const paymentModalStudents = useMemo(() => {
+    if (!paymentModalPeriodeId) {
+      return paymentStudents;
+    }
+
+    return paymentStudents.filter(
+      (item) =>
+        !item.periode_id ||
+        Number(item.periode_id) === Number(paymentModalPeriodeId),
+    );
+  }, [paymentModalPeriodeId, paymentStudents]);
   const paymentStudentContext = getStudentPaymentContext(
     selectedPaymentStudentId || editingPayment?.student_id,
-    selectedPaymentPeriodeId ||
-      editingPayment?.periode_id ||
-      filters.periode_id,
+    paymentModalPeriodeId,
   );
   const paymentTariffAmount =
     payments.find(
       (item) =>
         Number(item.student_id) ===
           Number(selectedPaymentStudentId || editingPayment?.student_id) &&
-        Number(item.periode_id) ===
-          Number(selectedPaymentPeriodeId || filters.periode_id),
-    )?.amount || 0;
+        Number(item.periode_id) === Number(paymentModalPeriodeId),
+    )?.amount ||
+    tariffs.find(
+      (item) =>
+        Number(item.periode_id) === Number(paymentModalPeriodeId) &&
+        Number(item.grade_id) ===
+          Number(
+            paymentStudentContext.student?.grade_id || editingPayment?.grade_id,
+          ) &&
+        item.is_active !== false,
+    )?.amount ||
+    0;
   const blockedMonths = new Set(paymentStudentContext.paidMonths);
   const editingMonths = (
     editingPayment?.bill_months || [editingPayment?.bill_month].filter(Boolean)
@@ -832,27 +911,32 @@ const Monthly = ({ initialTab = "tariffs" }) => {
         onCancel={closePaymentModal}
         onSubmit={handleSubmitPayment}
         onStudentChange={(value) => {
-          const selectedStudent = paymentStudents.find(
+          const selectedStudent = paymentModalStudents.find(
             (item) => Number(item.id) === Number(value),
           );
 
           paymentForm.setFieldsValue({
             grade_id: selectedStudent?.grade_id,
-            periode_id: selectedStudent?.periode_id || filters.periode_id,
+            periode_id: paymentModalPeriodeId,
             homebase_id:
               selectedStudent?.homebase_id || filters.homebase_id,
           });
         }}
         form={paymentForm}
         periodes={periodes}
-        students={paymentStudents}
+        students={paymentModalStudents}
         months={months}
-        tariffAmount={paymentTariffAmount}
+        tariffAmount={Number(paymentTariffAmount) || 0}
         availableMonths={availableMonths}
         activeHomebaseName={
           homebases.find(
             (item) => Number(item.id) === Number(filters.homebase_id),
           )?.name || user?.homebase_name
+        }
+        activePeriodeName={
+          periodes.find(
+            (item) => Number(item.id) === Number(paymentModalPeriodeId),
+          )?.name || activePeriodeName
         }
         confirmLoading={isAddingPayment || isUpdatingPayment}
       />
