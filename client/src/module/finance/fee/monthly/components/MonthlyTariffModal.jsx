@@ -113,8 +113,8 @@ const MonthlyTariffModal = ({
         {editingTariff ? "Perbarui Tarif SPP" : "Tambah Tarif SPP Baru"}
       </Text>
       <Text type='secondary'>
-        Atur tarif SPP berdasarkan satuan, periode, dan tingkat agar proses
-        penagihan tetap konsisten.
+        Satu tingkat bisa punya tarif berbeda per periode. Pilih periode secara
+        eksplisit agar tarif tidak tertukar antar tahun ajaran.
       </Text>
     </div>
 
@@ -140,6 +140,7 @@ const MonthlyTariffModal = ({
         name='periode_id'
         label='Periode'
         rules={[{ required: true, message: "Periode wajib dipilih" }]}
+        extra='Tarif SPP unik per kombinasi satuan + periode + tingkat.'
       >
         <Select
           size='large'

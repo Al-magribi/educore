@@ -20,6 +20,7 @@ const MonthlyPaymentModal = ({
   tariffAmount,
   availableMonths,
   activeHomebaseName,
+  activePeriodeName,
   confirmLoading,
 }) => (
   <Modal
@@ -85,8 +86,8 @@ const MonthlyPaymentModal = ({
           {editingPayment ? "Perbarui Pembayaran SPP" : "Input Pembayaran SPP"}
         </Text>
         <Text type='secondary'>
-          Catat pembayaran SPP siswa berdasarkan tarif aktif dan bulan yang
-          masih tersedia.
+          Pembayaran mengikuti periode filter aktif dan tarif SPP tingkat siswa
+          pada periode tersebut.
         </Text>
       </div>
 
@@ -103,6 +104,7 @@ const MonthlyPaymentModal = ({
           name='periode_id'
           label='Periode'
           rules={[{ required: true, message: "Periode wajib dipilih" }]}
+          extra='Periode dikunci mengikuti filter yang sedang aktif.'
         >
           <Select
             size='large'
@@ -124,7 +126,11 @@ const MonthlyPaymentModal = ({
             size='large'
             showSearch
             optionFilterProp='label'
-            placeholder='Pilih siswa'
+            placeholder={
+              students.length
+                ? "Pilih siswa"
+                : "Tidak ada siswa pada periode filter ini"
+            }
             options={students.map((item) => ({
               value: item.id,
               label: `${item.grade_name || "-"} | ${item.class_name || "-"} | ${item.full_name}${item.nis ? ` (${item.nis})` : ""}`,
@@ -135,11 +141,16 @@ const MonthlyPaymentModal = ({
           />
         </Form.Item>
 
-        {activeHomebaseName ? (
-          <Text type='secondary' style={{ display: "block", marginBottom: 12 }}>
-            Satuan aktif: {activeHomebaseName}
-          </Text>
-        ) : null}
+        <Space direction='vertical' size={2} style={{ marginBottom: 12 }}>
+          {activePeriodeName ? (
+            <Text type='secondary'>
+              Periode filter: {activePeriodeName}
+            </Text>
+          ) : null}
+          {activeHomebaseName ? (
+            <Text type='secondary'>Satuan aktif: {activeHomebaseName}</Text>
+          ) : null}
+        </Space>
 
         <Alert
           type={tariffAmount > 0 ? "info" : "warning"}
@@ -147,8 +158,10 @@ const MonthlyPaymentModal = ({
           style={{ marginBottom: 16, borderRadius: 16 }}
           message={
             tariffAmount > 0
-              ? `Tarif aktif ${currencyFormatter.format(tariffAmount)} per bulan`
-              : "Tarif SPP aktif untuk siswa ini belum tersedia"
+              ? `Tarif SPP periode ini ${currencyFormatter.format(tariffAmount)} per bulan`
+              : activePeriodeName
+                ? `Tarif SPP untuk tingkat siswa pada periode ${activePeriodeName} belum tersedia`
+                : "Tarif SPP untuk periode filter ini belum tersedia"
           }
         />
 

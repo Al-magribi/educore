@@ -577,6 +577,7 @@ router.get(
             inv.student_id,
             inv.periode_id,
             ii.id AS invoice_item_id,
+            ii.fee_rule_id,
             ii.bill_month,
             ii.amount,
             COALESCE(
@@ -624,9 +625,9 @@ router.get(
           g.id AS grade_id,
           g.name AS grade_name,
           fr.id AS tariff_id,
-          COALESCE(fr.amount, 0) AS amount,
+          COALESCE(item.amount, fr.amount, 0) AS amount,
           item.invoice_item_id,
-          item.paid_amount,
+          COALESCE(item.paid_amount, 0) AS paid_amount,
           COALESCE(ph.paid_months, '{}') AS paid_months
         FROM u_class_enrollments e
         JOIN u_students s ON s.user_id = e.student_id
@@ -634,18 +635,38 @@ router.get(
         JOIN a_class c ON c.id = e.class_id
         JOIN a_grade g ON g.id = c.grade_id
         JOIN a_periode p ON p.id = e.periode_id
-        LEFT JOIN finance.fee_rule fr
-          ON fr.homebase_id = e.homebase_id
-          AND fr.periode_id = e.periode_id
-          AND fr.grade_id = g.id
-          AND fr.is_active = true
-        LEFT JOIN finance.fee_component fc
-          ON fc.id = fr.component_id
-          AND fc.category = 'spp'
-        LEFT JOIN item_scope item
-          ON item.student_id = s.user_id
-          AND item.periode_id = e.periode_id
-          AND item.bill_month = $${scope.params.length + 2}
+        LEFT JOIN LATERAL (
+          SELECT
+            spp_rule.id,
+            spp_rule.amount
+          FROM finance.fee_rule spp_rule
+          JOIN finance.fee_component spp_component
+            ON spp_component.id = spp_rule.component_id
+           AND spp_component.category = 'spp'
+          WHERE spp_rule.homebase_id = e.homebase_id
+            AND spp_rule.periode_id = e.periode_id
+            AND spp_rule.grade_id = g.id
+            AND spp_rule.is_active = true
+          ORDER BY spp_rule.updated_at DESC NULLS LAST, spp_rule.id DESC
+          LIMIT 1
+        ) fr ON true
+        LEFT JOIN LATERAL (
+          SELECT
+            scoped.invoice_item_id,
+            scoped.amount,
+            scoped.paid_amount
+          FROM item_scope scoped
+          WHERE scoped.student_id = s.user_id
+            AND scoped.periode_id = e.periode_id
+            AND scoped.bill_month = $${scope.params.length + 2}
+          ORDER BY
+            CASE
+              WHEN fr.id IS NOT NULL AND scoped.fee_rule_id = fr.id THEN 0
+              ELSE 1
+            END,
+            scoped.invoice_item_id DESC
+          LIMIT 1
+        ) item ON true
         LEFT JOIN paid_history ph
           ON ph.student_id = s.user_id
           AND ph.periode_id = e.periode_id
@@ -666,7 +687,9 @@ router.get(
       }
 
       return {
-        id: item.invoice_item_id,
+        id:
+          item.invoice_item_id ||
+          `student-${item.student_id}-periode-${item.periode_id}-month-${billMonth}`,
         student_id: item.student_id,
         student_name: item.student_name,
         nis: item.nis,
