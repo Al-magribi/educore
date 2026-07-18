@@ -2284,6 +2284,21 @@ router.post(
       return rejectAndLog("user_inactive", "User pemilik kartu tidak aktif.");
     }
 
+    // Classroom device: only teachers may tap (teaching-hour session attendance).
+    if (device.device_type === "classroom") {
+      const teacherCheck = await client.query(
+        `SELECT 1
+         FROM u_teachers
+         WHERE user_id = $1
+           AND homebase_id = $2
+         LIMIT 1`,
+        [card.user_id, device.homebase_id],
+      );
+      if (teacherCheck.rowCount === 0) {
+        return rejectAndLog("rejected", "Akses ditolak");
+      }
+    }
+
     if (device.device_type === "extracurricular" && devicePolicyIds.length === 0) {
       return rejectAndLog(
         "policy_missing",

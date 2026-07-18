@@ -356,7 +356,7 @@ export const resolveActivityPolicyForDeviceScan = async (
   if (!userCtx?.target_role) {
     return {
       policyId: null,
-      error: "User bukan siswa/guru aktif di homebase ini.",
+      error: "Akses ditolak",
       result_status: "rejected",
     };
   }
@@ -364,6 +364,7 @@ export const resolveActivityPolicyForDeviceScan = async (
   const attendanceDate = toJakartaDateString(scannedAt);
   const dayOfWeek = getJakartaIsoDow(scannedAt);
   const matched = [];
+  let hasEligibleAssignment = false;
 
   for (const policyId of candidateIds) {
     const policyRes = await client.query(
@@ -396,6 +397,7 @@ export const resolveActivityPolicyForDeviceScan = async (
       attendanceDate,
     });
     if (!assignment) continue;
+    hasEligibleAssignment = true;
 
     const dayRule = await getDayRule(client, policy.id, dayOfWeek);
     if (!dayRule) continue;
@@ -423,11 +425,17 @@ export const resolveActivityPolicyForDeviceScan = async (
   }
 
   if (matched.length === 0) {
+    if (!hasEligibleAssignment) {
+      return {
+        policyId: null,
+        error: "Akses ditolak",
+        result_status: "rejected",
+      };
+    }
     return {
       policyId: null,
-      error:
-        "User belum ditugaskan ke salah satu policy kegiatan pada device ini, atau hari ini tidak ada jadwal.",
-      result_status: "policy_missing",
+      error: "Hari ini tidak ada jadwal kegiatan pada policy.",
+      result_status: "not_scheduled",
     };
   }
 
@@ -545,7 +553,7 @@ export const applyRfidScanToActivityAttendance = async (
     return {
       ok: false,
       result_status: "rejected",
-      message: "User bukan siswa/guru aktif di homebase ini.",
+      message: "Akses ditolak",
     };
   }
 
@@ -556,7 +564,7 @@ export const applyRfidScanToActivityAttendance = async (
     return {
       ok: false,
       result_status: "rejected",
-      message: `Policy kegiatan ini hanya untuk ${policy.target_role}.`,
+      message: "Akses ditolak",
     };
   }
 
@@ -575,9 +583,8 @@ export const applyRfidScanToActivityAttendance = async (
   if (!assignment) {
     return {
       ok: false,
-      result_status: "policy_missing",
-      message:
-        "User belum ditugaskan ke policy kegiatan ini. Tambahkan assignment per user/kelas.",
+      result_status: "rejected",
+      message: "Akses ditolak",
     };
   }
 

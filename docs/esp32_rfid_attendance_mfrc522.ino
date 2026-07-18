@@ -19,6 +19,12 @@
     - Mapping kelas diatur di LMS (Device RFID → pilih banyak kelas).
     - Server mencocokkan guru + jadwal published + kelas yang terikat device
       untuk menentukan kelas, jam keberapa, dan check-in/check-out.
+    - Hanya guru yang boleh tap; siswa/lainnya → "Akses ditolak".
+
+  Catatan device extracurricular:
+    - Mapping policy kegiatan diatur di LMS.
+    - Hanya guru/siswa yang terdaftar di assignment policy device yang boleh tap;
+      lainnya → "Akses ditolak".
 */
 
 #include <WiFi.h>
@@ -440,6 +446,10 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
     } else if (messageContains(msg, "tidak terdaftar")) {
       line1 = "Kartu Gagal";
       line2 = "Tdk Terdaftar";
+    } else if (messageContains(msg, "Akses ditolak")) {
+      // Classroom: non-teacher. Extracurricular: not in activity policy.
+      line1 = "Akses ditolak";
+      line2 = "";
     } else {
       line1 = "Kartu Gagal";
       line2 = truncateLcdLine(msg.length() > 0 ? msg : "Ditolak");
