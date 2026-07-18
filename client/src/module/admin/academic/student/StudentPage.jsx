@@ -163,19 +163,26 @@ const StudentPage = ({ screens }) => {
 
   const handleSubmit = async (values) => {
     try {
+      const rfidNo =
+        values.rfid_no === undefined || values.rfid_no === null || `${values.rfid_no}`.trim() === ''
+          ? null
+          : `${values.rfid_no}`.trim().toUpperCase();
+
       if (editingItem) {
         const payload = {
           full_name: values.full_name,
           nis: values.nis,
           nisn: values.nisn,
-          rfid_no: values.rfid_no,
+          rfid_no: rfidNo,
           gender: values.gender,
           is_active: values.is_active,
           class_id: values.class_id,
         };
 
         await updateStudent({ id: editingItem.id, ...payload }).unwrap();
-        setAccumulatedData((prev) => prev.map((item) => (item.id === editingItem.id ? { ...item, ...payload } : item)));
+        setAccumulatedData((prev) =>
+          prev.map((item) => (item.id === editingItem.id ? { ...item, ...payload } : item)),
+        );
         message.success('Data siswa berhasil diperbarui');
       } else {
         const payload = {
@@ -184,7 +191,7 @@ const StudentPage = ({ screens }) => {
           full_name: values.full_name,
           nis: values.nis,
           nisn: values.nisn,
-          rfid_no: values.rfid_no,
+          rfid_no: rfidNo,
           gender: values.gender,
           class_id: values.class_id,
         };
@@ -194,8 +201,8 @@ const StudentPage = ({ screens }) => {
         message.success('Siswa baru berhasil ditambahkan');
       }
       setIsDrawerOpen(false);
-    } catch {
-      message.error('Gagal menyimpan data siswa');
+    } catch (error) {
+      message.error(error?.data?.message || 'Gagal menyimpan data siswa');
     }
   };
 
@@ -455,15 +462,17 @@ const StudentPage = ({ screens }) => {
                 <Title level={4} style={{ margin: 0 }}>
                   Pencarian & Aksi Cepat
                 </Title>
-                <Text type="secondary">Temukan siswa lebih cepat lalu lanjutkan proses edit atau penambahan data.</Text>
+                <Text type="secondary">
+                  Cari berdasarkan nama, NIS, NISN, atau No RFID, lalu lanjutkan edit atau penambahan data.
+                </Text>
               </div>
 
               <Flex gap={10} vertical={!activeScreens.md} style={{ width: !activeScreens.md ? '100%' : 'auto' }}>
                 <Input
-                  placeholder="Cari siswa..."
+                  placeholder="Cari nama, NIS, NISN, atau No RFID..."
                   prefix={<SearchIcon size={16} color="rgba(0,0,0,.25)" />}
                   onChange={handleSearch}
-                  style={{ width: !activeScreens.md ? '100%' : 280 }}
+                  style={{ width: !activeScreens.md ? '100%' : 320 }}
                   size="large"
                   allowClear
                 />
