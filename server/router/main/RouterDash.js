@@ -41,10 +41,16 @@ router.get(
         [homebaseId],
       ),
       pool.query(
-        `SELECT COUNT(*) 
-         FROM u_students s 
-         JOIN u_users u ON s.user_id = u.id 
-         WHERE s.homebase_id = $1 AND u.is_active = true`,
+        `SELECT COUNT(DISTINCT s.user_id)
+         FROM u_students s
+         JOIN u_users u ON s.user_id = u.id
+         JOIN u_class_enrollments ce ON ce.student_id = s.user_id
+         JOIN a_periode p ON p.id = ce.periode_id
+         WHERE s.homebase_id = $1
+           AND u.is_active = true
+           AND u.role = 'student'
+           AND p.homebase_id = $1
+           AND p.is_active = true`,
         [homebaseId],
       ),
       pool.query(
