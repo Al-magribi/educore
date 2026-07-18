@@ -92,6 +92,14 @@ export const ApiSchedule = createApi({
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
+    clearScheduleEntries: builder.mutation({
+      query: (body) => ({
+        url: "/schedule/entries/clear",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
   }),
 });
 
@@ -107,4 +115,5 @@ export const {
   useCreateManualScheduleEntryMutation,
   useUpdateScheduleEntryMutation,
   useDeleteScheduleEntryMutation,
+  useClearScheduleEntriesMutation,
 } = ApiSchedule;

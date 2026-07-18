@@ -27,6 +27,13 @@ export const withTransaction = (handler) => {
       // agar query menjadi satu kesatuan transaksi.
       await handler(req, res, client);
 
+      // Jika handler sudah mengirim error response (4xx/5xx), rollback
+      // supaya perubahan parsial tidak ter-commit.
+      if (res.statusCode >= 400) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
       // Commit perubahan jika tidak ada error
       await client.query("COMMIT");
     } catch (error) {
@@ -35,11 +42,15 @@ export const withTransaction = (handler) => {
 
       logError(error, `Transaction Error on ${req.originalUrl}`);
 
-      // Pastikan response belum terkirim sebelum mengirim status 500
+      // Pastikan response belum terkirim sebelum mengirim status
       if (!res.headersSent) {
-        res.status(500).json({
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({
           status: "error",
-          message: "Transaction failed",
+          message:
+            error.statusCode && error.message
+              ? error.message
+              : "Transaction failed",
           error: process.env.MODE === "development" ? error.message : undefined,
         });
       }

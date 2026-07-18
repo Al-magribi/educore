@@ -868,29 +868,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           : existingConfig?.is_active ?? existingConfigs.length === 0;
 
       if (
-        shouldActivate &&
-        currentActiveConfig &&
-        Number(currentActiveConfig.id) !== Number(existingConfig?.id || 0)
-      ) {
-        const existingEntryResult = await client.query(
-          `SELECT 1
-           FROM lms.l_schedule_entry
-           WHERE homebase_id = $1
-             AND periode_id = $2
-             AND status <> 'archived'
-           LIMIT 1`,
-          [homebase_id, periodeId],
-        );
-        if (existingEntryResult.rowCount > 0) {
-          return res.status(409).json({
-            status: "error",
-            message:
-              "Jadwal aktif tidak dapat diganti karena periode ini sudah memiliki jadwal final. Arsipkan atau reset jadwal final terlebih dahulu.",
-          });
-        }
-      }
-
-      if (
         existingConfig?.is_active === true &&
         typeof is_active === "boolean" &&
         is_active === false &&
@@ -1067,23 +1044,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
       }
 
       if (hasDaysPayload) {
-        const existingEntryResult = await client.query(
-          `SELECT 1
-           FROM lms.l_schedule_entry
-           WHERE homebase_id = $1
-             AND periode_id = $2
-             AND status <> 'archived'
-           LIMIT 1`,
-          [homebase_id, periodeId],
-        );
-        if (config.is_active === true && existingEntryResult.rowCount > 0) {
-          return res.status(409).json({
-            status: "error",
-            message:
-              "Konfigurasi slot jadwal aktif tidak dapat diubah karena jadwal final sudah dibuat. Kosongkan atau arsipkan jadwal periode ini terlebih dahulu.",
-          });
-        }
-
         const [existingActivityUsageResult, existingGroupEntryUsageResult] =
           await Promise.all([
             client.query(
@@ -1114,14 +1074,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           existingGroupEntryUsageResult.rows[0]?.total || 0,
         );
 
-        if (entryUsageCount > 0) {
-          return res.status(409).json({
-            status: "error",
-            message:
-              "Jadwal hari pada shift ini belum bisa diubah karena masih dipakai oleh jadwal final/manual. Kosongkan atau arsipkan jadwal pada shift ini terlebih dahulu.",
-          });
-        }
-
         if (activityUsageCount > 0) {
           await client.query(
             `DELETE FROM lms.l_schedule_activity_target
@@ -1149,92 +1101,332 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           );
         }
 
-        await client.query(
-          `DELETE FROM lms.l_schedule_break
-           WHERE day_template_id IN (
-             SELECT id
-             FROM lms.l_schedule_day_template
-             WHERE config_group_id = $1
-           )`,
-          [configGroup.id],
-        );
+        if (entryUsageCount > 0) {
+          const [existingTemplatesResult, existingSlotsResult] =
+            await Promise.all([
+              client.query(
+                `SELECT *
+                 FROM lms.l_schedule_day_template
+                 WHERE config_group_id = $1`,
+                [configGroup.id],
+              ),
+              client.query(
+                `SELECT *
+                 FROM lms.l_time_slot
+                 WHERE config_group_id = $1
+                   AND COALESCE(is_break, false) = false`,
+                [configGroup.id],
+              ),
+            ]);
 
-        await client.query(
-          `DELETE FROM lms.l_time_slot WHERE config_group_id = $1`,
-          [configGroup.id],
-        );
-
-        await client.query(
-          `DELETE FROM lms.l_schedule_day_template WHERE config_group_id = $1`,
-          [configGroup.id],
-        );
-
-        for (const dayConfig of normalizedDays) {
-          const dayTemplateResult = await client.query(
-            `INSERT INTO lms.l_schedule_day_template (
-               config_id,
-               config_group_id,
-               day_of_week,
-               start_time,
-               end_time,
-               session_minutes,
-               is_school_day
-             )
-             VALUES ($1, $2, $3, $4::time, $5::time, $6, $7)
-             RETURNING *`,
-            [
-              config.id,
-              configGroup.id,
-              dayConfig.day_of_week,
-              toTimeString(dayConfig.start_minute),
-              toTimeString(dayConfig.end_minute),
-              dayConfig.session_minutes,
-              dayConfig.is_school_day !== false,
-            ],
+          const templateByDay = new Map(
+            existingTemplatesResult.rows.map((row) => [
+              Number(row.day_of_week),
+              row,
+            ]),
           );
-          const dayTemplate = dayTemplateResult.rows[0];
+          const slotByKey = new Map(
+            existingSlotsResult.rows.map((row) => [
+              `${Number(row.day_of_week)}:${Number(row.slot_no)}`,
+              row,
+            ]),
+          );
+          const keptDays = new Set();
+          const keptSlotKeys = new Set();
 
-          for (const restItem of dayConfig.breaks) {
+          for (const dayConfig of normalizedDays) {
+            keptDays.add(Number(dayConfig.day_of_week));
+            let dayTemplate = templateByDay.get(Number(dayConfig.day_of_week));
+
+            if (dayTemplate) {
+              const updatedTemplateResult = await client.query(
+                `UPDATE lms.l_schedule_day_template
+                 SET start_time = $1::time,
+                     end_time = $2::time,
+                     session_minutes = $3,
+                     is_school_day = $4,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $5
+                 RETURNING *`,
+                [
+                  toTimeString(dayConfig.start_minute),
+                  toTimeString(dayConfig.end_minute),
+                  dayConfig.session_minutes,
+                  dayConfig.is_school_day !== false,
+                  dayTemplate.id,
+                ],
+              );
+              dayTemplate = updatedTemplateResult.rows[0];
+            } else {
+              const dayTemplateResult = await client.query(
+                `INSERT INTO lms.l_schedule_day_template (
+                   config_id,
+                   config_group_id,
+                   day_of_week,
+                   start_time,
+                   end_time,
+                   session_minutes,
+                   is_school_day
+                 )
+                 VALUES ($1, $2, $3, $4::time, $5::time, $6, $7)
+                 RETURNING *`,
+                [
+                  config.id,
+                  configGroup.id,
+                  dayConfig.day_of_week,
+                  toTimeString(dayConfig.start_minute),
+                  toTimeString(dayConfig.end_minute),
+                  dayConfig.session_minutes,
+                  dayConfig.is_school_day !== false,
+                ],
+              );
+              dayTemplate = dayTemplateResult.rows[0];
+              templateByDay.set(Number(dayConfig.day_of_week), dayTemplate);
+            }
+
             await client.query(
-              `INSERT INTO lms.l_schedule_break (day_template_id, break_start, break_end, label)
-               VALUES ($1, $2::time, $3::time, $4)`,
-              [
-                dayTemplate.id,
-                toTimeString(restItem.break_start),
-                toTimeString(restItem.break_end),
-                restItem.label,
-              ],
+              `DELETE FROM lms.l_schedule_break WHERE day_template_id = $1`,
+              [dayTemplate.id],
+            );
+
+            for (const restItem of dayConfig.breaks) {
+              await client.query(
+                `INSERT INTO lms.l_schedule_break (day_template_id, break_start, break_end, label)
+                 VALUES ($1, $2::time, $3::time, $4)`,
+                [
+                  dayTemplate.id,
+                  toTimeString(restItem.break_start),
+                  toTimeString(restItem.break_end),
+                  restItem.label,
+                ],
+              );
+            }
+
+            for (const slot of dayConfig.slots) {
+              const slotKey = `${Number(dayConfig.day_of_week)}:${Number(slot.slot_no)}`;
+              keptSlotKeys.add(slotKey);
+              const existingSlot = slotByKey.get(slotKey);
+
+              if (existingSlot) {
+                await client.query(
+                  `UPDATE lms.l_time_slot
+                   SET config_id = $1,
+                       start_time = $2::time,
+                       end_time = $3::time,
+                       is_break = false,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = $4`,
+                  [
+                    config.id,
+                    toTimeString(slot.start_minute),
+                    toTimeString(slot.end_minute),
+                    existingSlot.id,
+                  ],
+                );
+              } else {
+                const insertedSlotResult = await client.query(
+                  `INSERT INTO lms.l_time_slot (
+                     config_id,
+                     config_group_id,
+                     day_of_week,
+                     slot_no,
+                     start_time,
+                     end_time,
+                     is_break
+                   )
+                   VALUES ($1, $2, $3, $4, $5::time, $6::time, false)
+                   RETURNING *`,
+                  [
+                    config.id,
+                    configGroup.id,
+                    dayConfig.day_of_week,
+                    slot.slot_no,
+                    toTimeString(slot.start_minute),
+                    toTimeString(slot.end_minute),
+                  ],
+                );
+                slotByKey.set(slotKey, insertedSlotResult.rows[0]);
+              }
+            }
+          }
+
+          let preservedDayCount = 0;
+          let preservedSlotCount = 0;
+
+          for (const [dayOfWeek, dayTemplate] of templateByDay.entries()) {
+            if (keptDays.has(Number(dayOfWeek))) continue;
+
+            const referencedDayResult = await client.query(
+              `SELECT 1
+               WHERE EXISTS (
+                 SELECT 1
+                 FROM lms.l_schedule_entry e
+                 JOIN lms.l_time_slot ts ON ts.id = e.slot_start_id
+                 WHERE ts.config_group_id = $1
+                   AND ts.day_of_week = $2
+                   AND e.status <> 'archived'
+               )
+               OR EXISTS (
+                 SELECT 1
+                 FROM lms.l_schedule_entry_slot ess
+                 JOIN lms.l_time_slot ts ON ts.id = ess.slot_id
+                 WHERE ts.config_group_id = $1
+                   AND ts.day_of_week = $2
+               )
+               LIMIT 1`,
+              [configGroup.id, dayOfWeek],
+            );
+            if (referencedDayResult.rowCount > 0) {
+              preservedDayCount += 1;
+              continue;
+            }
+
+            await client.query(
+              `DELETE FROM lms.l_schedule_break WHERE day_template_id = $1`,
+              [dayTemplate.id],
+            );
+            await client.query(
+              `DELETE FROM lms.l_time_slot
+               WHERE config_group_id = $1
+                 AND day_of_week = $2`,
+              [configGroup.id, dayOfWeek],
+            );
+            await client.query(
+              `DELETE FROM lms.l_schedule_day_template WHERE id = $1`,
+              [dayTemplate.id],
             );
           }
 
-          for (const slot of dayConfig.slots) {
-            await client.query(
-              `INSERT INTO lms.l_time_slot (
+          for (const [slotKey, existingSlot] of slotByKey.entries()) {
+            if (keptSlotKeys.has(slotKey)) continue;
+
+            const referencedSlotResult = await client.query(
+              `SELECT 1
+               WHERE EXISTS (
+                 SELECT 1
+                 FROM lms.l_schedule_entry
+                 WHERE slot_start_id = $1
+                   AND status <> 'archived'
+               )
+               OR EXISTS (
+                 SELECT 1
+                 FROM lms.l_schedule_entry_slot
+                 WHERE slot_id = $1
+               )
+               OR EXISTS (
+                 SELECT 1
+                 FROM lms.l_duty_assignment
+                 WHERE slot_id = $1
+               )
+               LIMIT 1`,
+              [existingSlot.id],
+            );
+            if (referencedSlotResult.rowCount > 0) {
+              preservedSlotCount += 1;
+              continue;
+            }
+
+            await client.query(`DELETE FROM lms.l_time_slot WHERE id = $1`, [
+              existingSlot.id,
+            ]);
+          }
+
+          res.locals.scheduleConfigAdjustmentSummary = {
+            activityUsageCount,
+            removedActivityCount: activityUsageCount,
+            preservedFinalEntries: true,
+            preservedDayCount,
+            preservedSlotCount,
+          };
+        } else {
+          await client.query(
+            `DELETE FROM lms.l_schedule_break
+             WHERE day_template_id IN (
+               SELECT id
+               FROM lms.l_schedule_day_template
+               WHERE config_group_id = $1
+             )`,
+            [configGroup.id],
+          );
+
+          await client.query(
+            `DELETE FROM lms.l_time_slot WHERE config_group_id = $1`,
+            [configGroup.id],
+          );
+
+          await client.query(
+            `DELETE FROM lms.l_schedule_day_template WHERE config_group_id = $1`,
+            [configGroup.id],
+          );
+
+          for (const dayConfig of normalizedDays) {
+            const dayTemplateResult = await client.query(
+              `INSERT INTO lms.l_schedule_day_template (
                  config_id,
                  config_group_id,
                  day_of_week,
-                 slot_no,
                  start_time,
                  end_time,
-                 is_break
+                 session_minutes,
+                 is_school_day
                )
-               VALUES ($1, $2, $3, $4, $5::time, $6::time, false)`,
+               VALUES ($1, $2, $3, $4::time, $5::time, $6, $7)
+               RETURNING *`,
               [
                 config.id,
                 configGroup.id,
                 dayConfig.day_of_week,
-                slot.slot_no,
-                toTimeString(slot.start_minute),
-                toTimeString(slot.end_minute),
+                toTimeString(dayConfig.start_minute),
+                toTimeString(dayConfig.end_minute),
+                dayConfig.session_minutes,
+                dayConfig.is_school_day !== false,
               ],
             );
-          }
-        }
+            const dayTemplate = dayTemplateResult.rows[0];
 
-        res.locals.scheduleConfigAdjustmentSummary = {
-          activityUsageCount,
-          removedActivityCount: activityUsageCount,
-        };
+            for (const restItem of dayConfig.breaks) {
+              await client.query(
+                `INSERT INTO lms.l_schedule_break (day_template_id, break_start, break_end, label)
+                 VALUES ($1, $2::time, $3::time, $4)`,
+                [
+                  dayTemplate.id,
+                  toTimeString(restItem.break_start),
+                  toTimeString(restItem.break_end),
+                  restItem.label,
+                ],
+              );
+            }
+
+            for (const slot of dayConfig.slots) {
+              await client.query(
+                `INSERT INTO lms.l_time_slot (
+                   config_id,
+                   config_group_id,
+                   day_of_week,
+                   slot_no,
+                   start_time,
+                   end_time,
+                   is_break
+                 )
+                 VALUES ($1, $2, $3, $4, $5::time, $6::time, false)`,
+                [
+                  config.id,
+                  configGroup.id,
+                  dayConfig.day_of_week,
+                  slot.slot_no,
+                  toTimeString(slot.start_minute),
+                  toTimeString(slot.end_minute),
+                ],
+              );
+            }
+          }
+
+          res.locals.scheduleConfigAdjustmentSummary = {
+            activityUsageCount,
+            removedActivityCount: activityUsageCount,
+            preservedFinalEntries: false,
+          };
+        }
       }
 
       return res.json({
@@ -1242,10 +1434,23 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         message: hasDaysPayload
           ? (() => {
               const summary = res.locals.scheduleConfigAdjustmentSummary;
-              if (!summary?.removedActivityCount) {
-                return "Konfigurasi jadwal berhasil disimpan.";
+              const parts = ["Konfigurasi jadwal berhasil disimpan."];
+              if (summary?.removedActivityCount) {
+                parts.push(
+                  `${summary.removedActivityCount} kegiatan dihapus karena slot diganti ulang.`,
+                );
               }
-              return `Konfigurasi jadwal berhasil disimpan. ${summary.removedActivityCount} kegiatan dihapus karena slot diganti ulang.`;
+              if (summary?.preservedFinalEntries) {
+                parts.push(
+                  "Jadwal final tetap disimpan; kosongkan lewat tab Jadwal Final bila perlu disusun ulang.",
+                );
+              }
+              if (summary?.preservedDayCount) {
+                parts.push(
+                  `${summary.preservedDayCount} hari tetap dipertahankan karena masih dipakai jadwal final.`,
+                );
+              }
+              return parts.join(" ");
             })()
           : "Master jadwal berhasil disimpan.",
         data: {
@@ -1291,36 +1496,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           status: "error",
           message: "Konfigurasi jadwal tidak ditemukan.",
         });
-      }
-
-      const currentActiveConfigResult = await client.query(
-        `SELECT id
-         FROM lms.l_schedule_config
-         WHERE homebase_id = $1
-           AND periode_id = $2
-           AND is_active = true
-         LIMIT 1`,
-        [homebase_id, periodeId],
-      );
-      const currentActiveConfigId = toInt(currentActiveConfigResult.rows[0]?.id, null);
-
-      if (currentActiveConfigId && currentActiveConfigId !== configId) {
-        const existingEntryResult = await client.query(
-          `SELECT 1
-           FROM lms.l_schedule_entry
-           WHERE homebase_id = $1
-             AND periode_id = $2
-             AND status <> 'archived'
-           LIMIT 1`,
-          [homebase_id, periodeId],
-        );
-        if (existingEntryResult.rowCount > 0) {
-          return res.status(409).json({
-            status: "error",
-            message:
-              "Jadwal aktif tidak dapat diganti karena periode ini sudah memiliki jadwal final. Arsipkan atau reset jadwal final terlebih dahulu.",
-          });
-        }
       }
 
       await client.query(

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import {
   useActivateScheduleConfigMutation,
+  useClearScheduleEntriesMutation,
   useCreateManualScheduleEntryMutation,
   useDeleteScheduleActivityMutation,
   useDeleteScheduleConfigGroupMutation,
@@ -80,6 +81,8 @@ const Schedule = () => {
     useUpdateScheduleEntryMutation();
   const [deleteScheduleEntry, { isLoading: deletingEntry }] =
     useDeleteScheduleEntryMutation();
+  const [clearScheduleEntries, { isLoading: clearingEntries }] =
+    useClearScheduleEntriesMutation();
 
   const payload = data?.data || {};
   const canManage = Boolean(payload.can_manage);
@@ -89,8 +92,8 @@ const Schedule = () => {
   const selectedGroup = payload.selected_group || null;
   const activeConfigId = Number(payload.active_config_id || 0) || null;
   const isSelectedConfigActive = selectedConfig?.is_active === true;
-  const isConfigOperational = Boolean(selectedConfig && isSelectedConfigActive);
   const unmappedGroupClasses = payload.unmapped_group_classes || [];
+  const hasFinalEntries = (payload.entries || []).length > 0;
 
   useEffect(() => {
     if (!scheduleConfigs.length) {
@@ -449,6 +452,29 @@ const Schedule = () => {
     }
   };
 
+  const handleClearEntries = async () => {
+    if (!selectedConfig?.id) {
+      message.warning("Pilih master jadwal terlebih dahulu.");
+      return false;
+    }
+    try {
+      const response = await clearScheduleEntries({
+        periode_id: payload.periode_id,
+        config_id: selectedConfig.id,
+        config_group_id: selectedGroup?.id || undefined,
+      }).unwrap();
+      message.success(
+        response?.message || "Jadwal final berhasil dikosongkan.",
+      );
+      return true;
+    } catch (error) {
+      message.error(
+        error?.data?.message || "Gagal mengosongkan jadwal final.",
+      );
+      throw error;
+    }
+  };
+
   const createTabLabel = (label, icon, caption) => (
     <Flex align='center' gap={10}>
       <span style={SCHEDULE_ICON_BOX}>{icon}</span>
@@ -486,7 +512,7 @@ const Schedule = () => {
         showIcon
         type='info'
         title='Jadwal yang dipilih masih nonaktif'
-        description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada kegiatan dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
+        description={`Konfigurasi, kegiatan, dan jadwal final menampilkan data master yang sedang dipilih. Jadwal aktif operasional saat ini: ${
           scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
             ?.name || "belum ditentukan"
         }.`}
@@ -607,7 +633,7 @@ const Schedule = () => {
                 label: createTabLabel(
                   "Master Jadwal",
                   <SlidersHorizontal size={16} />,
-                  "Pilih versi jadwal aktif",
+                  "Pilih versi jadwal",
                 ),
                 children: (
                   <ScheduleMasterCard
@@ -646,6 +672,7 @@ const Schedule = () => {
                     breaks={payload.breaks || []}
                     slots={payload.slots || []}
                     scheduleCapacity={scheduleCapacity}
+                    hasFinalEntries={hasFinalEntries}
                     loading={
                       savingConfig ||
                       savingConfigGroup ||
@@ -674,29 +701,32 @@ const Schedule = () => {
                   <Activity size={16} />,
                   "Blok slot untuk agenda sekolah",
                 ),
-                children: isConfigOperational ? (
-                  <ScheduleActivity
-                    canManage={canManage}
-                    activities={
-                      payload.all_activities || payload.activities || []
-                    }
-                    activityTargets={
-                      payload.all_activity_targets ||
-                      payload.activity_targets ||
-                      []
-                    }
-                    slots={payload.slots || []}
-                    teacherAssignments={scopedTeacherAssignments}
-                    scheduleCapacity={scheduleCapacity}
-                    selectedConfig={selectedConfig}
-                    groups={configGroups}
-                    selectedGroup={selectedGroup}
-                    groupCount={configGroups.length}
-                    loading={savingActivity || deletingActivity || isFetching}
-                    onSave={handleActivitySave}
-                    onDelete={handleActivityDelete}
-                    onSelectGroup={setSelectedGroupId}
-                  />
+                children: selectedConfig ? (
+                  <Flex vertical gap={12}>
+                    {renderInactiveConfigAlert()}
+                    <ScheduleActivity
+                      canManage={canManage}
+                      activities={
+                        payload.all_activities || payload.activities || []
+                      }
+                      activityTargets={
+                        payload.all_activity_targets ||
+                        payload.activity_targets ||
+                        []
+                      }
+                      slots={payload.slots || []}
+                      teacherAssignments={scopedTeacherAssignments}
+                      scheduleCapacity={scheduleCapacity}
+                      selectedConfig={selectedConfig}
+                      groups={configGroups}
+                      selectedGroup={selectedGroup}
+                      groupCount={configGroups.length}
+                      loading={savingActivity || deletingActivity || isFetching}
+                      onSave={handleActivitySave}
+                      onDelete={handleActivityDelete}
+                      onSelectGroup={setSelectedGroupId}
+                    />
+                  </Flex>
                 ) : (
                   renderInactiveConfigAlert()
                 ),
@@ -708,36 +738,41 @@ const Schedule = () => {
                   <LayoutGrid size={16} />,
                   "Review dan edit jadwal manual",
                 ),
-                children: isConfigOperational ? (
-                  <ScheduleTimetableCard
-                    canManage={canManage}
-                    configs={scheduleConfigs}
-                    groups={configGroups}
-                    entries={payload.entries || []}
-                    activities={payload.activities || []}
-                    activityTargets={payload.activity_targets || []}
-                    slots={payload.slots || []}
-                    breaks={payload.breaks || []}
-                    classes={scopedClasses}
-                    grades={payload.grades || []}
-                    teacherAssignments={scopedTeacherAssignments}
-                    teachers={payload.teachers || []}
-                    selectedConfig={selectedConfig}
-                    selectedGroup={selectedGroup}
-                    groupCount={configGroups.length}
-                    onSelectConfig={setSelectedConfigId}
-                    onSelectGroup={setSelectedGroupId}
-                    onCreateEntry={handleCreateManualEntry}
-                    onRefresh={refetch}
-                    onDeleteEntry={handleDeleteEntry}
-                    onUpdateEntry={handleUpdateEntry}
-                    loading={
-                      creatingEntry ||
-                      updatingEntry ||
-                      deletingEntry ||
-                      isFetching
-                    }
-                  />
+                children: selectedConfig ? (
+                  <Flex vertical gap={12}>
+                    {renderInactiveConfigAlert()}
+                    <ScheduleTimetableCard
+                      canManage={canManage}
+                      configs={scheduleConfigs}
+                      groups={configGroups}
+                      entries={payload.entries || []}
+                      activities={payload.activities || []}
+                      activityTargets={payload.activity_targets || []}
+                      slots={payload.slots || []}
+                      breaks={payload.breaks || []}
+                      classes={scopedClasses}
+                      grades={payload.grades || []}
+                      teacherAssignments={scopedTeacherAssignments}
+                      teachers={payload.teachers || []}
+                      selectedConfig={selectedConfig}
+                      selectedGroup={selectedGroup}
+                      groupCount={configGroups.length}
+                      onSelectConfig={setSelectedConfigId}
+                      onSelectGroup={setSelectedGroupId}
+                      onCreateEntry={handleCreateManualEntry}
+                      onRefresh={refetch}
+                      onDeleteEntry={handleDeleteEntry}
+                      onClearEntries={handleClearEntries}
+                      onUpdateEntry={handleUpdateEntry}
+                      loading={
+                        creatingEntry ||
+                        updatingEntry ||
+                        deletingEntry ||
+                        clearingEntries ||
+                        isFetching
+                      }
+                    />
+                  </Flex>
                 ) : (
                   renderInactiveConfigAlert()
                 ),

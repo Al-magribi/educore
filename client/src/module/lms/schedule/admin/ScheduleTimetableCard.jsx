@@ -14,7 +14,7 @@ import {
   Tabs,
   Tag,
 } from "antd";
-import { LayoutGrid, Plus, RefreshCcw } from "lucide-react";
+import { Eraser, LayoutGrid, Plus, RefreshCcw } from "lucide-react";
 import ScheduleTeacherMapelTable from "./ScheduleTeacherMapelTable";
 import ScheduleTimetableBoard from "./ScheduleTimetableBoard";
 import {
@@ -64,6 +64,7 @@ const ScheduleTimetableCard = ({
   onSelectGroup,
   onCreateEntry,
   onDeleteEntry,
+  onClearEntries,
   onRefresh,
   onUpdateEntry,
 }) => {
@@ -567,6 +568,11 @@ const ScheduleTimetableCard = ({
     [activities],
   );
 
+  const handleClearEntries = async () => {
+    if (!onClearEntries) return;
+    await onClearEntries();
+  };
+
   return (
     <Card
       style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
@@ -606,6 +612,24 @@ const ScheduleTimetableCard = ({
           >
             Muat Ulang
           </Button>
+          {canManage && (entries || []).length > 0 ? (
+            <Popconfirm
+              title='Kosongkan jadwal final?'
+              description={
+                selectedGroup
+                  ? `Semua entri pada shift "${selectedGroup.name}" untuk master yang dipilih akan dihapus.`
+                  : "Semua entri jadwal final pada master yang dipilih akan dihapus."
+              }
+              okText='Kosongkan'
+              cancelText='Batal'
+              okButtonProps={{ danger: true }}
+              onConfirm={handleClearEntries}
+            >
+              <Button danger icon={<Eraser size={14} />} loading={loading}>
+                Kosongkan Jadwal
+              </Button>
+            </Popconfirm>
+          ) : null}
           {canManage ? (
             <Button
               type='primary'

@@ -103,7 +103,7 @@ const ScheduleMasterCard = ({
         showIcon
         type="info"
         message="Jadwal yang dipilih masih nonaktif"
-        description={`Tab operasional tetap mengikuti jadwal aktif. Untuk memakai jadwal ini pada beban ajar, kegiatan, ketentuan guru, dan jadwal final, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
+        description={`Konfigurasi, kegiatan, dan jadwal final menampilkan data master yang sedang dipilih. Untuk menjadikannya jadwal operasional sekolah, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
           scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
             ?.name || "belum ditentukan"
         }.`}

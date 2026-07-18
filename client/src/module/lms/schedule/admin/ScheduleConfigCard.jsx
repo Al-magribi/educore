@@ -113,6 +113,7 @@ const ScheduleConfigCard = ({
   breaks,
   slots,
   scheduleCapacity,
+  hasFinalEntries = false,
   onSave,
   onSaveGroup,
   onDeleteGroup,
@@ -687,13 +688,19 @@ const ScheduleConfigCard = ({
         confirmLoading={loading}
         width={820}
       >
-        {hasActivityUsage ? (
+        {hasActivityUsage || hasFinalEntries ? (
           <Alert
             showIcon
             type="warning"
             style={{ marginBottom: 16 }}
-            title="Simpan akan menghapus ulang slot"
-            description="Kegiatan yang memakai slot shift ini akan dihapus. Jadwal final tidak ikut berubah jika masih ada."
+            title="Simpan akan menyesuaikan ulang slot"
+            description={
+              hasActivityUsage && hasFinalEntries
+                ? "Kegiatan yang memakai slot shift ini akan dihapus. Jadwal final tetap disimpan; kosongkan lewat tab Jadwal Final bila perlu disusun ulang."
+                : hasFinalEntries
+                  ? "Jadwal final tetap disimpan. Kosongkan lewat tab Jadwal Final bila slot lama sudah tidak relevan."
+                  : "Kegiatan yang memakai slot shift ini akan dihapus."
+            }
           />
         ) : null}
 

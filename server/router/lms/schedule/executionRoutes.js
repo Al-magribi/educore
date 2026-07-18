@@ -276,6 +276,142 @@ export const registerScheduleExecutionRoutes = (router) => {
     }),
   );
 
+  router.post(
+    "/schedule/entries/clear",
+    authorize("satuan"),
+    withTransaction(async (req, res, client) => {
+      const { id: userId, homebase_id } = req.user;
+      const periodeId = await ensureActivePeriode(
+        client,
+        homebase_id,
+        toInt(req.body?.periode_id, null),
+      );
+      const configId = toInt(req.body?.config_id, null);
+      const configGroupId = toInt(req.body?.config_group_id, null);
+
+      if (!periodeId || !configId) {
+        return res.status(400).json({
+          status: "error",
+          message: "config_id dan periode aktif wajib diisi.",
+        });
+      }
+
+      const configResult = await client.query(
+        `SELECT id
+         FROM lms.l_schedule_config
+         WHERE id = $1
+           AND homebase_id = $2
+           AND periode_id = $3
+         LIMIT 1`,
+        [configId, homebase_id, periodeId],
+      );
+      if (configResult.rowCount === 0) {
+        return res.status(404).json({
+          status: "error",
+          message: "Master jadwal tidak ditemukan.",
+        });
+      }
+
+      if (configGroupId) {
+        const groupResult = await client.query(
+          `SELECT id
+           FROM lms.l_schedule_config_group
+           WHERE id = $1
+             AND config_id = $2
+           LIMIT 1`,
+          [configGroupId, configId],
+        );
+        if (groupResult.rowCount === 0) {
+          return res.status(404).json({
+            status: "error",
+            message: "Shift jadwal tidak ditemukan pada master yang dipilih.",
+          });
+        }
+      }
+
+      const entryResult = configGroupId
+        ? await client.query(
+            `SELECT e.*
+             FROM lms.l_schedule_entry e
+             JOIN lms.l_time_slot ts ON ts.id = e.slot_start_id
+             WHERE e.homebase_id = $1
+               AND e.periode_id = $2
+               AND e.config_id = $3
+               AND e.status <> 'archived'
+               AND ts.config_group_id = $4`,
+            [homebase_id, periodeId, configId, configGroupId],
+          )
+        : await client.query(
+            `SELECT e.*
+             FROM lms.l_schedule_entry e
+             WHERE e.homebase_id = $1
+               AND e.periode_id = $2
+               AND e.config_id = $3
+               AND e.status <> 'archived'`,
+            [homebase_id, periodeId, configId],
+          );
+
+      const entries = entryResult.rows;
+      if (entries.length === 0) {
+        return res.json({
+          status: "success",
+          message: "Jadwal final sudah kosong.",
+          data: { deleted_count: 0 },
+        });
+      }
+
+      const entryIds = entries.map((item) => Number(item.id));
+
+      await client.query(
+        `DELETE FROM lms.l_schedule_entry_slot
+         WHERE schedule_entry_id = ANY($1::int[])`,
+        [entryIds],
+      );
+
+      await client.query(
+        `UPDATE lms.l_schedule_entry_history
+         SET schedule_entry_id = NULL
+         WHERE schedule_entry_id = ANY($1::int[])`,
+        [entryIds],
+      );
+
+      await client.query(
+        `UPDATE lms.l_teacher_session_log
+         SET schedule_entry_id = NULL
+         WHERE schedule_entry_id = ANY($1::int[])`,
+        [entryIds],
+      );
+
+      for (const entry of entries) {
+        await client.query(
+          `INSERT INTO lms.l_schedule_entry_history (
+             schedule_entry_id,
+             action_type,
+             old_data,
+             new_data,
+             changed_by
+           )
+           VALUES (NULL, 'delete', $1::jsonb, NULL, $2)`,
+          [JSON.stringify(entry), userId],
+        );
+      }
+
+      await client.query(
+        `DELETE FROM lms.l_schedule_entry
+         WHERE id = ANY($1::int[])`,
+        [entryIds],
+      );
+
+      return res.json({
+        status: "success",
+        message: configGroupId
+          ? `${entryIds.length} entri jadwal final pada shift ini berhasil dikosongkan.`
+          : `${entryIds.length} entri jadwal final berhasil dikosongkan.`,
+        data: { deleted_count: entryIds.length },
+      });
+    }),
+  );
+
   router.patch(
     "/schedule/entries/:id",
     authorize("satuan"),
