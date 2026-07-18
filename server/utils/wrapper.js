@@ -29,12 +29,14 @@ export const withTransaction = (handler) => {
 
       // Jika handler sudah mengirim error response (4xx/5xx), rollback
       // supaya perubahan parsial tidak ter-commit.
-      if (res.statusCode >= 400) {
+      // Opt-in: res.locals.commitTransaction = true untuk audit/log yang harus
+      // tetap tersimpan meski response ke klien adalah 4xx (mis. RFID unregistered).
+      if (res.statusCode >= 400 && !res.locals.commitTransaction) {
         await client.query("ROLLBACK");
         return;
       }
 
-      // Commit perubahan jika tidak ada error
+      // Commit perubahan jika tidak ada error, atau handler meminta commit eksplisit
       await client.query("COMMIT");
     } catch (error) {
       // Jika ada error, batalkan semua perubahan

@@ -2209,6 +2209,9 @@ router.post(
     const activePeriodeId = activePeriodeRes.rows[0]?.id || null;
 
     const rejectAndLog = async (resultStatus, reason) => {
+      // Audit log harus tetap tersimpan meski response ke device adalah HTTP 4xx.
+      // withTransaction default-nya ROLLBACK pada status >= 400; tanpa flag ini
+      // row hilang meski response sudah mengembalikan scan_log_id (sequence tetap maju).
       const inserted = await client.query(
         `INSERT INTO attendance.rfid_scan_log (
            homebase_id,
@@ -2243,6 +2246,8 @@ router.post(
           JSON.stringify(payload),
         ],
       );
+
+      res.locals.commitTransaction = true;
 
       return res.status(400).json({
         status: "error",
@@ -2487,6 +2492,9 @@ router.post(
             attendanceResult?.scan_action || null,
           ],
         );
+
+        // Persist updated rejection row (HTTP 4xx would otherwise roll back).
+        res.locals.commitTransaction = true;
 
         return res.status(400).json({
           status: "error",
