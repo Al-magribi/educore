@@ -13,17 +13,30 @@ import {
   Select,
   Statistic,
   Table,
+  Tabs,
   Tag,
   Typography,
   message,
 } from 'antd';
 import { motion } from 'framer-motion';
-import { BriefcaseBusiness, BookOpen, Clock3, RefreshCw, Search, TimerReset, Trash2, UsersRound } from 'lucide-react';
+import {
+  BriefcaseBusiness,
+  BookOpen,
+  Clock3,
+  DoorOpen,
+  RefreshCw,
+  Search,
+  TimerReset,
+  Trash2,
+  UsersRound,
+} from 'lucide-react';
 import {
   useBulkDeleteDailyAttendanceRecordsMutation,
   useDeleteDailyAttendanceRecordMutation,
+  useDeleteTeacherSessionRecordMutation,
   useGetTeacherAttendanceReportQuery,
   useUpdateDailyAttendanceRecordMutation,
+  useUpdateTeacherSessionRecordMutation,
 } from '../../../../../service/lms/ApiAttendance';
 
 const { RangePicker } = DatePicker;
@@ -54,6 +67,15 @@ const STATUS_COLORS = {
   not_scheduled: 'blue',
 };
 
+const SESSION_STATUS_COLORS = {
+  pending: 'default',
+  present: 'green',
+  late: 'gold',
+  missed: 'red',
+  partial: 'orange',
+  excused: 'blue',
+};
+
 const formatDateTimeCell = (value) => {
   if (!value) return '-';
   const parsed = dayjs(value);
@@ -77,6 +99,40 @@ const formatMinutesToHours = (value) => {
   return `${hours.toFixed(2)} jam`;
 };
 
+const formatSlotRange = (row) => {
+  const first = Number(row?.first_slot_no || 0);
+  const last = Number(row?.last_slot_no || 0);
+  if (!first) return '-';
+  return first === last ? `Jam ${first}` : `Jam ${first}-${last}`;
+};
+
+const formatSlotTimeRange = (row) => {
+  const start = row?.slot_start_time;
+  const end = row?.slot_end_time;
+  if (start && end) return `${start} - ${end}`;
+  return '-';
+};
+
+const renderGuruCell = (row) => (
+  <Flex vertical gap={2}>
+    <Text strong ellipsis>
+      {row.full_name}
+    </Text>
+    <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+      {[row.class_name, row.subject_name].filter(Boolean).join(' · ') || '-'}
+    </Text>
+  </Flex>
+);
+
+const renderWaktuCell = (row) => (
+  <Flex vertical gap={2}>
+    <Text>{formatSlotRange(row)}</Text>
+    <Text type="secondary" style={{ fontSize: 12 }}>
+      {formatSlotTimeRange(row)}
+    </Text>
+  </Flex>
+);
+
 const parseReportDateTime = (value) => {
   if (!value) return null;
   const text = String(value).trim();
@@ -98,6 +154,15 @@ const TEACHER_STATUS_OPTIONS = [
   { value: 'incomplete', label: 'Incomplete' },
   { value: 'insufficient_hours', label: 'Insufficient Hours' },
   { value: 'not_scheduled', label: 'Not Scheduled' },
+  { value: 'pending', label: 'Pending' },
+];
+
+const TEACHER_SESSION_STATUS_OPTIONS = [
+  { value: 'present', label: 'Present' },
+  { value: 'late', label: 'Late' },
+  { value: 'missed', label: 'Missed' },
+  { value: 'partial', label: 'Partial' },
+  { value: 'excused', label: 'Excused' },
   { value: 'pending', label: 'Pending' },
 ];
 
@@ -293,10 +358,20 @@ const TeacherReport = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [guideOpen, setGuideOpen] = useState(false);
   const [pageSize, setPageSize] = useState(10);
+  const [sessionPageSize, setSessionPageSize] = useState(10);
+  const [activeTab, setActiveTab] = useState('kehadiran');
+  const [detailSessionRow, setDetailSessionRow] = useState(null);
+  const [editingSessionRow, setEditingSessionRow] = useState(null);
+  const [editSessionCheckin, setEditSessionCheckin] = useState(null);
+  const [editSessionCheckout, setEditSessionCheckout] = useState(null);
+  const [editSessionStatus, setEditSessionStatus] = useState();
+  const [editSessionNotes, setEditSessionNotes] = useState('');
 
   const [updateDailyAttendance, { isLoading: savingEdit }] = useUpdateDailyAttendanceRecordMutation();
   const [deleteDailyAttendance, { isLoading: deletingRow }] = useDeleteDailyAttendanceRecordMutation();
   const [bulkDeleteDailyAttendance, { isLoading: bulkDeleting }] = useBulkDeleteDailyAttendanceRecordsMutation();
+  const [updateTeacherSession, { isLoading: savingSessionEdit }] = useUpdateTeacherSessionRecordMutation();
+  const [deleteTeacherSession, { isLoading: deletingSessionRow }] = useDeleteTeacherSessionRecordMutation();
   const { data, isLoading, isFetching, refetch } = useGetTeacherAttendanceReportQuery({
     startDate: range?.[0]?.format('YYYY-MM-DD'),
     endDate: range?.[1]?.format('YYYY-MM-DD'),
@@ -307,6 +382,7 @@ const TeacherReport = () => {
   const summary = data?.data?.summary || {};
   const sessionSummary = data?.data?.session_summary || {};
   const rows = data?.data?.rows || [];
+  const sessionRows = data?.data?.session_rows || [];
 
   const statItems = [
     {
@@ -444,6 +520,77 @@ const TeacherReport = () => {
     }
   };
 
+  const openEditSessionModal = (row) => {
+    setEditingSessionRow(row);
+    setEditSessionCheckin(parseReportDateTime(row.actual_checkin_at));
+    setEditSessionCheckout(parseReportDateTime(row.actual_checkout_at));
+    setEditSessionStatus(row.session_status);
+    setEditSessionNotes(row.notes || '');
+  };
+
+  const closeEditSessionModal = () => {
+    setEditingSessionRow(null);
+    setEditSessionCheckin(null);
+    setEditSessionCheckout(null);
+    setEditSessionStatus(undefined);
+    setEditSessionNotes('');
+  };
+
+  const handleSaveSessionEdit = async () => {
+    if (!editingSessionRow) return;
+    try {
+      await updateTeacherSession({
+        id: editingSessionRow.id,
+        actual_checkin_at: editSessionCheckin ? editSessionCheckin.toISOString() : null,
+        actual_checkout_at: editSessionCheckout ? editSessionCheckout.toISOString() : null,
+        session_status: editSessionStatus,
+        notes: editSessionNotes,
+      }).unwrap();
+      message.success('Data sesi mengajar berhasil diperbarui.');
+      closeEditSessionModal();
+    } catch (error) {
+      message.error(error?.data?.message || 'Gagal memperbarui sesi mengajar.');
+      throw error;
+    }
+  };
+
+  const handleDeleteSessionRow = async (id) => {
+    try {
+      await deleteTeacherSession(id).unwrap();
+      message.success('Data sesi mengajar berhasil dihapus.');
+      if (detailSessionRow?.id === id) {
+        setDetailSessionRow(null);
+      }
+    } catch (error) {
+      message.error(error?.data?.message || 'Gagal menghapus sesi mengajar.');
+      throw error;
+    }
+  };
+
+  const handleSessionRowAction = (action, row) => {
+    if (action === 'detail') {
+      setDetailSessionRow(row);
+      return;
+    }
+
+    if (action === 'edit') {
+      openEditSessionModal(row);
+      return;
+    }
+
+    if (action === 'delete') {
+      Modal.confirm({
+        title: 'Hapus data sesi mengajar ini?',
+        content: 'Data sesi mengajar akan dihapus permanen dari sistem.',
+        okText: 'Hapus',
+        okType: 'danger',
+        cancelText: 'Batal',
+        okButtonProps: { loading: deletingSessionRow },
+        onOk: () => handleDeleteSessionRow(row.id),
+      });
+    }
+  };
+
   return (
     <Flex vertical gap={18}>
       <Card style={surfaceCardStyle} bordered={false}>
@@ -486,6 +633,7 @@ const TeacherReport = () => {
               value={status}
               onChange={setStatus}
               placeholder="Filter status"
+              disabled={activeTab !== 'kehadiran'}
               options={[
                 { value: 'present', label: 'Present' },
                 { value: 'late', label: 'Late' },
@@ -531,101 +679,238 @@ const TeacherReport = () => {
       </Flex>
 
       <Card style={surfaceCardStyle} bordered={false}>
-        {rows.length > 0 && (
-          <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
-            <Text type="secondary">
-              {selectedRowKeys.length > 0
-                ? `${selectedRowKeys.length} data absensi terpilih`
-                : 'Centang baris untuk hapus bulk'}
-            </Text>
-            <Button
-              danger
-              icon={<Trash2 size={16} />}
-              disabled={selectedRowKeys.length === 0}
-              loading={bulkDeleting}
-              onClick={handleBulkDelete}>
-              Hapus Terpilih
-            </Button>
-          </Flex>
-        )}
-        {rows.length === 0 && !isLoading && !isFetching ? (
-          <Empty description="Belum ada data presensi guru pada rentang ini." />
-        ) : (
-          <Table
-            rowKey="id"
-            loading={isLoading || (isFetching && rows.length > 0)}
-            dataSource={rows}
-            tableLayout="fixed"
-            pagination={{
-              pageSize,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS,
-              showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} catatan`,
-              onChange: (_page, size) => setPageSize(size),
-            }}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
-            columns={[
-              {
-                title: 'Guru',
-                ellipsis: true,
-                render: (_, row) => (
-                  <Flex vertical gap={2}>
-                    <Text strong ellipsis>
-                      {row.full_name}
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                      NIP {row.nip || '-'}
-                    </Text>
-                  </Flex>
-                ),
-              },
-              {
-                title: 'Tanggal',
-                dataIndex: 'attendance_date',
-                ellipsis: true,
-              },
-              {
-                title: 'Status',
-                dataIndex: 'attendance_status',
-                render: (value) => <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>,
-              },
-              {
-                title: 'Datang',
-                dataIndex: 'checkin_at',
-                ellipsis: true,
-                render: (value) => formatDateTimeCell(value),
-              },
-              {
-                title: 'Pulang',
-                dataIndex: 'checkout_at',
-                ellipsis: true,
-                render: (value) => formatDateTimeCell(value),
-              },
-              {
-                title: 'Aksi',
-                width: 110,
-                render: (_, row) => (
-                  <Select
-                    placeholder="Aksi"
-                    value={null}
-                    virtual={false}
-                    style={{ width: '100%', maxWidth: 110 }}
-                    options={[
-                      { value: 'detail', label: 'Detail' },
-                      { value: 'edit', label: 'Edit' },
-                      { value: 'delete', label: 'Hapus' },
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'kehadiran',
+              label: (
+                <Flex align="center" gap={8}>
+                  <DoorOpen size={16} />
+                  Kehadiran
+                </Flex>
+              ),
+              children: (
+                <>
+                  {rows.length > 0 && (
+                    <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
+                      <Text type="secondary">
+                        {selectedRowKeys.length > 0
+                          ? `${selectedRowKeys.length} data absensi terpilih`
+                          : 'Centang baris untuk hapus bulk'}
+                      </Text>
+                      <Button
+                        danger
+                        icon={<Trash2 size={16} />}
+                        disabled={selectedRowKeys.length === 0}
+                        loading={bulkDeleting}
+                        onClick={handleBulkDelete}>
+                        Hapus Terpilih
+                      </Button>
+                    </Flex>
+                  )}
+                  {rows.length === 0 && !isLoading && !isFetching ? (
+                    <Empty description="Belum ada data presensi guru pada rentang ini." />
+                  ) : (
+                    <Table
+                      rowKey="id"
+                      loading={isLoading || (isFetching && rows.length > 0)}
+                      dataSource={rows}
+                      tableLayout="fixed"
+                      pagination={{
+                        pageSize,
+                        showSizeChanger: true,
+                        pageSizeOptions: PAGE_SIZE_OPTIONS,
+                        showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} catatan`,
+                        onChange: (_page, size) => setPageSize(size),
+                      }}
+                      rowSelection={{
+                        selectedRowKeys,
+                        onChange: setSelectedRowKeys,
+                      }}
+                      columns={[
+                        {
+                          title: 'Guru',
+                          ellipsis: true,
+                          render: (_, row) => (
+                            <Flex vertical gap={2}>
+                              <Text strong ellipsis>
+                                {row.full_name}
+                              </Text>
+                              <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                                NIP {row.nip || '-'}
+                              </Text>
+                            </Flex>
+                          ),
+                        },
+                        {
+                          title: 'Tanggal',
+                          dataIndex: 'attendance_date',
+                          ellipsis: true,
+                        },
+                        {
+                          title: 'Status',
+                          dataIndex: 'attendance_status',
+                          render: (value) => <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>,
+                        },
+                        {
+                          title: 'Datang',
+                          dataIndex: 'checkin_at',
+                          ellipsis: true,
+                          render: (value) => formatDateTimeCell(value),
+                        },
+                        {
+                          title: 'Pulang',
+                          dataIndex: 'checkout_at',
+                          ellipsis: true,
+                          render: (value) => formatDateTimeCell(value),
+                        },
+                        {
+                          title: 'Aksi',
+                          width: 110,
+                          render: (_, row) => (
+                            <Select
+                              placeholder="Aksi"
+                              value={null}
+                              virtual={false}
+                              style={{ width: '100%', maxWidth: 110 }}
+                              options={[
+                                { value: 'detail', label: 'Detail' },
+                                { value: 'edit', label: 'Edit' },
+                                { value: 'delete', label: 'Hapus' },
+                              ]}
+                              onChange={(value) => handleRowAction(value, row)}
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                  )}
+                </>
+              ),
+            },
+            {
+              key: 'mengajar',
+              label: (
+                <Flex align="center" gap={8}>
+                  <BookOpen size={16} />
+                  Mengajar
+                </Flex>
+              ),
+              children:
+                sessionRows.length === 0 && !isLoading && !isFetching ? (
+                  <Empty description="Belum ada data sesi mengajar pada rentang ini." />
+                ) : (
+                  <Table
+                    rowKey="id"
+                    loading={isLoading || (isFetching && sessionRows.length > 0)}
+                    dataSource={sessionRows}
+                    tableLayout="fixed"
+                    pagination={{
+                      pageSize: sessionPageSize,
+                      showSizeChanger: true,
+                      pageSizeOptions: PAGE_SIZE_OPTIONS,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} sesi`,
+                      onChange: (_page, size) => setSessionPageSize(size),
+                    }}
+                    columns={[
+                      {
+                        title: 'Tanggal',
+                        dataIndex: 'attendance_date',
+                        ellipsis: true,
+                      },
+                      {
+                        title: 'Guru',
+                        ellipsis: true,
+                        render: (_, row) => renderGuruCell(row),
+                      },
+                      {
+                        title: 'Waktu',
+                        ellipsis: true,
+                        render: (_, row) => renderWaktuCell(row),
+                      },
+                      {
+                        title: 'Masuk',
+                        dataIndex: 'actual_checkin_at',
+                        ellipsis: true,
+                        render: (value) => formatDateTimeCell(value),
+                      },
+                      {
+                        title: 'Keluar',
+                        dataIndex: 'actual_checkout_at',
+                        ellipsis: true,
+                        render: (value) => formatDateTimeCell(value),
+                      },
+                      {
+                        title: 'Aksi',
+                        width: 110,
+                        render: (_, row) => (
+                          <Select
+                            placeholder="Aksi"
+                            value={null}
+                            virtual={false}
+                            style={{ width: '100%', maxWidth: 110 }}
+                            options={[
+                              { value: 'detail', label: 'Detail' },
+                              { value: 'edit', label: 'Edit' },
+                              { value: 'delete', label: 'Hapus' },
+                            ]}
+                            onChange={(value) => handleSessionRowAction(value, row)}
+                          />
+                        ),
+                      },
                     ]}
-                    onChange={(value) => handleRowAction(value, row)}
                   />
                 ),
-              },
-            ]}
-          />
-        )}
+            },
+          ]}
+        />
       </Card>
+
+      <Modal
+        title="Detail Sesi Mengajar"
+        centered
+        open={!!detailSessionRow}
+        onCancel={() => setDetailSessionRow(null)}
+        footer={null}
+        width={720}>
+        {detailSessionRow && (
+          <Descriptions bordered column={isMobile ? 1 : 2} size="small">
+            <Descriptions.Item label="ID">{detailSessionRow.id}</Descriptions.Item>
+            <Descriptions.Item label="Status">
+              <Tag color={SESSION_STATUS_COLORS[detailSessionRow.session_status] || 'default'}>
+                {detailSessionRow.session_status}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Tanggal" span={2}>
+              {formatDetailValue(detailSessionRow.attendance_date)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Nama Guru">{formatDetailValue(detailSessionRow.full_name)}</Descriptions.Item>
+            <Descriptions.Item label="NIP">{formatDetailValue(detailSessionRow.nip)}</Descriptions.Item>
+            <Descriptions.Item label="Kelas">{formatDetailValue(detailSessionRow.class_name)}</Descriptions.Item>
+            <Descriptions.Item label="Mata Pelajaran">{formatDetailValue(detailSessionRow.subject_name)}</Descriptions.Item>
+            <Descriptions.Item label="Jam Ke">{formatSlotRange(detailSessionRow)}</Descriptions.Item>
+            <Descriptions.Item label="Jadwal">{formatSlotTimeRange(detailSessionRow)}</Descriptions.Item>
+            <Descriptions.Item label="Rencana Mulai">
+              {formatDateTimeDetail(detailSessionRow.planned_start_at)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Rencana Selesai">
+              {formatDateTimeDetail(detailSessionRow.planned_end_at)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Masuk Kelas">
+              {formatDateTimeDetail(detailSessionRow.actual_checkin_at)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Keluar Kelas">
+              {formatDateTimeDetail(detailSessionRow.actual_checkout_at)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Terlambat (menit)">{formatDetailValue(detailSessionRow.late_minutes)}</Descriptions.Item>
+            <Descriptions.Item label="Catatan" span={2}>
+              {formatDetailValue(detailSessionRow.notes)}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
 
       <Modal
         title="Detail Presensi Guru"
@@ -699,6 +984,47 @@ const TeacherReport = () => {
           <Input.TextArea
             value={editNotes}
             onChange={(event) => setEditNotes(event.target.value)}
+            placeholder="Catatan"
+            rows={3}
+          />
+        </Flex>
+      </Modal>
+
+      <Modal
+        title="Edit Sesi Mengajar"
+        open={!!editingSessionRow}
+        onCancel={closeEditSessionModal}
+        onOk={handleSaveSessionEdit}
+        confirmLoading={savingSessionEdit}
+        okText="Simpan">
+        <Flex vertical gap={12}>
+          <Select
+            showSearch={{ optionFilterProp: 'label' }}
+            virtual={false}
+            value={editSessionStatus}
+            onChange={setEditSessionStatus}
+            placeholder="Status"
+            options={TEACHER_SESSION_STATUS_OPTIONS}
+          />
+          <DatePicker
+            showTime
+            value={editSessionCheckin}
+            onChange={setEditSessionCheckin}
+            style={{ width: '100%' }}
+            placeholder="Masuk kelas"
+            format="YYYY-MM-DD HH:mm:ss"
+          />
+          <DatePicker
+            showTime
+            value={editSessionCheckout}
+            onChange={setEditSessionCheckout}
+            style={{ width: '100%' }}
+            placeholder="Keluar kelas"
+            format="YYYY-MM-DD HH:mm:ss"
+          />
+          <Input.TextArea
+            value={editSessionNotes}
+            onChange={(event) => setEditSessionNotes(event.target.value)}
             placeholder="Catatan"
             rows={3}
           />

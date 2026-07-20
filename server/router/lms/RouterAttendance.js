@@ -14,7 +14,7 @@ import {
   toJakartaDateString,
   validateScanTimeWindow,
 } from "../../services/attendance/rfidDailyAttendance.js";
-import { applyRfidScanToTeacherSession } from "../../services/attendance/rfidTeacherSession.js";
+import { applyRfidScanToTeacherSession, precheckTeacherClassroomScan } from "../../services/attendance/rfidTeacherSession.js";
 import {
   ACTIVITY_GATE_ACTION,
   applyRfidScanToActivityAttendance,
@@ -38,6 +38,15 @@ const DAILY_ATTENDANCE_STATUSES = new Set([
   "not_scheduled",
   "incomplete",
   "insufficient_hours",
+]);
+
+const TEACHER_SESSION_STATUSES = new Set([
+  "pending",
+  "present",
+  "late",
+  "missed",
+  "partial",
+  "excused",
 ]);
 
 const ALLOWED_STATUSES = new Set([
@@ -185,6 +194,34 @@ const evaluateManualCheckinStatus = (checkinAt, dayRule) => {
   }
 
   return { attendanceStatus: "late", lateMinutes: diffMinutes };
+};
+
+const recalculateTeacherSessionFields = ({
+  checkinAt,
+  checkoutAt,
+  plannedStartAt,
+}) => {
+  if (!checkinAt && !checkoutAt) {
+    return { sessionStatus: "pending", lateMinutes: 0 };
+  }
+
+  if (!checkinAt && checkoutAt) {
+    return { sessionStatus: "partial", lateMinutes: 0 };
+  }
+
+  if (!plannedStartAt) {
+    return { sessionStatus: "present", lateMinutes: 0 };
+  }
+
+  const diffMinutes = Math.floor(
+    (checkinAt.getTime() - new Date(plannedStartAt).getTime()) / 60000,
+  );
+
+  if (diffMinutes <= 0) {
+    return { sessionStatus: "present", lateMinutes: 0 };
+  }
+
+  return { sessionStatus: "late", lateMinutes: diffMinutes };
 };
 
 const recalculateDailyAttendanceFields = ({
@@ -2302,6 +2339,23 @@ router.post(
       if (teacherCheck.rowCount === 0) {
         return rejectAndLog("rejected", "Akses ditolak");
       }
+
+      const sessionPrecheck = await precheckTeacherClassroomScan(client, {
+        homebaseId: device.homebase_id,
+        periodeId: activePeriodeId,
+        userId: card.user_id,
+        classIds: deviceClassIds,
+        classId: devicePrimaryClassId,
+        scannedAt,
+      });
+      if (sessionPrecheck.blocked) {
+        return res.status(400).json({
+          status: "error",
+          result_status: sessionPrecheck.result_status || "duplicate",
+          message: sessionPrecheck.message,
+          scan_log_id: null,
+        });
+      }
     }
 
     if (device.device_type === "extracurricular" && devicePolicyIds.length === 0) {
@@ -2447,6 +2501,23 @@ router.post(
         scanLogId,
         autoResolveSessionAction: !scanActionProvided,
       });
+
+      if (attendanceResult?.blocked) {
+        await client.query(
+          `DELETE FROM attendance.rfid_scan_log WHERE id = $1`,
+          [scanLogId],
+        );
+        res.locals.commitTransaction = true;
+
+        return res.status(400).json({
+          status: "error",
+          result_status: attendanceResult.result_status || "duplicate",
+          message:
+            attendanceResult.message ||
+            "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
+          scan_log_id: null,
+        });
+      }
 
       if (attendanceResult?.scan_action) {
         resolvedScanAction = attendanceResult.scan_action;
@@ -2804,12 +2875,47 @@ router.get(
       sessionSummaryParams,
     );
 
+    const sessionRowsResult = await pool.query(
+      `SELECT
+         tsr.id,
+         TO_CHAR(da.attendance_date, 'YYYY-MM-DD') AS attendance_date,
+         tsr.session_status,
+         ${toJakartaTimestampSql("tsr.planned_start_at")} AS planned_start_at,
+         ${toJakartaTimestampSql("tsr.planned_end_at")} AS planned_end_at,
+         ${toJakartaTimestampSql("tsr.actual_checkin_at")} AS actual_checkin_at,
+         ${toJakartaTimestampSql("tsr.actual_checkout_at")} AS actual_checkout_at,
+         tsr.late_minutes,
+         tsr.notes,
+         u.id AS user_id,
+         u.full_name,
+         t.nip,
+         c.name AS class_name,
+         sub.name AS subject_name,
+         first_slot.slot_no AS first_slot_no,
+         last_slot.slot_no AS last_slot_no,
+         TO_CHAR(first_slot.start_time, 'HH24:MI') AS slot_start_time,
+         TO_CHAR(last_slot.end_time, 'HH24:MI') AS slot_end_time
+       FROM attendance.teacher_schedule_requirement tsr
+       JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+       JOIN u_users u ON u.id = da.user_id
+       JOIN u_teachers t ON t.user_id = da.user_id
+       JOIN public.a_class c ON c.id = tsr.class_id
+       LEFT JOIN lms.l_time_slot first_slot ON first_slot.id = tsr.first_slot_id
+       LEFT JOIN lms.l_time_slot last_slot ON last_slot.id = tsr.last_slot_id
+       LEFT JOIN lms.l_schedule_entry se ON se.id = tsr.schedule_entry_id
+       LEFT JOIN public.a_subject sub ON sub.id = se.subject_id
+       WHERE ${sessionSummaryWhere.join(" AND ")}
+       ORDER BY da.attendance_date DESC, tsr.planned_start_at ASC NULLS LAST, u.full_name ASC`,
+      sessionSummaryParams,
+    );
+
     return res.json({
       status: "success",
       data: {
         summary: summaryResult.rows[0] || {},
         session_summary: sessionSummaryResult.rows[0] || {},
         rows: rowsResult.rows,
+        session_rows: sessionRowsResult.rows,
         filters: {
           start_date: startDate,
           end_date: endDate,
@@ -3222,6 +3328,224 @@ router.post(
       status: "success",
       message: `${deleted.deleted_count} data absensi dan log scan terkait berhasil dihapus.`,
       data: deleted,
+    });
+  }),
+);
+
+router.put(
+  "/attendance/reports/teacher-sessions/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const recordId = normalizeNumberOrNull(req.params?.id);
+    if (!recordId) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID sesi mengajar tidak valid.",
+      });
+    }
+
+    const existingRes = await client.query(
+      `SELECT
+         tsr.id,
+         tsr.actual_checkin_at,
+         tsr.actual_checkout_at,
+         tsr.planned_start_at,
+         tsr.session_status,
+         tsr.teacher_session_log_id
+       FROM attendance.teacher_schedule_requirement tsr
+       JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+       WHERE tsr.id = $1
+         AND da.homebase_id = $2
+       LIMIT 1`,
+      [recordId, homebase_id],
+    );
+    if (existingRes.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Data sesi mengajar tidak ditemukan.",
+      });
+    }
+
+    const existing = existingRes.rows[0];
+    const payload = req.body || {};
+    const hasCheckinField = Object.prototype.hasOwnProperty.call(
+      payload,
+      "actual_checkin_at",
+    );
+    const hasCheckoutField = Object.prototype.hasOwnProperty.call(
+      payload,
+      "actual_checkout_at",
+    );
+    const hasStatusField = Object.prototype.hasOwnProperty.call(
+      payload,
+      "session_status",
+    );
+    const hasNotesField = Object.prototype.hasOwnProperty.call(payload, "notes");
+
+    if (
+      !hasCheckinField &&
+      !hasCheckoutField &&
+      !hasStatusField &&
+      !hasNotesField
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "Minimal satu field actual_checkin_at, actual_checkout_at, session_status, atau notes wajib diisi.",
+      });
+    }
+
+    const checkinAt = hasCheckinField
+      ? parseTimestampOrNull(payload.actual_checkin_at)
+      : existing.actual_checkin_at
+        ? new Date(existing.actual_checkin_at)
+        : null;
+    const checkoutAt = hasCheckoutField
+      ? parseTimestampOrNull(payload.actual_checkout_at)
+      : existing.actual_checkout_at
+        ? new Date(existing.actual_checkout_at)
+        : null;
+
+    if (hasCheckinField && payload.actual_checkin_at && !checkinAt) {
+      return res.status(400).json({
+        status: "error",
+        message: "Format actual_checkin_at tidak valid.",
+      });
+    }
+    if (hasCheckoutField && payload.actual_checkout_at && !checkoutAt) {
+      return res.status(400).json({
+        status: "error",
+        message: "Format actual_checkout_at tidak valid.",
+      });
+    }
+    if (checkinAt && checkoutAt && checkoutAt.getTime() < checkinAt.getTime()) {
+      return res.status(400).json({
+        status: "error",
+        message: "actual_checkout_at tidak boleh lebih awal dari actual_checkin_at.",
+      });
+    }
+
+    const recalculated = recalculateTeacherSessionFields({
+      checkinAt,
+      checkoutAt,
+      plannedStartAt: existing.planned_start_at,
+    });
+
+    let sessionStatus = recalculated.sessionStatus;
+    let lateMinutes = recalculated.lateMinutes;
+
+    if (hasStatusField) {
+      const requestedStatus = String(payload.session_status || "").trim();
+      if (!TEACHER_SESSION_STATUSES.has(requestedStatus)) {
+        return res.status(400).json({
+          status: "error",
+          message: "session_status tidak valid.",
+        });
+      }
+      sessionStatus = requestedStatus;
+    }
+
+    const notesValue = hasNotesField
+      ? String(payload.notes || "").trim() || null
+      : undefined;
+
+    const updated = await client.query(
+      `UPDATE attendance.teacher_schedule_requirement
+       SET
+         actual_checkin_at = $3::timestamptz,
+         actual_checkout_at = $4::timestamptz,
+         session_status = $5,
+         late_minutes = $6,
+         notes = CASE WHEN $7::boolean THEN $8 ELSE notes END,
+         updated_at = NOW()
+       WHERE id = $1
+         AND attendance_id IN (
+           SELECT id FROM attendance.daily_attendance WHERE homebase_id = $2
+         )
+       RETURNING
+         id,
+         session_status,
+         ${toJakartaTimestampSql("actual_checkin_at")} AS actual_checkin_at,
+         ${toJakartaTimestampSql("actual_checkout_at")} AS actual_checkout_at,
+         late_minutes,
+         notes`,
+      [
+        recordId,
+        homebase_id,
+        checkinAt ? checkinAt.toISOString() : null,
+        checkoutAt ? checkoutAt.toISOString() : null,
+        sessionStatus,
+        lateMinutes,
+        hasNotesField,
+        notesValue,
+      ],
+    );
+
+    if (existing.teacher_session_log_id) {
+      await client.query(
+        `UPDATE lms.l_teacher_session_log
+         SET
+           checkin_at = CASE
+             WHEN $2::timestamptz IS NULL THEN NULL
+             ELSE ($2::timestamptz AT TIME ZONE '${JAKARTA_TZ}')::timestamp
+           END,
+           checkout_at = CASE
+             WHEN $3::timestamptz IS NULL THEN NULL
+             ELSE ($3::timestamptz AT TIME ZONE '${JAKARTA_TZ}')::timestamp
+           END,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [
+          existing.teacher_session_log_id,
+          checkinAt ? checkinAt.toISOString() : null,
+          checkoutAt ? checkoutAt.toISOString() : null,
+        ],
+      );
+    }
+
+    return res.json({
+      status: "success",
+      message: "Data sesi mengajar berhasil diperbarui.",
+      data: updated.rows[0],
+    });
+  }),
+);
+
+router.delete(
+  "/attendance/reports/teacher-sessions/:id",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const { homebase_id } = req.user;
+    const recordId = normalizeNumberOrNull(req.params?.id);
+    if (!recordId) {
+      return res.status(400).json({
+        status: "error",
+        message: "ID sesi mengajar tidak valid.",
+      });
+    }
+
+    const deleted = await client.query(
+      `DELETE FROM attendance.teacher_schedule_requirement tsr
+       USING attendance.daily_attendance da
+       WHERE tsr.id = $1
+         AND da.id = tsr.attendance_id
+         AND da.homebase_id = $2
+       RETURNING tsr.id`,
+      [recordId, homebase_id],
+    );
+
+    if (deleted.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Data sesi mengajar tidak ditemukan.",
+      });
+    }
+
+    return res.json({
+      status: "success",
+      message: "Data sesi mengajar berhasil dihapus.",
+      data: { id: deleted.rows[0].id },
     });
   }),
 );

@@ -11,6 +11,25 @@ const SESSION_CHECKIN_ACTION = "teacher_session_checkin";
 const SESSION_CHECKOUT_ACTION = "teacher_session_checkout";
 const SESSION_MATCH_BUFFER_MINUTES = 15;
 
+let teacherSessionLogHasClassId = null;
+
+const teacherSessionLogSupportsClassId = async (client) => {
+  if (teacherSessionLogHasClassId !== null) {
+    return teacherSessionLogHasClassId;
+  }
+
+  const result = await client.query(
+    `SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = 'lms'
+       AND table_name = 'l_teacher_session_log'
+       AND column_name = 'class_id'
+     LIMIT 1`,
+  );
+  teacherSessionLogHasClassId = result.rowCount > 0;
+  return teacherSessionLogHasClassId;
+};
+
 const formatTimeHHmm = (value) => {
   if (!value) return null;
   const text = String(value).trim();
@@ -91,6 +110,100 @@ const pickScheduleEntry = (entries, scannedAt, attendanceDate) => {
   }
 
   return nearest;
+};
+
+const findTeacherSessionRequirement = async (
+  client,
+  { userId, attendanceDate, scheduleEntryId },
+) => {
+  const result = await client.query(
+    `SELECT
+       tsr.id,
+       tsr.actual_checkin_at,
+       tsr.actual_checkout_at,
+       tsr.session_status,
+       tsr.late_minutes
+     FROM attendance.teacher_schedule_requirement tsr
+     JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+     WHERE da.user_id = $1
+       AND da.attendance_date = $2::date
+       AND tsr.schedule_entry_id = $3
+     LIMIT 1`,
+    [userId, attendanceDate, scheduleEntryId],
+  );
+
+  return result.rows[0] || null;
+};
+
+const isTeacherSessionComplete = (requirement) =>
+  Boolean(requirement?.actual_checkin_at && requirement?.actual_checkout_at);
+
+/**
+ * Block classroom taps when the matched teaching session already has
+ * both check-in and check-out recorded. No scan log row should be created.
+ */
+export const precheckTeacherClassroomScan = async (
+  client,
+  {
+    homebaseId,
+    periodeId,
+    userId,
+    classId = null,
+    classIds = null,
+    scannedAt,
+  },
+) => {
+  if (
+    !(await isFeatureEnabled(
+      client,
+      homebaseId,
+      "teacher_class_session_attendance",
+    ))
+  ) {
+    return { blocked: false };
+  }
+
+  const resolvedClassIds = normalizeClassIds(
+    classIds?.length ? classIds : classId != null ? [classId] : [],
+  );
+  if (!resolvedClassIds.length) {
+    return { blocked: false };
+  }
+
+  const attendanceDate = toJakartaDateString(scannedAt);
+  const dayOfWeek = getJakartaIsoDow(scannedAt);
+  const scheduleEntries = await fetchTeacherScheduleEntries(client, {
+    homebaseId,
+    periodeId,
+    teacherId: userId,
+    classIds: resolvedClassIds,
+    dayOfWeek,
+  });
+
+  const scheduleEntry = pickScheduleEntry(
+    scheduleEntries,
+    scannedAt,
+    attendanceDate,
+  );
+  if (!scheduleEntry) {
+    return { blocked: false };
+  }
+
+  const requirement = await findTeacherSessionRequirement(client, {
+    userId,
+    attendanceDate,
+    scheduleEntryId: scheduleEntry.id,
+  });
+
+  if (isTeacherSessionComplete(requirement)) {
+    return {
+      blocked: true,
+      result_status: "duplicate",
+      message: "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
+    };
+  }
+
+  return { blocked: false };
 };
 
 /**
@@ -268,41 +381,75 @@ const upsertTeacherSessionLog = async (
     userId,
   },
 ) => {
-  const existingRes = await client.query(
-    `SELECT id
-     FROM lms.l_teacher_session_log
-     WHERE date = $1::date
-       AND teacher_id = $2
-       AND class_id = $3
-     LIMIT 1`,
-    [attendanceDate, teacherId, classId],
-  );
+  const supportsClassId = await teacherSessionLogSupportsClassId(client);
+
+  const existingRes = supportsClassId
+    ? await client.query(
+        `SELECT id
+         FROM lms.l_teacher_session_log
+         WHERE date = $1::date
+           AND teacher_id = $2
+           AND class_id = $3
+         LIMIT 1`,
+        [attendanceDate, teacherId, classId],
+      )
+    : await client.query(
+        `SELECT id
+         FROM lms.l_teacher_session_log
+         WHERE schedule_entry_id = $1
+           AND date = $2::date
+         LIMIT 1`,
+        [scheduleEntryId, attendanceDate],
+      );
 
   if (existingRes.rowCount === 0) {
-    const inserted = await client.query(
-      `INSERT INTO lms.l_teacher_session_log (
-         schedule_entry_id,
-         class_id,
-         date,
-         teacher_id,
-         checkin_at,
-         checkout_at,
-         checkin_by,
-         checkout_by
-       )
-       VALUES ($1, $2, $3::date, $4, $5::timestamp, $6::timestamp, $7, $8)
-       RETURNING id`,
-      [
-        scheduleEntryId,
-        classId,
-        attendanceDate,
-        teacherId,
-        checkinAt,
-        checkoutAt,
-        checkinAt ? userId : null,
-        checkoutAt ? userId : null,
-      ],
-    );
+    const inserted = supportsClassId
+      ? await client.query(
+          `INSERT INTO lms.l_teacher_session_log (
+             schedule_entry_id,
+             class_id,
+             date,
+             teacher_id,
+             checkin_at,
+             checkout_at,
+             checkin_by,
+             checkout_by
+           )
+           VALUES ($1, $2, $3::date, $4, $5::timestamp, $6::timestamp, $7, $8)
+           RETURNING id`,
+          [
+            scheduleEntryId,
+            classId,
+            attendanceDate,
+            teacherId,
+            checkinAt,
+            checkoutAt,
+            checkinAt ? userId : null,
+            checkoutAt ? userId : null,
+          ],
+        )
+      : await client.query(
+          `INSERT INTO lms.l_teacher_session_log (
+             schedule_entry_id,
+             date,
+             teacher_id,
+             checkin_at,
+             checkout_at,
+             checkin_by,
+             checkout_by
+           )
+           VALUES ($1, $2::date, $3, $4::timestamp, $5::timestamp, $6, $7)
+           RETURNING id`,
+          [
+            scheduleEntryId,
+            attendanceDate,
+            teacherId,
+            checkinAt,
+            checkoutAt,
+            checkinAt ? userId : null,
+            checkoutAt ? userId : null,
+          ],
+        );
     return inserted.rows[0].id;
   }
 
@@ -474,6 +621,14 @@ export const applyRfidScanToTeacherSession = async (
     plannedStartAt,
     plannedEndAt,
   });
+
+  if (isTeacherSessionComplete(requirement)) {
+    return {
+      blocked: true,
+      result_status: "duplicate",
+      message: "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
+    };
+  }
 
   const effectiveScanAction = resolveEffectiveSessionAction({
     scanAction,
