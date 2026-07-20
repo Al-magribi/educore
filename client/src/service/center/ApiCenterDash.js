@@ -5,11 +5,15 @@ export const ApiCenterDash = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: "/api/center" }),
   tagTypes: ["Dashboard"],
   endpoints: (builder) => ({
-    // Endpoint untuk mengambil semua ringkasan dashboard
     getDashboardSummary: builder.query({
-      query: () => "/summary",
+      query: ({ homebase_id, periode_id } = {}) => ({
+        url: "/summary",
+        params: {
+          ...(homebase_id != null ? { homebase_id } : {}),
+          ...(periode_id != null ? { periode_id } : {}),
+        },
+      }),
       providesTags: ["Dashboard"],
-      // Transform response untuk mempermudah konsumsi di UI
       transformResponse: (response) => response.data,
     }),
   }),

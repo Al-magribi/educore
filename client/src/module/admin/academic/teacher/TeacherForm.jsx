@@ -32,12 +32,27 @@ import {
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
-const TeacherForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
+const TeacherForm = ({
+  open,
+  onCancel,
+  onSubmit,
+  initialValues,
+  loading,
+  classesData: classesProp,
+  subjectsData: subjectsProp,
+}) => {
   const [form] = Form.useForm();
 
-  // Fetch Options
-  const { data: classesData } = useGetClassesListQuery();
-  const { data: subjectsData } = useGetSubjectsListQuery();
+  // Fetch Options (skip jika data sudah disuplai dari parent, mis. admin pusat)
+  const { data: classesFromApi } = useGetClassesListQuery(undefined, {
+    skip: Array.isArray(classesProp),
+  });
+  const { data: subjectsFromApi } = useGetSubjectsListQuery(undefined, {
+    skip: Array.isArray(subjectsProp),
+  });
+
+  const classesData = Array.isArray(classesProp) ? classesProp : classesFromApi;
+  const subjectsData = Array.isArray(subjectsProp) ? subjectsProp : subjectsFromApi;
 
   const subjectOptions = useMemo(() => {
     const collator = new Intl.Collator("id", {
