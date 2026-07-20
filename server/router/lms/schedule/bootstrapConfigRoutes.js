@@ -8,6 +8,7 @@ import {
   parseMinute,
   resolveSelectedScheduleConfig,
   resolveSelectedScheduleGroup,
+  syncOperationalScheduleEntryStatuses,
   toInt,
   toTimeString,
 } from "./shared.js";
@@ -1041,6 +1042,11 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           [config.id],
         );
         config = activatedConfigResult.rows[0];
+        await syncOperationalScheduleEntryStatuses(client, {
+          homebaseId: homebase_id,
+          periodeId,
+          activeConfigId: config.id,
+        });
       }
 
       if (hasDaysPayload) {
@@ -1518,6 +1524,12 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
          RETURNING *`,
         [configId, homebase_id, periodeId],
       );
+
+      await syncOperationalScheduleEntryStatuses(client, {
+        homebaseId: homebase_id,
+        periodeId,
+        activeConfigId: configId,
+      });
 
       return res.json({
         status: "success",

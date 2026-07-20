@@ -54,10 +54,10 @@ const ScheduleTimetableCard = ({
   breaks,
   classes,
   grades,
-  teachers,
   teacherAssignments,
   selectedConfig,
   selectedGroup,
+  activeConfigId = null,
   groupCount = 0,
   loading,
   onSelectConfig,
@@ -79,10 +79,17 @@ const ScheduleTimetableCard = ({
     () =>
       (configs || []).map((item) => ({
         value: Number(item.id),
-        label: item.name,
+        label:
+          item.is_active === true
+            ? `${item.name} (Aktif)`
+            : item.name,
       })),
     [configs],
   );
+  const isSelectedConfigActive = selectedConfig?.is_active === true;
+  const activeConfigName =
+    (configs || []).find((item) => Number(item.id) === Number(activeConfigId))
+      ?.name || null;
   const groupOptions = useMemo(
     () =>
       (groups || []).map((item) => ({
@@ -279,36 +286,33 @@ const ScheduleTimetableCard = ({
   }, [activeClasses, activityMap, breaks, entryMap, slotByDay]);
 
   const teacherSummaryRows = useMemo(() => {
-    const grouped = new Map(
-      (teachers || []).map((item) => [
-        Number(item.id),
-        {
-          key: Number(item.id),
-          teacher_name: item.full_name || "-",
-          subject_names: [],
-        },
-      ]),
-    );
+    const grouped = new Map();
 
-    (teacherAssignments || []).forEach((item) => {
-      const teacherId = Number(item.teacher_id);
+    (entries || []).forEach((entry) => {
+      const teacherId = Number(entry.teacher_id);
+      if (!Number.isFinite(teacherId) || teacherId <= 0) return;
+
       if (!grouped.has(teacherId)) {
         grouped.set(teacherId, {
           key: teacherId,
-          teacher_name: item.teacher_name || "-",
+          teacher_name: entry.teacher_name || "-",
           subject_names: [],
+          entry_count: 0,
         });
       }
+
       const row = grouped.get(teacherId);
-      if (!row.subject_names.includes(item.subject_name)) {
-        row.subject_names.push(item.subject_name);
+      row.entry_count += 1;
+      const subjectName = entry.subject_name || entry.subject_code;
+      if (subjectName && !row.subject_names.includes(subjectName)) {
+        row.subject_names.push(subjectName);
       }
     });
 
     return [...grouped.values()].sort((a, b) =>
       (a.teacher_name || "").localeCompare(b.teacher_name || ""),
     );
-  }, [teacherAssignments, teachers]);
+  }, [entries]);
 
   const assignmentMap = useMemo(
     () =>
@@ -649,6 +653,14 @@ const ScheduleTimetableCard = ({
           styles={{ body: SCHEDULE_INNER_CARD_BODY }}
         >
           <Space size={[8, 8]} wrap>
+            <Tag
+              color={isSelectedConfigActive ? "green" : "default"}
+              style={SCHEDULE_TAG_STYLE}
+            >
+              {isSelectedConfigActive
+                ? "Master operasional (aktif)"
+                : "Preview master nonaktif"}
+            </Tag>
             <Tag color='blue' style={SCHEDULE_TAG_STYLE}>
               Entri jadwal: {(entries || []).length}
             </Tag>
@@ -659,17 +671,37 @@ const ScheduleTimetableCard = ({
               Kegiatan aktif: {totalActivityCount}
             </Tag>
             <Tag color='gold' style={SCHEDULE_TAG_STYLE}>
-              Guru aktif: {teacherSummaryRows.length}
+              Guru terjadwal: {teacherSummaryRows.length}
             </Tag>
           </Space>
         </Card>
 
-        <Alert
-          showIcon
-          type='info'
-          message='Penyusunan jadwal dilakukan manual'
-          description='Gunakan tombol Tambah Jadwal Manual untuk menempatkan sesi, lalu klik kotak pelajaran di board untuk mengubah hari, slot, atau jumlah sesi. Validasi bentrok kelas, guru, dan kegiatan tetap berjalan.'
-        />
+        {!isSelectedConfigActive ? (
+          <Alert
+            showIcon
+            type='warning'
+            message='Anda melihat master jadwal yang tidak aktif'
+            description={
+              activeConfigName
+                ? `Absensi RFID dan operasional sekolah memakai master aktif: "${activeConfigName}". Entri di master ini belum menjadi jadwal operasional sampai diaktifkan.`
+                : "Belum ada master jadwal aktif. Aktifkan salah satu master agar absensi RFID dapat mencocokkan jadwal guru."
+            }
+            action={
+              activeConfigId && onSelectConfig ? (
+                <Button size='small' type='primary' onClick={() => onSelectConfig(activeConfigId)}>
+                  Buka jadwal aktif
+                </Button>
+              ) : null
+            }
+          />
+        ) : (
+          <Alert
+            showIcon
+            type='info'
+            message='Penyusunan jadwal dilakukan manual'
+            description='Gunakan tombol Tambah Jadwal Manual untuk menempatkan sesi, lalu klik kotak pelajaran di board untuk mengubah hari, slot, atau jumlah sesi. Validasi bentrok kelas, guru, dan kegiatan tetap berjalan. Jadwal di master aktif dipakai absensi sesi kelas.'
+          />
+        )}
 
         {!timetableRows.length ? (
           <Card
@@ -716,6 +748,11 @@ const ScheduleTimetableCard = ({
                     <ScheduleTeacherMapelTable
                       loading={loading}
                       rows={teacherSummaryRows}
+                      sourceLabel={
+                        isSelectedConfigActive
+                          ? "jadwal final master aktif"
+                          : "jadwal final master yang dipilih"
+                      }
                     />
                   ),
                 },

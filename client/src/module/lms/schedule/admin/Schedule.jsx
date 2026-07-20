@@ -108,13 +108,21 @@ const Schedule = () => {
     );
     if (!hasSelectedConfig) {
       const fallbackId = Number(
-        payload.selected_config_id || scheduleConfigs[0]?.id,
+        activeConfigId ||
+          payload.selected_config_id ||
+          scheduleConfigs.find((item) => item.is_active === true)?.id ||
+          scheduleConfigs[0]?.id,
       );
       if (fallbackId && fallbackId !== Number(selectedConfigId)) {
         setSelectedConfigId(fallbackId);
       }
     }
-  }, [payload.selected_config_id, scheduleConfigs, selectedConfigId]);
+  }, [
+    activeConfigId,
+    payload.selected_config_id,
+    scheduleConfigs,
+    selectedConfigId,
+  ]);
 
   useEffect(() => {
     if (!configGroups.length) {
@@ -510,12 +518,19 @@ const Schedule = () => {
     ) : !isSelectedConfigActive ? (
       <Alert
         showIcon
-        type='info'
+        type='warning'
         title='Jadwal yang dipilih masih nonaktif'
-        description={`Konfigurasi, kegiatan, dan jadwal final menampilkan data master yang sedang dipilih. Jadwal aktif operasional saat ini: ${
+        description={`Anda sedang mengedit master nonaktif. Absensi RFID dan operasional sekolah memakai master aktif: ${
           scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
             ?.name || "belum ditentukan"
-        }.`}
+        }. Aktifkan master ini jika ingin menjadikannya jadwal operasional.`}
+        action={
+          activeConfigId ? (
+            <Button size='small' type='primary' onClick={() => setSelectedConfigId(activeConfigId)}>
+              Buka jadwal aktif
+            </Button>
+          ) : null
+        }
       />
     ) : null;
 
@@ -753,9 +768,9 @@ const Schedule = () => {
                       classes={scopedClasses}
                       grades={payload.grades || []}
                       teacherAssignments={scopedTeacherAssignments}
-                      teachers={payload.teachers || []}
                       selectedConfig={selectedConfig}
                       selectedGroup={selectedGroup}
+                      activeConfigId={activeConfigId}
                       groupCount={configGroups.length}
                       onSelectConfig={setSelectedConfigId}
                       onSelectGroup={setSelectedGroupId}

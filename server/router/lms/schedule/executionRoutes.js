@@ -4,6 +4,7 @@ import {
   dayLabels,
   ensureActivePeriode,
   ensureTeachingLoad,
+  resolveScheduleEntryStatusForConfig,
   resolveScheduleSegment,
   resolveTeacherAssignment,
   toInt,
@@ -115,6 +116,10 @@ export const registerScheduleExecutionRoutes = (router) => {
         [resolvedSegment.configId, teachingLoadId],
       );
       const meetingNo = Number(meetingNoResult.rows[0]?.next_meeting_no || 1);
+      const entryStatus = await resolveScheduleEntryStatusForConfig(
+        client,
+        resolvedSegment.configId,
+      );
 
       const entryResult = await client.query(
         `INSERT INTO lms.l_schedule_entry (
@@ -134,7 +139,7 @@ export const registerScheduleExecutionRoutes = (router) => {
            status,
            created_by
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'manual', true, 'draft', $12)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'manual', true, $12, $13)
          RETURNING *`,
         [
           homebase_id,
@@ -148,6 +153,7 @@ export const registerScheduleExecutionRoutes = (router) => {
           resolvedSegment.startSlotId,
           nextSlotCount,
           meetingNo,
+          entryStatus,
           userId,
         ],
       );
@@ -478,6 +484,11 @@ export const registerScheduleExecutionRoutes = (router) => {
         });
       }
 
+      const entryStatus = await resolveScheduleEntryStatusForConfig(
+        client,
+        resolvedSegment.configId || existing.config_id,
+      );
+
       await client.query(
         `UPDATE lms.l_schedule_entry
          SET config_id = $2,
@@ -486,6 +497,10 @@ export const registerScheduleExecutionRoutes = (router) => {
              slot_count = $5,
              source_type = 'manual',
              is_manual_override = true,
+             status = CASE
+               WHEN status = 'archived' THEN status
+               ELSE $6
+             END,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [
@@ -494,6 +509,7 @@ export const registerScheduleExecutionRoutes = (router) => {
           nextDay,
           resolvedSegment.startSlotId,
           nextSlotCount,
+          entryStatus,
         ],
       );
 

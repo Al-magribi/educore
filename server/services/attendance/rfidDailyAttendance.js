@@ -64,12 +64,17 @@ export const countTeacherScheduleSessions = async (
 
   const result = await client.query(
     `SELECT COUNT(*)::int AS total
-     FROM lms.l_schedule_entry
-     WHERE homebase_id = $1
-       AND periode_id = $2
-       AND teacher_id = $3
-       AND day_of_week = $4
-       AND status = 'published'`,
+     FROM lms.l_schedule_entry se
+     JOIN lms.l_schedule_config cfg
+       ON cfg.id = se.config_id
+      AND cfg.homebase_id = se.homebase_id
+      AND cfg.periode_id = se.periode_id
+      AND cfg.is_active = true
+     WHERE se.homebase_id = $1
+       AND se.periode_id = $2
+       AND se.teacher_id = $3
+       AND se.day_of_week = $4
+       AND se.status <> 'archived'`,
     [homebaseId, periodeId, teacherId, dayOfWeek],
   );
 

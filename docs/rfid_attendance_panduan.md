@@ -137,10 +137,11 @@ sequenceDiagram
 ```
 
 1. Admin mengaktifkan **Absensi Sesi Kelas Guru** (`teacher_class_session_attendance`).
-2. Setiap kelas yang punya jadwal mengajar sebaiknya punya device `classroom` dengan `class_id` yang sesuai.
-3. Guru tap saat mulai mengajar → `teacher_session_checkin`.
-4. Guru tap saat selesai → `teacher_session_checkout`.
-5. Hasil sesi dikaitkan ke `attendance.teacher_schedule_requirement` berdasarkan jadwal (`l_schedule_entry`).
+2. Pastikan ada **master jadwal aktif** di LMS Schedule; absensi hanya mencocokkan entri non-archived pada master tersebut.
+3. Setiap kelas yang punya jadwal mengajar sebaiknya punya device `classroom` dengan mapping kelas yang sesuai.
+4. Guru tap saat mulai mengajar → `teacher_session_checkin` (auto jika `scan_action` kosong).
+5. Guru tap saat selesai → `teacher_session_checkout`.
+6. Hasil sesi dikaitkan ke `attendance.teacher_schedule_requirement` berdasarkan jadwal (`l_schedule_entry` master aktif).
 
 ---
 

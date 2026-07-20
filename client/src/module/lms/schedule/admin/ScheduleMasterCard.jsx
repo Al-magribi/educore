@@ -101,12 +101,12 @@ const ScheduleMasterCard = ({
     ) : !isSelectedConfigActive ? (
       <Alert
         showIcon
-        type="info"
+        type="warning"
         message="Jadwal yang dipilih masih nonaktif"
-        description={`Konfigurasi, kegiatan, dan jadwal final menampilkan data master yang sedang dipilih. Untuk menjadikannya jadwal operasional sekolah, aktifkan terlebih dahulu. Jadwal aktif saat ini: ${
+        description={`Anda sedang mengedit master nonaktif. Absensi RFID memakai master aktif: ${
           scheduleConfigs.find((item) => Number(item.id) === activeConfigId)
             ?.name || "belum ditentukan"
-        }.`}
+        }. Aktifkan master ini agar menjadi jadwal operasional.`}
       />
     ) : null;
 

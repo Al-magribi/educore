@@ -90,11 +90,16 @@ const syncTeacherScheduleRequirements = async (
        ORDER BY ts.end_time DESC, ses.id DESC
        LIMIT 1
      ) AS slot_last ON true
+     JOIN lms.l_schedule_config cfg
+       ON cfg.id = se.config_id
+      AND cfg.homebase_id = se.homebase_id
+      AND cfg.periode_id = se.periode_id
+      AND cfg.is_active = true
      WHERE se.homebase_id = $2
        AND se.periode_id = $3
        AND se.teacher_id = $4
        AND se.day_of_week = EXTRACT(ISODOW FROM $5::date)::int
-       AND se.status = 'published'
+       AND se.status <> 'archived'
      ON CONFLICT (attendance_id, schedule_entry_id) DO NOTHING`,
     [attendanceId, homebaseId, periodeId, teacherId, attendanceDate],
   );

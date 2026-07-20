@@ -75,6 +75,52 @@ export const resolveSelectedScheduleConfig = async ({
   };
 };
 
+/** Operational status for schedule entries on the currently active master. */
+export const resolveScheduleEntryStatusForConfig = async (executor, configId) => {
+  if (!configId) return "draft";
+  const result = await executor.query(
+    `SELECT is_active
+     FROM lms.l_schedule_config
+     WHERE id = $1
+     LIMIT 1`,
+    [configId],
+  );
+  return result.rows[0]?.is_active === true ? "published" : "draft";
+};
+
+/**
+ * When a master becomes operational: publish its non-archived entries and
+ * demote published entries on other masters in the same periode back to draft.
+ */
+export const syncOperationalScheduleEntryStatuses = async (
+  client,
+  { homebaseId, periodeId, activeConfigId },
+) => {
+  if (!homebaseId || !periodeId || !activeConfigId) return;
+
+  await client.query(
+    `UPDATE lms.l_schedule_entry
+     SET status = 'draft',
+         updated_at = CURRENT_TIMESTAMP
+     WHERE homebase_id = $1
+       AND periode_id = $2
+       AND config_id IS DISTINCT FROM $3
+       AND status = 'published'`,
+    [homebaseId, periodeId, activeConfigId],
+  );
+
+  await client.query(
+    `UPDATE lms.l_schedule_entry
+     SET status = 'published',
+         updated_at = CURRENT_TIMESTAMP
+     WHERE homebase_id = $1
+       AND periode_id = $2
+       AND config_id = $3
+       AND status <> 'archived'`,
+    [homebaseId, periodeId, activeConfigId],
+  );
+};
+
 export const normalizeScheduleConfigName = (value, fallbackIndex = 1) => {
   const rawValue = String(value || "").trim();
   if (rawValue) return rawValue;

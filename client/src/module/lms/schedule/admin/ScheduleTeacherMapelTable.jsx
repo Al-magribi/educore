@@ -8,7 +8,7 @@ import {
 
 const { Text } = Typography;
 
-const ScheduleTeacherMapelTable = ({ loading, rows }) => {
+const ScheduleTeacherMapelTable = ({ loading, rows, sourceLabel }) => {
   const columns = useMemo(
     () => [
       {
@@ -85,12 +85,14 @@ const ScheduleTeacherMapelTable = ({ loading, rows }) => {
       {
         title: "Status",
         key: "status",
-        width: 180,
+        width: 220,
         render: (_, record) =>
-          record.subject_names.length > 0 ? (
-            <Tag color="green">Terdaftar di alokasi mengajar</Tag>
+          record.entry_count > 0 ? (
+            <Tag color="green">
+              {record.entry_count} sesi di {sourceLabel || "jadwal final"}
+            </Tag>
           ) : (
-            <Text type="secondary">Belum ada mapel</Text>
+            <Text type="secondary">Belum ada sesi terjadwal</Text>
           ),
         onHeaderCell: () => ({
           style: {
@@ -110,7 +112,7 @@ const ScheduleTeacherMapelTable = ({ loading, rows }) => {
         }),
       },
     ],
-    [],
+    [sourceLabel],
   );
 
   return (
@@ -123,7 +125,9 @@ const ScheduleTeacherMapelTable = ({ loading, rows }) => {
       dataSource={rows}
       pagination={false}
       scroll={{ y: 520 }}
-      locale={{ emptyText: "Belum ada data guru." }}
+      locale={{
+        emptyText: "Belum ada guru terjadwal pada jadwal final ini.",
+      }}
       sticky
     />
   );

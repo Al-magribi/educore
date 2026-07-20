@@ -94,8 +94,9 @@ const pickScheduleEntry = (entries, scannedAt, attendanceDate) => {
 };
 
 /**
- * Find published schedule entries for a teacher across one or more classes
+ * Find operational schedule entries for a teacher across one or more classes
  * mapped to a classroom RFID device.
+ * Only entries on the active schedule master (non-archived) are considered.
  */
 export const fetchTeacherScheduleEntries = async (
   client,
@@ -124,6 +125,11 @@ export const fetchTeacherScheduleEntries = async (
      LEFT JOIN public.a_subject sub ON sub.id = se.subject_id
      JOIN lms.l_time_slot start_slot
        ON start_slot.id = se.slot_start_id
+     JOIN lms.l_schedule_config cfg
+       ON cfg.id = se.config_id
+      AND cfg.homebase_id = se.homebase_id
+      AND cfg.periode_id = se.periode_id
+      AND cfg.is_active = true
      LEFT JOIN LATERAL (
        SELECT
          ses.slot_id AS last_slot_id,
@@ -140,7 +146,7 @@ export const fetchTeacherScheduleEntries = async (
        AND se.teacher_id = $3
        AND se.class_id = ANY($4::int[])
        AND se.day_of_week = $5
-       AND se.status = 'published'
+       AND se.status <> 'archived'
      ORDER BY start_slot.start_time ASC, se.id ASC`,
     [homebaseId, periodeId, teacherId, normalizedClassIds, dayOfWeek],
   );

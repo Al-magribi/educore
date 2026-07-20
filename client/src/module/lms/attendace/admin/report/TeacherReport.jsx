@@ -118,7 +118,7 @@ const GUIDE_STATUS_ITEMS = [
     status: 'not_scheduled',
     label: 'Not Scheduled (Tidak Berjadwal)',
     description:
-      'Guru tap kartu di gate, tetapi tidak ada jadwal mengajar yang aktif (published) untuk guru tersebut di hari tap — misalnya tap di hari Minggu atau Senin padahal guru tidak mengajar.',
+      'Guru tap kartu di gate, tetapi tidak ada jadwal mengajar pada master jadwal aktif untuk guru tersebut di hari tap — misalnya tap di hari Minggu atau Senin padahal guru tidak mengajar.',
   },
   {
     status: 'incomplete',
@@ -175,7 +175,7 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
             'Server menentukan otomatis apakah tap ini datang atau pulang berdasarkan presensi hari itu (tap pertama = datang, tap kedua = pulang).',
             'Sistem memvalidasi device, kartu, dan user. Scan duplikat di hari yang sama ditolak.',
             'Sistem mengecek policy absensi yang berlaku untuk guru tersebut (berdasarkan assignment: user, homebase, dll.).',
-            'Untuk policy bertipe schedule-based: sistem mengecek apakah guru punya jadwal mengajar (published) di hari tap.',
+            'Untuk policy bertipe schedule-based: sistem mengecek apakah guru punya jadwal mengajar pada master jadwal aktif di hari tap.',
             'Sistem menentukan status harian dan menyimpan ke data presensi, lalu menghubungkannya dengan log scan.',
           ].map((step, index) => (
             <Flex key={step} gap={10} align="flex-start">
@@ -257,7 +257,7 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
           </Text>
           <Text>
             • <Text strong>Device classroom</Text> dapat dipetakan ke banyak kelas. Saat guru
-            tap, sistem mencocokkan jadwal published (kelas, jam keberapa, jam mulai/selesai)
+            tap, sistem mencocokkan jadwal pada <Text strong>master jadwal aktif</Text> (kelas, jam keberapa, jam mulai/selesai)
             lalu mencatat check-in/check-out sesi — bukan status harian gate di laporan ini.
           </Text>
           <Text>

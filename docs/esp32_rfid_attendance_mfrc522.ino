@@ -17,7 +17,7 @@
   Catatan device classroom (1 device banyak kelas):
     - Device TIDAK perlu mengirim class_id.
     - Mapping kelas diatur di LMS (Device RFID → pilih banyak kelas).
-    - Server mencocokkan guru + jadwal published + kelas yang terikat device
+    - Server mencocokkan guru + jadwal master aktif (non-archived) + kelas yang terikat device
       untuk menentukan kelas, jam keberapa, dan check-in/check-out.
     - Hanya guru yang boleh tap; siswa/lainnya → "Akses ditolak".
 
