@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { useGetDashboardSummaryQuery } from "../../../service/center/ApiCenterDash";
+import React, { useMemo, useState } from 'react';
+import { useGetDashboardSummaryQuery } from '../../../service/center/ApiCenterDash';
 import {
   Alert,
   Card,
@@ -9,27 +9,24 @@ import {
   Grid,
   Progress,
   Row,
+  Select,
   Space,
   Spin,
   Statistic,
   Table,
   Tag,
   Typography,
-} from "antd";
-import { motion } from "framer-motion";
+} from 'antd';
+import { motion } from 'framer-motion';
 import {
-  CheckCircleOutlined,
+  BankOutlined,
+  CalendarOutlined,
   FieldTimeOutlined,
   ReadOutlined,
   TeamOutlined,
   UserOutlined,
-} from "@ant-design/icons";
-import {
-  Activity,
-  BookOpenCheck,
-  CalendarCheck2,
-  GraduationCap,
-} from "lucide-react";
+} from '@ant-design/icons';
+import { Activity, BookOpenCheck, GraduationCap } from 'lucide-react';
 
 const { Title, Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
@@ -59,104 +56,114 @@ const itemVariants = {
 
 const statCardStyle = {
   borderRadius: 22,
-  height: "100%",
-  border: "1px solid rgba(148, 163, 184, 0.16)",
-  boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+  height: '100%',
+  border: '1px solid rgba(148, 163, 184, 0.16)',
+  boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
 };
 
 const attendanceColorMap = {
-  Hadir: "#2563eb",
-  Sakit: "#f59e0b",
-  Izin: "#06b6d4",
-  Alpha: "#ef4444",
+  Hadir: '#2563eb',
+  Sakit: '#f59e0b',
+  Izin: '#06b6d4',
+  Alpha: '#ef4444',
 };
 
 const CenterDash = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const { data, isLoading, isError } = useGetDashboardSummaryQuery();
+  const [homebaseId, setHomebaseId] = useState(null);
+  const [periodeId, setPeriodeId] = useState(null);
+
+  const { data, isLoading, isFetching, isError } = useGetDashboardSummaryQuery({
+    homebase_id: homebaseId ?? undefined,
+    periode_id: periodeId ?? undefined,
+  });
+
+  const selectedHomebaseId = homebaseId ?? data?.selected_homebase_id ?? undefined;
+  const selectedPeriodeId = periodeId ?? data?.selected_periode_id ?? undefined;
+
+  const homebases = data?.homebases || [];
+  const periods = data?.periods || [];
   const attendanceSource = data?.attendance;
   const logsSource = data?.logs;
   const statsSource = data?.stats;
 
-  const attendanceData = useMemo(
-    () => attendanceSource || [],
-    [attendanceSource],
-  );
+  const attendanceData = useMemo(() => attendanceSource || [], [attendanceSource]);
   const logsData = useMemo(() => logsSource || [], [logsSource]);
   const stats = useMemo(() => statsSource || {}, [statsSource]);
 
+  const selectedHomebaseName = useMemo(() => {
+    const found = homebases.find((h) => Number(h.id) === Number(selectedHomebaseId));
+    return found?.name || null;
+  }, [homebases, selectedHomebaseId]);
+
+  const selectedPeriodeName = useMemo(() => {
+    const found = periods.find((p) => Number(p.id) === Number(selectedPeriodeId));
+    return found?.name || null;
+  }, [periods, selectedPeriodeId]);
+
   const totalAttendance = useMemo(
-    () =>
-      attendanceData.reduce(
-        (acc, curr) => acc + Number.parseInt(curr.count, 10),
-        0,
-      ) || 0,
+    () => attendanceData.reduce((acc, curr) => acc + Number.parseInt(curr.count, 10), 0) || 0,
     [attendanceData],
   );
 
+  const handleHomebaseChange = (val) => {
+    setHomebaseId(val);
+    setPeriodeId(null);
+  };
+
   const statCards = [
     {
-      key: "students",
-      title: "Total Siswa",
+      key: 'students',
+      title: 'Total Siswa',
       value: stats.students || 0,
-      prefix: <UserOutlined style={{ color: "#2563eb" }} />,
-      note: "Peserta aktif dalam sistem pusat.",
+      prefix: <UserOutlined style={{ color: '#2563eb' }} />,
+      note: 'Peserta aktif pada satuan & periode terpilih.',
       icon: <GraduationCap size={18} />,
-      background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-      color: "#1d4ed8",
+      background: 'linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)',
+      color: '#1d4ed8',
     },
     {
-      key: "teachers",
-      title: "Total Guru",
+      key: 'teachers',
+      title: 'Total Guru',
       value: stats.teachers || 0,
-      prefix: <TeamOutlined style={{ color: "#16a34a" }} />,
-      note: "Pengajar yang terdaftar dan aktif.",
+      prefix: <TeamOutlined style={{ color: '#16a34a' }} />,
+      note: 'Pengajar aktif pada satuan terpilih.',
       icon: <Activity size={18} />,
-      background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-      color: "#15803d",
+      background: 'linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)',
+      color: '#15803d',
     },
     {
-      key: "exams",
-      title: "Ujian Aktif (CBT)",
+      key: 'exams',
+      title: 'Ujian Aktif (CBT)',
       value: stats.activeExams || 0,
-      prefix: <ReadOutlined style={{ color: "#d97706" }} />,
-      note: "Sesi ujian yang sedang tersedia.",
+      prefix: <ReadOutlined style={{ color: '#d97706' }} />,
+      note: 'Sesi ujian aktif pada satuan terpilih.',
       icon: <BookOpenCheck size={18} />,
-      background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-      color: "#b45309",
-    },
-    {
-      key: "tahfiz",
-      title: "Setoran Tahfiz (Hari Ini)",
-      value: stats.tahfizToday || 0,
-      prefix: <CheckCircleOutlined style={{ color: "#7c3aed" }} />,
-      note: "Pencapaian harian setoran hafalan.",
-      icon: <CalendarCheck2 size={18} />,
-      background: "linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%)",
-      color: "#7c3aed",
+      background: 'linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)',
+      color: '#b45309',
     },
   ];
 
   const logColumns = [
     {
-      title: "Waktu",
-      dataIndex: "created_at",
-      key: "created_at",
-      render: (text) => new Date(text).toLocaleString("id-ID"),
+      title: 'Waktu',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (text) => new Date(text).toLocaleString('id-ID'),
     },
     {
-      title: "User",
-      dataIndex: "full_name",
-      key: "full_name",
+      title: 'User',
+      dataIndex: 'full_name',
+      key: 'full_name',
       render: (text) => <Text strong>{text}</Text>,
     },
     {
-      title: "Aktivitas",
-      dataIndex: "action",
-      key: "action",
+      title: 'Aktivitas',
+      dataIndex: 'action',
+      key: 'action',
       render: (text) => (
-        <Tag color='blue' style={{ borderRadius: 999, margin: 0 }}>
+        <Tag color="blue" style={{ borderRadius: 999, margin: 0 }}>
           {text}
         </Tag>
       ),
@@ -165,77 +172,125 @@ const CenterDash = () => {
 
   if (isLoading) {
     return (
-      <Card
-        variant='borderless'
-        style={{ borderRadius: 24 }}
-        styles={{ body: { padding: 48, textAlign: "center" } }}
-      >
-        <Spin size='large' />
+      <Card variant="borderless" style={{ borderRadius: 24 }} styles={{ body: { padding: 48, textAlign: 'center' } }}>
+        <Spin size="large" />
       </Card>
     );
   }
 
   if (isError) {
-    return (
-      <Alert message='Gagal memuat data dashboard' type='error' showIcon />
-    );
+    return <Alert message="Gagal memuat data dashboard" type="error" showIcon />;
   }
 
   return (
     <MotionDiv
-      initial='hidden'
-      animate='show'
+      initial="hidden"
+      animate="show"
       variants={containerVariants}
-      style={{ display: "flex", flexDirection: "column", gap: 18 }}
-    >
+      style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <MotionDiv variants={itemVariants}>
         <Card
-          variant='borderless'
+          variant="borderless"
           style={{
             borderRadius: 28,
-            overflow: "hidden",
+            overflow: 'hidden',
             background:
-              "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)",
-            boxShadow: "0 24px 52px rgba(15, 23, 42, 0.16)",
+              'radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)',
+            boxShadow: '0 24px 52px rgba(15, 23, 42, 0.16)',
           }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}
-        >
+          styles={{ body: { padding: isMobile ? 20 : 28 } }}>
           <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
+            justify="space-between"
+            align={isMobile ? 'stretch' : 'flex-start'}
             gap={18}
-            wrap='wrap'
-            style={{ flexDirection: isMobile ? "column" : "row" }}
-          >
-            <div style={{ maxWidth: 760 }}>
+            wrap="wrap"
+            style={{ flexDirection: isMobile ? 'column' : 'row' }}>
+            <div style={{ maxWidth: 760, flex: 1 }}>
               <Text
                 style={{
-                  color: "rgba(255,255,255,0.74)",
-                  display: "block",
+                  color: 'rgba(255,255,255,0.74)',
+                  display: 'block',
                   marginBottom: 8,
-                }}
-              >
+                }}>
                 Dashboard Center
               </Text>
-              <Title
-                level={isMobile ? 4 : 2}
-                style={{ margin: 0, color: "#fff", lineHeight: 1.12 }}
-              >
-                Ringkasan operasional pusat dalam satu dashboard
+              <Title level={isMobile ? 4 : 2} style={{ margin: 0, color: '#fff', lineHeight: 1.12 }}>
+                Ringkasan operasional per satuan & periode
               </Title>
               <Paragraph
                 style={{
                   marginTop: 10,
                   marginBottom: 0,
-                  color: "rgba(255,255,255,0.82)",
+                  color: 'rgba(255,255,255,0.82)',
                   maxWidth: 760,
-                }}
-              >
-                Pantau statistik siswa, guru, ujian aktif, kehadiran harian, dan
-                aktivitas sistem terbaru dengan tampilan yang lebih rapi dan
-                mudah dibaca.
+                }}>
+                Pilih satuan pendidikan dan periode ajaran untuk melihat statistik siswa, guru, ujian aktif, kehadiran,
+                serta aktivitas sistem yang relevan.
               </Paragraph>
+              {(selectedHomebaseName || selectedPeriodeName) && (
+                <Space wrap size={[8, 8]} style={{ marginTop: 14 }}>
+                  {selectedHomebaseName && (
+                    <Tag
+                      icon={<BankOutlined />}
+                      style={{
+                        margin: 0,
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.14)',
+                        borderColor: 'rgba(255,255,255,0.22)',
+                        color: '#e0f2fe',
+                      }}>
+                      {selectedHomebaseName}
+                    </Tag>
+                  )}
+                  {selectedPeriodeName && (
+                    <Tag
+                      icon={<CalendarOutlined />}
+                      style={{
+                        margin: 0,
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.14)',
+                        borderColor: 'rgba(255,255,255,0.22)',
+                        color: '#e0f2fe',
+                      }}>
+                      {selectedPeriodeName}
+                    </Tag>
+                  )}
+                </Space>
+              )}
             </div>
+
+            <Space
+              direction={isMobile ? 'vertical' : 'horizontal'}
+              size={12}
+              style={{ width: isMobile ? '100%' : 'auto', minWidth: isMobile ? undefined : 420 }}>
+              <Select
+                style={{ width: isMobile ? '100%' : 220 }}
+                value={selectedHomebaseId != null ? Number(selectedHomebaseId) : undefined}
+                onChange={handleHomebaseChange}
+                placeholder="Pilih Satuan"
+                loading={isFetching}
+                suffixIcon={<BankOutlined style={{ color: '#64748b' }} />}
+                options={homebases.map((h) => ({
+                  value: Number(h.id),
+                  label: h.name,
+                }))}
+                notFoundContent="Belum ada satuan"
+              />
+              <Select
+                style={{ width: isMobile ? '100%' : 220 }}
+                value={selectedPeriodeId != null ? Number(selectedPeriodeId) : undefined}
+                onChange={(val) => setPeriodeId(val)}
+                placeholder="Pilih Periode"
+                loading={isFetching}
+                disabled={!selectedHomebaseId || periods.length === 0}
+                suffixIcon={<CalendarOutlined style={{ color: '#64748b' }} />}
+                options={periods.map((p) => ({
+                  value: Number(p.id),
+                  label: `${p.name}${p.is_active ? ' · Aktif' : ''}`,
+                }))}
+                notFoundContent="Belum ada periode"
+              />
+            </Space>
           </Flex>
         </Card>
       </MotionDiv>
@@ -243,20 +298,12 @@ const CenterDash = () => {
       <MotionDiv variants={itemVariants}>
         <Row gutter={[16, 16]}>
           {statCards.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={6}>
-              <Card
-                variant='borderless'
-                style={statCardStyle}
-                styles={{ body: { padding: 18 } }}
-              >
-                <Flex justify='space-between' align='start' gap={14}>
+            <Col key={item.key} xs={24} sm={12} xl={8}>
+              <Card variant="borderless" style={statCardStyle} styles={{ body: { padding: 18 } }}>
+                <Flex justify="space-between" align="start" gap={14}>
                   <div style={{ flex: 1 }}>
-                    <Statistic
-                      title={item.title}
-                      value={item.value}
-                      prefix={item.prefix}
-                    />
-                    <Text type='secondary' style={{ fontSize: 12 }}>
+                    <Statistic title={item.title} value={item.value} prefix={item.prefix} />
+                    <Text type="secondary" style={{ fontSize: 12 }}>
                       {item.note}
                     </Text>
                   </div>
@@ -265,14 +312,13 @@ const CenterDash = () => {
                       width: 46,
                       height: 46,
                       borderRadius: 16,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       background: item.background,
                       color: item.color,
                       flexShrink: 0,
-                    }}
-                  >
+                    }}>
                     {item.icon}
                   </div>
                 </Flex>
@@ -286,44 +332,34 @@ const CenterDash = () => {
         <Row gutter={[18, 18]}>
           <Col xs={24} lg={10}>
             <Card
-              variant='borderless'
-              title='Kehadiran Hari Ini'
+              variant="borderless"
+              title="Kehadiran Hari Ini"
               style={{
                 borderRadius: 24,
-                boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-                height: "100%",
+                boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
+                height: '100%',
               }}
-              styles={{ body: { padding: isMobile ? 16 : 20 } }}
-            >
+              styles={{ body: { padding: isMobile ? 16 : 20 } }}>
               {attendanceData.length > 0 ? (
                 <Flex vertical gap={14}>
                   {attendanceData.map((item, index) => {
                     const count = Number.parseInt(item.count, 10) || 0;
-                    const percent =
-                      totalAttendance > 0
-                        ? Number(((count / totalAttendance) * 100).toFixed(1))
-                        : 0;
-                    const color = attendanceColorMap[item.status] || "#2563eb";
+                    const percent = totalAttendance > 0 ? Number(((count / totalAttendance) * 100).toFixed(1)) : 0;
+                    const color = attendanceColorMap[item.status] || '#2563eb';
 
                     return (
                       <Card
                         key={`${item.status}-${index}`}
-                        variant='borderless'
+                        variant="borderless"
                         style={{
                           borderRadius: 18,
-                          background: "#f8fafc",
+                          background: '#f8fafc',
                         }}
-                        styles={{ body: { padding: 16 } }}
-                      >
-                        <Flex
-                          justify='space-between'
-                          align='center'
-                          gap={12}
-                          style={{ marginBottom: 10 }}
-                        >
-                          <Space direction='vertical' size={0}>
+                        styles={{ body: { padding: 16 } }}>
+                        <Flex justify="space-between" align="center" gap={12} style={{ marginBottom: 10 }}>
+                          <Space direction="vertical" size={0}>
                             <Text strong>{item.status}</Text>
-                            <Text type='secondary' style={{ fontSize: 12 }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
                               {percent}% dari total presensi
                             </Text>
                           </Space>
@@ -333,57 +369,45 @@ const CenterDash = () => {
                               borderRadius: 999,
                               background: `${color}16`,
                               color,
-                              borderColor: "transparent",
+                              borderColor: 'transparent',
                               fontWeight: 700,
-                            }}
-                          >
+                            }}>
                             {count} siswa
                           </Tag>
                         </Flex>
-                        <Progress
-                          percent={percent}
-                          strokeColor={color}
-                          size='small'
-                        />
+                        <Progress percent={percent} strokeColor={color} size="small" />
                       </Card>
                     );
                   })}
                 </Flex>
               ) : (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description='Belum ada data presensi hari ini'
-                />
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada data presensi hari ini" />
               )}
             </Card>
           </Col>
 
           <Col xs={24} lg={14}>
             <Card
-              variant='borderless'
+              variant="borderless"
               title={
-                <Space align='center' size={8}>
+                <Space align="center" size={8}>
                   <FieldTimeOutlined />
                   <span>Aktivitas Sistem Terakhir</span>
                 </Space>
               }
               style={{
                 borderRadius: 24,
-                boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-                height: "100%",
+                boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
+                height: '100%',
               }}
-              styles={{ body: { padding: 0 } }}
-            >
+              styles={{ body: { padding: 0 } }}>
               <Table
                 dataSource={logsData}
                 columns={logColumns}
                 pagination={false}
-                rowKey={(record) =>
-                  `${record.created_at}-${record.full_name}-${record.action}`
-                }
-                size='small'
-                scroll={{ x: 640 }}
-                locale={{ emptyText: "Belum ada aktivitas sistem terbaru." }}
+                rowKey={(record) => `${record.created_at}-${record.full_name}-${record.action}`}
+                size="small"
+                locale={{ emptyText: 'Belum ada aktivitas sistem terbaru.' }}
               />
             </Card>
           </Col>

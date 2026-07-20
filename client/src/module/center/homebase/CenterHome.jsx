@@ -10,6 +10,7 @@ import {
   CalendarOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { InfiniteScrollList } from '../../../components';
 import { useLazyGetHomebaseQuery, useDeleteHomebaseMutation } from '../../../service/center/ApiHomebase';
 import ModalHome from './ModalHome';
@@ -18,6 +19,8 @@ import DetailHomebase from './DetailHomebase';
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
+
+const DETAIL_TABS = new Set(['ringkasan', 'guru', 'kelas']);
 
 const containerVariants = {
   hidden: { opacity: 0, y: 16 },
@@ -56,13 +59,20 @@ const formatDate = (date) => {
 const CenterHome = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const homebaseIdParam = searchParams.get('homebase_id');
+  const tabParam = searchParams.get('tab');
+  const parsedHomebaseId = Number(homebaseIdParam);
+  const selectedHomebaseId =
+    Number.isFinite(parsedHomebaseId) && parsedHomebaseId > 0 ? parsedHomebaseId : null;
+  const activeTab = DETAIL_TABS.has(tabParam) ? tabParam : 'ringkasan';
+  const isDetailView = Boolean(selectedHomebaseId);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [listData, setListData] = useState([]);
   const [hasMore, setHasMore] = useState(false);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedHomebaseId, setSelectedHomebaseId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
@@ -71,6 +81,10 @@ const CenterHome = () => {
   const [deleteHomebase, { isLoading: isDeleting }] = useDeleteHomebaseMutation();
 
   useEffect(() => {
+    if (isDetailView) {
+      return undefined;
+    }
+
     let isActive = true;
 
     const fetchHomebase = async () => {
@@ -108,7 +122,7 @@ const CenterHome = () => {
     return () => {
       isActive = false;
     };
-  }, [page, search, triggerGetHomebase]);
+  }, [page, search, triggerGetHomebase, isDetailView]);
 
   const handleLoadMore = () => {
     if (hasMore && !isFetching) {
@@ -157,13 +171,25 @@ const CenterHome = () => {
   };
 
   const openDetailDashboard = (id) => {
-    setSelectedHomebaseId(id);
-    setIsDetailOpen(true);
+    setSearchParams({
+      homebase_id: String(id),
+      tab: 'ringkasan',
+    });
   };
 
   const closeDetailDashboard = () => {
-    setSelectedHomebaseId(null);
-    setIsDetailOpen(false);
+    setSearchParams({});
+  };
+
+  const handleDetailTabChange = (nextTab) => {
+    if (!selectedHomebaseId) {
+      return;
+    }
+
+    setSearchParams({
+      homebase_id: String(selectedHomebaseId),
+      tab: DETAIL_TABS.has(nextTab) ? nextTab : 'ringkasan',
+    });
   };
 
   const renderHomebaseItem = (item) => (
@@ -264,19 +290,6 @@ const CenterHome = () => {
               </Tag>
             </Space>
 
-            {/* <Text
-              type="secondary"
-              style={{
-                display: "block",
-                fontSize: 13.5,
-                lineHeight: 1.7,
-                color: "#475569",
-                marginBottom: 14,
-              }}
-            >
-              {item.description || "Belum ada deskripsi untuk homebase ini."}
-            </Text> */}
-
             <Space wrap size={[12, 10]}>
               <Tag
                 style={{
@@ -307,6 +320,17 @@ const CenterHome = () => {
       </Card>
     </MotionDiv>
   );
+
+  if (isDetailView) {
+    return (
+      <DetailHomebase
+        homebaseId={selectedHomebaseId}
+        activeTab={activeTab}
+        onTabChange={handleDetailTabChange}
+        onBack={closeDetailDashboard}
+      />
+    );
+  }
 
   return (
     <>
@@ -425,8 +449,6 @@ const CenterHome = () => {
         onCancel={() => setIsModalOpen(false)}
         onSuccess={handleModalSuccess}
       />
-
-      <DetailHomebase open={isDetailOpen} homebaseId={selectedHomebaseId} onCancel={closeDetailDashboard} />
     </>
   );
 };
