@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Button, Card, Form, Input, Space, Switch, Typography, message } from "antd";
 import { motion } from "framer-motion";
 import { Save, ShieldCheck } from "lucide-react";
-import { useUpdateAttendanceFeaturesMutation } from "../../../../../../service/lms/ApiAttendance";
+import { useUpdateAttendanceFeaturesMutation } from "../../../../../service/lms/ApiAttendance";
 import { FEATURE_META, innerCardStyle, itemVariants } from "../configShared";
 
 const MotionDiv = motion.div;

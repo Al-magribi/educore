@@ -4,17 +4,15 @@ import { motion } from "framer-motion";
 import {
   BookOpenCheck,
   CalendarClock,
-  ClipboardList,
   Cpu,
   Network,
   Settings2,
 } from "lucide-react";
-import { useGetAttendanceConfigQuery } from "../../../../../service/lms/ApiAttendance";
+import { useGetAttendanceConfigQuery } from "../../../../service/lms/ApiAttendance";
 import FeatureSettingsTab from "./tabs/FeatureSettingsTab";
 import PolicySettingsTab from "./tabs/PolicySettingsTab";
 import DeviceSettingsTab from "./tabs/DeviceSettingsTab";
 import AssignmentPolicyTab from "./tabs/AssignmentPolicyTab";
-import AttendanceReport from "../report/AttendanceReport";
 import AttendanceGuideModal from "./AttendanceGuideModal";
 import { containerVariants, itemVariants } from "./configShared";
 
@@ -120,15 +118,6 @@ const AttendanceConfig = () => {
       ),
       key: "assignment",
       children: <AssignmentPolicyTab />,
-    },
-    {
-      label: createTabLabel(
-        "Laporan",
-        <ClipboardList size={16} />,
-        "Presensi siswa & guru",
-      ),
-      key: "report",
-      children: <AttendanceReport />,
     },
   ];
 

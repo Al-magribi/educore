@@ -21,7 +21,7 @@ import {
   useDeleteAttendancePolicyMutation,
   useGetAttendancePoliciesQuery,
   useSaveAttendancePolicyMutation,
-} from "../../../../../../service/lms/ApiAttendance";
+} from "../../../../../service/lms/ApiAttendance";
 import {
   DAY_OPTIONS,
   POLICY_TARGET_ROLE_OPTIONS,

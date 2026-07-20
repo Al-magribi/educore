@@ -35,7 +35,7 @@ import {
   useRunWhatsappNotificationNowMutation,
   useSendWhatsappTestMessageMutation,
   useUpdateWhatsappNotificationConfigMutation,
-} from '../../../../../../service/lms/ApiAttendance';
+} from '../../../../../service/lms/ApiAttendance';
 import { innerCardStyle, itemVariants } from '../configShared';
 
 const { Text, Paragraph, Title } = Typography;

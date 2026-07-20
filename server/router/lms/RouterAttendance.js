@@ -123,6 +123,13 @@ const resolveReportRange = (query = {}) => {
   return { startDate, endDate };
 };
 
+const appendPeriodeFilter = (where, params, periodeId, column = "da.periode_id") => {
+  if (!periodeId) return;
+  params.push(periodeId);
+  where.push(`${column} = $${params.length}`);
+};
+
+
 const normalizeTimeOrNull = (value) => {
   if (value === null || value === undefined || value === "") return null;
   const text = String(value).trim();
@@ -136,6 +143,36 @@ const normalizeNumberOrNull = (value) => {
   if (!Number.isFinite(num)) return null;
   return Math.trunc(num);
 };
+
+const resolveScopedHomebaseId = (req, { preferBody = false } = {}) => {
+  const userHomebaseId = normalizeNumberOrNull(req.user?.homebase_id);
+  if (userHomebaseId) {
+    return { homebaseId: userHomebaseId };
+  }
+
+  if (req.user?.admin_level !== "pusat") {
+    return {
+      errorStatus: 403,
+      errorMessage: "Homebase tidak tersedia untuk akun ini.",
+    };
+  }
+
+  const fromBody = normalizeNumberOrNull(req.body?.homebase_id);
+  const fromQuery = normalizeNumberOrNull(req.query?.homebase_id);
+  const homebaseId = preferBody
+    ? fromBody || fromQuery
+    : fromQuery || fromBody;
+
+  if (!homebaseId) {
+    return {
+      errorStatus: 400,
+      errorMessage: "homebase_id wajib diisi untuk admin pusat.",
+    };
+  }
+
+  return { homebaseId };
+};
+
 
 const normalizeBulkIds = (value, { maxItems = 200 } = {}) => {
   const raw = Array.isArray(value) ? value : [];
@@ -1361,10 +1398,16 @@ router.delete(
 // ==========================================
 router.get(
   "/attendance/config/devices",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withQuery(async (req, res, pool) => {
-    const { homebase_id } = req.user;
-    const devices = await getRfidDevices(pool, homebase_id);
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const devices = await getRfidDevices(pool, scoped.homebaseId);
     return res.json({ status: "success", data: devices });
   }),
 );
@@ -2646,10 +2689,18 @@ router.post(
 // ==========================================
 router.get(
   "/attendance/reports/students",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withQuery(async (req, res, pool) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const { startDate, endDate } = resolveReportRange(req.query);
+    const periodeId = normalizeNumberOrNull(req.query?.periode_id);
     const classId = normalizeNumberOrNull(req.query?.class_id);
     const gradeId = normalizeNumberOrNull(req.query?.grade_id);
     const status = String(req.query?.status || "").trim() || null;
@@ -2699,6 +2750,7 @@ router.get(
       "da.attendance_date BETWEEN $2::date AND $3::date",
       GATE_LINKED_SCAN_EXISTS_SQL,
     ];
+    appendPeriodeFilter(where, params, periodeId);
 
     if (classId) {
       params.push(classId);
@@ -2752,7 +2804,8 @@ router.get(
          COUNT(*) FILTER (WHERE da.attendance_status = 'late')::int AS late_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'absent')::int AS absent_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'excused')::int AS excused_count,
-         COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count
+         COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count,
+         COUNT(*) FILTER (WHERE da.attendance_status = 'pending')::int AS pending_count
        FROM attendance.daily_attendance da
        JOIN u_users u ON u.id = da.user_id
        JOIN u_students st ON st.user_id = da.user_id
@@ -2781,18 +2834,44 @@ router.get(
 
 router.get(
   "/attendance/reports/teachers",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withQuery(async (req, res, pool) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const { startDate, endDate } = resolveReportRange(req.query);
+    const periodeId = normalizeNumberOrNull(req.query?.periode_id);
     const status = String(req.query?.status || "").trim() || null;
     const userName = String(req.query?.user_name || "").trim() || null;
+    const sessionClassId = normalizeNumberOrNull(req.query?.class_id);
+    const cardUid = String(req.query?.card_uid || "").trim() || null;
 
     await reconcilePendingScanLogs(pool, {
       homebaseId: homebase_id,
       startDate,
       endDate,
     });
+
+    if (sessionClassId) {
+      const classCheck = await pool.query(
+        `SELECT 1
+         FROM a_class
+         WHERE id = $1 AND homebase_id = $2
+         LIMIT 1`,
+        [sessionClassId, homebase_id],
+      );
+      if (classCheck.rowCount === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "class_id tidak valid untuk homebase ini.",
+        });
+      }
+    }
 
     const params = [homebase_id, startDate, endDate];
     const where = [
@@ -2801,6 +2880,7 @@ router.get(
       "da.attendance_date BETWEEN $2::date AND $3::date",
       GATE_LINKED_SCAN_EXISTS_SQL,
     ];
+    appendPeriodeFilter(where, params, periodeId);
 
     if (status) {
       params.push(status);
@@ -2824,7 +2904,15 @@ router.get(
          da.notes,
          u.id AS user_id,
          u.full_name,
-         t.nip
+         t.nip,
+         (
+           SELECT rc.card_uid
+           FROM attendance.rfid_card rc
+           WHERE rc.user_id = da.user_id
+             AND rc.is_active = true
+           ORDER BY rc.is_primary DESC, rc.id DESC
+           LIMIT 1
+         ) AS card_uid
        FROM attendance.daily_attendance da
        JOIN u_users u ON u.id = da.user_id
        JOIN u_teachers t ON t.user_id = da.user_id
@@ -2855,9 +2943,24 @@ router.get(
       "da.homebase_id = $1",
       "da.attendance_date BETWEEN $2::date AND $3::date",
     ];
+    appendPeriodeFilter(sessionSummaryWhere, sessionSummaryParams, periodeId);
     if (userName) {
       sessionSummaryParams.push(`%${userName}%`);
       sessionSummaryWhere.push(`u.full_name ILIKE $${sessionSummaryParams.length}`);
+    }
+    if (sessionClassId) {
+      sessionSummaryParams.push(sessionClassId);
+      sessionSummaryWhere.push(`tsr.class_id = $${sessionSummaryParams.length}`);
+    }
+    if (cardUid) {
+      sessionSummaryParams.push(`%${cardUid}%`);
+      sessionSummaryWhere.push(`EXISTS (
+        SELECT 1
+        FROM attendance.rfid_card rc
+        WHERE rc.user_id = da.user_id
+          AND rc.is_active = true
+          AND rc.card_uid ILIKE $${sessionSummaryParams.length}
+      )`);
     }
 
     const sessionSummaryResult = await pool.query(
@@ -2867,7 +2970,11 @@ router.get(
          COUNT(*) FILTER (WHERE tsr.session_status = 'late')::int AS late_sessions,
          COUNT(*) FILTER (WHERE tsr.session_status = 'missed')::int AS missed_sessions,
          COUNT(*) FILTER (WHERE tsr.session_status = 'partial')::int AS partial_sessions,
-         COUNT(*) FILTER (WHERE tsr.session_status = 'excused')::int AS excused_sessions
+         COUNT(*) FILTER (WHERE tsr.session_status = 'excused')::int AS excused_sessions,
+         COUNT(*) FILTER (
+           WHERE tsr.actual_checkin_at IS NULL
+             AND tsr.session_status IN ('pending', 'missed')
+         )::int AS belum_tap_sessions
        FROM attendance.teacher_schedule_requirement tsr
        JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
        JOIN u_users u ON u.id = da.user_id
@@ -2886,6 +2993,7 @@ router.get(
          ${toJakartaTimestampSql("tsr.actual_checkout_at")} AS actual_checkout_at,
          tsr.late_minutes,
          tsr.notes,
+         tsr.class_id,
          u.id AS user_id,
          u.full_name,
          t.nip,
@@ -2894,7 +3002,15 @@ router.get(
          first_slot.slot_no AS first_slot_no,
          last_slot.slot_no AS last_slot_no,
          TO_CHAR(first_slot.start_time, 'HH24:MI') AS slot_start_time,
-         TO_CHAR(last_slot.end_time, 'HH24:MI') AS slot_end_time
+         TO_CHAR(last_slot.end_time, 'HH24:MI') AS slot_end_time,
+         (
+           SELECT rc.card_uid
+           FROM attendance.rfid_card rc
+           WHERE rc.user_id = da.user_id
+             AND rc.is_active = true
+           ORDER BY rc.is_primary DESC, rc.id DESC
+           LIMIT 1
+         ) AS card_uid
        FROM attendance.teacher_schedule_requirement tsr
        JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
        JOIN u_users u ON u.id = da.user_id
@@ -2905,7 +3021,11 @@ router.get(
        LEFT JOIN lms.l_schedule_entry se ON se.id = tsr.schedule_entry_id
        LEFT JOIN public.a_subject sub ON sub.id = se.subject_id
        WHERE ${sessionSummaryWhere.join(" AND ")}
-       ORDER BY da.attendance_date DESC, tsr.planned_start_at ASC NULLS LAST, u.full_name ASC`,
+       ORDER BY
+         da.attendance_date DESC,
+         COALESCE(first_slot.start_time, (tsr.planned_start_at AT TIME ZONE '${JAKARTA_TZ}')::time) ASC NULLS LAST,
+         tsr.planned_start_at ASC NULLS LAST,
+         u.full_name ASC`,
       sessionSummaryParams,
     );
 
@@ -2921,6 +3041,160 @@ router.get(
           end_date: endDate,
           status,
           user_name: userName,
+          class_id: sessionClassId,
+          card_uid: cardUid,
+        },
+      },
+    });
+  }),
+);
+
+router.get(
+  "/attendance/reports/teachers/teaching-recap",
+  authorize("satuan", "pusat"),
+  withQuery(async (req, res, pool) => {
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
+    const periodeId = normalizeNumberOrNull(req.query?.periode_id);
+    const classId = normalizeNumberOrNull(req.query?.class_id);
+    const monthRaw = String(req.query?.month || "").trim();
+    const monthMatch = monthRaw.match(/^(\d{4})-(\d{2})$/);
+    if (!monthMatch) {
+      return res.status(400).json({
+        status: "error",
+        message: "month wajib diisi dengan format YYYY-MM.",
+      });
+    }
+
+    const year = Number(monthMatch[1]);
+    const month = Number(monthMatch[2]);
+    if (!Number.isFinite(year) || month < 1 || month > 12) {
+      return res.status(400).json({
+        status: "error",
+        message: "month tidak valid.",
+      });
+    }
+
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endDateObj = new Date(Date.UTC(year, month, 0));
+    const endDate = `${endDateObj.getUTCFullYear()}-${String(endDateObj.getUTCMonth() + 1).padStart(2, "0")}-${String(endDateObj.getUTCDate()).padStart(2, "0")}`;
+
+    if (classId) {
+      const classCheck = await pool.query(
+        `SELECT 1
+         FROM a_class
+         WHERE id = $1 AND homebase_id = $2
+         LIMIT 1`,
+        [classId, homebase_id],
+      );
+      if (classCheck.rowCount === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "class_id tidak valid untuk homebase ini.",
+        });
+      }
+    }
+
+    const params = [homebase_id, startDate, endDate];
+    const where = [
+      "da.homebase_id = $1",
+      "da.attendance_date BETWEEN $2::date AND $3::date",
+    ];
+    appendPeriodeFilter(where, params, periodeId);
+    if (classId) {
+      params.push(classId);
+      where.push(`tsr.class_id = $${params.length}`);
+    }
+
+    const rowsResult = await pool.query(
+      `SELECT
+         tsr.class_id,
+         c.name AS class_name,
+         da.user_id AS teacher_id,
+         u.full_name AS teacher_name,
+         t.nip,
+         (
+           SELECT rc.card_uid
+           FROM attendance.rfid_card rc
+           WHERE rc.user_id = da.user_id
+             AND rc.is_active = true
+           ORDER BY rc.is_primary DESC, rc.id DESC
+           LIMIT 1
+         ) AS card_uid,
+         COUNT(*)::int AS should_attend,
+         COUNT(*) FILTER (WHERE tsr.session_status IN ('present', 'late'))::int AS attended_tap,
+         COUNT(*) FILTER (
+           WHERE tsr.actual_checkin_at IS NULL
+             AND tsr.session_status IN ('pending', 'missed')
+         )::int AS belum_tap,
+         COUNT(*) FILTER (WHERE tsr.session_status = 'excused')::int AS excused_count,
+         COUNT(*) FILTER (WHERE tsr.session_status = 'partial')::int AS partial_count
+       FROM attendance.teacher_schedule_requirement tsr
+       JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+       JOIN u_users u ON u.id = da.user_id
+       JOIN u_teachers t ON t.user_id = da.user_id
+       JOIN public.a_class c ON c.id = tsr.class_id
+       WHERE ${where.join(" AND ")}
+       GROUP BY tsr.class_id, c.name, da.user_id, u.full_name, t.nip
+       ORDER BY c.name ASC, u.full_name ASC`,
+      params,
+    );
+
+    const rows = rowsResult.rows.map((row) => {
+      const shouldAttend = Number(row.should_attend || 0);
+      const attendedTap = Number(row.attended_tap || 0);
+      return {
+        ...row,
+        should_attend: shouldAttend,
+        attended_tap: attendedTap,
+        belum_tap: Number(row.belum_tap || 0),
+        excused_count: Number(row.excused_count || 0),
+        partial_count: Number(row.partial_count || 0),
+        attendance_rate:
+          shouldAttend > 0
+            ? Math.round((attendedTap / shouldAttend) * 10000) / 100
+            : 0,
+      };
+    });
+
+    const byClassMap = new Map();
+    for (const row of rows) {
+      const key = String(row.class_id);
+      if (!byClassMap.has(key)) {
+        byClassMap.set(key, {
+          class_id: row.class_id,
+          class_name: row.class_name,
+          rows: [],
+        });
+      }
+      byClassMap.get(key).rows.push(row);
+    }
+
+    return res.json({
+      status: "success",
+      data: {
+        month: `${year}-${String(month).padStart(2, "0")}`,
+        start_date: startDate,
+        end_date: endDate,
+        summary: {
+          total_teachers: new Set(rows.map((row) => row.teacher_id)).size,
+          total_classes: byClassMap.size,
+          should_attend: rows.reduce((sum, row) => sum + row.should_attend, 0),
+          attended_tap: rows.reduce((sum, row) => sum + row.attended_tap, 0),
+          belum_tap: rows.reduce((sum, row) => sum + row.belum_tap, 0),
+        },
+        rows,
+        by_class: Array.from(byClassMap.values()),
+        filters: {
+          month: `${year}-${String(month).padStart(2, "0")}`,
+          class_id: classId,
+          periode_id: periodeId,
         },
       },
     });
@@ -2929,10 +3203,18 @@ router.get(
 
 router.get(
   "/attendance/reports/scan-logs",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withQuery(async (req, res, pool) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const { startDate, endDate } = resolveReportRange(req.query);
+    const periodeId = normalizeNumberOrNull(req.query?.periode_id);
     const deviceId = normalizeNumberOrNull(req.query?.device_id);
     const resultStatus = String(req.query?.result_status || "").trim() || null;
     const userName = String(req.query?.user_name || "").trim() || null;
@@ -2958,6 +3240,7 @@ router.get(
       "sl.homebase_id = $1",
       `(sl.scanned_at AT TIME ZONE '${JAKARTA_TZ}')::date BETWEEN $2::date AND $3::date`,
     ];
+    appendPeriodeFilter(where, params, periodeId, "sl.periode_id");
 
     if (deviceId) {
       params.push(deviceId);
@@ -3051,9 +3334,16 @@ router.get(
 
 router.delete(
   "/attendance/reports/scan-logs/:id",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const logId = normalizeNumberOrNull(req.params?.id);
     if (!logId) {
       return res.status(400).json({
@@ -3083,9 +3373,16 @@ router.delete(
 
 router.post(
   "/attendance/reports/scan-logs/bulk-delete",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const { ids, error } = normalizeBulkIds(req.body?.ids);
     if (error) {
       return res.status(400).json({
@@ -3109,9 +3406,16 @@ router.post(
 
 router.put(
   "/attendance/reports/daily/:id",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const recordId = normalizeNumberOrNull(req.params?.id);
     if (!recordId) {
       return res.status(400).json({
@@ -3276,9 +3580,16 @@ router.put(
 
 router.delete(
   "/attendance/reports/daily/:id",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const recordId = normalizeNumberOrNull(req.params?.id);
     if (!recordId) {
       return res.status(400).json({
@@ -3308,9 +3619,16 @@ router.delete(
 
 router.post(
   "/attendance/reports/daily/bulk-delete",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const { ids, error } = normalizeBulkIds(req.body?.ids);
     if (error) {
       return res.status(400).json({
@@ -3334,9 +3652,16 @@ router.post(
 
 router.put(
   "/attendance/reports/teacher-sessions/:id",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const recordId = normalizeNumberOrNull(req.params?.id);
     if (!recordId) {
       return res.status(400).json({
@@ -3514,9 +3839,16 @@ router.put(
 
 router.delete(
   "/attendance/reports/teacher-sessions/:id",
-  authorize("satuan"),
+  authorize("satuan", "pusat"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
     const recordId = normalizeNumberOrNull(req.params?.id);
     if (!recordId) {
       return res.status(400).json({

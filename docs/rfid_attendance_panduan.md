@@ -5,7 +5,7 @@ Dokumen ini menjelaskan cara kerja absensi RFID di EduCore LMS, konfigurasi pera
 **Referensi kode:**
 - Firmware ESP32: [`esp32_rfid_attendance_mfrc522.ino`](./esp32_rfid_attendance_mfrc522.ino)
 - Firmware NodeMCU ESP8266: [`nodemcu_esp8266_rfid_attendance_mfrc522.ino`](./nodemcu_esp8266_rfid_attendance_mfrc522.ino)
-- Admin konfigurasi: `client/src/module/lms/attendace/admin/config/AttendanceConfig.jsx`
+- Admin konfigurasi: `client/src/module/lms/attendance/config/AttendanceConfig.jsx`
 - API scan: `POST /api/lms/attendance/rfid/scan`
 - Skema database: `database/attendance_schema.sql`
 

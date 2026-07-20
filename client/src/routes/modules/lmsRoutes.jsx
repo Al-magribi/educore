@@ -28,7 +28,10 @@ const AcademicReport = lazy(
 
 // Attendace
 const AttendanceConfig = lazy(
-  () => import("../../module/lms/attendace/admin/config/AttendanceConfig"),
+  () => import("../../module/lms/attendance/config/AttendanceConfig"),
+);
+const AttendanceReport = lazy(
+  () => import("../../module/lms/attendance/report/AttendanceReport"),
 );
 
 const renderLmsRoutes = ({ LazyRoute }) => (
@@ -98,6 +101,25 @@ const renderAdminOnlyLmsRoutes = ({ LazyRoute }) => (
   </Route>
 );
 
+const renderAttendanceReportRoutes = ({ LazyRoute }) => (
+  <Route
+    element={
+      <RouteProtection
+        allowedRoles={["admin"]}
+        allowedLevels={["satuan", "pusat"]}
+      />
+    }
+  >
+    <Route
+      path='/laporan-presensi'
+      element={createElement(LazyRoute, {
+        title: "Laporan Presensi",
+        Component: AttendanceReport,
+      })}
+    />
+  </Route>
+);
+
 const renderTeacherOnlyLmsRoutes = ({ LazyRoute }) => (
   <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
     <Route
@@ -144,6 +166,7 @@ const renderParentLmsRoutes = ({ LazyRoute }) => (
 
 export {
   renderAdminOnlyLmsRoutes,
+  renderAttendanceReportRoutes,
   renderLmsRoutes,
   renderTeacherOnlyLmsRoutes,
   renderStudentLmsRoutes,

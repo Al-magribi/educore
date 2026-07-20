@@ -8,7 +8,7 @@ import {
   useGetRfidDevicesQuery,
   useRotateRfidDeviceTokenMutation,
   useSaveRfidDeviceMutation,
-} from '../../../../../../service/lms/ApiAttendance';
+} from '../../../../../service/lms/ApiAttendance';
 import { innerCardStyle, itemVariants } from '../configShared';
 
 const { Text } = Typography;

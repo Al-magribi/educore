@@ -24,8 +24,8 @@ import {
   useDeleteDailyAttendanceRecordMutation,
   useGetStudentAttendanceReportQuery,
   useUpdateDailyAttendanceRecordMutation,
-} from '../../../../../service/lms/ApiAttendance';
-import { useGetClassesQuery, useGetGradesQuery } from '../../../../../service/public/ApiPublic';
+} from '../../../../service/lms/ApiAttendance';
+import { useGetClassesQuery, useGetGradesQuery } from '../../../../service/public/ApiPublic';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -86,15 +86,15 @@ const parseReportDateTime = (value) => {
 const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
 const STUDENT_STATUS_OPTIONS = [
-  { value: 'present', label: 'Present' },
-  { value: 'late', label: 'Late' },
-  { value: 'absent', label: 'Absent' },
-  { value: 'excused', label: 'Excused' },
+  { value: 'present', label: 'Present (Hadir)' },
+  { value: 'late', label: 'Late (Telat)' },
+  { value: 'absent', label: 'Absent (Absen)' },
+  { value: 'excused', label: 'Excused (Sakit/Izin)' },
   { value: 'incomplete', label: 'Incomplete' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'pending', label: 'Pending (Belum tap)' },
 ];
 
-const StudentReport = () => {
+const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [range, setRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
@@ -111,20 +111,25 @@ const StudentReport = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [pageSize, setPageSize] = useState(10);
 
-  const { data: gradesRes } = useGetGradesQuery();
-  const { data: classesRes } = useGetClassesQuery({ gradeId });
+  const { data: gradesRes } = useGetGradesQuery({ homebaseId });
+  const { data: classesRes } = useGetClassesQuery({ gradeId, homebaseId });
   const [updateDailyAttendance, { isLoading: savingEdit }] = useUpdateDailyAttendanceRecordMutation();
   const [deleteDailyAttendance, { isLoading: deletingRow }] = useDeleteDailyAttendanceRecordMutation();
   const [bulkDeleteDailyAttendance, { isLoading: bulkDeleting }] =
     useBulkDeleteDailyAttendanceRecordsMutation();
-  const { data, isLoading, isFetching, refetch } = useGetStudentAttendanceReportQuery({
-    startDate: range?.[0]?.format('YYYY-MM-DD'),
-    endDate: range?.[1]?.format('YYYY-MM-DD'),
-    gradeId,
-    classId,
-    status,
-    userName: userName.trim() || undefined,
-  });
+  const { data, isLoading, isFetching, refetch } = useGetStudentAttendanceReportQuery(
+    {
+      startDate: range?.[0]?.format('YYYY-MM-DD'),
+      endDate: range?.[1]?.format('YYYY-MM-DD'),
+      gradeId,
+      classId,
+      status,
+      userName: userName.trim() || undefined,
+      homebaseId,
+      periodeId,
+    },
+    { pollingInterval: pollingInterval || 0 },
+  );
 
   const summary = data?.data?.summary || {};
   const rows = data?.data?.rows || [];
@@ -158,6 +163,7 @@ const StudentReport = () => {
     try {
       await updateDailyAttendance({
         id: editingRow.id,
+        homebaseId,
         checkin_at: editCheckin ? editCheckin.toISOString() : null,
         checkout_at: editCheckout ? editCheckout.toISOString() : null,
         attendance_status: editStatus,
@@ -173,7 +179,7 @@ const StudentReport = () => {
 
   const handleDeleteRow = async (id) => {
     try {
-      await deleteDailyAttendance(id).unwrap();
+      await deleteDailyAttendance({ id, homebaseId }).unwrap();
       message.success('Data absensi siswa berhasil dihapus.');
       setSelectedRowKeys((prev) => prev.filter((key) => String(key) !== String(id)));
       if (detailRow?.id === id) {
@@ -197,7 +203,10 @@ const StudentReport = () => {
       okButtonProps: { loading: bulkDeleting },
       onOk: async () => {
         try {
-          const result = await bulkDeleteDailyAttendance(selectedRowKeys).unwrap();
+          const result = await bulkDeleteDailyAttendance({
+            ids: selectedRowKeys,
+            homebaseId,
+          }).unwrap();
           message.success(result?.message || 'Data absensi terpilih berhasil dihapus.');
           if (detailRow && selectedRowKeys.some((key) => String(key) === String(detailRow.id))) {
             setDetailRow(null);
@@ -237,22 +246,6 @@ const StudentReport = () => {
 
   const statItems = [
     {
-      key: 'students',
-      title: 'Total Siswa',
-      value: Number(summary.total_students || 0),
-      icon: <Users size={18} />,
-      color: '#0f766e',
-      bg: '#ecfeff',
-    },
-    {
-      key: 'records',
-      title: 'Total Catatan',
-      value: Number(summary.total_records || 0),
-      icon: <BookOpenCheck size={18} />,
-      color: '#1d4ed8',
-      bg: '#eff6ff',
-    },
-    {
       key: 'present',
       title: 'Hadir/Telat',
       value: Number(summary.present_count || 0) + Number(summary.late_count || 0),
@@ -261,10 +254,25 @@ const StudentReport = () => {
       bg: '#f0fdf4',
     },
     {
+      key: 'pending',
+      title: 'Belum tap',
+      value: Number(summary.pending_count || 0),
+      icon: <Users size={18} />,
+      color: '#a16207',
+      bg: '#fefce8',
+    },
+    {
+      key: 'excused',
+      title: 'Sakit/Izin',
+      value: Number(summary.excused_count || 0),
+      icon: <BookOpenCheck size={18} />,
+      color: '#1d4ed8',
+      bg: '#eff6ff',
+    },
+    {
       key: 'absent',
       title: 'Absen',
-      value:
-        Number(summary.absent_count || 0) + Number(summary.excused_count || 0) + Number(summary.incomplete_count || 0),
+      value: Number(summary.absent_count || 0),
       icon: <School size={18} />,
       color: '#b91c1c',
       bg: '#fef2f2',
@@ -332,11 +340,12 @@ const StudentReport = () => {
               onChange={setStatus}
               placeholder="Filter status"
               options={[
-                { value: 'present', label: 'Present' },
-                { value: 'late', label: 'Late' },
-                { value: 'absent', label: 'Absent' },
-                { value: 'excused', label: 'Excused' },
+                { value: 'present', label: 'Present (Hadir)' },
+                { value: 'late', label: 'Late (Telat)' },
+                { value: 'absent', label: 'Absent (Absen)' },
+                { value: 'excused', label: 'Excused (Sakit/Izin)' },
                 { value: 'incomplete', label: 'Incomplete' },
+                { value: 'pending', label: 'Pending (Belum tap)' },
               ]}
             />
           </Flex>

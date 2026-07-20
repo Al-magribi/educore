@@ -18,13 +18,13 @@ import {
   Typography,
   message,
 } from 'antd';
-import { AlertTriangle, BookOpen, ClipboardX, Download, RefreshCw, ScanLine, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, BookOpen, ClipboardX, Download, RefreshCw, Search, Trash2 } from 'lucide-react';
 import {
   useBulkDeleteAttendanceScanLogsMutation,
   useDeleteAttendanceScanLogMutation,
   useGetAttendanceScanLogReportQuery,
   useGetRfidDevicesQuery,
-} from '../../../../../service/lms/ApiAttendance';
+} from '../../../../service/lms/ApiAttendance';
 
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
@@ -278,7 +278,7 @@ const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
   </Modal>
 );
 
-const ScanLogReport = () => {
+const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [range, setRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
@@ -290,14 +290,19 @@ const ScanLogReport = () => {
   const [guideOpen, setGuideOpen] = useState(false);
   const [pageSize, setPageSize] = useState(10);
 
-  const { data: devicesRes } = useGetRfidDevicesQuery();
-  const { data, isLoading, isFetching, refetch } = useGetAttendanceScanLogReportQuery({
-    startDate: range?.[0]?.format('YYYY-MM-DD'),
-    endDate: range?.[1]?.format('YYYY-MM-DD'),
-    deviceId,
-    resultStatus,
-    userName: userName.trim() || undefined,
-  });
+  const { data: devicesRes } = useGetRfidDevicesQuery({ homebaseId });
+  const { data, isLoading, isFetching, refetch } = useGetAttendanceScanLogReportQuery(
+    {
+      startDate: range?.[0]?.format('YYYY-MM-DD'),
+      endDate: range?.[1]?.format('YYYY-MM-DD'),
+      deviceId,
+      resultStatus,
+      userName: userName.trim() || undefined,
+      homebaseId,
+      periodeId,
+    },
+    { pollingInterval: pollingInterval || 0 },
+  );
   const [deleteScanLog, { isLoading: deletingRow }] = useDeleteAttendanceScanLogMutation();
   const [bulkDeleteScanLogs, { isLoading: bulkDeleting }] = useBulkDeleteAttendanceScanLogsMutation();
 
@@ -310,7 +315,7 @@ const ScanLogReport = () => {
 
   const handleDeleteRow = async (id) => {
     try {
-      await deleteScanLog(id).unwrap();
+      await deleteScanLog({ id, homebaseId }).unwrap();
       message.success('Log scan berhasil dihapus.');
       setSelectedRowKeys((prev) => prev.filter((key) => String(key) !== String(id)));
       if (detailRow?.id === id) {
@@ -334,7 +339,10 @@ const ScanLogReport = () => {
       okButtonProps: { loading: bulkDeleting },
       onOk: async () => {
         try {
-          const result = await bulkDeleteScanLogs(selectedRowKeys).unwrap();
+          const result = await bulkDeleteScanLogs({
+            ids: selectedRowKeys,
+            homebaseId,
+          }).unwrap();
           message.success(result?.message || 'Log scan terpilih berhasil dihapus.');
           if (detailRow && selectedRowKeys.some((key) => String(key) === String(detailRow.id))) {
             setDetailRow(null);
@@ -438,6 +446,7 @@ const ScanLogReport = () => {
               value={range}
               onChange={(value) => setRange(value)}
               format="YYYY-MM-DD"
+              placeholder={['Tanggal awal', 'Tanggal akhir']}
               style={{ flex: isMobile ? '1 1 100%' : '0 0 260px' }}
             />
             <Input
@@ -484,23 +493,6 @@ const ScanLogReport = () => {
       </Card>
 
       <Flex gap={12} wrap="wrap">
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 220px' }}>
-          <Flex justify="space-between" align="start">
-            <Statistic title="Total Log" value={Number(summary.total_records || 0)} />
-            <span
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 14,
-                display: 'grid',
-                placeItems: 'center',
-                background: '#eff6ff',
-                color: '#1d4ed8',
-              }}>
-              <ScanLine size={18} />
-            </span>
-          </Flex>
-        </Card>
         <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 220px' }}>
           <Flex justify="space-between" align="start">
             <Statistic title="Accepted" value={Number(summary.accepted_count || 0)} />

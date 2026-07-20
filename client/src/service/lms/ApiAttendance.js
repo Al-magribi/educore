@@ -130,7 +130,10 @@ export const ApiAttendance = createApi({
       ],
     }),
     getRfidDevices: builder.query({
-      query: () => "/attendance/config/devices",
+      query: ({ homebaseId } = {}) => ({
+        url: "/attendance/config/devices",
+        params: homebaseId ? { homebase_id: homebaseId } : undefined,
+      }),
       providesTags: [{ type: "AttendanceDevice", id: "LIST" }],
     }),
     saveRfidDevice: builder.mutation({
@@ -228,7 +231,16 @@ export const ApiAttendance = createApi({
       ],
     }),
     getStudentAttendanceReport: builder.query({
-      query: ({ startDate, endDate, classId, gradeId, status, userName } = {}) => ({
+      query: ({
+        startDate,
+        endDate,
+        classId,
+        gradeId,
+        status,
+        userName,
+        homebaseId,
+        periodeId,
+      } = {}) => ({
         url: "/attendance/reports/students",
         params: {
           start_date: startDate,
@@ -237,24 +249,59 @@ export const ApiAttendance = createApi({
           grade_id: gradeId,
           status,
           user_name: userName,
+          homebase_id: homebaseId,
+          periode_id: periodeId,
         },
       }),
       providesTags: [{ type: "Attendance", id: "STUDENT_REPORT" }],
     }),
     getTeacherAttendanceReport: builder.query({
-      query: ({ startDate, endDate, status, userName } = {}) => ({
+      query: ({
+        startDate,
+        endDate,
+        status,
+        userName,
+        homebaseId,
+        periodeId,
+        classId,
+        cardUid,
+      } = {}) => ({
         url: "/attendance/reports/teachers",
         params: {
           start_date: startDate,
           end_date: endDate,
           status,
           user_name: userName,
+          homebase_id: homebaseId,
+          periode_id: periodeId,
+          class_id: classId,
+          card_uid: cardUid,
         },
       }),
       providesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
+    getTeacherTeachingRecap: builder.query({
+      query: ({ month, classId, homebaseId, periodeId } = {}) => ({
+        url: "/attendance/reports/teachers/teaching-recap",
+        params: {
+          month,
+          class_id: classId,
+          homebase_id: homebaseId,
+          periode_id: periodeId,
+        },
+      }),
+      providesTags: [{ type: "Attendance", id: "TEACHER_TEACHING_RECAP" }],
+    }),
     getAttendanceScanLogReport: builder.query({
-      query: ({ startDate, endDate, deviceId, resultStatus, userName } = {}) => ({
+      query: ({
+        startDate,
+        endDate,
+        deviceId,
+        resultStatus,
+        userName,
+        homebaseId,
+        periodeId,
+      } = {}) => ({
         url: "/attendance/reports/scan-logs",
         params: {
           start_date: startDate,
@@ -262,14 +309,17 @@ export const ApiAttendance = createApi({
           device_id: deviceId,
           result_status: resultStatus,
           user_name: userName,
+          homebase_id: homebaseId,
+          periode_id: periodeId,
         },
       }),
       providesTags: [{ type: "Attendance", id: "SCAN_LOG_REPORT" }],
     }),
     deleteAttendanceScanLog: builder.mutation({
-      query: (id) => ({
+      query: ({ id, homebaseId } = {}) => ({
         url: `/attendance/reports/scan-logs/${id}`,
         method: "DELETE",
+        params: homebaseId ? { homebase_id: homebaseId } : undefined,
       }),
       invalidatesTags: [
         { type: "Attendance", id: "SCAN_LOG_REPORT" },
@@ -278,10 +328,10 @@ export const ApiAttendance = createApi({
       ],
     }),
     bulkDeleteAttendanceScanLogs: builder.mutation({
-      query: (ids) => ({
+      query: ({ ids, homebaseId } = {}) => ({
         url: "/attendance/reports/scan-logs/bulk-delete",
         method: "POST",
-        body: { ids },
+        body: { ids, homebase_id: homebaseId },
       }),
       invalidatesTags: [
         { type: "Attendance", id: "SCAN_LOG_REPORT" },
@@ -290,10 +340,10 @@ export const ApiAttendance = createApi({
       ],
     }),
     updateDailyAttendanceRecord: builder.mutation({
-      query: ({ id, ...body }) => ({
+      query: ({ id, homebaseId, ...body }) => ({
         url: `/attendance/reports/daily/${id}`,
         method: "PUT",
-        body,
+        body: { ...body, homebase_id: homebaseId },
       }),
       invalidatesTags: [
         { type: "Attendance", id: "STUDENT_REPORT" },
@@ -301,9 +351,10 @@ export const ApiAttendance = createApi({
       ],
     }),
     deleteDailyAttendanceRecord: builder.mutation({
-      query: (id) => ({
+      query: ({ id, homebaseId } = {}) => ({
         url: `/attendance/reports/daily/${id}`,
         method: "DELETE",
+        params: homebaseId ? { homebase_id: homebaseId } : undefined,
       }),
       invalidatesTags: [
         { type: "Attendance", id: "STUDENT_REPORT" },
@@ -312,10 +363,10 @@ export const ApiAttendance = createApi({
       ],
     }),
     bulkDeleteDailyAttendanceRecords: builder.mutation({
-      query: (ids) => ({
+      query: ({ ids, homebaseId } = {}) => ({
         url: "/attendance/reports/daily/bulk-delete",
         method: "POST",
-        body: { ids },
+        body: { ids, homebase_id: homebaseId },
       }),
       invalidatesTags: [
         { type: "Attendance", id: "STUDENT_REPORT" },
@@ -324,17 +375,18 @@ export const ApiAttendance = createApi({
       ],
     }),
     updateTeacherSessionRecord: builder.mutation({
-      query: ({ id, ...body }) => ({
+      query: ({ id, homebaseId, ...body }) => ({
         url: `/attendance/reports/teacher-sessions/${id}`,
         method: "PUT",
-        body,
+        body: { ...body, homebase_id: homebaseId },
       }),
       invalidatesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
     deleteTeacherSessionRecord: builder.mutation({
-      query: (id) => ({
+      query: ({ id, homebaseId } = {}) => ({
         url: `/attendance/reports/teacher-sessions/${id}`,
         method: "DELETE",
+        params: homebaseId ? { homebase_id: homebaseId } : undefined,
       }),
       invalidatesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
@@ -517,6 +569,7 @@ export const {
   useBulkDeletePolicyAssignmentsMutation,
   useGetStudentAttendanceReportQuery,
   useGetTeacherAttendanceReportQuery,
+  useGetTeacherTeachingRecapQuery,
   useGetAttendanceScanLogReportQuery,
   useDeleteAttendanceScanLogMutation,
   useBulkDeleteAttendanceScanLogsMutation,

@@ -25,7 +25,7 @@ import {
   useGetAttendanceHolidaysQuery,
   useSaveAttendanceHolidayMutation,
   useUpdateAttendanceCalendarConfigMutation,
-} from '../../../../../../service/lms/ApiAttendance';
+} from '../../../../../service/lms/ApiAttendance';
 import { innerCardStyle, itemVariants } from '../configShared';
 
 const { Text, Paragraph } = Typography;

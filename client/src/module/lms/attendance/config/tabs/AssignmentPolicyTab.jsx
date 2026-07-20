@@ -24,7 +24,7 @@ import {
   useGetPolicyAssignmentBootstrapQuery,
   useGetPolicyAssignmentsQuery,
   useSavePolicyAssignmentMutation,
-} from "../../../../../../service/lms/ApiAttendance";
+} from "../../../../../service/lms/ApiAttendance";
 import { innerCardStyle, itemVariants } from "../configShared";
 
 const { Text } = Typography;

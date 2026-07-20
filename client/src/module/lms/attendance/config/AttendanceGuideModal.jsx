@@ -167,8 +167,8 @@ const AttendanceGuideModal = ({ open, onClose }) => {
             description: (
               <Space direction='vertical' size={4}>
                 <Text>
-                  Buka tab <Tag>Laporan</Tag> untuk memverifikasi sistem sudah
-                  berjalan.
+                  Buka menu <Tag>Laporan Presensi</Tag> di sidebar untuk
+                  memverifikasi sistem sudah berjalan.
                 </Text>
                 <Text>
                   <Tag>Log Scan</Tag> — cek semua scan RFID mentah dari device

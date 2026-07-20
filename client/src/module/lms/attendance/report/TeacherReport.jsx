@@ -22,6 +22,7 @@ import { motion } from 'framer-motion';
 import {
   BriefcaseBusiness,
   BookOpen,
+  ChartColumn,
   Clock3,
   DoorOpen,
   RefreshCw,
@@ -37,7 +38,9 @@ import {
   useGetTeacherAttendanceReportQuery,
   useUpdateDailyAttendanceRecordMutation,
   useUpdateTeacherSessionRecordMutation,
-} from '../../../../../service/lms/ApiAttendance';
+} from '../../../../service/lms/ApiAttendance';
+import { useGetClassesQuery } from '../../../../service/public/ApiPublic';
+import TeachingRecapPanel from './TeachingRecapPanel';
 
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
@@ -162,8 +165,8 @@ const TEACHER_SESSION_STATUS_OPTIONS = [
   { value: 'late', label: 'Late' },
   { value: 'missed', label: 'Missed' },
   { value: 'partial', label: 'Partial' },
-  { value: 'excused', label: 'Excused' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'excused', label: 'Excused (Sakit/Izin)' },
+  { value: 'pending', label: 'Pending (Belum tap)' },
 ];
 
 const GUIDE_STATUS_ITEMS = [
@@ -343,12 +346,14 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
   </Modal>
 );
 
-const TeacherReport = () => {
+const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [range, setRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [status, setStatus] = useState();
   const [userName, setUserName] = useState('');
+  const [sessionClassId, setSessionClassId] = useState();
+  const [sessionCardUid, setSessionCardUid] = useState('');
   const [editingRow, setEditingRow] = useState(null);
   const [detailRow, setDetailRow] = useState(null);
   const [editCheckin, setEditCheckin] = useState(null);
@@ -367,17 +372,33 @@ const TeacherReport = () => {
   const [editSessionStatus, setEditSessionStatus] = useState();
   const [editSessionNotes, setEditSessionNotes] = useState('');
 
+  const { data: classesRes } = useGetClassesQuery({ homebaseId });
+  const classOptions = (Array.isArray(classesRes) ? classesRes : []).map((item) => ({
+    value: Number(item.id),
+    label: item.name,
+  }));
+
   const [updateDailyAttendance, { isLoading: savingEdit }] = useUpdateDailyAttendanceRecordMutation();
   const [deleteDailyAttendance, { isLoading: deletingRow }] = useDeleteDailyAttendanceRecordMutation();
   const [bulkDeleteDailyAttendance, { isLoading: bulkDeleting }] = useBulkDeleteDailyAttendanceRecordsMutation();
   const [updateTeacherSession, { isLoading: savingSessionEdit }] = useUpdateTeacherSessionRecordMutation();
   const [deleteTeacherSession, { isLoading: deletingSessionRow }] = useDeleteTeacherSessionRecordMutation();
-  const { data, isLoading, isFetching, refetch } = useGetTeacherAttendanceReportQuery({
-    startDate: range?.[0]?.format('YYYY-MM-DD'),
-    endDate: range?.[1]?.format('YYYY-MM-DD'),
-    status,
-    userName: userName.trim() || undefined,
-  });
+  const { data, isLoading, isFetching, refetch } = useGetTeacherAttendanceReportQuery(
+    {
+      startDate: range?.[0]?.format('YYYY-MM-DD'),
+      endDate: range?.[1]?.format('YYYY-MM-DD'),
+      status: activeTab === 'kehadiran' ? status : undefined,
+      userName: userName.trim() || undefined,
+      homebaseId,
+      periodeId,
+      classId: activeTab === 'mengajar' ? sessionClassId : undefined,
+      cardUid: activeTab === 'mengajar' ? sessionCardUid.trim() || undefined : undefined,
+    },
+    {
+      skip: activeTab === 'rekap',
+      pollingInterval: activeTab === 'rekap' ? 0 : pollingInterval || 0,
+    },
+  );
 
   const summary = data?.data?.summary || {};
   const sessionSummary = data?.data?.session_summary || {};
@@ -443,6 +464,7 @@ const TeacherReport = () => {
     try {
       await updateDailyAttendance({
         id: editingRow.id,
+        homebaseId,
         checkin_at: editCheckin ? editCheckin.toISOString() : null,
         checkout_at: editCheckout ? editCheckout.toISOString() : null,
         attendance_status: editStatus,
@@ -458,7 +480,7 @@ const TeacherReport = () => {
 
   const handleDeleteRow = async (id) => {
     try {
-      await deleteDailyAttendance(id).unwrap();
+      await deleteDailyAttendance({ id, homebaseId }).unwrap();
       message.success('Data absensi guru berhasil dihapus.');
       setSelectedRowKeys((prev) => prev.filter((key) => String(key) !== String(id)));
       if (detailRow?.id === id) {
@@ -482,7 +504,10 @@ const TeacherReport = () => {
       okButtonProps: { loading: bulkDeleting },
       onOk: async () => {
         try {
-          const result = await bulkDeleteDailyAttendance(selectedRowKeys).unwrap();
+          const result = await bulkDeleteDailyAttendance({
+            ids: selectedRowKeys,
+            homebaseId,
+          }).unwrap();
           message.success(result?.message || 'Data absensi terpilih berhasil dihapus.');
           if (detailRow && selectedRowKeys.some((key) => String(key) === String(detailRow.id))) {
             setDetailRow(null);
@@ -541,6 +566,7 @@ const TeacherReport = () => {
     try {
       await updateTeacherSession({
         id: editingSessionRow.id,
+        homebaseId,
         actual_checkin_at: editSessionCheckin ? editSessionCheckin.toISOString() : null,
         actual_checkout_at: editSessionCheckout ? editSessionCheckout.toISOString() : null,
         session_status: editSessionStatus,
@@ -556,7 +582,7 @@ const TeacherReport = () => {
 
   const handleDeleteSessionRow = async (id) => {
     try {
-      await deleteTeacherSession(id).unwrap();
+      await deleteTeacherSession({ id, homebaseId }).unwrap();
       message.success('Data sesi mengajar berhasil dihapus.');
       if (detailSessionRow?.id === id) {
         setDetailSessionRow(null);
@@ -611,72 +637,101 @@ const TeacherReport = () => {
               icon={<RefreshCw size={16} />}
               loading={isFetching}
               onClick={() => refetch()}
+              disabled={activeTab === 'rekap'}
               style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
               Refresh
             </Button>
           </Flex>
 
-          <Flex gap={'middle'} vertical={isMobile}>
-            <RangePicker value={range} onChange={(value) => setRange(value)} format="YYYY-MM-DD" />
-            <Input
-              allowClear
-              value={userName}
-              onChange={(event) => setUserName(event.target.value)}
-              placeholder="Cari nama guru"
-              prefix={<Search size={16} />}
-              style={{ width: isMobile ? '100%' : 180 }}
-            />
-            <Select
-              showSearch={{ optionFilterProp: 'label' }}
-              virtual={false}
-              allowClear
-              value={status}
-              onChange={setStatus}
-              placeholder="Filter status"
-              disabled={activeTab !== 'kehadiran'}
-              options={[
-                { value: 'present', label: 'Present' },
-                { value: 'late', label: 'Late' },
-                { value: 'absent', label: 'Absent' },
-                { value: 'incomplete', label: 'Incomplete' },
-                { value: 'insufficient_hours', label: 'Insufficient Hours' },
-                { value: 'not_scheduled', label: 'Not Scheduled' },
-              ]}
-              style={{ width: isMobile ? '100%' : 180 }}
-            />
+          <Flex gap={'middle'} vertical={isMobile} wrap="wrap">
+            {activeTab !== 'rekap' && (
+              <>
+                <RangePicker value={range} onChange={(value) => setRange(value)} format="YYYY-MM-DD" />
+                <Input
+                  allowClear
+                  value={userName}
+                  onChange={(event) => setUserName(event.target.value)}
+                  placeholder="Cari nama guru"
+                  prefix={<Search size={16} />}
+                  style={{ width: isMobile ? '100%' : 180 }}
+                />
+              </>
+            )}
+            {activeTab === 'kehadiran' && (
+              <Select
+                showSearch={{ optionFilterProp: 'label' }}
+                virtual={false}
+                allowClear
+                value={status}
+                onChange={setStatus}
+                placeholder="Filter status"
+                options={[
+                  { value: 'present', label: 'Present' },
+                  { value: 'late', label: 'Late' },
+                  { value: 'absent', label: 'Absent' },
+                  { value: 'incomplete', label: 'Incomplete' },
+                  { value: 'insufficient_hours', label: 'Insufficient Hours' },
+                  { value: 'not_scheduled', label: 'Not Scheduled' },
+                ]}
+                style={{ width: isMobile ? '100%' : 180 }}
+              />
+            )}
+            {activeTab === 'mengajar' && (
+              <>
+                <Input
+                  allowClear
+                  value={sessionCardUid}
+                  onChange={(event) => setSessionCardUid(event.target.value)}
+                  placeholder="Filter no RFID"
+                  style={{ width: isMobile ? '100%' : 180 }}
+                />
+                <Select
+                  showSearch={{ optionFilterProp: 'label' }}
+                  virtual={false}
+                  allowClear
+                  value={sessionClassId}
+                  onChange={setSessionClassId}
+                  placeholder="Filter kelas"
+                  options={classOptions}
+                  style={{ width: isMobile ? '100%' : 180 }}
+                />
+              </>
+            )}
           </Flex>
         </Flex>
       </Card>
 
-      <Flex gap={12} wrap="wrap">
-        {statItems.map((item, index) => (
-          <MotionDiv
-            key={item.key}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, delay: index * 0.04 }}
-            style={{ flex: '1 1 220px' }}>
-            <Card bordered={false} style={statCardStyle}>
-              <Flex justify="space-between" align="start" gap={10}>
-                <Statistic title={item.title} value={item.value} />
-                <span
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 14,
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: item.bg,
-                    color: item.color,
-                    flexShrink: 0,
-                  }}>
-                  {item.icon}
-                </span>
-              </Flex>
-            </Card>
-          </MotionDiv>
-        ))}
-      </Flex>
+      {activeTab !== 'rekap' && (
+        <Flex gap={12} wrap="wrap">
+          {statItems.map((item, index) => (
+            <MotionDiv
+              key={item.key}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, delay: index * 0.04 }}
+              style={{ flex: '1 1 220px' }}>
+              <Card bordered={false} style={statCardStyle}>
+                <Flex justify="space-between" align="start" gap={10}>
+                  <Statistic title={item.title} value={item.value} />
+                  <span
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 14,
+                      display: 'grid',
+                      placeItems: 'center',
+                      background: item.bg,
+                      color: item.color,
+                      flexShrink: 0,
+                    }}>
+                    {item.icon}
+                  </span>
+                </Flex>
+              </Card>
+            </MotionDiv>
+          ))}
+        </Flex>
+      )}
 
       <Card style={surfaceCardStyle} bordered={false}>
         <Tabs
@@ -739,7 +794,7 @@ const TeacherReport = () => {
                                 {row.full_name}
                               </Text>
                               <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                                NIP {row.nip || '-'}
+                                RFID {row.card_uid || '-'} · NIP {row.nip || '-'}
                               </Text>
                             </Flex>
                           ),
@@ -819,16 +874,50 @@ const TeacherReport = () => {
                         title: 'Tanggal',
                         dataIndex: 'attendance_date',
                         ellipsis: true,
+                        width: 110,
+                      },
+                      {
+                        title: 'Jam / Status',
+                        ellipsis: true,
+                        width: 150,
+                        render: (_, row) => (
+                          <Flex vertical gap={4}>
+                            {renderWaktuCell(row)}
+                            <Tag
+                              color={SESSION_STATUS_COLORS[row.session_status] || 'default'}
+                              style={{ width: 'fit-content', margin: 0 }}>
+                              {row.session_status || '-'}
+                            </Tag>
+                          </Flex>
+                        ),
                       },
                       {
                         title: 'Guru',
                         ellipsis: true,
-                        render: (_, row) => renderGuruCell(row),
+                        render: (_, row) => (
+                          <Flex vertical gap={2}>
+                            <Text strong ellipsis>
+                              {row.full_name}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                              RFID {row.card_uid || '-'} · NIP {row.nip || '-'}
+                            </Text>
+                          </Flex>
+                        ),
                       },
                       {
-                        title: 'Waktu',
+                        title: 'Kelas / Mapel',
                         ellipsis: true,
-                        render: (_, row) => renderWaktuCell(row),
+                        render: (_, row) => (
+                          <Flex vertical gap={2}>
+                            <Text strong ellipsis>
+                              {row.class_name || '-'}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                              {row.subject_name || '-'}
+                            </Text>
+                          </Flex>
+                        ),
                       },
                       {
                         title: 'Masuk',
@@ -864,6 +953,23 @@ const TeacherReport = () => {
                   />
                 ),
             },
+            {
+              key: 'rekap',
+              label: (
+                <Flex align="center" gap={8}>
+                  <ChartColumn size={16} />
+                  Rekapitulasi
+                </Flex>
+              ),
+              children: (
+                <TeachingRecapPanel
+                  homebaseId={homebaseId}
+                  periodeId={periodeId}
+                  classOptions={classOptions}
+                  pollingInterval={pollingInterval}
+                />
+              ),
+            },
           ]}
         />
       </Card>
@@ -889,6 +995,7 @@ const TeacherReport = () => {
             <Descriptions.Item label="Nama Guru">{formatDetailValue(detailSessionRow.full_name)}</Descriptions.Item>
             <Descriptions.Item label="NIP">{formatDetailValue(detailSessionRow.nip)}</Descriptions.Item>
             <Descriptions.Item label="Kelas">{formatDetailValue(detailSessionRow.class_name)}</Descriptions.Item>
+            <Descriptions.Item label="No RFID">{formatDetailValue(detailSessionRow.card_uid)}</Descriptions.Item>
             <Descriptions.Item label="Mata Pelajaran">{formatDetailValue(detailSessionRow.subject_name)}</Descriptions.Item>
             <Descriptions.Item label="Jam Ke">{formatSlotRange(detailSessionRow)}</Descriptions.Item>
             <Descriptions.Item label="Jadwal">{formatSlotTimeRange(detailSessionRow)}</Descriptions.Item>
@@ -930,6 +1037,7 @@ const TeacherReport = () => {
             </Descriptions.Item>
             <Descriptions.Item label="Nama Guru">{formatDetailValue(detailRow.full_name)}</Descriptions.Item>
             <Descriptions.Item label="NIP">{formatDetailValue(detailRow.nip)}</Descriptions.Item>
+            <Descriptions.Item label="No RFID">{formatDetailValue(detailRow.card_uid)}</Descriptions.Item>
             <Descriptions.Item label="User ID" span={2}>
               {formatDetailValue(detailRow.user_id)}
             </Descriptions.Item>
