@@ -20,6 +20,12 @@
     - Server mencocokkan guru + jadwal master aktif (non-archived) + kelas yang terikat device
       untuk menentukan kelas, jam keberapa, dan check-in/check-out.
     - Hanya guru yang boleh tap; siswa/lainnya → "Akses ditolak".
+    - Tidak ada debounce 5 menit di server (berbeda dari gate).
+    - Checkout sebelum jam selesai pelajaran → result_status too_early_checkout
+      ("Belum waktunya keluar").
+    - Setelah checkout, ganti kelas butuh jeda 2 menit (guru yang sama) → cooldown
+      + retry_after_seconds. Guru lain di device yang sama tidak kena cooldown.
+    - LCD sukses memakai message server: "Masuk 8A" / "Keluar 8B".
 
   Catatan device extracurricular:
     - Mapping policy kegiatan diatur di LMS.
@@ -41,6 +47,7 @@ enum ScanOutcome {
   SCAN_OUTCOME_DUPLICATE = 1,
   SCAN_OUTCOME_ERROR = 2,
   SCAN_OUTCOME_NETWORK = 3,
+  SCAN_OUTCOME_WAIT = 4, // classroom: cooldown / too_early_checkout
 };
 
 struct ScanResult {
@@ -56,6 +63,7 @@ struct ScanResult {
   String className;
   String slotLabel;
   String policyName;
+  int retryAfterSeconds;
   bool hasAttendance;
   bool hasSession;
   bool hasActivity;
@@ -74,6 +82,7 @@ void resetScanResult(ScanResult& result) {
   result.className = "";
   result.slotLabel = "";
   result.policyName = "";
+  result.retryAfterSeconds = 0;
   result.hasAttendance = false;
   result.hasSession = false;
   result.hasActivity = false;
@@ -246,7 +255,8 @@ String jsonStringOrEmpty(JsonObject obj, const char* key) {
 }
 
 void parseScanResponseBody(const String& body, ScanResult& result) {
-  // Response classroom bisa berisi class_name / slot_label / planned times.
+  // Response classroom bisa berisi class_name / slot_label / planned times /
+  // retry_after_seconds (cooldown).
   DynamicJsonDocument resp(1536);
   DeserializationError err = deserializeJson(resp, body);
   if (err) {
@@ -255,6 +265,9 @@ void parseScanResponseBody(const String& body, ScanResult& result) {
 
   result.resultStatus = resp["result_status"].as<String>();
   result.message = resp["message"].as<String>();
+  if (resp.containsKey("retry_after_seconds") && !resp["retry_after_seconds"].isNull()) {
+    result.retryAfterSeconds = resp["retry_after_seconds"].as<int>();
+  }
 
   JsonObject data = resp["data"].as<JsonObject>();
   if (!data.isNull()) {
@@ -275,6 +288,12 @@ void parseScanResponseBody(const String& body, ScanResult& result) {
 }
 
 String buildClassroomSuccessLine2(const ScanResult& result) {
+  // Prefer server LCD message ("Masuk 8A" / "Keluar 8B").
+  if (result.message.length() > 0 &&
+      (result.message.startsWith("Masuk ") || result.message.startsWith("Keluar "))) {
+    return truncateLcdLine(result.message);
+  }
+
   if (!result.hasSession) {
     return "Tdk ada jadwal";
   }
@@ -288,14 +307,14 @@ String buildClassroomSuccessLine2(const ScanResult& result) {
 
   if (result.resolvedAction == "teacher_session_checkout") {
     if (result.className.length() > 0) {
-      return truncateLcdLine(String("Out ") + result.className);
+      return truncateLcdLine(String("Keluar ") + result.className);
     }
     return "Sesi Selesai";
   }
 
   if (result.resolvedAction == "teacher_session_checkin") {
     if (result.className.length() > 0) {
-      return truncateLcdLine(String("In ") + result.className);
+      return truncateLcdLine(String("Masuk ") + result.className);
     }
     if (result.slotLabel.length() > 0) {
       return truncateLcdLine(result.slotLabel);
@@ -398,6 +417,22 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
   const String& status = result.resultStatus;
   const String& msg = result.message;
 
+  if (status == "too_early_checkout") {
+    line1 = "Belum waktunya";
+    line2 = "keluar";
+    return;
+  }
+
+  if (status == "cooldown") {
+    line1 = truncateLcdLine(msg.length() > 0 ? msg : "Tunggu 2 menit");
+    if (result.retryAfterSeconds > 0) {
+      line2 = truncateLcdLine(String("Sisa ") + String(result.retryAfterSeconds) + " dtk");
+    } else {
+      line2 = "Ganti kelas";
+    }
+    return;
+  }
+
   if (status == "duplicate") {
     if (messageContains(msg, "Checkin hari ini")) {
       line1 = result.userName.length() > 0 ? truncateLcdLine(result.userName) : "Sudah Tap";
@@ -413,7 +448,7 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
       line2 = "Tunggu 15 Menit";
     } else if (messageContains(msg, "sudah lengkap")) {
       line1 = "Sudah Lengkap";
-      line2 = "Datang+Pulang";
+      line2 = isClassroomDevice() ? "Masuk+Keluar" : "Datang+Pulang";
     } else {
       line1 = "Sudah Tap";
       line2 = truncateLcdLine(msg.length() > 0 ? msg : "Duplikat");
@@ -555,6 +590,10 @@ bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
 
   if (resultOut.resultStatus == "duplicate") {
     resultOut.outcome = SCAN_OUTCOME_DUPLICATE;
+  } else if (
+      resultOut.resultStatus == "cooldown" ||
+      resultOut.resultStatus == "too_early_checkout") {
+    resultOut.outcome = SCAN_OUTCOME_WAIT;
   } else {
     resultOut.outcome = SCAN_OUTCOME_ERROR;
   }
@@ -689,6 +728,17 @@ void loop() {
       lcdShow(line1.c_str(), line2.c_str());
       buzzerSuccess();
       delay(2000);
+    } else if (result.outcome == SCAN_OUTCOME_WAIT) {
+      Serial.printf(
+        "[RFID] Scan wait (%s): %s retry_after=%d\n",
+        result.resultStatus.c_str(),
+        result.message.c_str(),
+        result.retryAfterSeconds);
+      lcdShow(line1.c_str(), line2.c_str());
+      buzzerError();
+      delay(result.retryAfterSeconds > 0 && result.retryAfterSeconds < 30
+              ? 2500
+              : 3000);
     } else {
       Serial.printf(
         "[RFID] Scan failed: %s | %s\n",

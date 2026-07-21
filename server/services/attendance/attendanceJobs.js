@@ -51,12 +51,20 @@ const registerWorker = async () => {
       (sum, item) => sum + Number(item.teachers_marked || 0),
       0,
     );
+    const totalStudentCheckouts = results.reduce(
+      (sum, item) => sum + Number(item.students_checkout_filled || 0),
+      0,
+    );
+    const totalTeacherCheckouts = results.reduce(
+      (sum, item) => sum + Number(item.teachers_checkout_filled || 0),
+      0,
+    );
     const totalSessions = results.reduce(
       (sum, item) => sum + Number(item.sessions_marked_missed || 0),
       0,
     );
     console.log(
-      `[attendance] Auto-absent selesai: siswa=${totalStudents}, guru=${totalTeachers}, sesi_missed=${totalSessions}`,
+      `[attendance] Auto-absent selesai: siswa_absent=${totalStudents}, guru_absent=${totalTeachers}, siswa_checkout=${totalStudentCheckouts}, guru_checkout=${totalTeacherCheckouts}, sesi_missed=${totalSessions}`,
     );
     return results;
   });

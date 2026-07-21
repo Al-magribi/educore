@@ -223,6 +223,7 @@ export const getDayRule = async (client, policyId, dayOfWeek) => {
   return result.rows[0] || null;
 };
 
+/** Gate / extracurricular only. Classroom devices skip this debounce in the scan router. */
 const DUPLICATE_DEBOUNCE_MINUTES = 5;
 const MIN_CHECKIN_TO_CHECKOUT_MINUTES = 15;
 

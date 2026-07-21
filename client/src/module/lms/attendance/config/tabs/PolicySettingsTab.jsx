@@ -365,6 +365,7 @@ const PolicySettingsTab = ({
                         name={[field.name, "is_active"]}
                         valuePropName='checked'
                         label='Aktif'
+                        tooltip='Hari aktif = scan RFID di hari ini diproses. Nonaktif = scan diabaikan.'
                       >
                         <Switch
                           checkedChildren='Ya'
@@ -374,12 +375,22 @@ const PolicySettingsTab = ({
                       <Form.Item
                         name={[field.name, "checkin_start"]}
                         label='Checkin Mulai'
+                        tooltip={
+                          selectedPolicyType === "teacher_schedule_based"
+                            ? "Awal jendela scan masuk gerbang (gate). Untuk schedule-based wajib diisi agar absensi harian terkontrol."
+                            : "Awal jendela scan masuk RFID. Scan sebelum jam ini ditolak."
+                        }
                       >
                         <Input placeholder='07:00' />
                       </Form.Item>
                       <Form.Item
                         name={[field.name, "checkin_end"]}
                         label='Checkin Selesai'
+                        tooltip={
+                          selectedPolicyType === "teacher_schedule_based"
+                            ? "Akhir jendela scan masuk gerbang sekaligus batas auto-absent. Bukan jam pulang; jam sesi kelas diambil dari jadwal timetable."
+                            : "Akhir jendela scan masuk RFID. Scan setelah jam ini ditolak. Setelah jam ini, yang belum tap masuk otomatis berstatus absent."
+                        }
                       >
                         <Input placeholder='08:00' />
                       </Form.Item>
@@ -387,6 +398,7 @@ const PolicySettingsTab = ({
                         <Form.Item
                           name={[field.name, "reference_checkin_time"]}
                           label='Jam Masuk'
+                          tooltip='Jam masuk resmi. Dipakai menghitung status hadir/telat dari waktu scan RFID masuk.'
                         >
                           <Input placeholder='07:15' />
                         </Form.Item>
@@ -395,6 +407,7 @@ const PolicySettingsTab = ({
                         <Form.Item
                           name={[field.name, "late_tolerance_minutes"]}
                           label='Toleransi Telat (menit)'
+                          tooltip='Kelonggaran setelah Jam Masuk. Masih dalam toleransi = hadir; lewat = telat.'
                         >
                           <InputNumber min={0} />
                         </Form.Item>
@@ -403,6 +416,7 @@ const PolicySettingsTab = ({
                         <Form.Item
                           name={[field.name, "checkout_start"]}
                           label='Checkout Mulai'
+                          tooltip='Awal jendela scan pulang RFID. Scan pulang sebelum jam ini ditolak.'
                         >
                           <Input placeholder='14:00' />
                         </Form.Item>
@@ -411,6 +425,7 @@ const PolicySettingsTab = ({
                         <Form.Item
                           name={[field.name, "reference_checkout_time"]}
                           label='Jam Pulang'
+                          tooltip='Akhir jendela scan pulang RFID sekaligus jam pulang resmi. Setelah jam ini, yang sudah masuk tapi belum tap pulang otomatis diisi jam pulang policy.'
                         >
                           <Input placeholder='15:00' />
                         </Form.Item>
@@ -419,6 +434,7 @@ const PolicySettingsTab = ({
                         <Form.Item
                           name={[field.name, "min_presence_minutes"]}
                           label='Minimal Hadir (menit)'
+                          tooltip='Durasi minimal antara scan masuk dan scan pulang agar kehadiran dianggap cukup.'
                         >
                           <InputNumber min={0} />
                         </Form.Item>
@@ -428,6 +444,7 @@ const PolicySettingsTab = ({
                           name={[field.name, "checkout_is_optional"]}
                           valuePropName='checked'
                           label='Checkout Opsional'
+                          tooltip='Jika Ya, scan pulang tidak wajib. Jika Tidak, harus ada scan pulang RFID.'
                         >
                           <Switch
                             checkedChildren='Ya'

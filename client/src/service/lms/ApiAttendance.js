@@ -390,6 +390,14 @@ export const ApiAttendance = createApi({
       }),
       invalidatesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
+    bulkDeleteTeacherSessionRecords: builder.mutation({
+      query: ({ ids, homebaseId } = {}) => ({
+        url: "/attendance/reports/teacher-sessions/bulk-delete",
+        method: "POST",
+        body: { ids, homebase_id: homebaseId },
+      }),
+      invalidatesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
+    }),
 
     getWhatsappNotificationConfig: builder.query({
       query: () => "/attendance/whatsapp/config",
@@ -578,6 +586,7 @@ export const {
   useBulkDeleteDailyAttendanceRecordsMutation,
   useUpdateTeacherSessionRecordMutation,
   useDeleteTeacherSessionRecordMutation,
+  useBulkDeleteTeacherSessionRecordsMutation,
   useGetWhatsappNotificationConfigQuery,
   useUpdateWhatsappNotificationConfigMutation,
   useGetWhatsappSessionQuery,

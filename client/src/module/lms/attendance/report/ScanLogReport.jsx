@@ -55,6 +55,8 @@ const RESULT_STATUS_COLORS = {
   user_inactive: 'magenta',
   policy_missing: 'purple',
   not_scheduled: 'blue',
+  too_early_checkout: 'orange',
+  cooldown: 'geekblue',
 };
 
 const isUnregisteredScan = (row) =>
@@ -99,7 +101,19 @@ const GUIDE_RESULT_ITEMS = [
     status: 'duplicate',
     label: 'Duplicate (Duplikat)',
     description:
-      'Tap ditolak karena sudah ada scan yang sama dalam rentang debounce (5 menit) atau check-in/check-out hari itu sudah tercatat. Contoh: tap datang dua kali, tap pulang terlalu cepat (< 15 menit setelah datang), atau tap ketiga setelah datang+pulang lengkap.',
+      'Tap ditolak karena sudah ada scan yang sama dalam rentang debounce (5 menit, khusus gate/ekstra) atau check-in/check-out hari itu sudah tercatat / sesi mengajar sudah lengkap. Device classroom tidak memakai debounce 5 menit.',
+  },
+  {
+    status: 'too_early_checkout',
+    label: 'Too Early Checkout (Belum Waktunya Keluar)',
+    description:
+      'Khusus device classroom: guru sudah check-in sesi mengajar tetapi tap keluar sebelum jam selesai pelajaran (planned_end). LCD menampilkan "Belum waktunya keluar". Sesi tetap terbuka sampai checkout di/ setelah jam selesai.',
+  },
+  {
+    status: 'cooldown',
+    label: 'Cooldown (Tunggu Ganti Kelas)',
+    description:
+      'Khusus device classroom: guru yang sama baru checkout sesi sebelumnya dan mencoba check-in kelas/sesi berikutnya sebelum jeda 2 menit. Guru lain di device yang sama tidak terkena cooldown. LCD: "Tunggu 2 menit" (+ sisa detik bila ada).',
   },
   {
     status: 'rejected',
@@ -179,7 +193,7 @@ const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
             'Device RFID (ESP32) mengirim UID kartu, kode device, token, dan scan_action ke server.',
             'Server memvalidasi device (aktif, token benar) dan kartu (terdaftar, aktif, user aktif).',
             'Untuk device gate dengan daily_gate: server menentukan otomatis tap datang atau pulang.',
-            'Server mengecek duplikat dan jendela waktu policy (check-in / check-out).',
+            'Server mengecek duplikat (gate/ekstra) atau aturan sesi classroom (checkout terlalu awal, cooldown ganti kelas).',
             'Jika lolos, scan disimpan dengan Result accepted dan diproses ke presensi harian atau sesi kelas.',
             'Jika gagal, scan tetap dicatat dengan Result sesuai penyebab penolakan beserta alasan di detail log.',
           ].map((step, index) => (
@@ -478,6 +492,8 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               options={[
                 { value: 'accepted', label: 'accepted' },
                 { value: 'duplicate', label: 'duplicate' },
+                { value: 'too_early_checkout', label: 'too_early_checkout' },
+                { value: 'cooldown', label: 'cooldown' },
                 { value: 'rejected', label: 'rejected' },
                 { value: 'unregistered', label: 'unregistered' },
                 { value: 'out_of_window', label: 'out_of_window' },

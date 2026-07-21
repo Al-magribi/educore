@@ -14,7 +14,15 @@ import {
   toJakartaDateString,
   validateScanTimeWindow,
 } from "../../services/attendance/rfidDailyAttendance.js";
-import { applyRfidScanToTeacherSession, precheckTeacherClassroomScan } from "../../services/attendance/rfidTeacherSession.js";
+import {
+  applyRfidScanToTeacherSession,
+  precheckTeacherClassroomScan,
+} from "../../services/attendance/rfidTeacherSession.js";
+import {
+  buildClassroomLcdError,
+  buildClassroomLcdSuccess,
+  resolveClassroomLcdSuccessMessage,
+} from "../../services/attendance/classroomScanContract.js";
 import {
   ACTIVITY_GATE_ACTION,
   applyRfidScanToActivityAttendance,
@@ -2288,7 +2296,11 @@ router.post(
     );
     const activePeriodeId = activePeriodeRes.rows[0]?.id || null;
 
-    const rejectAndLog = async (resultStatus, reason) => {
+    // Diisi setelah kartu teridentifikasi agar reject (duplicate, out_of_window, dll.)
+    // tetap menyimpan user_id/card_id di audit log.
+    let resolvedCard = null;
+
+    const rejectAndLog = async (resultStatus, reason, extra = {}) => {
       // Audit log harus tetap tersimpan meski response ke device adalah HTTP 4xx.
       // withTransaction default-nya ROLLBACK pada status >= 400; tanpa flag ini
       // row hilang meski response sudah mengembalikan scan_log_id (sequence tetap maju).
@@ -2297,6 +2309,8 @@ router.post(
            homebase_id,
            periode_id,
            device_id,
+           card_id,
+           user_id,
            class_id,
            scan_source,
            scan_action,
@@ -2308,13 +2322,15 @@ router.post(
            raw_payload
          )
          VALUES (
-           $1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz, $10, $11, $12::jsonb
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::timestamptz, $11::timestamptz, $12, $13, $14::jsonb
          )
          RETURNING id, scanned_at`,
         [
           device.homebase_id,
           activePeriodeId,
           device.id,
+          resolvedCard?.card_id || null,
+          resolvedCard?.user_id || null,
           devicePrimaryClassId,
           device.device_type,
           scanAction || "unknown",
@@ -2329,12 +2345,15 @@ router.post(
 
       res.locals.commitTransaction = true;
 
-      return res.status(400).json({
-        status: "error",
-        result_status: resultStatus,
-        message: reason,
-        scan_log_id: inserted.rows[0]?.id || null,
-      });
+      return res.status(400).json(
+        buildClassroomLcdError({
+          resultStatus,
+          message: reason,
+          retryAfterSeconds: extra.retry_after_seconds ?? null,
+          scanLogId: inserted.rows[0]?.id || null,
+          data: extra.data || null,
+        }),
+      );
     };
 
     if (device.api_token !== deviceToken) {
@@ -2362,6 +2381,7 @@ router.post(
       return rejectAndLog("unregistered", "Kartu RFID tidak terdaftar.");
     }
     const card = cardRes.rows[0];
+    resolvedCard = card;
     if (card.card_is_active !== true) {
       return rejectAndLog("card_inactive", "Kartu RFID tidak aktif.");
     }
@@ -2392,12 +2412,25 @@ router.post(
         scannedAt,
       });
       if (sessionPrecheck.blocked) {
-        return res.status(400).json({
-          status: "error",
-          result_status: sessionPrecheck.result_status || "duplicate",
-          message: sessionPrecheck.message,
-          scan_log_id: null,
-        });
+        const status = sessionPrecheck.result_status || "duplicate";
+        // Persist audit row for too-early / cooldown; complete-session stays silent.
+        if (
+          status === "too_early_checkout" ||
+          status === "cooldown"
+        ) {
+          return rejectAndLog(status, sessionPrecheck.message, {
+            retry_after_seconds: sessionPrecheck.retry_after_seconds ?? null,
+          });
+        }
+
+        return res.status(400).json(
+          buildClassroomLcdError({
+            resultStatus: status,
+            message: sessionPrecheck.message,
+            retryAfterSeconds: sessionPrecheck.retry_after_seconds ?? null,
+            scanLogId: null,
+          }),
+        );
       }
     }
 
@@ -2438,15 +2471,19 @@ router.post(
 
     // For extracurricular, keep activity_gate until apply resolves checkin/checkout.
     // Duplicate debounce uses the provisional action string.
+    // Classroom: skip 5-minute debounce; inter-class cooldown (2 min, same teacher)
+    // is enforced in teacher-session apply (see classroomScanContract.js).
 
-    const duplicateCheck = await checkDuplicateScan(client, {
-      homebaseId: device.homebase_id,
-      cardUid,
-      scanAction: resolvedScanAction,
-      scannedAt,
-    });
-    if (duplicateCheck.isDuplicate) {
-      return rejectAndLog("duplicate", duplicateCheck.reason);
+    if (device.device_type !== "classroom") {
+      const duplicateCheck = await checkDuplicateScan(client, {
+        homebaseId: device.homebase_id,
+        cardUid,
+        scanAction: resolvedScanAction,
+        scannedAt,
+      });
+      if (duplicateCheck.isDuplicate) {
+        return rejectAndLog("duplicate", duplicateCheck.reason);
+      }
     }
 
     if (
@@ -2547,19 +2584,30 @@ router.post(
 
       if (attendanceResult?.blocked) {
         await client.query(
-          `DELETE FROM attendance.rfid_scan_log WHERE id = $1`,
-          [scanLogId],
+          `UPDATE attendance.rfid_scan_log
+           SET
+             result_status = $2,
+             rejection_reason = $3
+           WHERE id = $1`,
+          [
+            scanLogId,
+            attendanceResult.result_status || "duplicate",
+            attendanceResult.message ||
+              "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
+          ],
         );
         res.locals.commitTransaction = true;
 
-        return res.status(400).json({
-          status: "error",
-          result_status: attendanceResult.result_status || "duplicate",
-          message:
-            attendanceResult.message ||
-            "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
-          scan_log_id: null,
-        });
+        return res.status(400).json(
+          buildClassroomLcdError({
+            resultStatus: attendanceResult.result_status || "duplicate",
+            message:
+              attendanceResult.message ||
+              "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
+            retryAfterSeconds: attendanceResult.retry_after_seconds ?? null,
+            scanLogId,
+          }),
+        );
       }
 
       if (attendanceResult?.scan_action) {
@@ -2641,45 +2689,60 @@ router.post(
             ? "Checkout sesi"
             : "Checkin sesi";
 
+    const responseData = {
+      scan_log_id: scanLogId,
+      user_id: card.user_id,
+      user_name: card.full_name,
+      scan_action: resolvedScanAction,
+      requested_scan_action: requestedScanAction,
+      resolved_scan_action: resolvedScanAction,
+      scan_source: device.device_type,
+      attendance_id: attendanceResult?.attendance_id || null,
+      activity_attendance_id:
+        attendanceResult?.activity_attendance_id || null,
+      attendance_status: attendanceResult?.attendance_status || null,
+      attendance_date: attendanceResult?.attendance_date || null,
+      schedule_entry_id: attendanceResult?.schedule_entry_id || null,
+      teacher_session_log_id:
+        attendanceResult?.teacher_session_log_id || null,
+      session_status: attendanceResult?.session_status || null,
+      class_id: attendanceResult?.class_id || devicePrimaryClassId,
+      class_name: attendanceResult?.class_name || null,
+      subject_id: attendanceResult?.subject_id || null,
+      subject_name: attendanceResult?.subject_name || null,
+      first_slot_no: attendanceResult?.first_slot_no || null,
+      last_slot_no: attendanceResult?.last_slot_no || null,
+      slot_label: attendanceResult?.slot_label || null,
+      policy_id: attendanceResult?.policy_id || devicePrimaryPolicyId || null,
+      policy_name: attendanceResult?.policy_name || null,
+      policy_code: attendanceResult?.policy_code || null,
+      planned_checkin_time: attendanceResult?.planned_checkin_time || null,
+      planned_checkout_time: attendanceResult?.planned_checkout_time || null,
+      planned_start_at: attendanceResult?.planned_start_at || null,
+      planned_end_at: attendanceResult?.planned_end_at || null,
+      actual_checkin_at: attendanceResult?.actual_checkin_at || null,
+      actual_checkout_at: attendanceResult?.actual_checkout_at || null,
+      device_class_ids: deviceClassIds,
+    };
+
+    if (device.device_type === "classroom") {
+      return res.json(
+        buildClassroomLcdSuccess({
+          message: resolveClassroomLcdSuccessMessage(
+            resolvedScanAction,
+            attendanceResult?.class_name || null,
+          ),
+          scanLogId,
+          data: responseData,
+        }),
+      );
+    }
+
     return res.json({
       status: "success",
       result_status: "accepted",
       message: `${scanLabel} diterima untuk ${card.full_name}.`,
-      data: {
-        scan_log_id: scanLogId,
-        user_id: card.user_id,
-        user_name: card.full_name,
-        scan_action: resolvedScanAction,
-        requested_scan_action: requestedScanAction,
-        resolved_scan_action: resolvedScanAction,
-        scan_source: device.device_type,
-        attendance_id: attendanceResult?.attendance_id || null,
-        activity_attendance_id:
-          attendanceResult?.activity_attendance_id || null,
-        attendance_status: attendanceResult?.attendance_status || null,
-        attendance_date: attendanceResult?.attendance_date || null,
-        schedule_entry_id: attendanceResult?.schedule_entry_id || null,
-        teacher_session_log_id:
-          attendanceResult?.teacher_session_log_id || null,
-        session_status: attendanceResult?.session_status || null,
-        class_id: attendanceResult?.class_id || devicePrimaryClassId,
-        class_name: attendanceResult?.class_name || null,
-        subject_id: attendanceResult?.subject_id || null,
-        subject_name: attendanceResult?.subject_name || null,
-        first_slot_no: attendanceResult?.first_slot_no || null,
-        last_slot_no: attendanceResult?.last_slot_no || null,
-        slot_label: attendanceResult?.slot_label || null,
-        policy_id: attendanceResult?.policy_id || devicePrimaryPolicyId || null,
-        policy_name: attendanceResult?.policy_name || null,
-        policy_code: attendanceResult?.policy_code || null,
-        planned_checkin_time: attendanceResult?.planned_checkin_time || null,
-        planned_checkout_time: attendanceResult?.planned_checkout_time || null,
-        planned_start_at: attendanceResult?.planned_start_at || null,
-        planned_end_at: attendanceResult?.planned_end_at || null,
-        actual_checkin_at: attendanceResult?.actual_checkin_at || null,
-        actual_checkout_at: attendanceResult?.actual_checkout_at || null,
-        device_class_ids: deviceClassIds,
-      },
+      data: responseData,
     });
   }),
 );
@@ -3006,9 +3069,22 @@ router.get(
          c.name AS class_name,
          sub.name AS subject_name,
          first_slot.slot_no AS first_slot_no,
-         last_slot.slot_no AS last_slot_no,
-         TO_CHAR(first_slot.start_time, 'HH24:MI') AS slot_start_time,
-         TO_CHAR(last_slot.end_time, 'HH24:MI') AS slot_end_time,
+         COALESCE(entry_last.last_slot_no, last_slot.slot_no) AS last_slot_no,
+         TO_CHAR(
+           COALESCE(
+             first_slot.start_time,
+             (tsr.planned_start_at AT TIME ZONE '${JAKARTA_TZ}')::time
+           ),
+           'HH24:MI'
+         ) AS slot_start_time,
+         TO_CHAR(
+           COALESCE(
+             entry_last.last_end_time,
+             last_slot.end_time,
+             (tsr.planned_end_at AT TIME ZONE '${JAKARTA_TZ}')::time
+           ),
+           'HH24:MI'
+         ) AS slot_end_time,
          (
            SELECT rc.card_uid
            FROM attendance.rfid_card rc
@@ -3026,6 +3102,16 @@ router.get(
        LEFT JOIN lms.l_time_slot last_slot ON last_slot.id = tsr.last_slot_id
        LEFT JOIN lms.l_schedule_entry se ON se.id = tsr.schedule_entry_id
        LEFT JOIN public.a_subject sub ON sub.id = se.subject_id
+       LEFT JOIN LATERAL (
+         SELECT
+           ts.slot_no AS last_slot_no,
+           ts.end_time AS last_end_time
+         FROM lms.l_schedule_entry_slot ses
+         JOIN lms.l_time_slot ts ON ts.id = ses.slot_id
+         WHERE ses.schedule_entry_id = tsr.schedule_entry_id
+         ORDER BY ts.end_time DESC, ses.id DESC
+         LIMIT 1
+       ) AS entry_last ON true
        WHERE ${sessionSummaryWhere.join(" AND ")}
        ORDER BY
          GREATEST(tsr.actual_checkout_at, tsr.actual_checkin_at) DESC NULLS LAST,
@@ -3268,12 +3354,25 @@ router.get(
       where.push(`u.full_name ILIKE $${params.length}`);
     }
 
-    const joinUser = userName ? "JOIN u_users u ON u.id = sl.user_id" : "LEFT JOIN u_users u ON u.id = sl.user_id";
+    // Fallback ke rfid_card via card_uid untuk log lama (reject) yang belum menyimpan user_id.
+    const joinResolvedUser = `
+       LEFT JOIN LATERAL (
+         SELECT rc.user_id
+         FROM attendance.rfid_card rc
+         WHERE rc.id = sl.card_id
+            OR (sl.card_id IS NULL AND rc.card_uid = sl.card_uid)
+         ORDER BY CASE WHEN rc.id = sl.card_id THEN 0 ELSE 1 END,
+                  rc.is_primary DESC,
+                  rc.id DESC
+         LIMIT 1
+       ) resolved_card ON true
+       ${userName ? "JOIN" : "LEFT JOIN"} u_users u
+         ON u.id = COALESCE(sl.user_id, resolved_card.user_id)`;
 
     const rowsResult = await pool.query(
       `SELECT
          sl.id,
-         sl.user_id,
+         COALESCE(sl.user_id, resolved_card.user_id) AS user_id,
          sl.device_id,
          sl.attendance_id,
          ${toJakartaTimestampSql("sl.scanned_at")} AS scanned_at,
@@ -3291,7 +3390,7 @@ router.get(
          u.full_name AS user_name
        FROM attendance.rfid_scan_log sl
        LEFT JOIN attendance.rfid_device d ON d.id = sl.device_id
-       ${joinUser}
+       ${joinResolvedUser}
        WHERE ${where.join(" AND ")}
        ORDER BY sl.scanned_at DESC, sl.id DESC`,
       params,
@@ -3317,7 +3416,7 @@ router.get(
          COUNT(*) FILTER (WHERE sl.result_status = 'user_inactive')::int AS user_inactive_count,
          COUNT(*) FILTER (WHERE sl.result_status = 'policy_missing')::int AS policy_missing_count
        FROM attendance.rfid_scan_log sl
-       ${userName ? "JOIN u_users u ON u.id = sl.user_id" : ""}
+       ${userName ? joinResolvedUser : ""}
        WHERE ${where.join(" AND ")}`,
       params,
     );
@@ -3653,6 +3752,47 @@ router.post(
       status: "success",
       message: `${deleted.deleted_count} data absensi dan log scan terkait berhasil dihapus.`,
       data: deleted,
+    });
+  }),
+);
+
+router.post(
+  "/attendance/reports/teacher-sessions/bulk-delete",
+  authorize("satuan", "pusat"),
+  withTransaction(async (req, res, client) => {
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
+    const { ids, error } = normalizeBulkIds(req.body?.ids);
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error,
+      });
+    }
+
+    const deleted = await client.query(
+      `DELETE FROM attendance.teacher_schedule_requirement tsr
+       USING attendance.daily_attendance da
+       WHERE tsr.id = ANY($1::int[])
+         AND da.id = tsr.attendance_id
+         AND da.homebase_id = $2
+       RETURNING tsr.id`,
+      [ids, homebase_id],
+    );
+
+    return res.json({
+      status: "success",
+      message: `${deleted.rowCount} data sesi mengajar berhasil dihapus.`,
+      data: {
+        deleted_count: deleted.rowCount,
+        deleted_ids: deleted.rows.map((row) => row.id),
+      },
     });
   }),
 );

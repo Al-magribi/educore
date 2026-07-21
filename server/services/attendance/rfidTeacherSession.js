@@ -6,10 +6,25 @@ import {
   resolvePolicyForUser,
   toJakartaDateString,
 } from "./rfidDailyAttendance.js";
+import {
+  CLASSROOM_CHECKOUT_EARLIEST,
+  CLASSROOM_LCD_MESSAGE,
+  CLASSROOM_RESULT_STATUS,
+  CLASSROOM_SESSION_SWITCH_COOLDOWN_MINUTES,
+  getClassroomCooldownRemainingSeconds,
+} from "./classroomScanContract.js";
 
 const SESSION_CHECKIN_ACTION = "teacher_session_checkin";
 const SESSION_CHECKOUT_ACTION = "teacher_session_checkout";
 const SESSION_MATCH_BUFFER_MINUTES = 15;
+
+// Re-export classroom LCD contract for callers.
+export {
+  CLASSROOM_CHECKOUT_EARLIEST,
+  CLASSROOM_LCD_MESSAGE,
+  CLASSROOM_RESULT_STATUS,
+  CLASSROOM_SESSION_SWITCH_COOLDOWN_MINUTES,
+};
 
 let teacherSessionLogHasClassId = null;
 
@@ -78,11 +93,8 @@ const evaluateSessionCheckinStatus = (scannedAt, plannedStartAt, toleranceMinute
   return { sessionStatus: "late", lateMinutes: diffMinutes };
 };
 
-const pickScheduleEntry = (entries, scannedAt, attendanceDate) => {
-  if (!entries.length) return null;
-
-  const bufferMs = SESSION_MATCH_BUFFER_MINUTES * 60 * 1000;
-  const withWindows = entries
+const buildScheduleWindows = (entries, attendanceDate) =>
+  entries
     .map((entry) => {
       const plannedStart = jakartaLocalToDate(attendanceDate, entry.start_time);
       const plannedEnd = jakartaLocalToDate(attendanceDate, entry.end_time);
@@ -90,26 +102,359 @@ const pickScheduleEntry = (entries, scannedAt, attendanceDate) => {
     })
     .filter((item) => item.plannedStart && item.plannedEnd);
 
-  const inWindow = withWindows.find(
-    (item) =>
-      scannedAt.getTime() >= item.plannedStart.getTime() - bufferMs &&
-      scannedAt.getTime() <= item.plannedEnd.getTime() + bufferMs,
-  );
-  if (inWindow) return inWindow.entry;
-
-  if (entries.length === 1) return entries[0];
-
+const pickNearestByStart = (items, scannedAt) => {
   let nearest = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
-  for (const item of withWindows) {
+  for (const item of items) {
     const distance = Math.abs(scannedAt.getTime() - item.plannedStart.getTime());
     if (distance < nearestDistance) {
       nearestDistance = distance;
-      nearest = item.entry;
+      nearest = item;
+    }
+  }
+  return nearest;
+};
+
+/**
+ * Pick schedule entry for CHECK-IN when the teacher has no open session.
+ * Skips complete sessions. Prefers strict current period over ±15m buffer overlap
+ * (important for multi-class classroom devices at period boundaries).
+ */
+export const pickScheduleEntryForCheckin = (
+  entries,
+  scannedAt,
+  attendanceDate,
+  completeEntryIds = new Set(),
+) => {
+  if (!entries.length) return null;
+
+  const bufferMs = SESSION_MATCH_BUFFER_MINUTES * 60 * 1000;
+  const scannedMs = scannedAt.getTime();
+  const withWindows = buildScheduleWindows(entries, attendanceDate).filter(
+    (item) => !completeEntryIds.has(Number(item.entry.id)),
+  );
+  if (!withWindows.length) return null;
+
+  const strictCurrent = withWindows.filter(
+    (item) =>
+      scannedMs >= item.plannedStart.getTime() &&
+      scannedMs <= item.plannedEnd.getTime(),
+  );
+  if (strictCurrent.length) {
+    return pickNearestByStart(strictCurrent, scannedAt).entry;
+  }
+
+  const inBuffer = withWindows.filter(
+    (item) =>
+      scannedMs >= item.plannedStart.getTime() - bufferMs &&
+      scannedMs <= item.plannedEnd.getTime() + bufferMs,
+  );
+  if (inBuffer.length) {
+    return pickNearestByStart(inBuffer, scannedAt).entry;
+  }
+
+  if (withWindows.length === 1) return withWindows[0].entry;
+
+  return pickNearestByStart(withWindows, scannedAt)?.entry || null;
+};
+
+/** @deprecated Prefer pickScheduleEntryForCheckin / resolveClassroomSessionIntent */
+export const pickScheduleEntry = (entries, scannedAt, attendanceDate) =>
+  pickScheduleEntryForCheckin(entries, scannedAt, attendanceDate, new Set());
+
+const isTeacherSessionComplete = (requirement) =>
+  Boolean(requirement?.actual_checkin_at && requirement?.actual_checkout_at);
+
+const resolveEffectiveSessionAction = ({
+  scanAction,
+  autoResolveSessionAction,
+  requirement,
+  scannedAt,
+  plannedStartAt,
+  plannedEndAt,
+}) => {
+  if (
+    scanAction !== SESSION_CHECKIN_ACTION &&
+    scanAction !== SESSION_CHECKOUT_ACTION
+  ) {
+    return scanAction;
+  }
+
+  if (!autoResolveSessionAction) {
+    return scanAction;
+  }
+
+  const hasCheckin = Boolean(requirement?.actual_checkin_at);
+  const hasCheckout = Boolean(requirement?.actual_checkout_at);
+
+  // Second tap on same session (without explicit action) → checkout.
+  if (hasCheckin && !hasCheckout) {
+    return SESSION_CHECKOUT_ACTION;
+  }
+
+  if (!plannedStartAt || !plannedEndAt) {
+    return SESSION_CHECKIN_ACTION;
+  }
+
+  const toStart = Math.abs(scannedAt.getTime() - plannedStartAt.getTime());
+  const toEnd = Math.abs(scannedAt.getTime() - plannedEndAt.getTime());
+  if (toEnd < toStart && hasCheckin && !hasCheckout) {
+    return SESSION_CHECKOUT_ACTION;
+  }
+
+  return SESSION_CHECKIN_ACTION;
+};
+
+/**
+ * Resolve planned session end for too-early checkout.
+ * Use the later of schedule-derived end and DB planned_end_at so a stale/wrong
+ * requirement row (e.g. first-slot-only) cannot allow checkout mid-block.
+ */
+const resolvePlannedEndAt = (plannedEndAt, requirement) => {
+  const candidates = [];
+  if (plannedEndAt) {
+    const fromSchedule = new Date(plannedEndAt);
+    if (Number.isFinite(fromSchedule.getTime())) candidates.push(fromSchedule);
+  }
+  if (requirement?.planned_end_at) {
+    const fromRequirement = new Date(requirement.planned_end_at);
+    if (Number.isFinite(fromRequirement.getTime())) {
+      candidates.push(fromRequirement);
+    }
+  }
+  if (!candidates.length) return null;
+  return candidates.reduce((latest, item) =>
+    item.getTime() > latest.getTime() ? item : latest,
+  );
+};
+
+/**
+ * Classroom checkout is allowed only at/after planned session end.
+ * Returns a blocked intent fragment, or null if checkout is allowed.
+ */
+export const evaluateClassroomCheckoutTooEarly = (
+  scannedAt,
+  plannedEndAt,
+  extras = {},
+) => {
+  if (!scannedAt || !plannedEndAt) return null;
+  if (scannedAt.getTime() >= plannedEndAt.getTime()) return null;
+
+  return {
+    blocked: true,
+    result_status: CLASSROOM_RESULT_STATUS.TOO_EARLY_CHECKOUT,
+    message: CLASSROOM_LCD_MESSAGE.TOO_EARLY_CHECKOUT,
+    ...extras,
+  };
+};
+
+/**
+ * Resolve which teaching session a classroom tap targets and whether it is blocked.
+ * Pure helper — used by precheck + apply (and unit tests).
+ */
+export const resolveClassroomSessionIntent = ({
+  entries,
+  scannedAt,
+  attendanceDate,
+  requirementsByEntryId = new Map(),
+  lastCheckout = null,
+  scanAction = SESSION_CHECKIN_ACTION,
+  autoResolveSessionAction = true,
+}) => {
+  if (!entries.length) {
+    return { blocked: false, scheduleEntry: null };
+  }
+
+  const getRequirement = (entryId) =>
+    requirementsByEntryId.get(Number(entryId)) ||
+    requirementsByEntryId.get(entryId) ||
+    null;
+
+  const openEntries = entries.filter((entry) => {
+    const requirement = getRequirement(entry.id);
+    return Boolean(
+      requirement?.actual_checkin_at && !requirement?.actual_checkout_at,
+    );
+  });
+
+  // Open session always wins: mid-period tap = checkout attempt (or too-early).
+  if (openEntries.length > 0) {
+    const openWindows = buildScheduleWindows(openEntries, attendanceDate);
+    const scannedMs = scannedAt.getTime();
+    const containing = openWindows.filter(
+      (item) =>
+        scannedMs >= item.plannedStart.getTime() &&
+        scannedMs <=
+          item.plannedEnd.getTime() + SESSION_MATCH_BUFFER_MINUTES * 60 * 1000,
+    );
+
+    let scheduleEntry;
+    let plannedStartAt;
+    let plannedEndAt;
+    let requirement;
+
+    if (openWindows.length > 0) {
+      const chosen =
+        (containing.length
+          ? pickNearestByStart(containing, scannedAt)
+          : pickNearestByStart(openWindows, scannedAt)) || openWindows[0];
+      scheduleEntry = chosen.entry;
+      requirement = getRequirement(scheduleEntry.id);
+      plannedStartAt = chosen.plannedStart;
+      plannedEndAt = resolvePlannedEndAt(chosen.plannedEnd, requirement);
+    } else {
+      // Fallback when slot times fail to parse: still enforce checkout rules.
+      scheduleEntry = openEntries[0];
+      requirement = getRequirement(scheduleEntry.id);
+      plannedStartAt = requirement?.planned_start_at
+        ? new Date(requirement.planned_start_at)
+        : jakartaLocalToDate(attendanceDate, scheduleEntry.start_time);
+      plannedEndAt = resolvePlannedEndAt(
+        jakartaLocalToDate(attendanceDate, scheduleEntry.end_time),
+        requirement,
+      );
+    }
+
+    const effectiveScanAction = resolveEffectiveSessionAction({
+      scanAction,
+      autoResolveSessionAction,
+      requirement,
+      scannedAt,
+      plannedStartAt,
+      plannedEndAt,
+    });
+
+    if (effectiveScanAction === SESSION_CHECKOUT_ACTION) {
+      const tooEarly = evaluateClassroomCheckoutTooEarly(
+        scannedAt,
+        plannedEndAt,
+        {
+          scheduleEntry,
+          requirement,
+          plannedStartAt,
+          plannedEndAt,
+          effectiveScanAction,
+        },
+      );
+      if (tooEarly) return tooEarly;
+    }
+
+    return {
+      blocked: false,
+      scheduleEntry,
+      requirement,
+      plannedStartAt,
+      plannedEndAt,
+      effectiveScanAction,
+    };
+  }
+
+  const completeEntryIds = new Set();
+  for (const entry of entries) {
+    const requirement = getRequirement(entry.id);
+    if (isTeacherSessionComplete(requirement)) {
+      completeEntryIds.add(Number(entry.id));
     }
   }
 
-  return nearest;
+  const scheduleEntry = pickScheduleEntryForCheckin(
+    entries,
+    scannedAt,
+    attendanceDate,
+    completeEntryIds,
+  );
+  if (!scheduleEntry) {
+    return { blocked: false, scheduleEntry: null };
+  }
+
+  const plannedStartAt = jakartaLocalToDate(
+    attendanceDate,
+    scheduleEntry.start_time,
+  );
+  let plannedEndAt = jakartaLocalToDate(attendanceDate, scheduleEntry.end_time);
+  if (!plannedStartAt || !plannedEndAt) {
+    return { blocked: false, scheduleEntry: null };
+  }
+
+  const requirement = getRequirement(scheduleEntry.id);
+  plannedEndAt = resolvePlannedEndAt(plannedEndAt, requirement);
+
+  if (isTeacherSessionComplete(requirement)) {
+    return {
+      blocked: true,
+      result_status: CLASSROOM_RESULT_STATUS.DUPLICATE,
+      message: CLASSROOM_LCD_MESSAGE.SESSION_COMPLETE,
+      scheduleEntry,
+      requirement,
+      plannedStartAt,
+      plannedEndAt,
+      effectiveScanAction: SESSION_CHECKIN_ACTION,
+    };
+  }
+
+  // Cooldown only when same teacher switches to a different session/class.
+  const lastCheckoutEntryId =
+    lastCheckout?.schedule_entry_id != null
+      ? Number(lastCheckout.schedule_entry_id)
+      : null;
+  if (
+    lastCheckout?.actual_checkout_at &&
+    lastCheckoutEntryId != null &&
+    lastCheckoutEntryId !== Number(scheduleEntry.id)
+  ) {
+    const retryAfterSeconds = getClassroomCooldownRemainingSeconds(
+      lastCheckout.actual_checkout_at,
+      scannedAt,
+      CLASSROOM_SESSION_SWITCH_COOLDOWN_MINUTES,
+    );
+    if (retryAfterSeconds > 0) {
+      return {
+        blocked: true,
+        result_status: CLASSROOM_RESULT_STATUS.COOLDOWN,
+        message: CLASSROOM_LCD_MESSAGE.COOLDOWN,
+        retry_after_seconds: retryAfterSeconds,
+        scheduleEntry,
+        requirement,
+        plannedStartAt,
+        plannedEndAt,
+        effectiveScanAction: SESSION_CHECKIN_ACTION,
+      };
+    }
+  }
+
+  const effectiveScanAction = resolveEffectiveSessionAction({
+    scanAction,
+    autoResolveSessionAction,
+    requirement,
+    scannedAt,
+    plannedStartAt,
+    plannedEndAt,
+  });
+
+  // Same-session checkout via check-in path (e.g. open session missed in window map).
+  if (effectiveScanAction === SESSION_CHECKOUT_ACTION) {
+    const tooEarly = evaluateClassroomCheckoutTooEarly(
+      scannedAt,
+      plannedEndAt,
+      {
+        scheduleEntry,
+        requirement,
+        plannedStartAt,
+        plannedEndAt,
+        effectiveScanAction,
+      },
+    );
+    if (tooEarly) return tooEarly;
+  }
+
+  return {
+    blocked: false,
+    scheduleEntry,
+    requirement,
+    plannedStartAt,
+    plannedEndAt,
+    effectiveScanAction,
+  };
 };
 
 const findTeacherSessionRequirement = async (
@@ -119,6 +464,7 @@ const findTeacherSessionRequirement = async (
   const result = await client.query(
     `SELECT
        tsr.id,
+       tsr.schedule_entry_id,
        tsr.actual_checkin_at,
        tsr.actual_checkout_at,
        tsr.session_status,
@@ -135,12 +481,119 @@ const findTeacherSessionRequirement = async (
   return result.rows[0] || null;
 };
 
-const isTeacherSessionComplete = (requirement) =>
-  Boolean(requirement?.actual_checkin_at && requirement?.actual_checkout_at);
+const findTeacherSessionRequirementsForEntries = async (
+  client,
+  { userId, attendanceDate, scheduleEntryIds },
+) => {
+  const ids = [
+    ...new Set(
+      (scheduleEntryIds || [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    ),
+  ];
+  const byEntryId = new Map();
+  if (!ids.length) return byEntryId;
+
+  const result = await client.query(
+    `SELECT
+       tsr.id,
+       tsr.schedule_entry_id,
+       tsr.actual_checkin_at,
+       tsr.actual_checkout_at,
+       tsr.planned_start_at,
+       tsr.planned_end_at,
+       tsr.session_status,
+       tsr.late_minutes
+     FROM attendance.teacher_schedule_requirement tsr
+     JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+     WHERE da.user_id = $1
+       AND da.attendance_date = $2::date
+       AND tsr.schedule_entry_id = ANY($3::int[])`,
+    [userId, attendanceDate, ids],
+  );
+
+  for (const row of result.rows) {
+    byEntryId.set(Number(row.schedule_entry_id), row);
+  }
+  return byEntryId;
+};
+
+/** Latest checkout today for this teacher (cooldown is per-teacher, not per-device). */
+const findLastTeacherCheckoutToday = async (
+  client,
+  { userId, attendanceDate },
+) => {
+  const result = await client.query(
+    `SELECT
+       tsr.schedule_entry_id,
+       tsr.class_id,
+       tsr.actual_checkout_at
+     FROM attendance.teacher_schedule_requirement tsr
+     JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+     WHERE da.user_id = $1
+       AND da.attendance_date = $2::date
+       AND tsr.actual_checkout_at IS NOT NULL
+     ORDER BY tsr.actual_checkout_at DESC
+     LIMIT 1`,
+    [userId, attendanceDate],
+  );
+
+  return result.rows[0] || null;
+};
+
+const resolveClassroomScanContext = async (
+  client,
+  {
+    homebaseId,
+    periodeId,
+    userId,
+    classIds,
+    scannedAt,
+    scanAction = SESSION_CHECKIN_ACTION,
+    autoResolveSessionAction = true,
+  },
+) => {
+  const attendanceDate = toJakartaDateString(scannedAt);
+  const dayOfWeek = getJakartaIsoDow(scannedAt);
+  const scheduleEntries = await fetchTeacherScheduleEntries(client, {
+    homebaseId,
+    periodeId,
+    teacherId: userId,
+    classIds,
+    dayOfWeek,
+  });
+
+  const requirementsByEntryId = await findTeacherSessionRequirementsForEntries(
+    client,
+    {
+      userId,
+      attendanceDate,
+      scheduleEntryIds: scheduleEntries.map((entry) => entry.id),
+    },
+  );
+  const lastCheckout = await findLastTeacherCheckoutToday(client, {
+    userId,
+    attendanceDate,
+  });
+
+  const intent = resolveClassroomSessionIntent({
+    entries: scheduleEntries,
+    scannedAt,
+    attendanceDate,
+    requirementsByEntryId,
+    lastCheckout,
+    scanAction,
+    autoResolveSessionAction,
+  });
+
+  return { attendanceDate, dayOfWeek, scheduleEntries, intent };
+};
 
 /**
  * Block classroom taps when the matched teaching session already has
- * both check-in and check-out recorded. No scan log row should be created.
+ * both check-in and check-out recorded, checkout is too early, or
+ * inter-class cooldown is active. No accepted scan log should be created.
  */
 export const precheckTeacherClassroomScan = async (
   client,
@@ -170,36 +623,22 @@ export const precheckTeacherClassroomScan = async (
     return { blocked: false };
   }
 
-  const attendanceDate = toJakartaDateString(scannedAt);
-  const dayOfWeek = getJakartaIsoDow(scannedAt);
-  const scheduleEntries = await fetchTeacherScheduleEntries(client, {
+  const { intent } = await resolveClassroomScanContext(client, {
     homebaseId,
     periodeId,
-    teacherId: userId,
-    classIds: resolvedClassIds,
-    dayOfWeek,
-  });
-
-  const scheduleEntry = pickScheduleEntry(
-    scheduleEntries,
-    scannedAt,
-    attendanceDate,
-  );
-  if (!scheduleEntry) {
-    return { blocked: false };
-  }
-
-  const requirement = await findTeacherSessionRequirement(client, {
     userId,
-    attendanceDate,
-    scheduleEntryId: scheduleEntry.id,
+    classIds: resolvedClassIds,
+    scannedAt,
+    scanAction: SESSION_CHECKIN_ACTION,
+    autoResolveSessionAction: true,
   });
 
-  if (isTeacherSessionComplete(requirement)) {
+  if (intent.blocked) {
     return {
       blocked: true,
-      result_status: "duplicate",
-      message: "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
+      result_status: intent.result_status,
+      message: intent.message,
+      retry_after_seconds: intent.retry_after_seconds ?? null,
     };
   }
 
@@ -328,7 +767,8 @@ const ensureTeacherScheduleRequirement = async (
   },
 ) => {
   const existingRes = await client.query(
-    `SELECT id, actual_checkin_at, actual_checkout_at, session_status, late_minutes
+    `SELECT id, actual_checkin_at, actual_checkout_at, planned_start_at, planned_end_at,
+            first_slot_id, last_slot_id, session_status, late_minutes
      FROM attendance.teacher_schedule_requirement
      WHERE attendance_id = $1
        AND schedule_entry_id = $2
@@ -337,7 +777,56 @@ const ensureTeacherScheduleRequirement = async (
   );
 
   if (existingRes.rowCount > 0) {
-    return existingRes.rows[0];
+    const existing = existingRes.rows[0];
+    const nextFirstSlotId =
+      scheduleEntry.first_slot_id || existing.first_slot_id || null;
+    const nextLastSlotId =
+      scheduleEntry.last_slot_id || existing.last_slot_id || null;
+    const existingEndMs = existing.planned_end_at
+      ? new Date(existing.planned_end_at).getTime()
+      : 0;
+    const nextEndMs = plannedEndAt?.getTime?.() || 0;
+    const shouldSyncSlots =
+      Number(existing.first_slot_id || 0) !== Number(nextFirstSlotId || 0) ||
+      Number(existing.last_slot_id || 0) !== Number(nextLastSlotId || 0) ||
+      (nextEndMs > 0 && nextEndMs > existingEndMs);
+
+    if (shouldSyncSlots) {
+      const updated = await client.query(
+        `UPDATE attendance.teacher_schedule_requirement
+         SET
+           first_slot_id = COALESCE($3, first_slot_id),
+           last_slot_id = COALESCE($4, last_slot_id),
+           planned_start_at = CASE
+             WHEN $5::timestamptz IS NOT NULL
+               AND (planned_start_at IS NULL OR planned_start_at > $5::timestamptz)
+             THEN $5::timestamptz
+             ELSE planned_start_at
+           END,
+           planned_end_at = CASE
+             WHEN $6::timestamptz IS NOT NULL
+               AND (planned_end_at IS NULL OR planned_end_at < $6::timestamptz)
+             THEN $6::timestamptz
+             ELSE planned_end_at
+           END,
+           updated_at = NOW()
+         WHERE id = $1
+           AND attendance_id = $2
+         RETURNING id, actual_checkin_at, actual_checkout_at, planned_start_at, planned_end_at,
+                   first_slot_id, last_slot_id, session_status, late_minutes`,
+        [
+          existing.id,
+          attendanceId,
+          nextFirstSlotId,
+          nextLastSlotId,
+          plannedStartAt?.toISOString?.() || null,
+          plannedEndAt?.toISOString?.() || null,
+        ],
+      );
+      return updated.rows[0] || existing;
+    }
+
+    return existing;
   }
 
   const inserted = await client.query(
@@ -353,7 +842,8 @@ const ensureTeacherScheduleRequirement = async (
        session_status
      )
      VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz, 'pending')
-     RETURNING id, actual_checkin_at, actual_checkout_at, session_status, late_minutes`,
+     RETURNING id, actual_checkin_at, actual_checkout_at, planned_start_at, planned_end_at,
+               first_slot_id, last_slot_id, session_status, late_minutes`,
     [
       attendanceId,
       teacherId,
@@ -454,60 +944,35 @@ const upsertTeacherSessionLog = async (
   }
 
   const sessionLogId = existingRes.rows[0].id;
+
+  // Check-in must clear any previous checkout on the same class/day row.
+  // Otherwise COALESCE keeps a stale checkout and violates
+  // chk_teacher_session_time_order when the new check-in is later.
   await client.query(
     `UPDATE lms.l_teacher_session_log
      SET
        schedule_entry_id = COALESCE($2, schedule_entry_id),
-       checkin_at = COALESCE($3::timestamp, checkin_at),
-       checkout_at = COALESCE($4::timestamp, checkout_at),
+       checkin_at = CASE
+         WHEN $3::timestamp IS NOT NULL THEN $3::timestamp
+         ELSE checkin_at
+       END,
+       checkout_at = CASE
+         WHEN $3::timestamp IS NOT NULL AND $4::timestamp IS NULL THEN NULL
+         WHEN $4::timestamp IS NOT NULL THEN $4::timestamp
+         ELSE checkout_at
+       END,
        checkin_by = CASE WHEN $3::timestamp IS NOT NULL THEN $5 ELSE checkin_by END,
-       checkout_by = CASE WHEN $4::timestamp IS NOT NULL THEN $5 ELSE checkout_by END,
+       checkout_by = CASE
+         WHEN $3::timestamp IS NOT NULL AND $4::timestamp IS NULL THEN NULL
+         WHEN $4::timestamp IS NOT NULL THEN $5
+         ELSE checkout_by
+       END,
        updated_at = CURRENT_TIMESTAMP
      WHERE id = $1`,
     [sessionLogId, scheduleEntryId, checkinAt, checkoutAt, userId],
   );
 
   return sessionLogId;
-};
-
-const resolveEffectiveSessionAction = ({
-  scanAction,
-  autoResolveSessionAction,
-  requirement,
-  scannedAt,
-  plannedStartAt,
-  plannedEndAt,
-}) => {
-  if (
-    scanAction !== SESSION_CHECKIN_ACTION &&
-    scanAction !== SESSION_CHECKOUT_ACTION
-  ) {
-    return scanAction;
-  }
-
-  if (!autoResolveSessionAction) {
-    return scanAction;
-  }
-
-  const hasCheckin = Boolean(requirement?.actual_checkin_at);
-  const hasCheckout = Boolean(requirement?.actual_checkout_at);
-
-  // Second tap on same session (without explicit action) → checkout.
-  if (hasCheckin && !hasCheckout) {
-    return SESSION_CHECKOUT_ACTION;
-  }
-
-  if (!plannedStartAt || !plannedEndAt) {
-    return SESSION_CHECKIN_ACTION;
-  }
-
-  const toStart = Math.abs(scannedAt.getTime() - plannedStartAt.getTime());
-  const toEnd = Math.abs(scannedAt.getTime() - plannedEndAt.getTime());
-  if (toEnd < toStart && hasCheckin && !hasCheckout) {
-    return SESSION_CHECKOUT_ACTION;
-  }
-
-  return SESSION_CHECKIN_ACTION;
 };
 
 export const applyRfidScanToTeacherSession = async (
@@ -560,22 +1025,40 @@ export const applyRfidScanToTeacherSession = async (
     return null;
   }
 
-  const attendanceDate = toJakartaDateString(scannedAt);
-  const dayOfWeek = getJakartaIsoDow(scannedAt);
-  const scheduleEntries = await fetchTeacherScheduleEntries(client, {
-    homebaseId,
-    periodeId,
-    teacherId: userId,
-    classIds: resolvedClassIds,
-    dayOfWeek,
-  });
-
-  const scheduleEntry = pickScheduleEntry(
-    scheduleEntries,
-    scannedAt,
-    attendanceDate,
+  const { attendanceDate, dayOfWeek, intent } = await resolveClassroomScanContext(
+    client,
+    {
+      homebaseId,
+      periodeId,
+      userId,
+      classIds: resolvedClassIds,
+      scannedAt,
+      scanAction,
+      autoResolveSessionAction,
+    },
   );
+
+  if (intent.blocked) {
+    return {
+      blocked: true,
+      result_status: intent.result_status,
+      message: intent.message,
+      retry_after_seconds: intent.retry_after_seconds ?? null,
+    };
+  }
+
+  const scheduleEntry = intent.scheduleEntry;
   if (!scheduleEntry) {
+    return null;
+  }
+
+  let plannedStartAt = intent.plannedStartAt;
+  let plannedEndAt = intent.plannedEndAt;
+  if (!plannedStartAt || !plannedEndAt) {
+    plannedStartAt = jakartaLocalToDate(attendanceDate, scheduleEntry.start_time);
+    plannedEndAt = jakartaLocalToDate(attendanceDate, scheduleEntry.end_time);
+  }
+  if (!plannedStartAt || !plannedEndAt) {
     return null;
   }
 
@@ -601,18 +1084,6 @@ export const applyRfidScanToTeacherSession = async (
     policy,
   });
 
-  const plannedStartAt = jakartaLocalToDate(
-    attendanceDate,
-    scheduleEntry.start_time,
-  );
-  const plannedEndAt = jakartaLocalToDate(
-    attendanceDate,
-    scheduleEntry.end_time,
-  );
-  if (!plannedStartAt || !plannedEndAt) {
-    return null;
-  }
-
   const requirement = await ensureTeacherScheduleRequirement(client, {
     attendanceId,
     teacherId: userId,
@@ -622,22 +1093,68 @@ export const applyRfidScanToTeacherSession = async (
     plannedEndAt,
   });
 
+  plannedEndAt = resolvePlannedEndAt(plannedEndAt, requirement);
+
   if (isTeacherSessionComplete(requirement)) {
     return {
       blocked: true,
-      result_status: "duplicate",
-      message: "Sesi mengajar sudah lengkap (masuk dan keluar tercatat).",
+      result_status: CLASSROOM_RESULT_STATUS.DUPLICATE,
+      message: CLASSROOM_LCD_MESSAGE.SESSION_COMPLETE,
     };
   }
 
-  const effectiveScanAction = resolveEffectiveSessionAction({
-    scanAction,
-    autoResolveSessionAction,
-    requirement,
-    scannedAt,
-    plannedStartAt,
-    plannedEndAt,
-  });
+  const effectiveScanAction =
+    intent.effectiveScanAction ||
+    resolveEffectiveSessionAction({
+      scanAction,
+      autoResolveSessionAction,
+      requirement,
+      scannedAt,
+      plannedStartAt,
+      plannedEndAt,
+    });
+
+  // Safety net: never accept classroom checkout before planned session end.
+  if (effectiveScanAction === SESSION_CHECKOUT_ACTION) {
+    const tooEarly = evaluateClassroomCheckoutTooEarly(scannedAt, plannedEndAt);
+    if (tooEarly) {
+      return {
+        blocked: true,
+        result_status: tooEarly.result_status,
+        message: tooEarly.message,
+      };
+    }
+  }
+
+  if (effectiveScanAction === SESSION_CHECKIN_ACTION) {
+    const lastCheckout = await findLastTeacherCheckoutToday(client, {
+      userId,
+      attendanceDate,
+    });
+    const lastCheckoutEntryId =
+      lastCheckout?.schedule_entry_id != null
+        ? Number(lastCheckout.schedule_entry_id)
+        : null;
+    if (
+      lastCheckout?.actual_checkout_at &&
+      lastCheckoutEntryId != null &&
+      lastCheckoutEntryId !== Number(scheduleEntry.id)
+    ) {
+      const retryAfterSeconds = getClassroomCooldownRemainingSeconds(
+        lastCheckout.actual_checkout_at,
+        scannedAt,
+        CLASSROOM_SESSION_SWITCH_COOLDOWN_MINUTES,
+      );
+      if (retryAfterSeconds > 0) {
+        return {
+          blocked: true,
+          result_status: CLASSROOM_RESULT_STATUS.COOLDOWN,
+          message: CLASSROOM_LCD_MESSAGE.COOLDOWN,
+          retry_after_seconds: retryAfterSeconds,
+        };
+      }
+    }
+  }
 
   const scannedAtLocal = scannedAt
     .toLocaleString("sv-SE", { timeZone: JAKARTA_TZ })
