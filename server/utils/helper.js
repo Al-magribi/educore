@@ -10,6 +10,49 @@ export const getActivePeriode = async (client, homebaseId) => {
   return res.rows[0].id;
 };
 
+// File yang diupload simpan di ./server/assets/lms
+// dalam folder lms, buat folder untuk masing masing guru, baru simpan filenya
+// Ketika file dihapus, hapus juga file fisiknya
+export const getLmsTeacherDir = (teacherId) => {
+  return path.join(process.cwd(), "server", "assets", "lms", String(teacherId));
+};
+
+export const getLmsStudentSubmissionDir = (studentId) => {
+  return path.join(
+    process.cwd(),
+    "server",
+    "assets",
+    "lms",
+    "submissions",
+    String(studentId),
+  );
+};
+
+export const ensureDir = (dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+};
+
+export const resolveLmsAssetPath = (assetUrl) => {
+  if (!assetUrl || typeof assetUrl !== "string") return null;
+  const cleanUrl = assetUrl.split("?")[0];
+  if (!cleanUrl.startsWith("/assets/lms/")) return null;
+  const relativePath = cleanUrl.replace("/assets/", "");
+  return path.join(process.cwd(), "server", "assets", relativePath);
+};
+
+export const safeUnlink = (filePath) => {
+  if (!filePath) return;
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (error) {
+    // ignore delete error to avoid breaking request flow
+  }
+};
+
 /**
  * Sinkronkan No RFID user: hard-delete kartu lama, jangan soft-deactivate.
  * - rfidNo kosong → hapus semua kartu user
