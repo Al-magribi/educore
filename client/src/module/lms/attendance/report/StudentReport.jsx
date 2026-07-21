@@ -97,7 +97,7 @@ const STUDENT_STATUS_OPTIONS = [
 const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const [range, setRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
+  const [range, setRange] = useState([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [gradeId, setGradeId] = useState();
   const [classId, setClassId] = useState();
   const [status, setStatus] = useState();

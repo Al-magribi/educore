@@ -115,6 +115,13 @@ const formatSlotTimeRange = (row) => {
   return '-';
 };
 
+/** Natural class order: 7A, 7B, …, 8A, 8B, …, 9A, … */
+const compareClassName = (a, b) =>
+  String(a || '').localeCompare(String(b || ''), 'id', {
+    numeric: true,
+    sensitivity: 'base',
+  });
+
 const renderGuruCell = (row) => (
   <Flex vertical gap={2}>
     <Text strong ellipsis>
@@ -352,7 +359,7 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
 const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const [range, setRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
+  const [range, setRange] = useState([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [status, setStatus] = useState();
   const [userName, setUserName] = useState('');
   const [sessionClassId, setSessionClassId] = useState();
@@ -420,15 +427,20 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     return bTap - aTap;
   });
   const sessionRows = [...(data?.data?.session_rows || [])].sort((a, b) => {
-    const aTap = Math.max(
-      parseReportDateTime(a.actual_checkin_at)?.valueOf() || 0,
-      parseReportDateTime(a.actual_checkout_at)?.valueOf() || 0,
+    const byClass = compareClassName(a.class_name, b.class_name);
+    if (byClass !== 0) return byClass;
+
+    const byDate = String(a.attendance_date || '').localeCompare(
+      String(b.attendance_date || ''),
     );
-    const bTap = Math.max(
-      parseReportDateTime(b.actual_checkin_at)?.valueOf() || 0,
-      parseReportDateTime(b.actual_checkout_at)?.valueOf() || 0,
-    );
-    return bTap - aTap;
+    if (byDate !== 0) return byDate;
+
+    const bySlot = Number(a.first_slot_no || 0) - Number(b.first_slot_no || 0);
+    if (bySlot !== 0) return bySlot;
+
+    return String(a.full_name || '').localeCompare(String(b.full_name || ''), 'id', {
+      sensitivity: 'base',
+    });
   });
 
   const statItems =

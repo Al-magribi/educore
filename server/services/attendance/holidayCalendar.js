@@ -214,7 +214,7 @@ export const bulkDeleteAttendanceHolidays = async (executor, homebaseId, ids = [
   return result.rowCount || 0;
 };
 
-const isWeekendHoliday = (attendanceDate, calendarConfig) => {
+export const isWeekendHoliday = (attendanceDate, calendarConfig) => {
   if (!calendarConfig) return false;
 
   const date = new Date(`${attendanceDate}T12:00:00+07:00`);
@@ -230,12 +230,28 @@ const isWeekendHoliday = (attendanceDate, calendarConfig) => {
   return false;
 };
 
-export const isStudentHoliday = async (executor, homebaseId, attendanceDate) => {
+/**
+ * Cek libur operasional untuk role tertentu.
+ * - Akhir pekan dari attendance_calendar_config (skip_saturday / skip_sunday)
+ * - Libur khusus dari attendance_holiday sesuai applies_to_role (all | student | teacher)
+ */
+export const isAttendanceHoliday = async (
+  executor,
+  homebaseId,
+  attendanceDate,
+  role = "all",
+) => {
+  const normalizedRole = String(role || "all").trim();
   const calendarConfig = await getCalendarConfig(executor, homebaseId);
 
   if (isWeekendHoliday(attendanceDate, calendarConfig)) {
     return true;
   }
+
+  const roleFilter =
+    normalizedRole === "student" || normalizedRole === "teacher"
+      ? ["all", normalizedRole]
+      : ["all", "student", "teacher"];
 
   const result = await executor.query(
     `SELECT 1
@@ -243,10 +259,16 @@ export const isStudentHoliday = async (executor, homebaseId, attendanceDate) => 
      WHERE homebase_id = $1
        AND holiday_date = $2::date
        AND is_active = true
-       AND applies_to_role IN ('all', 'student')
+       AND applies_to_role = ANY($3::text[])
      LIMIT 1`,
-    [homebaseId, attendanceDate],
+    [homebaseId, attendanceDate, roleFilter],
   );
 
   return result.rows.length > 0;
 };
+
+export const isStudentHoliday = async (executor, homebaseId, attendanceDate) =>
+  isAttendanceHoliday(executor, homebaseId, attendanceDate, "student");
+
+export const isTeacherHoliday = async (executor, homebaseId, attendanceDate) =>
+  isAttendanceHoliday(executor, homebaseId, attendanceDate, "teacher");

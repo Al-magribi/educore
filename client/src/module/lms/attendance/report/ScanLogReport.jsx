@@ -295,7 +295,7 @@ const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
 const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const [range, setRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
+  const [range, setRange] = useState([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [deviceId, setDeviceId] = useState();
   const [resultStatus, setResultStatus] = useState();
   const [userName, setUserName] = useState('');

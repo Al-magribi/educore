@@ -48,9 +48,11 @@ CREATE TABLE attendance_policy_day_rule(
         CHECK (day_of_week BETWEEN 1 AND 7),
     CONSTRAINT attendance_policy_day_rule_checkin_range_check
         CHECK (
-            (checkin_start IS NULL AND checkin_end IS NULL)
-            OR
-            (checkin_start IS NOT NULL AND checkin_end IS NOT NULL AND checkin_start < checkin_end)
+            checkin_end IS NULL
+            OR (
+                checkin_start IS NOT NULL
+                AND checkin_start < checkin_end
+            )
         ),
     CONSTRAINT attendance_policy_day_rule_checkout_range_check
         CHECK (

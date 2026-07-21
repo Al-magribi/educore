@@ -1,5 +1,5 @@
 import pool from "../../config/connection.js";
-import { getPgBoss } from "../../config/pgBoss.js";
+import { ensurePgBossQueue, getPgBoss } from "../../config/pgBoss.js";
 import { runWhatsappNotificationJob } from "./runWhatsappBatch.js";
 
 const WHATSAPP_NOTIFY_QUEUE = "attendance.whatsapp_notify";
@@ -7,17 +7,6 @@ const WHATSAPP_NOTIFY_CRON = "* * * * *";
 
 let workerRegistered = false;
 let scheduleRegistered = false;
-
-const ensureQueue = async (boss) => {
-  try {
-    await boss.createQueue(WHATSAPP_NOTIFY_QUEUE);
-  } catch (error) {
-    const message = String(error?.message || "").toLowerCase();
-    if (!message.includes("already exists")) {
-      throw error;
-    }
-  }
-};
 
 const registerSchedule = async (boss) => {
   if (scheduleRegistered) return;
@@ -38,7 +27,7 @@ const registerWorker = async () => {
   if (workerRegistered) return;
 
   const boss = await getPgBoss();
-  await ensureQueue(boss);
+  await ensurePgBossQueue(boss, WHATSAPP_NOTIFY_QUEUE);
   await registerSchedule(boss);
 
   await boss.work(WHATSAPP_NOTIFY_QUEUE, async () => {

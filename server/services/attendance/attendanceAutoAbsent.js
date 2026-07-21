@@ -7,6 +7,7 @@ import {
   resolvePolicyForUser,
   toJakartaDateString,
 } from "./rfidDailyAttendance.js";
+import { isAttendanceHoliday } from "./holidayCalendar.js";
 
 const FINAL_STATUSES = new Set([
   "present",
@@ -27,6 +28,165 @@ const isFeatureEnabled = async (client, homebaseId, featureCode) => {
     [homebaseId, featureCode],
   );
   return result.rows[0]?.is_enabled === true;
+};
+
+/**
+ * Siswa eligible auto-absent / auto-checkout:
+ * aktif, enrollment periode aktif, dan punya RFID aktif.
+ */
+export const listEligibleStudentsForDailyAttendance = async (
+  client,
+  { homebaseId, periodeId },
+) => {
+  if (!periodeId) return [];
+
+  const result = await client.query(
+    `SELECT DISTINCT
+       st.user_id,
+       st.current_class_id,
+       c.grade_id
+     FROM u_students st
+     JOIN u_users u
+       ON u.id = st.user_id
+      AND u.is_active = true
+      AND u.role = 'student'
+     JOIN u_class_enrollments ce
+       ON ce.student_id = st.user_id
+      AND ce.periode_id = $2
+     JOIN attendance.rfid_card rc
+       ON rc.user_id = st.user_id
+      AND rc.is_active = true
+     LEFT JOIN a_class c ON c.id = st.current_class_id
+     WHERE st.homebase_id = $1
+     ORDER BY st.user_id ASC`,
+    [homebaseId, periodeId],
+  );
+
+  return result.rows;
+};
+
+/**
+ * Guru eligible auto-absent / auto-checkout:
+ * aktif dan punya RFID aktif.
+ */
+export const listEligibleTeachersForDailyAttendance = async (
+  client,
+  { homebaseId },
+) => {
+  const result = await client.query(
+    `SELECT DISTINCT t.user_id
+     FROM u_teachers t
+     JOIN u_users u
+       ON u.id = t.user_id
+      AND u.is_active = true
+     JOIN attendance.rfid_card rc
+       ON rc.user_id = t.user_id
+      AND rc.is_active = true
+     WHERE t.homebase_id = $1
+     ORDER BY t.user_id ASC`,
+    [homebaseId],
+  );
+
+  return result.rows;
+};
+
+/** Hapus presensi harian siswa yang tidak punya RFID aktif. */
+export const purgeStudentAttendanceWithoutRfid = async (
+  client,
+  { homebaseId, attendanceDate = null } = {},
+) => {
+  const params = [homebaseId];
+  let dateFilter = "";
+  if (attendanceDate) {
+    params.push(attendanceDate);
+    dateFilter = `AND da.attendance_date = $2::date`;
+  }
+
+  const result = await client.query(
+    `DELETE FROM attendance.daily_attendance da
+     WHERE da.homebase_id = $1
+       AND da.target_role = 'student'
+       ${dateFilter}
+       AND NOT EXISTS (
+         SELECT 1
+         FROM attendance.rfid_card rc
+         WHERE rc.user_id = da.user_id
+           AND rc.is_active = true
+       )
+     RETURNING da.id`,
+    params,
+  );
+
+  return result.rowCount;
+};
+
+/** Hapus presensi harian guru yang tidak punya RFID aktif. */
+export const purgeTeacherAttendanceWithoutRfid = async (
+  client,
+  { homebaseId, attendanceDate = null } = {},
+) => {
+  const params = [homebaseId];
+  let dateFilter = "";
+  if (attendanceDate) {
+    params.push(attendanceDate);
+    dateFilter = `AND da.attendance_date = $2::date`;
+  }
+
+  const result = await client.query(
+    `DELETE FROM attendance.daily_attendance da
+     WHERE da.homebase_id = $1
+       AND da.target_role = 'teacher'
+       ${dateFilter}
+       AND NOT EXISTS (
+         SELECT 1
+         FROM attendance.rfid_card rc
+         WHERE rc.user_id = da.user_id
+           AND rc.is_active = true
+       )
+     RETURNING da.id`,
+    params,
+  );
+
+  return result.rowCount;
+};
+
+/** Akhir sesi mengajar terakhir guru di hari itu (fallback cutoff schedule-based). */
+export const resolveLastTeacherSessionEndAt = async (
+  client,
+  { homebaseId, periodeId, teacherId, attendanceDate, dayOfWeek },
+) => {
+  if (!periodeId) return null;
+
+  const result = await client.query(
+    `SELECT MAX(
+       ($5::date::timestamp + COALESCE(slot_last.last_end_time, start_slot.end_time))
+         AT TIME ZONE '${JAKARTA_TZ}'
+     ) AS last_end_at
+     FROM lms.l_schedule_entry se
+     JOIN lms.l_time_slot start_slot ON start_slot.id = se.slot_start_id
+     LEFT JOIN LATERAL (
+       SELECT ts.end_time AS last_end_time
+       FROM lms.l_schedule_entry_slot ses
+       JOIN lms.l_time_slot ts ON ts.id = ses.slot_id
+       WHERE ses.schedule_entry_id = se.id
+       ORDER BY ts.end_time DESC, ses.id DESC
+       LIMIT 1
+     ) AS slot_last ON true
+     JOIN lms.l_schedule_config cfg
+       ON cfg.id = se.config_id
+      AND cfg.homebase_id = se.homebase_id
+      AND cfg.periode_id = se.periode_id
+      AND cfg.is_active = true
+     WHERE se.homebase_id = $1
+       AND se.periode_id = $2
+       AND se.teacher_id = $3
+       AND se.day_of_week = $4
+       AND se.status <> 'archived'`,
+    [homebaseId, periodeId, teacherId, dayOfWeek, attendanceDate],
+  );
+
+  const value = result.rows[0]?.last_end_at;
+  return value ? new Date(value) : null;
 };
 
 /** Batas auto-absent: utamakan Checkin Selesai (checkin_end). */
@@ -66,9 +226,8 @@ export const shouldSkipExistingAbsentRow = (existing) => {
   return FINAL_STATUSES.has(existing.attendance_status);
 };
 
-/** Opsi B: schedule-based tidak auto-isi jam pulang dari policy. */
-export const canAutoFillCheckoutForPolicy = (policy) =>
-  Boolean(policy) && policy.policy_type !== "teacher_schedule_based";
+/** Auto-isi jam pulang berlaku untuk semua tipe policy yang punya day rule Jam Pulang. */
+export const canAutoFillCheckoutForPolicy = (policy) => Boolean(policy);
 
 const countTeacherSessions = countTeacherScheduleSessions;
 
@@ -280,21 +439,23 @@ const processStudentAutoAbsent = async (
   client,
   { homebaseId, periodeId, attendanceDate, now },
 ) => {
+  if (
+    await isAttendanceHoliday(client, homebaseId, attendanceDate, "student")
+  ) {
+    return 0;
+  }
+
   if (!(await isFeatureEnabled(client, homebaseId, "student_daily_attendance"))) {
     return 0;
   }
 
   const dayOfWeek = getJakartaIsoDow(new Date(`${attendanceDate}T12:00:00+07:00`));
-  const studentsRes = await client.query(
-    `SELECT
-       st.user_id,
-       st.current_class_id,
-       c.grade_id
-     FROM u_students st
-     LEFT JOIN a_class c ON c.id = st.current_class_id
-     WHERE st.homebase_id = $1`,
-    [homebaseId],
-  );
+  const studentsRes = {
+    rows: await listEligibleStudentsForDailyAttendance(client, {
+      homebaseId,
+      periodeId,
+    }),
+  };
 
   let marked = 0;
 
@@ -350,17 +511,20 @@ const processTeacherAutoAbsent = async (
   client,
   { homebaseId, periodeId, attendanceDate, now },
 ) => {
+  if (
+    await isAttendanceHoliday(client, homebaseId, attendanceDate, "teacher")
+  ) {
+    return 0;
+  }
+
   if (!(await isFeatureEnabled(client, homebaseId, "teacher_daily_attendance"))) {
     return 0;
   }
 
   const dayOfWeek = getJakartaIsoDow(new Date(`${attendanceDate}T12:00:00+07:00`));
-  const teachersRes = await client.query(
-    `SELECT user_id
-     FROM u_teachers
-     WHERE homebase_id = $1`,
-    [homebaseId],
-  );
+  const teachersRes = {
+    rows: await listEligibleTeachersForDailyAttendance(client, { homebaseId }),
+  };
 
   let marked = 0;
 
@@ -387,11 +551,20 @@ const processTeacherAutoAbsent = async (
         continue;
       }
 
-      // Wajib punya day rule aktif + Checkin Selesai (atau fallback) untuk cutoff.
       const dayRule = await getDayRule(client, policy.id, dayOfWeek);
       if (!dayRule) continue;
 
-      const cutoff = resolveCheckinCutoff(dayRule, now);
+      // Prioritas: Jam Pulang policy → Checkin Selesai → akhir sesi terakhir hari itu.
+      const cutoff =
+        resolveCheckoutFillAt(dayRule, attendanceDate) ||
+        resolveCheckinCutoff(dayRule, now) ||
+        (await resolveLastTeacherSessionEndAt(client, {
+          homebaseId,
+          periodeId,
+          teacherId: teacher.user_id,
+          attendanceDate,
+          dayOfWeek,
+        }));
       if (!hasPassedCutoff(now, cutoff)) continue;
 
       const attendanceRes = await client.query(
@@ -427,7 +600,7 @@ const processTeacherAutoAbsent = async (
         attendanceStatus: "absent",
         requiredToAttend: true,
         requirementSource: "schedule",
-        notes: "Auto-absent: tidak ada scan masuk hingga batas checkin.",
+        notes: "Auto-absent: tidak ada scan masuk hingga batas kehadiran policy.",
       });
 
       const attendanceIdRes = await client.query(
@@ -455,7 +628,10 @@ const processTeacherAutoAbsent = async (
     const dayRule = await getDayRule(client, policy.id, dayOfWeek);
     if (!dayRule) continue;
 
-    const cutoff = resolveCheckinCutoff(dayRule, now);
+    // Fixed daily: Checkin Selesai, atau Jam Pulang jika checkin_end kosong.
+    const cutoff =
+      resolveCheckinCutoff(dayRule, now) ||
+      resolveCheckoutFillAt(dayRule, attendanceDate);
     if (!hasPassedCutoff(now, cutoff)) continue;
 
     const existingRes = await client.query(
@@ -479,7 +655,7 @@ const processTeacherAutoAbsent = async (
       attendanceStatus: "absent",
       requiredToAttend: true,
       requirementSource: "policy",
-      notes: "Auto-absent: tidak ada scan masuk hingga batas checkin.",
+      notes: "Auto-absent: tidak ada scan masuk hingga batas kehadiran policy.",
     });
     marked += 1;
   }
@@ -489,12 +665,20 @@ const processTeacherAutoAbsent = async (
 
 /**
  * Auto-isi jam pulang tepat pada Jam Pulang policy.
- * Tidak berlaku untuk teacher_schedule_based (opsi B).
+ * Berlaku untuk semua tipe policy (termasuk teacher_schedule_based)
+ * selama day rule punya reference_checkout_time dan checkout tidak optional.
+ * Siswa: hanya eligible (enrollment periode + RFID aktif).
  */
 const processAutoCheckout = async (
   client,
-  { homebaseId, attendanceDate, now, targetRole },
+  { homebaseId, periodeId = null, attendanceDate, now, targetRole },
 ) => {
+  if (
+    await isAttendanceHoliday(client, homebaseId, attendanceDate, targetRole)
+  ) {
+    return 0;
+  }
+
   const featureCode =
     targetRole === "teacher"
       ? "teacher_daily_attendance"
@@ -507,22 +691,17 @@ const processAutoCheckout = async (
 
   const usersRes =
     targetRole === "teacher"
-      ? await client.query(
-          `SELECT user_id
-           FROM u_teachers
-           WHERE homebase_id = $1`,
-          [homebaseId],
-        )
-      : await client.query(
-          `SELECT
-             st.user_id,
-             st.current_class_id,
-             c.grade_id
-           FROM u_students st
-           LEFT JOIN a_class c ON c.id = st.current_class_id
-           WHERE st.homebase_id = $1`,
-          [homebaseId],
-        );
+      ? {
+          rows: await listEligibleTeachersForDailyAttendance(client, {
+            homebaseId,
+          }),
+        }
+      : {
+          rows: await listEligibleStudentsForDailyAttendance(client, {
+            homebaseId,
+            periodeId,
+          }),
+        };
 
   let filled = 0;
 
@@ -535,16 +714,27 @@ const processAutoCheckout = async (
       gradeId: row.grade_id ?? null,
       attendanceDate,
     });
-    if (!policy) continue;
-
-    // Opsi B: schedule-based tidak auto-isi jam pulang dari policy.
     if (!canAutoFillCheckoutForPolicy(policy)) continue;
 
     const dayRule = await getDayRule(client, policy.id, dayOfWeek);
     if (!dayRule) continue;
     if (dayRule.checkout_is_optional === true) continue;
 
-    const fillAt = resolveCheckoutFillAt(dayRule, attendanceDate);
+    let fillAt = resolveCheckoutFillAt(dayRule, attendanceDate);
+    if (
+      !fillAt &&
+      targetRole === "teacher" &&
+      policy.policy_type === "teacher_schedule_based" &&
+      periodeId
+    ) {
+      fillAt = await resolveLastTeacherSessionEndAt(client, {
+        homebaseId,
+        periodeId,
+        teacherId: row.user_id,
+        attendanceDate,
+        dayOfWeek,
+      });
+    }
     if (!hasPassedCutoff(now, fillAt)) continue;
 
     const existingRes = await client.query(
@@ -589,6 +779,12 @@ const markMissedTeacherSessions = async (
   client,
   { homebaseId, attendanceDate, now },
 ) => {
+  if (
+    await isAttendanceHoliday(client, homebaseId, attendanceDate, "teacher")
+  ) {
+    return 0;
+  }
+
   if (
     !(await isFeatureEnabled(
       client,
@@ -638,6 +834,8 @@ export const runAutoAbsentForHomebase = async (
     return {
       homebase_id: homebaseId,
       attendance_date: evaluationDate,
+      students_purged_no_rfid: 0,
+      teachers_purged_no_rfid: 0,
       students_marked: 0,
       teachers_marked: 0,
       students_checkout_filled: 0,
@@ -646,39 +844,82 @@ export const runAutoAbsentForHomebase = async (
     };
   }
 
-  const studentsMarked = await processStudentAutoAbsent(client, {
-    homebaseId,
-    periodeId,
-    attendanceDate: evaluationDate,
-    now,
-  });
-  const teachersMarked = await processTeacherAutoAbsent(client, {
-    homebaseId,
-    periodeId,
-    attendanceDate: evaluationDate,
-    now,
-  });
-  const studentsCheckoutFilled = await processAutoCheckout(client, {
-    homebaseId,
-    attendanceDate: evaluationDate,
-    now,
-    targetRole: "student",
-  });
-  const teachersCheckoutFilled = await processAutoCheckout(client, {
-    homebaseId,
-    attendanceDate: evaluationDate,
-    now,
-    targetRole: "teacher",
-  });
-  const sessionsMarkedMissed = await markMissedTeacherSessions(client, {
-    homebaseId,
-    attendanceDate: evaluationDate,
-    now,
-  });
+  const runStep = async (stepName, fn) => {
+    const savepoint = `sp_${stepName}`;
+    try {
+      await client.query(`SAVEPOINT ${savepoint}`);
+      const value = await fn();
+      await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+      return value;
+    } catch (error) {
+      await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+      console.error(
+        `[attendance] ${stepName} gagal homebase ${homebaseId}:`,
+        error.message,
+      );
+      return 0;
+    }
+  };
+
+  const studentsPurgedNoRfid = await runStep("purge_student_no_rfid", () =>
+    purgeStudentAttendanceWithoutRfid(client, {
+      homebaseId,
+      attendanceDate: evaluationDate,
+    }),
+  );
+  const teachersPurgedNoRfid = await runStep("purge_teacher_no_rfid", () =>
+    purgeTeacherAttendanceWithoutRfid(client, {
+      homebaseId,
+      attendanceDate: evaluationDate,
+    }),
+  );
+  const studentsMarked = await runStep("student_absent", () =>
+    processStudentAutoAbsent(client, {
+      homebaseId,
+      periodeId,
+      attendanceDate: evaluationDate,
+      now,
+    }),
+  );
+  const teachersMarked = await runStep("teacher_absent", () =>
+    processTeacherAutoAbsent(client, {
+      homebaseId,
+      periodeId,
+      attendanceDate: evaluationDate,
+      now,
+    }),
+  );
+  const studentsCheckoutFilled = await runStep("student_checkout", () =>
+    processAutoCheckout(client, {
+      homebaseId,
+      periodeId,
+      attendanceDate: evaluationDate,
+      now,
+      targetRole: "student",
+    }),
+  );
+  const teachersCheckoutFilled = await runStep("teacher_checkout", () =>
+    processAutoCheckout(client, {
+      homebaseId,
+      periodeId,
+      attendanceDate: evaluationDate,
+      now,
+      targetRole: "teacher",
+    }),
+  );
+  const sessionsMarkedMissed = await runStep("session_missed", () =>
+    markMissedTeacherSessions(client, {
+      homebaseId,
+      attendanceDate: evaluationDate,
+      now,
+    }),
+  );
 
   return {
     homebase_id: homebaseId,
     attendance_date: evaluationDate,
+    students_purged_no_rfid: studentsPurgedNoRfid,
+    teachers_purged_no_rfid: teachersPurgedNoRfid,
     students_marked: studentsMarked,
     teachers_marked: teachersMarked,
     students_checkout_filled: studentsCheckoutFilled,

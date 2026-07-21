@@ -23,11 +23,11 @@ const studentDayRule = {
 
 const scheduleBasedDayRule = {
   checkin_start: "07:00",
-  checkin_end: "08:00",
+  checkin_end: null,
   reference_checkin_time: null,
   late_tolerance_minutes: 0,
   checkout_start: null,
-  reference_checkout_time: null,
+  reference_checkout_time: "15:00",
   checkout_is_optional: false,
   min_presence_minutes: null,
 };
@@ -109,20 +109,48 @@ describe("Tahap 4 — auto-absent / auto-checkout scenarios", () => {
     assert.ok(fillAt);
   });
 
-  it("6) guru schedule-based: tidak auto-isi jam pulang", () => {
+  it("6) guru schedule-based: ikut auto-isi jika day rule punya Jam Pulang", () => {
     assert.equal(
       canAutoFillCheckoutForPolicy({ policy_type: "teacher_schedule_based" }),
-      false,
+      true,
     );
-    assert.equal(resolveCheckoutFillAt(scheduleBasedDayRule, "2026-07-21"), null);
+    assert.equal(
+      resolveCheckoutFillAt(scheduleBasedDayRule, "2026-07-21")?.toISOString(),
+      jakartaLocalToDate("2026-07-21", "15:00").toISOString(),
+    );
+    assert.equal(
+      resolveCheckoutFillAt(
+        { ...scheduleBasedDayRule, reference_checkout_time: null },
+        "2026-07-21",
+      ),
+      null,
+    );
   });
 
-  it("7) guru schedule-based: setelah Checkin Selesai bisa absent (ada jadwal)", () => {
-    const now = jakartaLocalToDate("2026-07-21", "08:05");
-    const cutoff = resolveCheckinCutoff(scheduleBasedDayRule, now);
-    assert.ok(cutoff);
-    assert.equal(hasPassedCutoff(now, cutoff), true);
-    // Syarat sessionCount > 0 diuji di processTeacherAutoAbsent (integrasi DB).
+  it("7) guru schedule-based: tanpa Checkin Selesai, absent memakai Jam Pulang", () => {
+    const attendanceDate = "2026-07-21";
+    const before = jakartaLocalToDate(attendanceDate, "14:30");
+    const after = jakartaLocalToDate(attendanceDate, "15:00");
+    const cutoffFromCheckin = resolveCheckinCutoff(scheduleBasedDayRule, after);
+    assert.equal(cutoffFromCheckin, null);
+    const fillAt = resolveCheckoutFillAt(scheduleBasedDayRule, attendanceDate);
+    assert.equal(hasPassedCutoff(before, fillAt), false);
+    assert.equal(hasPassedCutoff(after, fillAt), true);
+  });
+
+  it("7b) jam pulang diutamakan untuk cutoff schedule-based", () => {
+    const attendanceDate = "2026-07-21";
+    const rule = {
+      ...scheduleBasedDayRule,
+      checkin_end: "08:00",
+      reference_checkout_time: "16:00",
+    };
+    const fillAt = resolveCheckoutFillAt(rule, attendanceDate);
+    const checkinCutoff = resolveCheckinCutoff(rule, jakartaLocalToDate(attendanceDate, "17:00"));
+    // Preferensi di processTeacherAutoAbsent: jam pulang dulu.
+    assert.equal(fillAt.toISOString(), jakartaLocalToDate(attendanceDate, "16:00").toISOString());
+    assert.ok(checkinCutoff);
+    assert.equal(hasPassedCutoff(jakartaLocalToDate(attendanceDate, "16:00"), fillAt), true);
   });
 
   it("8) sudah ada checkout nyata: tidak ditimpa auto-checkout", () => {
@@ -159,5 +187,17 @@ describe("Tahap 4 — auto-absent / auto-checkout scenarios", () => {
       }.checkout_is_optional,
       true,
     );
+  });
+
+  it("extra) siswa eligible membutuhkan periodeId (tanpa itu kosong)", async () => {
+    // Smoke: helper diexport dan menolak periode kosong tanpa query DB.
+    const { listEligibleStudentsForDailyAttendance } = await import(
+      "./attendanceAutoAbsent.js"
+    );
+    const rows = await listEligibleStudentsForDailyAttendance(
+      { query: async () => ({ rows: [{ user_id: 1 }] }) },
+      { homebaseId: 1, periodeId: null },
+    );
+    assert.deepEqual(rows, []);
   });
 });

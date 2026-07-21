@@ -110,6 +110,18 @@ const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
     )
 )`;
 
+/** Siswa: tampilkan tap gate + yang belum tap (absent/excused/pending dari auto-absent). */
+const STUDENT_REPORT_ROW_VISIBLE_SQL = `(
+  ${GATE_LINKED_SCAN_EXISTS_SQL}
+  OR da.attendance_status IN ('absent', 'excused', 'pending')
+)`;
+
+/** Guru: tampilkan tap gate + yang belum tap (absent/excused/pending dari auto-absent). */
+const TEACHER_REPORT_ROW_VISIBLE_SQL = `(
+  ${GATE_LINKED_SCAN_EXISTS_SQL}
+  OR da.attendance_status IN ('absent', 'excused', 'pending', 'not_scheduled')
+)`;
+
 const toJakartaTimestampSql = (columnSql) =>
   `CASE WHEN ${columnSql} IS NULL THEN NULL ELSE TO_CHAR((${columnSql} AT TIME ZONE '${JAKARTA_TZ}'), 'YYYY-MM-DD HH24:MI:SS') END`;
 
@@ -1201,10 +1213,19 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
     if (minPresenceMinutes !== null && minPresenceMinutes < 0) {
       return res.status(400).json({ status: "error", message: "min_presence_minutes tidak boleh negatif." });
     }
-    if ((checkinStart && !checkinEnd) || (!checkinStart && checkinEnd)) {
+    // Schedule-based: cukup Checkin Mulai + Jam Pulang (tanpa Checkin Selesai).
+    if (policyType !== "teacher_schedule_based") {
+      if ((checkinStart && !checkinEnd) || (!checkinStart && checkinEnd)) {
+        return res.status(400).json({
+          status: "error",
+          message: "checkin_start dan checkin_end harus diisi berpasangan.",
+        });
+      }
+    } else if (checkinEnd) {
       return res.status(400).json({
         status: "error",
-        message: "checkin_start dan checkin_end harus diisi berpasangan.",
+        message:
+          "teacher_schedule_based tidak memakai checkin_end. Gunakan reference_checkout_time (Jam Pulang).",
       });
     }
     if (checkoutStart && referenceCheckoutTime && checkoutStart >= referenceCheckoutTime) {
@@ -1300,7 +1321,9 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
         dayOfWeek,
         isRuleActive,
         normalizeTimeOrNull(rawRule?.checkin_start),
-        normalizeTimeOrNull(rawRule?.checkin_end),
+        policyType === "teacher_schedule_based"
+          ? null
+          : normalizeTimeOrNull(rawRule?.checkin_end),
         normalizeTimeOrNull(rawRule?.reference_checkin_time),
         lateToleranceMinutes,
         normalizeTimeOrNull(rawRule?.checkout_start),
@@ -2811,7 +2834,7 @@ router.get(
       "da.homebase_id = $1",
       "da.target_role = 'student'",
       "da.attendance_date BETWEEN $2::date AND $3::date",
-      GATE_LINKED_SCAN_EXISTS_SQL,
+      STUDENT_REPORT_ROW_VISIBLE_SQL,
     ];
     appendPeriodeFilter(where, params, periodeId);
 
@@ -2944,7 +2967,7 @@ router.get(
       "da.homebase_id = $1",
       "da.target_role = 'teacher'",
       "da.attendance_date BETWEEN $2::date AND $3::date",
-      GATE_LINKED_SCAN_EXISTS_SQL,
+      TEACHER_REPORT_ROW_VISIBLE_SQL,
     ];
     appendPeriodeFilter(where, params, periodeId);
 

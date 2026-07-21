@@ -104,10 +104,11 @@ const PolicySettingsTab = ({
         if (values.policy_type === "teacher_schedule_based") {
           return {
             ...baseRule,
+            checkin_end: null,
             reference_checkin_time: null,
             late_tolerance_minutes: 0,
             checkout_start: null,
-            reference_checkout_time: null,
+            reference_checkout_time: rule.reference_checkout_time || null,
             min_presence_minutes: null,
             checkout_is_optional: false,
           };
@@ -383,17 +384,15 @@ const PolicySettingsTab = ({
                       >
                         <Input placeholder='07:00' />
                       </Form.Item>
-                      <Form.Item
-                        name={[field.name, "checkin_end"]}
-                        label='Checkin Selesai'
-                        tooltip={
-                          selectedPolicyType === "teacher_schedule_based"
-                            ? "Akhir jendela scan masuk gerbang sekaligus batas auto-absent. Bukan jam pulang; jam sesi kelas diambil dari jadwal timetable."
-                            : "Akhir jendela scan masuk RFID. Scan setelah jam ini ditolak. Setelah jam ini, yang belum tap masuk otomatis berstatus absent."
-                        }
-                      >
-                        <Input placeholder='08:00' />
-                      </Form.Item>
+                      {selectedPolicyType !== "teacher_schedule_based" && (
+                        <Form.Item
+                          name={[field.name, "checkin_end"]}
+                          label='Checkin Selesai'
+                          tooltip='Akhir jendela scan masuk RFID. Scan setelah jam ini ditolak. Setelah jam ini, yang belum tap masuk otomatis berstatus absent.'
+                        >
+                          <Input placeholder='08:00' />
+                        </Form.Item>
+                      )}
                       {selectedPolicyType !== "teacher_schedule_based" && (
                         <Form.Item
                           name={[field.name, "reference_checkin_time"]}
@@ -421,15 +420,17 @@ const PolicySettingsTab = ({
                           <Input placeholder='14:00' />
                         </Form.Item>
                       )}
-                      {selectedPolicyType !== "teacher_schedule_based" && (
-                        <Form.Item
-                          name={[field.name, "reference_checkout_time"]}
-                          label='Jam Pulang'
-                          tooltip='Akhir jendela scan pulang RFID sekaligus jam pulang resmi. Setelah jam ini, yang sudah masuk tapi belum tap pulang otomatis diisi jam pulang policy.'
-                        >
-                          <Input placeholder='15:00' />
-                        </Form.Item>
-                      )}
+                      <Form.Item
+                        name={[field.name, "reference_checkout_time"]}
+                        label='Jam Pulang'
+                        tooltip={
+                          selectedPolicyType === "teacher_schedule_based"
+                            ? "Jam pulang resmi gate. Setelah jam ini, guru yang sudah tap masuk tapi belum tap pulang otomatis diisi jam pulang policy."
+                            : "Akhir jendela scan pulang RFID sekaligus jam pulang resmi. Setelah jam ini, yang sudah masuk tapi belum tap pulang otomatis diisi jam pulang policy."
+                        }
+                      >
+                        <Input placeholder='15:00' />
+                      </Form.Item>
                       {selectedPolicyType === "teacher_fixed_daily" && (
                         <Form.Item
                           name={[field.name, "min_presence_minutes"]}
