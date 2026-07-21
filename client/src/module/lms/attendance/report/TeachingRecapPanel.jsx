@@ -9,7 +9,6 @@ import {
   Flex,
   Grid,
   Select,
-  Statistic,
   Table,
   Typography,
   message,
@@ -25,13 +24,6 @@ const surfaceCardStyle = {
   border: '1px solid #e5edf6',
   background: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)',
   boxShadow: '0 18px 36px rgba(15, 23, 42, 0.06)',
-};
-
-const statCardStyle = {
-  borderRadius: 18,
-  border: '1px solid #e2ebf5',
-  background: '#ffffff',
-  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.05)',
 };
 
 const sanitizeSheetName = (name) => {
@@ -70,15 +62,9 @@ const TeachingRecapPanel = ({
 
   const rows = data?.data?.rows || [];
   const byClass = data?.data?.by_class || [];
-  const summary = data?.data?.summary || {};
 
   const columns = useMemo(
     () => [
-      {
-        title: 'Kelas',
-        dataIndex: 'class_name',
-        ellipsis: true,
-      },
       {
         title: 'Guru',
         ellipsis: true,
@@ -94,19 +80,33 @@ const TeachingRecapPanel = ({
         ),
       },
       {
-        title: 'Hadir (tap)',
+        title: 'Mengajar',
+        ellipsis: true,
+        render: (_, row) => (
+          <Flex vertical gap={2}>
+            <Text strong ellipsis>
+              {row.subject_name || '-'}
+            </Text>
+            <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+              Kelas {row.class_name || '-'}
+            </Text>
+          </Flex>
+        ),
+      },
+      {
+        title: 'Hadir (sesi)',
         dataIndex: 'attended_tap',
-        width: 110,
+        width: 120,
       },
       {
-        title: 'Seharusnya',
+        title: 'Seharusnya (sesi)',
         dataIndex: 'should_attend',
-        width: 110,
+        width: 140,
       },
       {
-        title: 'Belum tap',
+        title: 'Belum tap (sesi)',
         dataIndex: 'belum_tap',
-        width: 110,
+        width: 130,
       },
       {
         title: 'Persentase',
@@ -139,13 +139,14 @@ const TeachingRecapPanel = ({
 
       const exportRows = (group.rows || []).map((row, index) => ({
         No: index + 1,
-        Kelas: row.class_name,
         Guru: row.teacher_name,
         NIP: row.nip || '-',
         'No RFID': row.card_uid || '-',
-        'Hadir (tap present+late)': row.attended_tap,
-        Seharusnya: row.should_attend,
-        'Belum tap mengajar': row.belum_tap,
+        'Mata Pelajaran': row.subject_name || '-',
+        Kelas: row.class_name,
+        'Hadir (sesi present+late)': row.attended_tap,
+        'Seharusnya (sesi)': row.should_attend,
+        'Belum tap (sesi)': row.belum_tap,
         Excused: row.excused_count,
         Partial: row.partial_count,
         'Persentase (%)': row.attendance_rate,
@@ -196,35 +197,19 @@ const TeachingRecapPanel = ({
       </Flex>
 
       <Text type="secondary">
-        Hitungan hadir mengajar = status <Text code>present</Text> + <Text code>late</Text> dari tap
-        perangkat absen mengajar (bukan datang/pulang gerbang). Belum tap = sesi jadwal tanpa tap
-        mengajar.
+        Perhitungan per sesi (jam pelajaran) dari master jadwal aktif. Contoh: Bahasa Inggris 8C 4
+        sesi/minggu → ±16 sesi/bulan. <Text strong>Seharusnya</Text> = jumlah sesi terjadwal pada
+        bulan dipilih. <Text strong>Hadir</Text> = sesi dengan tap classroom berstatus{' '}
+        <Text code>present</Text>/<Text code>late</Text> dalam rentang waktu jadwal. Satu blok
+        multi-jam dihitung sesuai jumlah sesinya (mis. jam 6–7 = 2 sesi).
       </Text>
-
-      <Flex gap={12} wrap="wrap">
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 180px' }}>
-          <Statistic title="Guru" value={Number(summary.total_teachers || 0)} />
-        </Card>
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 180px' }}>
-          <Statistic title="Kelas" value={Number(summary.total_classes || 0)} />
-        </Card>
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 180px' }}>
-          <Statistic title="Hadir (tap)" value={Number(summary.attended_tap || 0)} />
-        </Card>
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 180px' }}>
-          <Statistic title="Seharusnya" value={Number(summary.should_attend || 0)} />
-        </Card>
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 180px' }}>
-          <Statistic title="Belum tap" value={Number(summary.belum_tap || 0)} />
-        </Card>
-      </Flex>
 
       <Card style={surfaceCardStyle} bordered={false}>
         {rows.length === 0 && !isLoading && !isFetching ? (
           <Empty description="Belum ada data rekapitulasi mengajar pada bulan ini." />
         ) : (
           <Table
-            rowKey={(row) => `${row.class_id}-${row.teacher_id}`}
+            rowKey={(row) => `${row.class_id}-${row.teacher_id}-${row.subject_id || 'none'}`}
             loading={isLoading || (isFetching && rows.length > 0)}
             dataSource={rows}
             columns={columns}

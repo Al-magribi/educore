@@ -312,7 +312,9 @@ CREATE TABLE rfid_scan_log(
                 'card_inactive',
                 'device_inactive',
                 'user_inactive',
-                'policy_missing'
+                'policy_missing',
+                'too_early_checkout',
+                'cooldown'
             )
         )
 );

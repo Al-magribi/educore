@@ -2999,7 +2999,13 @@ router.get(
          COUNT(*) FILTER (WHERE da.attendance_status = 'absent')::int AS absent_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'insufficient_hours')::int AS insufficient_hours_count,
-         COUNT(*) FILTER (WHERE da.attendance_status = 'not_scheduled')::int AS not_scheduled_count
+         COUNT(*) FILTER (WHERE da.attendance_status = 'not_scheduled')::int AS not_scheduled_count,
+         COUNT(DISTINCT CASE
+           WHEN da.attendance_status IN ('present', 'late') THEN da.user_id
+         END)::int AS present_teachers,
+         COUNT(DISTINCT CASE
+           WHEN da.attendance_status = 'absent' THEN da.user_id
+         END)::int AS absent_teachers
        FROM attendance.daily_attendance da
        JOIN u_users u ON u.id = da.user_id
        JOIN u_teachers t ON t.user_id = da.user_id
@@ -3043,7 +3049,15 @@ router.get(
          COUNT(*) FILTER (
            WHERE tsr.actual_checkin_at IS NULL
              AND tsr.session_status IN ('pending', 'missed')
-         )::int AS belum_tap_sessions
+         )::int AS belum_tap_sessions,
+         COUNT(DISTINCT CASE
+           WHEN tsr.session_status IN ('present', 'late') THEN da.user_id
+         END)::int AS present_teachers,
+         COUNT(DISTINCT CASE
+           WHEN tsr.actual_checkin_at IS NULL
+             AND tsr.session_status IN ('pending', 'missed')
+           THEN da.user_id
+         END)::int AS absent_teachers
        FROM attendance.teacher_schedule_requirement tsr
        JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
        JOIN u_users u ON u.id = da.user_id
@@ -3194,48 +3208,151 @@ router.get(
       }
     }
 
+    // Per-sesi = slot_count jadwal (jam ke). Blok B-INGGRIS jam 6–7 = 2 sesi.
+    // Seharusnya: ekspansi kalender bulan × jadwal master aktif.
+    // Hadir: sesi requirement present/late (dari tap classroom dalam rentang jadwal) × slot_count.
     const params = [homebase_id, startDate, endDate];
-    const where = [
+    const scheduleWhere = [
+      "se.homebase_id = $1",
+      "se.status <> 'archived'",
+      "cfg.is_active = true",
+    ];
+    const attendedWhere = [
       "da.homebase_id = $1",
       "da.attendance_date BETWEEN $2::date AND $3::date",
     ];
-    appendPeriodeFilter(where, params, periodeId);
+
+    if (periodeId) {
+      params.push(periodeId);
+      scheduleWhere.push(`se.periode_id = $${params.length}`);
+      attendedWhere.push(`da.periode_id = $${params.length}`);
+    }
     if (classId) {
       params.push(classId);
-      where.push(`tsr.class_id = $${params.length}`);
+      scheduleWhere.push(`se.class_id = $${params.length}`);
+      attendedWhere.push(`tsr.class_id = $${params.length}`);
     }
 
+    const sessionCountSql = `GREATEST(
+      COALESCE(
+        NULLIF(se.slot_count, 0),
+        NULLIF(
+          (
+            SELECT COUNT(*)::int
+            FROM lms.l_schedule_entry_slot ses
+            WHERE ses.schedule_entry_id = se.id
+          ),
+          0
+        ),
+        1
+      ),
+      1
+    )`;
+
     const rowsResult = await pool.query(
-      `SELECT
-         tsr.class_id,
+      `WITH month_days AS (
+         SELECT generate_series($2::date, $3::date, interval '1 day')::date AS attendance_date
+       ),
+       schedule_entries AS (
+         SELECT
+           se.id AS schedule_entry_id,
+           se.class_id,
+           se.teacher_id,
+           se.subject_id,
+           se.day_of_week,
+           ${sessionCountSql} AS session_count
+         FROM lms.l_schedule_entry se
+         JOIN lms.l_schedule_config cfg
+           ON cfg.id = se.config_id
+          AND cfg.homebase_id = se.homebase_id
+          AND cfg.periode_id = se.periode_id
+         WHERE ${scheduleWhere.join(" AND ")}
+       ),
+       expected AS (
+         SELECT
+           se.class_id,
+           se.teacher_id,
+           se.subject_id,
+           SUM(se.session_count)::int AS should_attend
+         FROM month_days md
+         JOIN schedule_entries se
+           ON se.day_of_week = EXTRACT(ISODOW FROM md.attendance_date)::int
+         GROUP BY se.class_id, se.teacher_id, se.subject_id
+       ),
+       attended AS (
+         SELECT
+           tsr.class_id,
+           tsr.teacher_id,
+           se.subject_id,
+           SUM(${sessionCountSql}) FILTER (
+             WHERE tsr.session_status IN ('present', 'late')
+           )::int AS attended_tap,
+           SUM(${sessionCountSql}) FILTER (
+             WHERE tsr.actual_checkin_at IS NULL
+               AND tsr.session_status IN ('pending', 'missed')
+           )::int AS belum_tap_recorded,
+           SUM(${sessionCountSql}) FILTER (
+             WHERE tsr.session_status = 'excused'
+           )::int AS excused_count,
+           SUM(${sessionCountSql}) FILTER (
+             WHERE tsr.session_status = 'partial'
+           )::int AS partial_count
+         FROM attendance.teacher_schedule_requirement tsr
+         JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+         LEFT JOIN lms.l_schedule_entry se ON se.id = tsr.schedule_entry_id
+         WHERE ${attendedWhere.join(" AND ")}
+         GROUP BY tsr.class_id, tsr.teacher_id, se.subject_id
+       ),
+       combined AS (
+         SELECT
+           COALESCE(e.class_id, a.class_id) AS class_id,
+           COALESCE(e.teacher_id, a.teacher_id) AS teacher_id,
+           COALESCE(e.subject_id, a.subject_id) AS subject_id,
+           COALESCE(e.should_attend, 0)::int AS should_attend,
+           COALESCE(a.attended_tap, 0)::int AS attended_tap,
+           COALESCE(a.excused_count, 0)::int AS excused_count,
+           COALESCE(a.partial_count, 0)::int AS partial_count,
+           COALESCE(a.belum_tap_recorded, 0)::int AS belum_tap_recorded
+         FROM expected e
+         FULL OUTER JOIN attended a
+           ON a.class_id = e.class_id
+          AND a.teacher_id = e.teacher_id
+          AND a.subject_id IS NOT DISTINCT FROM e.subject_id
+       )
+       SELECT
+         c.id AS class_id,
          c.name AS class_name,
-         da.user_id AS teacher_id,
+         u.id AS teacher_id,
          u.full_name AS teacher_name,
          t.nip,
+         comb.subject_id,
+         COALESCE(sub.name, '-') AS subject_name,
          (
            SELECT rc.card_uid
            FROM attendance.rfid_card rc
-           WHERE rc.user_id = da.user_id
+           WHERE rc.user_id = u.id
              AND rc.is_active = true
            ORDER BY rc.is_primary DESC, rc.id DESC
            LIMIT 1
          ) AS card_uid,
-         COUNT(*)::int AS should_attend,
-         COUNT(*) FILTER (WHERE tsr.session_status IN ('present', 'late'))::int AS attended_tap,
-         COUNT(*) FILTER (
-           WHERE tsr.actual_checkin_at IS NULL
-             AND tsr.session_status IN ('pending', 'missed')
-         )::int AS belum_tap,
-         COUNT(*) FILTER (WHERE tsr.session_status = 'excused')::int AS excused_count,
-         COUNT(*) FILTER (WHERE tsr.session_status = 'partial')::int AS partial_count
-       FROM attendance.teacher_schedule_requirement tsr
-       JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
-       JOIN u_users u ON u.id = da.user_id
-       JOIN u_teachers t ON t.user_id = da.user_id
-       JOIN public.a_class c ON c.id = tsr.class_id
-       WHERE ${where.join(" AND ")}
-       GROUP BY tsr.class_id, c.name, da.user_id, u.full_name, t.nip
-       ORDER BY c.name ASC, u.full_name ASC`,
+         comb.should_attend,
+         comb.attended_tap,
+         comb.excused_count,
+         comb.partial_count,
+         GREATEST(
+           comb.should_attend
+             - comb.attended_tap
+             - comb.excused_count
+             - comb.partial_count,
+           comb.belum_tap_recorded,
+           0
+         )::int AS belum_tap
+       FROM combined comb
+       JOIN public.a_class c ON c.id = comb.class_id
+       JOIN u_users u ON u.id = comb.teacher_id
+       JOIN u_teachers t ON t.user_id = u.id
+       LEFT JOIN public.a_subject sub ON sub.id = comb.subject_id
+       ORDER BY c.name ASC, u.full_name ASC, COALESCE(sub.name, '-') ASC`,
       params,
     );
 
@@ -3355,24 +3472,35 @@ router.get(
     }
 
     // Fallback ke rfid_card via card_uid untuk log lama (reject) yang belum menyimpan user_id.
+    // Unregistered tetap tanpa user — jangan resolve dari kartu yang baru didaftarkan belakangan.
+    const unregisteredScanSql = `(sl.result_status = 'unregistered' OR (sl.result_status = 'rejected' AND sl.rejection_reason ILIKE '%tidak terdaftar%'))`;
     const joinResolvedUser = `
        LEFT JOIN LATERAL (
          SELECT rc.user_id
          FROM attendance.rfid_card rc
-         WHERE rc.id = sl.card_id
-            OR (sl.card_id IS NULL AND rc.card_uid = sl.card_uid)
+         WHERE NOT ${unregisteredScanSql}
+           AND (
+             rc.id = sl.card_id
+             OR (sl.card_id IS NULL AND rc.card_uid = sl.card_uid)
+           )
          ORDER BY CASE WHEN rc.id = sl.card_id THEN 0 ELSE 1 END,
                   rc.is_primary DESC,
                   rc.id DESC
          LIMIT 1
        ) resolved_card ON true
        ${userName ? "JOIN" : "LEFT JOIN"} u_users u
-         ON u.id = COALESCE(sl.user_id, resolved_card.user_id)`;
+         ON u.id = CASE
+           WHEN ${unregisteredScanSql} THEN NULL
+           ELSE COALESCE(sl.user_id, resolved_card.user_id)
+         END`;
 
     const rowsResult = await pool.query(
       `SELECT
          sl.id,
-         COALESCE(sl.user_id, resolved_card.user_id) AS user_id,
+         CASE
+           WHEN ${unregisteredScanSql} THEN NULL
+           ELSE COALESCE(sl.user_id, resolved_card.user_id)
+         END AS user_id,
          sl.device_id,
          sl.attendance_id,
          ${toJakartaTimestampSql("sl.scanned_at")} AS scanned_at,
@@ -3387,7 +3515,10 @@ router.get(
          sl.raw_payload,
          d.code AS device_code,
          d.name AS device_name,
-         u.full_name AS user_name
+         CASE
+           WHEN ${unregisteredScanSql} THEN NULL
+           ELSE u.full_name
+         END AS user_name
        FROM attendance.rfid_scan_log sl
        LEFT JOIN attendance.rfid_device d ON d.id = sl.device_id
        ${joinResolvedUser}

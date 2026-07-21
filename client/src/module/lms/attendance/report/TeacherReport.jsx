@@ -20,16 +20,14 @@ import {
 } from 'antd';
 import { motion } from 'framer-motion';
 import {
-  BriefcaseBusiness,
   BookOpen,
   ChartColumn,
-  Clock3,
   DoorOpen,
   RefreshCw,
   Search,
-  TimerReset,
   Trash2,
-  UsersRound,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import {
   useBulkDeleteDailyAttendanceRecordsMutation,
@@ -433,43 +431,50 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     return bTap - aTap;
   });
 
-  const statItems = [
-    {
-      key: 'teachers',
-      title: 'Total Guru',
-      value: Number(summary.total_teachers || 0),
-      icon: <UsersRound size={18} />,
-      color: '#1d4ed8',
-      bg: '#eff6ff',
-    },
-    {
-      key: 'records',
-      title: 'Catatan Harian',
-      value: Number(summary.total_records || 0),
-      icon: <BriefcaseBusiness size={18} />,
-      color: '#0f766e',
-      bg: '#ecfeff',
-    },
-    {
-      key: 'sessions',
-      title: 'Sesi Mengajar',
-      value: Number(sessionSummary.total_sessions || 0),
-      icon: <Clock3 size={18} />,
-      color: '#7c3aed',
-      bg: '#f5f3ff',
-    },
-    {
-      key: 'issues',
-      title: 'Perlu Tindak Lanjut',
-      value:
-        Number(summary.absent_count || 0) +
-        Number(summary.incomplete_count || 0) +
-        Number(summary.insufficient_hours_count || 0),
-      icon: <TimerReset size={18} />,
-      color: '#b91c1c',
-      bg: '#fef2f2',
-    },
-  ];
+  const statItems =
+    activeTab === 'kehadiran'
+      ? [
+          {
+            key: 'hadir',
+            title: 'Hadir',
+            value: Number(summary.present_teachers || 0),
+            suffix: 'guru',
+            icon: <UserCheck size={18} />,
+            color: '#15803d',
+            bg: '#f0fdf4',
+          },
+          {
+            key: 'absent',
+            title: 'Absent',
+            value: Number(summary.absent_teachers || 0),
+            suffix: 'guru',
+            icon: <UserX size={18} />,
+            color: '#b91c1c',
+            bg: '#fef2f2',
+          },
+        ]
+      : activeTab === 'mengajar'
+        ? [
+            {
+              key: 'hadir',
+              title: 'Hadir',
+              value: Number(sessionSummary.present_teachers || 0),
+              suffix: 'guru',
+              icon: <UserCheck size={18} />,
+              color: '#15803d',
+              bg: '#f0fdf4',
+            },
+            {
+              key: 'absent',
+              title: 'Absent',
+              value: Number(sessionSummary.absent_teachers || 0),
+              suffix: 'guru',
+              icon: <UserX size={18} />,
+              color: '#b91c1c',
+              bg: '#fef2f2',
+            },
+          ]
+        : [];
 
   const openEditModal = (row) => {
     setEditingRow(row);
@@ -762,7 +767,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         </Flex>
       </Card>
 
-      {activeTab !== 'rekap' && (
+      {statItems.length > 0 && (
         <Flex gap={12} wrap="wrap">
           {statItems.map((item, index) => (
             <MotionDiv
@@ -773,7 +778,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               style={{ flex: '1 1 220px' }}>
               <Card bordered={false} style={statCardStyle}>
                 <Flex justify="space-between" align="start" gap={10}>
-                  <Statistic title={item.title} value={item.value} />
+                  <Statistic title={item.title} value={item.value} suffix={item.suffix} />
                   <span
                     style={{
                       width: 42,

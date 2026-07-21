@@ -400,7 +400,7 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
       'Waktu Scan': formatScanTimeCell(row.scanned_at),
       Device: row.device_name || '-',
       'Kode Device': row.device_code || '-',
-      User: row.user_name || '-',
+      User: isUnregisteredScan(row) ? '-' : row.user_name || '-',
       'UID Kartu': row.card_uid || '-',
       Result: resolveResultStatus(row) || '-',
       'Alasan Penolakan': row.rejection_reason || '-',
@@ -617,16 +617,19 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               {
                 title: 'User',
                 ellipsis: true,
-                render: (_, row) => (
-                  <Flex vertical gap={2}>
-                    <Text strong ellipsis>
-                      {row.user_name || '-'}
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                      UID {row.card_uid || '-'}
-                    </Text>
-                  </Flex>
-                ),
+                render: (_, row) => {
+                  const showUser = !isUnregisteredScan(row);
+                  return (
+                    <Flex vertical gap={2}>
+                      <Text strong ellipsis>
+                        {showUser ? row.user_name || '-' : '-'}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                        UID {row.card_uid || '-'}
+                      </Text>
+                    </Flex>
+                  );
+                },
               },
               {
                 title: 'Result',
@@ -684,8 +687,12 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               {formatDetailValue(detailRow.device_name)} ({formatDetailValue(detailRow.device_code)})
             </Descriptions.Item>
             <Descriptions.Item label="Device ID">{formatDetailValue(detailRow.device_id)}</Descriptions.Item>
-            <Descriptions.Item label="User">{formatDetailValue(detailRow.user_name)}</Descriptions.Item>
-            <Descriptions.Item label="User ID">{formatDetailValue(detailRow.user_id)}</Descriptions.Item>
+            <Descriptions.Item label="User">
+              {isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_name)}
+            </Descriptions.Item>
+            <Descriptions.Item label="User ID">
+              {isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_id)}
+            </Descriptions.Item>
             <Descriptions.Item label="UID Kartu" span={2}>
               {formatDetailValue(detailRow.card_uid)}
             </Descriptions.Item>
