@@ -132,7 +132,17 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   );
 
   const summary = data?.data?.summary || {};
-  const rows = data?.data?.rows || [];
+  const rows = [...(data?.data?.rows || [])].sort((a, b) => {
+    const aTap = Math.max(
+      parseReportDateTime(a.checkin_at)?.valueOf() || 0,
+      parseReportDateTime(a.checkout_at)?.valueOf() || 0,
+    );
+    const bTap = Math.max(
+      parseReportDateTime(b.checkin_at)?.valueOf() || 0,
+      parseReportDateTime(b.checkout_at)?.valueOf() || 0,
+    );
+    return bTap - aTap;
+  });
   const gradeOptions = (Array.isArray(gradesRes) ? gradesRes : []).map((item) => ({
     value: Number(item.id),
     label: item.name,

@@ -402,8 +402,28 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
 
   const summary = data?.data?.summary || {};
   const sessionSummary = data?.data?.session_summary || {};
-  const rows = data?.data?.rows || [];
-  const sessionRows = data?.data?.session_rows || [];
+  const rows = [...(data?.data?.rows || [])].sort((a, b) => {
+    const aTap = Math.max(
+      parseReportDateTime(a.checkin_at)?.valueOf() || 0,
+      parseReportDateTime(a.checkout_at)?.valueOf() || 0,
+    );
+    const bTap = Math.max(
+      parseReportDateTime(b.checkin_at)?.valueOf() || 0,
+      parseReportDateTime(b.checkout_at)?.valueOf() || 0,
+    );
+    return bTap - aTap;
+  });
+  const sessionRows = [...(data?.data?.session_rows || [])].sort((a, b) => {
+    const aTap = Math.max(
+      parseReportDateTime(a.actual_checkin_at)?.valueOf() || 0,
+      parseReportDateTime(a.actual_checkout_at)?.valueOf() || 0,
+    );
+    const bTap = Math.max(
+      parseReportDateTime(b.actual_checkin_at)?.valueOf() || 0,
+      parseReportDateTime(b.actual_checkout_at)?.valueOf() || 0,
+    );
+    return bTap - aTap;
+  });
 
   const statItems = [
     {

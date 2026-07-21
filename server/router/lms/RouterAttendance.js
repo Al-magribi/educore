@@ -2792,7 +2792,10 @@ router.get(
        LEFT JOIN a_class c ON c.id = st.current_class_id
        LEFT JOIN a_grade g ON g.id = c.grade_id
        WHERE ${where.join(" AND ")}
-       ORDER BY da.attendance_date DESC, u.full_name ASC`,
+       ORDER BY
+         GREATEST(da.checkout_at, da.checkin_at) DESC NULLS LAST,
+         da.attendance_date DESC,
+         u.full_name ASC`,
       params,
     );
 
@@ -2917,7 +2920,10 @@ router.get(
        JOIN u_users u ON u.id = da.user_id
        JOIN u_teachers t ON t.user_id = da.user_id
        WHERE ${where.join(" AND ")}
-       ORDER BY da.attendance_date DESC, u.full_name ASC`,
+       ORDER BY
+         GREATEST(da.checkout_at, da.checkin_at) DESC NULLS LAST,
+         da.attendance_date DESC,
+         u.full_name ASC`,
       params,
     );
 
@@ -3022,6 +3028,7 @@ router.get(
        LEFT JOIN public.a_subject sub ON sub.id = se.subject_id
        WHERE ${sessionSummaryWhere.join(" AND ")}
        ORDER BY
+         GREATEST(tsr.actual_checkout_at, tsr.actual_checkin_at) DESC NULLS LAST,
          da.attendance_date DESC,
          COALESCE(first_slot.start_time, (tsr.planned_start_at AT TIME ZONE '${JAKARTA_TZ}')::time) ASC NULLS LAST,
          tsr.planned_start_at ASC NULLS LAST,
