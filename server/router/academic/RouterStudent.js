@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
-import { getActivePeriode } from "../../utils/helper.js";
+import { getActivePeriode, syncUserRfid } from "../../utils/helper.js";
 
 const router = Router();
 
@@ -251,7 +251,12 @@ router.post(
       [newUserId, nis, nisn, homebaseId, class_id, activePeriodeId],
     );
 
-    await syncStudentRfidCard(client, newUserId, rfid_no);
+    if (rfid_no && `${rfid_no}`.trim() !== "") {
+      const rfidResult = await syncUserRfid(client, newUserId, rfid_no);
+      if (!rfidResult.ok) {
+        return res.status(400).json({ message: rfidResult.message });
+      }
+    }
 
     // 5. Insert Class Enrollment (PENTING: Agar muncul di periode aktif)
     if (class_id) {
@@ -297,7 +302,10 @@ router.put(
     );
 
     if (rfid_no !== undefined) {
-      await syncStudentRfidCard(client, id, rfid_no);
+      const rfidResult = await syncUserRfid(client, id, rfid_no);
+      if (!rfidResult.ok) {
+        return res.status(400).json({ message: rfidResult.message });
+      }
     }
 
     // 4. Update / Upsert Class Enrollment
