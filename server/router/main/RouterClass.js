@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
-import { getActivePeriode } from "../../utils/helper.js";
+import { getActivePeriode, syncUserRfid } from "../../utils/helper.js";
 
 const router = Router();
 
@@ -553,33 +553,29 @@ router.post(
         // Opsional: Update nama jika diperlukan, tapi biasanya data master tidak diupdate via upload kelas
         // Tapi kita pastikan data di u_students lengkap
         if (rfidNo) {
-          const existingCard = await client.query(
-            `SELECT id, user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
-            [rfidNo],
-          );
-
-          if (existingCard.rowCount > 0 && existingCard.rows[0].user_id !== userId) {
-            invalidData.push({ nis, name, reason: "No RFID sudah dipakai user lain" });
+          const rfidResult = await syncUserRfid(client, userId, rfidNo);
+          if (!rfidResult.ok) {
+            invalidData.push({ nis, name, reason: rfidResult.message });
             continue;
-          }
-
-          if (existingCard.rowCount > 0) {
-            await client.query(
-              `UPDATE attendance.rfid_card
-               SET user_id = $1, is_active = true, is_primary = true
-               WHERE id = $2`,
-              [userId, existingCard.rows[0].id],
-            );
-          } else {
-            await client.query(
-              `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
-               VALUES ($1, $2, 'rfid', true, true)`,
-              [userId, rfidNo],
-            );
           }
         }
       } else {
         // -- SISWA BARU --
+        if (rfidNo) {
+          const existingCard = await client.query(
+            `SELECT user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+            [rfidNo],
+          );
+          if (existingCard.rowCount > 0) {
+            invalidData.push({
+              nis,
+              name,
+              reason: "No RFID sudah dipakai user lain.",
+            });
+            continue;
+          }
+        }
+
         // A. Create User (Login)
         const newUser = await client.query(
           `INSERT INTO u_users (username, password, full_name, role, gender, is_active)
@@ -597,11 +593,11 @@ router.post(
         );
 
         if (rfidNo) {
-          await client.query(
-            `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
-             VALUES ($1, $2, 'rfid', true, true)`,
-            [userId, rfidNo],
-          );
+          const rfidResult = await syncUserRfid(client, userId, rfidNo);
+          if (!rfidResult.ok) {
+            invalidData.push({ nis, name, reason: rfidResult.message });
+            continue;
+          }
         }
       }
 
