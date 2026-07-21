@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { syncUserRfid } from "../../utils/helper.js";
 
 const router = Router();
 const SALT_ROUNDS = 10;
@@ -546,19 +547,10 @@ router.post(
     );
 
     if (rfid_no && `${rfid_no}`.trim() !== "") {
-      const normalizedRfid = `${rfid_no}`.trim();
-      const existingCard = await client.query(
-        `SELECT user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
-        [normalizedRfid],
-      );
-      if (existingCard.rowCount > 0) {
-        return res.status(400).json({ message: "No RFID sudah dipakai user lain." });
+      const rfidResult = await syncUserRfid(client, userId, rfid_no);
+      if (!rfidResult.ok) {
+        return res.status(400).json({ message: rfidResult.message });
       }
-      await client.query(
-        `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
-         VALUES ($1, $2, 'rfid', true, true)`,
-        [userId, normalizedRfid],
-      );
     }
 
     if (homeroom_class_id) {
@@ -673,39 +665,9 @@ router.put(
     );
 
     if (rfid_no !== undefined) {
-      const normalizedRfid = `${rfid_no || ""}`.trim();
-      if (!normalizedRfid) {
-        await client.query(
-          `UPDATE attendance.rfid_card SET is_active = false WHERE user_id = $1`,
-          [teacherId],
-        );
-      } else {
-        const existingCard = await client.query(
-          `SELECT id, user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
-          [normalizedRfid],
-        );
-
-        if (
-          existingCard.rowCount > 0 &&
-          Number(existingCard.rows[0].user_id) !== Number(teacherId)
-        ) {
-          return res.status(400).json({ message: "No RFID sudah dipakai user lain." });
-        }
-
-        if (existingCard.rowCount > 0) {
-          await client.query(
-            `UPDATE attendance.rfid_card
-             SET user_id = $1, is_active = true, is_primary = true
-             WHERE id = $2`,
-            [teacherId, existingCard.rows[0].id],
-          );
-        } else {
-          await client.query(
-            `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
-             VALUES ($1, $2, 'rfid', true, true)`,
-            [teacherId, normalizedRfid],
-          );
-        }
+      const rfidResult = await syncUserRfid(client, teacherId, rfid_no);
+      if (!rfidResult.ok) {
+        return res.status(400).json({ message: rfidResult.message });
       }
     }
 
