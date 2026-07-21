@@ -4,6 +4,41 @@ import { authorize } from "../../middleware/authorize.js";
 
 const router = Router();
 
+const emptyAttendance = Promise.resolve({ rows: [] });
+
+/**
+ * Satu status per siswa per hari (prioritas terburuk),
+ * agar ringkasan tidak menghitung ulang absensi per mapel.
+ */
+const buildDailyAttendanceStatsQuery = ({ withPeriodeFilter }) => `
+  WITH ranked AS (
+    SELECT DISTINCT ON (a.student_id)
+           a.student_id,
+           a.status
+    FROM lms.l_attendance a
+    JOIN a_class c ON a.class_id = c.id
+    JOIN u_students s ON s.user_id = a.student_id
+    JOIN u_users u ON u.id = s.user_id
+    WHERE a.date = CURRENT_DATE
+      AND c.homebase_id = $1
+      AND s.homebase_id = $1
+      AND u.is_active = true
+      ${withPeriodeFilter ? "AND s.current_periode_id = $2" : ""}
+    ORDER BY a.student_id,
+             CASE a.status
+               WHEN 'Alpa' THEN 1
+               WHEN 'Sakit' THEN 2
+               WHEN 'Izin' THEN 3
+               WHEN 'Hadir' THEN 4
+               ELSE 5
+             END
+  )
+  SELECT status, COUNT(*)::int AS count
+  FROM ranked
+  GROUP BY status
+  ORDER BY status
+`;
+
 // Endpoint: /api/center/summary
 // Admin pusat memilih satuan + periode; ringkasan dihitung berdasarkan filter tersebut.
 router.get(
@@ -69,6 +104,12 @@ router.get(
           : null;
     }
 
+    // Aman untuk product/cbt: schema/tabel LMS mungkin tidak ada.
+    const attendanceTableResult = await db.query(
+      `SELECT to_regclass('lms.l_attendance') AS table_name`,
+    );
+    const hasLmsAttendance = Boolean(attendanceTableResult.rows[0]?.table_name);
+
     const [studentCount, teacherCount, activeExams, attendanceStats, recentLogs] =
       await Promise.all([
         // 1. Total Siswa Aktif (filter satuan + periode)
@@ -105,16 +146,13 @@ router.get(
           [selectedHomebaseId],
         ),
 
-        // 4. Statistik Kehadiran Hari Ini (kelas satuan)
-        db.query(
-          `SELECT a.status, COUNT(*) as count
-           FROM lms.l_attendance a
-           JOIN a_class c ON a.class_id = c.id
-           WHERE a.date = CURRENT_DATE
-             AND c.homebase_id = $1
-           GROUP BY a.status`,
-          [selectedHomebaseId],
-        ),
+        // 4. Statistik Kehadiran Hari Ini (siswa unik, filter periode)
+        hasLmsAttendance && selectedPeriodeId
+          ? db.query(buildDailyAttendanceStatsQuery({ withPeriodeFilter: true }), [
+              selectedHomebaseId,
+              selectedPeriodeId,
+            ])
+          : emptyAttendance,
 
         // 5. Log aktivitas terkait satuan
         db.query(

@@ -16,6 +16,12 @@ router.get(
       });
     }
 
+    // Aman untuk product/cbt: schema/tabel LMS mungkin tidak ada.
+    const attendanceTableResult = await pool.query(
+      `SELECT to_regclass('lms.l_attendance') AS table_name`,
+    );
+    const hasLmsAttendance = Boolean(attendanceTableResult.rows[0]?.table_name);
+
     const [
       homebaseInfo,
       activePeriode,
@@ -77,14 +83,40 @@ router.get(
          WHERE e.is_active = true AND s.homebase_id = $1`,
         [homebaseId],
       ),
-      pool.query(
-        `SELECT status, COUNT(*) as count 
-         FROM lms.l_attendance a
-         JOIN a_class c ON a.class_id = c.id
-         WHERE a.date = CURRENT_DATE AND c.homebase_id = $1
-         GROUP BY status`,
-        [homebaseId],
-      ),
+      // Satu status per siswa (prioritas terburuk), filter periode aktif.
+      hasLmsAttendance
+        ? pool.query(
+            `WITH ranked AS (
+               SELECT DISTINCT ON (a.student_id)
+                      a.student_id,
+                      a.status
+               FROM lms.l_attendance a
+               JOIN a_class c ON a.class_id = c.id
+               JOIN u_students s ON s.user_id = a.student_id
+               JOIN u_users u ON u.id = s.user_id
+               JOIN a_periode p ON p.id = s.current_periode_id
+               WHERE a.date = CURRENT_DATE
+                 AND c.homebase_id = $1
+                 AND s.homebase_id = $1
+                 AND u.is_active = true
+                 AND p.homebase_id = $1
+                 AND p.is_active = true
+               ORDER BY a.student_id,
+                        CASE a.status
+                          WHEN 'Alpa' THEN 1
+                          WHEN 'Sakit' THEN 2
+                          WHEN 'Izin' THEN 3
+                          WHEN 'Hadir' THEN 4
+                          ELSE 5
+                        END
+             )
+             SELECT status, COUNT(*)::int AS count
+             FROM ranked
+             GROUP BY status
+             ORDER BY status`,
+            [homebaseId],
+          )
+        : Promise.resolve({ rows: [] }),
       pool.query(
         `SELECT s.action, s.created_at, u.full_name, u.role
          FROM sys_logs s

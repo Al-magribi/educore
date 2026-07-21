@@ -4,10 +4,8 @@ import {
   Alert,
   Card,
   Col,
-  Empty,
   Flex,
   Grid,
-  Progress,
   Row,
   Select,
   Space,
@@ -27,10 +25,13 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Activity, BookOpenCheck, GraduationCap } from 'lucide-react';
+import CenterAttendanceReports from './CenterAttendanceReports';
 
 const { Title, Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
+
+const DEFAULT_AUTO_REFRESH_MS = 300_000;
 
 const containerVariants = {
   hidden: { opacity: 0, y: 18 },
@@ -61,34 +62,29 @@ const statCardStyle = {
   boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
 };
 
-const attendanceColorMap = {
-  Hadir: '#2563eb',
-  Sakit: '#f59e0b',
-  Izin: '#06b6d4',
-  Alpha: '#ef4444',
-};
-
 const CenterDash = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [homebaseId, setHomebaseId] = useState(null);
   const [periodeId, setPeriodeId] = useState(null);
+  const [autoRefreshMs, setAutoRefreshMs] = useState(DEFAULT_AUTO_REFRESH_MS);
 
-  const { data, isLoading, isFetching, isError } = useGetDashboardSummaryQuery({
-    homebase_id: homebaseId ?? undefined,
-    periode_id: periodeId ?? undefined,
-  });
+  const { data, isLoading, isFetching, isError } = useGetDashboardSummaryQuery(
+    {
+      homebase_id: homebaseId ?? undefined,
+      periode_id: periodeId ?? undefined,
+    },
+    { pollingInterval: autoRefreshMs || 0 },
+  );
 
   const selectedHomebaseId = homebaseId ?? data?.selected_homebase_id ?? undefined;
   const selectedPeriodeId = periodeId ?? data?.selected_periode_id ?? undefined;
 
   const homebases = data?.homebases || [];
   const periods = data?.periods || [];
-  const attendanceSource = data?.attendance;
   const logsSource = data?.logs;
   const statsSource = data?.stats;
 
-  const attendanceData = useMemo(() => attendanceSource || [], [attendanceSource]);
   const logsData = useMemo(() => logsSource || [], [logsSource]);
   const stats = useMemo(() => statsSource || {}, [statsSource]);
 
@@ -101,11 +97,6 @@ const CenterDash = () => {
     const found = periods.find((p) => Number(p.id) === Number(selectedPeriodeId));
     return found?.name || null;
   }, [periods, selectedPeriodeId]);
-
-  const totalAttendance = useMemo(
-    () => attendanceData.reduce((acc, curr) => acc + Number.parseInt(curr.count, 10), 0) || 0,
-    [attendanceData],
-  );
 
   const handleHomebaseChange = (val) => {
     setHomebaseId(val);
@@ -224,8 +215,8 @@ const CenterDash = () => {
                   color: 'rgba(255,255,255,0.82)',
                   maxWidth: 760,
                 }}>
-                Pilih satuan pendidikan dan periode ajaran untuk melihat statistik siswa, guru, ujian aktif, kehadiran,
-                serta aktivitas sistem yang relevan.
+                Pilih satuan pendidikan dan periode ajaran untuk melihat statistik siswa, guru, ujian aktif, laporan
+                presensi, serta aktivitas sistem yang relevan.
               </Paragraph>
               {(selectedHomebaseName || selectedPeriodeName) && (
                 <Space wrap size={[8, 8]} style={{ marginTop: 14 }}>
@@ -329,89 +320,38 @@ const CenterDash = () => {
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>
-        <Row gutter={[18, 18]}>
-          <Col xs={24} lg={10}>
-            <Card
-              variant="borderless"
-              title="Kehadiran Hari Ini"
-              style={{
-                borderRadius: 24,
-                boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
-                height: '100%',
-              }}
-              styles={{ body: { padding: isMobile ? 16 : 20 } }}>
-              {attendanceData.length > 0 ? (
-                <Flex vertical gap={14}>
-                  {attendanceData.map((item, index) => {
-                    const count = Number.parseInt(item.count, 10) || 0;
-                    const percent = totalAttendance > 0 ? Number(((count / totalAttendance) * 100).toFixed(1)) : 0;
-                    const color = attendanceColorMap[item.status] || '#2563eb';
+        <CenterAttendanceReports
+          homebaseId={selectedHomebaseId}
+          periodeId={selectedPeriodeId}
+          pollingInterval={autoRefreshMs}
+          autoRefreshMs={autoRefreshMs}
+          onAutoRefreshChange={setAutoRefreshMs}
+        />
+      </MotionDiv>
 
-                    return (
-                      <Card
-                        key={`${item.status}-${index}`}
-                        variant="borderless"
-                        style={{
-                          borderRadius: 18,
-                          background: '#f8fafc',
-                        }}
-                        styles={{ body: { padding: 16 } }}>
-                        <Flex justify="space-between" align="center" gap={12} style={{ marginBottom: 10 }}>
-                          <Space direction="vertical" size={0}>
-                            <Text strong>{item.status}</Text>
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                              {percent}% dari total presensi
-                            </Text>
-                          </Space>
-                          <Tag
-                            style={{
-                              margin: 0,
-                              borderRadius: 999,
-                              background: `${color}16`,
-                              color,
-                              borderColor: 'transparent',
-                              fontWeight: 700,
-                            }}>
-                            {count} siswa
-                          </Tag>
-                        </Flex>
-                        <Progress percent={percent} strokeColor={color} size="small" />
-                      </Card>
-                    );
-                  })}
-                </Flex>
-              ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada data presensi hari ini" />
-              )}
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={14}>
-            <Card
-              variant="borderless"
-              title={
-                <Space align="center" size={8}>
-                  <FieldTimeOutlined />
-                  <span>Aktivitas Sistem Terakhir</span>
-                </Space>
-              }
-              style={{
-                borderRadius: 24,
-                boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
-                height: '100%',
-              }}
-              styles={{ body: { padding: 0 } }}>
-              <Table
-                dataSource={logsData}
-                columns={logColumns}
-                pagination={false}
-                rowKey={(record) => `${record.created_at}-${record.full_name}-${record.action}`}
-                size="small"
-                locale={{ emptyText: 'Belum ada aktivitas sistem terbaru.' }}
-              />
-            </Card>
-          </Col>
-        </Row>
+      <MotionDiv variants={itemVariants}>
+        <Card
+          variant="borderless"
+          title={
+            <Space align="center" size={8}>
+              <FieldTimeOutlined />
+              <span>Aktivitas Sistem Terakhir</span>
+            </Space>
+          }
+          style={{
+            borderRadius: 24,
+            boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
+          }}
+          styles={{ body: { padding: 0 } }}>
+          <Table
+            dataSource={logsData}
+            columns={logColumns}
+            pagination={false}
+            rowKey={(record) => `${record.created_at}-${record.full_name}-${record.action}`}
+            size="small"
+            locale={{ emptyText: 'Belum ada aktivitas sistem terbaru.' }}
+          />
+        </Card>
       </MotionDiv>
     </MotionDiv>
   );
