@@ -22,6 +22,18 @@ const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
     )
 )`;
 
+/** Siswa: tampilkan tap gate + yang belum tap (absent/excused/pending). */
+const STUDENT_REPORT_ROW_VISIBLE_SQL = `(
+  ${GATE_LINKED_SCAN_EXISTS_SQL}
+  OR da.attendance_status IN ('absent', 'excused', 'pending')
+)`;
+
+/** Guru: tampilkan tap gate + yang belum tap (absent/excused/pending). */
+const TEACHER_REPORT_ROW_VISIBLE_SQL = `(
+  ${GATE_LINKED_SCAN_EXISTS_SQL}
+  OR da.attendance_status IN ('absent', 'excused', 'pending', 'not_scheduled')
+)`;
+
 const normalizeNumberOrNull = (value) => {
   if (value === null || value === undefined || value === "") return null;
   const num = Number(value);
@@ -128,7 +140,7 @@ router.get(
       "da.attendance_date BETWEEN $2::date AND $3::date",
     ];
     if (await hasGateScanTables(db)) {
-      where.push(GATE_LINKED_SCAN_EXISTS_SQL);
+      where.push(STUDENT_REPORT_ROW_VISIBLE_SQL);
     }
     appendPeriodeFilter(where, params, periodeId);
 
@@ -240,7 +252,7 @@ router.get(
       "da.attendance_date BETWEEN $2::date AND $3::date",
     ];
     if (await hasGateScanTables(db)) {
-      where.push(GATE_LINKED_SCAN_EXISTS_SQL);
+      where.push(TEACHER_REPORT_ROW_VISIBLE_SQL);
     }
     appendPeriodeFilter(where, params, periodeId);
 
