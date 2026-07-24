@@ -66,13 +66,11 @@ const LazyRoute = ({ title, Component: RouteComponent }) => {
   return <AppLayout title={title}>{content}</AppLayout>;
 };
 
-const LazyPage = ({ title, Component }) => {
-  return (
-    <AppLayout title={title}>
-      <LazyRoute Component={Component} />
-    </AppLayout>
-  );
-};
+const LazyPage = ({ title, Component: PageComponent }) => (
+  <AppLayout title={title}>
+    <LazyRoute Component={PageComponent} />
+  </AppLayout>
+);
 
 const App = () => {
   useLoadUserQuery();
@@ -146,12 +144,12 @@ const App = () => {
             {isDbEnabled &&
               renderDbRoutes({
                 LazyPage,
+                NotFoundRedirect,
               })}
 
             {isFinanceEnabled &&
               renderFinanceRoutes({
                 LazyPage,
-                NotFoundRedirect,
               })}
 
             {isTahfizEnabled && renderTahfizRoutes()}
