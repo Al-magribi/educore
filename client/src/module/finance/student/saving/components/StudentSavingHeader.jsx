@@ -27,7 +27,7 @@ const StudentSavingHeader = ({ activePeriode, student }) => (
       </Space>
 
       <Text type='secondary'>
-        Lihat saldo, mutasi setoran, dan penarikan tabungan pada periode aktif.
+        Lihat saldo, mutasi setoran, dan penarikan tabungan lintas periode.
       </Text>
 
       <Space wrap>

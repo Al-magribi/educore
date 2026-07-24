@@ -16,10 +16,11 @@ import {
   Statistic,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
-import { BarChart3, Sparkles } from "lucide-react";
+import { BarChart3, Info, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const { Title, Paragraph, Text } = Typography;
@@ -179,13 +180,25 @@ const FinanceFeaturePage = ({
                   bodyStyle={{ padding: 22 }}
                 >
                   <Statistic
-                    title={item.title}
+                    title={
+                      <Flex align='center' gap={6}>
+                        <span>{item.title}</span>
+                        {item.note ? (
+                          <Tooltip title={item.note}>
+                            <Info
+                              size={13}
+                              color='#94a3b8'
+                              style={{ cursor: "help", flexShrink: 0 }}
+                            />
+                          </Tooltip>
+                        ) : null}
+                      </Flex>
+                    }
                     value={item.value}
                     formatter={(value) =>
                       statisticFormatter(value, item.prefix)
                     }
                   />
-                  <Text type='secondary'>{item.note}</Text>
                 </Card>
               </MotionDiv>
             </Col>

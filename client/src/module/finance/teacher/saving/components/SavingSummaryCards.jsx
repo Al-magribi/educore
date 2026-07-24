@@ -1,11 +1,11 @@
 import { memo } from "react";
-import { Card, Col, Row, Space, Typography } from "antd";
-import { PiggyBank, Users, WalletCards } from "lucide-react";
+import { Card, Col, Row, Tooltip, Typography } from "antd";
+import { Info, PiggyBank, Users, WalletCards } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { cardStyle, currencyFormatter } from "../constants";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const MotionDiv = motion.div;
 
 const items = [
@@ -15,16 +15,16 @@ const items = [
     dataKey: "total_students",
     icon: Users,
     color: "#2563eb",
-    note: "Siswa pada akses aktif",
+    tooltip: "Jumlah siswa yang masuk dalam cakupan filter aktif.",
     tone: "linear-gradient(135deg, rgba(59,130,246,0.14), rgba(14,165,233,0.08))",
   },
   {
     key: "active",
-    title: "Siswa Aktif",
+    title: "Sudah Menabung",
     dataKey: "active_students",
     icon: PiggyBank,
     color: "#059669",
-    note: "Sudah memiliki transaksi",
+    tooltip: "Siswa yang sudah memiliki minimal satu transaksi tabungan.",
     tone: "linear-gradient(135deg, rgba(16,185,129,0.14), rgba(52,211,153,0.08))",
   },
   {
@@ -34,7 +34,7 @@ const items = [
     icon: WalletCards,
     color: "#7c3aed",
     formatter: (value) => currencyFormatter.format(Number(value || 0)),
-    note: "Akumulasi saldo tabungan",
+    tooltip: "Akumulasi saldo tabungan seluruh siswa pada cakupan aktif.",
     tone: "linear-gradient(135deg, rgba(124,58,237,0.14), rgba(168,85,247,0.08))",
   },
   {
@@ -44,7 +44,7 @@ const items = [
     icon: PiggyBank,
     color: "#16a34a",
     formatter: (value) => currencyFormatter.format(Number(value || 0)),
-    note: "Setoran pada periode aktif",
+    tooltip: "Akumulasi seluruh setoran yang pernah tercatat.",
     tone: "linear-gradient(135deg, rgba(34,197,94,0.14), rgba(74,222,128,0.08))",
   },
 ];
@@ -66,31 +66,63 @@ const SavingSummaryCards = ({ summary }) => (
             <Card
               variant="borderless"
               style={{ ...cardStyle, background: item.tone }}
-              styles={{ body: { padding: 18 } }}
+              styles={{ body: { padding: 16 } }}
             >
-              <Space orientation="vertical" size={10} style={{ width: "100%" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 16,
+                    width: 46,
+                    height: 46,
+                    borderRadius: 14,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "rgba(255,255,255,0.72)",
-                    color: item.color,
+                    background: "rgba(255,255,255,0.78)",
+                    flexShrink: 0,
                   }}
                 >
-                  <Icon size={18} color={item.color} />
+                  <Icon size={20} color={item.color} />
                 </div>
-                <Text style={{ color: "#475569", fontSize: 12 }}>
-                  {item.title}
-                </Text>
-                <Title level={3} style={{ margin: 0, color: item.color }}>
-                  {item.formatter ? item.formatter(value) : value}
-                </Title>
-                <Text type="secondary">{item.note}</Text>
-              </Space>
+
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <Text
+                      style={{
+                        color: "#475569",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        letterSpacing: 0.3,
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.title}
+                    </Text>
+                    <Tooltip title={item.tooltip}>
+                      <Info
+                        size={13}
+                        color="#94a3b8"
+                        style={{ cursor: "help", flexShrink: 0 }}
+                      />
+                    </Tooltip>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: item.color,
+                      lineHeight: 1.3,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {item.formatter ? item.formatter(value) : value}
+                  </div>
+                </div>
+              </div>
             </Card>
           </MotionDiv>
         </Col>

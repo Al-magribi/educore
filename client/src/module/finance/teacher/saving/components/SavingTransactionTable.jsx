@@ -44,6 +44,13 @@ const SavingTransactionTable = ({
         ),
       },
       {
+        title: "Periode",
+        dataIndex: "periode_name",
+        key: "periode_name",
+        width: 130,
+        render: (value) => value || "-",
+      },
+      {
         title: "Jenis",
         dataIndex: "transaction_type",
         key: "transaction_type",
