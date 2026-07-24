@@ -11,7 +11,16 @@
     SDA -> D21   SCL -> D27   VCC -> 5V/VIN   GND -> GND
     Jika layar kosong, coba alamat 0x3F (perintah 'l')
 
+  Base plate extension ESP32 DOIT V1 30-pin (opsional):
+    - GPIO sama: signal ke baris S di kolom Dx (bukan V/G)
+    - MFRC522 VCC -> header 3V3 (jangan baris V jika jumper 5V)
+    - LCD SCL -> D27.S  (JANGAN header I2C default = D22; D22 = RST RFID)
+    - Upload firmware lewat USB di board ESP32, bukan USB power base plate
+    - Ketik 'b' di Serial untuk panduan base plate lengkap
+    Panduan: docs/esp32_rfid_hardware_assembly.md §3
+
   Pin bantu tes kabel: D4 (jangan pakai buzzer saat mode 'c')
+    Base plate: colok ujung bebas ke D4 baris S
 
   Perintah Serial Monitor:
     l = uji LCD (scan I2C + tampilan tes)
@@ -19,6 +28,7 @@
     p = auto-probe pin SDA/RST MFRC522
     t = tes cepat MFRC522 (SDA=D5, RST=D22)
     r = mode baca kartu RFID (setelah probe/t sukses)
+    b = panduan wiring base plate DOIT V1 30P
     h = bantuan
     y/n = lanjut/lewati (saat mode 'c')
 */
@@ -132,6 +142,7 @@ void scanI2cBus() {
   if (found == 0) {
     Serial.println("  -> TIDAK ADA perangkat I2C!");
     Serial.println("     Cek: VCC LCD, GND, SDA=D21, SCL=D27");
+    Serial.println("     Base plate: SCL ke D27.S (bukan header I2C D22); VCC ke [5V]");
   }
   Serial.println();
 }
@@ -216,8 +227,15 @@ void printContinuityInstruction(const WireInfo& w) {
   Serial.printf("[CEK %d/7] MFRC522 %s -> ESP32 %s\n", w.id, w.mfrcLabel, w.espLabel);
   Serial.println();
   Serial.println("  1. Lepas ujung kabel dari MFRC522 saja");
-  Serial.printf("  2. Ujung ESP32 tetap di %s\n", w.espLabel);
+  if (w.type == WT_SIGNAL) {
+    Serial.printf("  2. Ujung ESP32 tetap di %s (base plate: kolom %s baris S)\n",
+                  w.espLabel, w.espLabel);
+  } else {
+    Serial.printf("  2. Ujung ESP32 tetap di %s (base plate: header %s / G)\n",
+                  w.espLabel, w.espLabel);
+  }
   Serial.println("  3. Colok ujung bebas kabel ke pin D4 (TEST)");
+  Serial.println("     Base plate: D4 baris S");
   Serial.println("  4. Ketik 'y' untuk tes, 'n' untuk lewati");
   Serial.println("----------------------------------------");
 
@@ -285,6 +303,7 @@ void startContinuityCheck() {
   Serial.println("#  Ganti multimeter beep -> Serial OK  #");
   Serial.println("########################################");
   Serial.println("LCD tetap terpasang. MFRC522 dicabut per kabel.");
+  Serial.println("Base plate: signal di baris S; TEST di D4.S; cabut buzzer dari D4.");
   Serial.println();
 
   for (size_t i = 0; i < WIRE_COUNT; i++) {
@@ -447,8 +466,50 @@ void printModulePinGuide() {
   Serial.println("  4. MFRC522 SDA BUKAN ke D21 (itu LCD!)");
   Serial.println("  5. Coba cabut LCD sementara, reset ESP32");
   Serial.println("  6. Ganti kabel jumper (sering kabel rusak)");
+  Serial.println("  7. Base plate? Ketik 'b' — cek V=3.3V & SCL=D27");
   Serial.println("===================================");
   Serial.println();
+}
+
+void printBasePlateGuide() {
+  Serial.println();
+  Serial.println("########################################");
+  Serial.println("#  BASE PLATE ESP32 DOIT V1 30-PIN     #");
+  Serial.println("########################################");
+  Serial.println("GPIO mapping sama dengan wiring tanpa base plate.");
+  Serial.println("Ambil signal di baris S (G=GND, V=VCC jumper).");
+  Serial.println();
+  Serial.println("=== POWER ===");
+  Serial.println("  MFRC522 VCC -> header [3V3]  (JANGAN 5V / V jumper 5V)");
+  Serial.println("  LCD VCC     -> header [5V]");
+  Serial.println("  Semua GND  -> [GND] atau baris G");
+  Serial.println("  Upload     -> USB di board ESP32 (bukan USB power shield)");
+  Serial.println();
+  Serial.println("=== SIGNAL (baris S) ===");
+  Serial.println("  MFRC522 SDA  -> D5.S");
+  Serial.println("  MFRC522 SCK  -> D18.S");
+  Serial.println("  MFRC522 MOSI -> D23.S");
+  Serial.println("  MFRC522 MISO -> D19.S");
+  Serial.println("  MFRC522 RST  -> D22.S");
+  Serial.println("  LCD SDA      -> D21.S");
+  Serial.println("  LCD SCL      -> D27.S   << wajib D27");
+  Serial.println("  Buzzer (+)   -> D4.S    (cabut saat mode 'c')");
+  Serial.println();
+  Serial.println("=== SALAH vs BENAR ===");
+  Serial.println("  SALAH: LCD SCL ke header I2C default (sering = D22)");
+  Serial.println("  BENAR: LCD SCL ke D27.S | RST RFID ke D22.S");
+  Serial.println("  SALAH: MFRC522 ke baris V saat jumper 5V");
+  Serial.println("  BENAR: MFRC522 ke [3V3] tetap");
+  Serial.println();
+  Serial.println("=== URUTAN UJI ===");
+  Serial.println("  1. 'l'  — LCD harus tampil");
+  Serial.println("  2. 'c'  — cek kabel (TEST di D4.S)");
+  Serial.println("  3. 't'  — tes MFRC522 default D5/D22");
+  Serial.println("  4. 'r'  — baca UID kartu");
+  Serial.println("Docs: esp32_rfid_hardware_assembly.md §3");
+  Serial.println("########################################");
+  Serial.println();
+  lcdShow("Base Plate", "Cek Serial");
 }
 
 String uidToHexString(MFRC522::Uid* uid) {
@@ -505,6 +566,7 @@ void printHelp() {
   Serial.println("  p = auto-probe pin SDA/RST MFRC522");
   Serial.println("  t = tes cepat MFRC522 (SDA=D5, RST=D22)");
   Serial.println("  r = mode baca kartu RFID");
+  Serial.println("  b = panduan base plate DOIT V1 30P");
   Serial.println("  h = bantuan");
   Serial.println();
   Serial.println("=== TABEL KABEL MFRC522 ===");
@@ -512,6 +574,10 @@ void printHelp() {
     const WireInfo& w = WIRES[i];
     Serial.printf("  [%d] MFRC522 %-5s -> ESP32 %s\n", w.id, w.mfrcLabel, w.espLabel);
   }
+  Serial.println();
+  Serial.println("=== BASE PLATE (opsional) ===");
+  Serial.println("  Signal di baris S | MFRC522 power [3V3] | LCD SCL=D27.S");
+  Serial.println("  Ketik 'b' untuk panduan lengkap");
   Serial.println("============================");
   Serial.println();
 }
@@ -524,12 +590,13 @@ void setup() {
   Serial.println("########################################");
   Serial.println("#  ESP32 UJI HARDWARE RFID + LCD       #");
   Serial.println("########################################");
+  Serial.println("Base plate DOIT V1 30P? Ketik 'b' untuk panduan wiring.");
 
   initLcd(0x27);
   lcdShow("Hardware Test", "Ketik h");
   Serial.println("[LCD] Inisialisasi 0x27 (ketik 'l' jika layar kosong)");
   printHelp();
-  Serial.println("Mulai: ketik 'l' uji LCD, 'c' cek kabel, 'p' probe RFID");
+  Serial.println("Mulai: 'l' LCD | 'c' kabel | 't'/'p' RFID | 'b' base plate");
 }
 
 void loop() {
@@ -584,6 +651,10 @@ void loop() {
     case 'r':
     case 'R':
       startRfidReadMode();
+      break;
+    case 'b':
+    case 'B':
+      printBasePlateGuide();
       break;
     case 'h':
     case 'H':
