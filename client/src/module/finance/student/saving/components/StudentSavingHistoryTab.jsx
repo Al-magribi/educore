@@ -13,7 +13,7 @@ const StudentSavingHistoryTab = ({ transactions }) => {
   if (!transactions.length) {
     return (
       <Card style={cardStyle}>
-        <Empty description='Belum ada transaksi tabungan pada periode aktif.' />
+        <Empty description='Belum ada transaksi tabungan.' />
       </Card>
     );
   }

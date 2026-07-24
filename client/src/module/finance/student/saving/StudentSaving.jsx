@@ -69,8 +69,8 @@ const StudentSaving = () => {
         />
 
         <Text type='secondary'>
-          Riwayat tabungan ditampilkan berdasarkan periode aktif{" "}
-          {activePeriode?.name || "-"}.
+          Saldo dan riwayat tabungan mencakup seluruh periode. Transaksi baru
+          dicatat pada periode aktif {activePeriode?.name || "-"}.
         </Text>
       </Space>
     </div>

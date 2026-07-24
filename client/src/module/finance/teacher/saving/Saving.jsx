@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import {
-  Alert,
+  Button,
   Card,
   Col,
+  Flex,
   Form,
   Row,
   Space,
-  Tag,
   Typography,
   message,
 } from "antd";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { motion } from "framer-motion";
-import { Landmark, Search, Wallet } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 import { LoadApp } from "../../../../components";
 import {
@@ -29,12 +28,12 @@ import SavingHeader from "./components/SavingHeader";
 import SavingSummaryCards from "./components/SavingSummaryCards";
 import SavingTabs from "./components/SavingTabs";
 import SavingTransactionModal from "./components/SavingTransactionModal";
+import SavingGuideModal from "./components/SavingGuideModal";
 import { mapSavingFormValues } from "./formHelpers";
 import { cardStyle, currencyFormatter } from "./constants";
 import FinanceFeaturePage from "../../report/FinanceFeaturePage";
 
 const { Text } = Typography;
-const MotionDiv = motion.div;
 const EMPTY_ARRAY = [];
 const EMPTY_OBJECT = {};
 const resetStudentContextValue = {
@@ -55,12 +54,15 @@ const Saving = ({ pageVariant = "teacher" }) => {
   const { user } = useSelector((state) => state.auth);
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({
+    homebase_id: undefined,
     class_id: undefined,
     student_id: undefined,
     transaction_type: undefined,
+    periode_id: undefined,
     search: "",
   });
   const [modalOpen, setModalOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [debouncedStudentSearch, setDebouncedStudentSearch] = useState("");
@@ -71,6 +73,7 @@ const Saving = ({ pageVariant = "teacher" }) => {
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetSavingOptionsQuery({
       class_id: filters.class_id,
+      homebase_id: filters.homebase_id,
     });
   const options = optionsResponse?.data || {};
   const access = options.access || {};
@@ -81,6 +84,7 @@ const Saving = ({ pageVariant = "teacher" }) => {
     isTeacherScope && !effectiveClassId
       ? skipToken
       : {
+          homebase_id: filters.homebase_id,
           class_id: effectiveClassId,
           search: filters.search,
         };
@@ -92,6 +96,7 @@ const Saving = ({ pageVariant = "teacher" }) => {
   const modalStudentParams =
     modalOpen && hasModalStudentKeyword
       ? {
+          homebase_id: filters.homebase_id,
           class_id: effectiveClassId,
           search: debouncedStudentSearch,
         }
@@ -106,6 +111,7 @@ const Saving = ({ pageVariant = "teacher" }) => {
             ...baseListParams,
             student_id: filters.student_id,
             transaction_type: filters.transaction_type,
+            periode_id: filters.periode_id,
           },
     );
 
@@ -117,6 +123,9 @@ const Saving = ({ pageVariant = "teacher" }) => {
 
   const classes = options.classes ?? EMPTY_ARRAY;
   const selectableStudents = options.students ?? EMPTY_ARRAY;
+  const periodes = options.periodes ?? EMPTY_ARRAY;
+  const homebases = options.homebases ?? EMPTY_ARRAY;
+  const canManageAllHomebases = Boolean(access?.can_manage_all_homebases);
   const activePeriode = options.active_periode || null;
   const students = studentsResponse?.data ?? EMPTY_ARRAY;
   const modalStudents = modalStudentsResponse?.data ?? EMPTY_ARRAY;
@@ -141,6 +150,44 @@ const Saving = ({ pageVariant = "teacher" }) => {
       })),
     [selectableStudents],
   );
+  const periodeOptions = useMemo(
+    () => [
+      { value: "all", label: "Semua periode" },
+      ...periodes.map((item) => ({
+        value: item.id,
+        label: `${item.name}${item.is_active ? " (Aktif)" : ""}`,
+      })),
+    ],
+    [periodes],
+  );
+  const homebaseOptions = useMemo(
+    () =>
+      homebases.map((item) => ({
+        value: item.id,
+        label: item.name,
+      })),
+    [homebases],
+  );
+
+  // Admin lintas satuan: pilih homebase pertama secara default.
+  useEffect(() => {
+    if (canManageAllHomebases && !filters.homebase_id && homebases.length > 0) {
+      setFilters((previous) => ({
+        ...previous,
+        homebase_id: homebases[0].id,
+      }));
+    }
+  }, [canManageAllHomebases, filters.homebase_id, homebases]);
+
+  // Jika satuan hanya punya satu periode, langsung pilih periode tersebut.
+  useEffect(() => {
+    if (periodes.length === 1 && !filters.periode_id) {
+      setFilters((previous) => ({
+        ...previous,
+        periode_id: periodes[0].id,
+      }));
+    }
+  }, [filters.periode_id, periodes]);
   const modalStudentOptions = useMemo(() => {
     const keyword = String(currentStudentSearch || "").trim();
 
@@ -250,6 +297,7 @@ const Saving = ({ pageVariant = "teacher" }) => {
         student_id: values.student_id,
         transaction_type: values.transaction_type,
         amount: Number(values.amount || 0),
+        description: String(values.description || "").trim() || null,
       };
 
       try {
@@ -329,9 +377,9 @@ const Saving = ({ pageVariant = "teacher" }) => {
         note: "Total setoran yang sudah tercatat.",
       },
       {
-        title: "Akun Aktif",
+        title: "Sudah Menabung",
         value: studentSummary.active_students || 0,
-        note: "Siswa dengan transaksi tabungan pada periode aktif.",
+        note: "Siswa yang sudah memiliki transaksi tabungan.",
       },
       {
         title: "Penarikan",
@@ -351,26 +399,21 @@ const Saving = ({ pageVariant = "teacher" }) => {
     [transactionSummary.total_transactions],
   );
   const adminHeaderExtra = (
-    <Space wrap size={10}>
-      <Tag
-        color='cyan'
-        style={{ borderRadius: 999, paddingInline: 12, fontWeight: 600 }}
+    <Flex justify='flex-end' align='center'>
+      <Button
+        icon={<BookOpen size={16} />}
+        onClick={() => setGuideOpen(true)}
+        style={{
+          borderRadius: 999,
+          fontWeight: 600,
+          background: "rgba(255,255,255,0.92)",
+          borderColor: "transparent",
+          color: "#0f172a",
+        }}
       >
-        {activePeriode?.name || "Periode aktif belum tersedia"}
-      </Tag>
-      <Tag
-        color='gold'
-        style={{ borderRadius: 999, paddingInline: 12, fontWeight: 600 }}
-      >
-        {`${classOptions.length || 0} kelas dalam cakupan`}
-      </Tag>
-      <Tag
-        color='green'
-        style={{ borderRadius: 999, paddingInline: 12, fontWeight: 600 }}
-      >
-        {`${students.length || 0} siswa terpantau`}
-      </Tag>
-    </Space>
+        Panduan
+      </Button>
+    </Flex>
   );
 
   const isBootstrapping = isLoadingOptions;
@@ -396,86 +439,14 @@ const Saving = ({ pageVariant = "teacher" }) => {
           showDataTable={false}
         >
           <Space orientation='vertical' size={20} style={{ width: "100%" }}>
-            <MotionDiv
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <Card
-                variant='borderless'
-                style={{
-                  ...cardStyle,
-                  border: "none",
-                  background:
-                    "linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.95))",
-                }}
-                styles={{ body: { padding: 24 } }}
-              >
-                <Row gutter={[16, 16]}>
-                  {[
-                    {
-                      key: "scope",
-                      icon: <Search size={18} color='#38bdf8' />,
-                      title: "1. Tentukan cakupan",
-                      description:
-                        "Saring data berdasarkan kelas, siswa, atau kata kunci agar admin bekerja pada konteks yang tepat.",
-                    },
-                    {
-                      key: "verify",
-                      icon: <Landmark size={18} color='#34d399' />,
-                      title: "2. Verifikasi saldo",
-                      description:
-                        "Lihat kartu siswa dan riwayat transaksi untuk memastikan nominal sesuai kondisi tabungan aktif.",
-                    },
-                    {
-                      key: "process",
-                      icon: <Wallet size={18} color='#fbbf24' />,
-                      title: "3. Proses transaksi",
-                      description:
-                        "Catat setoran, penarikan, edit, atau hapus transaksi langsung dari daftar siswa maupun riwayat transaksi.",
-                    },
-                  ].map((item) => (
-                    <Col xs={24} md={8} key={item.key}>
-                      <Card
-                        variant='borderless'
-                        style={{
-                          borderRadius: 20,
-                          height: "100%",
-                          background: "rgba(255,255,255,0.06)",
-                        }}
-                      >
-                        <Space orientation='vertical' size={10}>
-                          <Space align='center'>
-                            {item.icon}
-                            <Text strong style={{ color: "#fff" }}>
-                              {item.title}
-                            </Text>
-                          </Space>
-                          <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                            {item.description}
-                          </Text>
-                        </Space>
-                      </Card>
-                    </Col>
-                  ))}
-                </Row>
-              </Card>
-            </MotionDiv>
-
-            <Alert
-              showIcon
-              type='info'
-              message='Semua transaksi hanya tersimpan pada periode aktif.'
-              description={`Admin dapat memproses tabungan lintas kelas pada satuan ${user?.homebase_name || user?.homebase_id || "-"}, sementara saldo siswa akan dihitung ulang otomatis setelah transaksi dibuat, diubah, atau dihapus.`}
-              style={{ borderRadius: 18 }}
-            />
-
             <SavingFilters
               filters={filters}
               setFilters={setFilters}
               access={access}
               classOptions={classOptions}
               studentOptions={studentOptions}
+              periodeOptions={periodeOptions}
+              homebaseOptions={homebaseOptions}
             />
 
             <SavingTabs
@@ -503,7 +474,7 @@ const Saving = ({ pageVariant = "teacher" }) => {
                   </div>
                 </Col>
                 <Col xs={24} md={8}>
-                  <Text type='secondary'>Siswa aktif</Text>
+                  <Text type='secondary'>Sudah menabung</Text>
                   <div style={{ fontSize: 24, fontWeight: 700 }}>
                     {studentSummary.active_students || 0}
                   </div>
@@ -562,6 +533,11 @@ const Saving = ({ pageVariant = "teacher" }) => {
           onSubmit={handleSubmit}
           confirmLoading={isAddingTransaction || isUpdatingTransaction}
         />
+
+        <SavingGuideModal
+          open={guideOpen}
+          onClose={() => setGuideOpen(false)}
+        />
       </>
     );
   }
@@ -583,6 +559,8 @@ const Saving = ({ pageVariant = "teacher" }) => {
           access={access}
           classOptions={classOptions}
           studentOptions={studentOptions}
+          periodeOptions={periodeOptions}
+          homebaseOptions={homebaseOptions}
         />
 
         <SavingTabs
@@ -598,9 +576,9 @@ const Saving = ({ pageVariant = "teacher" }) => {
         />
 
         <Text type='secondary'>
-          Pengelolaan tabungan berjalan pada periode aktif{" "}
-          {activePeriode?.name || "-"} untuk satuan{" "}
-          {user?.homebase_name || user?.homebase_id || "-"}.
+          Transaksi baru dicatat pada periode aktif {activePeriode?.name || "-"}{" "}
+          untuk satuan {user?.homebase_name || user?.homebase_id || "-"}. Saldo
+          siswa terakumulasi lintas periode dan terbawa saat naik tingkat.
         </Text>
       </Space>
 

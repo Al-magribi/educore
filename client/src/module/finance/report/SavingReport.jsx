@@ -218,7 +218,7 @@ const SavingReport = () => {
         prefix: "Rp",
       },
       {
-        title: "Akun Aktif",
+        title: "Sudah Menabung",
         value: reportSummary.active_students || 0,
       },
       {

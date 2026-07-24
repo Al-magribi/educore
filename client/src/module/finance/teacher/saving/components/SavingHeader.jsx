@@ -46,7 +46,7 @@ const SavingHeader = ({ access, activePeriode, onCreate }) => (
             </Title>
             <Text style={{ color: "rgba(226,232,240,0.88)", maxWidth: 760 }}>
               Pantau saldo siswa, proses setoran dan penarikan, lalu tinjau
-              histori transaksi tabungan pada periode aktif.
+              histori transaksi tabungan lintas periode.
             </Text>
             <Space wrap size={[10, 10]}>
               <Tag

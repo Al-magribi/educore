@@ -10,23 +10,31 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { ArrowDownCircle, ArrowUpCircle, PiggyBank } from "lucide-react";
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  History,
+  PiggyBank,
+} from "lucide-react";
 import { motion } from "framer-motion";
 
 import { cardStyle, currencyFormatter, formatSavingDate } from "../constants";
+import SavingStudentDetailModal from "./SavingStudentDetailModal";
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
-const PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = [12, 24, 48, 96];
 
 const SavingStudentsList = ({ students, loading, onCreate }) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(students.length / PAGE_SIZE));
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const [detailStudent, setDetailStudent] = useState(null);
+  const totalPages = Math.max(1, Math.ceil(students.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
   const paginatedStudents = useMemo(() => {
-    const startIndex = (effectivePage - 1) * PAGE_SIZE;
-    return students.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [effectivePage, students]);
+    const startIndex = (effectivePage - 1) * pageSize;
+    return students.slice(startIndex, startIndex + pageSize);
+  }, [effectivePage, pageSize, students]);
 
   if (!loading && students.length === 0) {
     return (
@@ -86,62 +94,51 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
                     </Space>
                   </div>
 
-                  <Row gutter={[12, 12]}>
-                    <Col span={12}>
-                      <div
-                        style={{
-                          borderRadius: 16,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          padding: 14,
-                        }}
-                      >
-                        <Text type="secondary">Setoran</Text>
-                        <div style={{ fontWeight: 700, marginTop: 4 }}>
-                          {currencyFormatter.format(student.deposit_total)}
-                        </div>
-                      </div>
-                    </Col>
-                    <Col span={12}>
-                      <div
-                        style={{
-                          borderRadius: 16,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          padding: 14,
-                        }}
-                      >
-                        <Text type="secondary">Penarikan</Text>
-                        <div style={{ fontWeight: 700, marginTop: 4 }}>
-                          {currencyFormatter.format(student.withdrawal_total)}
-                        </div>
-                      </div>
-                    </Col>
-                  </Row>
-
                   <Text type="secondary">
                     {student.transaction_count > 0
                       ? `Terakhir transaksi ${formatSavingDate(student.last_transaction_date)}`
-                      : "Belum ada transaksi pada periode aktif."}
+                      : "Belum ada transaksi tabungan."}
                   </Text>
 
-                  <Space wrap style={{ width: "100%" }}>
+                  <div style={{ display: "flex", gap: 8, width: "100%" }}>
                     <Button
                       type="primary"
-                      icon={<ArrowDownCircle size={16} />}
+                      icon={<ArrowDownCircle size={15} />}
                       onClick={() => onCreate(student, "deposit")}
-                      style={{ borderRadius: 999, fontWeight: 600 }}
+                      style={{
+                        borderRadius: 999,
+                        fontWeight: 600,
+                        flex: 1,
+                        paddingInline: 8,
+                      }}
                     >
                       Setoran
                     </Button>
                     <Button
-                      icon={<ArrowUpCircle size={16} />}
+                      icon={<ArrowUpCircle size={15} />}
                       onClick={() => onCreate(student, "withdrawal")}
-                      style={{ borderRadius: 999, fontWeight: 600 }}
+                      style={{
+                        borderRadius: 999,
+                        fontWeight: 600,
+                        flex: 1,
+                        paddingInline: 8,
+                      }}
                     >
                       Penarikan
                     </Button>
-                  </Space>
+                    <Button
+                      icon={<History size={15} />}
+                      onClick={() => setDetailStudent(student)}
+                      style={{
+                        borderRadius: 999,
+                        fontWeight: 600,
+                        flex: 1,
+                        paddingInline: 8,
+                      }}
+                    >
+                      Detail
+                    </Button>
+                  </div>
                 </Space>
               </Card>
             </MotionDiv>
@@ -152,12 +149,30 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <Pagination
           current={effectivePage}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           total={students.length}
-          onChange={setCurrentPage}
-          showSizeChanger={false}
+          onChange={(page, nextPageSize) => {
+            if (nextPageSize !== pageSize) {
+              setPageSize(nextPageSize);
+              setCurrentPage(1);
+              return;
+            }
+
+            setCurrentPage(page);
+          }}
+          showSizeChanger
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          showTotal={(total, range) =>
+            `${range[0]}-${range[1]} dari ${total} siswa`
+          }
         />
       </div>
+
+      <SavingStudentDetailModal
+        open={Boolean(detailStudent)}
+        student={detailStudent}
+        onClose={() => setDetailStudent(null)}
+      />
     </Space>
   );
 };

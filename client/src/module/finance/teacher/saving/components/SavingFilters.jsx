@@ -14,6 +14,8 @@ const SavingFilters = ({
   access,
   classOptions,
   studentOptions,
+  periodeOptions = [],
+  homebaseOptions = [],
 }) => (
   <MotionDiv
     initial={{ opacity: 0, y: 10 }}
@@ -31,12 +33,36 @@ const SavingFilters = ({
             Filter Operasional Tabungan
           </Title>
           <Text type="secondary">
-            Pilih kelas, siswa, jenis transaksi, atau kata kunci untuk
+            Pilih kelas, siswa, jenis transaksi, periode, atau kata kunci untuk
             mempersempit data yang sedang dipantau.
           </Text>
         </div>
 
         <Row gutter={[12, 12]}>
+          {access?.can_manage_all_homebases ? (
+            <Col xs={24} md={12} xl={6}>
+              <Text type="secondary">Satuan</Text>
+              <Select
+                value={filters.homebase_id}
+                onChange={(value) =>
+                  setFilters((previous) => ({
+                    ...previous,
+                    homebase_id: value,
+                    class_id: undefined,
+                    student_id: undefined,
+                    periode_id: undefined,
+                  }))
+                }
+                options={homebaseOptions}
+                placeholder="Pilih satuan"
+                style={{ width: "100%", marginTop: 8 }}
+                showSearch
+                optionFilterProp="label"
+                virtual={false}
+              />
+            </Col>
+          ) : null}
+
           <Col xs={24} md={12} xl={6}>
             <Text type="secondary">Kelas</Text>
             <Select
@@ -91,6 +117,24 @@ const SavingFilters = ({
                 { value: "withdrawal", label: "Penarikan" },
               ]}
               placeholder="Semua transaksi"
+              style={{ width: "100%", marginTop: 8 }}
+              allowClear
+              virtual={false}
+            />
+          </Col>
+
+          <Col xs={24} md={12} xl={6}>
+            <Text type="secondary">Periode Riwayat</Text>
+            <Select
+              value={filters.periode_id}
+              onChange={(value) =>
+                setFilters((previous) => ({
+                  ...previous,
+                  periode_id: value || undefined,
+                }))
+              }
+              options={periodeOptions}
+              placeholder="Periode aktif"
               style={{ width: "100%", marginTop: 8 }}
               allowClear
               virtual={false}

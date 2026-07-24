@@ -335,6 +335,37 @@ const SavingTransactionModal = ({
             >
               <InputNumber {...rupiahInputProps} placeholder='Rp 0' />
             </Form.Item>
+
+            <Form.Item
+              name='description'
+              label='Keterangan'
+              rules={
+                watchedType === "withdrawal"
+                  ? [
+                      {
+                        required: true,
+                        whitespace: true,
+                        message: "Keterangan wajib diisi untuk penarikan",
+                      },
+                    ]
+                  : []
+              }
+              extra={
+                watchedType === "withdrawal"
+                  ? "Tuliskan alasan atau keperluan penarikan dana."
+                  : "Opsional untuk setoran."
+              }
+            >
+              <Input.TextArea
+                rows={2}
+                maxLength={255}
+                placeholder={
+                  watchedType === "withdrawal"
+                    ? "Contoh: Penarikan untuk kebutuhan buku"
+                    : "Catatan tambahan (opsional)"
+                }
+              />
+            </Form.Item>
           </Form>
         </Card>
       </Space>

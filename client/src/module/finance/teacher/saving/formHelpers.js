@@ -5,4 +5,5 @@ export const mapSavingFormValues = (record) => ({
   student_search: record?.student_search || "",
   transaction_type: record?.transaction_type || "deposit",
   amount: Number(record?.amount || 0) || undefined,
+  description: record?.description || "",
 });

@@ -200,8 +200,13 @@ const getTeacherHomeroomClass = async (db, homebaseId, teacherId) => {
   return result.rows[0] || null;
 };
 
-const getSavingsAccessContext = async (db, user) => {
-  const homebaseId = user.homebase_id;
+const getSavingsAccessContext = async (db, user, requestedHomebaseId = null) => {
+  const isFinanceAdminUser =
+    user.role === "admin" &&
+    ["finance", "keuangan", "satuan"].includes(user.admin_level);
+  // Admin keuangan tanpa homebase tetap boleh memilih satuan lewat filter.
+  const homebaseId =
+    user.homebase_id || (isFinanceAdminUser ? requestedHomebaseId : null);
   const activePeriode = homebaseId
     ? await getActivePeriode(db, homebaseId)
     : null;
@@ -236,10 +241,13 @@ const getSavingsAccessContext = async (db, user) => {
     };
   }
 
-  if (
-    user.role === "admin" &&
-    ["finance", "keuangan", "satuan"].includes(user.admin_level)
-  ) {
+  if (isFinanceAdminUser) {
+    if (homebaseId && !activePeriode) {
+      return {
+        error: "Periode untuk satuan ini belum tersedia.",
+      };
+    }
+
     return {
       homebaseId,
       activePeriode,
@@ -247,6 +255,7 @@ const getSavingsAccessContext = async (db, user) => {
       homeroomClass: null,
       isFinanceAdmin: true,
       isGlobalFinanceAdmin: !homebaseId,
+      canManageAllHomebases: !user.homebase_id,
     };
   }
 
@@ -454,13 +463,14 @@ const getStudentEnrollment = async (db, accessContext, studentId) => {
   return result.rowCount > 0 ? result.rows[0] : null;
 };
 
+// Saldo tabungan mengikuti siswa lintas periode agar terbawa saat naik tingkat.
 const getStudentBalance = async (
   db,
-  scopeContext,
+  homebaseId,
   studentId,
   excludeTransactionId = null,
 ) => {
-  const params = [scopeContext.homebaseId, scopeContext.periodeId, studentId];
+  const params = [homebaseId, studentId];
   let exclusionClause = "";
 
   if (excludeTransactionId) {
@@ -482,8 +492,7 @@ const getStudentBalance = async (
       ) AS balance
       FROM finance.savings_transactions
       WHERE homebase_id = $1
-        AND periode_id = $2
-        AND student_id = $3
+        AND student_id = $2
         ${exclusionClause}
     `,
     params,
@@ -620,15 +629,16 @@ router.get(
           st.transaction_date,
           st.description,
           st.created_at,
+          per.name AS periode_name,
           processor.full_name AS processed_by_name
         FROM finance.savings_transactions st
+        LEFT JOIN a_periode per ON per.id = st.periode_id
         LEFT JOIN u_users processor ON processor.id = st.processed_by
         WHERE st.homebase_id = $1
-          AND st.periode_id = $2
-          AND st.student_id = $3
+          AND st.student_id = $2
         ORDER BY st.transaction_date DESC, st.transaction_id DESC
       `,
-      [homebaseId, activePeriode.id, studentId],
+      [homebaseId, studentId],
     );
 
     const transactions = transactionResult.rows.map((item) => ({
@@ -686,7 +696,11 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
-    const accessContext = await getSavingsAccessContext(db, req.user);
+    const accessContext = await getSavingsAccessContext(
+      db,
+      req.user,
+      parseOptionalInt(req.query.homebase_id),
+    );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
     }
@@ -741,17 +755,50 @@ router.get(
       studentScope.params,
     );
 
+    const periodesResult = accessContext.homebaseId
+      ? await db.query(
+          `
+            SELECT id, name, is_active
+            FROM a_periode
+            WHERE homebase_id = $1
+            ORDER BY is_active DESC, created_at DESC, id DESC
+          `,
+          [accessContext.homebaseId],
+        )
+      : { rows: [] };
+
+    let homebases = [];
+    if (accessContext.isFinanceAdmin) {
+      if (accessContext.canManageAllHomebases) {
+        const homebasesResult = await db.query(
+          `SELECT id, name FROM a_homebase ORDER BY id ASC`,
+        );
+        homebases = homebasesResult.rows;
+      } else if (accessContext.homebaseId) {
+        const homebasesResult = await db.query(
+          `SELECT id, name FROM a_homebase WHERE id = $1`,
+          [accessContext.homebaseId],
+        );
+        homebases = homebasesResult.rows;
+      }
+    }
+
     res.json({
       status: "success",
       data: {
         access: {
           role_scope: accessContext.roleScope,
           can_manage_all_classes: accessContext.isFinanceAdmin,
+          can_manage_all_homebases: Boolean(
+            accessContext.canManageAllHomebases,
+          ),
           homeroom_class: accessContext.homeroomClass,
         },
         active_periode: accessContext.activePeriode,
         classes: classesResult.rows,
         students: studentsResult.rows,
+        periodes: periodesResult.rows,
+        homebases,
       },
     });
   }),
@@ -763,7 +810,11 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
-    const accessContext = await getSavingsAccessContext(db, req.user);
+    const accessContext = await getSavingsAccessContext(
+      db,
+      req.user,
+      parseOptionalInt(req.query.homebase_id),
+    );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
     }
@@ -820,7 +871,6 @@ router.get(
         FROM ranked_student_scope ss
         LEFT JOIN finance.savings_transactions st
           ON st.homebase_id = ss.homebase_id
-          AND st.periode_id = ss.periode_id
           AND st.student_id = ss.student_id
         WHERE ss.row_num = 1
         GROUP BY
@@ -872,7 +922,11 @@ router.get(
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
-    const accessContext = await getSavingsAccessContext(db, req.user);
+    const accessContext = await getSavingsAccessContext(
+      db,
+      req.user,
+      parseOptionalInt(req.query.homebase_id),
+    );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
     }
@@ -881,6 +935,14 @@ router.get(
     const studentId = parseOptionalInt(req.query.student_id);
     const transactionType = (req.query.transaction_type || "").trim() || null;
     const search = (req.query.search || "").trim();
+    const rawPeriodeFilter = String(req.query.periode_id || "").trim();
+    // "all" = seluruh periode; angka = periode tertentu; kosong = periode aktif.
+    const periodeFilterId =
+      rawPeriodeFilter === "all"
+        ? null
+        : parseOptionalInt(rawPeriodeFilter) ||
+          accessContext.activePeriode?.id ||
+          null;
 
     if (
       transactionType &&
@@ -904,7 +966,12 @@ router.get(
     const params = [...studentScope.params];
     let transactionFilterClause = accessContext.isGlobalFinanceAdmin
       ? `WHERE 1=1`
-      : `WHERE st.homebase_id = $1 AND st.periode_id = $2`;
+      : `WHERE st.homebase_id = $1`;
+
+    if (periodeFilterId) {
+      params.push(periodeFilterId);
+      transactionFilterClause += ` AND st.periode_id = $${params.length}`;
+    }
 
     if (transactionType) {
       params.push(transactionType);
@@ -918,6 +985,7 @@ router.get(
           st.transaction_id,
           st.student_id,
           st.class_id,
+          st.periode_id,
           st.transaction_type,
           st.amount,
           st.transaction_date,
@@ -927,6 +995,7 @@ router.get(
           student.full_name AS student_name,
           s.nis,
           c.name AS class_name,
+          per.name AS periode_name,
           processor.full_name AS processed_by_name
         FROM finance.savings_transactions st
         JOIN ranked_student_scope ss
@@ -935,6 +1004,7 @@ router.get(
         JOIN u_students s ON s.user_id = st.student_id
         JOIN u_users student ON student.id = s.user_id
         LEFT JOIN a_class c ON c.id = st.class_id
+        LEFT JOIN a_periode per ON per.id = st.periode_id
         LEFT JOIN u_users processor ON processor.id = st.processed_by
         ${transactionFilterClause}
         ORDER BY st.transaction_date DESC, st.transaction_id DESC
@@ -977,6 +1047,7 @@ router.post(
     const studentId = parseOptionalInt(req.body.student_id);
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
+    const description = String(req.body.description || "").trim() || null;
 
     if (!studentId || !transactionType || amount === null) {
       return res
@@ -994,6 +1065,12 @@ router.post(
         .json({ message: "Nominal transaksi harus lebih dari 0." });
     }
 
+    if (transactionType === "withdrawal" && !description) {
+      return res
+        .status(400)
+        .json({ message: "Keterangan wajib diisi untuk penarikan." });
+    }
+
     const studentEnrollment = await getStudentEnrollment(
       client,
       accessContext,
@@ -1009,16 +1086,12 @@ router.post(
 
     const currentBalance = await getStudentBalance(
       client,
-      {
-        homebaseId: studentEnrollment.homebase_id,
-        periodeId: studentEnrollment.periode_id,
-      },
+      studentEnrollment.homebase_id,
       studentId,
     );
     if (transactionType === "withdrawal" && amount > currentBalance) {
       return res.status(400).json({
-        message:
-          "Nominal penarikan melebihi saldo tabungan siswa pada periode aktif.",
+        message: "Nominal penarikan melebihi saldo tabungan siswa.",
       });
     }
 
@@ -1035,7 +1108,7 @@ router.post(
           processed_by,
           description
         )
-        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, $7, NULL)
+        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, $7, $8)
         RETURNING transaction_id
       `,
       [
@@ -1046,6 +1119,7 @@ router.post(
         transactionType,
         amount,
         req.user.id,
+        description,
       ],
     );
 
@@ -1072,6 +1146,7 @@ router.put(
     const studentId = parseOptionalInt(req.body.student_id);
     const transactionType = (req.body.transaction_type || "").trim();
     const amount = parseAmount(req.body.amount);
+    const description = String(req.body.description || "").trim() || null;
 
     if (!transactionId || !studentId || !transactionType || amount === null) {
       return res
@@ -1087,6 +1162,12 @@ router.put(
       return res
         .status(400)
         .json({ message: "Nominal transaksi harus lebih dari 0." });
+    }
+
+    if (transactionType === "withdrawal" && !description) {
+      return res
+        .status(400)
+        .json({ message: "Keterangan wajib diisi untuk penarikan." });
     }
 
     const existingTransaction = await getTransactionScope(
@@ -1117,10 +1198,7 @@ router.put(
 
     const currentBalance = await getStudentBalance(
       client,
-      {
-        homebaseId: studentEnrollment.homebase_id,
-        periodeId: studentEnrollment.periode_id,
-      },
+      studentEnrollment.homebase_id,
       studentId,
       transactionId,
     );
@@ -1143,8 +1221,9 @@ router.put(
           transaction_type = $5,
           amount = $6,
           processed_by = $7,
+          description = $8,
           updated_at = CURRENT_TIMESTAMP
-        WHERE transaction_id = $8
+        WHERE transaction_id = $9
       `,
       [
         studentEnrollment.homebase_id,
@@ -1154,6 +1233,7 @@ router.put(
         transactionType,
         amount,
         req.user.id,
+        description,
         transactionId,
       ],
     );
