@@ -9,9 +9,16 @@ const router = Router();
 // ==========================================
 router.get(
   "/get-grades",
-  authorize("admin", "teacher"),
+  authorize("admin", "teacher", "satuan", "pusat"),
   withQuery(async (req, res, pool) => {
-    const homebase_id = req.user.homebase_id;
+    const homebase_id =
+      Number(req.query.homebase_id) || req.user.homebase_id;
+
+    if (!homebase_id) {
+      return res.status(400).json({
+        message: "homebase_id wajib diisi untuk admin pusat.",
+      });
+    }
 
     // Urutkan berdasarkan nama agar rapi
     const result = await pool.query(
@@ -27,10 +34,17 @@ router.get(
 // ==========================================
 router.get(
   "/get-classes",
-  authorize("admin", "teacher"),
+  authorize("admin", "teacher", "satuan", "pusat"),
   withQuery(async (req, res, pool) => {
-    const homebase_id = req.user.homebase_id;
+    const homebase_id =
+      Number(req.query.homebase_id) || req.user.homebase_id;
     const { gradeId } = req.query;
+
+    if (!homebase_id) {
+      return res.status(400).json({
+        message: "homebase_id wajib diisi untuk admin pusat.",
+      });
+    }
 
     if (gradeId) {
       // PERBAIKAN: Filter berdasarkan grade_id, bukan id kelas
