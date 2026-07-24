@@ -4,7 +4,6 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import {
@@ -36,8 +35,7 @@ const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const LayoutShellContext = createContext(null);
-
-const routePreloaders = {
+const ROUTE_PRELOADERS = {
   "/profile": () => import("../profile/Profile"),
   "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
   "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
@@ -68,10 +66,7 @@ const routePreloaders = {
     import("../../module/database/view/ParentStudentDatabase"),
   "/computer-based-test/start": () =>
     import("../../module/cbt/student/view/ExamInterface"),
-  "/guru-dashboard": () =>
-    import("../../module/teacher/dashboard/TeacherDash"),
-  "/guru-database-kelas": () =>
-    import("../../module/database/manager/ClassDbManager"),
+  "/guru-dashboard": () => import("../../module/teacher/dashboard/TeacherDash"),
 };
 
 const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
@@ -92,7 +87,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
-  const preloadedRoutes = useRef(new Set());
   const effectiveTitle = asShell ? shellTitle : title;
 
   const isCbtRoute = (path) =>
@@ -100,26 +94,15 @@ const AppLayout = ({ children, title, asShell = false }) => {
     path?.startsWith("/siswa/jadwal-ujian");
 
   const preloadRouteByKey = useCallback((key) => {
-    const preloader = routePreloaders[key];
-    if (!preloader || preloadedRoutes.current.has(key)) return;
-    preloadedRoutes.current.add(key);
-    preloader().catch(() => {
-      preloadedRoutes.current.delete(key);
-    });
+    const preloader = ROUTE_PRELOADERS[key];
+    if (!preloader) return;
+    preloader().catch(() => {});
   }, []);
 
-  const filterMenuItemsByUser = (items, currentUser) => {
-    return items
+  const filterMenuItemsByUser = (items, currentUser) =>
+    items
       .map((item) => {
         if (item.requiresHomeroom && !currentUser?.is_homeroom) {
-          return null;
-        }
-
-        if (
-          currentUser?.role === "teacher" &&
-          item.key === "/manajemen-piket" &&
-          !currentUser?.has_duty_today
-        ) {
           return null;
         }
 
@@ -137,7 +120,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
         return item;
       })
       .filter(Boolean);
-  };
 
   const enhanceMenuItems = (items) =>
     items.map((item) => {
