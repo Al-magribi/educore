@@ -45,17 +45,32 @@ jobs:
           set -euo pipefail
           TARGET_BRANCH="${{ matrix.branch }}"
           MERGE_MESSAGE="chore(sync): merge main into ${TARGET_BRANCH}"
+          WORKFLOW_DIR=".github/workflows"
 
           git fetch origin
           git checkout "${TARGET_BRANCH}"
 
-          if git merge origin/main --no-ff -X theirs -m "${MERGE_MESSAGE}"; then
-            echo "Merge completed for ${TARGET_BRANCH}"
+          if git merge origin/main --no-ff --no-commit -X theirs; then
+            echo "Merge prepared for ${TARGET_BRANCH}"
           else
             echo "Conflict detected on ${TARGET_BRANCH}, resolving by preferring main branch content"
             git checkout --theirs .
             git add -A
-            git commit -m "${MERGE_MESSAGE} (auto-resolved)"
           fi
 
+          # Keep workflow files from the target branch.
+          # This sync job only carries regular app changes from `main`.
+          # Workflow updates remain managed from `main` as the source of truth.
+          if [ -d "${WORKFLOW_DIR}" ]; then
+            git checkout HEAD -- "${WORKFLOW_DIR}"
+            git add "${WORKFLOW_DIR}"
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No syncable changes for ${TARGET_BRANCH}"
+            git merge --abort
+            exit 0
+          fi
+
+          git commit -m "${MERGE_MESSAGE}"
           git push origin "HEAD:${TARGET_BRANCH}"
