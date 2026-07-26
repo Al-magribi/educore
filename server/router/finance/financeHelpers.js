@@ -152,7 +152,7 @@ export const buildEnrollmentWhereClause = ({
 
   if (search) {
     params.push(`%${search}%`);
-    whereClause += ` AND (u.full_name ILIKE $${params.length} OR COALESCE(s.nis, '') ILIKE $${params.length})`;
+    whereClause += ` AND (u.full_name ILIKE $${params.length} OR COALESCE(s.nis, '') ILIKE $${params.length} OR COALESCE(s.nisn, '') ILIKE $${params.length})`;
   }
 
   return { params, whereClause };

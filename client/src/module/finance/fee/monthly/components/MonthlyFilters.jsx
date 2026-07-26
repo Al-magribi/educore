@@ -1,30 +1,11 @@
-import { Card, Col, Input, Row, Select, Space, Tag, Typography } from "antd";
+import { Button, Flex, Input, Select, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
-import { Filter, Search } from "lucide-react";
+import { RotateCcw, Search } from "lucide-react";
 
-import { cardStyle } from "../constants";
+import { currentMonth } from "../constants";
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
-
-const renderPeriodeOption = (option) => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 8,
-    }}
-  >
-    <span>{option.data.label}</span>
-    <Tag
-      color={option.data.is_active ? "green" : "red"}
-      style={{ borderRadius: 999, fontWeight: 600 }}
-    >
-      {option.data.is_active ? "Aktif" : "Nonaktif"}
-    </Tag>
-  </div>
-);
 
 const MonthlyFilters = ({
   filters,
@@ -39,197 +20,177 @@ const MonthlyFilters = ({
 
   return (
     <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <Card
+      <div
         style={{
-          ...cardStyle,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          padding: 16,
+          borderRadius: 18,
+          border: "1px solid rgba(148, 163, 184, 0.18)",
+          background: "rgba(248, 250, 252, 0.9)",
         }}
-        styles={{ body: { padding: 20 } }}
       >
-        <Space direction='vertical' size={16} style={{ width: "100%" }}>
-          <Space align='center' size={10}>
-            <span
-              style={{
-                width: 40,
-                height: 40,
-                display: "grid",
-                placeItems: "center",
-                borderRadius: 14,
-                background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                color: "#2563eb",
-              }}
-            >
-              <Filter size={18} />
-            </span>
-            <div>
-              <Text strong style={{ display: "block", color: "#0f172a" }}>
-                Filter Pembayaran SPP
-              </Text>
-              <Text type='secondary'>
-                Default: periode aktif. Kosongkan periode untuk semua periode.
-                Filter detail aktif setelah periode dipilih.
-              </Text>
-            </div>
+        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
+          <Space vertical size={2}>
+            <Text strong style={{ color: "#0f172a" }}>
+              Filter Pembayaran SPP
+            </Text>
+            <Text type='secondary' style={{ fontSize: 13 }}>
+              Default: periode aktif. Kosongkan periode untuk semua periode.
+              Filter detail aktif setelah periode dipilih.
+            </Text>
           </Space>
 
-          <Row gutter={[12, 12]}>
-            {homebases.length > 1 ? (
-              <Col xs={24} md={12} xl={6}>
-                <Text type='secondary'>Satuan</Text>
-                <Select
-                  size='large'
-                  value={filters.homebase_id}
-                  onChange={(value) =>
-                    setFilters((previous) => ({
-                      ...previous,
-                      homebase_id: value,
-                      grade_id: undefined,
-                      class_id: undefined,
-                      student_id: undefined,
-                      student_search: "",
-                    }))
-                  }
-                  options={homebases.map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  }))}
-                  placeholder='Semua satuan'
-                  style={{ width: "100%", marginTop: 8 }}
-                  allowClear
-                  showSearch={{ optionFilterProp: "label" }}
-                  virtual={false}
-                />
-              </Col>
-            ) : null}
-            <Col xs={24} md={12} xl={6}>
-              <Text type='secondary'>Periode</Text>
-              <Select
-                size='large'
-                value={filters.periode_id}
-                onChange={(value) =>
-                  setFilters((previous) => ({
-                    ...previous,
-                    periode_id: value,
-                    grade_id: undefined,
-                    class_id: undefined,
-                    student_id: undefined,
-                    student_search: "",
-                  }))
-                }
-                options={periodes.map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                  is_active: item.is_active,
-                }))}
-                placeholder='Semua periode'
-                style={{ width: "100%", marginTop: 8 }}
-                allowClear
-                showSearch={{ optionFilterProp: "label" }}
-                virtual={false}
-                optionRender={renderPeriodeOption}
-              />
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Text type='secondary'>Tingkat</Text>
-              <Select
-                size='large'
-                value={filters.grade_id}
-                onChange={(value) =>
-                  setFilters((previous) => ({
-                    ...previous,
-                    grade_id: value,
-                    class_id: undefined,
-                    student_id: undefined,
-                    student_search: "",
-                  }))
-                }
-                options={grades.map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                }))}
-                placeholder='Semua tingkat'
-                style={{ width: "100%", marginTop: 8 }}
-                allowClear
-                disabled={!hasPeriodeFilter}
-                showSearch={{ optionFilterProp: "label" }}
-                virtual={false}
-              />
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Text type='secondary'>Kelas</Text>
-              <Select
-                size='large'
-                value={filters.class_id}
-                onChange={(value) =>
-                  setFilters((previous) => ({
-                    ...previous,
-                    class_id: value,
-                    student_id: undefined,
-                    student_search: "",
-                  }))
-                }
-                options={classes.map((item) => ({
-                  value: item.id,
-                  label: `${item.name} (${item.grade_name})`,
-                }))}
-                placeholder='Semua kelas'
-                style={{ width: "100%", marginTop: 8 }}
-                allowClear
-                disabled={!hasPeriodeFilter || classes.length === 0}
-                showSearch={{ optionFilterProp: "label" }}
-                virtual={false}
-              />
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Text type='secondary'>Bulan</Text>
-              <Select
-                size='large'
-                value={filters.bill_month}
-                onChange={(value) =>
-                  setFilters((previous) => ({
-                    ...previous,
-                    bill_month: value,
-                  }))
-                }
-                options={months.map((item) => ({
-                  value: item.value,
-                  label: item.label,
-                }))}
-                placeholder='Pilih bulan'
-                style={{ width: "100%", marginTop: 8 }}
-                showSearch={{ optionFilterProp: "label" }}
-                virtual={false}
-              />
-            </Col>
-            <Col xs={24} md={12} xl={18}>
-              <Text type='secondary'>Siswa</Text>
-              <Input.Search
-                size='large'
-                prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
-                value={filters.student_search}
-                onChange={(event) =>
-                  setFilters((previous) => ({
-                    ...previous,
-                    student_id: undefined,
-                    student_search: event.target.value,
-                  }))
-                }
-                onSearch={(value) =>
-                  setFilters((previous) => ({
-                    ...previous,
-                    student_id: undefined,
-                    student_search: value,
-                  }))
-                }
-                placeholder='Cari berdasarkan nama atau NIS'
-                style={{ width: "100%", marginTop: 8 }}
-                allowClear
-                disabled={!hasPeriodeFilter}
-              />
-            </Col>
-          </Row>
-        </Space>
-      </Card>
+          <Button
+            icon={<RotateCcw size={16} />}
+            onClick={() =>
+              setFilters((previous) => ({
+                ...previous,
+                grade_id: undefined,
+                class_id: undefined,
+                student_search: "",
+                bill_month: currentMonth,
+              }))
+            }
+          >
+            Reset Filter
+          </Button>
+        </Flex>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12,
+            marginTop: 16,
+          }}
+        >
+          <Select
+            value={filters.homebase_id}
+            options={(homebases || []).map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+            onChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                homebase_id: value || undefined,
+                grade_id: undefined,
+                class_id: undefined,
+                student_search: "",
+              }))
+            }
+            placeholder='Pilih satuan'
+            size='large'
+            disabled={(homebases || []).length <= 1}
+            virtual={false}
+            allowClear
+          />
+          <Select
+            allowClear
+            placeholder='Filter periode'
+            value={filters.periode_id}
+            options={(periodes || []).map((item) => ({
+              value: item.id,
+              label: (
+                <Flex justify='space-between' align='center' gap={12}>
+                  <span>{item.name}</span>
+                  <Tag
+                    color={item.is_active ? "green" : "red"}
+                    style={{ margin: 0, borderRadius: 999 }}
+                  >
+                    {item.is_active ? "Aktif" : "Tidak Aktif"}
+                  </Tag>
+                </Flex>
+              ),
+              searchLabel: item.name,
+            }))}
+            onChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                periode_id: value || undefined,
+                grade_id: undefined,
+                class_id: undefined,
+                student_search: "",
+              }))
+            }
+            optionFilterProp='searchLabel'
+            size='large'
+            virtual={false}
+          />
+          <Select
+            allowClear
+            placeholder='Filter tingkat'
+            value={filters.grade_id}
+            options={(grades || []).map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+            onChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                grade_id: value || undefined,
+                class_id: undefined,
+              }))
+            }
+            size='large'
+            disabled={!hasPeriodeFilter}
+            showSearch
+            optionFilterProp='label'
+            virtual={false}
+          />
+          <Select
+            allowClear
+            placeholder='Filter kelas'
+            value={filters.class_id}
+            options={(classes || []).map((item) => ({
+              value: item.id,
+              label: `${item.name} (${item.grade_name})`,
+            }))}
+            onChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                class_id: value || undefined,
+              }))
+            }
+            size='large'
+            disabled={!hasPeriodeFilter || (classes || []).length === 0}
+            showSearch
+            optionFilterProp='label'
+            virtual={false}
+          />
+          <Select
+            placeholder='Pilih bulan'
+            value={filters.bill_month}
+            options={(months || []).map((item) => ({
+              value: item.value,
+              label: item.label,
+            }))}
+            onChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
+                bill_month: value,
+              }))
+            }
+            size='large'
+            showSearch
+            optionFilterProp='label'
+            virtual={false}
+          />
+          <Input
+            placeholder='Cari nama siswa / NIS / NISN'
+            value={filters.student_search}
+            prefix={<Search size={16} color='#94a3b8' />}
+            onChange={(event) =>
+              setFilters((previous) => ({
+                ...previous,
+                student_search: event.target.value,
+              }))
+            }
+            size='large'
+            disabled={!hasPeriodeFilter}
+            allowClear
+          />
+        </div>
+      </div>
     </MotionDiv>
   );
 };

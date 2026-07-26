@@ -1,10 +1,22 @@
-import { Card, Col, Empty, Row, Space, Table, Tag, Typography } from "antd";
+import {
+  Card,
+  Col,
+  Empty,
+  Flex,
+  Row,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
   BarChart3,
   CircleDollarSign,
   Filter,
+  Info,
   Target,
 } from "lucide-react";
 
@@ -295,36 +307,47 @@ const MonthlyReportPanel = ({
                   ...cardStyle,
                   background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
                 }}
+                styles={{ body: { padding: 20 } }}
               >
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 16,
-                    background: meta.bg,
-                    color: meta.color,
-                    marginBottom: 12,
-                  }}
-                >
-                  {meta.icon}
-                </div>
-                <Text type='secondary'>{item.label}</Text>
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 28,
-                    fontWeight: 700,
-                    color: "#0f172a",
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {item.value}
-                </div>
-                <Text type='secondary' style={{ fontSize: 12 }}>
-                  {item.note}
-                </Text>
+                <Flex align='center' gap={14}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 16,
+                      background: meta.bg,
+                      color: meta.color,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {meta.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Flex align='center' gap={6}>
+                      <Text type='secondary'>{item.label}</Text>
+                      <Tooltip title={item.note}>
+                        <Info
+                          size={14}
+                          color='#94a3b8'
+                          style={{ cursor: "help", flexShrink: 0 }}
+                        />
+                      </Tooltip>
+                    </Flex>
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 26,
+                        fontWeight: 700,
+                        color: "#0f172a",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {item.value}
+                    </div>
+                  </div>
+                </Flex>
               </Card>
             </MotionDiv>
           </Col>

@@ -570,8 +570,12 @@ router.get(
 
     const [homebaseResult, periodeResult] = await Promise.all([
       req.user.homebase_id
-        ? db.query(`SELECT id, name FROM a_homebase WHERE id = $1`, [homebaseId])
-        : db.query(`SELECT id, name FROM a_homebase ORDER BY name ASC`),
+        ? db.query(`SELECT id, name, created_at FROM a_homebase WHERE id = $1`, [
+            homebaseId,
+          ])
+        : db.query(
+            `SELECT id, name, created_at FROM a_homebase ORDER BY created_at ASC, id ASC`,
+          ),
       homebaseId
         ? db.query(
             `

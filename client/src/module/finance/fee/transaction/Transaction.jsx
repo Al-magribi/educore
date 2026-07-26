@@ -101,6 +101,8 @@ const Transaction = () => {
   const [otherPaymentSelectionsState, setOtherPaymentSelectionsState] =
     useState({});
   const pendingSelectedStudentSearchRef = useRef(null);
+  const defaultHomebaseAppliedRef = useRef(false);
+  const defaultPeriodeHomebaseRef = useRef(null);
   const [transactionFilters, setTransactionFilters] = useState({
     homebase_id: undefined,
     periode_id: undefined,
@@ -145,6 +147,7 @@ const Transaction = () => {
   const homebases = useMemo(() => options.homebases || [], [options.homebases]);
   const resolvedTransactionHomebaseId =
     transactionFilters.homebase_id || optionResponse?.data?.selected_homebase_id;
+  const optionsHomebaseId = optionResponse?.data?.selected_homebase_id;
 
   const { data: transactionResponse, isLoading: isLoadingTransactions } =
     useGetTransactionsQuery({
@@ -191,6 +194,81 @@ const Transaction = () => {
     useDeleteTransactionMutation();
   const selectedHomebaseId = resolvedTransactionHomebaseId;
   const periodes = useMemo(() => options.periodes || [], [options.periodes]);
+
+  useEffect(() => {
+    if (defaultHomebaseAppliedRef.current || homebases.length === 0) {
+      return;
+    }
+
+    defaultHomebaseAppliedRef.current = true;
+
+    if (transactionFilters.homebase_id) {
+      return;
+    }
+
+    // Satu homebase: langsung terpilih. Lebih dari satu: pilih yang paling awal dibuat.
+    const defaultHomebase =
+      homebases.length === 1
+        ? homebases[0]
+        : [...homebases].sort((left, right) => {
+            const leftCreated = new Date(left.created_at || 0).getTime();
+            const rightCreated = new Date(right.created_at || 0).getTime();
+
+            if (leftCreated !== rightCreated) {
+              return leftCreated - rightCreated;
+            }
+
+            return Number(left.id) - Number(right.id);
+          })[0];
+
+    if (!defaultHomebase?.id) {
+      return;
+    }
+
+    setTransactionFilters((previous) => ({
+      ...previous,
+      homebase_id: defaultHomebase.id,
+      page: 1,
+    }));
+  }, [homebases, transactionFilters.homebase_id]);
+
+  useEffect(() => {
+    const filterHomebaseId = transactionFilters.homebase_id;
+
+    if (
+      !filterHomebaseId ||
+      modalRequestedOpen ||
+      periodes.length === 0 ||
+      Number(optionsHomebaseId) !== Number(filterHomebaseId) ||
+      defaultPeriodeHomebaseRef.current === filterHomebaseId
+    ) {
+      return;
+    }
+
+    defaultPeriodeHomebaseRef.current = filterHomebaseId;
+
+    if (transactionFilters.periode_id) {
+      return;
+    }
+
+    const activePeriode = periodes.find((item) => item.is_active);
+
+    if (!activePeriode) {
+      return;
+    }
+
+    setTransactionFilters((previous) => ({
+      ...previous,
+      periode_id: activePeriode.id,
+      page: 1,
+    }));
+  }, [
+    modalRequestedOpen,
+    optionsHomebaseId,
+    periodes,
+    transactionFilters.homebase_id,
+    transactionFilters.periode_id,
+  ]);
   const students = useMemo(() => options.students || [], [options.students]);
   const student = options.student || null;
   const unpaidMonths = useMemo(

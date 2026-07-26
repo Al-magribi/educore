@@ -59,7 +59,6 @@ const Others = () => {
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,
-    student_id: undefined,
     student_search: "",
     type_id: undefined,
     status: undefined,
@@ -90,7 +89,6 @@ const Others = () => {
     ...(filters.periode_id ? { periode_id: filters.periode_id } : {}),
     ...(filters.grade_id ? { grade_id: filters.grade_id } : {}),
     ...(filters.class_id ? { class_id: filters.class_id } : {}),
-    ...(filters.student_id ? { student_id: filters.student_id } : {}),
     ...(filters.student_search ? { student_search: filters.student_search } : {}),
     ...(filters.type_id ? { type_id: filters.type_id } : {}),
     ...(filters.status ? { status: filters.status } : {}),
@@ -234,10 +232,6 @@ const Others = () => {
     () => scopedOptions.classes || [],
     [scopedOptions.classes],
   );
-  const students = useMemo(
-    () => scopedOptions.students || [],
-    [scopedOptions.students],
-  );
   const types = useMemo(() => typeResponse?.data || [], [typeResponse?.data]);
   const charges = useMemo(
     () => chargeResponse?.data || [],
@@ -300,7 +294,6 @@ const Others = () => {
       periode_id: activePeriode?.id,
       grade_id: undefined,
       class_id: undefined,
-      student_id: undefined,
       student_search: "",
       type_id: undefined,
     }));
@@ -314,23 +307,10 @@ const Others = () => {
       setFilters((previous) => ({
         ...previous,
         class_id: undefined,
-        student_id: undefined,
         student_search: "",
       }));
     }
   }, [classes, filters.class_id]);
-
-  useEffect(() => {
-    if (
-      filters.student_id &&
-      !students.some((item) => Number(item.id) === Number(filters.student_id))
-    ) {
-      setFilters((previous) => ({
-        ...previous,
-        student_id: undefined,
-      }));
-    }
-  }, [filters.student_id, students]);
 
   useEffect(() => {
     if (
@@ -612,7 +592,6 @@ const Others = () => {
             periodes={periodes}
             grades={grades}
             classes={classes}
-            students={students}
             types={types}
           />
         </MotionDiv>

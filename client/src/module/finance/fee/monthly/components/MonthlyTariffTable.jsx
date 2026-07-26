@@ -1,6 +1,16 @@
-import { Button, Card, Flex, Popconfirm, Space, Table, Tag, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Dropdown,
+  Flex,
+  Modal,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { motion } from "framer-motion";
-import { Pencil, Plus, ReceiptText, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, Plus, ReceiptText, Trash2 } from "lucide-react";
 
 import { currencyFormatter } from "../constants";
 
@@ -40,28 +50,52 @@ const MonthlyTariffTable = ({
     {
       title: "Aksi",
       key: "action",
+      width: 140,
       render: (_, record) => (
-        <Space>
-          <Button type='text' icon={<Pencil size={15} />} onClick={() => onEdit(record)}>
-            Edit
+        <Dropdown
+          trigger={["click"]}
+          disabled={isDeletingTariff}
+          menu={{
+            items: [
+              {
+                key: "edit",
+                label: "Edit tarif",
+                icon: <Pencil size={14} />,
+              },
+              {
+                key: "delete",
+                label: "Hapus tarif",
+                danger: true,
+                icon: <Trash2 size={14} />,
+              },
+            ],
+            onClick: ({ key, domEvent }) => {
+              domEvent?.stopPropagation?.();
+
+              if (key === "edit") {
+                onEdit(record);
+                return;
+              }
+
+              if (key === "delete") {
+                Modal.confirm({
+                  title: "Hapus tarif SPP ini?",
+                  content:
+                    "Tarif yang sudah dipakai pembayaran tidak dapat dihapus.",
+                  okText: "Hapus",
+                  okButtonProps: { danger: true },
+                  cancelText: "Batal",
+                  onOk: () => onDelete(record.id),
+                });
+              }
+            },
+          }}
+        >
+          <Button icon={<ReceiptText size={14} />} loading={isDeletingTariff}>
+            Opsi
+            <ChevronDown size={14} style={{ marginLeft: 8 }} />
           </Button>
-          <Popconfirm
-            title='Hapus tarif SPP ini?'
-            description='Tarif yang sudah dipakai pembayaran tidak dapat dihapus.'
-            onConfirm={() => onDelete(record.id)}
-            okText='Hapus'
-            cancelText='Batal'
-          >
-            <Button
-              type='text'
-              danger
-              loading={isDeletingTariff}
-              icon={<Trash2 size={15} />}
-            >
-              Hapus
-            </Button>
-          </Popconfirm>
-        </Space>
+        </Dropdown>
       ),
     },
   ];

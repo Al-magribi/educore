@@ -3,10 +3,14 @@ import { useSelector } from "react-redux";
 import { Form, Card, Space, Tabs, Typography, message } from "antd";
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   BarChart3,
+  CheckCircle2,
   CreditCard,
   ReceiptText,
   Sparkles,
+  Users,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -68,7 +72,6 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,
-    student_id: undefined,
     student_search: "",
     bill_month: currentMonth,
   });
@@ -97,7 +100,6 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     ...(filters.periode_id ? { periode_id: filters.periode_id } : {}),
     ...(filters.grade_id ? { grade_id: filters.grade_id } : {}),
     ...(filters.class_id ? { class_id: filters.class_id } : {}),
-    ...(filters.student_id ? { student_id: filters.student_id } : {}),
     ...(filters.student_search
       ? { student_search: filters.student_search }
       : {}),
@@ -270,7 +272,6 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       periode_id: activePeriode?.id,
       grade_id: undefined,
       class_id: undefined,
-      student_id: undefined,
       student_search: "",
     }));
   }, [periodes, filters.periode_id]);
@@ -283,22 +284,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       setFilters((previous) => ({
         ...previous,
         class_id: undefined,
-        student_id: undefined,
       }));
     }
   }, [filters.class_id, mainClasses]);
-
-  useEffect(() => {
-    if (
-      filters.student_id &&
-      !mainStudents.some((item) => item.id === filters.student_id)
-    ) {
-      setFilters((previous) => ({
-        ...previous,
-        student_id: undefined,
-      }));
-    }
-  }, [filters.student_id, mainStudents]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -356,6 +344,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       value: paymentSummary.total_records || 0,
       prefix: "",
       note: "Jumlah siswa sesuai filter yang dipilih",
+      icon: <Users size={18} />,
+      bg: "linear-gradient(135deg, #dbeafe, #eff6ff)",
+      color: "#2563eb",
     },
     {
       key: "paid",
@@ -363,6 +354,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       value: paymentSummary.paid_count || 0,
       prefix: "",
       note: "Siswa yang sudah melunasi bulan terpilih",
+      icon: <CheckCircle2 size={18} />,
+      bg: "linear-gradient(135deg, #dcfce7, #ecfdf5)",
+      color: "#15803d",
     },
     {
       key: "unpaid",
@@ -370,6 +364,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       value: paymentSummary.unpaid_count || 0,
       prefix: "",
       note: "Siswa yang belum melunasi bulan terpilih",
+      icon: <AlertTriangle size={18} />,
+      bg: "linear-gradient(135deg, #fef3c7, #fff7ed)",
+      color: "#d97706",
     },
     {
       key: "amount",
@@ -377,6 +374,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       value: paymentSummary.paid_amount || 0,
       prefix: "Rp",
       note: "Akumulasi SPP yang sudah lunas",
+      icon: <Wallet size={18} />,
+      bg: "linear-gradient(135deg, #e0f2fe, #ecfeff)",
+      color: "#0369a1",
     },
   ];
 
@@ -478,7 +478,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       return;
     }
 
-    const targetStudentId = record?.student_id || filters.student_id;
+    const targetStudentId = record?.student_id;
     const { student } = getStudentPaymentContext(
       targetStudentId,
       targetPeriodeId,

@@ -694,12 +694,13 @@ const TransactionList = ({
               pageSize,
               total: totalRecords,
               showSizeChanger: true,
+              pageSizeOptions: [10, 20, 50, 100],
               showTotal: (total, range) =>
                 `${range[0]}-${range[1]} dari ${total} transaksi`,
               onChange: (page, nextPageSize) =>
                 setTransactionFilters((previous) => ({
                   ...previous,
-                  page,
+                  page: nextPageSize !== previous.limit ? 1 : page,
                   limit: nextPageSize,
                 })),
             }}
