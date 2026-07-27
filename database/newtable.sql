@@ -238,7 +238,7 @@ ON l_chapter(teacher_id, subject_id);
 
 CREATE TABLE l_content (
     id SERIAL PRIMARY KEY,
-    chapter_id integer REFERENCES l_chapter(id),
+    chapter_id integer REFERENCES l_chapter(id) ON DELETE CASCADE,
     title text NOT NULL,
     body text,
     video_url text,
@@ -329,7 +329,7 @@ CREATE TABLE l_score_formative (
     student_id integer REFERENCES u_students(user_id),
     teacher_id integer REFERENCES u_teachers(user_id),
     subject_id integer REFERENCES a_subject(id),
-    chapter_id integer REFERENCES l_chapter(id),
+    chapter_id integer REFERENCES l_chapter(id) ON DELETE SET NULL,
     type varchar(50), -- Tugas 1, Kuis 1, Praktek
     score integer CHECK (score >= 0 AND score <= 100)
 );
@@ -353,7 +353,7 @@ CREATE TABLE l_score_summative (
     student_id integer REFERENCES u_students(user_id),
     teacher_id integer REFERENCES u_teachers(user_id),
     subject_id integer REFERENCES a_subject(id),
-    chapter_id integer REFERENCES l_chapter(id),
+    chapter_id integer REFERENCES l_chapter(id) ON DELETE SET NULL,
     type varchar(50), -- Format: Mxx-B{chapter}-S{sub}
     score_written integer CHECK (score_written >= 0 AND score_written <= 100),
     score_skill integer CHECK (score_skill >= 0 AND score_skill <= 100), -- Nilai Praktek

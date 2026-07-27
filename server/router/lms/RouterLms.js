@@ -751,6 +751,17 @@ router.delete(
       );
     }
 
+    // Detach historical scores (FK ON DELETE SET NULL) and remove owned rows.
+    await client.query(
+      "UPDATE lms.l_score_formative SET chapter_id = NULL WHERE chapter_id = $1",
+      [id],
+    );
+    await client.query(
+      "UPDATE lms.l_score_summative SET chapter_id = NULL WHERE chapter_id = $1",
+      [id],
+    );
+    // l_task_class / l_task_submission cascade from l_task.
+    await client.query("DELETE FROM lms.l_task WHERE chapter_id = $1", [id]);
     await client.query("DELETE FROM lms.l_content WHERE chapter_id = $1", [id]);
     await client.query("DELETE FROM lms.l_chapter WHERE id = $1", [id]);
     const uniqueUrls = Array.from(new Set(attachmentUrls));

@@ -499,7 +499,7 @@ CREATE TABLE l_chapter(
 
 CREATE TABLE l_content(
     id SERIAL NOT NULL,
-    chapter_id integer REFERENCES lms.l_chapter(id),
+    chapter_id integer REFERENCES lms.l_chapter(id) ON DELETE CASCADE,
     title text NOT NULL,
     body text,
     video_url text,
@@ -558,7 +558,7 @@ CREATE TABLE l_score_formative(
     id SERIAL NOT NULL,
     student_id integer REFERENCES public.u_students(user_id),
     subject_id integer REFERENCES public.a_subject(id),
-    chapter_id integer REFERENCES lms.l_chapter(id),
+    chapter_id integer REFERENCES lms.l_chapter(id) ON DELETE SET NULL,
     type varchar(50),
     score integer CHECK (score >= 0 AND score <= 100),
     PRIMARY KEY(id)
