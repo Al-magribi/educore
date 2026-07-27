@@ -8,6 +8,7 @@ export const ApiExam = createApi({
     "ExamAttendance",
     "ExamScores",
     "ExamBloom",
+    "ExamItemAnalysis",
     "ExamStudentAnswerReport",
     "ExamStudentAnswers",
     "ExamManualReview",
@@ -71,6 +72,9 @@ export const ApiExam = createApi({
         { type: "ExamStudentAnswerReport", id: exam_id },
         { type: "ExamManualReview", id: exam_id },
         { type: "ExamStudentAnswers", id: `${exam_id}:${student_id}` },
+        { type: "ExamItemAnalysis", id: `${exam_id}:0` },
+        { type: "ExamItemAnalysis", id: `${exam_id}:1` },
+        { type: "ExamBloom", id: exam_id },
       ],
     }),
     finishExamStudent: builder.mutation({
@@ -92,6 +96,18 @@ export const ApiExam = createApi({
       query: ({ exam_id }) => `/exam-analysis/${exam_id}/bloom-level`,
       providesTags: (result, error, { exam_id }) => [
         { type: "ExamBloom", id: exam_id },
+      ],
+    }),
+    getExamItemAnalysis: builder.query({
+      query: ({ exam_id, include_essay = false }) => ({
+        url: `/exam-analysis/${exam_id}/item-analysis`,
+        params: { include_essay: include_essay ? 1 : 0 },
+      }),
+      providesTags: (result, error, { exam_id, include_essay = false }) => [
+        {
+          type: "ExamItemAnalysis",
+          id: `${exam_id}:${include_essay ? 1 : 0}`,
+        },
       ],
     }),
     getExamStudentAnswerReport: builder.query({
@@ -133,6 +149,9 @@ export const ApiExam = createApi({
         { type: "ExamStudentAnswerReport", id: exam_id },
         { type: "ExamManualReview", id: exam_id },
         { type: "ExamStudentAnswers", id: `${exam_id}:${student_id}` },
+        { type: "ExamItemAnalysis", id: `${exam_id}:0` },
+        { type: "ExamItemAnalysis", id: `${exam_id}:1` },
+        { type: "ExamBloom", id: exam_id },
       ],
     }),
     saveExamStudentRubricScore: builder.mutation({
@@ -154,6 +173,9 @@ export const ApiExam = createApi({
         { type: "ExamStudentAnswerReport", id: exam_id },
         { type: "ExamManualReview", id: exam_id },
         { type: "ExamStudentAnswers", id: `${exam_id}:${student_id}` },
+        { type: "ExamItemAnalysis", id: `${exam_id}:0` },
+        { type: "ExamItemAnalysis", id: `${exam_id}:1` },
+        { type: "ExamBloom", id: exam_id },
       ],
     }),
     finalizeExamStudentAnswerReview: builder.mutation({
@@ -169,6 +191,9 @@ export const ApiExam = createApi({
               { type: "ExamStudentAnswerReport", id: exam_id },
               { type: "ExamManualReview", id: exam_id },
               { type: "ExamStudentAnswers", id: `${exam_id}:${student_id}` },
+              { type: "ExamItemAnalysis", id: `${exam_id}:0` },
+              { type: "ExamItemAnalysis", id: `${exam_id}:1` },
+              { type: "ExamBloom", id: exam_id },
             ],
     }),
     startExamAiGradingJob: builder.mutation({
@@ -265,6 +290,7 @@ export const {
   useFinishExamStudentMutation,
   useGetExamScoresQuery,
   useGetExamBloomAnalysisQuery,
+  useGetExamItemAnalysisQuery,
   useGetExamStudentAnswerReportQuery,
   useGetExamManualReviewSummaryQuery,
   useGetExamStudentAnswersQuery,

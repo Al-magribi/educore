@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, Flex, Grid, Tabs, theme } from "antd";
 import { motion } from "framer-motion";
 import {
@@ -7,9 +7,11 @@ import {
   ClipboardList,
   ClipboardCheck,
   FileSpreadsheet,
+  FlaskConical,
 } from "lucide-react";
 import AttendanceTable from "./components/AttendanceTable";
 import BloomAnalysis from "./components/bloom/BloomAnalysis";
+import ItemAnalysis from "./components/itemAnalysis/ItemAnalysis";
 import ManualReviewQueue from "./components/answer/ManualReviewQueue";
 import ReportHeader from "./components/ReportHeader";
 import ReportStudentAnswer from "./components/answer/ReportStudentAnswer";
@@ -18,6 +20,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   useGetExamAttendanceQuery,
   useGetExamBloomAnalysisQuery,
+  useGetExamItemAnalysisQuery,
   useGetExamScoresQuery,
 } from "../../../../service/cbt/ApiExam";
 
@@ -81,6 +84,7 @@ const Report = ({ exam_id, exam_name, token }) => {
   const { token: themeToken } = theme.useToken();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("active_tab") || "attendance";
+  const [includeEssayAnalysis, setIncludeEssayAnalysis] = useState(false);
 
   const { data: attendanceResponse, isLoading: attendanceLoading } =
     useGetExamAttendanceQuery({ exam_id }, { skip: !exam_id });
@@ -93,6 +97,11 @@ const Report = ({ exam_id, exam_name, token }) => {
     useGetExamBloomAnalysisQuery(
       { exam_id },
       { skip: !exam_id || activeTab !== "bloom-analysis" },
+    );
+  const { data: itemAnalysisResponse, isLoading: itemAnalysisLoading } =
+    useGetExamItemAnalysisQuery(
+      { exam_id, include_essay: includeEssayAnalysis },
+      { skip: !exam_id || activeTab !== "item-analysis" },
     );
 
   const attendanceData = useMemo(() => {
@@ -252,6 +261,24 @@ const Report = ({ exam_id, exam_name, token }) => {
           data={bloomResponse}
           isMobile={isMobile}
           isLoading={bloomLoading}
+        />
+      ),
+    },
+    {
+      key: "item-analysis",
+      label: createTabLabel(
+        "Analisa Soal",
+        <FlaskConical size={16} />,
+        "Kualitas butir",
+      ),
+      children: (
+        <ItemAnalysis
+          data={itemAnalysisResponse}
+          examName={exam_name}
+          includeEssay={includeEssayAnalysis}
+          isMobile={isMobile}
+          isLoading={itemAnalysisLoading}
+          onIncludeEssayChange={setIncludeEssayAnalysis}
         />
       ),
     },
