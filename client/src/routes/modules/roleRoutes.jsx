@@ -49,9 +49,7 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
       />
       <Route
         path="/siswa/laporan-tabungan"
-        element={
-          <LazyPage title="Tabungan Saya" Component={StudentSaving} />
-        }
+        element={<LazyPage title="Tabungan Saya" Component={StudentSaving} />}
       />
     </Route>
 

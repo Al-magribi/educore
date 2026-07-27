@@ -129,6 +129,7 @@ const getCombinedMenus = (user = {}) => {
     groups.lms,
   );
 };
+
 const combinedMenus = getCombinedMenus();
 
 export { getCombinedMenus };
