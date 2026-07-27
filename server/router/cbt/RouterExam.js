@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { getActivePeriode } from "../../utils/helper.js";
+import { computeItemAnalysis } from "../../utils/itemAnalysis.js";
 
 const router = Router();
 
@@ -3565,6 +3566,205 @@ router.get(
       student_question_results: studentQuestionResults,
       per_question: perQuestion,
       by_bloom_level: byBloomLevel,
+    });
+  }),
+);
+
+// 2.10.06 GET Exam Item Analysis (difficulty, validity, reliability)
+router.get(
+  "/exam-analysis/:exam_id/item-analysis",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const examId = parseInt(req.params.exam_id, 10);
+    const user = req.user;
+    const includeEssayRaw = String(req.query.include_essay || "0").toLowerCase();
+    const includeEssay =
+      includeEssayRaw === "1" ||
+      includeEssayRaw === "true" ||
+      includeEssayRaw === "yes";
+
+    if (!Number.isInteger(examId)) {
+      return res.status(400).json({ message: "Exam ID tidak valid" });
+    }
+
+    const examCheck = await pool.query(
+      `
+        SELECT e.id, e.name, b.teacher_id, ut.homebase_id
+        FROM cbt.c_exam e
+        JOIN cbt.c_bank b ON e.bank_id = b.id
+        LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
+        WHERE e.id = $1
+        LIMIT 1
+      `,
+      [examId],
+    );
+
+    if (examCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Ujian tidak ditemukan" });
+    }
+
+    const examOwner = examCheck.rows[0];
+    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+      return res.status(403).json({ message: "Akses tidak diizinkan" });
+    }
+
+    const rosterResult = await pool.query(
+      `
+        WITH student_class AS (
+          SELECT
+            s.user_id,
+            s.nis,
+            u.full_name,
+            COALESCE(s.current_class_id, latest_enrollment.class_id) AS class_id
+          FROM u_students s
+          JOIN u_users u ON u.id = s.user_id
+          LEFT JOIN LATERAL (
+            SELECT class_id
+            FROM u_class_enrollments
+            WHERE student_id = s.user_id
+            ORDER BY id DESC
+            LIMIT 1
+          ) AS latest_enrollment ON true
+        )
+        SELECT DISTINCT
+          sc.user_id as id,
+          sc.nis,
+          sc.full_name as name,
+          sc.class_id,
+          c.name as class_name
+        FROM cbt.c_exam_class ec
+        JOIN a_class c ON c.id = ec.class_id
+        JOIN student_class sc ON sc.class_id = c.id
+        WHERE ec.exam_id = $1
+        ORDER BY c.name ASC, sc.full_name ASC
+      `,
+      [examId],
+    );
+
+    const students = rosterResult.rows;
+
+    const questionResult = await pool.query(
+      `
+        SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        WHERE e.id = $1
+        ORDER BY q.id ASC
+      `,
+      [examId],
+    );
+
+    const questions = questionResult.rows;
+    const stripHtml = (value) =>
+      String(value || "")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (questions.length === 0) {
+      return res.json({
+        exam: { id: examOwner.id, name: examOwner.name },
+        include_essay: includeEssay,
+        total_questions: 0,
+        analyzed_questions: 0,
+        excluded_essay_questions: 0,
+        total_students: students.length,
+        analyzed_students: 0,
+        sample_warning: false,
+        sample_warning_message: null,
+        summary: {
+          cronbach_alpha: null,
+          cronbach_alpha_key: "unknown",
+          cronbach_alpha_label: "Tidak dihitung",
+          average_difficulty: 0,
+          average_point_biserial: null,
+          average_discrimination_index: null,
+          reject_count: 0,
+          discard_count: 0,
+          retire_count: 0,
+          keep_count: 0,
+          alpha_item_count: 0,
+        },
+        per_question: [],
+        rejected_questions: [],
+      });
+    }
+
+    const questionIds = questions.map((q) => q.id);
+    const optionResult = await pool.query(
+      `
+        SELECT id, question_id, label, content, is_correct
+        FROM cbt.c_question_options
+        WHERE question_id = ANY($1::int[])
+        ORDER BY id ASC
+      `,
+      [questionIds],
+    );
+
+    const optionsByQuestion = optionResult.rows.reduce((acc, item) => {
+      if (!acc[item.question_id]) acc[item.question_id] = [];
+      acc[item.question_id].push(item);
+      return acc;
+    }, {});
+
+    const studentIds = students.map((student) => student.id);
+    let answers = [];
+    if (studentIds.length > 0) {
+      const answerResult = await pool.query(
+        `
+          SELECT student_id, question_id, answer_json, score_obtained
+          FROM cbt.c_student_answer
+          WHERE exam_id = $1 AND student_id = ANY($2::int[])
+        `,
+        [examId, studentIds],
+      );
+      answers = answerResult.rows;
+    }
+
+    const answersByQuestion = answers.reduce((acc, row) => {
+      if (!acc[row.question_id]) acc[row.question_id] = new Map();
+      acc[row.question_id].set(row.student_id, row);
+      return acc;
+    }, {});
+
+    const optionAliasesByQuestion = buildOptionAliasesByQuestion({
+      questions,
+      optionsByQuestion,
+      answerRows: answers,
+    });
+
+    const analysisQuestions = questions.map((question, index) => ({
+      ...question,
+      no: index + 1,
+      question: stripHtml(question.content),
+    }));
+
+    const answeredStudentIds = new Set(answers.map((row) => row.student_id));
+    const participatingStudents = students.filter((student) =>
+      answeredStudentIds.has(student.id),
+    );
+
+    const analysis = computeItemAnalysis({
+      questions: analysisQuestions,
+      students: participatingStudents,
+      includeEssay,
+      getStatus: (studentId, question) =>
+        getQuestionAnswerStatus({
+          question,
+          answerRow: answersByQuestion[question.id]?.get(studentId),
+          questionOptions: optionsByQuestion[question.id] || [],
+          optionIdAliasMap: optionAliasesByQuestion[question.id],
+        }),
+    });
+
+    analysis.total_students = students.length;
+
+    return res.json({
+      exam: { id: examOwner.id, name: examOwner.name },
+      ...analysis,
     });
   }),
 );
