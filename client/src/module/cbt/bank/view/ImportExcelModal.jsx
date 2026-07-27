@@ -51,6 +51,44 @@ const normalizeBloomLevel = (value) => {
   return parsed;
 };
 
+const parseAnswerLetters = (answerKey) =>
+  String(answerKey || "")
+    .toUpperCase()
+    .split(/[,;|\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const isBlankImportRow = (row = {}) =>
+  !Object.values(row).some(
+    (value) => value !== undefined && value !== null && String(value).trim() !== "",
+  );
+
+const resolveQuestionSheetName = (workbook, XLSX) => {
+  const byName = workbook.SheetNames.find((name) =>
+    /template\s*soal/i.test(String(name).trim()),
+  );
+  if (byName) return byName;
+
+  const byHeader = workbook.SheetNames.find((name) => {
+    if (/panduan/i.test(String(name).trim())) return false;
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], {
+      header: 1,
+    });
+    const header = (rows[0] || []).map((cell) =>
+      String(cell || "").toLowerCase().trim(),
+    );
+    return (
+      header.includes("type_id") ||
+      header.includes("jenis") ||
+      header.includes("question_text") ||
+      header.includes("pertanyaan")
+    );
+  });
+  if (byHeader) return byHeader;
+
+  return workbook.SheetNames[0];
+};
+
 const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.sm;
@@ -66,14 +104,20 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
         const XLSX = await import("xlsx");
         const data = e.target.result;
         const workbook = XLSX.read(data, { type: "array" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet);
+        const sheetName = resolveQuestionSheetName(workbook, XLSX);
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils
+          .sheet_to_json(sheet)
+          .filter((row) => !isBlankImportRow(row));
 
         if (json.length === 0) {
-          throw new Error("File Excel kosong atau format tidak sesuai.");
+          throw new Error(
+            "File Excel kosong atau sheet Template Soal tidak ditemukan.",
+          );
         }
 
         const formattedQuestions = json.map((row, index) => {
+          const rowNumber = index + 2;
           const q_type = parseInteger(
             getRowValue(row, ["type_id", "Jenis", "jenis"]),
           );
@@ -97,15 +141,16 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
 
           if (!q_type || q_type < 1 || q_type > 6) {
             throw new Error(
-              `Tipe soal tidak valid pada baris ${index + 2}. Gunakan angka 1 sampai 6.`,
+              `Tipe soal tidak valid pada baris ${rowNumber}. Gunakan angka 1 sampai 6.`,
             );
           }
 
           if (!content) {
-            throw new Error(`Pertanyaan wajib diisi pada baris ${index + 2}.`);
+            throw new Error(`Pertanyaan wajib diisi pada baris ${rowNumber}.`);
           }
 
           let options = [];
+          const correctLetters = parseAnswerLetters(answerKey);
 
           if ([1, 2].includes(q_type)) {
             ["a", "b", "c", "d", "e"].forEach((l) => {
@@ -117,36 +162,62 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
               if (optionValue) {
                 options.push({
                   label: l.toUpperCase(),
-                  content: optionValue,
-                  is_correct: answerKey
-                    ?.toString()
-                    .toUpperCase()
-                    .includes(l.toUpperCase()),
+                  content: String(optionValue),
+                  is_correct: correctLetters.includes(l.toUpperCase()),
                 });
               }
             });
+
+            if (options.length < 2) {
+              throw new Error(
+                `Soal PG pada baris ${rowNumber} minimal punya 2 opsi (option_a, option_b, ...).`,
+              );
+            }
+            if (!options.some((opt) => opt.is_correct)) {
+              throw new Error(
+                `Kunci jawaban PG tidak valid pada baris ${rowNumber}. Isi kolom key dengan huruf opsi, contoh: A atau A,C.`,
+              );
+            }
           } else if (q_type === 4) {
-            options = (answerKey?.toString().split(",") || []).map((v) => ({
-              content: v.trim(),
-              is_correct: true,
-            }))
+            options = String(answerKey || "")
+              .split(",")
+              .map((v) => ({
+                content: v.trim(),
+                is_correct: true,
+              }))
               .filter((item) => item.content);
+
+            if (options.length === 0) {
+              throw new Error(
+                `Isian singkat pada baris ${rowNumber} wajib mengisi kolom key, contoh: 0, Kosong.`,
+              );
+            }
           } else if (q_type === 5) {
+            const normalizedKey = String(answerKey || "")
+              .trim()
+              .toLowerCase();
+            if (!["benar", "salah"].includes(normalizedKey)) {
+              throw new Error(
+                `Benar/Salah pada baris ${rowNumber} wajib mengisi key dengan Benar atau Salah.`,
+              );
+            }
             options = [
               {
                 content: "Benar",
-                is_correct: answerKey?.toString().toLowerCase() === "benar",
+                is_correct: normalizedKey === "benar",
               },
               {
                 content: "Salah",
-                is_correct: answerKey?.toString().toLowerCase() === "salah",
+                is_correct: normalizedKey === "salah",
               },
             ];
           } else if (q_type === 6) {
             ["a", "b", "c", "d", "e"].forEach((l) => {
               const val = getRowValue(row, [`option_${l}`, l.toUpperCase(), l]);
-              if (val && val.includes("|")) {
-                const [left, right] = val.split("|").map((s) => s.trim());
+              if (val && String(val).includes("|")) {
+                const [left, right] = String(val)
+                  .split("|")
+                  .map((s) => s.trim());
                 if (left && right) {
                   options.push({
                     label: left,
@@ -156,13 +227,19 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
                 }
               }
             });
+
+            if (options.length === 0) {
+              throw new Error(
+                `Menjodohkan pada baris ${rowNumber} wajib format option: Sisi Kiri | Sisi Kanan.`,
+              );
+            }
           }
 
           return {
             bank_soal_id: bankId,
             q_type,
             bloom_level: bloomLevel,
-            content,
+            content: String(content),
             score_point: scorePoint,
             options,
           };
@@ -170,7 +247,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
 
         await bulkCreateQuestion(formattedQuestions).unwrap();
 
-        message.success(`${json.length} soal berhasil diunggah.`);
+        message.success(`${formattedQuestions.length} soal berhasil diunggah.`);
         onSuccess();
       } catch (err) {
         console.error("Import Error:", err);
