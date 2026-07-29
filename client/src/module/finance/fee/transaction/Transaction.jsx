@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
+import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import {
@@ -107,8 +108,11 @@ const Transaction = () => {
   const pendingSelectedStudentSearchRef = useRef(null);
   const defaultHomebaseAppliedRef = useRef(false);
   const defaultPeriodeHomebaseRef = useRef(null);
+  const financeScope = useFinanceScope();
+  const scopedHomebaseId = financeScope?.homebaseId || undefined;
+
   const [transactionFilters, setTransactionFilters] = useState({
-    homebase_id: undefined,
+    homebase_id: scopedHomebaseId,
     periode_id: undefined,
     page: 1,
     limit: 10,

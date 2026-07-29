@@ -51,13 +51,13 @@ const formatStudentSearchLabel = (item) => {
   return `${fullName}${nis}`.trim();
 };
 
-const Saving = ({ pageVariant = "teacher" }) => {
+const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
   const { user } = useSelector((state) => state.auth);
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({
-    homebase_id: undefined,
+    homebase_id: scopedHomebaseId || undefined,
     class_id: undefined,
     student_id: undefined,
     transaction_type: undefined,

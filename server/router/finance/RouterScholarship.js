@@ -381,7 +381,7 @@ const replaceBenefitMonths = async (client, benefitId, months) => {
 
 router.get(
   "/scholarship/options",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -528,7 +528,7 @@ router.get(
 
 router.post(
   "/scholarship/:id/sync",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -567,7 +567,7 @@ router.post(
 
 router.post(
   "/scholarship/resolve-due",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -624,7 +624,7 @@ router.post(
 
 router.get(
   "/scholarship",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -722,7 +722,7 @@ router.get(
 
 router.get(
   "/scholarship/:id/impact",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -754,7 +754,7 @@ router.get(
 
 router.get(
   "/scholarship/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -795,7 +795,7 @@ router.get(
 
 router.post(
   "/scholarship",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -844,7 +844,7 @@ router.post(
 
 router.put(
   "/scholarship/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -922,7 +922,7 @@ router.put(
 
 router.delete(
   "/scholarship/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -994,7 +994,7 @@ router.delete(
 
 router.get(
   "/scholarship/:id/benefits",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -1026,7 +1026,7 @@ router.get(
 
 router.post(
   "/scholarship/:id/benefits",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1146,7 +1146,7 @@ router.post(
 
 router.put(
   "/scholarship/:id/benefits/:benefitId",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1330,7 +1330,7 @@ router.put(
 
 router.delete(
   "/scholarship/:id/benefits/:benefitId",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1390,7 +1390,7 @@ router.delete(
 
 router.get(
   "/scholarship/:id/students",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -1422,7 +1422,7 @@ router.get(
 
 router.post(
   "/scholarship/:id/students",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1512,7 +1512,7 @@ router.post(
 
 router.put(
   "/scholarship/:id/students/:studentId",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1592,7 +1592,7 @@ router.put(
 
 router.delete(
   "/scholarship/:id/students",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 

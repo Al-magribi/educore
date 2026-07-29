@@ -1,5 +1,5 @@
 import { createElement, lazy } from "react";
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
 
@@ -18,6 +18,31 @@ const CenterMarket = lazy(
 );
 const CenterConfig = lazy(
   () => import("../../module/center/config/CenterConfig"),
+);
+
+const CenterFinanceHome = lazy(() =>
+  import("../../module/center/finance/CenterFinanceHome"),
+);
+const CenterFinanceShell = lazy(() =>
+  import("../../module/center/finance/CenterFinanceShell"),
+);
+const Monthly = lazy(
+  () => import("../../module/finance/fee/monthly/Monthly"),
+);
+const Others = lazy(
+  () => import("../../module/finance/fee/others/Others"),
+);
+const Transaction = lazy(
+  () => import("../../module/finance/fee/transaction/Transaction"),
+);
+const Scholarship = lazy(
+  () => import("../../module/finance/scholarship/Scholarship"),
+);
+const SavingReport = lazy(
+  () => import("../../module/finance/report/SavingReport"),
+);
+const Setting = lazy(
+  () => import("../../module/finance/setting/Setting"),
 );
 
 const renderCenterRoutes = ({ LazyPage, NotFoundRedirect, isDbEnabled }) => (
@@ -74,6 +99,28 @@ const renderCenterRoutes = ({ LazyPage, NotFoundRedirect, isDbEnabled }) => (
         )
       }
     />
+
+    {/* Keuangan Pusat — list homebase */}
+    <Route
+      path='/keuangan'
+      element={createElement(LazyPage, {
+        title: "Keuangan Pusat",
+        Component: CenterFinanceHome,
+      })}
+    />
+    {/* Keuangan Pusat — per homebase, dengan nested shell + navbar */}
+    <Route
+      path='/keuangan/:homebaseId'
+      element={<CenterFinanceShell />}
+    >
+      <Route index element={<Navigate to='pembayaran-spp' replace />} />
+      <Route path='pembayaran-spp' element={<Monthly />} />
+      <Route path='pembayaran-lainnya' element={<Others />} />
+      <Route path='beasiswa' element={<Scholarship />} />
+      <Route path='transaksi' element={<Transaction />} />
+      <Route path='laporan-tabungan' element={<SavingReport />} />
+      <Route path='pengaturan' element={<Setting />} />
+    </Route>
   </Route>
 );
 

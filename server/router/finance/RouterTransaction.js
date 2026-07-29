@@ -553,7 +553,7 @@ const removeLocalFinanceProof = (proofUrl) => {
 
 router.get(
   "/transactions/options",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -969,7 +969,7 @@ router.get(
 
 router.get(
   "/transactions",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -1232,7 +1232,7 @@ router.get(
 
 router.get(
   "/transactions/invoices/:invoiceId",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -1438,7 +1438,7 @@ router.get(
 
 router.post(
   "/transactions",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1552,7 +1552,7 @@ router.post(
 
 router.put(
   "/transactions/confirmations/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1707,7 +1707,7 @@ router.put(
 
 router.put(
   "/transactions/:category/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1897,7 +1897,7 @@ router.put(
 
 router.delete(
   "/transactions/:category/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 

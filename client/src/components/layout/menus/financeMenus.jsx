@@ -6,101 +6,107 @@ import {
   ReadOutlined,
   SettingFilled,
   WalletOutlined,
-} from "@ant-design/icons";
-import { Landmark } from "lucide-react";
+} from '@ant-design/icons';
+import { HandCoins, Landmark } from 'lucide-react';
+
+const centerFinanceMenus = {
+  label: 'Keuangan',
+  key: '/keuangan',
+  icon: <HandCoins size={14} />,
+};
 
 const buildFinanceMenus = (user = {}) => {
   const financeMenus = [
     {
-      label: "Pembayaran SPP",
-      key: "/finance/pembayaran-spp",
+      label: 'Pembayaran SPP',
+      key: '/finance/pembayaran-spp',
       icon: <CreditCardOutlined />,
     },
     {
-      label: "Pembayaran Lainnya",
-      key: "/finance/pembayaran-lainnya",
+      label: 'Pembayaran Lainnya',
+      key: '/finance/pembayaran-lainnya',
       icon: <MoneyCollectOutlined />,
     },
     {
-      label: "Beasiswa",
-      key: "/finance/beasiswa",
+      label: 'Beasiswa',
+      key: '/finance/beasiswa',
       icon: <FundOutlined />,
     },
     {
-      label: "Transaksi Keuangan",
-      key: "/finance/transaksi",
+      label: 'Transaksi Keuangan',
+      key: '/finance/transaksi',
       icon: <WalletOutlined />,
     },
     {
-      label: "Tabungan Siswa",
-      key: "/finance/laporan-tabungan",
+      label: 'Tabungan Siswa',
+      key: '/finance/laporan-tabungan',
       icon: <BookOutlined />,
     },
     {
-      label: "Pengaturan",
-      key: "/finance/pengaturan",
+      label: 'Pengaturan',
+      key: '/finance/pengaturan',
       icon: <SettingFilled />,
     },
   ];
 
   const teacherFinanceNode = {
-    label: "Keuangan Kelas",
-    key: "/guru/keuangan-kelas",
+    label: 'Keuangan Kelas',
+    key: '/guru/keuangan-kelas',
     icon: <WalletOutlined />,
     requiresHomeroom: true,
     children: [
       {
-        label: "Kas Kelas",
-        key: "/guru/keuangan-kelas",
+        label: 'Kas Kelas',
+        key: '/guru/keuangan-kelas',
         icon: <WalletOutlined />,
       },
 
       {
-        label: "Tabungan",
-        key: "/guru/tabungan",
+        label: 'Tabungan',
+        key: '/guru/tabungan',
         icon: <Landmark size={14} />,
       },
     ],
   };
 
   const studentFinanceNode = {
-    label: "Keuangan",
-    key: "/siswa/keuangan",
+    label: 'Keuangan',
+    key: '/siswa/keuangan',
     icon: <WalletOutlined />,
     children: [
       {
-        label: "Laporan Tabungan",
-        key: "/siswa/laporan-tabungan",
+        label: 'Laporan Tabungan',
+        key: '/siswa/laporan-tabungan',
         icon: <BookOutlined />,
       },
       {
-        label: "Laporan Uang Kas",
-        key: "/siswa/laporan-uang-kas",
+        label: 'Laporan Uang Kas',
+        key: '/siswa/laporan-uang-kas',
         icon: <ReadOutlined />,
       },
     ],
   };
 
   const parentFinanceNode = {
-    label: "Keuangan",
-    key: "/orangtua/keuangan",
+    label: 'Keuangan',
+    key: '/orangtua/keuangan',
     icon: <WalletOutlined />,
     children: [
       {
-        label: "Pembayaran",
-        key: "/orangtua/pembayaran",
+        label: 'Pembayaran',
+        key: '/orangtua/pembayaran',
         icon: <CreditCardOutlined />,
       },
       {
-        label: "Laporan Tabungan",
-        key: "/orangtua/laporan-tabungan",
+        label: 'Laporan Tabungan',
+        key: '/orangtua/laporan-tabungan',
         icon: <BookOutlined />,
       },
     ],
   };
 
   return {
-    center: [],
+    center: [centerFinanceMenus],
     admin: [],
     finance: financeMenus,
     teacher: user?.is_homeroom ? [teacherFinanceNode] : [],

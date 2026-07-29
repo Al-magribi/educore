@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useFinanceScope } from "../../center/finance/FinanceScopeContext";
 import {
   Alert,
   Card,
@@ -67,7 +68,10 @@ const hasValue = (value) =>
 const Setting = () => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
-  const [selectedHomebaseId, setSelectedHomebaseId] = useState();
+  const financeScope = useFinanceScope();
+  const [selectedHomebaseId, setSelectedHomebaseId] = useState(
+    financeScope?.homebaseId || undefined,
+  );
   const [activeTab, setActiveTab] = useState("profile");
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [editingBankAccount, setEditingBankAccount] = useState(null);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
+import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import { Form, Card, Flex, Grid, Space, Tabs, Typography, message } from "antd";
 import { motion } from "framer-motion";
 import {
@@ -69,10 +70,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const isCompact = !screens.lg;
+  const financeScope = useFinanceScope();
+  const scopedHomebaseId = financeScope?.homebaseId || undefined;
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [filters, setFilters] = useState({
-    homebase_id: undefined,
+    homebase_id: scopedHomebaseId,
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,

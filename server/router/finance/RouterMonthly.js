@@ -142,7 +142,7 @@ const getOrCreateSppInvoiceItem = async ({
 
 router.get(
   "/monthly/options",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -264,7 +264,7 @@ router.get(
 
 router.get(
   "/monthly/students",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
     const homebaseId = await resolveScopedHomebaseId(
@@ -320,7 +320,7 @@ router.get(
 
 router.get(
   "/monthly/tariffs",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -383,7 +383,7 @@ router.get(
 
 router.post(
   "/monthly/tariffs",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -434,7 +434,7 @@ router.post(
 
 router.put(
   "/monthly/tariffs/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -511,7 +511,7 @@ router.put(
 
 router.delete(
   "/monthly/tariffs/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -544,7 +544,7 @@ router.delete(
 
 router.get(
   "/monthly/payments",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -764,7 +764,7 @@ router.get(
 
 router.post(
   "/monthly/payments",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -883,7 +883,7 @@ router.post(
 
 router.put(
   "/monthly/payments/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 
@@ -1074,7 +1074,7 @@ router.put(
 
 router.delete(
   "/monthly/payments/:id",
-  authorize("satuan", "keuangan"),
+  authorize("satuan", "keuangan", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureFinalFinanceTables(client);
 

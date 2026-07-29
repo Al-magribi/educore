@@ -692,7 +692,7 @@ router.get(
 
 router.get(
   "/saving/options",
-  authorize("satuan", "teacher", "keuangan", "finance"),
+  authorize("satuan", "teacher", "keuangan", "finance", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -806,7 +806,7 @@ router.get(
 
 router.get(
   "/saving/students",
-  authorize("satuan", "teacher", "keuangan", "finance"),
+  authorize("satuan", "teacher", "keuangan", "finance", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -918,7 +918,7 @@ router.get(
 
 router.get(
   "/saving/transactions",
-  authorize("satuan", "teacher", "keuangan", "finance"),
+  authorize("satuan", "teacher", "keuangan", "finance", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureSavingsFinanceTables(db);
 
@@ -1035,7 +1035,7 @@ router.get(
 
 router.post(
   "/saving/transactions",
-  authorize("satuan", "teacher", "keuangan", "finance"),
+  authorize("satuan", "teacher", "keuangan", "finance", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
@@ -1133,7 +1133,7 @@ router.post(
 
 router.put(
   "/saving/transactions/:id",
-  authorize("satuan", "teacher", "keuangan", "finance"),
+  authorize("satuan", "teacher", "keuangan", "finance", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
@@ -1247,7 +1247,7 @@ router.put(
 
 router.delete(
   "/saving/transactions/:id",
-  authorize("satuan", "teacher", "keuangan", "finance"),
+  authorize("satuan", "teacher", "keuangan", "finance", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 

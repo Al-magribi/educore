@@ -1,6 +1,7 @@
 import { Select, Space, Tag, Typography } from "antd";
 import { useState } from "react";
 import { useSelector } from "react-redux";
+import { useFinanceScope } from "../../center/finance/FinanceScopeContext";
 
 import { LoadApp } from "../../../components";
 import {
@@ -21,6 +22,7 @@ const toCurrency = (value) =>
 
 const SavingReport = () => {
   const { user } = useSelector((state) => state.auth);
+  const financeScope = useFinanceScope();
   const isParent = user?.role === "parent";
   const isAdmin = user?.role === "admin";
   const [selectedStudentId, setSelectedStudentId] = useState();
@@ -38,7 +40,7 @@ const SavingReport = () => {
     );
 
   if (isAdmin) {
-    return <Saving pageVariant='admin' />;
+    return <Saving pageVariant='admin' scopedHomebaseId={financeScope?.homebaseId} />;
   }
 
   if ((isParent && isLoadingMySaving) || (!isParent && isLoadingStudents)) {

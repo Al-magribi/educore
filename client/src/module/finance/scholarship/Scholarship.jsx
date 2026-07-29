@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
+import { useFinanceScope } from "../../center/finance/FinanceScopeContext";
 import {
   Alert,
   Button,
@@ -50,7 +51,8 @@ const Scholarship = () => {
   const { user } = useSelector((state) => state.auth);
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
-  const lockHomebase = Boolean(user?.homebase_id);
+  const financeScope = useFinanceScope();
+  const lockHomebase = Boolean(user?.homebase_id) || Boolean(financeScope?.homebaseId);
 
   const [activeTab, setActiveTab] = useState("list");
   const [selectedId, setSelectedId] = useState(null);
@@ -70,14 +72,16 @@ const Scholarship = () => {
   const [scholarshipForm] = Form.useForm();
   const [benefitForm] = Form.useForm();
 
+  const effectiveHomebaseId = user?.homebase_id || financeScope?.homebaseId;
   const optionsQuery = useGetScholarshipOptionsQuery(
-    lockHomebase ? { homebase_id: user.homebase_id } : undefined,
+    lockHomebase ? { homebase_id: effectiveHomebaseId } : undefined,
   );
   const options = optionsQuery.data?.data || {};
   const homebases = options.homebases || [];
   const selectedHomebaseId =
     options.selected_homebase_id ||
     user?.homebase_id ||
+    financeScope?.homebaseId ||
     homebases[0]?.id ||
     undefined;
 

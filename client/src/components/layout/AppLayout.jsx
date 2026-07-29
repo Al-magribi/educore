@@ -353,7 +353,11 @@ const AppLayout = ({ children, title, asShell = false }) => {
         <Menu
           theme='dark'
           mode='inline'
-          selectedKeys={[location.pathname]}
+          selectedKeys={[
+            location.pathname.startsWith("/keuangan/")
+              ? "/keuangan"
+              : location.pathname,
+          ]}
           items={menuItems}
           onClick={handleMenuClick}
           style={{ borderRight: 0 }}
