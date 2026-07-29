@@ -1,14 +1,17 @@
 import React, { useState } from "react";
-import { Button, Card, Image, Input, Space, Typography, Upload, message } from "antd";
+import { Button, Card, Flex, Grid, Image, Input, Space, Typography, Upload, message } from "antd";
 import { LoadingOutlined, PictureOutlined, UploadOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import { useUploadConfigImageMutation } from "../../../../service/center/ApiApp";
 
 const { TextArea } = Input;
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
 const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [uploadImage] = useUploadConfigImageMutation();
   const [loading, setLoading] = useState(false);
 
@@ -37,6 +40,7 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
+        style={{ width: "100%", minWidth: 0 }}
       >
         <Card
           variant="borderless"
@@ -44,18 +48,21 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
             borderRadius: 18,
             border: "1px dashed #cbd5e1",
             background: "#f8fafc",
+            width: "100%",
+            minWidth: 0,
           }}
-          styles={{ body: { padding: 16 } }}
+          styles={{ body: { padding: isMobile ? 12 : 16 } }}
         >
-          <Space
-            wrap
-            size={[16, 16]}
-            style={{ width: "100%", alignItems: "center" }}
+          <Flex
+            wrap="wrap"
+            gap={isMobile ? 12 : 16}
+            align="center"
+            style={{ width: "100%", minWidth: 0 }}
           >
             <div
               style={{
-                width: 92,
-                height: 92,
+                width: isMobile ? 72 : 92,
+                height: isMobile ? 72 : 92,
                 borderRadius: 18,
                 border: "1px solid #dbeafe",
                 display: "flex",
@@ -80,7 +87,7 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
               )}
             </div>
 
-            <Space orientation="vertical" size={8}>
+            <Space orientation="vertical" size={8} style={{ flex: 1, minWidth: 0 }}>
               <Upload
                 customRequest={handleUpload}
                 showUploadList={false}
@@ -89,16 +96,19 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
                 <Button
                   icon={<UploadOutlined />}
                   loading={loading}
+                  block={isMobile}
                   style={{ borderRadius: 999 }}
                 >
                   {value ? "Ganti Gambar" : "Pilih Gambar"}
                 </Button>
               </Upload>
               <Text style={{ fontSize: 12, color: "#64748b" }}>
-                Format yang disarankan: PNG, JPG, atau WEBP.
+                {isMobile
+                  ? "PNG, JPG, atau WEBP."
+                  : "Format yang disarankan: PNG, JPG, atau WEBP."}
               </Text>
             </Space>
-          </Space>
+          </Flex>
         </Card>
       </MotionDiv>
     );
@@ -107,11 +117,11 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
   if (type === "text") {
     return (
       <TextArea
-        rows={4}
+        rows={isMobile ? 3 : 4}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        style={{ borderRadius: 14 }}
+        style={{ borderRadius: 14, width: "100%" }}
         {...props}
       />
     );
@@ -123,7 +133,7 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        style={{ borderRadius: 14 }}
+        style={{ borderRadius: 14, width: "100%" }}
         {...props}
       />
     );
@@ -134,7 +144,7 @@ const ConfigInput = ({ type, placeholder, value, onChange, ...props }) => {
       placeholder={placeholder}
       value={value}
       onChange={onChange}
-      style={{ borderRadius: 14 }}
+      style={{ borderRadius: 14, width: "100%" }}
       {...props}
     />
   );

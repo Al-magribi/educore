@@ -5,6 +5,7 @@ import {
   Col,
   Divider,
   Empty,
+  Flex,
   Grid,
   Input,
   InputNumber,
@@ -40,6 +41,7 @@ const MotionDiv = motion.div;
 const StudentSegmented = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isCompact = !screens.lg;
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -172,35 +174,30 @@ const StudentSegmented = () => {
   const renderItem = (item) => (
     <MotionDiv
       key={item.sibling_id || item.user_id}
-      whileHover={{ y: -4 }}
+      whileHover={isMobile ? undefined : { y: -4 }}
       transition={{ duration: 0.2 }}
       style={{
         height: "100%",
-        borderRadius: 22,
+        width: "100%",
+        minWidth: 0,
+        borderRadius: isMobile ? 18 : 22,
         border: "1px solid rgba(148, 163, 184, 0.14)",
         background:
           "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
         boxShadow: "0 18px 44px rgba(15, 23, 42, 0.06)",
-        padding: isMobile ? 14 : 18,
+        padding: isMobile ? 12 : 18,
+        overflow: "hidden",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 14,
-          width: "100%",
-          minWidth: 0,
-        }}
-      >
+      <Flex align="flex-start" gap={isMobile ? 10 : 14} style={{ width: "100%", minWidth: 0 }}>
         <Avatar
-          shape='square'
-          size={isMobile ? 48 : 56}
+          shape="square"
+          size={isMobile ? 44 : 56}
           icon={<UserOutlined />}
           style={{
             background: item.gender === "L" ? "#2563eb" : "#db2777",
             flexShrink: 0,
-            borderRadius: isMobile ? 16 : 18,
+            borderRadius: isMobile ? 14 : 18,
           }}
         />
         <div
@@ -215,7 +212,7 @@ const StudentSegmented = () => {
           <Text
             strong
             style={{
-              fontSize: isMobile ? 15 : 16,
+              fontSize: isMobile ? 14 : 16,
               display: "block",
               color: "#0f172a",
               lineHeight: 1.35,
@@ -227,34 +224,41 @@ const StudentSegmented = () => {
             {item.full_name}
           </Text>
 
-          <Space wrap size={[8, 8]} style={{ width: "100%" }}>
+          <Space wrap size={[6, 6]} style={{ width: "100%" }}>
             <Tag
-              color='blue'
-              style={{ borderRadius: 999, paddingInline: 10, margin: 0 }}
+              color="blue"
+              style={{ borderRadius: 999, paddingInline: 10, margin: 0, fontSize: isMobile ? 11 : undefined }}
             >
               {item.age ? `${item.age} Tahun` : "Usia -"}
             </Tag>
             <Tag
               color={item.gender === "L" ? "geekblue" : "magenta"}
-              style={{ borderRadius: 999, paddingInline: 10, margin: 0 }}
+              style={{ borderRadius: 999, paddingInline: 10, margin: 0, fontSize: isMobile ? 11 : undefined }}
             >
-              {item.gender === "L" ? "Laki-laki" : "Perempuan"}
+              {isMobile
+                ? item.gender === "L"
+                  ? "L"
+                  : "P"
+                : item.gender === "L"
+                  ? "Laki-laki"
+                  : "Perempuan"}
             </Tag>
           </Space>
         </div>
-      </div>
+      </Flex>
 
       <div
         style={{
-          marginTop: 14,
+          marginTop: 12,
           borderRadius: 16,
           background: "#f8fafc",
           border: "1px solid #e2e8f0",
           padding: isMobile ? 10 : 12,
+          minWidth: 0,
         }}
       >
         <Space
-          align='center'
+          align="center"
           size={8}
           style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}
         >
@@ -266,7 +270,7 @@ const StudentSegmented = () => {
           strong
           style={{
             color: "#2563eb",
-            fontSize: 13,
+            fontSize: isMobile ? 12 : 13,
             display: "block",
             width: "100%",
             minWidth: 0,
@@ -279,45 +283,27 @@ const StudentSegmented = () => {
 
         <Divider style={{ margin: "10px 0" }} />
 
-        <Space orientation='vertical' size={4} style={{ width: "100%" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              width: "100%",
-              minWidth: 0,
-            }}
-          >
+        <Space orientation="vertical" size={4} style={{ width: "100%" }}>
+          <Flex align="center" gap={6} style={{ width: "100%", minWidth: 0 }}>
             <HomeOutlined style={{ color: "#94a3b8", flexShrink: 0 }} />
             <Text
-              type='secondary'
+              type="secondary"
               ellipsis={{ tooltip: item.homebase_name || "Satuan N/A" }}
               style={{ fontSize: 12, minWidth: 0, flex: 1 }}
             >
               {item.homebase_name || "Satuan N/A"}
             </Text>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              width: "100%",
-              minWidth: 0,
-            }}
-          >
-            <EnvironmentOutlined
-              style={{ color: "#94a3b8", flexShrink: 0 }}
-            />
+          </Flex>
+          <Flex align="center" gap={6} style={{ width: "100%", minWidth: 0 }}>
+            <EnvironmentOutlined style={{ color: "#94a3b8", flexShrink: 0 }} />
             <Text
-              type='secondary'
+              type="secondary"
               ellipsis={{ tooltip: item.city_name || "Kota N/A" }}
               style={{ fontSize: 12, minWidth: 0, flex: 1 }}
             >
               {item.city_name || "Kota N/A"}
             </Text>
-          </div>
+          </Flex>
         </Space>
       </div>
     </MotionDiv>
@@ -329,62 +315,71 @@ const StudentSegmented = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
       style={{
-        borderRadius: 24,
+        borderRadius: isMobile ? 18 : 24,
         border: "1px solid rgba(148, 163, 184, 0.14)",
         background:
           "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
         boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
-        padding: isMobile ? 16 : 20,
+        padding: isMobile ? 12 : 20,
+        width: "100%",
+        minWidth: 0,
+        overflow: "hidden",
       }}
     >
-      <Space orientation='vertical' size={18} style={{ width: "100%" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: isMobile ? "flex-start" : "center",
-            gap: 12,
-            flexDirection: isMobile ? "column" : "row",
-          }}
+      <Space orientation="vertical" size={isMobile ? 14 : 18} style={{ width: "100%" }}>
+        <Flex
+          justify="space-between"
+          align={isCompact ? "stretch" : "center"}
+          vertical={isCompact}
+          gap={12}
+          style={{ width: "100%", minWidth: 0 }}
         >
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <Tag
-              color='purple'
+              color="purple"
               style={{ borderRadius: 999, paddingInline: 12, margin: 0 }}
             >
               Market Segment
             </Tag>
             <Title
               level={4}
-              style={{ margin: "10px 0 0", color: "#0f172a", fontSize: isMobile ? 20 : undefined }}
+              style={{
+                margin: "10px 0 0",
+                color: "#0f172a",
+                fontSize: isMobile ? 18 : undefined,
+                wordBreak: "break-word",
+              }}
             >
-              Segmentasi Market Potensi Saudara
+              {isMobile ? "Segmentasi Saudara" : "Segmentasi Market Potensi Saudara"}
             </Title>
-            <Text style={{ color: "#64748b", display: "block", marginTop: 6 }}>
-              Temukan potensi saudara siswa berdasarkan nama, usia, gender, dan
-              keterhubungan keluarga.
-            </Text>
+            {!isMobile && (
+              <Text style={{ color: "#64748b", display: "block", marginTop: 6 }}>
+                Temukan potensi saudara siswa berdasarkan nama, usia, gender, dan
+                keterhubungan keluarga.
+              </Text>
+            )}
           </div>
 
           <Button
-            type='primary'
+            type="primary"
             icon={<DownloadOutlined />}
             onClick={handleDownload}
             loading={isDownloading}
+            block={isCompact}
             style={{
               borderRadius: 999,
-              width: isMobile ? "100%" : "auto",
-              minWidth: isMobile ? "100%" : 180,
+              minWidth: isCompact ? undefined : 180,
+              flexShrink: 0,
             }}
           >
-            Download Excel
+            {isMobile ? "Download" : "Download Excel"}
           </Button>
-        </div>
+        </Flex>
 
-        <Row gutter={[12, 12]}>
-          <Col xs={24} md={12}>
+        <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]}>
+          <Col xs={24} md={12} lg={12}>
             <Input
-              placeholder='Cari nama saudara atau siswa...'
+              placeholder={isMobile ? "Cari nama..." : "Cari nama saudara atau siswa..."}
               prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
               onChange={(e) => {
                 setPage(1);
@@ -394,9 +389,9 @@ const StudentSegmented = () => {
               style={{ borderRadius: 999, height: 42, width: "100%" }}
             />
           </Col>
-          <Col xs={12} md={6}>
+          <Col xs={12} sm={12} md={6} lg={6}>
             <InputNumber
-              placeholder='Umur Saudara'
+              placeholder="Umur"
               style={{ width: "100%", borderRadius: 999 }}
               min={0}
               max={25}
@@ -406,26 +401,27 @@ const StudentSegmented = () => {
               }}
             />
           </Col>
-          <Col xs={12} md={6}>
+          <Col xs={12} sm={12} md={6} lg={6}>
             <Select
-              placeholder='Gender Saudara'
+              placeholder="Gender"
               style={{ width: "100%" }}
               allowClear
               onChange={(val) => {
                 setPage(1);
                 setGender(val);
               }}
-            >
-              <Option value='L'>Laki-laki</Option>
-              <Option value='P'>Perempuan</Option>
-            </Select>
+              options={[
+                { value: "L", label: isMobile ? "L" : "Laki-laki" },
+                { value: "P", label: isMobile ? "P" : "Perempuan" },
+              ]}
+            />
           </Col>
         </Row>
 
         {totalData === 0 && !isFetching ? (
           <div
             style={{
-              minHeight: 320,
+              minHeight: isMobile ? 240 : 320,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -434,26 +430,28 @@ const StudentSegmented = () => {
               border: "1px dashed #cbd5e1",
             }}
           >
-            <Empty description='Tidak ada data saudara yang sesuai filter' />
+            <Empty description="Tidak ada data saudara yang sesuai filter" />
           </div>
         ) : (
-          <InfiniteScrollList
-            data={listData}
-            loading={isFetching}
-            hasMore={totalData > listData.length}
-            onLoadMore={handleLoadMore}
-            renderItem={renderItem}
-            height={isMobile ? "70vh" : "520px"}
-            emptyText='Tidak ada data saudara yang sesuai filter'
-            grid={{
-              gutter: [14, 14],
-              xs: 24,
-              sm: 12,
-              md: 12,
-              lg: 8,
-              xl: 6,
-            }}
-          />
+          <div style={{ width: "100%", minWidth: 0, overflow: "hidden" }}>
+            <InfiniteScrollList
+              data={listData}
+              loading={isFetching}
+              hasMore={totalData > listData.length}
+              onLoadMore={handleLoadMore}
+              renderItem={renderItem}
+              height={isMobile ? "65vh" : "520px"}
+              emptyText="Tidak ada data saudara yang sesuai filter"
+              grid={{
+                gutter: [isMobile ? 10 : 14, isMobile ? 10 : 14],
+                xs: 24,
+                sm: 12,
+                md: 12,
+                lg: 8,
+                xl: 6,
+              }}
+            />
+          </div>
         )}
       </Space>
     </MotionDiv>

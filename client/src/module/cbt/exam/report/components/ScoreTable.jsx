@@ -121,7 +121,6 @@ const ScoreTable = ({
       align: "center",
       render: (_, __, index) => index + 1,
     },
-
     {
       title: "Nama Siswa",
       dataIndex: "name",
@@ -136,7 +135,6 @@ const ScoreTable = ({
         </Space>
       ),
     },
-
     {
       title: "PG Tunggal",
       dataIndex: "scoreSingle",
@@ -184,16 +182,14 @@ const ScoreTable = ({
       dataIndex: "score",
       width: 130,
       align: "center",
-      render: (value) => {
-        return (
-          <Tag
-            color={value >= 75 ? "green" : "orange"}
-            style={{ borderRadius: 999, margin: 0, fontWeight: 700 }}
-          >
-            {value}
-          </Tag>
-        );
-      },
+      render: (value) => (
+        <Tag
+          color={value >= 75 ? "green" : "orange"}
+          style={{ borderRadius: 999, margin: 0, fontWeight: 700 }}
+        >
+          {value}
+        </Tag>
+      ),
     },
   ];
 
@@ -207,17 +203,137 @@ const ScoreTable = ({
     }
   };
 
+  const loadMore = () => {
+    setVisibleCount((prev) => {
+      if (prev >= filteredData.length) return prev;
+      return prev + PAGE_SIZE;
+    });
+  };
+
+  const metricItems = [
+    {
+      label: "Rata-rata",
+      value: scoreStats.average,
+      color: "#2563eb",
+      icon: <Medal size={isMobile ? 16 : 18} />,
+    },
+    {
+      label: isMobile ? "Lulus" : "Lulus >= 75",
+      value: scoreStats.passed,
+      color: "#16a34a",
+      icon: <Users size={isMobile ? 16 : 18} />,
+    },
+    {
+      label: isMobile ? "Tertinggi" : "Nilai Tertinggi",
+      value: scoreStats.highest,
+      color: "#d97706",
+      icon: <Medal size={isMobile ? 16 : 18} />,
+    },
+  ];
+
+  const renderMobileScoreCard = (item, index) => (
+    <Card
+      key={item.id}
+      size='small'
+      variant='borderless'
+      style={{
+        borderRadius: 16,
+        border: "1px solid rgba(148, 163, 184, 0.14)",
+        background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+      }}
+      styles={{ body: { padding: 14 } }}
+    >
+      <Flex vertical gap={10}>
+        <Flex justify='space-between' align='flex-start' gap={10}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Text type='secondary' style={{ fontSize: 11 }}>
+              #{index + 1}
+            </Text>
+            <Text
+              strong
+              style={{
+                display: "block",
+                fontSize: 14,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {item.name}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              {item.nis || "-"} · {item.className || "-"}
+            </Text>
+          </div>
+          <Tag
+            color={item.score >= 75 ? "green" : "orange"}
+            style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
+          >
+            {item.score}
+          </Tag>
+        </Flex>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 8,
+          }}
+        >
+          {[
+            { label: "PG Tunggal", value: item.scoreSingle },
+            { label: "PG Multi", value: item.scoreMulti },
+            { label: "Mencocokan", value: item.scoreMatch },
+            { label: "B/S", value: item.scoreTrueFalse },
+            { label: "Singkat", value: item.scoreShort },
+            { label: "Uraian", value: item.scoreEssay },
+          ].map((scoreItem) => (
+            <div
+              key={scoreItem.label}
+              style={{
+                padding: "8px 10px",
+                borderRadius: 12,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                minWidth: 0,
+              }}
+            >
+              <Text
+                type='secondary'
+                style={{ fontSize: 11, display: "block" }}
+              >
+                {scoreItem.label}
+              </Text>
+              <Text strong style={{ fontSize: 13 }}>
+                {Number(scoreItem.value || 0).toFixed(2)}
+              </Text>
+            </div>
+          ))}
+        </div>
+      </Flex>
+    </Card>
+  );
+
   return (
-    <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+    <MotionDiv
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ width: "100%", minWidth: 0 }}
+    >
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
+          borderRadius: isMobile ? 18 : 24,
           boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          overflow: "hidden",
         }}
-        styles={{ body: { padding: isMobile ? 16 : 20 } }}
+        styles={{ body: { padding: isMobile ? 14 : 20 } }}
       >
-        <Space orientation='vertical' size={18} style={{ width: "100%" }}>
+        <Space
+          direction='vertical'
+          size={isMobile ? 14 : 18}
+          style={{ width: "100%" }}
+        >
           <Flex
             justify='space-between'
             align={isMobile ? "stretch" : "center"}
@@ -225,20 +341,25 @@ const ScoreTable = ({
             gap={12}
             style={{ flexDirection: isMobile ? "column" : "row" }}
           >
-            <Space orientation='vertical' size={4} style={{ minWidth: 0 }}>
+            <Space direction='vertical' size={4} style={{ minWidth: 0, flex: 1 }}>
               <Text type='secondary'>Analisis Nilai</Text>
-              <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
+              <Title
+                level={isMobile ? 5 : 4}
+                style={{ margin: 0, wordBreak: "break-word" }}
+              >
                 Rekap Hasil Ujian Peserta
               </Title>
-              <Text type='secondary'>
-                Telusuri nilai siswa dan filter per kelas untuk memantau capaian
-                hasil ujian.
-              </Text>
+              {!isMobile && (
+                <Text type='secondary'>
+                  Telusuri nilai siswa dan filter per kelas untuk memantau
+                  capaian hasil ujian.
+                </Text>
+              )}
             </Space>
             <Tag
               color='blue'
               icon={<Users size={12} />}
-              style={{ margin: 0, borderRadius: 999 }}
+              style={{ margin: 0, borderRadius: 999, alignSelf: "flex-start" }}
             >
               Total Nilai: {filteredData.length}
             </Tag>
@@ -248,54 +369,65 @@ const ScoreTable = ({
             style={{
               display: "grid",
               gridTemplateColumns: isMobile
-                ? "1fr"
+                ? "repeat(2, minmax(0, 1fr))"
                 : "repeat(3, minmax(0, 1fr))",
-              gap: 12,
+              gap: isMobile ? 10 : 12,
+              width: "100%",
             }}
           >
-            {[
-              {
-                label: "Rata-rata",
-                value: scoreStats.average,
-                color: "#2563eb",
-                icon: <Medal size={18} />,
-              },
-              {
-                label: "Lulus >= 75",
-                value: scoreStats.passed,
-                color: "#16a34a",
-                icon: <Users size={18} />,
-              },
-              {
-                label: "Nilai Tertinggi",
-                value: scoreStats.highest,
-                color: "#d97706",
-                icon: <Medal size={18} />,
-              },
-            ].map((item) => (
+            {metricItems.map((item, index) => (
               <Card
                 key={item.label}
                 variant='borderless'
-                style={{ borderRadius: 18, background: "#f8fafc" }}
-                styles={{ body: { padding: 16 } }}
+                style={{
+                  borderRadius: isMobile ? 14 : 18,
+                  background: "#f8fafc",
+                  minWidth: 0,
+                  overflow: "hidden",
+                  gridColumn:
+                    isMobile && index === metricItems.length - 1 && metricItems.length % 2 === 1
+                      ? "1 / -1"
+                      : undefined,
+                }}
+                styles={{ body: { padding: isMobile ? 12 : 16 } }}
               >
-                <Flex align='center' justify='space-between' gap={12}>
-                  <Space orientation='vertical' size={4}>
-                    <Text type='secondary'>{item.label}</Text>
-                    <Title level={4} style={{ margin: 0, color: item.color }}>
+                <Flex
+                  align='center'
+                  justify='space-between'
+                  gap={isMobile ? 8 : 12}
+                  style={{ minWidth: 0 }}
+                >
+                  <Space direction='vertical' size={2} style={{ minWidth: 0, flex: 1 }}>
+                    <Text
+                      type='secondary'
+                      style={{
+                        fontSize: isMobile ? 11 : 14,
+                        display: "block",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {item.label}
+                    </Text>
+                    <Title
+                      level={isMobile ? 5 : 4}
+                      style={{ margin: 0, color: item.color, lineHeight: 1.15 }}
+                    >
                       {item.value}
                     </Title>
                   </Space>
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 14,
+                      width: isMobile ? 32 : 42,
+                      height: isMobile ? 32 : 42,
+                      borderRadius: isMobile ? 10 : 14,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       background: "#fff",
                       color: item.color,
+                      flexShrink: 0,
                     }}
                   >
                     {item.icon}
@@ -354,39 +486,67 @@ const ScoreTable = ({
             </Button>
           </Flex>
 
-          <div
-            style={{
-              maxHeight: 480,
-              overflow: "auto",
-              borderRadius: 18,
-              border: "1px solid rgba(148, 163, 184, 0.14)",
-            }}
-            onScroll={handleScroll}
-          >
-            <Table
-              rowKey='id'
-              columns={columns}
-              dataSource={slicedData}
-              loading={isLoading}
-              pagination={false}
-              sticky
-              size={isMobile ? "small" : "middle"}
-              tableLayout='fixed'
-              scroll={isMobile ? { x: 1260 } : undefined}
-            />
-            {slicedData.length >= filteredData.length ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  color: "#98a2b3",
-                  padding: "8px 0 4px",
-                  fontSize: 12,
-                }}
-              >
-                Semua data telah dimuat
-              </div>
-            ) : null}
-          </div>
+          {isMobile ? (
+            <Flex vertical gap={10}>
+              {isLoading
+                ? Array.from({ length: 3 }).map((_, index) => (
+                    <Card
+                      key={`skeleton-${index}`}
+                      loading
+                      style={{ borderRadius: 16 }}
+                    />
+                  ))
+                : slicedData.map((item, index) =>
+                    renderMobileScoreCard(item, index),
+                  )}
+              {slicedData.length < filteredData.length ? (
+                <Button onClick={loadMore} block>
+                  Muat lebih banyak
+                </Button>
+              ) : slicedData.length > 0 ? (
+                <Text
+                  type='secondary'
+                  style={{ textAlign: "center", fontSize: 12 }}
+                >
+                  Semua data telah dimuat
+                </Text>
+              ) : null}
+            </Flex>
+          ) : (
+            <div
+              style={{
+                maxHeight: 480,
+                overflow: "auto",
+                borderRadius: 18,
+                border: "1px solid rgba(148, 163, 184, 0.14)",
+              }}
+              onScroll={handleScroll}
+            >
+              <Table
+                rowKey='id'
+                columns={columns}
+                dataSource={slicedData}
+                loading={isLoading}
+                pagination={false}
+                sticky
+                size='middle'
+                tableLayout='fixed'
+                scroll={{ x: 1260 }}
+              />
+              {slicedData.length >= filteredData.length ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    color: "#98a2b3",
+                    padding: "8px 0 4px",
+                    fontSize: 12,
+                  }}
+                >
+                  Semua data telah dimuat
+                </div>
+              ) : null}
+            </div>
+          )}
         </Space>
       </Card>
     </MotionDiv>

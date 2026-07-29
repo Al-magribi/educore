@@ -39,6 +39,7 @@ const StudentAnswersManualAction = ({
         disabled={finalizeableQuestionIds.length < 1}
         loading={isFinalizingAll}
         onClick={onFinalizeAllQuestions}
+        block={isMobile}
       >
         Finalisasi Semua Soal
       </Button>

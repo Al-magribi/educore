@@ -76,6 +76,24 @@ const reportTabsCss = `
     height: 3px !important;
     border-radius: 999px;
   }
+  .cbt-report-tabs.is-mobile .ant-tabs-nav {
+    margin-bottom: 16px;
+  }
+  .cbt-report-tabs.is-mobile .ant-tabs-tab {
+    padding: 6px 0 10px;
+    margin: 0 10px 0 0;
+  }
+  .cbt-report-tabs.is-mobile .cbt-report-tab-label {
+    gap: 6px !important;
+  }
+  .cbt-report-tabs.is-mobile .cbt-report-tab-icon {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 8px !important;
+  }
+  .cbt-report-tabs.is-mobile .cbt-report-tab-label > div > span:first-child {
+    font-size: 13px;
+  }
 `;
 
 const Report = ({ exam_id, exam_name, token }) => {
@@ -155,16 +173,20 @@ const Report = ({ exam_id, exam_name, token }) => {
     };
   }, [attendanceData, attendanceResponse]);
 
-  const createTabLabel = (label, icon, caption) => (
-    <Flex align='center' gap={10} className='cbt-report-tab-label'>
+  const createTabLabel = (label, mobileLabel, icon, caption) => (
+    <Flex
+      align='center'
+      gap={isMobile ? 6 : 10}
+      className='cbt-report-tab-label'
+    >
       <span
         className='cbt-report-tab-icon'
         style={{
-          width: 34,
-          height: 34,
+          width: isMobile ? 26 : 34,
+          height: isMobile ? 26 : 34,
           display: "grid",
           placeItems: "center",
-          borderRadius: 12,
+          borderRadius: isMobile ? 8 : 12,
           background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
           color: "#0369a1",
           border: "1px solid rgba(148, 163, 184, 0.14)",
@@ -173,8 +195,10 @@ const Report = ({ exam_id, exam_name, token }) => {
       >
         {icon}
       </span>
-      <Flex vertical gap={0}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+      <Flex vertical gap={0} style={{ minWidth: 0 }}>
+        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>
+          {isMobile ? mobileLabel : label}
+        </span>
         {!isMobile && (
           <span
             style={{
@@ -190,12 +214,15 @@ const Report = ({ exam_id, exam_name, token }) => {
     </Flex>
   );
 
+  const iconSize = isMobile ? 14 : 16;
+
   const tabItems = [
     {
       key: "attendance",
       label: createTabLabel(
         "Kehadiran",
-        <ClipboardCheck size={16} />,
+        "Hadir",
+        <ClipboardCheck size={iconSize} />,
         "Pantau peserta",
       ),
       children: (
@@ -211,7 +238,8 @@ const Report = ({ exam_id, exam_name, token }) => {
       key: "student-answer-report",
       label: createTabLabel(
         "Jawaban",
-        <FileSpreadsheet size={16} />,
+        "Jawaban",
+        <FileSpreadsheet size={iconSize} />,
         "Analisis jawaban",
       ),
       children: (
@@ -226,7 +254,8 @@ const Report = ({ exam_id, exam_name, token }) => {
       key: "manual-review",
       label: createTabLabel(
         "Koreksi",
-        <ClipboardList size={16} />,
+        "Koreksi",
+        <ClipboardList size={iconSize} />,
         "Review manual",
       ),
       children: (
@@ -239,7 +268,12 @@ const Report = ({ exam_id, exam_name, token }) => {
     },
     {
       key: "scores",
-      label: createTabLabel("Nilai", <BarChart3 size={16} />, "Rekap skor"),
+      label: createTabLabel(
+        "Nilai",
+        "Nilai",
+        <BarChart3 size={iconSize} />,
+        "Rekap skor",
+      ),
       children: (
         <ScoreTable
           data={scoreData}
@@ -253,7 +287,8 @@ const Report = ({ exam_id, exam_name, token }) => {
       key: "bloom-analysis",
       label: createTabLabel(
         "Bloom",
-        <BrainCircuit size={16} />,
+        "Bloom",
+        <BrainCircuit size={iconSize} />,
         "Level kognitif",
       ),
       children: (
@@ -268,7 +303,8 @@ const Report = ({ exam_id, exam_name, token }) => {
       key: "item-analysis",
       label: createTabLabel(
         "Analisa Soal",
-        <FlaskConical size={16} />,
+        "Soal",
+        <FlaskConical size={iconSize} />,
         "Kualitas butir",
       ),
       children: (
@@ -289,10 +325,17 @@ const Report = ({ exam_id, exam_name, token }) => {
       initial='hidden'
       animate='show'
       variants={containerVariants}
-      style={{ display: "flex", flexDirection: "column", gap: 18 }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: isMobile ? 12 : 18,
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+      }}
     >
       <style>{reportTabsCss}</style>
-      <MotionDiv variants={itemVariants}>
+      <MotionDiv variants={itemVariants} style={{ minWidth: 0 }}>
         <ReportHeader
           examName={exam_name}
           stats={stats}
@@ -301,17 +344,18 @@ const Report = ({ exam_id, exam_name, token }) => {
         />
       </MotionDiv>
 
-      <MotionDiv variants={itemVariants}>
+      <MotionDiv variants={itemVariants} style={{ minWidth: 0 }}>
         <Card
           variant='borderless'
           style={{
-            borderRadius: 24,
+            borderRadius: isMobile ? 18 : 24,
             boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+            overflow: "hidden",
           }}
-          styles={{ body: { padding: isMobile ? 14 : 18 } }}
+          styles={{ body: { padding: isMobile ? 10 : 18 } }}
         >
           <Tabs
-            className='cbt-report-tabs'
+            className={`cbt-report-tabs${isMobile ? " is-mobile" : ""}`}
             activeKey={activeTab}
             onChange={(key) =>
               setSearchParams({
@@ -321,7 +365,8 @@ const Report = ({ exam_id, exam_name, token }) => {
                 active_tab: key,
               })
             }
-            size={isMobile ? "middle" : "large"}
+            size={isMobile ? "small" : "large"}
+            tabBarGutter={isMobile ? 8 : 22}
             items={tabItems}
           />
         </Card>

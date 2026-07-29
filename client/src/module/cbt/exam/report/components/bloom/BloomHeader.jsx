@@ -27,22 +27,29 @@ const BloomHeader = ({
       wrap='wrap'
       style={{ flexDirection: isMobile ? "column" : "row" }}
     >
-      <Space direction='vertical' size={4} style={{ minWidth: 0 }}>
+      <Space direction='vertical' size={4} style={{ minWidth: 0, flex: 1 }}>
         <Text type='secondary'>Analisis Bloom</Text>
-        <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
-          Peta Kekuatan Kognitif Kelas dan Siswa
+        <Title
+          level={isMobile ? 5 : 4}
+          style={{ margin: 0, wordBreak: "break-word" }}
+        >
+          {isMobile
+            ? "Peta Kekuatan Kognitif"
+            : "Peta Kekuatan Kognitif Kelas dan Siswa"}
         </Title>
-        <Text type='secondary'>
-          Ringkasan ini membantu guru melihat level Bloom yang sudah kuat, level
-          yang perlu diperkuat, dan siswa yang butuh tindak lanjut.
-        </Text>
+        {!isMobile && (
+          <Text type='secondary'>
+            Ringkasan ini membantu guru melihat level Bloom yang sudah kuat,
+            level yang perlu diperkuat, dan siswa yang butuh tindak lanjut.
+          </Text>
+        )}
       </Space>
       <Tag
         color='blue'
         icon={<BrainCircuit size={12} />}
-        style={{ margin: 0, borderRadius: 999 }}
+        style={{ margin: 0, borderRadius: 999, alignSelf: "flex-start" }}
       >
-        {data?.total_students || 0} peserta dianalisis
+        {data?.total_students || 0} peserta
       </Tag>
     </Flex>
 
@@ -93,7 +100,7 @@ const BloomHeader = ({
         <Input
           allowClear
           prefix={<Search size={14} />}
-          placeholder='Cari teks soal atau level Bloom'
+          placeholder={isMobile ? "Cari soal / Bloom" : "Cari teks soal atau level Bloom"}
           value={searchText}
           onChange={(event) => setSearchText(event.target.value)}
           style={{ width: isMobile ? "100%" : 280, maxWidth: "100%" }}
@@ -102,7 +109,16 @@ const BloomHeader = ({
       <Tag
         color={insight.mastery.color}
         icon={<UserRound size={12} />}
-        style={{ margin: 0, borderRadius: 999 }}
+        title={`Fokus: ${activeScopeLabel}`}
+        style={{
+          margin: 0,
+          borderRadius: 999,
+          maxWidth: isMobile ? "100%" : 320,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          alignSelf: "flex-start",
+        }}
       >
         Fokus: {activeScopeLabel}
       </Tag>
