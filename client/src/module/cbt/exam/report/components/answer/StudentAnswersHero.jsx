@@ -70,7 +70,10 @@ const StudentAnswersHero = ({
         <Flex gap='small' align='center'>
           <ClipboardList size={isMobile ? 16 : 26} color='#fff' />
           <Flex gap='small' vertical>
-            <Title level={2} style={{ margin: 0, color: "#fff" }}>
+            <Title
+              level={isMobile ? 4 : 2}
+              style={{ margin: 0, color: "#fff", wordBreak: "break-word" }}
+            >
               {studentName}
             </Title>
             <Text style={{ color: "rgba(255,255,255,0.82)" }}>

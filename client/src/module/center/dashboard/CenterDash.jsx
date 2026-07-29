@@ -1,20 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useGetDashboardSummaryQuery } from '../../../service/center/ApiCenterDash';
-import {
-  Alert,
-  Card,
-  Col,
-  Flex,
-  Grid,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Statistic,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
+import { Alert, Card, Col, Flex, Grid, Row, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
 import { motion } from 'framer-motion';
 import {
   BankOutlined,
@@ -27,7 +13,7 @@ import {
 import { Activity, BookOpenCheck, GraduationCap } from 'lucide-react';
 import CenterAttendanceReports from './CenterAttendanceReports';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -60,11 +46,13 @@ const statCardStyle = {
   height: '100%',
   border: '1px solid rgba(148, 163, 184, 0.16)',
   boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
+  background: '#ffffff',
 };
 
 const CenterDash = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isCompact = !screens.lg;
   const [homebaseId, setHomebaseId] = useState(null);
   const [periodeId, setPeriodeId] = useState(null);
   const [autoRefreshMs, setAutoRefreshMs] = useState(DEFAULT_AUTO_REFRESH_MS);
@@ -101,6 +89,22 @@ const CenterDash = () => {
   const handleHomebaseChange = (val) => {
     setHomebaseId(val);
     setPeriodeId(null);
+  };
+
+  const selectStyle = {
+    width: isCompact ? '100%' : 220,
+    maxWidth: '100%',
+  };
+
+  const filterTagStyle = {
+    margin: 0,
+    maxWidth: '100%',
+    borderRadius: 999,
+    background: 'rgba(255,255,255,0.14)',
+    borderColor: 'rgba(255,255,255,0.22)',
+    color: '#e0f2fe',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   };
 
   const statCards = [
@@ -141,20 +145,35 @@ const CenterDash = () => {
       title: 'Waktu',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (text) => new Date(text).toLocaleString('id-ID'),
+      width: isMobile ? 140 : 180,
+      ellipsis: true,
+      render: (text) =>
+        text
+          ? new Date(text).toLocaleString('id-ID', {
+              day: '2-digit',
+              month: 'short',
+              year: isMobile ? '2-digit' : 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '-',
     },
     {
       title: 'User',
       dataIndex: 'full_name',
       key: 'full_name',
+      ellipsis: true,
+      width: isMobile ? 120 : 180,
       render: (text) => <Text strong>{text}</Text>,
     },
     {
       title: 'Aktivitas',
       dataIndex: 'action',
       key: 'action',
+      ellipsis: true,
+      width: isMobile ? 120 : 160,
       render: (text) => (
-        <Tag color="blue" style={{ borderRadius: 999, margin: 0 }}>
+        <Tag color="blue" style={{ borderRadius: 999, margin: 0, maxWidth: '100%' }}>
           {text}
         </Tag>
       ),
@@ -178,25 +197,29 @@ const CenterDash = () => {
       initial="hidden"
       animate="show"
       variants={containerVariants}
-      style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <MotionDiv variants={itemVariants}>
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: isMobile ? 14 : 18,
+      }}>
+      <MotionDiv variants={itemVariants} style={{ width: '100%', minWidth: 0, background: 'transparent' }}>
         <Card
           variant="borderless"
           style={{
-            borderRadius: 28,
+            borderRadius: isMobile ? 22 : 28,
             overflow: 'hidden',
             background:
               'radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)',
             boxShadow: '0 24px 52px rgba(15, 23, 42, 0.16)',
           }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}>
+          styles={{ body: { padding: isMobile ? 16 : 28, background: 'transparent' } }}>
           <Flex
             justify="space-between"
-            align={isMobile ? 'stretch' : 'flex-start'}
-            gap={18}
+            align={isCompact ? 'stretch' : 'flex-start'}
+            gap={isMobile ? 14 : 18}
             wrap="wrap"
-            style={{ flexDirection: isMobile ? 'column' : 'row' }}>
-            <div style={{ maxWidth: 760, flex: 1 }}>
+            style={{ width: '100%' }}>
+            <div style={{ flex: '1 1 260px', minWidth: 0, maxWidth: '100%' }}>
               <Text
                 style={{
                   color: 'rgba(255,255,255,0.74)',
@@ -205,44 +228,26 @@ const CenterDash = () => {
                 }}>
                 Dashboard Center
               </Text>
-              <Title level={isMobile ? 4 : 2} style={{ margin: 0, color: '#fff', lineHeight: 1.12 }}>
-                Ringkasan operasional per satuan & periode
-              </Title>
-              <Paragraph
+              <Title
+                level={isMobile ? 4 : 2}
                 style={{
-                  marginTop: 10,
-                  marginBottom: 0,
-                  color: 'rgba(255,255,255,0.82)',
-                  maxWidth: 760,
+                  margin: 0,
+                  color: '#fff',
+                  lineHeight: 1.2,
+                  wordBreak: 'break-word',
                 }}>
-                Pilih satuan pendidikan dan periode ajaran untuk melihat statistik siswa, guru, ujian aktif, laporan
-                presensi, serta aktivitas sistem yang relevan.
-              </Paragraph>
+                Ringkasan operasional
+              </Title>
+
               {(selectedHomebaseName || selectedPeriodeName) && (
-                <Space wrap size={[8, 8]} style={{ marginTop: 14 }}>
+                <Space wrap size={[8, 8]} style={{ marginTop: 14, maxWidth: '100%' }}>
                   {selectedHomebaseName && (
-                    <Tag
-                      icon={<BankOutlined />}
-                      style={{
-                        margin: 0,
-                        borderRadius: 999,
-                        background: 'rgba(255,255,255,0.14)',
-                        borderColor: 'rgba(255,255,255,0.22)',
-                        color: '#e0f2fe',
-                      }}>
+                    <Tag icon={<BankOutlined />} style={filterTagStyle} title={selectedHomebaseName}>
                       {selectedHomebaseName}
                     </Tag>
                   )}
                   {selectedPeriodeName && (
-                    <Tag
-                      icon={<CalendarOutlined />}
-                      style={{
-                        margin: 0,
-                        borderRadius: 999,
-                        background: 'rgba(255,255,255,0.14)',
-                        borderColor: 'rgba(255,255,255,0.22)',
-                        color: '#e0f2fe',
-                      }}>
+                    <Tag icon={<CalendarOutlined />} style={filterTagStyle} title={selectedPeriodeName}>
                       {selectedPeriodeName}
                     </Tag>
                   )}
@@ -250,12 +255,18 @@ const CenterDash = () => {
               )}
             </div>
 
-            <Space
-              direction={isMobile ? 'vertical' : 'horizontal'}
-              size={12}
-              style={{ width: isMobile ? '100%' : 'auto', minWidth: isMobile ? undefined : 420 }}>
+            <Flex
+              vertical={isCompact}
+              gap={12}
+              wrap={!isCompact ? 'wrap' : undefined}
+              style={{
+                flex: isCompact ? '1 1 100%' : '0 1 auto',
+                width: isCompact ? '100%' : 'auto',
+                minWidth: 0,
+                maxWidth: '100%',
+              }}>
               <Select
-                style={{ width: isMobile ? '100%' : 220 }}
+                style={selectStyle}
                 value={selectedHomebaseId != null ? Number(selectedHomebaseId) : undefined}
                 onChange={handleHomebaseChange}
                 placeholder="Pilih Satuan"
@@ -266,9 +277,10 @@ const CenterDash = () => {
                   label: h.name,
                 }))}
                 notFoundContent="Belum ada satuan"
+                popupMatchSelectWidth
               />
               <Select
-                style={{ width: isMobile ? '100%' : 220 }}
+                style={selectStyle}
                 value={selectedPeriodeId != null ? Number(selectedPeriodeId) : undefined}
                 onChange={(val) => setPeriodeId(val)}
                 placeholder="Pilih Periode"
@@ -280,28 +292,32 @@ const CenterDash = () => {
                   label: `${p.name}${p.is_active ? ' · Aktif' : ''}`,
                 }))}
                 notFoundContent="Belum ada periode"
+                popupMatchSelectWidth
               />
-            </Space>
+            </Flex>
           </Flex>
         </Card>
       </MotionDiv>
 
-      <MotionDiv variants={itemVariants}>
-        <Row gutter={[16, 16]}>
+      <MotionDiv variants={itemVariants} style={{ width: '100%', minWidth: 0, background: 'transparent' }}>
+        <Row gutter={[isMobile ? 12 : 16, isMobile ? 12 : 16]} style={{ background: 'transparent' }}>
           {statCards.map((item) => (
-            <Col key={item.key} xs={24} sm={12} xl={8}>
-              <Card variant="borderless" style={statCardStyle} styles={{ body: { padding: 18 } }}>
-                <Flex justify="space-between" align="start" gap={14}>
-                  <div style={{ flex: 1 }}>
+            <Col key={item.key} xs={24} sm={12} xl={8} style={{ background: 'transparent' }}>
+              <Card
+                variant="borderless"
+                style={statCardStyle}
+                styles={{ body: { padding: isMobile ? 14 : 18, background: 'transparent' } }}>
+                <Flex justify="space-between" align="start" gap={12}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <Statistic title={item.title} value={item.value} prefix={item.prefix} />
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                       {item.note}
                     </Text>
                   </div>
                   <div
                     style={{
-                      width: 46,
-                      height: 46,
+                      width: isMobile ? 40 : 46,
+                      height: isMobile ? 40 : 46,
                       borderRadius: 16,
                       display: 'flex',
                       alignItems: 'center',
@@ -319,7 +335,7 @@ const CenterDash = () => {
         </Row>
       </MotionDiv>
 
-      <MotionDiv variants={itemVariants}>
+      <MotionDiv variants={itemVariants} style={{ width: '100%', minWidth: 0, background: 'transparent' }}>
         <CenterAttendanceReports
           homebaseId={selectedHomebaseId}
           periodeId={selectedPeriodeId}
@@ -329,26 +345,32 @@ const CenterDash = () => {
         />
       </MotionDiv>
 
-      <MotionDiv variants={itemVariants}>
+      <MotionDiv variants={itemVariants} style={{ width: '100%', minWidth: 0, background: 'transparent' }}>
         <Card
           variant="borderless"
           title={
-            <Space align="center" size={8}>
+            <Space align="center" size={8} wrap>
               <FieldTimeOutlined />
               <span>Aktivitas Sistem Terakhir</span>
             </Space>
           }
           style={{
-            borderRadius: 24,
+            borderRadius: isMobile ? 20 : 24,
             boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
+            overflow: 'hidden',
+            background: '#ffffff',
           }}
-          styles={{ body: { padding: 0 } }}>
+          styles={{
+            header: { padding: isMobile ? '12px 14px' : undefined, background: 'transparent' },
+            body: { padding: 0, background: 'transparent' },
+          }}>
           <Table
             dataSource={logsData}
             columns={logColumns}
             pagination={false}
             rowKey={(record) => `${record.created_at}-${record.full_name}-${record.action}`}
             size="small"
+            scroll={{ x: 420 }}
             locale={{ emptyText: 'Belum ada aktivitas sistem terbaru.' }}
           />
         </Card>
