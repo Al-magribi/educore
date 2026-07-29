@@ -88,7 +88,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
   const { user } = useSelector((state) => state.auth);
 
-  const [collapsed, setCollapsed] = useState(false);
+  // Default: mini icon sidebar (80px) on desktop; closed drawer on mobile.
+  const [collapsed, setCollapsed] = useState(true);
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
@@ -280,10 +281,11 @@ const AppLayout = ({ children, title, asShell = false }) => {
         collapsible
         collapsed={collapsed}
         breakpoint='lg'
-        collapsedWidth={isMobile ? 0 : 80} // Mobile/tablet jadi drawer (0), desktop jadi icon (80px)
+        collapsedWidth={isMobile ? 0 : 80} // Mobile/tablet: drawer (0), desktop: icon rail (80px)
         width={240}
-        onBreakpoint={(broken) => {
-          setCollapsed(broken);
+        onBreakpoint={() => {
+          // Keep default mini/closed state across breakpoint changes.
+          setCollapsed(true);
         }}
         style={{
           background: "#001529",

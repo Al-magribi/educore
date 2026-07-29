@@ -45,6 +45,13 @@ const bloomTabsCss = `
     height: 3px !important;
     border-radius: 999px;
   }
+  .cbt-bloom-tabs.is-mobile .ant-tabs-nav {
+    margin-bottom: 14px;
+  }
+  .cbt-bloom-tabs.is-mobile .ant-tabs-tab {
+    margin: 0 10px 0 0;
+    font-size: 13px;
+  }
 `;
 
 const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
@@ -375,39 +382,43 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
   const metricItems = [
     {
       label: "Peserta Filter",
+      shortLabel: "Peserta",
       value: aggregateStats.totalStudents,
       suffix: "siswa",
       color: "#1d4ed8",
-      icon: <Users size={18} />,
+      icon: <Users size={isMobile ? 16 : 18} />,
     },
     {
       label: "Rata-rata Akurasi",
+      shortLabel: "Akurasi",
       value: formatPercent(aggregateStats.accuracy),
       color: "#0f766e",
-      icon: <Target size={18} />,
+      icon: <Target size={isMobile ? 16 : 18} />,
     },
     {
       label: "Level Terkuat",
+      shortLabel: "Terkuat",
       value: insight.strongest ? getBloomCode(insight.strongest.bloom_level) : "-",
       suffix: insight.strongest
         ? formatPercent(insight.strongest.correct_percentage)
         : "",
       color: "#15803d",
-      icon: <CheckCircle2 size={18} />,
+      icon: <CheckCircle2 size={isMobile ? 16 : 18} />,
     },
     {
       label: "Perlu Penguatan",
+      shortLabel: "Penguatan",
       value: insight.weakest ? getBloomCode(insight.weakest.bloom_level) : "-",
       suffix: insight.weakest ? formatPercent(insight.weakest.correct_percentage) : "",
       color: "#dc2626",
-      icon: <XCircle size={18} />,
+      icon: <XCircle size={isMobile ? 16 : 18} />,
     },
   ];
 
   const bloomTabItems = [
     {
       key: "summary",
-      label: "Ringkasan Level Bloom",
+      label: isMobile ? "Ringkasan" : "Ringkasan Level Bloom",
       children: (
         <BloomSummaryTable
           bloomSummary={bloomSummary}
@@ -418,7 +429,7 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
     },
     {
       key: "students",
-      label: "Profil Bloom Per Siswa",
+      label: isMobile ? "Per Siswa" : "Profil Bloom Per Siswa",
       children: (
         <BloomStudentProfileTable
           isLoading={isLoading}
@@ -429,7 +440,7 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
     },
     {
       key: "questions",
-      label: "Level Bloom Per Soal",
+      label: isMobile ? "Per Soal" : "Level Bloom Per Soal",
       children: (
         <BloomQuestionTable
           effectiveStudentFilter={effectiveStudentFilter}
@@ -443,17 +454,26 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
   ];
 
   return (
-    <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+    <MotionDiv
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ width: "100%", minWidth: 0 }}
+    >
       <style>{bloomTabsCss}</style>
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
+          borderRadius: isMobile ? 18 : 24,
           boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          overflow: "hidden",
         }}
-        styles={{ body: { padding: isMobile ? 16 : 20 } }}
+        styles={{ body: { padding: isMobile ? 14 : 20 } }}
       >
-        <Space direction='vertical' size={18} style={{ width: "100%" }}>
+        <Space
+          direction='vertical'
+          size={isMobile ? 14 : 18}
+          style={{ width: "100%" }}
+        >
           <BloomHeader
             activeScopeLabel={activeScopeLabel}
             classFilter={classFilter}
@@ -487,10 +507,11 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
             />
           ) : (
             <Tabs
-              className='cbt-bloom-tabs'
+              className={`cbt-bloom-tabs${isMobile ? " is-mobile" : ""}`}
               defaultActiveKey='summary'
               items={bloomTabItems}
               size={isMobile ? "small" : "middle"}
+              tabBarGutter={isMobile ? 8 : 16}
             />
           )}
         </Space>

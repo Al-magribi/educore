@@ -20,11 +20,11 @@ const Database = () => {
   const { token } = theme.useToken();
 
   const createTabLabel = (label, icon, caption) => (
-    <Flex align='center' gap={10}>
+    <Flex align="center" gap={isMobile ? 6 : 10} style={{ minWidth: 0 }}>
       <span
         style={{
-          width: 34,
-          height: 34,
+          width: isMobile ? 28 : 34,
+          height: isMobile ? 28 : 34,
           display: "grid",
           placeItems: "center",
           borderRadius: 12,
@@ -32,12 +32,22 @@ const Database = () => {
           color: "#0369a1",
           border: "1px solid rgba(148, 163, 184, 0.14)",
           flexShrink: 0,
+          fontSize: isMobile ? 12 : undefined,
         }}
       >
         {icon}
       </span>
-      <Flex vertical gap={0}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
+      <Flex vertical gap={0} style={{ minWidth: 0 }}>
+        <span
+          style={{
+            fontWeight: 600,
+            lineHeight: 1.2,
+            fontSize: isMobile ? 12 : undefined,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
         {!isMobile && (
           <span
             style={{
@@ -84,33 +94,58 @@ const Database = () => {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      style={{ display: "grid", gap: 18, paddingBottom: 24 }}
+      style={{
+        display: "grid",
+        gap: isMobile ? 12 : 18,
+        paddingBottom: 24,
+        width: "100%",
+        minWidth: 0,
+      }}
     >
-      <div>
-        <Tag color='purple' style={{ borderRadius: 999, paddingInline: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <Tag color="purple" style={{ borderRadius: 999, paddingInline: 12 }}>
           Database Workspace
         </Tag>
-        <Title level={3} style={{ margin: "10px 0 0", color: "#0f172a" }}>
-          Backup, restore, dan kelola tabel lintas schema dengan lebih aman.
+        <Title
+          level={isMobile ? 4 : 3}
+          style={{
+            margin: "10px 0 0",
+            color: "#0f172a",
+            fontSize: isMobile ? 18 : undefined,
+            wordBreak: "break-word",
+          }}
+        >
+          {isMobile
+            ? "Backup, restore & kelola tabel"
+            : "Backup, restore, dan kelola tabel lintas schema dengan lebih aman."}
         </Title>
-        <Text style={{ color: "#64748b", display: "block", marginTop: 6 }}>
-          Gunakan tab berikut untuk membuat snapshot penuh database, memulihkan
-          semua schema beserta assets, dan mengelola tabel per skema dengan
-          kontrol yang lebih jelas.
-        </Text>
+        {!isMobile && (
+          <Text style={{ color: "#64748b", display: "block", marginTop: 6 }}>
+            Gunakan tab berikut untuk membuat snapshot penuh database, memulihkan
+            semua schema beserta assets, dan mengelola tabel per skema dengan
+            kontrol yang lebih jelas.
+          </Text>
+        )}
       </div>
 
       <Card
-        variant='borderless'
-        styles={{ body: { padding: isMobile ? 12 : 16 } }}
+        variant="borderless"
+        style={{
+          borderRadius: isMobile ? 18 : 22,
+          width: "100%",
+          minWidth: 0,
+          overflow: "hidden",
+        }}
+        styles={{ body: { padding: isMobile ? 10 : 16 } }}
       >
-        <Space vertical size={16} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={isMobile ? 12 : 16} style={{ width: "100%" }}>
           <Tabs
-            defaultActiveKey='backup'
+            defaultActiveKey="backup"
             items={items}
-            size={isMobile ? "middle" : "large"}
-            tabBarGutter={12}
-            tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+            size={isMobile ? "small" : "large"}
+            tabBarGutter={isMobile ? 8 : 12}
+            style={{ width: "100%", minWidth: 0 }}
+            tabBarStyle={{ marginBottom: isMobile ? 12 : 20, paddingBottom: 8 }}
           />
         </Space>
       </Card>

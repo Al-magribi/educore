@@ -51,7 +51,60 @@ export const ApiDatabase = createApi({
       invalidatesTags: ["Backups"],
     }),
 
-    // 6. Restore Database
+    // 6. Download Folder Backup (ZIP)
+    downloadBackup: builder.mutation({
+      async queryFn(filename) {
+        try {
+          const response = await fetch(
+            `/api/center/download-backup/${encodeURIComponent(filename)}`,
+            {
+              method: "GET",
+              credentials: "include",
+            },
+          );
+
+          if (!response.ok) {
+            const contentType = response.headers.get("content-type") || "";
+            if (contentType.includes("application/json")) {
+              const data = await response.json();
+              return {
+                error: {
+                  status: response.status,
+                  data,
+                },
+              };
+            }
+
+            return {
+              error: {
+                status: response.status,
+                data: { message: "Gagal mengunduh backup" },
+              },
+            };
+          }
+
+          const blob = await response.blob();
+          const disposition = response.headers.get("content-disposition") || "";
+          const match = disposition.match(/filename="?([^"]+)"?/i);
+
+          return {
+            data: {
+              blob,
+              filename: match?.[1] || `${filename}.zip`,
+            },
+          };
+        } catch (error) {
+          return {
+            error: {
+              status: "FETCH_ERROR",
+              error: error?.message || "Gagal mengunduh backup",
+            },
+          };
+        }
+      },
+    }),
+
+    // 7. Restore Database
     restoreData: builder.mutation({
       query: (backupName) => ({
         url: "/restore-data",
@@ -70,5 +123,6 @@ export const {
   useGetBackupsQuery,
   useCreateBackupMutation,
   useDeleteBackupMutation,
+  useDownloadBackupMutation,
   useRestoreDataMutation,
 } = ApiDatabase;

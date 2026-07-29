@@ -27,9 +27,11 @@ const BloomTeacherInsight = ({
       wrap='wrap'
       style={{ flexDirection: isMobile ? "column" : "row" }}
     >
-      <Space direction='vertical' size={4} style={{ maxWidth: 760 }}>
-        <Text strong>Ringkasan Guru - {activeScopeLabel}</Text>
-        <Text type='secondary'>
+        <Space direction='vertical' size={4} style={{ maxWidth: 760, minWidth: 0 }}>
+        <Text strong style={{ wordBreak: "break-word" }}>
+          Ringkasan Guru{isMobile ? "" : ` - ${activeScopeLabel}`}
+        </Text>
+        <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
           Akurasi saat ini {formatPercent(aggregateStats.accuracy)} dengan status{" "}
           {insight.mastery.label.toLowerCase()}.
           {insight.strongest
