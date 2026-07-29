@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  Grid,
   Popconfirm,
   Select,
   Space,
@@ -17,9 +18,12 @@ import {
 } from "../../../../service/center/ApiDatabase";
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
 const Restore = () => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [selectedBackup, setSelectedBackup] = useState(null);
   const { data: backups = [], isLoading: isLoadingBackups } =
     useGetBackupsQuery();
@@ -46,31 +50,46 @@ const Restore = () => {
   }));
 
   return (
-    <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
+    <MotionDiv
+      whileHover={isMobile ? undefined : { y: -3 }}
+      transition={{ duration: 0.2 }}
+      style={{ width: "100%", minWidth: 0 }}
+    >
       <Card
         variant="borderless"
         style={{
           height: "100%",
-          borderRadius: 22,
+          borderRadius: isMobile ? 18 : 22,
           border: "1px solid rgba(148, 163, 184, 0.14)",
           boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
+          width: "100%",
+          minWidth: 0,
+          overflow: "hidden",
         }}
-        styles={{ body: { padding: 18 } }}
+        styles={{ body: { padding: isMobile ? 12 : 18 } }}
       >
-        <Space orientation="vertical" size={16} style={{ width: "100%" }}>
-          <div>
-            <Title level={4} style={{ margin: 0, color: "#0f172a" }}>
+        <Space orientation="vertical" size={isMobile ? 12 : 16} style={{ width: "100%" }}>
+          <div style={{ minWidth: 0 }}>
+            <Title
+              level={4}
+              style={{ margin: 0, color: "#0f172a", fontSize: isMobile ? 16 : undefined }}
+            >
               Restore Database
             </Title>
-            <Text style={{ color: "#64748b" }}>
-              Pulihkan semua schema database dan folder assets dari folder
-              backup yang tersimpan di server.
+            <Text style={{ color: "#64748b", fontSize: isMobile ? 12 : undefined, display: "block" }}>
+              {isMobile
+                ? "Pulihkan database & assets dari folder backup."
+                : "Pulihkan semua schema database dan folder assets dari folder backup yang tersimpan di server."}
             </Text>
           </div>
 
           <Alert
             title="Perhatian penting"
-            description="Proses restore akan menimpa seluruh schema database dan mengganti isi folder assets saat ini dengan isi folder backup. Pastikan Anda memilih backup yang benar sebelum melanjutkan."
+            description={
+              isMobile
+                ? "Restore akan menimpa seluruh schema database dan folder assets saat ini."
+                : "Proses restore akan menimpa seluruh schema database dan mengganti isi folder assets saat ini dengan isi folder backup. Pastikan Anda memilih backup yang benar sebelum melanjutkan."
+            }
             type="warning"
             showIcon
           />
@@ -84,12 +103,11 @@ const Restore = () => {
             onChange={setSelectedBackup}
             placeholder="Pilih folder backup"
             optionFilterProp="label"
-            style={{
-              width: "100%",
-            }}
+            style={{ width: "100%", maxWidth: "100%" }}
+            popupMatchSelectWidth
           />
 
-          <div style={{ textAlign: "right" }}>
+          <div style={{ textAlign: isMobile ? "left" : "right", width: "100%" }}>
             <Popconfirm
               title="Mulai Restore?"
               description="Database dan assets saat ini akan diganti dengan isi backup terpilih."
@@ -105,9 +123,10 @@ const Restore = () => {
                 loading={isLoading}
                 disabled={!selectedBackup}
                 danger
+                block={isMobile}
                 style={{ borderRadius: 999, fontWeight: 600 }}
               >
-                Mulai Proses Restore
+                {isMobile ? "Mulai Restore" : "Mulai Proses Restore"}
               </Button>
             </Popconfirm>
           </div>

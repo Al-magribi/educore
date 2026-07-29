@@ -40,6 +40,13 @@ const itemTabsCss = `
     height: 3px !important;
     border-radius: 999px;
   }
+  .cbt-item-tabs.is-mobile .ant-tabs-nav {
+    margin-bottom: 14px;
+  }
+  .cbt-item-tabs.is-mobile .ant-tabs-tab {
+    margin: 0 10px 0 0;
+    font-size: 13px;
+  }
 `;
 
 const ItemAnalysis = ({
@@ -108,34 +115,38 @@ const ItemAnalysis = ({
   const metricItems = [
     {
       label: "Cronbach's Alpha",
+      shortLabel: "Alpha",
       value:
         summary.cronbach_alpha === null || summary.cronbach_alpha === undefined
           ? "-"
           : formatIndex(summary.cronbach_alpha),
       suffix: summary.cronbach_alpha_label || "",
       color: alphaColor,
-      icon: <ShieldCheck size={18} />,
+      icon: <ShieldCheck size={isMobile ? 16 : 18} />,
     },
     {
       label: "Rata-rata Kesukaran",
+      shortLabel: "Kesukaran",
       value: formatIndex(summary.average_difficulty),
       suffix: "P",
       color: "#0f766e",
-      icon: <Gauge size={18} />,
+      icon: <Gauge size={isMobile ? 16 : 18} />,
     },
     {
       label: "Rata-rata Daya Beda",
+      shortLabel: "Daya Beda",
       value: formatIndex(summary.average_point_biserial),
       suffix: "rpb",
       color: "#1d4ed8",
-      icon: <Target size={18} />,
+      icon: <Target size={isMobile ? 16 : 18} />,
     },
     {
       label: "Tidak Disarankan",
+      shortLabel: "Tolak",
       value: summary.reject_count ?? 0,
       suffix: "soal",
       color: "#dc2626",
-      icon: <AlertTriangle size={18} />,
+      icon: <AlertTriangle size={isMobile ? 16 : 18} />,
     },
   ];
 
@@ -158,7 +169,9 @@ const ItemAnalysis = ({
     },
     {
       key: "rejected",
-      label: `Tidak Disarankan (${rejectedQuestions.length})`,
+      label: isMobile
+        ? `Tolak (${rejectedQuestions.length})`
+        : `Tidak Disarankan (${rejectedQuestions.length})`,
       children: (
         <ItemAnalysisQuestionTable
           isLoading={isLoading}
@@ -171,17 +184,26 @@ const ItemAnalysis = ({
   ];
 
   return (
-    <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+    <MotionDiv
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ width: "100%", minWidth: 0 }}
+    >
       <style>{itemTabsCss}</style>
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
+          borderRadius: isMobile ? 18 : 24,
           boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          overflow: "hidden",
         }}
-        styles={{ body: { padding: isMobile ? 16 : 20 } }}
+        styles={{ body: { padding: isMobile ? 14 : 20 } }}
       >
-        <Space direction='vertical' size={18} style={{ width: "100%" }}>
+        <Space
+          direction='vertical'
+          size={isMobile ? 14 : 18}
+          style={{ width: "100%" }}
+        >
           <ItemAnalysisHeader
             data={data}
             includeEssay={includeEssay}
@@ -210,10 +232,11 @@ const ItemAnalysis = ({
             />
           ) : (
             <Tabs
-              className='cbt-item-tabs'
+              className={`cbt-item-tabs${isMobile ? " is-mobile" : ""}`}
               defaultActiveKey='all'
               items={tabItems}
               size={isMobile ? "small" : "middle"}
+              tabBarGutter={isMobile ? 8 : 16}
             />
           )}
         </Space>

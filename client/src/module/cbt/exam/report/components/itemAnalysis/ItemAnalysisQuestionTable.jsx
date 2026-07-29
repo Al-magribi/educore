@@ -137,7 +137,7 @@ const MobileQuestionCards = ({ isLoading, perQuestion }) => {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                 gap: 10,
               }}
             >
@@ -168,7 +168,7 @@ const MobileQuestionCards = ({ isLoading, perQuestion }) => {
                   colorMap={discriminationColorMap}
                 />
               </div>
-              <div>
+              <div style={{ gridColumn: "1 / -1" }}>
                 <Flex align='center' gap={4}>
                   <Text type='secondary' style={{ fontSize: 11 }}>
                     Indeks D (27%)
@@ -267,7 +267,9 @@ const ItemAnalysisQuestionTable = ({
 
   return (
     <Space direction='vertical' size={8} style={{ width: "100%" }}>
-      <Text strong>{title}</Text>
+          <Text strong style={{ wordBreak: "break-word" }}>
+            {isMobile && title.length > 36 ? `${title.slice(0, 36)}…` : title}
+          </Text>
       {isMobile ? (
         <MobileQuestionCards isLoading={isLoading} perQuestion={perQuestion} />
       ) : (

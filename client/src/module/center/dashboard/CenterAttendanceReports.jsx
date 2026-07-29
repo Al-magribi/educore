@@ -14,11 +14,13 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
   BookOpenCheck,
   CalendarRange,
+  Info,
   RefreshCw,
   School,
   Search,
@@ -74,12 +76,14 @@ const statCardStyle = {
   border: '1px solid #e2ebf5',
   background: '#ffffff',
   height: '100%',
+  minWidth: 0,
 };
 
-const formatDateTimeCell = (value) => {
+const formatDateTimeCell = (value, compact = false) => {
   if (!value) return '-';
   const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format('DD MMM YY HH:mm') : value;
+  if (!parsed.isValid()) return value;
+  return compact ? parsed.format('DD/MM HH:mm') : parsed.format('DD MMM YY HH:mm');
 };
 
 const parseReportDateTime = (value) => {
@@ -107,9 +111,138 @@ const sortByLatestTap = (rows) =>
     return bTap - aTap;
   });
 
-const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) => {
+const useResponsiveFlags = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isCompact = !screens.lg;
+  return { screens, isMobile, isCompact };
+};
+
+const PanelHeader = ({ title, description, filter, isMobile }) => (
+  <Flex
+    justify="space-between"
+    align={isMobile ? 'stretch' : 'flex-start'}
+    vertical={isMobile}
+    gap={12}
+    style={{ width: '100%', minWidth: 0 }}>
+    <Flex align="center" gap={6} style={{ minWidth: 0, flex: 1 }}>
+      <Text strong style={{ color: '#0f172a', fontSize: isMobile ? 14 : 15 }}>
+        {title}
+      </Text>
+      <Tooltip title={description} placement="right">
+        <Info size={14} style={{ color: '#94a3b8', cursor: 'default', flexShrink: 0 }} />
+      </Tooltip>
+    </Flex>
+    {filter}
+  </Flex>
+);
+
+const FilterBar = ({
+  range,
+  onRangeChange,
+  userName,
+  onUserNameChange,
+  searchPlaceholder,
+  onRefresh,
+  isMobile,
+  isCompact,
+}) => (
+  <Flex
+    gap={10}
+    wrap="wrap"
+    vertical={isMobile}
+    align={isMobile ? 'stretch' : 'center'}
+    style={{ width: '100%', minWidth: 0 }}>
+    <RangePicker
+      value={range}
+      onChange={(value) => onRangeChange(value || [dayjs(), dayjs()])}
+      format={isMobile ? 'DD/MM/YY' : 'YYYY-MM-DD'}
+      allowEmpty={[false, false]}
+      inputReadOnly={isMobile}
+      style={{
+        width: isCompact ? '100%' : 280,
+        maxWidth: '100%',
+      }}
+    />
+    <Input
+      allowClear
+      value={userName}
+      onChange={(event) => onUserNameChange(event.target.value)}
+      placeholder={searchPlaceholder}
+      prefix={<Search size={14} />}
+      style={{
+        width: isCompact ? '100%' : 220,
+        maxWidth: '100%',
+        flex: isCompact ? undefined : '1 1 180px',
+      }}
+    />
+    <a
+      onClick={onRefresh}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        whiteSpace: 'nowrap',
+        alignSelf: isMobile ? 'flex-start' : 'center',
+        padding: isMobile ? '4px 0' : undefined,
+      }}>
+      <RefreshCw size={14} />
+      Refresh
+    </a>
+  </Flex>
+);
+
+const SummaryStatCard = ({ item, isMobile, suffix }) => (
+  <Card
+    style={statCardStyle}
+    styles={{ body: { padding: isMobile ? 10 : 14 } }}>
+    <Flex justify="space-between" align="center" gap={8} style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+        <Statistic
+          title={<span style={{ fontSize: isMobile ? 11 : 13 }}>{item.title}</span>}
+          value={item.value}
+          suffix={suffix}
+          styles={{
+            content: {
+              fontSize: isMobile ? 18 : 24,
+              lineHeight: 1.2,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            },
+          }}
+        />
+      </div>
+      <div
+        style={{
+          width: isMobile ? 32 : 40,
+          height: isMobile ? 32 : 40,
+          borderRadius: 12,
+          display: 'grid',
+          placeItems: 'center',
+          background: item.bg,
+          color: item.color,
+          flexShrink: 0,
+        }}>
+        {item.icon}
+      </div>
+    </Flex>
+  </Card>
+);
+
+const buildPagination = (pageSize, setPageSize, isMobile) => ({
+  pageSize,
+  showSizeChanger: !isMobile,
+  pageSizeOptions: PAGE_SIZE_OPTIONS,
+  showTotal: isMobile
+    ? undefined
+    : (total, rangeValues) => `${rangeValues[0]}-${rangeValues[1]} dari ${total} catatan`,
+  simple: isMobile,
+  size: isMobile ? 'small' : 'default',
+  onChange: (_page, size) => setPageSize(size),
+});
+
+const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) => {
+  const { isMobile, isCompact } = useResponsiveFlags();
   const [range, setRange] = useState([dayjs(), dayjs()]);
   const [status, setStatus] = useState();
   const [userName, setUserName] = useState('');
@@ -138,7 +271,7 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       key: 'present',
       title: 'Hadir/Telat',
       value: Number(summary.present_count || 0) + Number(summary.late_count || 0),
-      icon: <CalendarRange size={18} />,
+      icon: <CalendarRange size={isMobile ? 14 : 18} />,
       color: '#166534',
       bg: '#f0fdf4',
     },
@@ -146,7 +279,7 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       key: 'pending',
       title: 'Belum tap',
       value: Number(summary.pending_count || 0),
-      icon: <Users size={18} />,
+      icon: <Users size={isMobile ? 14 : 18} />,
       color: '#a16207',
       bg: '#fefce8',
     },
@@ -154,7 +287,7 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       key: 'excused',
       title: 'Sakit/Izin',
       value: Number(summary.excused_count || 0),
-      icon: <BookOpenCheck size={18} />,
+      icon: <BookOpenCheck size={isMobile ? 14 : 18} />,
       color: '#1d4ed8',
       bg: '#eff6ff',
     },
@@ -162,69 +295,98 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       key: 'absent',
       title: 'Absen',
       value: Number(summary.absent_count || 0),
-      icon: <School size={18} />,
+      icon: <School size={isMobile ? 14 : 18} />,
       color: '#b91c1c',
       bg: '#fef2f2',
     },
   ];
 
-  return (
-    <Flex vertical gap={16}>
-      <Flex justify="space-between" align={isMobile ? 'stretch' : 'center'} vertical={isMobile} gap={12}>
-        <div>
-          <Text strong style={{ color: '#0f172a', fontSize: 15 }}>
-            Laporan Presensi Siswa
+  const columns = [
+    {
+      title: 'Siswa',
+      ellipsis: true,
+      fixed: isMobile ? 'left' : undefined,
+      width: isMobile ? 150 : 220,
+      render: (_, row) => (
+        <Flex vertical gap={2} style={{ minWidth: 0, maxWidth: '100%' }}>
+          <Text strong ellipsis style={{ maxWidth: '100%' }}>
+            {row.full_name}
           </Text>
-          <div>
-            <Text type="secondary">Rekap kehadiran harian siswa berdasarkan data daily_attendance.</Text>
-          </div>
-        </div>
-        <Select
-          allowClear
-          placeholder="Filter status"
-          value={status}
-          onChange={setStatus}
-          options={STUDENT_STATUS_OPTIONS}
-          style={{ minWidth: isMobile ? '100%' : 180 }}
-        />
-      </Flex>
+          <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+            {isMobile
+              ? `${row.class_name || '-'} · ${row.nis || '-'}`
+              : `NIS ${row.nis || '-'} · ${row.grade_name || '-'} / ${row.class_name || '-'}`}
+          </Text>
+        </Flex>
+      ),
+    },
+    {
+      title: 'Tanggal',
+      dataIndex: 'attendance_date',
+      width: isMobile ? 96 : 120,
+      render: (value) =>
+        value && dayjs(value).isValid()
+          ? dayjs(value).format(isMobile ? 'DD/MM/YY' : 'YYYY-MM-DD')
+          : value || '-',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'attendance_status',
+      width: isMobile ? 96 : 110,
+      render: (value) => (
+        <Tag color={STATUS_COLORS[value] || 'default'} style={{ margin: 0, maxWidth: '100%' }}>
+          {value}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Datang',
+      dataIndex: 'checkin_at',
+      width: isMobile ? 108 : 140,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    {
+      title: 'Pulang',
+      dataIndex: 'checkout_at',
+      width: isMobile ? 108 : 140,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+  ];
 
-      <Flex gap={12} wrap="wrap" vertical={isMobile}>
-        <RangePicker value={range} onChange={(value) => setRange(value || [dayjs(), dayjs()])} format="YYYY-MM-DD" />
-        <Input
-          allowClear
-          value={userName}
-          onChange={(event) => setUserName(event.target.value)}
-          placeholder="Cari nama siswa"
-          prefix={<Search size={14} />}
-          style={{ minWidth: isMobile ? '100%' : 220 }}
-        />
-        <a onClick={() => refetch()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <RefreshCw size={14} />
-          Refresh
-        </a>
-      </Flex>
+  return (
+    <Flex vertical gap={isMobile ? 12 : 16} style={{ width: '100%', minWidth: 0 }}>
+      <PanelHeader
+        title="Laporan Presensi Siswa"
+        description="Rekap kehadiran harian siswa berdasarkan data daily_attendance."
+        isMobile={isMobile}
+        filter={
+          <Select
+            allowClear
+            placeholder="Filter status"
+            value={status}
+            onChange={setStatus}
+            options={STUDENT_STATUS_OPTIONS}
+            style={{ width: isMobile ? '100%' : 180, maxWidth: '100%', flexShrink: 0 }}
+            popupMatchSelectWidth={false}
+          />
+        }
+      />
 
-      <Row gutter={[12, 12]}>
+      <FilterBar
+        range={range}
+        onRangeChange={setRange}
+        userName={userName}
+        onUserNameChange={setUserName}
+        searchPlaceholder="Cari nama siswa"
+        onRefresh={() => refetch()}
+        isMobile={isMobile}
+        isCompact={isCompact}
+      />
+
+      <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]} style={{ margin: 0 }}>
         {statItems.map((item) => (
-          <Col key={item.key} xs={12} md={6}>
-            <Card style={statCardStyle} styles={{ body: { padding: 14 } }}>
-              <Flex justify="space-between" align="center" gap={10}>
-                <Statistic title={item.title} value={item.value} />
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 12,
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: item.bg,
-                    color: item.color,
-                  }}>
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
+          <Col key={item.key} xs={12} sm={12} md={6} style={{ minWidth: 0 }}>
+            <SummaryStatCard item={item} isMobile={isMobile} />
           </Col>
         ))}
       </Row>
@@ -232,67 +394,24 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       {rows.length === 0 && !isLoading && !isFetching ? (
         <Empty description="Belum ada data presensi siswa pada rentang ini." />
       ) : (
-        <Table
-          rowKey="id"
-          size="small"
-          loading={isLoading || (isFetching && rows.length > 0)}
-          dataSource={rows}
-          tableLayout="fixed"
-          pagination={{
-            pageSize,
-            showSizeChanger: true,
-            pageSizeOptions: PAGE_SIZE_OPTIONS,
-            showTotal: (total, rangeValues) => `${rangeValues[0]}-${rangeValues[1]} dari ${total} catatan`,
-            onChange: (_page, size) => setPageSize(size),
-          }}
-          columns={[
-            {
-              title: 'Siswa',
-              ellipsis: true,
-              render: (_, row) => (
-                <Flex vertical gap={2}>
-                  <Text strong ellipsis>
-                    {row.full_name}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                    NIS {row.nis || '-'} · {row.grade_name || '-'} / {row.class_name || '-'}
-                  </Text>
-                </Flex>
-              ),
-            },
-            {
-              title: 'Tanggal',
-              dataIndex: 'attendance_date',
-              width: 120,
-            },
-            {
-              title: 'Status',
-              dataIndex: 'attendance_status',
-              width: 110,
-              render: (value) => <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>,
-            },
-            {
-              title: 'Datang',
-              dataIndex: 'checkin_at',
-              width: 140,
-              render: (value) => formatDateTimeCell(value),
-            },
-            {
-              title: 'Pulang',
-              dataIndex: 'checkout_at',
-              width: 140,
-              render: (value) => formatDateTimeCell(value),
-            },
-          ]}
-        />
+        <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+          <Table
+            rowKey="id"
+            size="small"
+            loading={isLoading || (isFetching && rows.length > 0)}
+            dataSource={rows}
+            columns={columns}
+            scroll={{ x: isMobile ? 660 : 720 }}
+            pagination={buildPagination(pageSize, setPageSize, isMobile)}
+          />
+        </div>
       )}
     </Flex>
   );
 };
 
 const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { isMobile, isCompact } = useResponsiveFlags();
   const [range, setRange] = useState([dayjs(), dayjs()]);
   const [status, setStatus] = useState();
   const [userName, setUserName] = useState('');
@@ -321,7 +440,7 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       key: 'hadir',
       title: 'Hadir',
       value: Number(summary.present_teachers || 0),
-      icon: <UserCheck size={18} />,
+      icon: <UserCheck size={isMobile ? 14 : 18} />,
       color: '#15803d',
       bg: '#f0fdf4',
     },
@@ -329,69 +448,98 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       key: 'absent',
       title: 'Absent',
       value: Number(summary.absent_teachers || 0),
-      icon: <UserX size={18} />,
+      icon: <UserX size={isMobile ? 14 : 18} />,
       color: '#b91c1c',
       bg: '#fef2f2',
     },
   ];
 
-  return (
-    <Flex vertical gap={16}>
-      <Flex justify="space-between" align={isMobile ? 'stretch' : 'center'} vertical={isMobile} gap={12}>
-        <div>
-          <Text strong style={{ color: '#0f172a', fontSize: 15 }}>
-            Laporan Presensi Guru
+  const columns = [
+    {
+      title: 'Guru',
+      ellipsis: true,
+      fixed: isMobile ? 'left' : undefined,
+      width: isMobile ? 150 : 220,
+      render: (_, row) => (
+        <Flex vertical gap={2} style={{ minWidth: 0, maxWidth: '100%' }}>
+          <Text strong ellipsis style={{ maxWidth: '100%' }}>
+            {row.full_name}
           </Text>
-          <div>
-            <Text type="secondary">Rekap kehadiran harian guru berdasarkan data daily_attendance.</Text>
-          </div>
-        </div>
-        <Select
-          allowClear
-          placeholder="Filter status"
-          value={status}
-          onChange={setStatus}
-          options={TEACHER_STATUS_OPTIONS}
-          style={{ minWidth: isMobile ? '100%' : 180 }}
-        />
-      </Flex>
+          <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+            {isMobile
+              ? `NIP ${row.nip || '-'}`
+              : `RFID ${row.card_uid || '-'} · NIP ${row.nip || '-'}`}
+          </Text>
+        </Flex>
+      ),
+    },
+    {
+      title: 'Tanggal',
+      dataIndex: 'attendance_date',
+      width: isMobile ? 96 : 120,
+      render: (value) =>
+        value && dayjs(value).isValid()
+          ? dayjs(value).format(isMobile ? 'DD/MM/YY' : 'YYYY-MM-DD')
+          : value || '-',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'attendance_status',
+      width: isMobile ? 96 : 110,
+      render: (value) => (
+        <Tag color={STATUS_COLORS[value] || 'default'} style={{ margin: 0, maxWidth: '100%' }}>
+          {value}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Datang',
+      dataIndex: 'checkin_at',
+      width: isMobile ? 108 : 140,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    {
+      title: 'Pulang',
+      dataIndex: 'checkout_at',
+      width: isMobile ? 108 : 140,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+  ];
 
-      <Flex gap={12} wrap="wrap" vertical={isMobile}>
-        <RangePicker value={range} onChange={(value) => setRange(value || [dayjs(), dayjs()])} format="YYYY-MM-DD" />
-        <Input
-          allowClear
-          value={userName}
-          onChange={(event) => setUserName(event.target.value)}
-          placeholder="Cari nama guru"
-          prefix={<Search size={14} />}
-          style={{ minWidth: isMobile ? '100%' : 220 }}
-        />
-        <a onClick={() => refetch()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <RefreshCw size={14} />
-          Refresh
-        </a>
-      </Flex>
+  return (
+    <Flex vertical gap={isMobile ? 12 : 16} style={{ width: '100%', minWidth: 0 }}>
+      <PanelHeader
+        title="Laporan Presensi Guru"
+        description="Rekap kehadiran harian guru berdasarkan data daily_attendance."
+        isMobile={isMobile}
+        filter={
+          <Select
+            allowClear
+            placeholder="Filter status"
+            value={status}
+            onChange={setStatus}
+            options={TEACHER_STATUS_OPTIONS}
+            style={{ width: isMobile ? '100%' : 180, maxWidth: '100%', flexShrink: 0 }}
+            popupMatchSelectWidth={false}
+          />
+        }
+      />
 
-      <Row gutter={[12, 12]}>
+      <FilterBar
+        range={range}
+        onRangeChange={setRange}
+        userName={userName}
+        onUserNameChange={setUserName}
+        searchPlaceholder="Cari nama guru"
+        onRefresh={() => refetch()}
+        isMobile={isMobile}
+        isCompact={isCompact}
+      />
+
+      <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]}>
         {statItems.map((item) => (
-          <Col key={item.key} xs={12} md={12}>
-            <Card style={statCardStyle} styles={{ body: { padding: 14 } }}>
-              <Flex justify="space-between" align="center" gap={10}>
-                <Statistic title={item.title} value={item.value} suffix="guru" />
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 12,
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: item.bg,
-                    color: item.color,
-                  }}>
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
+          <Col key={item.key} xs={12} sm={12} md={12} style={{ minWidth: 0 }}>
+            <SummaryStatCard item={item} isMobile={isMobile} suffix="guru" />
           </Col>
         ))}
       </Row>
@@ -399,59 +547,17 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       {rows.length === 0 && !isLoading && !isFetching ? (
         <Empty description="Belum ada data presensi guru pada rentang ini." />
       ) : (
-        <Table
-          rowKey="id"
-          size="small"
-          loading={isLoading || (isFetching && rows.length > 0)}
-          dataSource={rows}
-          tableLayout="fixed"
-          pagination={{
-            pageSize,
-            showSizeChanger: true,
-            pageSizeOptions: PAGE_SIZE_OPTIONS,
-            showTotal: (total, rangeValues) => `${rangeValues[0]}-${rangeValues[1]} dari ${total} catatan`,
-            onChange: (_page, size) => setPageSize(size),
-          }}
-          columns={[
-            {
-              title: 'Guru',
-              ellipsis: true,
-              render: (_, row) => (
-                <Flex vertical gap={2}>
-                  <Text strong ellipsis>
-                    {row.full_name}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                    RFID {row.card_uid || '-'} · NIP {row.nip || '-'}
-                  </Text>
-                </Flex>
-              ),
-            },
-            {
-              title: 'Tanggal',
-              dataIndex: 'attendance_date',
-              width: 120,
-            },
-            {
-              title: 'Status',
-              dataIndex: 'attendance_status',
-              width: 110,
-              render: (value) => <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>,
-            },
-            {
-              title: 'Datang',
-              dataIndex: 'checkin_at',
-              width: 140,
-              render: (value) => formatDateTimeCell(value),
-            },
-            {
-              title: 'Pulang',
-              dataIndex: 'checkout_at',
-              width: 140,
-              render: (value) => formatDateTimeCell(value),
-            },
-          ]}
-        />
+        <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+          <Table
+            rowKey="id"
+            size="small"
+            loading={isLoading || (isFetching && rows.length > 0)}
+            dataSource={rows}
+            columns={columns}
+            scroll={{ x: isMobile ? 660 : 720 }}
+            pagination={buildPagination(pageSize, setPageSize, isMobile)}
+          />
+        </div>
       )}
     </Flex>
   );
@@ -464,26 +570,54 @@ const CenterAttendanceReports = ({
   autoRefreshMs,
   onAutoRefreshChange,
 }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { isMobile, isCompact } = useResponsiveFlags();
   const reportKey = `${homebaseId || 'none'}-${periodeId || 'all'}-${autoRefreshMs}`;
 
   return (
     <Card
       variant="borderless"
-      style={surfaceCardStyle}
-      styles={{ body: { padding: isMobile ? 16 : 20 } }}
+      style={{
+        ...surfaceCardStyle,
+        borderRadius: isMobile ? 18 : 24,
+        overflow: 'hidden',
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+      }}
+      styles={{
+        header: {
+          padding: isMobile ? '12px 14px' : '16px 20px',
+        },
+        body: {
+          padding: isMobile ? 12 : 20,
+          overflow: 'hidden',
+        },
+      }}
       title={
-        <Flex justify="space-between" align={isMobile ? 'stretch' : 'center'} vertical={isMobile} gap={12}>
-          <div>
-            <Text strong style={{ fontSize: 16 }}>
+        <Flex
+          justify="space-between"
+          align={isCompact ? 'stretch' : 'center'}
+          vertical={isCompact}
+          gap={12}
+          style={{ width: '100%', minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Text strong style={{ fontSize: isMobile ? 15 : 16, display: 'block' }}>
               Laporan Presensi
             </Text>
-            <div>
-              <Text type="secondary">Presensi harian siswa & guru (RFID / daily_attendance).</Text>
-            </div>
+            <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13, display: 'block' }}>
+              {isMobile
+                ? 'Presensi harian siswa & guru.'
+                : 'Presensi harian siswa & guru (RFID / daily_attendance).'}
+            </Text>
           </div>
-          <Flex vertical gap={4} style={{ minWidth: isMobile ? '100%' : 160 }}>
+          <Flex
+            vertical
+            gap={4}
+            style={{
+              width: isCompact ? '100%' : 160,
+              minWidth: 0,
+              flexShrink: 0,
+            }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
               Update otomatis
             </Text>
@@ -506,10 +640,13 @@ const CenterAttendanceReports = ({
         <Tabs
           key={reportKey}
           defaultActiveKey="students"
+          size={isMobile ? 'small' : 'middle'}
+          tabBarGutter={isMobile ? 12 : 24}
+          style={{ width: '100%', minWidth: 0 }}
           items={[
             {
               key: 'students',
-              label: 'Presensi Siswa',
+              label: isMobile ? 'Siswa' : 'Presensi Siswa',
               children: (
                 <StudentAttendancePanel
                   homebaseId={homebaseId}
@@ -520,7 +657,7 @@ const CenterAttendanceReports = ({
             },
             {
               key: 'teachers',
-              label: 'Presensi Guru',
+              label: isMobile ? 'Guru' : 'Presensi Guru',
               children: (
                 <TeacherAttendancePanel
                   homebaseId={homebaseId}

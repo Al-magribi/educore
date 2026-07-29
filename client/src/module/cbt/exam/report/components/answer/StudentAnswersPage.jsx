@@ -306,6 +306,7 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
           type='primary'
           loading={item.finalizeState === "saving"}
           onClick={() => item.onFinalizeReview?.(item.id)}
+          block={isMobile}
         >
           {reviewStatus === "finalized"
             ? "Finalisasi Ulang"
@@ -521,11 +522,12 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                 {rubricSaveState === "error" && (
                   <Tag color='red'>Gagal simpan rubric</Tag>
                 )}
-                <Flex justify='flex-end'>
+                <Flex justify={isMobile ? "stretch" : "flex-end"}>
                   <Button
                     type='primary'
                     loading={item.finalizeState === "saving"}
                     onClick={() => item.onFinalizeReview?.(item.id)}
+                    block={isMobile}
                   >
                     {reviewStatus === "finalized"
                       ? "Finalisasi Ulang"

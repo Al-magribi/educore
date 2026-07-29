@@ -4,6 +4,7 @@ import { authorize } from "../../middleware/authorize.js";
 import path from "path";
 import fs from "fs";
 import { spawn } from "cross-spawn";
+import archiver from "archiver";
 
 const router = Router();
 const SYSTEM_SCHEMAS = ["information_schema", "pg_catalog"];
@@ -437,6 +438,47 @@ router.delete(
       }
     } catch (error) {
       res.status(500).json({ message: error.message });
+    }
+  },
+);
+
+// Download Folder Backup sebagai ZIP
+router.get(
+  "/download-backup/:filename",
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const { filename } = req.params;
+      const backupDir = getBackupDirectory(filename);
+      validateBackupDirectory(backupDir);
+
+      const zipName = `${filename}.zip`;
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${zipName}"`,
+      );
+      res.setHeader("Cache-Control", "no-store");
+
+      const archive = archiver("zip", { zlib: { level: 6 } });
+
+      archive.on("error", (error) => {
+        console.error(`[DOWNLOAD BACKUP ERROR] ${error.message}`);
+        if (!res.headersSent) {
+          res.status(500).json({ message: error.message });
+        } else {
+          res.destroy(error);
+        }
+      });
+
+      archive.pipe(res);
+      archive.directory(backupDir, filename);
+      await archive.finalize();
+    } catch (error) {
+      console.error(`[DOWNLOAD BACKUP ERROR] ${error.message}`);
+      if (!res.headersSent) {
+        res.status(500).json({ message: error.message });
+      }
     }
   },
 );
