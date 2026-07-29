@@ -2,6 +2,8 @@ import { memo, useMemo, useState } from "react";
 import {
   Col,
   DatePicker,
+  Flex,
+  Grid,
   Modal,
   Row,
   Segmented,
@@ -36,73 +38,9 @@ const summaryBoxStyle = {
   padding: "10px 14px",
 };
 
-const columns = [
-  {
-    title: "Tanggal",
-    dataIndex: "transaction_date",
-    key: "transaction_date",
-    width: 130,
-    render: (value) => formatSavingDate(value),
-  },
-  {
-    title: "Periode",
-    dataIndex: "periode_name",
-    key: "periode_name",
-    width: 130,
-    render: (value, record) => (
-      <Space orientation='vertical' size={0}>
-        <Text>{value || "-"}</Text>
-        <Text type='secondary' style={{ fontSize: 12 }}>
-          {record.class_name || "-"}
-        </Text>
-      </Space>
-    ),
-  },
-  {
-    title: "Jenis",
-    dataIndex: "transaction_type",
-    key: "transaction_type",
-    width: 120,
-    render: (value) => (
-      <Tag color={transactionTypeMeta[value]?.color || "default"}>
-        {transactionTypeMeta[value]?.label || value}
-      </Tag>
-    ),
-  },
-  {
-    title: "Nominal",
-    dataIndex: "amount",
-    key: "amount",
-    width: 160,
-    render: (value, record) => (
-      <Text
-        strong
-        style={{
-          color:
-            record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
-        }}
-      >
-        {record.transaction_type === "withdrawal" ? "- " : "+ "}
-        {currencyFormatter.format(Number(value || 0))}
-      </Text>
-    ),
-  },
-  {
-    title: "Keterangan",
-    dataIndex: "description",
-    key: "description",
-    render: (value) => value || "-",
-  },
-  {
-    title: "Diproses Oleh",
-    dataIndex: "processed_by_name",
-    key: "processed_by_name",
-    width: 170,
-    render: (value) => value || "-",
-  },
-];
-
 const SavingStudentDetailModal = ({ open, student, onClose }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [typeFilter, setTypeFilter] = useState("all");
   const [dateRange, setDateRange] = useState(null);
 
@@ -157,20 +95,148 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
     onClose();
   };
 
+  const desktopColumns = [
+    {
+      title: "Tanggal",
+      dataIndex: "transaction_date",
+      key: "transaction_date",
+      width: 130,
+      render: (value) => formatSavingDate(value),
+    },
+    {
+      title: "Periode",
+      dataIndex: "periode_name",
+      key: "periode_name",
+      width: 130,
+      render: (value, record) => (
+        <Space orientation='vertical' size={0}>
+          <Text>{value || "-"}</Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.class_name || "-"}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Jenis",
+      dataIndex: "transaction_type",
+      key: "transaction_type",
+      width: 120,
+      render: (value) => (
+        <Tag color={transactionTypeMeta[value]?.color || "default"}>
+          {transactionTypeMeta[value]?.label || value}
+        </Tag>
+      ),
+    },
+    {
+      title: "Nominal",
+      dataIndex: "amount",
+      key: "amount",
+      width: 160,
+      render: (value, record) => (
+        <Text
+          strong
+          style={{
+            color:
+              record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
+          }}
+        >
+          {record.transaction_type === "withdrawal" ? "- " : "+ "}
+          {currencyFormatter.format(Number(value || 0))}
+        </Text>
+      ),
+    },
+    {
+      title: "Keterangan",
+      dataIndex: "description",
+      key: "description",
+      render: (value) => value || "-",
+    },
+    {
+      title: "Diproses Oleh",
+      dataIndex: "processed_by_name",
+      key: "processed_by_name",
+      width: 170,
+      render: (value) => value || "-",
+    },
+  ];
+
+  const mobileColumns = [
+    {
+      title: "Transaksi",
+      key: "transaction",
+      render: (_, record) => (
+        <Flex vertical gap={6} style={{ width: "100%" }}>
+          <Flex justify='space-between' align='flex-start' gap={8}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Text strong style={{ display: "block" }}>
+                {formatSavingDate(record.transaction_date)}
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                {record.periode_name || "-"} · {record.class_name || "-"}
+              </Text>
+            </div>
+            <Tag
+              color={
+                transactionTypeMeta[record.transaction_type]?.color || "default"
+              }
+              style={{ margin: 0 }}
+            >
+              {transactionTypeMeta[record.transaction_type]?.label ||
+                record.transaction_type}
+            </Tag>
+          </Flex>
+          <Text
+            strong
+            style={{
+              color:
+                record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
+            }}
+          >
+            {record.transaction_type === "withdrawal" ? "- " : "+ "}
+            {currencyFormatter.format(Number(record.amount || 0))}
+          </Text>
+          {record.description ? (
+            <Text type='secondary' style={{ fontSize: 12, wordBreak: "break-word" }}>
+              {record.description}
+            </Text>
+          ) : null}
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            Oleh: {record.processed_by_name || "-"}
+          </Text>
+        </Flex>
+      ),
+    },
+  ];
+
   return (
     <Modal
       open={open}
       onCancel={handleClose}
       footer={null}
-      width={860}
+      width={isMobile ? "calc(100vw - 24px)" : 860}
       destroyOnHidden
       centered
+      styles={{
+        body: {
+          maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
+          overflowY: isMobile ? "auto" : undefined,
+          padding: isMobile ? 12 : undefined,
+        },
+      }}
       title={
-        <Space orientation='vertical' size={0}>
-          <Title level={5} style={{ margin: 0 }}>
+        <Space orientation='vertical' size={0} style={{ maxWidth: "100%" }}>
+          <Title level={5} style={{ margin: 0, fontSize: isMobile ? 15 : undefined }}>
             Riwayat Transaksi Tabungan
           </Title>
-          <Text type='secondary' style={{ fontWeight: 400 }}>
+          <Text
+            type='secondary'
+            style={{
+              fontWeight: 400,
+              fontSize: isMobile ? 12 : 14,
+              wordBreak: "break-word",
+            }}
+          >
             {student?.student_name || "-"} | {student?.nis || "-"} |{" "}
             {student?.class_name || "-"}
           </Text>
@@ -178,15 +244,19 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
       }
     >
       <Space orientation='vertical' size={16} style={{ width: "100%" }}>
-        <Space
+        <Flex
           wrap
-          size={[12, 12]}
-          style={{ width: "100%", justifyContent: "space-between" }}
+          gap={12}
+          justify='space-between'
+          vertical={isMobile}
+          style={{ width: "100%" }}
         >
           <Segmented
             options={typeFilterOptions}
             value={typeFilter}
             onChange={setTypeFilter}
+            block={isMobile}
+            size={isMobile ? "small" : "middle"}
           />
           <RangePicker
             value={dateRange}
@@ -194,14 +264,15 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
             format='DD MMM YYYY'
             placeholder={["Tanggal awal", "Tanggal akhir"]}
             allowClear
+            style={{ width: isMobile ? "100%" : undefined }}
           />
-        </Space>
+        </Flex>
 
         <Row gutter={[12, 12]}>
           <Col xs={24} sm={8}>
             <div style={summaryBoxStyle}>
               <Text type='secondary'>Saldo Saat Ini</Text>
-              <div style={{ fontWeight: 700, marginTop: 2 }}>
+              <div style={{ fontWeight: 700, marginTop: 2, wordBreak: "break-word" }}>
                 {currencyFormatter.format(Number(student?.balance || 0))}
               </div>
             </div>
@@ -209,7 +280,14 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
           <Col xs={24} sm={8}>
             <div style={summaryBoxStyle}>
               <Text type='secondary'>Setoran (filter aktif)</Text>
-              <div style={{ fontWeight: 700, marginTop: 2, color: "#059669" }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginTop: 2,
+                  color: "#059669",
+                  wordBreak: "break-word",
+                }}
+              >
                 {currencyFormatter.format(filteredSummary.totalDeposit)}
               </div>
             </div>
@@ -217,7 +295,14 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
           <Col xs={24} sm={8}>
             <div style={summaryBoxStyle}>
               <Text type='secondary'>Penarikan (filter aktif)</Text>
-              <div style={{ fontWeight: 700, marginTop: 2, color: "#d97706" }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginTop: 2,
+                  color: "#d97706",
+                  wordBreak: "break-word",
+                }}
+              >
                 {currencyFormatter.format(filteredSummary.totalWithdrawal)}
               </div>
             </div>
@@ -226,11 +311,15 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
 
         <Table
           rowKey='transaction_id'
-          columns={columns}
+          columns={isMobile ? mobileColumns : desktopColumns}
           dataSource={filteredTransactions}
           loading={isFetching}
-          pagination={{ pageSize: 8, showSizeChanger: false }}
-          scroll={{ x: 720 }}
+          pagination={{
+            pageSize: isMobile ? 6 : 8,
+            showSizeChanger: false,
+            size: isMobile ? "small" : "default",
+          }}
+          scroll={isMobile ? undefined : { x: 720 }}
           size='small'
           locale={{
             emptyText: "Tidak ada transaksi yang sesuai dengan filter.",

@@ -1,4 +1,4 @@
-import { Card, Col, Flex, Row, Tooltip, Typography } from "antd";
+import { Card, Col, Flex, Grid, Row, Tooltip, Typography } from "antd";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -6,6 +6,7 @@ import {
   CircleDollarSign,
   Coins,
   CreditCard,
+  Gift,
   Info,
   Wallet,
 } from "lucide-react";
@@ -16,6 +17,9 @@ const { Text } = Typography;
 const MotionDiv = motion.div;
 
 const OthersSummaryCards = ({ summary }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
   const items = [
     {
       title: "Total Tagihan",
@@ -54,13 +58,22 @@ const OthersSummaryCards = ({ summary }) => {
       color: "#15803d",
     },
     {
-      title: "Total Nominal",
+      title: "Total Netto",
       value: summary.total_due || 0,
       formatter: (value) => currencyFormatter.format(Number(value || 0)),
-      note: "Akumulasi nominal yang ditagihkan",
+      note: `Bruto ${currencyFormatter.format(Number(summary.total_bruto || 0))}`,
       icon: <Wallet size={18} />,
       bg: "linear-gradient(135deg, #e0f2fe, #ecfeff)",
       color: "#0369a1",
+    },
+    {
+      title: "Cover Beasiswa",
+      value: summary.total_scholarship_cover || 0,
+      formatter: (value) => currencyFormatter.format(Number(value || 0)),
+      note: "Potongan beasiswa (bukan kas masuk)",
+      icon: <Gift size={18} />,
+      bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
+      color: "#1d4ed8",
     },
     {
       title: "Sudah Dibayar",
@@ -74,27 +87,28 @@ const OthersSummaryCards = ({ summary }) => {
   ];
 
   return (
-    <Row gutter={[16, 16]}>
+    <Row gutter={[12, 12]}>
       {items.map((item, index) => (
-        <Col xs={24} md={12} xl={8} key={item.title}>
+        <Col xs={24} sm={12} xl={8} key={item.title}>
           <MotionDiv
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.04 }}
-            whileHover={{ y: -4 }}
+            whileHover={isMobile ? undefined : { y: -4 }}
           >
             <Card
               style={{
                 ...cardStyle,
+                borderRadius: isMobile ? 18 : 24,
                 background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
               }}
-              styles={{ body: { padding: 20 } }}
+              styles={{ body: { padding: isMobile ? 14 : 20 } }}
             >
-              <Flex align='center' gap={14}>
+              <Flex align='center' gap={isMobile ? 10 : 14}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
+                    width: isMobile ? 40 : 44,
+                    height: isMobile ? 40 : 44,
                     display: "grid",
                     placeItems: "center",
                     borderRadius: 16,
@@ -107,7 +121,9 @@ const OthersSummaryCards = ({ summary }) => {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Flex align='center' gap={6}>
-                    <Text type='secondary'>{item.title}</Text>
+                    <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                      {item.title}
+                    </Text>
                     <Tooltip title={item.note}>
                       <Info
                         size={14}
@@ -119,10 +135,11 @@ const OthersSummaryCards = ({ summary }) => {
                   <div
                     style={{
                       marginTop: 4,
-                      fontSize: 26,
+                      fontSize: isMobile ? 20 : 26,
                       fontWeight: 700,
                       color: "#0f172a",
                       lineHeight: 1.2,
+                      wordBreak: "break-word",
                     }}
                   >
                     {item.formatter(item.value)}

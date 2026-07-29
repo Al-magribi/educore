@@ -97,6 +97,7 @@ const FinanceDashPage = () => {
   const summary = data?.summary || {};
   const spp = data?.spp || {};
   const others = data?.others || {};
+  const scholarship = data?.scholarship || {};
   const savings = data?.savings || {};
   const classCash = data?.class_cash || {};
   const priorities = data?.priorities || [];
@@ -110,13 +111,19 @@ const FinanceDashPage = () => {
       key: "revenue",
       title: "Pendapatan Sekolah",
       value: summary.school_revenue,
-      note: "SPP dan pembayaran lainnya pada periode aktif.",
+      note: "Kas masuk SPP + pembayaran lainnya (periode aktif).",
     },
     {
       key: "spp",
       title: "SPP Terkumpul",
       value: summary.spp_collected,
-      note: `${spp.paid_students_current_month || 0} siswa lunas ${meta.current_month_label || "bulan ini"}.`,
+      note: `${spp.paid_students_current_month || 0} siswa lunas ${meta.current_month_label || "bulan ini"} (target netto).`,
+    },
+    {
+      key: "scholarship",
+      title: "Cover Beasiswa",
+      value: scholarship.total_cover,
+      note: `SPP ${meta.current_month_label || "bulan ini"} + pembayaran lainnya (bukan kas).`,
     },
     {
       key: "savings",

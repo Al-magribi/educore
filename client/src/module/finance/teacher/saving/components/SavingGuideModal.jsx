@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Button, Card, Modal, Space, Tag, Typography } from "antd";
+import { Button, Card, Grid, Modal, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
 import {
   ArrowDownCircle,
@@ -69,118 +69,139 @@ const guideRules = [
   "Setiap perubahan transaksi langsung menghitung ulang saldo siswa.",
 ];
 
-const SavingGuideModal = ({ open, onClose }) => (
-  <Modal
-    open={open}
-    onCancel={onClose}
-    footer={
-      <Button
-        type="primary"
-        onClick={onClose}
-        size="large"
-        style={{ borderRadius: 999, fontWeight: 600, paddingInline: 28 }}
-      >
-        Mengerti
-      </Button>
-    }
-    width="min(720px, calc(100vw - 24px))"
-    closable={false}
-    centered
-    title={null}
-    styles={{
-      body: { padding: 0, background: "#f8fafc" },
-      content: { padding: 0, overflow: "hidden", borderRadius: 24 },
-      footer: {
-        display: "flex",
-        justifyContent: "flex-end",
-        padding: "12px 24px 20px",
-        background: "#f8fafc",
-        margin: 0,
-      },
-    }}
-    modalRender={(node) => (
-      <MotionDiv
-        initial={{ opacity: 0, y: 16, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.22, ease: "easeOut" }}
-        style={{ borderRadius: 24, overflow: "hidden" }}
-      >
-        {node}
-      </MotionDiv>
-    )}
-  >
-    <div
-      style={{
-        padding: "28px 24px",
-        background:
-          "radial-gradient(circle at top left, rgba(16,185,129,0.25), transparent 32%), linear-gradient(135deg, #0f172a, #166534 62%, #0f766e)",
+const SavingGuideModal = ({ open, onClose }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      footer={
+        <Button
+          type='primary'
+          onClick={onClose}
+          size='large'
+          block={isMobile}
+          style={{ borderRadius: 999, fontWeight: 600, paddingInline: 28 }}
+        >
+          Mengerti
+        </Button>
+      }
+      width={isMobile ? "calc(100vw - 24px)" : "min(720px, calc(100vw - 24px))"}
+      closable={false}
+      centered
+      title={null}
+      styles={{
+        body: {
+          padding: 0,
+          background: "#f8fafc",
+          maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
+          overflowY: isMobile ? "auto" : undefined,
+        },
+        content: {
+          padding: 0,
+          overflow: "hidden",
+          borderRadius: isMobile ? 18 : 24,
+        },
+        footer: {
+          display: "flex",
+          justifyContent: isMobile ? "stretch" : "flex-end",
+          padding: isMobile ? "12px 16px 16px" : "12px 24px 20px",
+          background: "#f8fafc",
+          margin: 0,
+        },
       }}
+      modalRender={(node) => (
+        <MotionDiv
+          initial={{ opacity: 0, y: 16, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          style={{ borderRadius: isMobile ? 18 : 24, overflow: "hidden" }}
+        >
+          {node}
+        </MotionDiv>
+      )}
     >
-      <Space orientation="vertical" size={8}>
-        <Space align="center" size={10}>
-          <div
+      <div
+        style={{
+          padding: isMobile ? "20px 16px" : "28px 24px",
+          background:
+            "radial-gradient(circle at top left, rgba(16,185,129,0.25), transparent 32%), linear-gradient(135deg, #0f172a, #166534 62%, #0f766e)",
+        }}
+      >
+        <Space orientation='vertical' size={8}>
+          <Space align='center' size={10}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(255,255,255,0.14)",
+              }}
+            >
+              <BookOpen size={20} color='#f8fafc' />
+            </div>
+            <Tag
+              color='green'
+              style={{ borderRadius: 999, paddingInline: 12, fontWeight: 600, margin: 0 }}
+            >
+              Panduan Operasional
+            </Tag>
+          </Space>
+          <Title
+            level={isMobile ? 5 : 4}
+            style={{ margin: 0, color: "#f8fafc", lineHeight: 1.3 }}
+          >
+            Panduan Mencatat Tabungan Siswa
+          </Title>
+          <Text
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 14,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(255,255,255,0.14)",
+              color: "rgba(226,232,240,0.85)",
+              fontSize: isMobile ? 13 : 14,
             }}
           >
-            <BookOpen size={20} color="#f8fafc" />
-          </div>
-          <Tag
-            color="green"
-            style={{ borderRadius: 999, paddingInline: 12, fontWeight: 600 }}
-          >
-            Panduan Operasional
-          </Tag>
+            Ikuti alur berikut agar setoran dan penarikan tercatat rapi serta
+            mudah dilacak lintas periode.
+          </Text>
         </Space>
-        <Title level={4} style={{ margin: 0, color: "#f8fafc" }}>
-          Panduan Mencatat Tabungan Siswa
-        </Title>
-        <Text style={{ color: "rgba(226,232,240,0.85)" }}>
-          Ikuti alur berikut agar setoran dan penarikan tercatat rapi serta
-          mudah dilacak lintas periode.
-        </Text>
-      </Space>
-    </div>
+      </div>
 
-    <div style={{ padding: "20px 24px 8px" }}>
-      <Space orientation="vertical" size={12} style={{ width: "100%" }}>
-        {guideSteps.map((step, index) => {
-          const Icon = step.icon;
+      <div style={{ padding: isMobile ? "14px 16px 8px" : "20px 24px 8px" }}>
+        <Space orientation='vertical' size={12} style={{ width: "100%" }}>
+          {guideSteps.map((step, index) => {
+            const Icon = step.icon;
 
-          return (
-            <Card
-              key={step.key}
-              variant="borderless"
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(148, 163, 184, 0.18)",
-                boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
-              }}
-              styles={{ body: { padding: 16 } }}
-            >
-              <Space align="start" size={14} style={{ width: "100%" }}>
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 14,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: step.background,
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon size={20} color={step.color} />
-                </div>
-                <Space orientation="vertical" size={2}>
-                  <Space size={8} align="center">
+            return (
+              <Card
+                key={step.key}
+                variant='borderless'
+                style={{
+                  borderRadius: 18,
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
+                }}
+                styles={{ body: { padding: isMobile ? 12 : 16 } }}
+              >
+                <Space align='start' size={14} style={{ width: "100%" }}>
+                  <div
+                    style={{
+                      width: isMobile ? 40 : 44,
+                      height: isMobile ? 40 : 44,
+                      borderRadius: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: step.background,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon size={20} color={step.color} />
+                  </div>
+                  <Space orientation='vertical' size={2} style={{ minWidth: 0 }}>
                     <Text
                       strong
                       style={{
@@ -191,54 +212,58 @@ const SavingGuideModal = ({ open, onClose }) => (
                     >
                       LANGKAH {index + 1}
                     </Text>
+                    <Text strong style={{ fontSize: isMobile ? 14 : 15 }}>
+                      {step.title}
+                    </Text>
+                    <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                      {step.description}
+                    </Text>
                   </Space>
-                  <Text strong style={{ fontSize: 15 }}>
-                    {step.title}
-                  </Text>
-                  <Text type="secondary">{step.description}</Text>
                 </Space>
-              </Space>
-            </Card>
-          );
-        })}
+              </Card>
+            );
+          })}
 
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: 18,
-            background:
-              "linear-gradient(135deg, rgba(5,150,105,0.08), rgba(14,165,233,0.06))",
-            border: "1px solid rgba(5, 150, 105, 0.18)",
-          }}
-          styles={{ body: { padding: 16 } }}
-        >
-          <Space orientation="vertical" size={10} style={{ width: "100%" }}>
-            <Space align="center" size={8}>
-              <ShieldCheck size={18} color="#059669" />
-              <Text strong style={{ color: "#065f46" }}>
-                Ketentuan Penting
-              </Text>
-            </Space>
-            {guideRules.map((rule) => (
-              <Space key={rule} align="start" size={8}>
-                <div
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: "#059669",
-                    marginTop: 8,
-                    flexShrink: 0,
-                  }}
-                />
-                <Text style={{ color: "#334155" }}>{rule}</Text>
+          <Card
+            variant='borderless'
+            style={{
+              borderRadius: 18,
+              background:
+                "linear-gradient(135deg, rgba(5,150,105,0.08), rgba(14,165,233,0.06))",
+              border: "1px solid rgba(5, 150, 105, 0.18)",
+            }}
+            styles={{ body: { padding: isMobile ? 12 : 16 } }}
+          >
+            <Space orientation='vertical' size={10} style={{ width: "100%" }}>
+              <Space align='center' size={8}>
+                <ShieldCheck size={18} color='#059669' />
+                <Text strong style={{ color: "#065f46" }}>
+                  Ketentuan Penting
+                </Text>
               </Space>
-            ))}
-          </Space>
-        </Card>
-      </Space>
-    </div>
-  </Modal>
-);
+              {guideRules.map((rule) => (
+                <Space key={rule} align='start' size={8}>
+                  <div
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: "#059669",
+                      marginTop: 8,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Text style={{ color: "#334155", fontSize: isMobile ? 13 : 14 }}>
+                    {rule}
+                  </Text>
+                </Space>
+              ))}
+            </Space>
+          </Card>
+        </Space>
+      </div>
+    </Modal>
+  );
+};
 
 export default memo(SavingGuideModal);

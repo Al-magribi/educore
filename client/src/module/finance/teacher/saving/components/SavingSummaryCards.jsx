@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Card, Col, Row, Tooltip, Typography } from "antd";
+import { Card, Col, Flex, Grid, Row, Tooltip, Typography } from "antd";
 import { Info, PiggyBank, Users, WalletCards } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -49,86 +49,90 @@ const items = [
   },
 ];
 
-const SavingSummaryCards = ({ summary }) => (
-  <Row gutter={[16, 16]}>
-    {items.map((item, index) => {
-      const Icon = item.icon;
-      const value = summary?.[item.dataKey] || 0;
+const SavingSummaryCards = ({ summary }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
-      return (
-        <Col xs={24} sm={12} xl={6} key={item.key}>
-          <MotionDiv
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, delay: index * 0.04 }}
-            whileHover={{ y: -4 }}
-          >
-            <Card
-              variant="borderless"
-              style={{ ...cardStyle, background: item.tone }}
-              styles={{ body: { padding: 16 } }}
+  return (
+    <Row gutter={[12, 12]}>
+      {items.map((item, index) => {
+        const Icon = item.icon;
+        const value = summary?.[item.dataKey] || 0;
+
+        return (
+          <Col xs={24} sm={12} xl={6} key={item.key}>
+            <MotionDiv
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: index * 0.04 }}
+              whileHover={isMobile ? undefined : { y: -4 }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 14,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(255,255,255,0.78)",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon size={20} color={item.color} />
-                </div>
-
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 6 }}
-                  >
-                    <Text
-                      style={{
-                        color: "#475569",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        letterSpacing: 0.3,
-                        textTransform: "uppercase",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {item.title}
-                    </Text>
-                    <Tooltip title={item.tooltip}>
-                      <Info
-                        size={13}
-                        color="#94a3b8"
-                        style={{ cursor: "help", flexShrink: 0 }}
-                      />
-                    </Tooltip>
-                  </div>
+              <Card
+                variant='borderless'
+                style={{
+                  ...cardStyle,
+                  borderRadius: isMobile ? 18 : undefined,
+                  background: item.tone,
+                }}
+                styles={{ body: { padding: isMobile ? 14 : 16 } }}
+              >
+                <Flex align='center' gap={isMobile ? 10 : 14}>
                   <div
                     style={{
-                      fontSize: 22,
-                      fontWeight: 700,
-                      color: item.color,
-                      lineHeight: 1.3,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      width: isMobile ? 40 : 46,
+                      height: isMobile ? 40 : 46,
+                      borderRadius: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(255,255,255,0.78)",
+                      flexShrink: 0,
                     }}
                   >
-                    {item.formatter ? item.formatter(value) : value}
+                    <Icon size={20} color={item.color} />
                   </div>
-                </div>
-              </div>
-            </Card>
-          </MotionDiv>
-        </Col>
-      );
-    })}
-  </Row>
-);
+
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <Flex align='center' gap={6}>
+                      <Text
+                        style={{
+                          color: "#475569",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          letterSpacing: 0.3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {item.title}
+                      </Text>
+                      <Tooltip title={item.tooltip}>
+                        <Info
+                          size={13}
+                          color='#94a3b8'
+                          style={{ cursor: "help", flexShrink: 0 }}
+                        />
+                      </Tooltip>
+                    </Flex>
+                    <div
+                      style={{
+                        fontSize: isMobile ? 18 : 22,
+                        fontWeight: 700,
+                        color: item.color,
+                        lineHeight: 1.3,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {item.formatter ? item.formatter(value) : value}
+                    </div>
+                  </div>
+                </Flex>
+              </Card>
+            </MotionDiv>
+          </Col>
+        );
+      })}
+    </Row>
+  );
+};
 
 export default memo(SavingSummaryCards);

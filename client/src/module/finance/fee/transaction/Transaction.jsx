@@ -7,7 +7,9 @@ import {
   Button,
   Card,
   Descriptions,
+  Flex,
   Form,
+  Grid,
   Image,
   Input,
   Modal,
@@ -84,6 +86,8 @@ const getPrimaryInvoice = (record) =>
 
 const Transaction = () => {
   const { user } = useSelector((state) => state.auth);
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialInvoiceId = Number(searchParams.get("invoice") || 0) || null;
   const [form] = Form.useForm();
@@ -443,7 +447,26 @@ const Transaction = () => {
     [otherPaymentSelections, wizardOtherCharges],
   );
 
-  const totalMonthlyAmount = tariffAmount * monthlySelection.length;
+  const monthAmountMap = Object.fromEntries(
+    unpaidMonths.map((month) => [
+      Number(month.value),
+      Number(
+        month.amount_due != null
+          ? month.amount_due
+          : options.spp?.tariff_amount || 0,
+      ),
+    ]),
+  );
+  const totalMonthlyAmount = monthlySelection.reduce(
+    (sum, month) =>
+      sum +
+      Number(
+        monthAmountMap[Number(month)] ??
+          options.spp?.tariff_amount ??
+          0,
+      ),
+    0,
+  );
   const selectedOtherTotal = selectedOtherPayments.reduce(
     (sum, item) => sum + Number(item.amount_paid || 0),
     0,
@@ -715,9 +738,13 @@ const Transaction = () => {
       variants={containerVariants}
       initial='hidden'
       animate='visible'
-      style={{ width: "100%" }}
+      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
     >
-      <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
+      <Space
+        vertical
+        size={isMobile ? 16 : 24}
+        style={{ width: "100%", display: "flex" }}
+      >
         {isInvoiceOpen ? (
           <MotionDiv key='invoice-panel' {...branchMotionProps}>
             <TransactionInvoicePanel
@@ -869,9 +896,16 @@ const Transaction = () => {
                 ? "Review Penolakan Pembayaran"
                 : "Review Revoke Pembayaran"
           }
-          width={760}
+          width={isMobile ? "calc(100vw - 24px)" : 760}
           destroyOnHidden
           centered
+          styles={{
+            body: {
+              maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
+              overflowY: isMobile ? "auto" : undefined,
+              padding: isMobile ? 16 : undefined,
+            },
+          }}
         >
           {!confirmationState.record ? null : (
             <Space vertical size={16} style={{ width: "100%" }}>
@@ -906,7 +940,10 @@ const Transaction = () => {
                 <Descriptions
                   column={1}
                   size='small'
-                  labelStyle={{ width: 180, fontWeight: 700 }}
+                  labelStyle={{
+                    width: isMobile ? 110 : 180,
+                    fontWeight: 700,
+                  }}
                 >
                   <Descriptions.Item label='Siswa'>
                     {confirmationState.record.student_name || "-"}
@@ -969,13 +1006,18 @@ const Transaction = () => {
                     <Image
                       src={confirmationState.record.proof_url}
                       alt='Bukti transfer'
-                      style={{ maxHeight: 320, objectFit: "contain" }}
+                      style={{
+                        maxHeight: isMobile ? 220 : 320,
+                        maxWidth: "100%",
+                        objectFit: "contain",
+                      }}
                     />
                   ) : (
                     <Button
                       href={confirmationState.record.proof_url}
                       target='_blank'
                       rel='noreferrer'
+                      block={isMobile}
                     >
                       Buka Bukti Transfer
                     </Button>
@@ -1005,13 +1047,22 @@ const Transaction = () => {
                 </div>
               ) : null}
 
-              <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-                <Button onClick={closeConfirmationModal}>Batal</Button>
+              <Flex
+                justify='flex-end'
+                gap={8}
+                wrap='wrap'
+                vertical={isMobile}
+                style={{ width: "100%" }}
+              >
+                <Button onClick={closeConfirmationModal} block={isMobile}>
+                  Batal
+                </Button>
                 <Button
                   type='primary'
                   danger={confirmationState.action === "reject"}
                   loading={isConfirmingTransaction}
                   onClick={handleConfirmTransaction}
+                  block={isMobile}
                 >
                   {confirmationState.action === "approve"
                     ? "Konfirmasi Pembayaran"
@@ -1019,7 +1070,7 @@ const Transaction = () => {
                       ? "Tolak Pembayaran"
                       : "Revoke Pembayaran"}
                 </Button>
-              </Space>
+              </Flex>
             </Space>
           )}
         </Modal>

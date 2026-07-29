@@ -18,6 +18,10 @@ import {
   createManualPayment,
   upsertInvoiceStatus,
   resolveOtherChargeRule,
+  insertInvoiceItemWithScholarship,
+  refreshInvoiceItemScholarship,
+  loadScholarshipBenefitIndex,
+  enrichDueWithScholarship,
 } from "./financeHelpers.js";
 
 const router = Router();
@@ -429,6 +433,16 @@ const getOrCreateOtherItem = async ({
   });
 
   if (existingItem) {
+    const refreshed = await refreshInvoiceItemScholarship(client, existingItem.id);
+    if (refreshed && !refreshed.skipped) {
+      return {
+        id: refreshed.id,
+        invoice_id: refreshed.invoice_id,
+        amount: refreshed.amount,
+        paid_amount: refreshed.paid_amount,
+      };
+    }
+
     return existingItem;
   }
 
@@ -441,31 +455,18 @@ const getOrCreateOtherItem = async ({
     notes: buildInvoiceNotesBySourceType("mixed"),
   });
 
-  const created = await client.query(
-    `
-      INSERT INTO finance.invoice_item (
-        invoice_id,
-        component_id,
-        fee_rule_id,
-        description,
-        qty,
-        unit_amount,
-        item_type,
-        reference_type
-      )
-      VALUES ($1, $2, $3, $4, 1, $5, 'other', 'manual_charge')
-      RETURNING id, invoice_id, amount, 0::numeric AS paid_amount
-    `,
-    [
-      invoice.id,
-      componentId,
-      rule.id,
-      rule.component_name,
-      Number(rule.amount || 0),
-    ],
-  );
-
-  return created.rows[0];
+  return insertInvoiceItemWithScholarship(client, {
+    invoiceId: invoice.id,
+    componentId,
+    feeRuleId: rule.id,
+    description: rule.component_name,
+    itemType: "other",
+    referenceType: "manual_charge",
+    homebaseId,
+    studentId,
+    periodeId,
+    brutoAmount: Number(rule.amount || 0),
+  });
 };
 
 const getOrCreateSppItem = async ({
@@ -487,6 +488,16 @@ const getOrCreateSppItem = async ({
   });
 
   if (existingItem) {
+    const refreshed = await refreshInvoiceItemScholarship(client, existingItem.id);
+    if (refreshed && !refreshed.skipped) {
+      return {
+        id: refreshed.id,
+        invoice_id: refreshed.invoice_id,
+        amount: refreshed.amount,
+        paid_amount: refreshed.paid_amount,
+      };
+    }
+
     return existingItem;
   }
 
@@ -500,34 +511,20 @@ const getOrCreateSppItem = async ({
     reuseExisting: false,
   });
 
-  const created = await client.query(
-    `
-      INSERT INTO finance.invoice_item (
-        invoice_id,
-        component_id,
-        fee_rule_id,
-        bill_year,
-        bill_month,
-        description,
-        qty,
-        unit_amount,
-        item_type,
-        reference_type
-      )
-      VALUES ($1, $2, $3, EXTRACT(YEAR FROM CURRENT_DATE)::smallint, $4, $5, 1, $6, 'spp', 'monthly_rule')
-      RETURNING id, invoice_id, amount, 0::numeric AS paid_amount
-    `,
-    [
-      invoice.id,
-      rule.component_id,
-      rule.id,
-      billMonth,
-      `SPP ${formatBillingPeriod(billMonth)}`,
-      Number(rule.amount || 0),
-    ],
-  );
-
-  return created.rows[0];
+  return insertInvoiceItemWithScholarship(client, {
+    invoiceId: invoice.id,
+    componentId: rule.component_id,
+    feeRuleId: rule.id,
+    billYear: new Date().getFullYear(),
+    billMonth,
+    description: `SPP ${formatBillingPeriod(billMonth)}`,
+    itemType: "spp",
+    referenceType: "monthly_rule",
+    homebaseId,
+    studentId,
+    periodeId,
+    brutoAmount: Number(rule.amount || 0),
+  });
 };
 
 const buildInvoiceNotesBySourceType = (sourceType) => {
@@ -705,6 +702,8 @@ router.get(
                   ii.id AS invoice_item_id,
                   ii.bill_month,
                   ii.amount,
+                  ii.bruto_amount,
+                  ii.scholarship_cover,
                   COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
                 FROM finance.invoice inv
                 JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
@@ -716,14 +715,13 @@ router.get(
                   AND (inv.periode_id = $3 OR inv.periode_id IS NULL)
                 GROUP BY ii.id
               )
-              SELECT ARRAY_REMOVE(
-                ARRAY_AGG(DISTINCT item.bill_month ORDER BY item.bill_month)
-                  FILTER (
-                    WHERE COALESCE(item.paid_amount, 0) >= item.amount
-                      AND item.bill_month IS NOT NULL
-                  ),
-                NULL
-              ) AS paid_months
+              SELECT
+                item.bill_month,
+                item.invoice_item_id,
+                item.amount,
+                item.bruto_amount,
+                item.scholarship_cover,
+                item.paid_amount
               FROM item_scope item
             `,
             [homebaseId, studentId, effectivePeriodeId],
@@ -802,6 +800,8 @@ router.get(
                   ii.invoice_id,
                   ii.component_id,
                   ii.amount AS amount_due,
+                  ii.bruto_amount,
+                  ii.scholarship_cover,
                   ii.description,
                   COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
                 FROM finance.invoice inv
@@ -820,7 +820,10 @@ router.get(
                 ts.type_id,
                 ts.fee_rule_id,
                 es.student_id,
+                ts.amount AS tariff_amount,
                 COALESCE(item.amount_due, ts.amount) AS amount_due,
+                item.bruto_amount,
+                item.scholarship_cover,
                 COALESCE(item.description, ts.type_name) AS description,
                 ts.type_name,
                 es.student_name,
@@ -843,38 +846,98 @@ router.get(
         ]);
 
         const monthlyRow = monthlyRuleResult.rows[0] || null;
-        const paidMonths = new Set(
-          (paidMonthResult.rows[0]?.paid_months || [])
-            .map((item) => Number(item))
-            .filter((item) => item >= 1 && item <= 12),
+        const tariffAmount = Number(monthlyRow?.amount || 0);
+        const benefitIndex = await loadScholarshipBenefitIndex(db, homebaseId, [
+          studentId,
+        ]);
+        const sppItemByMonth = new Map(
+          paidMonthResult.rows.map((row) => [Number(row.bill_month), row]),
         );
 
-        monthlyContext = {
-          tariff_amount: Number(monthlyRow?.amount || 0),
-          unpaid_months:
-            Number(monthlyRow?.amount || 0) > 0
-              ? MONTH_NAMES.map((label, index) => ({
-                  value: index + 1,
+        const unpaidMonths =
+          tariffAmount > 0
+            ? MONTH_NAMES.map((label, index) => {
+                const month = index + 1;
+                const existing = sppItemByMonth.get(month) || null;
+                const paidAmount = Number(existing?.paid_amount || 0);
+                const enriched = enrichDueWithScholarship({
+                  benefitIndex,
+                  studentId,
+                  itemType: "spp",
+                  periodeId: effectivePeriodeId,
+                  billMonth: month,
+                  brutoAmount: tariffAmount,
+                  storedBruto: existing?.bruto_amount,
+                  storedCover: existing?.scholarship_cover,
+                  storedNetto: existing?.amount,
+                  hasInvoiceItem: Boolean(existing?.invoice_item_id),
+                });
+                const amountDue = Number(enriched.amount || 0);
+                const remaining = Math.max(amountDue - paidAmount, 0);
+
+                if (amountDue > 0 && paidAmount >= amountDue) {
+                  return null;
+                }
+
+                if (amountDue <= 0) {
+                  return null;
+                }
+
+                return {
+                  value: month,
                   label,
-                })).filter((item) => !paidMonths.has(item.value))
-              : [],
+                  bruto_amount: enriched.bruto_amount,
+                  scholarship_cover: enriched.scholarship_cover,
+                  has_scholarship: enriched.has_scholarship,
+                  amount_due: amountDue,
+                  paid_amount: paidAmount,
+                  remaining_amount: remaining,
+                };
+              }).filter(Boolean)
+            : [];
+
+        monthlyContext = {
+          tariff_amount: tariffAmount,
+          unpaid_months: unpaidMonths,
         };
 
         otherCharges = otherChargeResult.rows
           .map((item) => {
-            const amountDue = Number(item.amount_due || 0);
+            const tariff = Number(item.tariff_amount || 0);
+            const hasInvoiceItem = Boolean(item.charge_id);
+            const enriched = enrichDueWithScholarship({
+              benefitIndex,
+              studentId: item.student_id,
+              itemType: "other",
+              componentId: item.type_id,
+              periodeId: item.periode_id,
+              brutoAmount: tariff,
+              storedBruto: item.bruto_amount,
+              storedCover: item.scholarship_cover,
+              storedNetto: item.amount_due,
+              hasInvoiceItem,
+            });
+            const amountDue = Number(enriched.amount || 0);
             const paidAmount = Number(item.paid_amount || 0);
             return {
               charge_id: item.charge_id,
               type_id: item.type_id,
               type_name: item.type_name,
               fee_rule_id: item.fee_rule_id,
+              bruto_amount: enriched.bruto_amount,
+              scholarship_cover: enriched.scholarship_cover,
+              has_scholarship: enriched.has_scholarship,
               amount_due: amountDue,
               paid_amount: paidAmount,
               remaining_amount: Math.max(amountDue - paidAmount, 0),
               description: item.description,
               is_existing_charge: Boolean(item.charge_id),
-              status: paidAmount >= amountDue ? "paid" : paidAmount > 0 ? "partial" : "unpaid",
+              status:
+                amountDue <= 0 || paidAmount >= amountDue
+                  ? "paid"
+                  : paidAmount > 0
+                    ? "partial"
+                    : "unpaid",
             };
           })
           .filter((item) => item.remaining_amount > 0);

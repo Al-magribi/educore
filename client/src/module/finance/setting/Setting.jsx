@@ -381,15 +381,15 @@ const Setting = () => {
     return <LoadApp />;
   }
 
-  const createTabLabel = (label, icon, caption) => (
-    <Space size={10}>
+  const createTabLabel = (label, shortLabel, icon, caption) => (
+    <Flex align='center' gap={isMobile ? 8 : 10}>
       <span
         style={{
-          width: 34,
-          height: 34,
+          width: isMobile ? 28 : 34,
+          height: isMobile ? 28 : 34,
           display: "grid",
           placeItems: "center",
-          borderRadius: 12,
+          borderRadius: isMobile ? 10 : 12,
           background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
           color: "#0369a1",
           border: "1px solid rgba(148,163,184,0.14)",
@@ -398,13 +398,23 @@ const Setting = () => {
       >
         {icon}
       </span>
-      <div>
-        <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</div>
-        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
-          {caption}
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 600,
+            lineHeight: 1.2,
+            fontSize: isMobile ? 13 : 14,
+          }}
+        >
+          {isMobile ? shortLabel : label}
         </div>
+        {!isMobile ? (
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
+            {caption}
+          </div>
+        ) : null}
       </div>
-    </Space>
+    </Flex>
   );
 
   const tabItems = [
@@ -412,7 +422,8 @@ const Setting = () => {
       key: "profile",
       label: createTabLabel(
         "Petugas Invoice",
-        <FileBadge2 size={16} />,
+        "Petugas",
+        <FileBadge2 size={isMobile ? 14 : 16} />,
         "Profil penandatangan",
       ),
       children: (
@@ -430,7 +441,8 @@ const Setting = () => {
       key: "midtrans",
       label: createTabLabel(
         "Midtrans",
-        <CreditCard size={16} />,
+        "Midtrans",
+        <CreditCard size={isMobile ? 14 : 16} />,
         "Gateway pembayaran",
       ),
       children: (
@@ -447,7 +459,8 @@ const Setting = () => {
       key: "banks",
       label: createTabLabel(
         "Rekening Bank",
-        <Banknote size={16} />,
+        "Rekening",
+        <Banknote size={isMobile ? 14 : 16} />,
         "Tujuan transfer manual",
       ),
       children: (
@@ -471,7 +484,8 @@ const Setting = () => {
       key: "methods",
       label: createTabLabel(
         "Metode Pembayaran",
-        <Building2 size={16} />,
+        "Metode",
+        <Building2 size={isMobile ? 14 : 16} />,
         "Aktif atau nonaktifkan kanal",
       ),
       children: (
@@ -495,9 +509,13 @@ const Setting = () => {
       variants={containerVariants}
       initial='hidden'
       animate='visible'
-      style={{ width: "100%" }}
+      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
     >
-      <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
+      <Space
+        vertical
+        size={isMobile ? 16 : 24}
+        style={{ width: "100%", display: "flex" }}
+      >
         <MotionDiv variants={itemVariants}>
           <SettingHeader
             homebases={homebases}
@@ -525,15 +543,16 @@ const Setting = () => {
                 variant='borderless'
                 style={{
                   width: "100%",
-                  borderRadius: 28,
+                  borderRadius: isMobile ? 20 : 28,
                   border: "1px solid rgba(148,163,184,0.14)",
                   boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
                   background:
                     "linear-gradient(180deg, rgba(248,250,252,0.96) 0%, #ffffff 100%)",
+                  overflow: "hidden",
                 }}
-                styles={{ body: { padding: isMobile ? 18 : 22 } }}
+                styles={{ body: { padding: isMobile ? 12 : 22 } }}
               >
-                <Flex vertical gap={18}>
+                <Flex vertical gap={isMobile ? 14 : 18}>
                   {isSettingsBusy ? (
                     <Alert
                       type='info'
@@ -546,30 +565,37 @@ const Setting = () => {
 
                   <div
                     style={{
-                      padding: isMobile ? 18 : 20,
-                      borderRadius: 22,
+                      padding: isMobile ? 14 : 20,
+                      borderRadius: isMobile ? 16 : 22,
                       border: "1px solid rgba(59,130,246,0.12)",
                       background:
                         "linear-gradient(135deg, rgba(239,246,255,0.92), rgba(240,253,250,0.88))",
                     }}
                   >
-                    <Title level={4} style={{ margin: 0 }}>
+                    <Title
+                      level={isMobile ? 5 : 4}
+                      style={{ margin: 0, lineHeight: 1.3 }}
+                    >
                       Workspace Pengaturan Pembayaran
                     </Title>
-                    <Paragraph
-                      type='secondary'
-                      style={{ margin: "6px 0 0", maxWidth: 760 }}
-                    >
-                      Gunakan panel ini untuk memastikan profil invoice, rekening
-                      bank, dan koneksi Midtrans setiap satuan tersusun rapi dan
-                      siap dipakai operasional harian.
-                    </Paragraph>
+                    {!isMobile ? (
+                      <Paragraph
+                        type='secondary'
+                        style={{ margin: "6px 0 0", maxWidth: 760 }}
+                      >
+                        Gunakan panel ini untuk memastikan profil invoice, rekening
+                        bank, dan koneksi Midtrans setiap satuan tersusun rapi dan
+                        siap dipakai operasional harian.
+                      </Paragraph>
+                    ) : null}
                     <div
                       style={{
                         display: "grid",
                         gridTemplateColumns: isMobile
                           ? "1fr"
-                          : "repeat(4, minmax(0, 1fr))",
+                          : screens.lg
+                            ? "repeat(4, minmax(0, 1fr))"
+                            : "repeat(2, minmax(0, 1fr))",
                         gap: 12,
                         marginTop: 16,
                       }}
@@ -578,20 +604,23 @@ const Setting = () => {
                         <div
                           key={item.title}
                           style={{
-                            padding: "14px 16px",
+                            padding: isMobile ? "12px 14px" : "14px 16px",
                             borderRadius: 18,
                             background: "#ffffff",
                             border: "1px solid rgba(148,163,184,0.14)",
                             boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
                           }}
                         >
-                          <Text type='secondary'>{item.title}</Text>
+                          <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                            {item.title}
+                          </Text>
                           <div
                             style={{
                               marginTop: 8,
-                              fontSize: 16,
+                              fontSize: isMobile ? 14 : 16,
                               fontWeight: 700,
                               color: "#0f172a",
+                              wordBreak: "break-word",
                             }}
                           >
                             {item.value}
@@ -615,8 +644,10 @@ const Setting = () => {
                       style={{
                         display: "grid",
                         gridTemplateColumns: isMobile
-                          ? "1fr"
-                          : "repeat(4, minmax(0, 1fr))",
+                          ? "repeat(2, minmax(0, 1fr))"
+                          : screens.lg
+                            ? "repeat(4, minmax(0, 1fr))"
+                            : "repeat(2, minmax(0, 1fr))",
                         gap: 12,
                         marginBottom: 18,
                       }}
@@ -631,8 +662,8 @@ const Setting = () => {
                             onClick={() => setActiveTab(item.key)}
                             style={{
                               height: "auto",
-                              minHeight: 74,
-                              padding: "12px 14px",
+                              minHeight: isMobile ? 58 : 74,
+                              padding: isMobile ? "10px 12px" : "12px 14px",
                               borderRadius: 18,
                               justifyContent: "flex-start",
                               textAlign: "left",

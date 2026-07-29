@@ -230,6 +230,36 @@ export const ensureStudentsInPeriode = async (
   return { studentIds: uniqueIds };
 };
 
+export const ensureStudentsInHomebase = async (
+  client,
+  homebaseId,
+  studentIds = [],
+) => {
+  const uniqueIds = [...new Set(studentIds.map((id) => Number(id)).filter(Boolean))];
+
+  if (uniqueIds.length === 0) {
+    return { error: "Minimal satu siswa wajib dipilih" };
+  }
+
+  const result = await client.query(
+    `
+      SELECT DISTINCT e.student_id
+      FROM u_class_enrollments e
+      WHERE e.homebase_id = $1
+        AND e.student_id = ANY($2::int[])
+    `,
+    [homebaseId, uniqueIds],
+  );
+
+  if (result.rowCount !== uniqueIds.length) {
+    return {
+      error: "Ada siswa yang tidak terdaftar pada satuan yang dipilih",
+    };
+  }
+
+  return { studentIds: uniqueIds };
+};
+
 export const ensureStudentScope = async (
   client,
   homebaseId,
@@ -743,6 +773,143 @@ const runEnsureFinalFinanceTables = async (db) => {
     CREATE INDEX IF NOT EXISTS idx_fee_assignment_student
     ON finance.fee_assignment(student_id, periode_id, is_active)
   `);
+
+  // --- Scholarship (beasiswa) ---
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS finance.scholarship (
+      id BIGSERIAL PRIMARY KEY,
+      homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+      name VARCHAR(150) NOT NULL,
+      code VARCHAR(50),
+      description TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_by INT REFERENCES public.u_users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS finance.scholarship_benefit (
+      id BIGSERIAL PRIMARY KEY,
+      scholarship_id BIGINT NOT NULL
+        REFERENCES finance.scholarship(id) ON DELETE CASCADE,
+      benefit_target VARCHAR(20) NOT NULL
+        CHECK (benefit_target IN ('spp', 'other')),
+      benefit_type VARCHAR(20) NOT NULL
+        CHECK (benefit_type IN ('fixed', 'full')),
+      amount NUMERIC(14,2)
+        CHECK (amount IS NULL OR amount >= 0),
+      component_id BIGINT REFERENCES finance.fee_component(id) ON DELETE CASCADE,
+      periode_id INT REFERENCES public.a_periode(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CHECK (
+        (benefit_type = 'full')
+        OR (benefit_type = 'fixed' AND amount IS NOT NULL AND amount > 0)
+      ),
+      CHECK (
+        (benefit_target = 'spp' AND component_id IS NULL)
+        OR (benefit_target = 'other' AND component_id IS NOT NULL)
+      )
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS finance.scholarship_benefit_month (
+      id BIGSERIAL PRIMARY KEY,
+      benefit_id BIGINT NOT NULL
+        REFERENCES finance.scholarship_benefit(id) ON DELETE CASCADE,
+      periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+      month_num SMALLINT NOT NULL CHECK (month_num BETWEEN 1 AND 12),
+      UNIQUE (benefit_id, periode_id, month_num)
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS finance.scholarship_student (
+      id BIGSERIAL PRIMARY KEY,
+      scholarship_id BIGINT NOT NULL
+        REFERENCES finance.scholarship(id) ON DELETE CASCADE,
+      student_id INT NOT NULL
+        REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      notes TEXT,
+      assigned_by INT REFERENCES public.u_users(id),
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (scholarship_id, student_id)
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_scholarship_homebase
+    ON finance.scholarship(homebase_id, is_active)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_scholarship_benefit_scholarship
+    ON finance.scholarship_benefit(scholarship_id, benefit_target)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_scholarship_benefit_month_lookup
+    ON finance.scholarship_benefit_month(benefit_id, periode_id, month_num)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_scholarship_student_lookup
+    ON finance.scholarship_student(student_id, is_active)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_scholarship_student_scholarship
+    ON finance.scholarship_student(scholarship_id, is_active)
+  `);
+
+  await db.query(`
+    ALTER TABLE finance.invoice_item
+    ADD COLUMN IF NOT EXISTS bruto_amount NUMERIC(14,2)
+  `);
+
+  await db.query(`
+    ALTER TABLE finance.invoice_item
+    ADD COLUMN IF NOT EXISTS scholarship_cover NUMERIC(14,2) NOT NULL DEFAULT 0
+  `);
+
+  await db.query(`
+    UPDATE finance.invoice_item
+    SET bruto_amount = unit_amount
+    WHERE bruto_amount IS NULL
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS finance.invoice_item_scholarship (
+      id BIGSERIAL PRIMARY KEY,
+      invoice_item_id BIGINT NOT NULL
+        REFERENCES finance.invoice_item(id) ON DELETE CASCADE,
+      scholarship_id BIGINT NOT NULL
+        REFERENCES finance.scholarship(id) ON DELETE CASCADE,
+      benefit_id BIGINT
+        REFERENCES finance.scholarship_benefit(id) ON DELETE SET NULL,
+      cover_amount NUMERIC(14,2) NOT NULL CHECK (cover_amount >= 0),
+      benefit_type VARCHAR(20) NOT NULL
+        CHECK (benefit_type IN ('fixed', 'full')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (invoice_item_id, scholarship_id, benefit_id)
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_invoice_item_scholarship_item
+    ON finance.invoice_item_scholarship(invoice_item_id)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_invoice_item_scholarship_scholarship
+    ON finance.invoice_item_scholarship(scholarship_id)
+  `);
 };
 
 export const ensureFinalFinanceTables = async (db) => {
@@ -762,6 +929,909 @@ export const ensureFinalFinanceTables = async (db) => {
   }
 
   await financeSchemaReadyPromise;
+};
+
+/**
+ * Kontrak resolver beasiswa (Tahap 0).
+ * Dipakai Tahap 2+ saat membentuk due SPP/others.
+ *
+ * @param {object} db - pool atau client transaksi
+ * @param {object} params
+ * @param {number} params.homebaseId
+ * @param {number} params.studentId
+ * @param {'spp'|'other'} params.itemType
+ * @param {number|null} [params.componentId] - wajib untuk other
+ * @param {number|null} [params.periodeId] - wajib untuk spp; opsional filter other
+ * @param {number|null} [params.billMonth] - wajib untuk spp (1-12)
+ * @param {number} params.brutoAmount - nominal tarif sebelum beasiswa
+ * @returns {Promise<{
+ *   bruto: number,
+ *   scholarship_cover: number,
+ *   netto: number,
+ *   breakdown: Array<{
+ *     scholarship_id: number,
+ *     scholarship_name: string,
+ *     benefit_id: number,
+ *     benefit_target: string,
+ *     benefit_type: 'fixed'|'full',
+ *     benefit_amount: number|null,
+ *     cover_amount: number
+ *   }>
+ * }>}
+ *
+ * Aturan stack:
+ * - Semua beasiswa aktif siswa diterapkan.
+ * - Jika ada benefit `full` yang match → cover = bruto, netto = 0.
+ * - Jika hanya `fixed` → jumlahkan nominal (FIFO), cap agar due >= 0.
+ */
+export const resolveScholarshipDue = async (
+  db,
+  {
+    homebaseId,
+    studentId,
+    itemType,
+    componentId = null,
+    periodeId = null,
+    billMonth = null,
+    brutoAmount,
+  },
+) => {
+  const bruto = Math.max(0, Number(brutoAmount) || 0);
+  const normalizedType = itemType === "other" ? "other" : "spp";
+
+  if (!homebaseId || !studentId || bruto <= 0) {
+    return {
+      bruto,
+      scholarship_cover: 0,
+      netto: bruto,
+      breakdown: [],
+    };
+  }
+
+  let benefitResult;
+
+  if (normalizedType === "spp") {
+    if (!periodeId || !billMonth) {
+      return {
+        bruto,
+        scholarship_cover: 0,
+        netto: bruto,
+        breakdown: [],
+      };
+    }
+
+    benefitResult = await db.query(
+      `
+        SELECT
+          s.id AS scholarship_id,
+          s.name AS scholarship_name,
+          sb.id AS benefit_id,
+          sb.benefit_target,
+          sb.benefit_type,
+          sb.amount AS benefit_amount
+        FROM finance.scholarship_student ss
+        JOIN finance.scholarship s
+          ON s.id = ss.scholarship_id
+        JOIN finance.scholarship_benefit sb
+          ON sb.scholarship_id = s.id
+        JOIN finance.scholarship_benefit_month sbm
+          ON sbm.benefit_id = sb.id
+        WHERE s.homebase_id = $1
+          AND ss.student_id = $2
+          AND ss.is_active = true
+          AND s.is_active = true
+          AND sb.benefit_target = 'spp'
+          AND sbm.periode_id = $3
+          AND sbm.month_num = $4
+        ORDER BY
+          CASE WHEN sb.benefit_type = 'full' THEN 0 ELSE 1 END,
+          sb.id ASC
+      `,
+      [homebaseId, studentId, periodeId, billMonth],
+    );
+  } else {
+    if (!componentId) {
+      return {
+        bruto,
+        scholarship_cover: 0,
+        netto: bruto,
+        breakdown: [],
+      };
+    }
+
+    benefitResult = await db.query(
+      `
+        SELECT
+          s.id AS scholarship_id,
+          s.name AS scholarship_name,
+          sb.id AS benefit_id,
+          sb.benefit_target,
+          sb.benefit_type,
+          sb.amount AS benefit_amount
+        FROM finance.scholarship_student ss
+        JOIN finance.scholarship s
+          ON s.id = ss.scholarship_id
+        JOIN finance.scholarship_benefit sb
+          ON sb.scholarship_id = s.id
+        WHERE s.homebase_id = $1
+          AND ss.student_id = $2
+          AND ss.is_active = true
+          AND s.is_active = true
+          AND sb.benefit_target = 'other'
+          AND sb.component_id = $3
+          AND (sb.periode_id IS NULL OR sb.periode_id = $4)
+        ORDER BY
+          CASE WHEN sb.benefit_type = 'full' THEN 0 ELSE 1 END,
+          sb.id ASC
+      `,
+      [homebaseId, studentId, componentId, periodeId],
+    );
+  }
+
+  const benefits = benefitResult.rows || [];
+  if (benefits.length === 0) {
+    return {
+      bruto,
+      scholarship_cover: 0,
+      netto: bruto,
+      breakdown: [],
+    };
+  }
+
+  const fullBenefit = benefits.find((item) => item.benefit_type === "full");
+  if (fullBenefit) {
+    return {
+      bruto,
+      scholarship_cover: bruto,
+      netto: 0,
+      breakdown: [
+        {
+          scholarship_id: Number(fullBenefit.scholarship_id),
+          scholarship_name: fullBenefit.scholarship_name,
+          benefit_id: Number(fullBenefit.benefit_id),
+          benefit_target: fullBenefit.benefit_target,
+          benefit_type: "full",
+          benefit_amount: null,
+          cover_amount: bruto,
+        },
+      ],
+    };
+  }
+
+  let remaining = bruto;
+  const breakdown = [];
+
+  for (const benefit of benefits) {
+    const benefitAmount = Math.max(0, Number(benefit.benefit_amount) || 0);
+    const coverAmount = Math.min(benefitAmount, remaining);
+    remaining -= coverAmount;
+
+    breakdown.push({
+      scholarship_id: Number(benefit.scholarship_id),
+      scholarship_name: benefit.scholarship_name,
+      benefit_id: Number(benefit.benefit_id),
+      benefit_target: benefit.benefit_target,
+      benefit_type: "fixed",
+      benefit_amount: benefitAmount,
+      cover_amount: coverAmount,
+    });
+
+    if (remaining <= 0) {
+      break;
+    }
+  }
+
+  const scholarshipCover = bruto - remaining;
+
+  return {
+    bruto,
+    scholarship_cover: scholarshipCover,
+    netto: remaining,
+    breakdown,
+  };
+};
+
+/**
+ * Terapkan daftar benefit yang sudah dimuat ke nominal bruto (pure).
+ */
+export const applyScholarshipBenefitsToAmount = (benefits = [], brutoAmount) => {
+  const bruto = Math.max(0, Number(brutoAmount) || 0);
+  if (bruto <= 0 || !benefits.length) {
+    return {
+      bruto,
+      scholarship_cover: 0,
+      netto: bruto,
+      breakdown: [],
+    };
+  }
+
+  const fullBenefit = benefits.find((item) => item.benefit_type === "full");
+  if (fullBenefit) {
+    return {
+      bruto,
+      scholarship_cover: bruto,
+      netto: 0,
+      breakdown: [
+        {
+          scholarship_id: Number(fullBenefit.scholarship_id),
+          scholarship_name: fullBenefit.scholarship_name,
+          benefit_id: Number(fullBenefit.benefit_id),
+          benefit_target: fullBenefit.benefit_target,
+          benefit_type: "full",
+          benefit_amount: null,
+          cover_amount: bruto,
+        },
+      ],
+    };
+  }
+
+  let remaining = bruto;
+  const breakdown = [];
+
+  for (const benefit of benefits) {
+    const benefitAmount = Math.max(0, Number(benefit.benefit_amount) || 0);
+    const coverAmount = Math.min(benefitAmount, remaining);
+    remaining -= coverAmount;
+
+    breakdown.push({
+      scholarship_id: Number(benefit.scholarship_id),
+      scholarship_name: benefit.scholarship_name,
+      benefit_id: Number(benefit.benefit_id),
+      benefit_target: benefit.benefit_target,
+      benefit_type: "fixed",
+      benefit_amount: benefitAmount,
+      cover_amount: coverAmount,
+    });
+
+    if (remaining <= 0) {
+      break;
+    }
+  }
+
+  return {
+    bruto,
+    scholarship_cover: bruto - remaining,
+    netto: remaining,
+    breakdown,
+  };
+};
+
+/**
+ * Muat indeks benefit aktif untuk banyak siswa (hindari N+1 di list).
+ * Map: studentId -> { spp: Benefit[], other: Benefit[] }
+ * Benefit spp punya periode_id + month_num; other punya component_id + periode_id (nullable).
+ */
+export const loadScholarshipBenefitIndex = async (
+  db,
+  homebaseId,
+  studentIds = [],
+) => {
+  const uniqueIds = [
+    ...new Set(studentIds.map((id) => Number(id)).filter(Boolean)),
+  ];
+  const index = new Map();
+
+  if (!homebaseId || uniqueIds.length === 0) {
+    return index;
+  }
+
+  for (const studentId of uniqueIds) {
+    index.set(studentId, { spp: [], other: [] });
+  }
+
+  const [sppResult, otherResult] = await Promise.all([
+    db.query(
+      `
+        SELECT
+          ss.student_id,
+          s.id AS scholarship_id,
+          s.name AS scholarship_name,
+          sb.id AS benefit_id,
+          sb.benefit_target,
+          sb.benefit_type,
+          sb.amount AS benefit_amount,
+          sbm.periode_id,
+          sbm.month_num
+        FROM finance.scholarship_student ss
+        JOIN finance.scholarship s ON s.id = ss.scholarship_id
+        JOIN finance.scholarship_benefit sb ON sb.scholarship_id = s.id
+        JOIN finance.scholarship_benefit_month sbm ON sbm.benefit_id = sb.id
+        WHERE s.homebase_id = $1
+          AND ss.student_id = ANY($2::int[])
+          AND ss.is_active = true
+          AND s.is_active = true
+          AND sb.benefit_target = 'spp'
+        ORDER BY
+          CASE WHEN sb.benefit_type = 'full' THEN 0 ELSE 1 END,
+          sb.id ASC
+      `,
+      [homebaseId, uniqueIds],
+    ),
+    db.query(
+      `
+        SELECT
+          ss.student_id,
+          s.id AS scholarship_id,
+          s.name AS scholarship_name,
+          sb.id AS benefit_id,
+          sb.benefit_target,
+          sb.benefit_type,
+          sb.amount AS benefit_amount,
+          sb.component_id,
+          sb.periode_id
+        FROM finance.scholarship_student ss
+        JOIN finance.scholarship s ON s.id = ss.scholarship_id
+        JOIN finance.scholarship_benefit sb ON sb.scholarship_id = s.id
+        WHERE s.homebase_id = $1
+          AND ss.student_id = ANY($2::int[])
+          AND ss.is_active = true
+          AND s.is_active = true
+          AND sb.benefit_target = 'other'
+        ORDER BY
+          CASE WHEN sb.benefit_type = 'full' THEN 0 ELSE 1 END,
+          sb.id ASC
+      `,
+      [homebaseId, uniqueIds],
+    ),
+  ]);
+
+  for (const row of sppResult.rows) {
+    const studentId = Number(row.student_id);
+    const bucket = index.get(studentId) || { spp: [], other: [] };
+    bucket.spp.push(row);
+    index.set(studentId, bucket);
+  }
+
+  for (const row of otherResult.rows) {
+    const studentId = Number(row.student_id);
+    const bucket = index.get(studentId) || { spp: [], other: [] };
+    bucket.other.push(row);
+    index.set(studentId, bucket);
+  }
+
+  return index;
+};
+
+export const resolveDueFromBenefitIndex = (
+  benefitIndex,
+  {
+    studentId,
+    itemType,
+    componentId = null,
+    periodeId = null,
+    billMonth = null,
+    brutoAmount,
+  },
+) => {
+  const bruto = Math.max(0, Number(brutoAmount) || 0);
+  const bucket = benefitIndex?.get(Number(studentId));
+  if (!bucket || bruto <= 0) {
+    return {
+      bruto,
+      scholarship_cover: 0,
+      netto: bruto,
+      breakdown: [],
+    };
+  }
+
+  let benefits = [];
+  if (itemType === "other") {
+    benefits = (bucket.other || []).filter((item) => {
+      if (Number(item.component_id) !== Number(componentId)) {
+        return false;
+      }
+      if (item.periode_id == null) {
+        return true;
+      }
+      return Number(item.periode_id) === Number(periodeId);
+    });
+  } else {
+    benefits = (bucket.spp || []).filter(
+      (item) =>
+        Number(item.periode_id) === Number(periodeId) &&
+        Number(item.month_num) === Number(billMonth),
+    );
+  }
+
+  return applyScholarshipBenefitsToAmount(benefits, bruto);
+};
+
+export const enrichDueWithScholarship = ({
+  benefitIndex,
+  studentId,
+  itemType,
+  componentId = null,
+  periodeId = null,
+  billMonth = null,
+  brutoAmount,
+  storedBruto = null,
+  storedCover = null,
+  storedNetto = null,
+  hasInvoiceItem = false,
+}) => {
+  if (hasInvoiceItem && storedNetto != null) {
+    const bruto =
+      storedBruto != null
+        ? Number(storedBruto)
+        : Number(storedNetto || 0) + Number(storedCover || 0);
+    const cover =
+      storedCover != null
+        ? Number(storedCover)
+        : Math.max(0, bruto - Number(storedNetto || 0));
+    return {
+      bruto_amount: bruto,
+      scholarship_cover: cover,
+      amount: Number(storedNetto || 0),
+      has_scholarship: cover > 0,
+    };
+  }
+
+  const resolved = resolveDueFromBenefitIndex(benefitIndex, {
+    studentId,
+    itemType,
+    componentId,
+    periodeId,
+    billMonth,
+    brutoAmount,
+  });
+
+  return {
+    bruto_amount: resolved.bruto,
+    scholarship_cover: resolved.scholarship_cover,
+    amount: resolved.netto,
+    has_scholarship: resolved.scholarship_cover > 0,
+  };
+};
+
+const SCHOLARSHIP_SUCCESS_PAYMENT_STATUSES = ["confirmed", "paid"];
+const SCHOLARSHIP_RESERVED_PAYMENT_STATUSES = [
+  "confirmed",
+  "paid",
+  "pending",
+];
+
+const scaleScholarshipBreakdown = (breakdown = [], appliedCover = 0) => {
+  const targetCover = Math.max(0, Number(appliedCover) || 0);
+  if (targetCover <= 0) {
+    return [];
+  }
+
+  const rows = (breakdown || [])
+    .map((row) => ({
+      ...row,
+      cover_amount: Math.max(0, Number(row.cover_amount) || 0),
+    }))
+    .filter((row) => row.cover_amount > 0 && row.scholarship_id);
+
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const entitlementCover = rows.reduce(
+    (sum, row) => sum + row.cover_amount,
+    0,
+  );
+
+  if (entitlementCover <= 0) {
+    return [];
+  }
+
+  if (Math.abs(entitlementCover - targetCover) < 0.005) {
+    return rows;
+  }
+
+  const scale = targetCover / entitlementCover;
+  const scaled = rows.map((row) => ({
+    ...row,
+    cover_amount: Math.round(row.cover_amount * scale * 100) / 100,
+  }));
+
+  const scaledSum = scaled.reduce((sum, row) => sum + row.cover_amount, 0);
+  const delta = Math.round((targetCover - scaledSum) * 100) / 100;
+  if (scaled.length > 0 && Math.abs(delta) >= 0.01) {
+    scaled[scaled.length - 1].cover_amount = Math.max(
+      0,
+      Math.round((scaled[scaled.length - 1].cover_amount + delta) * 100) / 100,
+    );
+  }
+
+  return scaled.filter((row) => row.cover_amount > 0);
+};
+
+export const resolveInvoiceItemAmounts = async (
+  db,
+  {
+    homebaseId,
+    studentId,
+    itemType,
+    componentId = null,
+    periodeId = null,
+    billMonth = null,
+    brutoAmount,
+  },
+) => {
+  const resolved = await resolveScholarshipDue(db, {
+    homebaseId,
+    studentId,
+    itemType,
+    componentId,
+    periodeId,
+    billMonth,
+    brutoAmount,
+  });
+
+  return {
+    bruto_amount: resolved.bruto,
+    scholarship_cover: resolved.scholarship_cover,
+    unit_amount: resolved.netto,
+    breakdown: resolved.breakdown,
+  };
+};
+
+export const replaceInvoiceItemScholarshipBreakdown = async (
+  client,
+  invoiceItemId,
+  breakdown = [],
+) => {
+  await client.query(
+    `DELETE FROM finance.invoice_item_scholarship WHERE invoice_item_id = $1`,
+    [invoiceItemId],
+  );
+
+  for (const row of breakdown) {
+    const coverAmount = Math.max(0, Number(row.cover_amount) || 0);
+    if (coverAmount <= 0 || !row.scholarship_id) {
+      continue;
+    }
+
+    await client.query(
+      `
+        INSERT INTO finance.invoice_item_scholarship (
+          invoice_item_id,
+          scholarship_id,
+          benefit_id,
+          cover_amount,
+          benefit_type
+        )
+        VALUES ($1, $2, $3, $4, $5)
+      `,
+      [
+        invoiceItemId,
+        row.scholarship_id,
+        row.benefit_id || null,
+        coverAmount,
+        row.benefit_type === "full" ? "full" : "fixed",
+      ],
+    );
+  }
+};
+
+export const insertInvoiceItemWithScholarship = async (
+  client,
+  {
+    invoiceId,
+    componentId,
+    feeRuleId = null,
+    billYear = null,
+    billMonth = null,
+    description = null,
+    itemType,
+    referenceType = null,
+    homebaseId,
+    studentId,
+    periodeId = null,
+    brutoAmount,
+  },
+) => {
+  const amounts = await resolveInvoiceItemAmounts(client, {
+    homebaseId,
+    studentId,
+    itemType,
+    componentId,
+    periodeId,
+    billMonth,
+    brutoAmount,
+  });
+
+  const created = await client.query(
+    `
+      INSERT INTO finance.invoice_item (
+        invoice_id,
+        component_id,
+        fee_rule_id,
+        bill_year,
+        bill_month,
+        description,
+        qty,
+        unit_amount,
+        bruto_amount,
+        scholarship_cover,
+        item_type,
+        reference_type
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, 1, $7, $8, $9, $10, $11
+      )
+      RETURNING
+        id,
+        invoice_id,
+        amount,
+        unit_amount,
+        bruto_amount,
+        scholarship_cover,
+        0::numeric AS paid_amount
+    `,
+    [
+      invoiceId,
+      componentId,
+      feeRuleId,
+      billYear,
+      billMonth,
+      description,
+      amounts.unit_amount,
+      amounts.bruto_amount,
+      amounts.scholarship_cover,
+      itemType,
+      referenceType,
+    ],
+  );
+
+  await replaceInvoiceItemScholarshipBreakdown(
+    client,
+    created.rows[0].id,
+    amounts.breakdown,
+  );
+
+  if (amounts.unit_amount <= 0) {
+    await upsertInvoiceStatus(client, invoiceId);
+  }
+
+  return {
+    ...created.rows[0],
+    bruto_amount: amounts.bruto_amount,
+    scholarship_cover: amounts.scholarship_cover,
+    breakdown: amounts.breakdown,
+  };
+};
+
+export const refreshInvoiceItemScholarship = async (client, invoiceItemId) => {
+  const itemResult = await client.query(
+    `
+      SELECT
+        ii.id,
+        ii.invoice_id,
+        ii.component_id,
+        ii.fee_rule_id,
+        ii.bill_month,
+        ii.item_type,
+        ii.unit_amount,
+        ii.bruto_amount,
+        ii.scholarship_cover,
+        ii.amount,
+        inv.homebase_id,
+        inv.student_id,
+        inv.periode_id,
+        fr.amount AS rule_amount,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN p.status = ANY($2::text[]) THEN pa.allocated_amount
+              ELSE 0
+            END
+          ),
+          0
+        ) AS paid_amount,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN p.status = ANY($3::text[]) THEN pa.allocated_amount
+              ELSE 0
+            END
+          ),
+          0
+        ) AS reserved_amount
+      FROM finance.invoice_item ii
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      LEFT JOIN finance.fee_rule fr ON fr.id = ii.fee_rule_id
+      LEFT JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
+      LEFT JOIN finance.payment p ON p.id = pa.payment_id
+      WHERE ii.id = $1
+      GROUP BY
+        ii.id,
+        inv.homebase_id,
+        inv.student_id,
+        inv.periode_id,
+        fr.amount
+      LIMIT 1
+    `,
+    [
+      invoiceItemId,
+      SCHOLARSHIP_SUCCESS_PAYMENT_STATUSES,
+      SCHOLARSHIP_RESERVED_PAYMENT_STATUSES,
+    ],
+  );
+
+  if (itemResult.rowCount === 0) {
+    return null;
+  }
+
+  const item = itemResult.rows[0];
+  const paidAmount = Number(item.paid_amount || 0);
+  const reservedAmount = Number(item.reserved_amount || 0);
+  const floorAmount = Math.max(paidAmount, reservedAmount);
+
+  const brutoAmount = Math.max(
+    0,
+    Number(
+      item.bruto_amount ??
+        item.rule_amount ??
+        Number(item.unit_amount || 0) + Number(item.scholarship_cover || 0),
+    ) || 0,
+  );
+
+  // Sudah bayar/reservasi penuh sampai bruto → tidak ada ruang beasiswa; jejak cover dibersihkan.
+  if (brutoAmount > 0 && floorAmount >= brutoAmount) {
+    await client.query(
+      `
+        UPDATE finance.invoice_item
+        SET
+          unit_amount = $1,
+          bruto_amount = $1,
+          scholarship_cover = 0
+        WHERE id = $2
+      `,
+      [brutoAmount, invoiceItemId],
+    );
+    await replaceInvoiceItemScholarshipBreakdown(client, invoiceItemId, []);
+    await upsertInvoiceStatus(client, item.invoice_id);
+
+    return {
+      id: Number(item.id),
+      invoice_id: Number(item.invoice_id),
+      amount: brutoAmount,
+      paid_amount: paidAmount,
+      reserved_amount: reservedAmount,
+      bruto_amount: brutoAmount,
+      scholarship_cover: 0,
+      unit_amount: brutoAmount,
+      skipped: false,
+      settled_at_bruto: true,
+    };
+  }
+
+  const amounts = await resolveInvoiceItemAmounts(client, {
+    homebaseId: Number(item.homebase_id),
+    studentId: Number(item.student_id),
+    itemType: item.item_type,
+    componentId: Number(item.component_id),
+    periodeId: item.periode_id ? Number(item.periode_id) : null,
+    billMonth: item.bill_month ? Number(item.bill_month) : null,
+    brutoAmount,
+  });
+
+  // Jangan turunkan due di bawah yang sudah dibayar / pending.
+  // Jika hak beasiswa mengecil, due boleh naik kembali ke atas paid.
+  const unitAmount = Math.max(amounts.unit_amount, floorAmount);
+  const scholarshipCover = Math.max(0, brutoAmount - unitAmount);
+  const breakdown = scaleScholarshipBreakdown(
+    amounts.breakdown,
+    scholarshipCover,
+  );
+
+  await client.query(
+    `
+      UPDATE finance.invoice_item
+      SET
+        unit_amount = $1,
+        bruto_amount = $2,
+        scholarship_cover = $3
+      WHERE id = $4
+    `,
+    [unitAmount, brutoAmount, scholarshipCover, invoiceItemId],
+  );
+
+  await replaceInvoiceItemScholarshipBreakdown(client, invoiceItemId, breakdown);
+  await upsertInvoiceStatus(client, item.invoice_id);
+
+  return {
+    id: Number(item.id),
+    invoice_id: Number(item.invoice_id),
+    amount: unitAmount,
+    paid_amount: paidAmount,
+    reserved_amount: reservedAmount,
+    bruto_amount: brutoAmount,
+    scholarship_cover: scholarshipCover,
+    unit_amount: unitAmount,
+    skipped: false,
+  };
+};
+
+export const syncScholarshipForStudent = async (client, homebaseId, studentId) => {
+  // Refresh semua item aktif: unpaid, due 0, floored, maupun yang cover-nya perlu naik/turun.
+  const items = await client.query(
+    `
+      SELECT ii.id
+      FROM finance.invoice_item ii
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      WHERE inv.homebase_id = $1
+        AND inv.student_id = $2
+        AND inv.status <> 'cancelled'
+      ORDER BY ii.id ASC
+    `,
+    [homebaseId, studentId],
+  );
+
+  const results = [];
+  for (const row of items.rows) {
+    results.push(await refreshInvoiceItemScholarship(client, row.id));
+  }
+
+  return {
+    student_id: Number(studentId),
+    synced_count: results.filter((item) => item && !item.skipped).length,
+    results,
+  };
+};
+
+export const syncScholarshipForScholarship = async (
+  client,
+  homebaseId,
+  scholarshipId,
+) => {
+  const students = await client.query(
+    `
+      SELECT DISTINCT ss.student_id
+      FROM finance.scholarship_student ss
+      JOIN finance.scholarship s ON s.id = ss.scholarship_id
+      WHERE s.id = $1
+        AND s.homebase_id = $2
+    `,
+    [scholarshipId, homebaseId],
+  );
+
+  // Juga siswa yang punya jejak cover dari beasiswa ini (meski sudah di-unassign),
+  // plus penerima yang masih punya cover di tagihan agar reverse sync tetap jalan.
+  const linkedStudents = await client.query(
+    `
+      SELECT DISTINCT inv.student_id
+      FROM finance.invoice_item_scholarship iis
+      JOIN finance.invoice_item ii ON ii.id = iis.invoice_item_id
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      WHERE iis.scholarship_id = $1
+        AND inv.homebase_id = $2
+      UNION
+      SELECT DISTINCT inv.student_id
+      FROM finance.invoice_item ii
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      JOIN finance.scholarship_student ss
+        ON ss.student_id = inv.student_id
+       AND ss.scholarship_id = $1
+      WHERE inv.homebase_id = $2
+        AND COALESCE(ii.scholarship_cover, 0) > 0
+        AND inv.status <> 'cancelled'
+    `,
+    [scholarshipId, homebaseId],
+  );
+
+  const studentIds = [
+    ...new Set(
+      [...students.rows, ...linkedStudents.rows]
+        .map((row) => Number(row.student_id))
+        .filter(Boolean),
+    ),
+  ];
+
+  const results = [];
+  for (const studentId of studentIds) {
+    results.push(await syncScholarshipForStudent(client, homebaseId, studentId));
+  }
+
+  return {
+    scholarship_id: Number(scholarshipId),
+    student_count: studentIds.length,
+    synced_count: results.reduce((sum, item) => sum + (item.synced_count || 0), 0),
+    results,
+  };
 };
 
 export const getOrCreateComponent = async (
@@ -999,7 +2069,7 @@ export const upsertInvoiceStatus = async (client, invoiceId) => {
   const totalPaid = Number(result.rows[0]?.total_paid || 0);
 
   let status = "issued";
-  if (totalDue > 0 && totalPaid >= totalDue) {
+  if (totalDue <= 0 || (totalDue > 0 && totalPaid >= totalDue)) {
     status = "paid";
   } else if (totalPaid > 0) {
     status = "partial";

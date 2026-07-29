@@ -1,5 +1,16 @@
 import { useEffect } from "react";
-import { Avatar, Card, Flex, Form, Input, Select, Space, Tag, Typography } from "antd";
+import {
+  Avatar,
+  Card,
+  Flex,
+  Form,
+  Grid,
+  Input,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
 import { motion } from "framer-motion";
 import { Search, UserRound } from "lucide-react";
 
@@ -25,6 +36,8 @@ const TransactionStepStudent = ({
   onPeriodeChange,
   onStudentSearchChange,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const selectedHomebaseId = Form.useWatch("homebase_id", form);
   const selectedPeriodeId = Form.useWatch("periode_id", form);
   const selectedStudentId = Form.useWatch("student_id", form);
@@ -190,15 +203,18 @@ const TransactionStepStudent = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 20,
+          borderRadius: isMobile ? 16 : 20,
           background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
           border: "1px solid rgba(148,163,184,0.14)",
         }}
+        styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gridTemplateColumns: isMobile
+              ? "1fr"
+              : "repeat(auto-fit, minmax(240px, 1fr))",
             gap: 16,
           }}
         >
@@ -214,6 +230,7 @@ const TransactionStepStudent = ({
               disabled={homebases.length <= 1}
               onChange={onHomebaseChange}
               virtual={false}
+              style={{ width: "100%" }}
             />
           </Form.Item>
 
@@ -229,13 +246,18 @@ const TransactionStepStudent = ({
               virtual={false}
               options={periodeOptions}
               optionFilterProp='searchLabel'
+              style={{ width: "100%" }}
             />
           </Form.Item>
         </div>
 
         <Form.Item
           label='Cari Siswa'
-          extra='Ketik minimal nama siswa atau NIS. Hasil pencarian tampil otomatis dan pilih siswa langsung dari dropdown.'
+          extra={
+            isMobile
+              ? "Ketik nama atau NIS, lalu pilih dari hasil."
+              : "Ketik minimal nama siswa atau NIS. Hasil pencarian tampil otomatis dan pilih siswa langsung dari dropdown."
+          }
         >
           <Select
             size='large'
@@ -300,33 +322,49 @@ const TransactionStepStudent = ({
           <Card
             bordered={false}
             style={{
-              borderRadius: 20,
+              borderRadius: isMobile ? 16 : 20,
               background:
                 "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
               color: "#ffffff",
             }}
-            styles={{ body: { padding: 20 } }}
+            styles={{ body: { padding: isMobile ? 14 : 20 } }}
           >
             <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
               <Space size={14} align='start'>
-                <Avatar size={52} style={{ background: "#2563eb", fontWeight: 700 }}>
+                <Avatar
+                  size={isMobile ? 44 : 52}
+                  style={{ background: "#2563eb", fontWeight: 700 }}
+                >
                   {(student.student_name || student.full_name || "?")
                     .slice(0, 1)
                     .toUpperCase()}
                 </Avatar>
-                <Space direction='vertical' size={2}>
-                  <Text strong style={{ color: "#ffffff", fontSize: 16 }}>
+                <Space direction='vertical' size={2} style={{ minWidth: 0 }}>
+                  <Text
+                    strong
+                    style={{
+                      color: "#ffffff",
+                      fontSize: isMobile ? 15 : 16,
+                      wordBreak: "break-word",
+                    }}
+                  >
                     {student.student_name || student.full_name}
                   </Text>
-                  <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                  <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: isMobile ? 12 : 14 }}>
                     NIS {student.nis || "-"}
                   </Text>
-                  <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                  <Text
+                    style={{
+                      color: "rgba(255,255,255,0.72)",
+                      fontSize: isMobile ? 12 : 14,
+                      wordBreak: "break-word",
+                    }}
+                  >
                     {`${student.grade_name || "-"} | ${student.class_name || "-"} | ${student.periode_name || "-"}`}
                   </Text>
                 </Space>
               </Space>
-              <Tag color='blue' style={{ borderRadius: 999, paddingInline: 12 }}>
+              <Tag color='blue' style={{ borderRadius: 999, paddingInline: 12, margin: 0 }}>
                 Siswa Terpilih
               </Tag>
             </Flex>

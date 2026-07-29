@@ -1,6 +1,6 @@
-import { Card, Col, Flex, Row, Space, Typography } from "antd";
+import { Card, Col, Flex, Row, Space, Tooltip, Typography } from "antd";
 import { motion } from "framer-motion";
-import { ReceiptText, Users } from "lucide-react";
+import { Info, ReceiptText, Users } from "lucide-react";
 
 import {
   cardBaseStyle,
@@ -27,39 +27,47 @@ const FinanceDashboardOverviewTab = ({ summaryCards, summary, meta, spp }) => (
               whileHover={{ y: -4 }}
             >
               <Card variant='borderless' style={cardBaseStyle}>
-                <Space vertical size={14} style={{ width: "100%" }}>
-                  <Flex justify='space-between' align='start' gap={16}>
-                    <div>
+                <Flex justify='space-between' align='start' gap={16}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Flex align='center' gap={6}>
                       <Text type='secondary'>{item.title}</Text>
-                      <div
-                        style={{
-                          marginTop: 10,
-                          fontSize: 28,
-                          fontWeight: 700,
-                          color: "#0f172a",
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {currency(item.value)}
-                      </div>
-                    </div>
-                    <Flex
-                      align='center'
-                      justify='center'
+                      {item.note ? (
+                        <Tooltip title={item.note}>
+                          <Info
+                            size={14}
+                            color='#94a3b8'
+                            style={{ cursor: "help", flexShrink: 0 }}
+                          />
+                        </Tooltip>
+                      ) : null}
+                    </Flex>
+                    <div
                       style={{
-                        width: 50,
-                        height: 50,
-                        borderRadius: 18,
-                        background: tone.bg,
-                        color: tone.color,
-                        flexShrink: 0,
+                        marginTop: 10,
+                        fontSize: 28,
+                        fontWeight: 700,
+                        color: "#0f172a",
+                        lineHeight: 1.2,
                       }}
                     >
-                      {Icon ? <Icon size={20} /> : null}
-                    </Flex>
+                      {currency(item.value)}
+                    </div>
+                  </div>
+                  <Flex
+                    align='center'
+                    justify='center'
+                    style={{
+                      width: 50,
+                      height: 50,
+                      borderRadius: 18,
+                      background: tone.bg,
+                      color: tone.color,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {Icon ? <Icon size={20} /> : null}
                   </Flex>
-                  <Text style={{ fontSize: 12, color: "#64748b" }}>{item.note}</Text>
-                </Space>
+                </Flex>
               </Card>
             </MotionDiv>
           </Col>
@@ -142,7 +150,15 @@ const FinanceDashboardOverviewTab = ({ summaryCards, summary, meta, spp }) => (
                   value: `${summary?.active_other_types || 0} jenis`,
                 },
                 {
-                  label: `Target SPP ${meta?.current_month_label || "-"}`,
+                  label: `Target bruto SPP ${meta?.current_month_label || "-"}`,
+                  value: currency(spp?.expected_bruto_current_month),
+                },
+                {
+                  label: `Beasiswa SPP ${meta?.current_month_label || "-"}`,
+                  value: currency(spp?.scholarship_cover_current_month),
+                },
+                {
+                  label: `Target netto SPP ${meta?.current_month_label || "-"}`,
                   value: currency(spp?.expected_current_month),
                 },
               ].map((item) => (

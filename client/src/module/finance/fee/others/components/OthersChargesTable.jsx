@@ -1,4 +1,15 @@
-import { Button, Card, Dropdown, Modal, Space, Table, Tag, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Dropdown,
+  Flex,
+  Grid,
+  Modal,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { motion } from "framer-motion";
 import { Download, MoreHorizontal } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -8,6 +19,7 @@ import {
   chargeStatusLabelMap,
   currencyFormatter,
 } from "../constants";
+import ScholarshipAmountCell from "../../ScholarshipAmountCell";
 import OthersInstallmentHistory from "./OthersInstallmentHistory";
 
 const { Text } = Typography;
@@ -32,6 +44,9 @@ const OthersChargesTable = ({
   onDeleteCharge,
   isDeletingCharge,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
   const sortedCharges = [...charges].sort((left, right) => {
     const gradeComparison = normalizeSortValue(left.grade_name).localeCompare(
       normalizeSortValue(right.grade_name),
@@ -82,6 +97,8 @@ const OthersChargesTable = ({
       "Jenis Biaya": item.type_name || "-",
       Cakupan: item.type_scope === "student" ? "Individu" : "Tingkat",
       Tagihan: Number(item.amount_due || 0),
+      Bruto: Number(item.bruto_amount || item.amount_due || 0),
+      Beasiswa: Number(item.scholarship_cover || 0),
       Dibayar: Number(item.paid_amount || 0),
       Sisa: Number(item.remaining_amount || 0),
       Status: chargeStatusLabelMap[item.status] || item.status || "-",
@@ -93,7 +110,52 @@ const OthersChargesTable = ({
     XLSX.writeFile(workbook, "pembayaran-lainnya.xlsx");
   };
 
-  const columns = [
+  const renderActions = (record) => {
+    const hasCharge = Boolean(record.charge_id);
+    const menuItems = hasCharge
+      ? [
+          {
+            key: "delete",
+            label: "Hapus",
+            danger: true,
+          },
+        ]
+      : [];
+
+    const handleMenuClick = ({ key }) => {
+      if (key === "delete") {
+        Modal.confirm({
+          title: "Hapus tagihan ini?",
+          okText: "Hapus",
+          cancelText: "Batal",
+          okButtonProps: { danger: true },
+          onOk: () => onDeleteCharge(record),
+        });
+      }
+    };
+
+    if (!hasCharge) {
+      return "-";
+    }
+
+    return (
+      <Dropdown.Button
+        type='primary'
+        size={isMobile ? "small" : "middle"}
+        icon={<MoreHorizontal size={16} />}
+        menu={{
+          items: menuItems,
+          onClick: handleMenuClick,
+        }}
+        onClick={() => handleMenuClick({ key: "delete" })}
+        loading={isDeletingCharge}
+      >
+        {isMobile ? "Aksi" : "Pilih Aksi"}
+      </Dropdown.Button>
+    );
+  };
+
+  const desktopColumns = [
     {
       title: "Siswa",
       dataIndex: "student_name",
@@ -101,7 +163,9 @@ const OthersChargesTable = ({
       width: 220,
       render: (_, record) => (
         <Space direction='vertical' size={0}>
-          <Text strong>{record.student_name}</Text>
+          <Text strong style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
+            {record.student_name}
+          </Text>
           <Text
             type='secondary'
             style={{ whiteSpace: "normal", wordBreak: "break-word" }}
@@ -117,12 +181,17 @@ const OthersChargesTable = ({
       width: 260,
       render: (_, record) => (
         <Space direction='vertical' size={4}>
-          <Text strong>{record.type_name || "-"}</Text>
+          <Text strong style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
+            {record.type_name || "-"}
+          </Text>
           <Text type='secondary'>{getPeriodeName(record)}</Text>
           <Space size={6} wrap>
-            <Text type='secondary'>
-              {currencyFormatter.format(Number(record.amount_due || 0))}
-            </Text>
+            <ScholarshipAmountCell
+              amount={record.amount_due}
+              brutoAmount={record.bruto_amount}
+              scholarshipCover={record.scholarship_cover}
+              hasScholarship={record.has_scholarship}
+            />
             <Tag
               color={record.type_scope === "student" ? "blue" : "cyan"}
               style={{ borderRadius: 999, margin: 0 }}
@@ -174,47 +243,78 @@ const OthersChargesTable = ({
       title: "Aksi",
       key: "action",
       width: 160,
+      fixed: "right",
+      render: (_, record) => renderActions(record),
+    },
+  ];
+
+  const mobileColumns = [
+    {
+      title: "Tagihan",
+      key: "charge",
       render: (_, record) => {
-        const hasCharge = Boolean(record.charge_id);
-        const menuItems = hasCharge
-          ? [
-              {
-                key: "delete",
-                label: "Hapus",
-                danger: true,
-              },
-            ]
-          : [];
-
-        const handleMenuClick = ({ key }) => {
-          if (key === "delete") {
-            Modal.confirm({
-              title: "Hapus tagihan ini?",
-              okText: "Hapus",
-              cancelText: "Batal",
-              okButtonProps: { danger: true },
-              onOk: () => onDeleteCharge(record),
-            });
-          }
-        };
-
-        if (!hasCharge) {
-          return "-";
-        }
+        const installmentCount = Number(record.installment_count || 0);
 
         return (
-          <Dropdown.Button
-            type='primary'
-            icon={<MoreHorizontal size={16} />}
-            menu={{
-              items: menuItems,
-              onClick: handleMenuClick,
-            }}
-            onClick={() => handleMenuClick({ key: "delete" })}
-            loading={isDeletingCharge}
-          >
-            Pilih Aksi
-          </Dropdown.Button>
+          <Flex vertical gap={10} style={{ width: "100%" }}>
+            <Flex justify='space-between' align='flex-start' gap={8}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <Text
+                  strong
+                  style={{
+                    display: "block",
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {record.student_name}
+                </Text>
+                <Text
+                  type='secondary'
+                  style={{
+                    fontSize: 12,
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {`${record.nis || "-"} · ${record.class_name || "-"}`}
+                </Text>
+              </div>
+              <Tag
+                color={chargeStatusColorMap[record.status]}
+                style={{ borderRadius: 999, fontWeight: 600, margin: 0 }}
+              >
+                {chargeStatusLabelMap[record.status]}
+              </Tag>
+            </Flex>
+
+            <div>
+              <Text strong style={{ display: "block" }}>
+                {record.type_name || "-"}
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                {getPeriodeName(record)} ·{" "}
+                {record.type_scope === "student" ? "Individu" : "Tingkat"}
+              </Text>
+            </div>
+
+            <Flex justify='space-between' align='center' gap={8} wrap='wrap'>
+              <div>
+                <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                  Dibayar / Sisa
+                </Text>
+                <Text strong style={{ fontSize: 13 }}>
+                  {currencyFormatter.format(Number(record.paid_amount || 0))}
+                </Text>
+                <Text type='secondary' style={{ display: "block", fontSize: 12 }}>
+                  Sisa{" "}
+                  {currencyFormatter.format(Number(record.remaining_amount || 0))}
+                  {installmentCount > 0 ? ` · Cicilan #${installmentCount}` : ""}
+                </Text>
+              </div>
+              <div>{renderActions(record)}</div>
+            </Flex>
+          </Flex>
         );
       },
     },
@@ -225,42 +325,61 @@ const OthersChargesTable = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 22,
+          borderRadius: isMobile ? 16 : 22,
           background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
           border: "1px solid rgba(148,163,184,0.14)",
           boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
+          overflow: "hidden",
         }}
+        styles={{ body: { padding: isMobile ? 10 : 24 } }}
       >
         <Table
           rowKey={(record) =>
             record.charge_id ||
             `${record.periode_id}-${record.student_id}-${record.type_id}`
           }
-          columns={columns}
+          columns={isMobile ? mobileColumns : desktopColumns}
           dataSource={sortedCharges}
           loading={loading}
+          size={isMobile ? "small" : "middle"}
+          scroll={isMobile ? undefined : { x: 980 }}
           title={() => (
-            <Space style={{ width: "100%", justifyContent: "space-between" }} wrap>
-              <div>
-                <Text strong style={{ display: "block" }}>
+            <Flex
+              justify='space-between'
+              align={isMobile ? "stretch" : "center"}
+              vertical={isMobile}
+              gap={10}
+              style={{ width: "100%" }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <Text strong style={{ display: "block", fontSize: isMobile ? 13 : 14 }}>
                   Daftar tagihan pembayaran lainnya
                 </Text>
-                <Text type='secondary' style={{ fontSize: 13 }}>
-                  Hanya menampilkan siswa yang memenuhi cakupan jenis biaya
-                  (tingkat atau roster individu) pada periode terpilih.
-                </Text>
+                {!isMobile ? (
+                  <Text type='secondary' style={{ fontSize: 13 }}>
+                    Hanya menampilkan siswa yang memenuhi cakupan jenis biaya
+                    (tingkat atau roster individu) pada periode terpilih.
+                  </Text>
+                ) : null}
               </div>
-              <Button icon={<Download size={16} />} onClick={handleExportExcel}>
-                Download Excel
+              <Button
+                icon={<Download size={16} />}
+                onClick={handleExportExcel}
+                block={isMobile}
+              >
+                {isMobile ? "Excel" : "Download Excel"}
               </Button>
-            </Space>
+            </Flex>
           )}
           pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
+            pageSize: isMobile ? 8 : 10,
+            size: isMobile ? "small" : "default",
+            showSizeChanger: !isMobile,
             pageSizeOptions: [10, 20, 50, 100],
-            showTotal: (total, range) =>
-              `${range[0]}-${range[1]} dari ${total} tagihan`,
+            showTotal: isMobile
+              ? undefined
+              : (total, range) =>
+                  `${range[0]}-${range[1]} dari ${total} tagihan`,
           }}
           expandable={{
             expandedRowRender: (record) => (

@@ -1,4 +1,4 @@
-import { Button, Flex, Input, Select, Space, Tag, Typography } from "antd";
+import { Button, Flex, Grid, Input, Select, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
 import { RotateCcw, Search } from "lucide-react";
 
@@ -14,24 +14,32 @@ const OthersFilters = ({
   classes,
   types,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const hasPeriodeFilter = Boolean(filters.periode_id);
 
   return (
     <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div
         style={{
-          padding: 16,
-          borderRadius: 18,
+          padding: isMobile ? 12 : 16,
+          borderRadius: isMobile ? 14 : 18,
           border: "1px solid rgba(148, 163, 184, 0.18)",
           background: "rgba(248, 250, 252, 0.9)",
         }}
       >
-        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-          <Space vertical size={2}>
+        <Flex
+          justify='space-between'
+          align={isMobile ? "stretch" : "center"}
+          vertical={isMobile}
+          wrap='wrap'
+          gap={12}
+        >
+          <Space vertical size={2} style={{ minWidth: 0, flex: 1 }}>
             <Text strong style={{ color: "#0f172a" }}>
               Filter Pembayaran Lainnya
             </Text>
-            <Text type='secondary' style={{ fontSize: 13 }}>
+            <Text type='secondary' style={{ fontSize: isMobile ? 12 : 13 }}>
               Default: periode aktif. Kosongkan periode untuk semua periode.
               Filter jenis biaya mendukung cakupan tingkat maupun individu.
             </Text>
@@ -39,6 +47,7 @@ const OthersFilters = ({
 
           <Button
             icon={<RotateCcw size={16} />}
+            block={isMobile}
             onClick={() =>
               setFilters((previous) => ({
                 ...previous,
@@ -57,7 +66,9 @@ const OthersFilters = ({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: isMobile
+              ? "1fr"
+              : "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
             gap: 12,
             marginTop: 16,
           }}
@@ -84,6 +95,7 @@ const OthersFilters = ({
             disabled={(homebases || []).length <= 1}
             virtual={false}
             allowClear
+            style={{ width: "100%" }}
           />
           <Select
             allowClear
@@ -117,6 +129,7 @@ const OthersFilters = ({
             optionFilterProp='searchLabel'
             size='large'
             virtual={false}
+            style={{ width: "100%" }}
           />
           <Select
             allowClear
@@ -138,6 +151,7 @@ const OthersFilters = ({
             showSearch
             optionFilterProp='label'
             virtual={false}
+            style={{ width: "100%" }}
           />
           <Select
             allowClear
@@ -158,6 +172,7 @@ const OthersFilters = ({
             showSearch
             optionFilterProp='label'
             virtual={false}
+            style={{ width: "100%" }}
           />
           <Select
             allowClear
@@ -179,6 +194,7 @@ const OthersFilters = ({
             showSearch
             optionFilterProp='label'
             virtual={false}
+            style={{ width: "100%" }}
           />
           <Input
             placeholder='Cari nama siswa / NIS / NISN'
@@ -193,6 +209,7 @@ const OthersFilters = ({
             size='large'
             disabled={!hasPeriodeFilter}
             allowClear
+            style={{ width: "100%" }}
           />
           <Select
             allowClear
@@ -211,6 +228,7 @@ const OthersFilters = ({
             }
             size='large'
             virtual={false}
+            style={{ width: "100%" }}
           />
         </div>
       </div>

@@ -3,6 +3,8 @@ import {
   Button,
   Card,
   Dropdown,
+  Flex,
+  Grid,
   Modal,
   Space,
   Table,
@@ -19,6 +21,7 @@ import {
   statusLabelMap,
   statusColorMap,
 } from "../constants";
+import ScholarshipAmountCell from "../../ScholarshipAmountCell";
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
@@ -74,6 +77,9 @@ const MonthlyPaymentTable = ({
   onDeletePayment,
   isDeletingPayment,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const isCompact = !screens.lg;
   const [activeStatusTab, setActiveStatusTab] = useState("unpaid");
   const sortedPayments = [...payments].sort(comparePayments);
   const paidPayments = sortedPayments.filter((item) => item.status === "paid");
@@ -92,6 +98,8 @@ const MonthlyPaymentTable = ({
       Periode: item.periode_name || "-",
       Bulan: item.billing_period_label || selectedMonth || "-",
       Nominal: Number(item.amount || 0),
+      Bruto: Number(item.bruto_amount || item.amount || 0),
+      Beasiswa: Number(item.scholarship_cover || 0),
       "Sudah Dibayar": Number(item.paid_amount || 0),
       Status: statusLabelMap[item.status] || item.status || "-",
       "Riwayat Lunas": (item.paid_months || []).join(", ") || "-",
@@ -121,15 +129,75 @@ const MonthlyPaymentTable = ({
     });
   };
 
-  const columns = [
+  const renderActions = (record) => {
+    if (record.status === "paid") {
+      return (
+        <Dropdown.Button
+          size={isMobile ? "small" : "middle"}
+          trigger={["click"]}
+          menu={{
+            items: [
+              {
+                key: "edit",
+                label: "Edit",
+                icon: <Pencil size={16} />,
+              },
+              {
+                key: "delete",
+                label: "Hapus",
+                icon: <Trash2 size={16} />,
+                danger: true,
+              },
+            ],
+            onClick: ({ key }) => {
+              if (key === "edit") {
+                onEditPayment(record);
+                return;
+              }
+
+              if (key === "delete") {
+                handleDeletePayment(record.id);
+              }
+            },
+          }}
+          buttonsRender={([leftButton, rightButton]) => [
+            cloneElement(leftButton, {
+              onClick: () => undefined,
+            }),
+            cloneElement(rightButton, {
+              icon: <ChevronDown size={16} />,
+            }),
+          ]}
+        >
+          {isMobile ? "Aksi" : "Pilih aksi"}
+        </Dropdown.Button>
+      );
+    }
+
+    return (
+      <Button
+        type={isMobile ? "primary" : "link"}
+        size={isMobile ? "small" : "middle"}
+        block={isMobile}
+        onClick={() => onCreatePayment(record)}
+      >
+        {isMobile ? "Bayar" : "Input Pembayaran"}
+      </Button>
+    );
+  };
+
+  const desktopColumns = [
     {
       title: "Siswa",
       dataIndex: "student_name",
       key: "student_name",
       ellipsis: true,
+      width: isCompact ? 180 : 240,
       render: (_, record) => (
         <Space direction='vertical' size={0}>
-          <Text strong>{record.student_name}</Text>
+          <Text strong style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
+            {record.student_name}
+          </Text>
           <Text
             type='secondary'
             style={{ whiteSpace: "normal", wordBreak: "break-word" }}
@@ -144,17 +212,27 @@ const MonthlyPaymentTable = ({
       dataIndex: "billing_period_label",
       key: "billing_period_label",
       ellipsis: true,
+      width: 140,
     },
     {
       title: "Nominal",
       dataIndex: "amount",
       key: "amount",
-      render: (value) => currencyFormatter.format(Number(value || 0)),
+      width: 170,
+      render: (_, record) => (
+        <ScholarshipAmountCell
+          amount={record.amount}
+          brutoAmount={record.bruto_amount}
+          scholarshipCover={record.scholarship_cover}
+          hasScholarship={record.has_scholarship}
+        />
+      ),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
+      width: 120,
       render: (value) => (
         <Tag
           color={statusColorMap[value]}
@@ -167,52 +245,65 @@ const MonthlyPaymentTable = ({
     {
       title: "Aksi",
       key: "action",
-      width: 190,
-      render: (_, record) =>
-        record.status === "paid" ? (
-          <Dropdown.Button
-            trigger={["click"]}
-            menu={{
-              items: [
-                {
-                  key: "edit",
-                  label: "Edit",
-                  icon: <Pencil size={16} />,
-                },
-                {
-                  key: "delete",
-                  label: "Hapus",
-                  icon: <Trash2 size={16} />,
-                  danger: true,
-                },
-              ],
-              onClick: ({ key }) => {
-                if (key === "edit") {
-                  onEditPayment(record);
-                  return;
-                }
+      width: isCompact ? 140 : 190,
+      fixed: "right",
+      render: (_, record) => renderActions(record),
+    },
+  ];
 
-                if (key === "delete") {
-                  handleDeletePayment(record.id);
-                }
-              },
-            }}
-            buttonsRender={([leftButton, rightButton]) => [
-              cloneElement(leftButton, {
-                onClick: () => undefined,
-              }),
-              cloneElement(rightButton, {
-                icon: <ChevronDown size={16} />,
-              }),
-            ]}
-          >
-            Pilih aksi
-          </Dropdown.Button>
-        ) : (
-          <Button type='link' onClick={() => onCreatePayment(record)}>
-            Input Pembayaran
-          </Button>
-        ),
+  const mobileColumns = [
+    {
+      title: "Pembayaran",
+      key: "payment",
+      render: (_, record) => (
+        <Flex vertical gap={10} style={{ width: "100%" }}>
+          <Flex justify='space-between' align='flex-start' gap={8}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Text
+                strong
+                style={{
+                  display: "block",
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
+                }}
+              >
+                {record.student_name}
+              </Text>
+              <Text
+                type='secondary'
+                style={{
+                  fontSize: 12,
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
+                }}
+              >
+                {`${record.nis || "-"} · ${record.class_name || "-"}`}
+              </Text>
+            </div>
+            <Tag
+              color={statusColorMap[record.status]}
+              style={{ borderRadius: 999, fontWeight: 600, margin: 0 }}
+            >
+              {statusLabelMap[record.status]}
+            </Tag>
+          </Flex>
+
+          <Flex justify='space-between' align='center' gap={8} wrap='wrap'>
+            <div>
+              <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                {record.billing_period_label || selectedMonth || "-"}
+              </Text>
+              <ScholarshipAmountCell
+                amount={record.amount}
+                brutoAmount={record.bruto_amount}
+                scholarshipCover={record.scholarship_cover}
+                hasScholarship={record.has_scholarship}
+              />
+            </div>
+            <div style={{ minWidth: 110 }}>{renderActions(record)}</div>
+          </Flex>
+        </Flex>
+      ),
     },
   ];
 
@@ -223,54 +314,92 @@ const MonthlyPaymentTable = ({
     <Card
       variant='borderless'
       style={{
-        borderRadius: 22,
+        borderRadius: isMobile ? 16 : 22,
         background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
         border: "1px solid rgba(148,163,184,0.14)",
         boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
+        overflow: "hidden",
       }}
+      styles={{ body: { padding: isMobile ? 10 : 24 } }}
     >
       <Table
         rowKey={(record) =>
-          record.id || `${record.student_id}-${record.periode_id}-${record.bill_month}`
+          record.id ||
+          `${record.student_id}-${record.periode_id}-${record.bill_month}`
         }
-        columns={columns}
+        columns={isMobile ? mobileColumns : desktopColumns}
         dataSource={currentData}
         loading={loading}
+        size={isMobile ? "small" : "middle"}
+        scroll={isMobile ? undefined : { x: 820 }}
         title={() => (
-          <Space
-            style={{ width: "100%", justifyContent: "space-between" }}
-            wrap
+          <Flex
+            justify='space-between'
+            align={isMobile ? "stretch" : "center"}
+            vertical={isMobile}
+            gap={10}
+            style={{ width: "100%" }}
           >
-            <Text strong>
-              Data pembayaran SPP terurut berdasarkan tingkat, kelas, dan nama.
+            <Text
+              strong
+              style={{
+                fontSize: isMobile ? 13 : 14,
+                lineHeight: 1.4,
+              }}
+            >
+              {isMobile
+                ? "Data pembayaran SPP"
+                : "Data pembayaran SPP terurut berdasarkan tingkat, kelas, dan nama."}
             </Text>
-            <Button icon={<Download size={16} />} onClick={handleExportExcel}>
-              Download Excel
+            <Button
+              icon={<Download size={16} />}
+              onClick={handleExportExcel}
+              block={isMobile}
+              size={isMobile ? "middle" : "middle"}
+            >
+              {isMobile ? "Excel" : "Download Excel"}
             </Button>
-          </Space>
+          </Flex>
         )}
-        pagination={{ pageSize: 10 }}
+        pagination={{
+          pageSize: isMobile ? 8 : 10,
+          size: isMobile ? "small" : "default",
+          showSizeChanger: !isMobile,
+          showTotal: isMobile
+            ? undefined
+            : (total, range) => `${range[0]}-${range[1]} dari ${total} siswa`,
+        }}
         locale={{ emptyText }}
       />
     </Card>
   );
 
   return (
-    <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+    <MotionDiv
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ width: "100%" }}
+    >
       <Tabs
         activeKey={activeStatusTab}
         onChange={setActiveStatusTab}
+        size={isMobile ? "small" : "middle"}
+        tabBarGutter={isMobile ? 8 : 16}
         items={[
           {
             key: "unpaid",
-            label: `Belum Lunas (${unpaidPayments.length})`,
+            label: isMobile
+              ? `Belum (${unpaidPayments.length})`
+              : `Belum Lunas (${unpaidPayments.length})`,
             children: renderTable(
               "Semua siswa pada filter ini sudah melunasi SPP bulan yang dipilih.",
             ),
           },
           {
             key: "paid",
-            label: `Lunas (${paidPayments.length})`,
+            label: isMobile
+              ? `Lunas (${paidPayments.length})`
+              : `Lunas (${paidPayments.length})`,
             children: renderTable(
               "Belum ada siswa yang tercatat lunas pada bulan yang dipilih.",
             ),

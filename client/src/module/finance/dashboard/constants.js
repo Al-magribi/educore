@@ -48,6 +48,7 @@ export const percentColor = (value) => {
 export const summaryIconMap = {
   revenue: Banknote,
   spp: CreditCard,
+  scholarship: Landmark,
   savings: PiggyBank,
   cash: Wallet,
 };
@@ -58,6 +59,10 @@ export const summaryToneMap = {
     bg: "linear-gradient(135deg, #ccfbf1, #d1fae5)",
   },
   spp: { color: "#2563eb", bg: "linear-gradient(135deg, #dbeafe, #eff6ff)" },
+  scholarship: {
+    color: "#1d4ed8",
+    bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
+  },
   savings: {
     color: "#15803d",
     bg: "linear-gradient(135deg, #dcfce7, #f0fdf4)",

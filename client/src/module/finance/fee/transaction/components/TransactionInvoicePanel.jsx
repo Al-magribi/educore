@@ -6,6 +6,7 @@ import {
   Descriptions,
   Empty,
   Flex,
+  Grid,
   Image,
   Row,
   Space,
@@ -67,6 +68,8 @@ const TransactionInvoicePanel = ({
   loading,
   onClose,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const invoice = invoiceData?.invoice;
   const officer = invoiceData?.officer;
   const items = invoiceData?.items || [];
@@ -103,16 +106,219 @@ const TransactionInvoicePanel = ({
     },
   ];
 
+  const itemDesktopColumns = [
+    {
+      title: "Item",
+      dataIndex: "description",
+      key: "description",
+      render: (_, record) => (
+        <Space vertical size={0}>
+          <Text strong style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
+            {record.description}
+          </Text>
+          <Text type='secondary'>
+            {record.billing_period_label || record.component_name || "-"}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Nominal",
+      dataIndex: "amount_due",
+      key: "amount_due",
+      render: (value) => currencyFormatter.format(Number(value || 0)),
+    },
+    {
+      title: "Dibayar",
+      dataIndex: "paid_amount",
+      key: "paid_amount",
+      render: (value) => currencyFormatter.format(Number(value || 0)),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (value) => {
+        const meta = statusMetaMap[value] || statusMetaMap.unpaid;
+        return (
+          <Tag
+            color={meta.color}
+            style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
+          >
+            {meta.label}
+          </Tag>
+        );
+      },
+    },
+  ];
+
+  const itemMobileColumns = [
+    {
+      title: "Item",
+      key: "item",
+      render: (_, record) => {
+        const meta = statusMetaMap[record.status] || statusMetaMap.unpaid;
+        return (
+          <Flex vertical gap={8} style={{ width: "100%" }}>
+            <Flex justify='space-between' align='flex-start' gap={8}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <Text strong style={{ display: "block", wordBreak: "break-word" }}>
+                  {record.description}
+                </Text>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  {record.billing_period_label || record.component_name || "-"}
+                </Text>
+              </div>
+              <Tag
+                color={meta.color}
+                style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
+              >
+                {meta.label}
+              </Tag>
+            </Flex>
+            <Flex justify='space-between' gap={8}>
+              <div>
+                <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                  Nominal
+                </Text>
+                <Text strong style={{ fontSize: 13 }}>
+                  {currencyFormatter.format(Number(record.amount_due || 0))}
+                </Text>
+              </div>
+              <div>
+                <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                  Dibayar
+                </Text>
+                <Text strong style={{ fontSize: 13 }}>
+                  {currencyFormatter.format(Number(record.paid_amount || 0))}
+                </Text>
+              </div>
+            </Flex>
+          </Flex>
+        );
+      },
+    },
+  ];
+
+  const paymentDesktopColumns = [
+    {
+      title: "Tanggal",
+      dataIndex: "payment_date",
+      key: "payment_date",
+      render: (value) => dateFormatter(value, true),
+    },
+    {
+      title: "Kanal",
+      dataIndex: "payment_channel",
+      key: "payment_channel",
+    },
+    {
+      title: "Alokasi ke Invoice",
+      dataIndex: "allocated_amount",
+      key: "allocated_amount",
+      render: (value) => currencyFormatter.format(Number(value || 0)),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (value) => {
+        const meta = statusMetaMap[value] || statusMetaMap.unpaid;
+        return (
+          <Tag
+            color={meta.color}
+            style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
+          >
+            {meta.label}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Referensi",
+      dataIndex: "reference_no",
+      key: "reference_no",
+      render: (value) => value || "-",
+    },
+    {
+      title: "Bukti",
+      dataIndex: "proof_url",
+      key: "proof_url",
+      render: (value) =>
+        value ? (
+          <Button href={value} target='_blank' rel='noreferrer'>
+            Lihat Bukti
+          </Button>
+        ) : (
+          "-"
+        ),
+    },
+  ];
+
+  const paymentMobileColumns = [
+    {
+      title: "Pembayaran",
+      key: "payment",
+      render: (_, record) => {
+        const meta = statusMetaMap[record.status] || statusMetaMap.unpaid;
+        return (
+          <Flex vertical gap={8} style={{ width: "100%" }}>
+            <Flex justify='space-between' align='flex-start' gap={8}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <Text strong style={{ display: "block" }}>
+                  {dateFormatter(record.payment_date, true)}
+                </Text>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  {record.payment_channel || "-"}
+                </Text>
+              </div>
+              <Tag
+                color={meta.color}
+                style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
+              >
+                {meta.label}
+              </Tag>
+            </Flex>
+            <Flex justify='space-between' align='center' gap={8} wrap='wrap'>
+              <div>
+                <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                  Alokasi
+                </Text>
+                <Text strong style={{ fontSize: 13 }}>
+                  {currencyFormatter.format(Number(record.allocated_amount || 0))}
+                </Text>
+                <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                  Ref: {record.reference_no || "-"}
+                </Text>
+              </div>
+              {record.proof_url ? (
+                <Button
+                  size='small'
+                  href={record.proof_url}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  Bukti
+                </Button>
+              ) : null}
+            </Flex>
+          </Flex>
+        );
+      },
+    },
+  ];
+
   return (
     <Card
       variant='borderless'
       style={{
-        borderRadius: 30,
+        borderRadius: isMobile ? 20 : 30,
         border: "1px solid rgba(148,163,184,0.14)",
         boxShadow: "0 24px 56px rgba(15,23,42,0.08)",
         background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+        overflow: "hidden",
       }}
-      styles={{ body: { padding: 20 } }}
+      styles={{ body: { padding: isMobile ? 12 : 20 } }}
     >
       {loading ? (
         <div style={{ padding: "56px 0", textAlign: "center" }}>
@@ -125,31 +331,38 @@ const TransactionInvoicePanel = ({
           initial='hidden'
           animate='show'
           variants={containerVariants}
-          style={{ display: "flex", flexDirection: "column", gap: 18 }}
+          style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 18 }}
         >
           <MotionDiv variants={itemVariants}>
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: isMobile ? 18 : 24,
                 overflow: "hidden",
                 background:
                   "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0f766e 100%)",
                 boxShadow: "0 24px 56px rgba(15,23,42,0.18)",
               }}
-              styles={{ body: { padding: 20 } }}
+              styles={{ body: { padding: isMobile ? 14 : 20 } }}
             >
-              <Flex justify='space-between' align='start' gap={16} wrap='wrap'>
-                <Space vertical size={10} style={{ maxWidth: 640 }}>
+              <Flex
+                justify='space-between'
+                align='start'
+                gap={16}
+                wrap='wrap'
+                vertical={isMobile}
+              >
+                <Space vertical size={10} style={{ maxWidth: 640, width: "100%" }}>
                   <Button
                     icon={<ArrowLeft size={16} />}
                     onClick={onClose}
+                    block={isMobile}
                     style={{
-                      width: "fit-content",
+                      width: isMobile ? "100%" : "fit-content",
                       borderRadius: 999,
                     }}
                   >
-                    Kembali ke daftar transaksi
+                    {isMobile ? "Kembali" : "Kembali ke daftar transaksi"}
                   </Button>
 
                   <Flex align='center' gap={8} wrap='wrap'>
@@ -182,30 +395,32 @@ const TransactionInvoicePanel = ({
                       {invoice.invoice_no}
                     </Text>
                     <Title
-                      level={3}
+                      level={isMobile ? 4 : 3}
                       style={{ margin: 0, color: "#fff", lineHeight: 1.16 }}
                     >
                       Invoice {invoice.student_name}
                     </Title>
                   </Space>
 
-                  <Paragraph
-                    style={{
-                      marginBottom: 0,
-                      color: "rgba(255,255,255,0.82)",
-                      fontSize: 14,
-                      maxWidth: 640,
-                    }}
-                  >
-                    Ringkasan invoice, item pembayaran, dan histori alokasi dana
-                    untuk transaksi terpilih.
-                  </Paragraph>
+                  {!isMobile ? (
+                    <Paragraph
+                      style={{
+                        marginBottom: 0,
+                        color: "rgba(255,255,255,0.82)",
+                        fontSize: 14,
+                        maxWidth: 640,
+                      }}
+                    >
+                      Ringkasan invoice, item pembayaran, dan histori alokasi dana
+                      untuk transaksi terpilih.
+                    </Paragraph>
+                  ) : null}
 
                   <Flex align='center' gap={16} wrap='wrap'>
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                      Tanggal invoice: {dateFormatter(invoice.issue_date)}
+                    <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: isMobile ? 12 : 14 }}>
+                      Tanggal: {dateFormatter(invoice.issue_date)}
                     </Text>
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
+                    <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: isMobile ? 12 : 14 }}>
                       Periode: {invoice.periode_name || "-"}
                     </Text>
                   </Flex>
@@ -214,14 +429,14 @@ const TransactionInvoicePanel = ({
                 <Card
                   variant='borderless'
                   style={{
-                    width: 280,
+                    width: isMobile ? "100%" : 280,
                     maxWidth: "100%",
                     borderRadius: 20,
                     background: "rgba(255,255,255,0.14)",
                     border: "1px solid rgba(255,255,255,0.14)",
                     backdropFilter: "blur(10px)",
                   }}
-                  styles={{ body: { padding: 18 } }}
+                  styles={{ body: { padding: isMobile ? 14 : 18 } }}
                 >
                   <Space vertical size={10} style={{ width: "100%" }}>
                     <Flex align='center' gap={8}>
@@ -230,16 +445,14 @@ const TransactionInvoicePanel = ({
                         Ringkasan invoice
                       </Text>
                     </Flex>
-                    <Title level={4} style={{ margin: 0, color: "#fff" }}>
+                    <Title level={4} style={{ margin: 0, color: "#fff", wordBreak: "break-word" }}>
                       {currencyFormatter.format(Number(invoice.total_due || 0))}
                     </Title>
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
+                    <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: isMobile ? 12 : 14 }}>
                       Sudah dibayar:{" "}
-                      {currencyFormatter.format(
-                        Number(invoice.total_paid || 0),
-                      )}
+                      {currencyFormatter.format(Number(invoice.total_paid || 0))}
                     </Text>
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
+                    <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: isMobile ? 12 : 14 }}>
                       Sisa tagihan:{" "}
                       {currencyFormatter.format(
                         Math.max(
@@ -259,38 +472,54 @@ const TransactionInvoicePanel = ({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 16,
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: isMobile ? 10 : 16,
               }}
             >
               {summaryItems.map((item) => (
                 <Card
                   key={item.key}
                   variant='borderless'
-                  style={summaryCardStyle}
-                  styles={{ body: { padding: 20 } }}
+                  style={{
+                    ...summaryCardStyle,
+                    borderRadius: isMobile ? 16 : 22,
+                  }}
+                  styles={{ body: { padding: isMobile ? 14 : 20 } }}
                 >
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 16,
-                      display: "grid",
-                      placeItems: "center",
-                      marginBottom: 16,
-                      background: item.background,
-                      color: item.color,
-                    }}
-                  >
-                    {item.icon}
-                  </div>
-                  <Text type='secondary'>{item.label}</Text>
-                  <Title level={4} style={{ margin: "8px 0 4px" }}>
-                    {item.value}
-                  </Title>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    {item.note}
-                  </Text>
+                  <Flex align='center' gap={12}>
+                    <div
+                      style={{
+                        width: isMobile ? 40 : 44,
+                        height: isMobile ? 40 : 44,
+                        borderRadius: 16,
+                        display: "grid",
+                        placeItems: "center",
+                        background: item.background,
+                        color: item.color,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.icon}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                        {item.label}
+                      </Text>
+                      <Title
+                        level={isMobile ? 5 : 4}
+                        style={{ margin: "4px 0", wordBreak: "break-word" }}
+                      >
+                        {item.value}
+                      </Title>
+                      {!isMobile ? (
+                        <Text type='secondary' style={{ fontSize: 12 }}>
+                          {item.note}
+                        </Text>
+                      ) : null}
+                    </div>
+                  </Flex>
                 </Card>
               ))}
             </div>
@@ -300,16 +529,17 @@ const TransactionInvoicePanel = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: isMobile ? 16 : 24,
                 border: "1px solid rgba(148,163,184,0.14)",
                 boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
               }}
-              styles={{ body: { padding: 20 } }}
+              styles={{ body: { padding: isMobile ? 12 : 20 } }}
             >
               <Descriptions
                 bordered
+                size={isMobile ? "small" : "default"}
                 column={{ xs: 1, md: 2 }}
-                labelStyle={{ fontWeight: 700, width: 170 }}
+                labelStyle={{ fontWeight: 700, width: isMobile ? 120 : 170 }}
               >
                 <Descriptions.Item label='Nama Siswa'>
                   {invoice.student_name}
@@ -344,71 +574,23 @@ const TransactionInvoicePanel = ({
               title='Rincian Item'
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: isMobile ? 16 : 24,
                 border: "1px solid rgba(148,163,184,0.14)",
                 boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                overflow: "hidden",
               }}
-              styles={{ body: { padding: 0 } }}
+              styles={{ body: { padding: isMobile ? 8 : 0 } }}
             >
               <Table
                 rowKey='id'
                 dataSource={items}
                 pagination={false}
-                scroll={{ x: 720 }}
+                size={isMobile ? "small" : "middle"}
+                scroll={isMobile ? undefined : { x: 720 }}
+                columns={isMobile ? itemMobileColumns : itemDesktopColumns}
                 locale={{
                   emptyText: "Belum ada item pembayaran pada invoice ini.",
                 }}
-                columns={[
-                  {
-                    title: "Item",
-                    dataIndex: "description",
-                    key: "description",
-                    render: (_, record) => (
-                      <Space vertical size={0}>
-                        <Text strong>{record.description}</Text>
-                        <Text type='secondary'>
-                          {record.billing_period_label ||
-                            record.component_name ||
-                            "-"}
-                        </Text>
-                      </Space>
-                    ),
-                  },
-                  {
-                    title: "Nominal",
-                    dataIndex: "amount_due",
-                    key: "amount_due",
-                    render: (value) =>
-                      currencyFormatter.format(Number(value || 0)),
-                  },
-                  {
-                    title: "Dibayar",
-                    dataIndex: "paid_amount",
-                    key: "paid_amount",
-                    render: (value) =>
-                      currencyFormatter.format(Number(value || 0)),
-                  },
-                  {
-                    title: "Status",
-                    dataIndex: "status",
-                    key: "status",
-                    render: (value) => {
-                      const meta = statusMetaMap[value] || statusMetaMap.unpaid;
-                      return (
-                        <Tag
-                          color={meta.color}
-                          style={{
-                            margin: 0,
-                            borderRadius: 999,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {meta.label}
-                        </Tag>
-                      );
-                    },
-                  },
-                ]}
               />
             </Card>
           </MotionDiv>
@@ -418,77 +600,21 @@ const TransactionInvoicePanel = ({
               title='Riwayat Pembayaran'
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: isMobile ? 16 : 24,
                 border: "1px solid rgba(148,163,184,0.14)",
                 boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                overflow: "hidden",
               }}
-              styles={{ body: { padding: 0 } }}
+              styles={{ body: { padding: isMobile ? 8 : 0 } }}
             >
               <Table
                 rowKey='id'
                 dataSource={payments}
                 pagination={false}
-                scroll={{ x: 980 }}
+                size={isMobile ? "small" : "middle"}
+                scroll={isMobile ? undefined : { x: 980 }}
+                columns={isMobile ? paymentMobileColumns : paymentDesktopColumns}
                 locale={{ emptyText: "Belum ada pembayaran yang masuk." }}
-                columns={[
-                  {
-                    title: "Tanggal",
-                    dataIndex: "payment_date",
-                    key: "payment_date",
-                    render: (value) => dateFormatter(value, true),
-                  },
-                  {
-                    title: "Kanal",
-                    dataIndex: "payment_channel",
-                    key: "payment_channel",
-                  },
-                  {
-                    title: "Alokasi ke Invoice",
-                    dataIndex: "allocated_amount",
-                    key: "allocated_amount",
-                    render: (value) =>
-                      currencyFormatter.format(Number(value || 0)),
-                  },
-                  {
-                    title: "Status",
-                    dataIndex: "status",
-                    key: "status",
-                    render: (value) => {
-                      const meta = statusMetaMap[value] || statusMetaMap.unpaid;
-                      return (
-                        <Tag
-                          color={meta.color}
-                          style={{
-                            margin: 0,
-                            borderRadius: 999,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {meta.label}
-                        </Tag>
-                      );
-                    },
-                  },
-                  {
-                    title: "Referensi",
-                    dataIndex: "reference_no",
-                    key: "reference_no",
-                    render: (value) => value || "-",
-                  },
-                  {
-                    title: "Bukti",
-                    dataIndex: "proof_url",
-                    key: "proof_url",
-                    render: (value) =>
-                      value ? (
-                        <Button href={value} target='_blank' rel='noreferrer'>
-                          Lihat Bukti
-                        </Button>
-                      ) : (
-                        "-"
-                      ),
-                  },
-                ]}
               />
             </Card>
           </MotionDiv>
@@ -499,14 +625,15 @@ const TransactionInvoicePanel = ({
                 <Card
                   variant='borderless'
                   style={{
-                    borderRadius: 24,
+                    borderRadius: isMobile ? 16 : 24,
                     border: "1px solid rgba(148,163,184,0.14)",
                     boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
                     height: "100%",
                   }}
+                  styles={{ body: { padding: isMobile ? 14 : 24 } }}
                 >
                   <Space vertical size={16} style={{ width: "100%" }}>
-                    <Space align='center' size={10}>
+                    <Space align='start' size={10}>
                       <span
                         style={{
                           width: 38,
@@ -514,18 +641,17 @@ const TransactionInvoicePanel = ({
                           borderRadius: 14,
                           display: "grid",
                           placeItems: "center",
-                          background:
-                            "linear-gradient(135deg, #dbeafe, #dcfce7)",
+                          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
                           color: "#0f766e",
+                          flexShrink: 0,
                         }}
                       >
                         <FileSignature size={18} />
                       </span>
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700 }}>Petugas Keuangan</div>
-                        <Text type='secondary'>
-                          Nama dan tanda tangan resmi yang tercantum pada
-                          invoice.
+                        <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                          Nama dan tanda tangan resmi yang tercantum pada invoice.
                         </Text>
                       </div>
                     </Space>
@@ -543,6 +669,7 @@ const TransactionInvoicePanel = ({
                         wrap='wrap'
                         justify='space-between'
                         align='start'
+                        vertical={isMobile}
                       >
                         <div>
                           <Text type='secondary'>Nama Petugas</Text>
@@ -557,8 +684,8 @@ const TransactionInvoicePanel = ({
                               <Image
                                 src={officer.signature_url}
                                 alt='Tanda tangan petugas'
-                                width={180}
-                                style={{ objectFit: "contain" }}
+                                width={isMobile ? 140 : 180}
+                                style={{ objectFit: "contain", maxWidth: "100%" }}
                               />
                             ) : (
                               <Text type='secondary'>Belum diunggah</Text>

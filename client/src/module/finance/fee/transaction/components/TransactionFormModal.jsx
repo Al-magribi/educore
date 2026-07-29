@@ -63,6 +63,7 @@ const TransactionFormModal = ({
   onOtherPaymentAmountChange,
 }) => {
   const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [currentStep, setCurrentStep] = useState(0);
 
   const monthlySelection = Form.useWatch("bill_months", form) || [];
@@ -73,12 +74,24 @@ const TransactionFormModal = ({
 
   const steps = useMemo(
     () => [
-      { title: "Data Siswa", icon: <UserRound size={14} /> },
-      { title: "Pembayaran SPP", icon: <CreditCard size={14} /> },
-      { title: "Pembayaran Lainnya", icon: <ReceiptText size={14} /> },
-      { title: "Konfirmasi", icon: <CreditCard size={14} /> },
+      {
+        title: isMobile ? "Siswa" : "Data Siswa",
+        icon: <UserRound size={14} />,
+      },
+      {
+        title: isMobile ? "SPP" : "Pembayaran SPP",
+        icon: <CreditCard size={14} />,
+      },
+      {
+        title: isMobile ? "Lainnya" : "Pembayaran Lainnya",
+        icon: <ReceiptText size={14} />,
+      },
+      {
+        title: isMobile ? "Konfirmasi" : "Konfirmasi",
+        icon: <CreditCard size={14} />,
+      },
     ],
-    [],
+    [isMobile],
   );
 
   const validateStep = async () => {
@@ -145,7 +158,7 @@ const TransactionFormModal = ({
       title={null}
       onCancel={onCancel}
       width={screens.lg ? 1120 : "calc(100vw - 20px)"}
-      style={{ top: 20 }}
+      style={{ top: isMobile ? 8 : 20 }}
       destroyOnHidden
       footer={null}
       closable={false}
@@ -153,10 +166,15 @@ const TransactionFormModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: 30,
+          borderRadius: isMobile ? 20 : 30,
           boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          maxHeight: isMobile ? "calc(100vh - 16px)" : undefined,
         },
-        body: { padding: 0 },
+        body: {
+          padding: 0,
+          maxHeight: isMobile ? "calc(100vh - 16px)" : undefined,
+          overflowY: isMobile ? "auto" : undefined,
+        },
       }}
       modalRender={(modalNode) => (
         <MotionDiv
@@ -170,23 +188,23 @@ const TransactionFormModal = ({
     >
       <div
         style={{
-          padding: 24,
+          padding: isMobile ? 14 : 24,
           background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
         }}
       >
         <Spin spinning={loadingOpen}>
           <Form form={form} layout='vertical' preserve>
-            <Space vertical size={20} style={{ width: "100%" }}>
+            <Space vertical size={isMobile ? 14 : 20} style={{ width: "100%" }}>
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: 24,
+                  borderRadius: isMobile ? 18 : 24,
                   overflow: "hidden",
                   position: "relative",
                   background:
                     "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0f766e 100%)",
                 }}
-                styles={{ body: { padding: 20 } }}
+                styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
                 <div
                   style={{
@@ -199,12 +217,13 @@ const TransactionFormModal = ({
                 />
                 <Flex
                   justify='space-between'
-                  align='center'
+                  align={isMobile ? "stretch" : "center"}
+                  vertical={isMobile}
                   wrap='wrap'
                   gap={12}
                   style={{ position: "relative" }}
                 >
-                  <Space direction='vertical' size={2}>
+                  <Space direction='vertical' size={2} style={{ minWidth: 0 }}>
                     <Tag
                       color={modeTag.color}
                       style={{
@@ -216,15 +235,31 @@ const TransactionFormModal = ({
                     >
                       {modeTag.label}
                     </Tag>
-                    <Text strong style={{ fontSize: 20, color: "#fff" }}>
+                    <Text
+                      strong
+                      style={{
+                        fontSize: isMobile ? 17 : 20,
+                        color: "#fff",
+                        lineHeight: 1.3,
+                      }}
+                    >
                       {modalTitle}
                     </Text>
-                    <Text style={{ color: "rgba(255,255,255,0.8)" }}>
-                      Wizard 4 langkah untuk input pembayaran siswa yang aman dan
-                      lebih nyaman dipakai.
-                    </Text>
+                    {!isMobile ? (
+                      <Text style={{ color: "rgba(255,255,255,0.8)" }}>
+                        Wizard 4 langkah untuk input pembayaran siswa yang aman
+                        dan lebih nyaman dipakai.
+                      </Text>
+                    ) : null}
                   </Space>
-                  <Text strong style={{ color: "#fff", fontSize: 24 }}>
+                  <Text
+                    strong
+                    style={{
+                      color: "#fff",
+                      fontSize: isMobile ? 20 : 24,
+                      wordBreak: "break-word",
+                    }}
+                  >
                     {currencyFormatter.format(grandTotal)}
                   </Text>
                 </Flex>
@@ -233,15 +268,17 @@ const TransactionFormModal = ({
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: 20,
+                  borderRadius: isMobile ? 16 : 20,
                   border: "1px solid rgba(148,163,184,0.14)",
                 }}
+                styles={{ body: { padding: isMobile ? 10 : 24 } }}
               >
                 <Steps
                   current={currentStep}
                   items={steps}
                   responsive
                   size={screens.md ? "default" : "small"}
+                  direction={screens.sm ? "horizontal" : "vertical"}
                 />
               </Card>
 
@@ -259,27 +296,45 @@ const TransactionFormModal = ({
                 <Card
                   variant='borderless'
                   style={{
-                    borderRadius: 20,
+                    borderRadius: isMobile ? 16 : 20,
                     background:
                       "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
                   }}
-                  styles={{ body: { padding: 18 } }}
+                  styles={{ body: { padding: isMobile ? 14 : 18 } }}
                 >
-                  <Flex justify='space-between' align='center' wrap='wrap' gap={16}>
+                  <Flex
+                    justify='space-between'
+                    align='center'
+                    wrap='wrap'
+                    gap={16}
+                  >
                     <Space size={14} align='start'>
                       <Avatar
-                        size={48}
+                        size={isMobile ? 40 : 48}
                         style={{ background: "#2563eb", fontWeight: 700 }}
                       >
                         {(student.student_name || student.full_name || "?")
                           .slice(0, 1)
                           .toUpperCase()}
                       </Avatar>
-                      <Space direction='vertical' size={2}>
-                        <Text strong style={{ color: "#ffffff", fontSize: 16 }}>
+                      <Space direction='vertical' size={2} style={{ minWidth: 0 }}>
+                        <Text
+                          strong
+                          style={{
+                            color: "#ffffff",
+                            fontSize: isMobile ? 14 : 16,
+                            wordBreak: "break-word",
+                          }}
+                        >
                           {student.student_name || student.full_name}
                         </Text>
-                        <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                        <Text
+                          style={{
+                            color: "rgba(255,255,255,0.72)",
+                            fontSize: isMobile ? 12 : 14,
+                            wordBreak: "break-word",
+                          }}
+                        >
                           {`NIS ${student.nis || "-"} | ${student.grade_name || "-"} | ${student.class_name || "-"}`}
                         </Text>
                         <Text style={{ color: "rgba(255,255,255,0.72)" }}>
@@ -341,23 +396,34 @@ const TransactionFormModal = ({
                 />
               </div>
 
-              <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-                <Space wrap>
-                  <Button onClick={handleReset}>Reset</Button>
-                  <Button onClick={onCancel}>Batal</Button>
+              <Flex
+                justify='space-between'
+                align={isMobile ? "stretch" : "center"}
+                vertical={isMobile}
+                wrap='wrap'
+                gap={12}
+              >
+                <Space wrap style={{ width: isMobile ? "100%" : undefined }}>
+                  <Button onClick={handleReset} block={isMobile}>
+                    Reset
+                  </Button>
+                  <Button onClick={onCancel} block={isMobile}>
+                    Batal
+                  </Button>
                 </Space>
 
-                <Space wrap>
+                <Space wrap style={{ width: isMobile ? "100%" : undefined }}>
                   {currentStep > 0 ? (
                     <Button
                       onClick={() => setCurrentStep((previous) => previous - 1)}
+                      block={isMobile}
                     >
                       Sebelumnya
                     </Button>
                   ) : null}
 
                   {currentStep < steps.length - 1 ? (
-                    <Button type='primary' onClick={handleNext}>
+                    <Button type='primary' onClick={handleNext} block={isMobile}>
                       Lanjut
                     </Button>
                   ) : (
@@ -365,6 +431,7 @@ const TransactionFormModal = ({
                       type='primary'
                       loading={confirmLoading}
                       onClick={handleFinish}
+                      block={isMobile}
                     >
                       Simpan Transaksi
                     </Button>

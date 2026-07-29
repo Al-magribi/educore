@@ -15,6 +15,10 @@ import {
   getOrCreateInvoice,
   getParentPayerUserId,
   createManualPayment,
+  insertInvoiceItemWithScholarship,
+  refreshInvoiceItemScholarship,
+  loadScholarshipBenefitIndex,
+  enrichDueWithScholarship,
 } from "./financeHelpers.js";
 
 const router = Router();
@@ -104,37 +108,36 @@ const getOrCreateSppInvoiceItem = async ({
   );
 
   if (existingItem.rowCount > 0) {
+    const refreshed = await refreshInvoiceItemScholarship(
+      client,
+      existingItem.rows[0].id,
+    );
+    if (refreshed && !refreshed.skipped) {
+      return {
+        id: refreshed.id,
+        invoice_id: refreshed.invoice_id,
+        amount: refreshed.amount,
+        paid_amount: refreshed.paid_amount,
+      };
+    }
+
     return existingItem.rows[0];
   }
 
-  const createdItem = await client.query(
-    `
-      INSERT INTO finance.invoice_item (
-        invoice_id,
-        component_id,
-        fee_rule_id,
-        bill_year,
-        bill_month,
-        description,
-        qty,
-        unit_amount,
-        item_type,
-        reference_type
-      )
-      VALUES ($1, $2, $3, EXTRACT(YEAR FROM CURRENT_DATE)::smallint, $4, $5, 1, $6, 'spp', 'monthly_rule')
-      RETURNING id, invoice_id, amount, 0::numeric AS paid_amount
-    `,
-    [
-      invoice.id,
-      rule.component_id,
-      rule.id,
-      billMonth,
-      `SPP ${formatBillingPeriod(billMonth)}`,
-      Number(rule.amount || 0),
-    ],
-  );
-
-  return createdItem.rows[0];
+  return insertInvoiceItemWithScholarship(client, {
+    invoiceId: invoice.id,
+    componentId: rule.component_id,
+    feeRuleId: rule.id,
+    billYear: new Date().getFullYear(),
+    billMonth,
+    description: `SPP ${formatBillingPeriod(billMonth)}`,
+    itemType: "spp",
+    referenceType: "monthly_rule",
+    homebaseId,
+    studentId,
+    periodeId,
+    brutoAmount: Number(rule.amount || 0),
+  });
 };
 
 router.get(
@@ -580,6 +583,8 @@ router.get(
             ii.fee_rule_id,
             ii.bill_month,
             ii.amount,
+            ii.bruto_amount,
+            ii.scholarship_cover,
             COALESCE(
               SUM(
                 CASE
@@ -625,7 +630,10 @@ router.get(
           g.id AS grade_id,
           g.name AS grade_name,
           fr.id AS tariff_id,
+          fr.amount AS tariff_amount,
           COALESCE(item.amount, fr.amount, 0) AS amount,
+          item.bruto_amount,
+          item.scholarship_cover,
           item.invoice_item_id,
           COALESCE(item.paid_amount, 0) AS paid_amount,
           COALESCE(ph.paid_months, '{}') AS paid_months
@@ -654,6 +662,8 @@ router.get(
           SELECT
             scoped.invoice_item_id,
             scoped.amount,
+            scoped.bruto_amount,
+            scoped.scholarship_cover,
             scoped.paid_amount
           FROM item_scope scoped
           WHERE scoped.student_id = s.user_id
@@ -676,11 +686,31 @@ router.get(
       [...scope.params, SUCCESS_PAYMENT_STATUSES, billMonth],
     );
 
+    const benefitIndex = await loadScholarshipBenefitIndex(
+      db,
+      homebaseId,
+      result.rows.map((row) => row.student_id),
+    );
+
     const data = result.rows.map((item) => {
-      const amount = Number(item.amount || 0);
+      const tariffAmount = Number(item.tariff_amount || 0);
+      const hasInvoiceItem = Boolean(item.invoice_item_id);
+      const enriched = enrichDueWithScholarship({
+        benefitIndex,
+        studentId: item.student_id,
+        itemType: "spp",
+        periodeId: item.periode_id,
+        billMonth,
+        brutoAmount: tariffAmount,
+        storedBruto: item.bruto_amount,
+        storedCover: item.scholarship_cover,
+        storedNetto: item.amount,
+        hasInvoiceItem,
+      });
+      const amount = Number(enriched.amount || 0);
       const paidAmount = Number(item.paid_amount || 0);
       let status = "unpaid";
-      if (paidAmount >= amount && amount > 0) {
+      if (amount <= 0 || (paidAmount >= amount && amount > 0)) {
         status = "paid";
       } else if (paidAmount > 0) {
         status = "partial";
@@ -701,8 +731,12 @@ router.get(
         grade_name: item.grade_name,
         bill_month: billMonth,
         billing_period_label: formatBillingPeriod(billMonth),
+        bruto_amount: enriched.bruto_amount,
+        scholarship_cover: enriched.scholarship_cover,
+        has_scholarship: enriched.has_scholarship,
         amount,
         paid_amount: paidAmount,
+        remaining_amount: Math.max(amount - paidAmount, 0),
         status,
         paid_months: (item.paid_months || []).sort((a, b) => a - b),
       };
@@ -713,6 +747,11 @@ router.get(
       data,
       summary: {
         total_records: data.length,
+        total_bruto: data.reduce((sum, item) => sum + item.bruto_amount, 0),
+        total_scholarship_cover: data.reduce(
+          (sum, item) => sum + item.scholarship_cover,
+          0,
+        ),
         total_amount: data.reduce((sum, item) => sum + item.amount, 0),
         paid_amount: data.reduce((sum, item) => sum + item.paid_amount, 0),
         paid_count: data.filter((item) => item.status === "paid").length,
@@ -775,6 +814,7 @@ router.post(
     }
 
     const allocations = [];
+    const waivedMonths = [];
     for (const month of billMonths) {
       const item = await getOrCreateSppInvoiceItem({
         client,
@@ -788,6 +828,11 @@ router.post(
 
       const outstanding = Number(item.amount || 0) - Number(item.paid_amount || 0);
       if (outstanding <= 0) {
+        if (Number(item.amount || 0) <= 0) {
+          waivedMonths.push(month);
+          continue;
+        }
+
         return res.status(409).json({
           message: `SPP untuk bulan ${formatBillingPeriod(month)} sudah tercatat lunas`,
         });
@@ -797,6 +842,17 @@ router.post(
         invoice_item_id: item.id,
         invoice_id: item.invoice_id,
         allocated_amount: outstanding,
+      });
+    }
+
+    if (allocations.length === 0) {
+      return res.status(200).json({
+        status: "success",
+        message:
+          waivedMonths.length > 0
+            ? "Semua bulan dipilih sudah digratiskan beasiswa atau lunas"
+            : "Tidak ada tagihan SPP yang perlu dibayar",
+        data: { id: null, waived_months: waivedMonths },
       });
     }
 
@@ -820,7 +876,7 @@ router.post(
     res.status(201).json({
       status: "success",
       message: "Pembayaran SPP berhasil ditambahkan",
-      data: { id: paymentId },
+      data: { id: paymentId, waived_months: waivedMonths },
     });
   }),
 );
@@ -913,6 +969,10 @@ router.put(
         Number(item.amount || 0) - Number(paidWithoutCurrent.rows[0]?.paid_amount || 0);
 
       if (outstanding <= 0) {
+        if (Number(item.amount || 0) <= 0) {
+          continue;
+        }
+
         return res.status(409).json({
           message: `SPP untuk bulan ${formatBillingPeriod(month)} sudah tercatat lunas`,
         });
@@ -922,6 +982,12 @@ router.put(
         invoice_item_id: item.id,
         invoice_id: item.invoice_id,
         allocated_amount: outstanding,
+      });
+    }
+
+    if (allocations.length === 0) {
+      return res.status(400).json({
+        message: "Tidak ada tagihan SPP yang perlu dibayar (lunas atau digratiskan beasiswa)",
       });
     }
 

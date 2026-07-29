@@ -1,4 +1,14 @@
-import { Card, Empty, Flex, InputNumber, Skeleton, Space, Tag, Typography } from "antd";
+import {
+  Card,
+  Empty,
+  Flex,
+  Grid,
+  InputNumber,
+  Skeleton,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
 import { motion } from "framer-motion";
 import { ReceiptText } from "lucide-react";
 
@@ -7,6 +17,7 @@ import {
   getChargeStatusColor,
   getOtherPaymentSelectionKey,
 } from "./transactionFormShared.jsx";
+import ScholarshipAmountCell from "../../ScholarshipAmountCell";
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
@@ -17,6 +28,8 @@ const TransactionStepOther = ({
   onOtherPaymentAmountChange,
   loading,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const selections = otherPaymentSelections || {};
 
   if (loading) {
@@ -39,7 +52,9 @@ const TransactionStepOther = ({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        gridTemplateColumns: isMobile
+          ? "1fr"
+          : "repeat(auto-fit, minmax(280px, 1fr))",
         gap: 14,
       }}
     >
@@ -71,15 +86,16 @@ const TransactionStepOther = ({
           >
             <Card
               style={{
-                borderRadius: 18,
+                borderRadius: isMobile ? 16 : 18,
                 border: "1px solid rgba(148, 163, 184, 0.18)",
                 background: "#fff",
+                height: "100%",
               }}
-              styles={{ body: { padding: 18 } }}
+              styles={{ body: { padding: isMobile ? 14 : 18 } }}
             >
               <Flex vertical gap={14}>
                 <Flex justify='space-between' align='start' gap={12}>
-                  <Space align='start' size={10}>
+                  <Space align='start' size={10} style={{ minWidth: 0, flex: 1 }}>
                     <div
                       style={{
                         width: 40,
@@ -94,11 +110,18 @@ const TransactionStepOther = ({
                     >
                       <ReceiptText size={18} />
                     </div>
-                    <Space direction='vertical' size={2}>
-                      <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
+                    <Space direction='vertical' size={2} style={{ minWidth: 0 }}>
+                      <Text
+                        strong
+                        style={{
+                          color: "#0f172a",
+                          fontSize: 15,
+                          wordBreak: "break-word",
+                        }}
+                      >
                         {charge.type_name}
                       </Text>
-                      <Text type='secondary'>
+                      <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
                         {charge.is_existing_charge
                           ? charge.description || "Tagihan sudah dibuat"
                           : "Tarif aktif sesuai tingkat siswa"}
@@ -107,7 +130,7 @@ const TransactionStepOther = ({
                   </Space>
                   <Tag
                     color={getChargeStatusColor(status)}
-                    style={{ borderRadius: 999, fontWeight: 600 }}
+                    style={{ borderRadius: 999, fontWeight: 600, margin: 0 }}
                   >
                     {status === "partial"
                       ? "Cicilan"
@@ -121,20 +144,33 @@ const TransactionStepOther = ({
                   style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                    gap: 10,
+                    gap: isMobile ? 8 : 10,
                   }}
                 >
                   <Space direction='vertical' size={1}>
-                    <Text type='secondary'>Tagihan</Text>
-                    <Text strong>{currencyFormatter.format(amountDue)}</Text>
+                    <Text type='secondary' style={{ fontSize: isMobile ? 11 : 14 }}>
+                      Tagihan
+                    </Text>
+                    <ScholarshipAmountCell
+                      amount={amountDue}
+                      brutoAmount={charge.bruto_amount}
+                      scholarshipCover={charge.scholarship_cover}
+                      hasScholarship={charge.has_scholarship}
+                    />
                   </Space>
                   <Space direction='vertical' size={1}>
-                    <Text type='secondary'>Terbayar</Text>
-                    <Text strong>{currencyFormatter.format(displayPaidAmount)}</Text>
+                    <Text type='secondary' style={{ fontSize: isMobile ? 11 : 14 }}>
+                      Terbayar
+                    </Text>
+                    <Text strong style={{ fontSize: isMobile ? 12 : 14, wordBreak: "break-word" }}>
+                      {currencyFormatter.format(displayPaidAmount)}
+                    </Text>
                   </Space>
                   <Space direction='vertical' size={1}>
-                    <Text type='secondary'>Sisa</Text>
-                    <Text strong>
+                    <Text type='secondary' style={{ fontSize: isMobile ? 11 : 14 }}>
+                      Sisa
+                    </Text>
+                    <Text strong style={{ fontSize: isMobile ? 12 : 14, wordBreak: "break-word" }}>
                       {currencyFormatter.format(displayRemainingAmount)}
                     </Text>
                   </Space>

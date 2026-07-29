@@ -87,21 +87,24 @@ const SettingHeader = ({ homebases, selectedHomebaseId, onChange }) => {
               >
                 <Settings2 size={24} />
               </div>
-              <div style={{ flex: 1 }}>
-                <Title level={isMobile ? 4 : 3} style={{ margin: 0, color: "#fff" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Title level={isMobile ? 4 : 3} style={{ margin: 0, color: "#fff", lineHeight: 1.25 }}>
                   Midtrans, Rekening, dan Profil Invoice
                 </Title>
-                <Text style={{ color: "rgba(255,255,255,0.82)", maxWidth: 760 }}>
-                  Kelola kanal pembayaran, rekening tujuan transfer, dan identitas
-                  invoice tiap satuan dalam satu workspace yang ringkas dan rapi.
-                </Text>
+                {!isMobile ? (
+                  <Text style={{ color: "rgba(255,255,255,0.82)", maxWidth: 760 }}>
+                    Kelola kanal pembayaran, rekening tujuan transfer, dan identitas
+                    invoice tiap satuan dalam satu workspace yang ringkas dan rapi.
+                  </Text>
+                ) : null}
               </div>
             </Flex>
 
             <Flex gap={12} wrap='wrap'>
               <div
                 style={{
-                  minWidth: 180,
+                  minWidth: isMobile ? "100%" : 180,
+                  flex: isMobile ? "1 1 100%" : "1 1 180px",
                   padding: "12px 14px",
                   borderRadius: 18,
                   background: "rgba(255,255,255,0.12)",
@@ -118,7 +121,8 @@ const SettingHeader = ({ homebases, selectedHomebaseId, onChange }) => {
               </div>
               <div
                 style={{
-                  minWidth: 220,
+                  minWidth: isMobile ? "100%" : 220,
+                  flex: isMobile ? "1 1 100%" : "1 1 220px",
                   padding: "12px 14px",
                   borderRadius: 18,
                   background: "rgba(255,255,255,0.12)",
@@ -131,7 +135,7 @@ const SettingHeader = ({ homebases, selectedHomebaseId, onChange }) => {
                 </Flex>
                 <Title
                   level={5}
-                  style={{ margin: "8px 0 0", color: "#fff" }}
+                  style={{ margin: "8px 0 0", color: "#fff", wordBreak: "break-word" }}
                 >
                   {selectedHomebase?.name || "Belum dipilih"}
                 </Title>

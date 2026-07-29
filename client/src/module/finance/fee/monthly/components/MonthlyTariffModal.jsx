@@ -1,6 +1,6 @@
 import {
   Form,
-  Input,
+  Grid,
   InputNumber,
   Modal,
   Select,
@@ -55,131 +55,156 @@ const MonthlyTariffModal = ({
   periodes,
   grades,
   confirmLoading,
-}) => (
-  <Modal
-    title={null}
-    open={open}
-    onCancel={onCancel}
-    onOk={form.submit}
-    confirmLoading={confirmLoading}
-    destroyOnHidden
-    centered
-    closable={false}
-    width={640}
-    styles={{
-      content: {
-        padding: 0,
-        overflow: "hidden",
-        borderRadius: 28,
-        boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
-      },
-      body: { padding: 0 },
-      footer: { padding: "0 24px 22px" },
-    }}
-    modalRender={(modalNode) => (
-      <MotionDiv
-        initial={{ opacity: 0, y: 24, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-      >
-        {modalNode}
-      </MotionDiv>
-    )}
-  >
-    <div
-      style={{
-        marginBottom: 20,
-        padding: 20,
-        borderRadius: 22,
-        background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
+}) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
+  return (
+    <Modal
+      title={null}
+      open={open}
+      onCancel={onCancel}
+      onOk={form.submit}
+      confirmLoading={confirmLoading}
+      destroyOnHidden
+      centered
+      closable={false}
+      width={isMobile ? "calc(100vw - 24px)" : 640}
+      styles={{
+        content: {
+          padding: 0,
+          overflow: "hidden",
+          borderRadius: isMobile ? 20 : 28,
+          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+        },
+        body: { padding: 0 },
+        footer: { padding: isMobile ? "0 16px 16px" : "0 24px 22px" },
       }}
+      modalRender={(modalNode) => (
+        <MotionDiv
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.24, ease: "easeOut" }}
+        >
+          {modalNode}
+        </MotionDiv>
+      )}
     >
       <div
         style={{
-          width: 52,
-          height: 52,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: 18,
-          background: "linear-gradient(135deg, #4f46e5, #2563eb)",
-          color: "#fff",
-          boxShadow: "0 18px 32px rgba(79, 70, 229, 0.22)",
-          marginBottom: 14,
+          padding: isMobile ? 16 : 24,
+          background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+          maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
+          overflowY: isMobile ? "auto" : undefined,
         }}
       >
-        <ReceiptText size={22} />
+        <div
+          style={{
+            marginBottom: 20,
+            padding: isMobile ? 16 : 20,
+            borderRadius: isMobile ? 16 : 22,
+            background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
+          }}
+        >
+          <div
+            style={{
+              width: isMobile ? 44 : 52,
+              height: isMobile ? 44 : 52,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 18,
+              background: "linear-gradient(135deg, #4f46e5, #2563eb)",
+              color: "#fff",
+              boxShadow: "0 18px 32px rgba(79, 70, 229, 0.22)",
+              marginBottom: 14,
+            }}
+          >
+            <ReceiptText size={isMobile ? 18 : 22} />
+          </div>
+          <Text
+            strong
+            style={{
+              display: "block",
+              fontSize: isMobile ? 20 : 24,
+              color: "#0f172a",
+              lineHeight: 1.3,
+            }}
+          >
+            {editingTariff ? "Perbarui Tarif SPP" : "Tambah Tarif SPP Baru"}
+          </Text>
+          <Text type='secondary' style={{ fontSize: isMobile ? 13 : 14 }}>
+            Satu tingkat bisa punya tarif berbeda per periode. Pilih periode secara
+            eksplisit agar tarif tidak tertukar antar tahun ajaran.
+          </Text>
+        </div>
+
+        <Form form={form} layout='vertical' onFinish={onSubmit}>
+          <Form.Item
+            name='homebase_id'
+            label='Satuan'
+            rules={[{ required: true, message: "Satuan wajib dipilih" }]}
+          >
+            <Select
+              size='large'
+              options={homebases.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              onChange={onHomebaseChange}
+              placeholder='Pilih satuan'
+              virtual={false}
+              disabled={homebases.length <= 1}
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+          <Form.Item
+            name='periode_id'
+            label='Periode'
+            rules={[{ required: true, message: "Periode wajib dipilih" }]}
+            extra='Tarif SPP unik per kombinasi satuan + periode + tingkat.'
+          >
+            <Select
+              size='large'
+              options={periodes.map((item) => ({
+                value: item.id,
+                label: item.name,
+                is_active: item.is_active,
+              }))}
+              placeholder='Pilih periode'
+              virtual={false}
+              optionRender={renderPeriodeOption}
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+          <Form.Item
+            name='grade_id'
+            label='Tingkat'
+            rules={[{ required: true, message: "Tingkat wajib dipilih" }]}
+          >
+            <Select
+              size='large'
+              options={grades.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+          <Form.Item
+            name='amount'
+            label='Nominal Tarif'
+            rules={[{ required: true, message: "Nominal tarif wajib diisi" }]}
+          >
+            <InputNumber {...rupiahInputProps} placeholder='Rp 0' size='large' />
+          </Form.Item>
+
+          <Form.Item name='is_active' label='Aktif' valuePropName='checked'>
+            <Switch />
+          </Form.Item>
+        </Form>
       </div>
-      <Text strong style={{ display: "block", fontSize: 24, color: "#0f172a" }}>
-        {editingTariff ? "Perbarui Tarif SPP" : "Tambah Tarif SPP Baru"}
-      </Text>
-      <Text type='secondary'>
-        Satu tingkat bisa punya tarif berbeda per periode. Pilih periode secara
-        eksplisit agar tarif tidak tertukar antar tahun ajaran.
-      </Text>
-    </div>
-
-    <Form form={form} layout='vertical' onFinish={onSubmit}>
-      <Form.Item
-        name='homebase_id'
-        label='Satuan'
-        rules={[{ required: true, message: "Satuan wajib dipilih" }]}
-      >
-        <Select
-          size='large'
-          options={homebases.map((item) => ({
-            value: item.id,
-            label: item.name,
-          }))}
-          onChange={onHomebaseChange}
-          placeholder='Pilih satuan'
-          virtual={false}
-          disabled={homebases.length <= 1}
-        />
-      </Form.Item>
-      <Form.Item
-        name='periode_id'
-        label='Periode'
-        rules={[{ required: true, message: "Periode wajib dipilih" }]}
-        extra='Tarif SPP unik per kombinasi satuan + periode + tingkat.'
-      >
-        <Select
-          size='large'
-          options={periodes.map((item) => ({
-            value: item.id,
-            label: item.name,
-            is_active: item.is_active,
-          }))}
-          placeholder='Pilih periode'
-          virtual={false}
-          optionRender={renderPeriodeOption}
-        />
-      </Form.Item>
-      <Form.Item
-        name='grade_id'
-        label='Tingkat'
-        rules={[{ required: true, message: "Tingkat wajib dipilih" }]}
-      >
-        <Select
-          size='large'
-          options={grades.map((item) => ({
-            value: item.id,
-            label: item.name,
-          }))}
-        />
-      </Form.Item>
-      <Form.Item
-        name='amount'
-        label='Nominal Tarif'
-        rules={[{ required: true, message: "Nominal tarif wajib diisi" }]}
-      >
-        <InputNumber {...rupiahInputProps} placeholder='Rp 0' size='large' />
-      </Form.Item>
-
-      <Form.Item name='is_active' label='Aktif' valuePropName='checked'>
-        <Switch />
-      </Form.Item>
-    </Form>
-  </Modal>
-);
+    </Modal>
+  );
+};
 
 export default MonthlyTariffModal;

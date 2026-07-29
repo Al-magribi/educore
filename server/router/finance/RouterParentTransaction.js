@@ -16,6 +16,10 @@ import {
   parseOptionalInt,
   upsertInvoiceStatus,
   resolveOtherChargeRule,
+  insertInvoiceItemWithScholarship,
+  refreshInvoiceItemScholarship,
+  loadScholarshipBenefitIndex,
+  enrichDueWithScholarship,
 } from "./financeHelpers.js";
 
 const router = Router();
@@ -216,6 +220,19 @@ const getOrCreateSppInvoiceItem = async ({
   );
 
   if (existing.rowCount > 0) {
+    const refreshed = await refreshInvoiceItemScholarship(
+      client,
+      existing.rows[0].id,
+    );
+    if (refreshed && !refreshed.skipped) {
+      return {
+        id: refreshed.id,
+        invoice_id: refreshed.invoice_id,
+        amount: refreshed.amount,
+        paid_amount: refreshed.paid_amount,
+      };
+    }
+
     return existing.rows[0];
   }
 
@@ -229,34 +246,20 @@ const getOrCreateSppInvoiceItem = async ({
     reuseExisting: false,
   });
 
-  const created = await client.query(
-    `
-      INSERT INTO finance.invoice_item (
-        invoice_id,
-        component_id,
-        fee_rule_id,
-        bill_year,
-        bill_month,
-        description,
-        qty,
-        unit_amount,
-        item_type,
-        reference_type
-      )
-      VALUES ($1, $2, $3, EXTRACT(YEAR FROM CURRENT_DATE)::smallint, $4, $5, 1, $6, 'spp', 'monthly_rule')
-      RETURNING id, invoice_id, amount, 0::numeric AS paid_amount
-    `,
-    [
-      invoice.id,
-      rule.component_id,
-      rule.id,
-      billMonth,
-      `SPP ${formatBillingPeriod(billMonth)}`,
-      Number(rule.amount || 0),
-    ],
-  );
-
-  return created.rows[0];
+  return insertInvoiceItemWithScholarship(client, {
+    invoiceId: invoice.id,
+    componentId: rule.component_id,
+    feeRuleId: rule.id,
+    billYear: new Date().getFullYear(),
+    billMonth,
+    description: `SPP ${formatBillingPeriod(billMonth)}`,
+    itemType: "spp",
+    referenceType: "monthly_rule",
+    homebaseId,
+    studentId,
+    periodeId,
+    brutoAmount: Number(rule.amount || 0),
+  });
 };
 
 const getOrCreateOtherInvoiceItem = async ({
@@ -297,34 +300,34 @@ const getOrCreateOtherInvoiceItem = async ({
   );
 
   if (existing.rowCount > 0) {
+    const refreshed = await refreshInvoiceItemScholarship(
+      client,
+      existing.rows[0].id,
+    );
+    if (refreshed && !refreshed.skipped) {
+      return {
+        id: refreshed.id,
+        invoice_id: refreshed.invoice_id,
+        amount: refreshed.amount,
+        paid_amount: refreshed.paid_amount,
+      };
+    }
+
     return existing.rows[0];
   }
 
-  const created = await client.query(
-    `
-      INSERT INTO finance.invoice_item (
-        invoice_id,
-        component_id,
-        fee_rule_id,
-        description,
-        qty,
-        unit_amount,
-        item_type,
-        reference_type
-      )
-      VALUES ($1, $2, $3, $4, 1, $5, 'other', 'manual_charge')
-      RETURNING id, invoice_id, amount, 0::numeric AS paid_amount
-    `,
-    [
-      invoice.id,
-      componentId,
-      rule.id,
-      rule.component_name,
-      Number(rule.amount || 0),
-    ],
-  );
-
-  return created.rows[0];
+  return insertInvoiceItemWithScholarship(client, {
+    invoiceId: invoice.id,
+    componentId,
+    feeRuleId: rule.id,
+    description: rule.component_name,
+    itemType: "other",
+    referenceType: "manual_charge",
+    homebaseId,
+    studentId,
+    periodeId,
+    brutoAmount: Number(rule.amount || 0),
+  });
 };
 
 const getParentPaymentSetup = async (db, homebaseId) => {
@@ -472,6 +475,8 @@ const getSppItems = async ({ db, homebaseId, periodeId, studentId, gradeId }) =>
           MAX(inv.invoice_no) AS invoice_no,
           MAX(ii.description) AS description,
           MAX(ii.amount) AS amount_due,
+          MAX(ii.bruto_amount) AS bruto_amount,
+          MAX(ii.scholarship_cover) AS scholarship_cover,
           COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount,
           COALESCE(SUM(CASE WHEN p.status = 'pending' THEN pa.allocated_amount ELSE 0 END), 0) AS pending_amount,
           COUNT(DISTINCT p.id) FILTER (WHERE p.status = 'pending') AS pending_payment_count,
@@ -512,11 +517,28 @@ const getSppItems = async ({ db, homebaseId, periodeId, studentId, gradeId }) =>
     itemResult.rows.map((item) => [Number(item.bill_month), item]),
   );
 
+  const benefitIndex = await loadScholarshipBenefitIndex(db, homebaseId, [
+    studentId,
+  ]);
+  const tariffAmount = toCurrencyNumber(rule?.amount || 0);
+
   return Array.from(monthMap.keys())
     .sort((left, right) => left - right)
     .map((month) => {
       const item = itemLookup.get(month) || null;
-      const amountDue = toCurrencyNumber(item?.amount_due || rule?.amount || 0);
+      const enriched = enrichDueWithScholarship({
+        benefitIndex,
+        studentId,
+        itemType: "spp",
+        periodeId,
+        billMonth: month,
+        brutoAmount: tariffAmount,
+        storedBruto: item?.bruto_amount,
+        storedCover: item?.scholarship_cover,
+        storedNetto: item?.amount_due,
+        hasInvoiceItem: Boolean(item?.invoice_item_id),
+      });
+      const amountDue = toCurrencyNumber(enriched.amount);
       const paidAmount = toCurrencyNumber(item?.paid_amount || 0);
       const pendingAmount = toCurrencyNumber(item?.pending_amount || 0);
       const remainingAmount = Math.max(amountDue - paidAmount, 0);
@@ -528,19 +550,22 @@ const getSppItems = async ({ db, homebaseId, periodeId, studentId, gradeId }) =>
         billing_period_label: formatBillingPeriod(month),
         month_label: MONTH_NAMES[month - 1],
         description: item?.description || `SPP ${formatBillingPeriod(month)}`,
+        bruto_amount: enriched.bruto_amount,
+        scholarship_cover: enriched.scholarship_cover,
+        has_scholarship: enriched.has_scholarship,
         amount_due: amountDue,
         paid_amount: paidAmount,
         remaining_amount: remainingAmount,
         status:
-          amountDue > 0
-            ? paidAmount >= amountDue
+          amountDue <= 0
+            ? "paid"
+            : paidAmount >= amountDue
               ? "paid"
               : pendingAmount > 0
                 ? "pending"
-              : paidAmount > 0
-                ? "partial"
-                : "unpaid"
-            : "unpaid",
+                : paidAmount > 0
+                  ? "partial"
+                  : "unpaid",
         pending_amount: pendingAmount,
         pending_payment_count: Number(item?.pending_payment_count || 0),
         invoice_item_id: Number(item?.invoice_item_id || 0) || null,
@@ -627,6 +652,8 @@ const getOtherItems = async ({
           ii.fee_rule_id,
           ii.description,
           ii.amount AS amount_due,
+          ii.bruto_amount,
+          ii.scholarship_cover,
           inv.id AS invoice_id,
           inv.invoice_no,
           COALESCE(SUM(CASE WHEN p.status = 'confirmed' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount,
@@ -696,13 +723,30 @@ const getOtherItems = async ({
     ...itemResult.rows.map((item) => Number(item.component_id)),
   ]);
 
+  const benefitIndex = await loadScholarshipBenefitIndex(db, homebaseId, [
+    studentId,
+  ]);
+
   return Array.from(mergedComponentIds)
     .map((componentId) => {
       const component = componentResult.rows.find(
         (item) => Number(item.component_id) === componentId,
       );
       const item = itemMap.get(componentId) || null;
-      const amountDue = toCurrencyNumber(item?.amount_due || component?.amount || 0);
+      const tariffAmount = toCurrencyNumber(component?.amount || 0);
+      const enriched = enrichDueWithScholarship({
+        benefitIndex,
+        studentId,
+        itemType: "other",
+        componentId,
+        periodeId,
+        brutoAmount: tariffAmount || toCurrencyNumber(item?.amount_due || 0),
+        storedBruto: item?.bruto_amount,
+        storedCover: item?.scholarship_cover,
+        storedNetto: item?.amount_due,
+        hasInvoiceItem: Boolean(item?.charge_id),
+      });
+      const amountDue = toCurrencyNumber(enriched.amount);
       const paidAmount = toCurrencyNumber(item?.paid_amount || 0);
       const pendingAmount = toCurrencyNumber(item?.pending_amount || 0);
       const remainingAmount = Math.max(amountDue - paidAmount, 0);
@@ -720,19 +764,22 @@ const getOtherItems = async ({
           item?.description ||
           component?.component_name ||
           "Pembayaran lainnya",
+        bruto_amount: enriched.bruto_amount,
+        scholarship_cover: enriched.scholarship_cover,
+        has_scholarship: enriched.has_scholarship,
         amount_due: amountDue,
         paid_amount: paidAmount,
         remaining_amount: remainingAmount,
         status:
-          amountDue > 0
-            ? paidAmount >= amountDue
+          amountDue <= 0
+            ? "paid"
+            : paidAmount >= amountDue
               ? "paid"
               : pendingAmount > 0
                 ? "pending"
-              : paidAmount > 0
-                ? "partial"
-                : "unpaid"
-            : "unpaid",
+                : paidAmount > 0
+                  ? "partial"
+                  : "unpaid",
         pending_amount: pendingAmount,
         pending_payment_count: Number(item?.pending_payment_count || 0),
         invoice_id:

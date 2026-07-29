@@ -6,6 +6,7 @@ import {
   dateFormatter,
   statusMetaMap,
 } from "./parentTransactionShared";
+import ScholarshipAmountCell from "../../../fee/ScholarshipAmountCell";
 
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
@@ -121,15 +122,13 @@ const ParentPaymentList = ({
                     <Flex justify='space-between' gap={12} wrap='wrap'>
                       <div>
                         <Text type='secondary'>Total Tagihan</Text>
-                        <div
-                          style={{
-                            marginTop: 4,
-                            fontSize: 18,
-                            fontWeight: 700,
-                            color: "#0f172a",
-                          }}
-                        >
-                          {currencyFormatter.format(Number(item.amount_due || 0))}
+                        <div style={{ marginTop: 4 }}>
+                          <ScholarshipAmountCell
+                            amount={item.amount_due}
+                            brutoAmount={item.bruto_amount}
+                            scholarshipCover={item.scholarship_cover}
+                            hasScholarship={item.has_scholarship}
+                          />
                         </div>
                       </div>
                       <div>

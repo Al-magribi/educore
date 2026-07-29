@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import { Card, Form, Space, Tabs, Typography, message } from "antd";
+import { Card, Flex, Form, Grid, Space, Tabs, Typography, message } from "antd";
 import { motion } from "framer-motion";
 import { CreditCard, ReceiptText, Sparkles } from "lucide-react";
 
@@ -53,6 +53,9 @@ const itemVariants = {
 
 const Others = () => {
   const { user } = useSelector((state) => state.auth);
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const isCompact = !screens.lg;
 
   const [filters, setFilters] = useState({
     homebase_id: undefined,
@@ -541,14 +544,14 @@ const Others = () => {
     : "Semua periode";
 
   const createTabLabel = (label, icon, count, caption) => (
-    <Space size={10}>
+    <Flex align='center' gap={isMobile ? 8 : 10}>
       <span
         style={{
-          width: 34,
-          height: 34,
+          width: isMobile ? 28 : 34,
+          height: isMobile ? 28 : 34,
           display: "grid",
           placeItems: "center",
-          borderRadius: 12,
+          borderRadius: isMobile ? 10 : 12,
           background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
           color: "#0369a1",
           border: "1px solid rgba(148,163,184,0.14)",
@@ -557,15 +560,24 @@ const Others = () => {
       >
         {icon}
       </span>
-      <div>
-        <div style={{ fontWeight: 600, lineHeight: 1.2 }}>
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 600,
+            lineHeight: 1.2,
+            fontSize: isMobile ? 13 : 14,
+            whiteSpace: "nowrap",
+          }}
+        >
           {label} {count !== undefined ? `(${count})` : ""}
         </div>
-        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
-          {caption}
-        </div>
+        {!isCompact ? (
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
+            {caption}
+          </div>
+        ) : null}
       </div>
-    </Space>
+    </Flex>
   );
 
   return (
@@ -573,9 +585,13 @@ const Others = () => {
       variants={containerVariants}
       initial='hidden'
       animate='visible'
-      style={{ width: "100%" }}
+      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
     >
-      <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
+      <Space
+        vertical
+        size={isMobile ? 16 : 24}
+        style={{ width: "100%", display: "flex" }}
+      >
         <MotionDiv variants={itemVariants}>
           <OthersHeader onOpenType={() => openTypeModal()} />
         </MotionDiv>
@@ -596,24 +612,29 @@ const Others = () => {
           />
         </MotionDiv>
 
-        <MotionDiv variants={itemVariants}>
+        <MotionDiv variants={itemVariants} style={{ width: "100%" }}>
           <Card
             style={{
               ...cardStyle,
-              borderRadius: 28,
+              borderRadius: isMobile ? 20 : 28,
               boxShadow: "0 24px 60px rgba(15, 23, 42, 0.07)",
+              overflow: "hidden",
             }}
-            styles={{ body: { paddingTop: 12 } }}
+            styles={{ body: { padding: isMobile ? 8 : undefined, paddingTop: 12 } }}
           >
             <Tabs
-              tabBarGutter={14}
-              tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+              size={isMobile ? "small" : "middle"}
+              tabBarGutter={isMobile ? 8 : 14}
+              tabBarStyle={{
+                marginBottom: isMobile ? 12 : 20,
+                paddingBottom: 8,
+              }}
               items={[
                 {
                   key: "types",
                   label: createTabLabel(
-                    "Jenis Biaya",
-                    <ReceiptText size={16} />,
+                    isMobile ? "Jenis" : "Jenis Biaya",
+                    <ReceiptText size={isMobile ? 14 : 16} />,
                     types.length,
                     "Master biaya non-SPP",
                   ),
@@ -632,14 +653,15 @@ const Others = () => {
                 {
                   key: "report",
                   label: createTabLabel(
-                    "Laporan Pembayaran",
-                    <CreditCard size={16} />,
+                    isMobile ? "Laporan" : "Laporan Pembayaran",
+                    <CreditCard size={isMobile ? 14 : 16} />,
                     charges.length,
                     "Ringkasan dan daftar tagihan",
                   ),
                   children: (
                     <Tabs
-                      tabBarGutter={12}
+                      size={isMobile ? "small" : "middle"}
+                      tabBarGutter={isMobile ? 8 : 12}
                       items={[
                         {
                           key: "summary",
@@ -648,7 +670,9 @@ const Others = () => {
                         },
                         {
                           key: "payments",
-                          label: `Daftar Pembayaran (${charges.length})`,
+                          label: isMobile
+                            ? `Pembayaran (${charges.length})`
+                            : `Daftar Pembayaran (${charges.length})`,
                           children: (
                             <OthersChargesTable
                               charges={charges}
@@ -675,17 +699,21 @@ const Others = () => {
               border: "1px solid rgba(148,163,184,0.14)",
               background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
             }}
-            styles={{ body: { padding: "14px 16px" } }}
+            styles={{ body: { padding: isMobile ? "12px 14px" : "14px 16px" } }}
           >
-            <Space align='center' size={8}>
-              <Sparkles size={14} color='#64748b' />
-              <Text type='secondary'>
+            <Flex align='flex-start' gap={8}>
+              <Sparkles
+                size={14}
+                color='#64748b'
+                style={{ flexShrink: 0, marginTop: 3 }}
+              />
+              <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
                 Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}.
                 Kosongkan filter periode untuk melihat semua periode. Tagihan
                 mengikuti cakupan jenis (tingkat / individu); siswa yang pindah
                 kelas tetap terikat jika masuk roster individu.
               </Text>
-            </Space>
+            </Flex>
           </Card>
         </MotionDiv>
       </Space>

@@ -22,6 +22,11 @@ const buildFinanceMenus = (user = {}) => {
       icon: <MoneyCollectOutlined />,
     },
     {
+      label: "Beasiswa",
+      key: "/finance/beasiswa",
+      icon: <FundOutlined />,
+    },
+    {
       label: "Transaksi Keuangan",
       key: "/finance/transaksi",
       icon: <WalletOutlined />,

@@ -5,6 +5,8 @@ import { ensureFinalFinanceTables, parseOptionalInt } from "./financeHelpers.js"
 
 const router = Router();
 
+const SUCCESS_PAYMENT_STATUSES = ["confirmed", "paid"];
+
 const MONTH_NAMES = [
   "Januari",
   "Februari",
@@ -134,6 +136,8 @@ const buildEmptyPayload = ({
     active_periode_count: 0,
   },
   spp: {
+    expected_bruto_current_month: 0,
+    scholarship_cover_current_month: 0,
     expected_current_month: 0,
     paid_current_month: 0,
     outstanding_current_month: 0,
@@ -143,12 +147,19 @@ const buildEmptyPayload = ({
   },
   others: {
     total_charges: 0,
+    total_bruto: 0,
+    scholarship_cover: 0,
     total_due: 0,
     total_paid: 0,
     total_remaining: 0,
     paid_count: 0,
     partial_count: 0,
     unpaid_count: 0,
+  },
+  scholarship: {
+    spp_cover_current_month: 0,
+    other_cover: 0,
+    total_cover: 0,
   },
   savings: {
     balance: 0,
@@ -249,6 +260,7 @@ router.get(
         activeOtherTypeResult,
         sppCurrentResult,
         otherSummaryResult,
+        scholarshipCoverResult,
         savingsSummaryResult,
         cashSummaryResult,
         recentPaymentResult,
@@ -308,14 +320,19 @@ router.get(
               ON e.homebase_id = scope.homebase_id
               AND e.periode_id = scope.periode_id
             JOIN a_class c ON c.id = e.class_id
-            LEFT JOIN finance.fee_rule fr
-              ON fr.homebase_id = e.homebase_id
-              AND fr.periode_id = e.periode_id
-              AND fr.grade_id = c.grade_id
-              AND fr.is_active = true
-            LEFT JOIN finance.fee_component fc
-              ON fc.id = fr.component_id
-              AND fc.category = 'spp'
+            LEFT JOIN LATERAL (
+              SELECT spp_rule.amount
+              FROM finance.fee_rule spp_rule
+              JOIN finance.fee_component spp_component
+                ON spp_component.id = spp_rule.component_id
+               AND spp_component.category = 'spp'
+              WHERE spp_rule.homebase_id = e.homebase_id
+                AND spp_rule.periode_id = e.periode_id
+                AND spp_rule.grade_id = c.grade_id
+                AND spp_rule.is_active = true
+              ORDER BY spp_rule.updated_at DESC NULLS LAST, spp_rule.id DESC
+              LIMIT 1
+            ) fr ON true
           ),
           paid_scope AS (
             SELECT
@@ -332,7 +349,7 @@ router.get(
             JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
             JOIN finance.payment p
               ON p.id = pa.payment_id
-              AND p.status = 'paid'
+              AND p.status = ANY($${scopeParams.length + 2}::text[])
             GROUP BY inv.student_id
           )
           SELECT
@@ -346,7 +363,7 @@ router.get(
           FROM expected_scope expected
           LEFT JOIN paid_scope paid ON paid.student_id = expected.student_id
         `,
-          [...scopeParams, currentMonth],
+          [...scopeParams, currentMonth, SUCCESS_PAYMENT_STATUSES],
         ),
         client.query(
         `
@@ -355,7 +372,17 @@ router.get(
             SELECT
               ii.id,
               ii.amount,
-              COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS paid_amount
+              COALESCE(ii.bruto_amount, ii.amount) AS bruto_amount,
+              COALESCE(ii.scholarship_cover, 0) AS scholarship_cover,
+              COALESCE(
+                SUM(
+                  CASE
+                    WHEN p.status = ANY($${scopeParams.length + 1}::text[]) THEN pa.allocated_amount
+                    ELSE 0
+                  END
+                ),
+                0
+              ) AS paid_amount
             FROM active_scope scope
             JOIN finance.invoice inv
               ON inv.homebase_id = scope.homebase_id
@@ -369,15 +396,49 @@ router.get(
           )
           SELECT
             COUNT(*)::int AS total_charges,
+            COALESCE(SUM(COALESCE(bruto_amount, amount)), 0) AS total_bruto,
+            COALESCE(SUM(scholarship_cover), 0) AS scholarship_cover,
             COALESCE(SUM(amount), 0) AS total_due,
             COALESCE(SUM(paid_amount), 0) AS total_paid,
             COALESCE(SUM(GREATEST(amount - paid_amount, 0)), 0) AS total_remaining,
             COUNT(*) FILTER (WHERE paid_amount >= amount AND amount > 0)::int AS paid_count,
             COUNT(*) FILTER (WHERE paid_amount > 0 AND paid_amount < amount)::int AS partial_count,
-            COUNT(*) FILTER (WHERE paid_amount <= 0)::int AS unpaid_count
+            COUNT(*) FILTER (WHERE paid_amount <= 0 AND amount > 0)::int AS unpaid_count
           FROM item_summary
         `,
-          scopeParams,
+          [...scopeParams, SUCCESS_PAYMENT_STATUSES],
+        ),
+        client.query(
+        `
+          WITH active_scope AS (${activeScopeSql})
+          SELECT
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN ii.item_type = 'spp'
+                    AND ii.bill_month = $${scopeParams.length + 1}
+                  THEN ii.scholarship_cover
+                  ELSE 0
+                END
+              ),
+              0
+            ) AS spp_cover_current_month,
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN ii.item_type = 'other' THEN ii.scholarship_cover
+                  ELSE 0
+                END
+              ),
+              0
+            ) AS other_cover
+          FROM active_scope scope
+          JOIN finance.invoice inv
+            ON inv.homebase_id = scope.homebase_id
+            AND inv.periode_id = scope.periode_id
+          JOIN finance.invoice_item ii ON ii.invoice_id = inv.id
+        `,
+          [...scopeParams, currentMonth],
         ),
         client.query(
         `
@@ -445,14 +506,14 @@ router.get(
             LEFT JOIN finance.payment_allocation pa ON pa.payment_id = p.id
             LEFT JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
             LEFT JOIN finance.fee_component fc ON fc.id = ii.component_id
-            WHERE p.status = 'paid'
+            WHERE p.status = ANY($${scopeParams.length + 1}::text[])
             GROUP BY p.id, pm.name, u.full_name, s.nis, c.name, scope.homebase_name
             ORDER BY p.payment_date DESC, p.id DESC
             LIMIT 12
           )
           SELECT * FROM payment_items
         `,
-          scopeParams,
+          [...scopeParams, SUCCESS_PAYMENT_STATUSES],
         ),
         client.query(
         `
@@ -522,14 +583,19 @@ router.get(
               ON e.homebase_id = scope.homebase_id
               AND e.periode_id = scope.periode_id
             JOIN a_class c ON c.id = e.class_id
-            LEFT JOIN finance.fee_rule fr
-              ON fr.homebase_id = e.homebase_id
-              AND fr.periode_id = e.periode_id
-              AND fr.grade_id = c.grade_id
-              AND fr.is_active = true
-            LEFT JOIN finance.fee_component fc
-              ON fc.id = fr.component_id
-              AND fc.category = 'spp'
+            LEFT JOIN LATERAL (
+              SELECT spp_rule.amount
+              FROM finance.fee_rule spp_rule
+              JOIN finance.fee_component spp_component
+                ON spp_component.id = spp_rule.component_id
+               AND spp_component.category = 'spp'
+              WHERE spp_rule.homebase_id = e.homebase_id
+                AND spp_rule.periode_id = e.periode_id
+                AND spp_rule.grade_id = c.grade_id
+                AND spp_rule.is_active = true
+              ORDER BY spp_rule.updated_at DESC NULLS LAST, spp_rule.id DESC
+              LIMIT 1
+            ) fr ON true
           ),
           paid_scope AS (
             SELECT
@@ -547,14 +613,22 @@ router.get(
             JOIN finance.payment_allocation pa ON pa.invoice_item_id = ii.id
             JOIN finance.payment p
               ON p.id = pa.payment_id
-              AND p.status = 'paid'
+              AND p.status = ANY($${scopeParams.length + 2}::text[])
             GROUP BY scope.homebase_id, inv.student_id
           ),
           other_scope AS (
             SELECT
               scope.homebase_id,
               COALESCE(SUM(ii.amount), 0) AS total_due,
-              COALESCE(SUM(CASE WHEN p.status = 'paid' THEN pa.allocated_amount ELSE 0 END), 0) AS total_paid
+              COALESCE(
+                SUM(
+                  CASE
+                    WHEN p.status = ANY($${scopeParams.length + 2}::text[]) THEN pa.allocated_amount
+                    ELSE 0
+                  END
+                ),
+                0
+              ) AS total_paid
             FROM active_scope scope
             LEFT JOIN finance.invoice inv
               ON inv.homebase_id = scope.homebase_id
@@ -569,12 +643,28 @@ router.get(
           revenue_scope AS (
             SELECT
               scope.homebase_id,
-              COALESCE(SUM(CASE WHEN ii.item_type = 'spp' THEN pa.allocated_amount ELSE 0 END), 0) AS spp_collected,
-              COALESCE(SUM(CASE WHEN ii.item_type = 'other' THEN pa.allocated_amount ELSE 0 END), 0) AS other_collected
+              COALESCE(
+                SUM(
+                  CASE
+                    WHEN ii.item_type = 'spp' AND inv.id IS NOT NULL THEN pa.allocated_amount
+                    ELSE 0
+                  END
+                ),
+                0
+              ) AS spp_collected,
+              COALESCE(
+                SUM(
+                  CASE
+                    WHEN ii.item_type = 'other' AND inv.id IS NOT NULL THEN pa.allocated_amount
+                    ELSE 0
+                  END
+                ),
+                0
+              ) AS other_collected
             FROM active_scope scope
             LEFT JOIN finance.payment p
               ON p.homebase_id = scope.homebase_id
-              AND p.status = 'paid'
+              AND p.status = ANY($${scopeParams.length + 2}::text[])
             LEFT JOIN finance.payment_allocation pa ON pa.payment_id = p.id
             LEFT JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
             LEFT JOIN finance.invoice inv
@@ -642,20 +732,29 @@ router.get(
             cash.balance
           ORDER BY scope.homebase_name ASC
         `,
-          [...scopeParams, currentMonth],
+          [...scopeParams, currentMonth, SUCCESS_PAYMENT_STATUSES],
         ),
       ]);
 
       const population = populationResult.rows[0] || {};
       const sppCurrent = sppCurrentResult.rows[0] || {};
       const others = otherSummaryResult.rows[0] || {};
+      const scholarshipCover = scholarshipCoverResult.rows[0] || {};
       const savings = savingsSummaryResult.rows[0] || {};
       const cash = cashSummaryResult.rows[0] || {};
 
       const otherCollected = numberValue(others.total_paid);
       const savingsBalance = numberValue(savings.balance);
       const classCashBalance = numberValue(cash.balance);
-      const expectedSppCurrentMonth = numberValue(sppCurrent.expected_amount);
+      const expectedSppBrutoCurrentMonth = numberValue(sppCurrent.expected_amount);
+      const sppScholarshipCoverCurrentMonth = numberValue(
+        scholarshipCover.spp_cover_current_month,
+      );
+      const otherScholarshipCover = numberValue(scholarshipCover.other_cover);
+      const expectedSppCurrentMonth = Math.max(
+        expectedSppBrutoCurrentMonth - sppScholarshipCoverCurrentMonth,
+        0,
+      );
       const paidSppCurrentMonth = numberValue(sppCurrent.paid_amount);
       const outstandingSppCurrentMonth = Math.max(
         expectedSppCurrentMonth - paidSppCurrentMonth,
@@ -815,6 +914,8 @@ router.get(
           outstanding_spp_current_month: numberValue(
             item.outstanding_spp_current_month,
           ),
+          spp_collected: numberValue(item.spp_collected),
+          other_collected: numberValue(item.other_collected),
           school_revenue:
             numberValue(item.spp_collected) + numberValue(item.other_collected),
           savings_balance: numberValue(item.savings_balance),
@@ -828,6 +929,11 @@ router.get(
               : 0,
         };
       });
+
+      const periodSppCollected = homebases.reduce(
+        (sum, item) => sum + numberValue(item.spp_collected),
+        0,
+      );
 
       res.json({
         status: "success",
@@ -848,7 +954,7 @@ router.get(
             })),
           },
           summary: {
-            school_revenue: paidSppCurrentMonth + otherCollected,
+            school_revenue: periodSppCollected + otherCollected,
             spp_collected: paidSppCurrentMonth,
             other_collected: otherCollected,
             savings_balance: savingsBalance,
@@ -867,6 +973,8 @@ router.get(
             active_periode_count: activeScopes.length,
           },
           spp: {
+            expected_bruto_current_month: expectedSppBrutoCurrentMonth,
+            scholarship_cover_current_month: sppScholarshipCoverCurrentMonth,
             expected_current_month: expectedSppCurrentMonth,
             paid_current_month: paidSppCurrentMonth,
             outstanding_current_month: outstandingSppCurrentMonth,
@@ -879,12 +987,20 @@ router.get(
           },
           others: {
             total_charges: Number(others.total_charges || 0),
+            total_bruto: numberValue(others.total_bruto),
+            scholarship_cover: numberValue(others.scholarship_cover),
             total_due: numberValue(others.total_due),
             total_paid: otherCollected,
             total_remaining: numberValue(others.total_remaining),
             paid_count: Number(others.paid_count || 0),
             partial_count: Number(others.partial_count || 0),
             unpaid_count: Number(others.unpaid_count || 0),
+          },
+          scholarship: {
+            spp_cover_current_month: sppScholarshipCoverCurrentMonth,
+            other_cover: otherScholarshipCover,
+            total_cover:
+              sppScholarshipCoverCurrentMonth + otherScholarshipCover,
           },
           savings: {
             balance: savingsBalance,

@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { Card, Tabs } from "antd";
+import { Card, Grid, Tabs } from "antd";
 import { motion } from "framer-motion";
 
 import { cardStyle } from "../constants";
@@ -19,12 +19,16 @@ const SavingTabs = ({
   onDeleteTransaction,
   deletingId,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [activeKey, setActiveKey] = useState("students");
   const items = useMemo(
     () => [
       {
         key: "students",
-        label: `Daftar Siswa (${students.length})`,
+        label: isMobile
+          ? `Siswa (${students.length})`
+          : `Daftar Siswa (${students.length})`,
         children: (
           <SavingStudentsList
             students={students}
@@ -35,7 +39,9 @@ const SavingTabs = ({
       },
       {
         key: "transactions",
-        label: `Riwayat Transaksi (${transactions.length})`,
+        label: isMobile
+          ? `Riwayat (${transactions.length})`
+          : `Riwayat Transaksi (${transactions.length})`,
         children: (
           <SavingTransactionTable
             transactions={transactions}
@@ -50,6 +56,7 @@ const SavingTabs = ({
     ],
     [
       deletingId,
+      isMobile,
       onCreate,
       onDeleteTransaction,
       onEditTransaction,
@@ -68,15 +75,21 @@ const SavingTabs = ({
       transition={{ duration: 0.25, ease: "easeOut" }}
     >
       <Card
-        variant="borderless"
-        style={cardStyle}
-        styles={{ body: { paddingTop: 12 } }}
+        variant='borderless'
+        style={{
+          ...cardStyle,
+          borderRadius: isMobile ? 18 : undefined,
+          overflow: "hidden",
+        }}
+        styles={{ body: { padding: isMobile ? 8 : undefined, paddingTop: 12 } }}
       >
         <Tabs
           activeKey={activeKey}
           destroyInactiveTabPane
           items={items}
           onChange={setActiveKey}
+          size={isMobile ? "small" : "middle"}
+          tabBarGutter={isMobile ? 8 : 16}
         />
       </Card>
     </MotionDiv>

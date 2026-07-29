@@ -137,11 +137,23 @@ CREATE TABLE IF NOT EXISTS finance.invoice_item (
     description TEXT,
     qty NUMERIC(12, 2) NOT NULL DEFAULT 1 CHECK (qty > 0),
     unit_amount NUMERIC(14, 2) NOT NULL CHECK (unit_amount >= 0),
+    bruto_amount NUMERIC(14, 2),
+    scholarship_cover NUMERIC(14, 2) NOT NULL DEFAULT 0,
     amount NUMERIC(14, 2) GENERATED ALWAYS AS (qty * unit_amount) STORED,
     item_type VARCHAR(20) NOT NULL CHECK (item_type IN ('spp', 'other')),
     reference_type VARCHAR(30),
     reference_id BIGINT
 );
+
+ALTER TABLE finance.invoice_item
+    ADD COLUMN IF NOT EXISTS bruto_amount NUMERIC(14, 2);
+
+ALTER TABLE finance.invoice_item
+    ADD COLUMN IF NOT EXISTS scholarship_cover NUMERIC(14, 2) NOT NULL DEFAULT 0;
+
+UPDATE finance.invoice_item
+SET bruto_amount = unit_amount
+WHERE bruto_amount IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_invoice_item_invoice
     ON finance.invoice_item(invoice_id);
@@ -149,6 +161,106 @@ CREATE INDEX IF NOT EXISTS idx_invoice_item_invoice
 CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_item_monthly
     ON finance.invoice_item(component_id, fee_rule_id, bill_year, bill_month, invoice_id)
     WHERE bill_month IS NOT NULL AND bill_year IS NOT NULL;
+
+-- =================================================================================
+-- Fitur: Beasiswa
+-- =================================================================================
+
+CREATE TABLE IF NOT EXISTS finance.scholarship (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    code VARCHAR(50),
+    description TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scholarship_homebase
+    ON finance.scholarship(homebase_id, is_active);
+
+CREATE TABLE IF NOT EXISTS finance.scholarship_benefit (
+    id BIGSERIAL PRIMARY KEY,
+    scholarship_id BIGINT NOT NULL
+        REFERENCES finance.scholarship(id) ON DELETE CASCADE,
+    benefit_target VARCHAR(20) NOT NULL
+        CHECK (benefit_target IN ('spp', 'other')),
+    benefit_type VARCHAR(20) NOT NULL
+        CHECK (benefit_type IN ('fixed', 'full')),
+    amount NUMERIC(14, 2)
+        CHECK (amount IS NULL OR amount >= 0),
+    component_id BIGINT REFERENCES finance.fee_component(id) ON DELETE CASCADE,
+    periode_id INT REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CHECK (
+        (benefit_type = 'full')
+        OR (benefit_type = 'fixed' AND amount IS NOT NULL AND amount > 0)
+    ),
+    CHECK (
+        (benefit_target = 'spp' AND component_id IS NULL)
+        OR (benefit_target = 'other' AND component_id IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_scholarship_benefit_scholarship
+    ON finance.scholarship_benefit(scholarship_id, benefit_target);
+
+CREATE TABLE IF NOT EXISTS finance.scholarship_benefit_month (
+    id BIGSERIAL PRIMARY KEY,
+    benefit_id BIGINT NOT NULL
+        REFERENCES finance.scholarship_benefit(id) ON DELETE CASCADE,
+    periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+    month_num SMALLINT NOT NULL CHECK (month_num BETWEEN 1 AND 12),
+    UNIQUE (benefit_id, periode_id, month_num)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scholarship_benefit_month_lookup
+    ON finance.scholarship_benefit_month(benefit_id, periode_id, month_num);
+
+CREATE TABLE IF NOT EXISTS finance.scholarship_student (
+    id BIGSERIAL PRIMARY KEY,
+    scholarship_id BIGINT NOT NULL
+        REFERENCES finance.scholarship(id) ON DELETE CASCADE,
+    student_id INT NOT NULL
+        REFERENCES public.u_students(user_id) ON DELETE CASCADE,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    notes TEXT,
+    assigned_by INT REFERENCES public.u_users(id),
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (scholarship_id, student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scholarship_student_lookup
+    ON finance.scholarship_student(student_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_scholarship_student_scholarship
+    ON finance.scholarship_student(scholarship_id, is_active);
+
+CREATE TABLE IF NOT EXISTS finance.invoice_item_scholarship (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_item_id BIGINT NOT NULL
+        REFERENCES finance.invoice_item(id) ON DELETE CASCADE,
+    scholarship_id BIGINT NOT NULL
+        REFERENCES finance.scholarship(id) ON DELETE CASCADE,
+    benefit_id BIGINT
+        REFERENCES finance.scholarship_benefit(id) ON DELETE SET NULL,
+    cover_amount NUMERIC(14, 2) NOT NULL CHECK (cover_amount >= 0),
+    benefit_type VARCHAR(20) NOT NULL
+        CHECK (benefit_type IN ('fixed', 'full')),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (invoice_item_id, scholarship_id, benefit_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_item_scholarship_item
+    ON finance.invoice_item_scholarship(invoice_item_id);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_item_scholarship_scholarship
+    ON finance.invoice_item_scholarship(scholarship_id);
 
 CREATE TABLE IF NOT EXISTS finance.payment_method (
     id BIGSERIAL PRIMARY KEY,

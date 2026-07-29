@@ -3,6 +3,7 @@ import {
   Col,
   Empty,
   Flex,
+  Grid,
   Row,
   Space,
   Table,
@@ -16,6 +17,7 @@ import {
   BarChart3,
   CircleDollarSign,
   Filter,
+  Gift,
   Info,
   Target,
 } from "lucide-react";
@@ -46,12 +48,19 @@ const reportCardMeta = {
     bg: "linear-gradient(135deg, #fef3c7, #fff7ed)",
     color: "#d97706",
   },
+  scholarship: {
+    icon: <Gift size={18} />,
+    bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
+    color: "#1d4ed8",
+  },
 };
 
 const MonthlyReportPanel = ({
   payments = [],
   filterContext = {},
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const {
     homebaseName = "Semua satuan",
     periodeName = "Semua periode",
@@ -74,6 +83,8 @@ const MonthlyReportPanel = ({
       periodeName: payment.periode_name || "-",
       periodeId: payment.periode_id,
       targetAmount: 0,
+      brutoAmount: 0,
+      scholarshipCover: 0,
       realizationAmount: 0,
       paidStudents: 0,
       partialStudents: 0,
@@ -82,6 +93,12 @@ const MonthlyReportPanel = ({
     };
 
     currentItem.targetAmount += Number(payment.amount || 0);
+    currentItem.brutoAmount += Number(
+      payment.bruto_amount != null
+        ? payment.bruto_amount
+        : Number(payment.amount || 0) + Number(payment.scholarship_cover || 0),
+    );
+    currentItem.scholarshipCover += Number(payment.scholarship_cover || 0);
     currentItem.totalStudents += 1;
 
     if (payment.status === "paid") {
@@ -144,6 +161,11 @@ const MonthlyReportPanel = ({
     });
 
   const totalTarget = dataSource.reduce((sum, item) => sum + item.targetAmount, 0);
+  const totalBruto = dataSource.reduce((sum, item) => sum + item.brutoAmount, 0);
+  const totalScholarshipCover = dataSource.reduce(
+    (sum, item) => sum + item.scholarshipCover,
+    0,
+  );
   const totalRealization = dataSource.reduce(
     (sum, item) => sum + item.realizationAmount,
     0,
@@ -167,9 +189,15 @@ const MonthlyReportPanel = ({
   const summaryItems = [
     {
       key: "target",
-      label: "Total Target",
+      label: "Target Netto",
       value: currencyFormatter.format(totalTarget),
-      note: `${totalStudents} siswa pada filter aktif`,
+      note: `${totalStudents} siswa · bruto ${currencyFormatter.format(totalBruto)}`,
+    },
+    {
+      key: "scholarship",
+      label: "Cover Beasiswa",
+      value: currencyFormatter.format(totalScholarshipCover),
+      note: "Potongan beasiswa (bukan kas masuk)",
     },
     {
       key: "realization",
@@ -181,7 +209,7 @@ const MonthlyReportPanel = ({
       key: "achievement",
       label: "Tingkat Capaian",
       value: `${totalAchievement}%`,
-      note: monthLabel ? `Bulan ${monthLabel}` : "Sesuai filter aktif",
+      note: monthLabel ? `Bulan ${monthLabel} (vs target netto)` : "Sesuai filter aktif",
     },
     {
       key: "critical",
@@ -191,7 +219,7 @@ const MonthlyReportPanel = ({
     },
   ];
 
-  const columns = [
+  const desktopColumns = [
     {
       title: "Kelas",
       key: "classroom",
@@ -217,17 +245,24 @@ const MonthlyReportPanel = ({
         ]
       : []),
     {
-      title: "Target",
+      title: "Target Netto",
       dataIndex: "targetAmount",
       key: "targetAmount",
-      width: 150,
+      width: 140,
       render: (value) => currencyFormatter.format(value),
+    },
+    {
+      title: "Beasiswa",
+      dataIndex: "scholarshipCover",
+      key: "scholarshipCover",
+      width: 130,
+      render: (value) => currencyFormatter.format(value || 0),
     },
     {
       title: "Realisasi",
       dataIndex: "realizationAmount",
       key: "realizationAmount",
-      width: 150,
+      width: 140,
       render: (value) => currencyFormatter.format(value),
     },
     {
@@ -250,6 +285,7 @@ const MonthlyReportPanel = ({
       dataIndex: "achievementMeta",
       key: "achievementMeta",
       width: 110,
+      fixed: "right",
       render: (value) => (
         <Tag color={value.color} style={{ borderRadius: 999, fontWeight: 600 }}>
           {value.label}
@@ -258,8 +294,62 @@ const MonthlyReportPanel = ({
     },
   ];
 
+  const mobileColumns = [
+    {
+      title: "Kelas",
+      key: "classroom",
+      render: (_, record) => (
+        <Flex vertical gap={10} style={{ width: "100%" }}>
+          <Flex justify='space-between' align='flex-start' gap={8}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Text strong style={{ display: "block" }}>
+                {record.classroom}
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                {record.gradeName}
+                {showPeriodeColumn ? ` · ${record.periodeName}` : ""}
+              </Text>
+            </div>
+            <Tag
+              color={record.achievementMeta.color}
+              style={{ borderRadius: 999, fontWeight: 600, margin: 0 }}
+            >
+              {record.achievementMeta.label}
+            </Tag>
+          </Flex>
+          <Flex justify='space-between' gap={8} wrap='wrap'>
+            <div>
+              <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                Target
+              </Text>
+              <Text strong style={{ fontSize: 13 }}>
+                {currencyFormatter.format(record.targetAmount)}
+              </Text>
+            </div>
+            <div>
+              <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                Realisasi
+              </Text>
+              <Text strong style={{ fontSize: 13 }}>
+                {currencyFormatter.format(record.realizationAmount)}
+              </Text>
+            </div>
+            <div>
+              <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                Lunas
+              </Text>
+              <Text strong style={{ fontSize: 13 }}>
+                {record.paidStudents}/{record.totalStudents}
+              </Text>
+            </div>
+          </Flex>
+        </Flex>
+      ),
+    },
+  ];
+
   return (
-    <Row gutter={[16, 16]}>
+    <Row gutter={[12, 12]}>
       <Col span={24}>
         <Card
           variant='borderless'
@@ -268,11 +358,11 @@ const MonthlyReportPanel = ({
             border: "1px solid rgba(148,163,184,0.14)",
             background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
           }}
-          styles={{ body: { padding: "12px 16px" } }}
+          styles={{ body: { padding: isMobile ? "10px 12px" : "12px 16px" } }}
         >
           <Space align='start' size={10} wrap>
             <Filter size={16} color='#64748b' style={{ marginTop: 3 }} />
-            <div>
+            <div style={{ minWidth: 0 }}>
               <Text type='secondary' style={{ display: "block", marginBottom: 6 }}>
                 Laporan mengikuti filter aktif
               </Text>
@@ -295,25 +385,26 @@ const MonthlyReportPanel = ({
       {summaryItems.map((item, index) => {
         const meta = reportCardMeta[item.key];
         return (
-          <Col xs={24} md={12} xl={6} key={item.key}>
+          <Col xs={24} sm={12} xl={6} xxl={4} key={item.key}>
             <MotionDiv
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              whileHover={{ y: -4 }}
+              whileHover={isMobile ? undefined : { y: -4 }}
             >
               <Card
                 style={{
                   ...cardStyle,
+                  borderRadius: isMobile ? 18 : 24,
                   background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
                 }}
-                styles={{ body: { padding: 20 } }}
+                styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
-                <Flex align='center' gap={14}>
+                <Flex align='center' gap={isMobile ? 10 : 14}>
                   <div
                     style={{
-                      width: 44,
-                      height: 44,
+                      width: isMobile ? 40 : 44,
+                      height: isMobile ? 40 : 44,
                       display: "grid",
                       placeItems: "center",
                       borderRadius: 16,
@@ -326,7 +417,9 @@ const MonthlyReportPanel = ({
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Flex align='center' gap={6}>
-                      <Text type='secondary'>{item.label}</Text>
+                      <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                        {item.label}
+                      </Text>
                       <Tooltip title={item.note}>
                         <Info
                           size={14}
@@ -338,10 +431,11 @@ const MonthlyReportPanel = ({
                     <div
                       style={{
                         marginTop: 4,
-                        fontSize: 26,
+                        fontSize: isMobile ? 18 : 26,
                         fontWeight: 700,
                         color: "#0f172a",
                         lineHeight: 1.2,
+                        wordBreak: "break-word",
                       }}
                     >
                       {item.value}
@@ -356,22 +450,31 @@ const MonthlyReportPanel = ({
 
       <Col span={24}>
         <Card
-          style={cardStyle}
+          style={{
+            ...cardStyle,
+            borderRadius: isMobile ? 18 : 24,
+            overflow: "hidden",
+          }}
+          styles={{ body: { padding: isMobile ? 12 : 24 } }}
           title={
-            <Space direction='vertical' size={2}>
-              <Text strong>Laporan Pembayaran SPP per Kelas</Text>
-              <Text type='secondary' style={{ fontSize: 13, fontWeight: 400 }}>
-                Ringkasan capaian mengikuti filter satuan, periode, bulan,
-                tingkat, kelas, dan pencarian siswa yang sedang aktif.
+            <Space direction='vertical' size={2} style={{ maxWidth: "100%" }}>
+              <Text strong style={{ fontSize: isMobile ? 14 : 16 }}>
+                Laporan Pembayaran SPP per Kelas
               </Text>
+              {!isMobile ? (
+                <Text type='secondary' style={{ fontSize: 13, fontWeight: 400 }}>
+                  Ringkasan capaian mengikuti filter satuan, periode, bulan,
+                  tingkat, kelas, dan pencarian siswa yang sedang aktif.
+                </Text>
+              ) : null}
             </Space>
           }
           extra={
-            <Space wrap>
-              <Tag color='blue' style={{ borderRadius: 999, fontWeight: 600 }}>
+            <Space wrap size={[6, 6]}>
+              <Tag color='blue' style={{ borderRadius: 999, fontWeight: 600, margin: 0 }}>
                 {dataSource.length} kelas
               </Tag>
-              <Tag color='geekblue' style={{ borderRadius: 999, fontWeight: 600 }}>
+              <Tag color='geekblue' style={{ borderRadius: 999, fontWeight: 600, margin: 0 }}>
                 {totalStudents} siswa
               </Tag>
             </Space>
@@ -379,15 +482,19 @@ const MonthlyReportPanel = ({
         >
           <Table
             rowKey='key'
-            columns={columns}
+            columns={isMobile ? mobileColumns : desktopColumns}
             dataSource={dataSource}
-            scroll={{ x: showPeriodeColumn ? 1100 : 900 }}
+            size={isMobile ? "small" : "middle"}
+            scroll={isMobile ? undefined : { x: showPeriodeColumn ? 1200 : 1000 }}
             pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
+              pageSize: isMobile ? 8 : 10,
+              size: isMobile ? "small" : "default",
+              showSizeChanger: !isMobile,
               pageSizeOptions: [10, 20, 50],
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} dari ${total} kelas`,
+              showTotal: isMobile
+                ? undefined
+                : (total, range) =>
+                    `${range[0]}-${range[1]} dari ${total} kelas`,
             }}
             locale={{
               emptyText: (

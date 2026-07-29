@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import { Form, Card, Space, Tabs, Typography, message } from "antd";
+import { Form, Card, Flex, Grid, Space, Tabs, Typography, message } from "antd";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
   CreditCard,
+  Gift,
   ReceiptText,
   Sparkles,
   Users,
@@ -65,6 +66,9 @@ const itemVariants = {
 
 const Monthly = ({ initialTab = "tariffs" }) => {
   const { user } = useSelector((state) => state.auth);
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const isCompact = !screens.lg;
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [filters, setFilters] = useState({
@@ -369,11 +373,31 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       color: "#d97706",
     },
     {
+      key: "bruto",
+      title: "Target Bruto",
+      value: paymentSummary.total_bruto || 0,
+      prefix: "Rp",
+      note: "Tarif penuh sebelum beasiswa",
+      icon: <BarChart3 size={18} />,
+      bg: "linear-gradient(135deg, #e0e7ff, #eef2ff)",
+      color: "#4338ca",
+    },
+    {
+      key: "scholarship",
+      title: "Cover Beasiswa",
+      value: paymentSummary.total_scholarship_cover || 0,
+      prefix: "Rp",
+      note: "Potongan beasiswa (bukan kas masuk)",
+      icon: <Gift size={18} />,
+      bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
+      color: "#1d4ed8",
+    },
+    {
       key: "amount",
       title: "SPP Terkumpul",
       value: paymentSummary.paid_amount || 0,
       prefix: "Rp",
-      note: "Akumulasi SPP yang sudah lunas",
+      note: `Target netto ${Number(paymentSummary.total_amount || 0).toLocaleString("id-ID")}`,
       icon: <Wallet size={18} />,
       bg: "linear-gradient(135deg, #e0f2fe, #ecfeff)",
       color: "#0369a1",
@@ -711,14 +735,14 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   )?.label;
 
   const createTabLabel = (label, icon, count, caption) => (
-    <Space size={10}>
+    <Flex align='center' gap={isMobile ? 8 : 10}>
       <span
         style={{
-          width: 34,
-          height: 34,
+          width: isMobile ? 28 : 34,
+          height: isMobile ? 28 : 34,
           display: "grid",
           placeItems: "center",
-          borderRadius: 12,
+          borderRadius: isMobile ? 10 : 12,
           background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
           color: "#0369a1",
           border: "1px solid rgba(148,163,184,0.14)",
@@ -727,15 +751,24 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       >
         {icon}
       </span>
-      <div>
-        <div style={{ fontWeight: 600, lineHeight: 1.2 }}>
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 600,
+            lineHeight: 1.2,
+            fontSize: isMobile ? 13 : 14,
+            whiteSpace: "nowrap",
+          }}
+        >
           {label} {count !== undefined ? `(${count})` : ""}
         </div>
-        <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
-          {caption}
-        </div>
+        {!isCompact ? (
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
+            {caption}
+          </div>
+        ) : null}
       </div>
-    </Space>
+    </Flex>
   );
 
   return (
@@ -743,9 +776,13 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       variants={containerVariants}
       initial='hidden'
       animate='visible'
-      style={{ width: "100%" }}
+      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
     >
-      <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
+      <Space
+        vertical
+        size={isMobile ? 16 : 24}
+        style={{ width: "100%", display: "flex" }}
+      >
         <MotionDiv variants={itemVariants}>
           <MonthlyHeader
             onOpenTariff={() => {
@@ -771,27 +808,32 @@ const Monthly = ({ initialTab = "tariffs" }) => {
           />
         </MotionDiv>
 
-        <MotionDiv variants={itemVariants}>
+        <MotionDiv variants={itemVariants} style={{ width: "100%" }}>
           <Card
             variant='borderless'
             style={{
-              borderRadius: 28,
+              borderRadius: isMobile ? 20 : 28,
               border: "1px solid rgba(148, 163, 184, 0.14)",
               boxShadow: "0 24px 60px rgba(15, 23, 42, 0.07)",
+              overflow: "hidden",
             }}
-            styles={{ body: { padding: 12 } }}
+            styles={{ body: { padding: isMobile ? 8 : 12 } }}
           >
             <Tabs
               activeKey={activeTab}
               onChange={setActiveTab}
-              tabBarGutter={14}
-              tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+              size={isMobile ? "small" : "middle"}
+              tabBarGutter={isMobile ? 8 : 14}
+              tabBarStyle={{
+                marginBottom: isMobile ? 12 : 20,
+                paddingBottom: 8,
+              }}
               items={[
                 {
                   key: "tariffs",
                   label: createTabLabel(
                     "Tarif SPP",
-                    <ReceiptText size={16} />,
+                    <ReceiptText size={isMobile ? 14 : 16} />,
                     tariffs.length,
                     "Pengaturan tarif per periode",
                   ),
@@ -809,8 +851,8 @@ const Monthly = ({ initialTab = "tariffs" }) => {
                 {
                   key: "payments",
                   label: createTabLabel(
-                    "Pembayaran SPP",
-                    <CreditCard size={16} />,
+                    isMobile ? "Pembayaran" : "Pembayaran SPP",
+                    <CreditCard size={isMobile ? 14 : 16} />,
                     payments.length,
                     "Monitoring status pelunasan",
                   ),
@@ -836,8 +878,8 @@ const Monthly = ({ initialTab = "tariffs" }) => {
                 {
                   key: "report",
                   label: createTabLabel(
-                    "Laporan SPP",
-                    <BarChart3 size={16} />,
+                    isMobile ? "Laporan" : "Laporan SPP",
+                    <BarChart3 size={isMobile ? 14 : 16} />,
                     undefined,
                     "Ringkasan capaian per kelas",
                   ),
@@ -869,17 +911,21 @@ const Monthly = ({ initialTab = "tariffs" }) => {
               border: "1px solid rgba(148,163,184,0.14)",
               background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
             }}
-            styles={{ body: { padding: "14px 16px" } }}
+            styles={{ body: { padding: isMobile ? "12px 14px" : "14px 16px" } }}
           >
-            <Space align='center' size={8}>
-              <Sparkles size={14} color='#64748b' />
-              <Text type='secondary'>
+            <Flex align='flex-start' gap={8}>
+              <Sparkles
+                size={14}
+                color='#64748b'
+                style={{ flexShrink: 0, marginTop: 3 }}
+              />
+              <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
                 Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}.
                 Default: periode aktif. Kosongkan filter periode untuk melihat
                 semua periode, lalu bisa dipersempit berdasarkan tingkat, kelas,
                 dan siswa.
               </Text>
-            </Space>
+            </Flex>
           </Card>
         </MotionDiv>
       </Space>

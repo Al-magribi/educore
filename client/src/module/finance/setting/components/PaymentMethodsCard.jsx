@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Flex,
+  Grid,
   Space,
   Switch,
   Tag,
@@ -37,6 +38,8 @@ const PaymentMethodsCard = ({
   onOpenMidtransTab,
   onOpenBankTab,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const activeBankAccounts = (bankAccounts || []).filter((item) => item.is_active);
   const isMidtransConfigured = Boolean(midtransMethod?.is_configured);
   const isMidtransSwitchDisabled = isUpdatingPaymentMethod || !isMidtransConfigured;
@@ -47,26 +50,28 @@ const PaymentMethodsCard = ({
       <Card
         style={{
           ...cardStyle,
+          borderRadius: isMobile ? 18 : undefined,
           background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          overflow: "hidden",
         }}
-        styles={{ body: { padding: 24 } }}
+        styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >
         <Space vertical size={14} style={{ width: "100%" }}>
           <div
             style={{
-              padding: 20,
-              borderRadius: 22,
+              padding: isMobile ? 14 : 20,
+              borderRadius: isMobile ? 16 : 22,
               border: "1px solid rgba(59,130,246,0.14)",
               background:
                 "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(240,253,250,0.94))",
             }}
           >
             <Flex justify='space-between' align='flex-start' wrap='wrap' gap={16}>
-              <Flex align='flex-start' gap={14} style={{ flex: 1 }}>
+              <Flex align='flex-start' gap={14} style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    width: 52,
-                    height: 52,
+                    width: isMobile ? 44 : 52,
+                    height: isMobile ? 44 : 52,
                     display: "grid",
                     placeItems: "center",
                     borderRadius: 18,
@@ -76,20 +81,25 @@ const PaymentMethodsCard = ({
                     boxShadow: "0 18px 30px rgba(29, 78, 216, 0.2)",
                   }}
                 >
-                  <Settings2 size={22} />
+                  <Settings2 size={isMobile ? 18 : 22} />
                 </div>
-                <div>
-                  <Title level={4} style={{ margin: 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  <Title
+                    level={isMobile ? 5 : 4}
+                    style={{ margin: 0, lineHeight: 1.3 }}
+                  >
                     Kontrol Metode Pembayaran
                   </Title>
-                  <Paragraph
-                    type='secondary'
-                    style={{ margin: "6px 0 0", maxWidth: 720 }}
-                  >
-                    Tentukan satu jalur pembayaran yang dibuka untuk orang tua.
-                    Midtrans dan transfer bank bersifat saling eksklusif:
-                    mengaktifkan salah satunya akan otomatis menonaktifkan yang lain.
-                  </Paragraph>
+                  {!isMobile ? (
+                    <Paragraph
+                      type='secondary'
+                      style={{ margin: "6px 0 0", maxWidth: 720 }}
+                    >
+                      Tentukan satu jalur pembayaran yang dibuka untuk orang tua.
+                      Midtrans dan transfer bank bersifat saling eksklusif:
+                      mengaktifkan salah satunya akan otomatis menonaktifkan yang lain.
+                    </Paragraph>
+                  ) : null}
                 </div>
               </Flex>
               <div
@@ -98,7 +108,8 @@ const PaymentMethodsCard = ({
                   borderRadius: 18,
                   background: "#ffffff",
                   border: "1px solid rgba(148,163,184,0.16)",
-                  minWidth: 220,
+                  minWidth: isMobile ? "100%" : 220,
+                  width: isMobile ? "100%" : undefined,
                 }}
               >
                 <Text type='secondary'>Metode terdaftar</Text>
@@ -135,7 +146,9 @@ const PaymentMethodsCard = ({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(auto-fit, minmax(260px, 1fr))",
               gap: 14,
             }}
           >
@@ -154,10 +167,11 @@ const PaymentMethodsCard = ({
                     background: "#ffffff",
                     height: "100%",
                   }}
+                  styles={{ body: { padding: isMobile ? 14 : undefined } }}
                 >
                   <Flex vertical gap={14}>
                     <Flex justify='space-between' align='flex-start' gap={12}>
-                      <Flex align='center' gap={12}>
+                      <Flex align='center' gap={12} style={{ minWidth: 0, flex: 1 }}>
                         <div
                           style={{
                             width: 42,
@@ -173,8 +187,10 @@ const PaymentMethodsCard = ({
                         >
                           {resolveMethodIcon(item.method_type)}
                         </div>
-                        <div>
-                          <Text strong>{item.name}</Text>
+                        <div style={{ minWidth: 0 }}>
+                          <Text strong style={{ wordBreak: "break-word" }}>
+                            {item.name}
+                          </Text>
                           <div
                             style={{
                               fontSize: 12,
@@ -188,7 +204,7 @@ const PaymentMethodsCard = ({
                       </Flex>
                       <Tag
                         color={item.is_active ? "green" : "default"}
-                        style={{ borderRadius: 999, fontWeight: 700 }}
+                        style={{ borderRadius: 999, fontWeight: 700, margin: 0 }}
                       >
                         {item.is_active ? "Aktif" : "Nonaktif"}
                       </Tag>
@@ -203,21 +219,29 @@ const PaymentMethodsCard = ({
                         <div style={{ fontSize: 12, color: "#64748b" }}>
                           {activeBankAccounts.length} rekening aktif tersedia
                         </div>
-                        <Flex justify='space-between' align='center' gap={12}>
-                          <div>
+                        <Flex
+                          justify='space-between'
+                          align={isMobile ? "stretch" : "center"}
+                          vertical={isMobile}
+                          gap={12}
+                        >
+                          <div style={{ minWidth: 0 }}>
                             <Text strong>Terima transfer bank</Text>
                             <div style={{ fontSize: 12, color: "#64748b" }}>
                               Orang tua upload bukti transfer, lalu admin konfirmasi
                             </div>
                           </div>
-                          <Switch
-                            checked={item.is_active}
-                            loading={isUpdatingPaymentMethod}
-                            disabled={isManualBankSwitchDisabled}
-                            onChange={(checked) =>
-                              onTogglePaymentMethod?.("manual_bank", checked)
-                            }
-                          />
+                          <Flex justify={isMobile ? "space-between" : "flex-end"} align='center'>
+                            {isMobile ? <Text type='secondary'>Aktifkan</Text> : null}
+                            <Switch
+                              checked={item.is_active}
+                              loading={isUpdatingPaymentMethod}
+                              disabled={isManualBankSwitchDisabled}
+                              onChange={(checked) =>
+                                onTogglePaymentMethod?.("manual_bank", checked)
+                              }
+                            />
+                          </Flex>
                         </Flex>
                         <Button onClick={onOpenBankTab} block>
                           Kelola Rekening Bank
@@ -232,21 +256,29 @@ const PaymentMethodsCard = ({
                             ? "Kredensial Midtrans sudah tersedia"
                             : "Kredensial Midtrans belum lengkap"}
                         </div>
-                        <Flex justify='space-between' align='center' gap={12}>
-                          <div>
+                        <Flex
+                          justify='space-between'
+                          align={isMobile ? "stretch" : "center"}
+                          vertical={isMobile}
+                          gap={12}
+                        >
+                          <div style={{ minWidth: 0 }}>
                             <Text strong>Aktifkan Midtrans</Text>
                             <div style={{ fontSize: 12, color: "#64748b" }}>
                               Parent diarahkan ke checkout Midtrans jika metode ini aktif
                             </div>
                           </div>
-                          <Switch
-                            checked={item.is_active}
-                            loading={isUpdatingPaymentMethod}
-                            disabled={isMidtransSwitchDisabled}
-                            onChange={(checked) =>
-                              onTogglePaymentMethod?.("midtrans", checked)
-                            }
-                          />
+                          <Flex justify={isMobile ? "space-between" : "flex-end"} align='center'>
+                            {isMobile ? <Text type='secondary'>Aktifkan</Text> : null}
+                            <Switch
+                              checked={item.is_active}
+                              loading={isUpdatingPaymentMethod}
+                              disabled={isMidtransSwitchDisabled}
+                              onChange={(checked) =>
+                                onTogglePaymentMethod?.("midtrans", checked)
+                              }
+                            />
+                          </Flex>
                         </Flex>
                         {!item.is_configured ? (
                           <Alert

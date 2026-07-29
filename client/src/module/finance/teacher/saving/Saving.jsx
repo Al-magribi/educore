@@ -6,6 +6,7 @@ import {
   Col,
   Flex,
   Form,
+  Grid,
   Row,
   Space,
   Typography,
@@ -52,6 +53,8 @@ const formatStudentSearchLabel = (item) => {
 
 const Saving = ({ pageVariant = "teacher" }) => {
   const { user } = useSelector((state) => state.auth);
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({
     homebase_id: undefined,
@@ -399,10 +402,11 @@ const Saving = ({ pageVariant = "teacher" }) => {
     [transactionSummary.total_transactions],
   );
   const adminHeaderExtra = (
-    <Flex justify='flex-end' align='center'>
+    <Flex justify={isMobile ? "stretch" : "flex-end"} align='center'>
       <Button
         icon={<BookOpen size={16} />}
         onClick={() => setGuideOpen(true)}
+        block={isMobile}
         style={{
           borderRadius: 999,
           fontWeight: 600,
@@ -438,7 +442,11 @@ const Saving = ({ pageVariant = "teacher" }) => {
           dataSource={[]}
           showDataTable={false}
         >
-          <Space orientation='vertical' size={20} style={{ width: "100%" }}>
+          <Space
+            orientation='vertical'
+            size={isMobile ? 14 : 20}
+            style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
+          >
             <SavingFilters
               filters={filters}
               setFilters={setFilters}
@@ -461,27 +469,48 @@ const Saving = ({ pageVariant = "teacher" }) => {
               deletingId={deletingId}
             />
 
-            <Card variant='borderless' style={cardStyle}>
-              <Row gutter={[16, 16]}>
-                <Col xs={24} md={8}>
+            <Card
+              variant='borderless'
+              style={cardStyle}
+              styles={{ body: { padding: isMobile ? 14 : 24 } }}
+            >
+              <Row gutter={[12, 12]}>
+                <Col xs={24} sm={12} md={8}>
                   <Text type='secondary'>Saldo saat ini</Text>
                   <div
-                    style={{ fontSize: 24, fontWeight: 700, color: "#0f766e" }}
+                    style={{
+                      fontSize: isMobile ? 20 : 24,
+                      fontWeight: 700,
+                      color: "#0f766e",
+                      wordBreak: "break-word",
+                    }}
                   >
                     {currencyFormatter.format(
                       studentSummary.total_balance || 0,
                     )}
                   </div>
                 </Col>
-                <Col xs={24} md={8}>
+                <Col xs={24} sm={12} md={8}>
                   <Text type='secondary'>Sudah menabung</Text>
-                  <div style={{ fontSize: 24, fontWeight: 700 }}>
+                  <div
+                    style={{
+                      fontSize: isMobile ? 20 : 24,
+                      fontWeight: 700,
+                      wordBreak: "break-word",
+                    }}
+                  >
                     {studentSummary.active_students || 0}
                   </div>
                 </Col>
-                <Col xs={24} md={8}>
+                <Col xs={24} sm={12} md={8}>
                   <Text type='secondary'>Periode operasional</Text>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>
+                  <div
+                    style={{
+                      fontSize: isMobile ? 16 : 18,
+                      fontWeight: 700,
+                      wordBreak: "break-word",
+                    }}
+                  >
                     {activePeriode?.name || "-"}
                   </div>
                 </Col>
@@ -543,8 +572,12 @@ const Saving = ({ pageVariant = "teacher" }) => {
   }
 
   return (
-    <div>
-      <Space vertical size={24} style={{ width: "100%" }}>
+    <div style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}>
+      <Space
+        vertical
+        size={isMobile ? 16 : 24}
+        style={{ width: "100%", display: "flex" }}
+      >
         <SavingHeader
           access={access}
           activePeriode={activePeriode}
@@ -575,7 +608,7 @@ const Saving = ({ pageVariant = "teacher" }) => {
           deletingId={deletingId}
         />
 
-        <Text type='secondary'>
+        <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
           Transaksi baru dicatat pada periode aktif {activePeriode?.name || "-"}{" "}
           untuk satuan {user?.homebase_name || user?.homebase_id || "-"}. Saldo
           siswa terakumulasi lintas periode dan terbawa saat naik tingkat.

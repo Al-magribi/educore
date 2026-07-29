@@ -5,6 +5,7 @@ import {
   Card,
   Flex,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -41,6 +42,8 @@ const SavingTransactionModal = ({
   onSubmit,
   confirmLoading,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const watchedStudentId = Form.useWatch("student_id", form);
   const watchedType = Form.useWatch("transaction_type", form);
   const watchedStudentSearch = Form.useWatch("student_search", form) || "";
@@ -70,15 +73,15 @@ const SavingTransactionModal = ({
         studentData: item,
         label: (
           <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
-            <Space orientation='vertical' size={1}>
+            <Space orientation='vertical' size={1} style={{ minWidth: 0 }}>
               <Text strong style={{ color: "#0f172a" }}>
                 {item.displayName}
               </Text>
-              <Text type='secondary'>
+              <Text type='secondary' style={{ fontSize: 12 }}>
                 {`NIS ${item.nis || "-"} | ${item.homebase_name || homebaseName || "-"} | ${item.periode_name || access?.active_periode_name || "-"}`}
               </Text>
             </Space>
-            <Tag color='blue' style={{ borderRadius: 999 }}>
+            <Tag color='blue' style={{ borderRadius: 999, margin: 0 }}>
               {`${item.grade_name || "-"} | ${item.class_name || "-"}`}
             </Tag>
           </Flex>
@@ -111,7 +114,7 @@ const SavingTransactionModal = ({
       onCancel={onCancel}
       onOk={form.submit}
       confirmLoading={confirmLoading}
-      width='min(760px, calc(100vw - 24px))'
+      width={isMobile ? "calc(100vw - 24px)" : "min(760px, calc(100vw - 24px))"}
       destroyOnHidden
       closable={false}
       centered
@@ -119,8 +122,13 @@ const SavingTransactionModal = ({
       cancelText='Batal'
       styles={{
         body: {
-          padding: 16,
+          padding: isMobile ? 12 : 16,
           background: "#f8fafc",
+          maxHeight: isMobile ? "calc(100vh - 160px)" : undefined,
+          overflowY: isMobile ? "auto" : undefined,
+        },
+        content: {
+          borderRadius: isMobile ? 18 : 24,
         },
       }}
       modalRender={(node) => (
@@ -128,32 +136,40 @@ const SavingTransactionModal = ({
           initial={{ opacity: 0, y: 16, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
-          style={{ borderRadius: 24, overflow: "hidden" }}
+          style={{ borderRadius: isMobile ? 18 : 24, overflow: "hidden" }}
         >
           {node}
         </MotionDiv>
       )}
     >
-      <Space orientation='vertical' size={16} style={{ width: "100%" }}>
+      <Space orientation='vertical' size={isMobile ? 12 : 16} style={{ width: "100%" }}>
         <Card
           variant='borderless'
           style={{
-            borderRadius: 20,
+            borderRadius: isMobile ? 16 : 20,
             background:
               watchedType === "withdrawal"
                 ? "linear-gradient(135deg, #7f1d1d, #b91c1c 55%, #dc2626)"
                 : "linear-gradient(135deg, #064e3b, #047857 55%, #10b981)",
             boxShadow: "0 20px 50px rgba(15,23,42,0.16)",
           }}
-          styles={{ body: { padding: 20 } }}
+          styles={{ body: { padding: isMobile ? 14 : 20 } }}
         >
           <Space orientation='vertical' size={10} style={{ width: "100%" }}>
-            <Title level={4} style={{ margin: 0, color: "#f8fafc" }}>
+            <Title
+              level={isMobile ? 5 : 4}
+              style={{ margin: 0, color: "#f8fafc", lineHeight: 1.3 }}
+            >
               {editingTransaction
                 ? "Edit Transaksi Tabungan"
                 : "Catat Transaksi Tabungan"}
             </Title>
-            <Text style={{ color: "rgba(255,255,255,0.86)" }}>
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.86)",
+                fontSize: isMobile ? 13 : 14,
+              }}
+            >
               {watchedType === "withdrawal"
                 ? "Pastikan nominal penarikan tidak melebihi saldo siswa yang tersedia."
                 : "Setoran yang dicatat akan langsung menambah saldo tabungan siswa terpilih."}
@@ -164,10 +180,10 @@ const SavingTransactionModal = ({
         <Card
           variant='borderless'
           style={{
-            borderRadius: 20,
+            borderRadius: isMobile ? 16 : 20,
             border: "1px solid rgba(148,163,184,0.14)",
           }}
-          styles={{ body: { padding: 18 } }}
+          styles={{ body: { padding: isMobile ? 14 : 18 } }}
         >
           <Form form={form} layout='vertical' onFinish={onSubmit}>
             <Form.Item
@@ -200,7 +216,11 @@ const SavingTransactionModal = ({
 
             <Form.Item
               label='Cari Siswa'
-              extra='Ketik nama siswa atau NIS. Data siswa akan dimuat saat pencarian dan konteks satuan, periode, tingkat, serta kelas akan tampil setelah siswa dipilih.'
+              extra={
+                isMobile
+                  ? "Ketik nama atau NIS, lalu pilih dari hasil."
+                  : "Ketik nama siswa atau NIS. Data siswa akan dimuat saat pencarian dan konteks satuan, periode, tingkat, serta kelas akan tampil setelah siswa dipilih."
+              }
             >
               <Select
                 size='large'
@@ -256,6 +276,7 @@ const SavingTransactionModal = ({
                   });
                 }}
                 virtual={false}
+                style={{ width: "100%" }}
               />
             </Form.Item>
 
@@ -264,11 +285,11 @@ const SavingTransactionModal = ({
                 variant='borderless'
                 style={{
                   marginBottom: 16,
-                  borderRadius: 20,
+                  borderRadius: isMobile ? 16 : 20,
                   background:
                     "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
                 }}
-                styles={{ body: { padding: 20 } }}
+                styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
                 <Flex
                   justify='space-between'
@@ -278,28 +299,57 @@ const SavingTransactionModal = ({
                 >
                   <Space size={14} align='start'>
                     <Avatar
-                      size={52}
+                      size={isMobile ? 44 : 52}
                       style={{ background: "#2563eb", fontWeight: 700 }}
                     >
                       {(activeStudent.displayName || "?")
                         .slice(0, 1)
                         .toUpperCase()}
                     </Avatar>
-                    <Space orientation='vertical' size={2}>
-                      <Text strong style={{ color: "#ffffff", fontSize: 16 }}>
+                    <Space orientation='vertical' size={2} style={{ minWidth: 0 }}>
+                      <Text
+                        strong
+                        style={{
+                          color: "#ffffff",
+                          fontSize: isMobile ? 15 : 16,
+                          wordBreak: "break-word",
+                        }}
+                      >
                         {activeStudent.displayName}
                       </Text>
-                      <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                      <Text
+                        style={{
+                          color: "rgba(255,255,255,0.72)",
+                          fontSize: isMobile ? 12 : 14,
+                        }}
+                      >
                         NIS {activeStudent.nis || "-"}
                       </Text>
-                      <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                      <Text
+                        style={{
+                          color: "rgba(255,255,255,0.72)",
+                          fontSize: isMobile ? 12 : 14,
+                          wordBreak: "break-word",
+                        }}
+                      >
                         {`Satuan ${activeStudent.homebase_name || homebaseName || "-"} | ${activeStudent.periode_name || access?.active_periode_name || "-"}`}
                       </Text>
-                      <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                      <Text
+                        style={{
+                          color: "rgba(255,255,255,0.72)",
+                          fontSize: isMobile ? 12 : 14,
+                          wordBreak: "break-word",
+                        }}
+                      >
                         {`Tingkat ${activeStudent.grade_name || "-"} | Kelas ${activeStudent.class_name || "-"}`}
                       </Text>
                       {"balance" in activeStudent ? (
-                        <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+                        <Text
+                          style={{
+                            color: "rgba(255,255,255,0.72)",
+                            fontSize: isMobile ? 12 : 14,
+                          }}
+                        >
                           {`Saldo saat ini ${currencyFormatter.format(Number(activeStudent.balance || 0))}`}
                         </Text>
                       ) : null}
@@ -307,7 +357,7 @@ const SavingTransactionModal = ({
                   </Space>
                   <Tag
                     color='blue'
-                    style={{ borderRadius: 999, paddingInline: 12 }}
+                    style={{ borderRadius: 999, paddingInline: 12, margin: 0 }}
                   >
                     Siswa Terpilih
                   </Tag>
@@ -325,6 +375,8 @@ const SavingTransactionModal = ({
               <Select
                 options={transactionTypeOptions}
                 placeholder='Pilih jenis transaksi'
+                size='large'
+                style={{ width: "100%" }}
               />
             </Form.Item>
 
@@ -333,7 +385,11 @@ const SavingTransactionModal = ({
               label='Nominal'
               rules={[{ required: true, message: "Nominal wajib diisi" }]}
             >
-              <InputNumber {...rupiahInputProps} placeholder='Rp 0' />
+              <InputNumber
+                {...rupiahInputProps}
+                placeholder='Rp 0'
+                size='large'
+              />
             </Form.Item>
 
             <Form.Item

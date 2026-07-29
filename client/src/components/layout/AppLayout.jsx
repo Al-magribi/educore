@@ -57,6 +57,8 @@ const routePreloaders = {
     import("../../module/finance/fee/monthly/Report"),
   "/finance/pembayaran-lainnya": () =>
     import("../../module/finance/fee/others/Others"),
+  "/finance/beasiswa": () =>
+    import("../../module/finance/scholarship/Scholarship"),
   "/finance/transaksi": () =>
     import("../../module/finance/fee/transaction/Transaction"),
   "/finance/laporan-tabungan": () =>

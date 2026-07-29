@@ -18,6 +18,12 @@ import {
   getParentPayerUserId,
   createManualPayment,
   resolveOtherChargeRule,
+  insertInvoiceItemWithScholarship,
+  refreshInvoiceItemScholarship,
+  resolveInvoiceItemAmounts,
+  replaceInvoiceItemScholarshipBreakdown,
+  loadScholarshipBenefitIndex,
+  enrichDueWithScholarship,
 } from "./financeHelpers.js";
 
 const router = Router();
@@ -42,7 +48,7 @@ const formatChargeStatus = (status) => {
 };
 
 const deriveChargeStatus = (amountDue, paidAmount) => {
-  if (paidAmount >= amountDue && amountDue > 0) {
+  if (amountDue <= 0 || (paidAmount >= amountDue && amountDue > 0)) {
     return "paid";
   }
 
@@ -262,14 +268,60 @@ const syncUnpaidOtherChargeAmounts = async (client, typeId, amount) => {
       continue;
     }
 
+    const itemMeta = await client.query(
+      `
+        SELECT
+          ii.id,
+          ii.component_id,
+          inv.homebase_id,
+          inv.student_id,
+          inv.periode_id
+        FROM finance.invoice_item ii
+        JOIN finance.invoice inv ON inv.id = ii.invoice_id
+        WHERE ii.id = $1
+        LIMIT 1
+      `,
+      [row.charge_id],
+    );
+
+    if (itemMeta.rowCount === 0) {
+      continue;
+    }
+
+    const meta = itemMeta.rows[0];
+    const amounts = await resolveInvoiceItemAmounts(client, {
+      homebaseId: Number(meta.homebase_id),
+      studentId: Number(meta.student_id),
+      itemType: "other",
+      componentId: Number(meta.component_id),
+      periodeId: meta.periode_id ? Number(meta.periode_id) : null,
+      brutoAmount: Number(amount),
+    });
+
+    const unitAmount = Math.max(amounts.unit_amount, Number(row.paid_amount) || 0);
+    const scholarshipCover = Math.max(0, Number(amount) - unitAmount);
+
     await client.query(
       `
         UPDATE finance.invoice_item
-        SET unit_amount = $1
-        WHERE id = $2
+        SET
+          unit_amount = $1,
+          bruto_amount = $2,
+          scholarship_cover = $3
+        WHERE id = $4
           AND item_type = 'other'
       `,
-      [amount, row.charge_id],
+      [unitAmount, amounts.bruto_amount, scholarshipCover, row.charge_id],
+    );
+
+    await replaceInvoiceItemScholarshipBreakdown(
+      client,
+      row.charge_id,
+      unitAmount === amounts.unit_amount
+        ? amounts.breakdown
+        : amounts.breakdown[0]
+          ? [{ ...amounts.breakdown[0], cover_amount: scholarshipCover }]
+          : [],
     );
   }
 
@@ -362,28 +414,34 @@ const getOrCreateOtherInvoiceItem = async ({
   );
 
   if (existingItem.rowCount > 0) {
+    const refreshed = await refreshInvoiceItemScholarship(
+      client,
+      existingItem.rows[0].id,
+    );
+    if (refreshed && !refreshed.skipped) {
+      return {
+        id: refreshed.id,
+        invoice_id: refreshed.invoice_id,
+        amount: refreshed.amount,
+        paid_amount: refreshed.paid_amount,
+      };
+    }
+
     return existingItem.rows[0];
   }
 
-  const created = await client.query(
-    `
-      INSERT INTO finance.invoice_item (
-        invoice_id,
-        component_id,
-        fee_rule_id,
-        description,
-        qty,
-        unit_amount,
-        item_type,
-        reference_type
-      )
-      VALUES ($1, $2, $3, $4, 1, $5, 'other', 'manual_charge')
-      RETURNING id, invoice_id, amount, 0::numeric AS paid_amount
-    `,
-    [invoice.id, componentId, feeRuleId, description, amount],
-  );
-
-  return created.rows[0];
+  return insertInvoiceItemWithScholarship(client, {
+    invoiceId: invoice.id,
+    componentId,
+    feeRuleId,
+    description,
+    itemType: "other",
+    referenceType: "manual_charge",
+    homebaseId,
+    studentId,
+    periodeId,
+    brutoAmount: Number(amount || 0),
+  });
 };
 
 router.get(
@@ -1195,6 +1253,8 @@ router.get(
             ii.invoice_id,
             ii.component_id,
             ii.amount AS amount_due,
+            ii.bruto_amount,
+            ii.scholarship_cover,
             ii.description,
             COALESCE(
               SUM(
@@ -1219,8 +1279,11 @@ router.get(
           es.periode_name,
           ts.type_id,
           ts.scope AS type_scope,
+          ts.amount AS tariff_amount,
           es.student_id,
           COALESCE(item.amount_due, ts.amount) AS amount_due,
+          item.bruto_amount,
+          item.scholarship_cover,
           item.description AS notes,
           ts.type_name,
           es.student_name,
@@ -1293,14 +1356,37 @@ router.get(
       }
     }
 
+    const benefitIndex = await loadScholarshipBenefitIndex(
+      db,
+      homebaseId,
+      result.rows.map((row) => row.student_id),
+    );
+
     const data = result.rows.map((item) => {
-      const amountDue = Number(item.amount_due || 0);
+      const tariffAmount = Number(item.tariff_amount || 0);
+      const hasInvoiceItem = Boolean(item.charge_id);
+      const enriched = enrichDueWithScholarship({
+        benefitIndex,
+        studentId: item.student_id,
+        itemType: "other",
+        componentId: item.type_id,
+        periodeId: item.periode_id,
+        brutoAmount: tariffAmount,
+        storedBruto: item.bruto_amount,
+        storedCover: item.scholarship_cover,
+        storedNetto: item.amount_due,
+        hasInvoiceItem,
+      });
+      const amountDue = Number(enriched.amount || 0);
       const paidAmount = Number(item.paid_amount || 0);
       const remainingAmount = Math.max(amountDue - paidAmount, 0);
       const derivedStatus = deriveChargeStatus(amountDue, paidAmount);
 
       return {
         ...item,
+        bruto_amount: enriched.bruto_amount,
+        scholarship_cover: enriched.scholarship_cover,
+        has_scholarship: enriched.has_scholarship,
         amount_due: amountDue,
         paid_amount: paidAmount,
         remaining_amount: remainingAmount,
@@ -1321,6 +1407,11 @@ router.get(
         unpaid_count: filtered.filter((item) => item.status === "unpaid").length,
         partial_count: filtered.filter((item) => item.status === "partial").length,
         paid_count: filtered.filter((item) => item.status === "paid").length,
+        total_bruto: filtered.reduce((sum, item) => sum + item.bruto_amount, 0),
+        total_scholarship_cover: filtered.reduce(
+          (sum, item) => sum + item.scholarship_cover,
+          0,
+        ),
         total_due: filtered.reduce((sum, item) => sum + item.amount_due, 0),
         total_paid: filtered.reduce((sum, item) => sum + item.paid_amount, 0),
         total_remaining: filtered.reduce((sum, item) => sum + item.remaining_amount, 0),
@@ -1535,7 +1626,16 @@ router.put(
     }
 
     const paidAmount = Number(chargeResult.rows[0].paid_amount || 0);
-    const amountDue = Number(rule.amount || 0);
+    const brutoAmount = Number(rule.amount || 0);
+    const amounts = await resolveInvoiceItemAmounts(client, {
+      homebaseId,
+      studentId,
+      itemType: "other",
+      componentId: typeId,
+      periodeId,
+      brutoAmount,
+    });
+    const amountDue = Math.max(amounts.unit_amount, paidAmount);
     if (amountDue < paidAmount) {
       return res.status(400).json({
         message: "Nominal tagihan tidak boleh lebih kecil dari total pembayaran yang sudah masuk",
@@ -1561,10 +1661,35 @@ router.put(
           component_id = $1,
           fee_rule_id = $2,
           description = $3,
-          unit_amount = $4
-        WHERE id = $5
+          unit_amount = $4,
+          bruto_amount = $5,
+          scholarship_cover = $6
+        WHERE id = $7
       `,
-      [typeId, rule.id, notes || type.name, amountDue, chargeId],
+      [
+        typeId,
+        rule.id,
+        notes || type.name,
+        amountDue,
+        amounts.bruto_amount,
+        Math.max(0, amounts.bruto_amount - amountDue),
+        chargeId,
+      ],
+    );
+
+    await replaceInvoiceItemScholarshipBreakdown(
+      client,
+      chargeId,
+      amountDue === amounts.unit_amount
+        ? amounts.breakdown
+        : amounts.breakdown[0]
+          ? [
+              {
+                ...amounts.breakdown[0],
+                cover_amount: Math.max(0, amounts.bruto_amount - amountDue),
+              },
+            ]
+          : [],
     );
 
     res.json({
