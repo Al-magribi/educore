@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Badge,
   Button,
   Card,
   Flex,
@@ -9,6 +8,7 @@ import {
   Select,
   Space,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -96,12 +96,18 @@ const AttendanceTable = ({
     return counts;
   }, [filteredData]);
 
-  const getRibbon = (value) => {
-    if (value === "mengerjakan") return { text: "Mengerjakan", color: "blue" };
-    if (value === "pelanggaran") return { text: "Pelanggaran", color: "red" };
-    if (value === "selesai") return { text: "Selesai", color: "green" };
-    if (value === "izinkan") return { text: "Diizinkan", color: "gold" };
-    return { text: "Belum Masuk", color: "default" };
+  const getStatusLabel = (value) => {
+    if (value === "mengerjakan") return "Mengerjakan";
+    if (value === "pelanggaran") return "Pelanggaran";
+    if (value === "selesai") return "Selesai";
+    if (value === "izinkan") return "Diizinkan";
+    return "Belum Masuk";
+  };
+
+  const truncateText = (value, max = 15) => {
+    const text = String(value || "-");
+    if (text.length <= max) return text;
+    return `${text.slice(0, max)}…`;
   };
 
   const getActionDisabled = (status) => ({
@@ -176,30 +182,42 @@ const AttendanceTable = ({
   const renderItem = (item) => {
     const normalizedStatus = normalizeStatus(item.status);
     const disabled = getActionDisabled(normalizedStatus);
-    const ribbon = getRibbon(normalizedStatus);
+    const statusLabel = getStatusLabel(normalizedStatus);
     const statusToneMap = {
       mengerjakan: {
-        background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
+        background: "linear-gradient(135deg, #2563eb 0%, #38bdf8 100%)",
+        soft: "linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%)",
         color: "#1d4ed8",
+        text: "#ffffff",
       },
       pelanggaran: {
-        background: "linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%)",
+        background: "linear-gradient(135deg, #dc2626 0%, #f97316 100%)",
+        soft: "linear-gradient(135deg, #fee2e2 0%, #ffedd5 100%)",
         color: "#dc2626",
+        text: "#ffffff",
       },
       selesai: {
-        background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
+        background: "linear-gradient(135deg, #16a34a 0%, #4ade80 100%)",
+        soft: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
         color: "#15803d",
+        text: "#ffffff",
       },
       izinkan: {
-        background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
+        background: "linear-gradient(135deg, #d97706 0%, #fbbf24 100%)",
+        soft: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
         color: "#b45309",
+        text: "#ffffff",
       },
       belum_masuk: {
-        background: "linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%)",
+        background: "linear-gradient(135deg, #64748b 0%, #94a3b8 100%)",
+        soft: "linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%)",
         color: "#475569",
+        text: "#ffffff",
       },
     };
     const tone = statusToneMap[normalizedStatus] || statusToneMap.belum_masuk;
+    const ipText = item.ip || "-";
+    const browserText = item.browser || "-";
 
     return (
       <MotionDiv
@@ -207,161 +225,179 @@ const AttendanceTable = ({
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         style={{ height: "100%" }}
       >
-        <Badge.Ribbon text={ribbon.text} color={ribbon.color}>
-          <Card
-            hoverable
-            variant='borderless'
-            size='small'
+        <Card
+          hoverable
+          variant='borderless'
+          size='small'
+          style={{
+            borderRadius: 20,
+            height: "100%",
+            overflow: "hidden",
+            border: "1px solid rgba(148, 163, 184, 0.14)",
+            boxShadow: "0 18px 34px rgba(15, 23, 42, 0.06)",
+            background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+          }}
+          styles={{
+            body: {
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              padding: isMobile ? 14 : 16,
+            },
+          }}
+        >
+          <Flex justify='space-between' align='flex-start' gap={12}>
+            <Space align='start' size={12} style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: tone.soft,
+                  color: tone.color,
+                  flexShrink: 0,
+                  fontWeight: 700,
+                }}
+              >
+                {String(item.name || "?")
+                  .trim()
+                  .charAt(0)
+                  .toUpperCase() || "?"}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <Text strong style={{ fontSize: 15, display: "block" }}>
+                  {item.name}
+                </Text>
+                <Text
+                  type='secondary'
+                  style={{ fontSize: 12, display: "block", marginTop: 4 }}
+                >
+                  {item.className || "-"} | NIS {item.nis}
+                </Text>
+              </div>
+            </Space>
+          </Flex>
+
+          <div
             style={{
-              borderRadius: 20,
-              height: "100%",
-              overflow: "hidden",
-              border: "1px solid rgba(148, 163, 184, 0.14)",
-              boxShadow: "0 18px 34px rgba(15, 23, 42, 0.06)",
-              background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-            }}
-            styles={{
-              body: {
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-                padding: isMobile ? 14 : 16,
-              },
+              display: "grid",
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(2, minmax(0, 1fr))",
+              gap: 10,
             }}
           >
-            <Flex justify='space-between' align='flex-start' gap={12}>
-              <Space align='start' size={12} style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: tone.background,
-                    color: tone.color,
-                    flexShrink: 0,
-                    fontWeight: 700,
-                  }}
-                >
-                  {String(item.name || "?")
-                    .trim()
-                    .charAt(0)
-                    .toUpperCase() || "?"}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <Text strong style={{ fontSize: 15, display: "block" }}>
-                    {item.name}
-                  </Text>
-                  <Text
-                    type='secondary'
-                    style={{
-                      fontSize: 12,
-                      display: "block",
-                      margin: "8px 0 0",
-                      borderRadius: 999,
-                      background: tone.background,
-                      color: tone.color,
-                      borderColor: "transparent",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {item.className || "-"} | NIS {item.nis}
-                  </Text>
-                </div>
-              </Space>
-            </Flex>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(2, minmax(0, 1fr))",
-                gap: 10,
-              }}
-            >
-              <div
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 14,
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <Space size={6} wrap>
-                  <Globe size={14} color='#475569' />
-                  <Text style={{ fontSize: 12 }}>{item.ip}</Text>
-                </Space>
-              </div>
-              <div
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 14,
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <Space size={6} wrap>
-                  <Monitor size={14} color='#475569' />
-                  <Text style={{ fontSize: 12 }}>{item.browser}</Text>
-                </Space>
-              </div>
-            </div>
-
             <div
               style={{
                 padding: "10px 12px",
                 borderRadius: 14,
-                background: "linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%)",
-                border: "1px solid rgba(148, 163, 184, 0.14)",
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                minWidth: 0,
               }}
             >
-              <Text type='secondary' style={{ fontSize: 12 }}>
-                Mulai Ujian
-              </Text>
-              <div style={{ marginTop: 4, fontWeight: 600, color: "#0f172a" }}>
-                {item.startAt}
-              </div>
+              <Flex align='center' gap={6} style={{ minWidth: 0 }}>
+                <Globe size={14} color='#475569' style={{ flexShrink: 0 }} />
+                <Tooltip title={ipText}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "block",
+                      minWidth: 0,
+                    }}
+                  >
+                    {truncateText(ipText)}
+                  </Text>
+                </Tooltip>
+              </Flex>
             </div>
-
-            <Flex
-              wrap='wrap'
-              gap={8}
-              style={{ flexDirection: isMobile ? "column" : "row" }}
+            <div
+              style={{
+                padding: "10px 12px",
+                borderRadius: 14,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                minWidth: 0,
+              }}
             >
-              <Button
-                size='small'
-                icon={<UserCheck size={14} />}
-                disabled={disabled.izinkan || allowLoading}
-                onClick={() => confirmAllow(item)}
-                block={isMobile}
-              >
-                Izinkan
-              </Button>
-              <Button
-                size='small'
-                icon={<RefreshCcw size={14} />}
-                disabled={disabled.ulangi || repeatLoading}
-                onClick={() => confirmRepeat(item)}
-                block={isMobile}
-              >
-                Ulangi
-              </Button>
-              <Button
-                size='small'
-                danger
-                icon={<UserX size={14} />}
-                disabled={disabled.selesaikan || finishLoading}
-                onClick={() => confirmFinish(item)}
-                block={isMobile}
-              >
-                Selesaikan
-              </Button>
-            </Flex>
-          </Card>
-        </Badge.Ribbon>
+              <Flex align='center' gap={6} style={{ minWidth: 0 }}>
+                <Monitor size={14} color='#475569' style={{ flexShrink: 0 }} />
+                <Tooltip title={browserText}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "block",
+                      minWidth: 0,
+                    }}
+                  >
+                    {truncateText(browserText)}
+                  </Text>
+                </Tooltip>
+              </Flex>
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: 14,
+              background: tone.background,
+              color: tone.text,
+              border: "1px solid transparent",
+            }}
+          >
+            <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.88)" }}>
+              Mulai Ujian | {statusLabel}
+            </Text>
+            <div style={{ marginTop: 4, fontWeight: 600, color: tone.text }}>
+              {item.startAt}
+            </div>
+          </div>
+
+          <Flex
+            wrap='wrap'
+            gap={8}
+            style={{ flexDirection: isMobile ? "column" : "row" }}
+          >
+            <Button
+              size='small'
+              icon={<UserCheck size={14} />}
+              disabled={disabled.izinkan || allowLoading}
+              onClick={() => confirmAllow(item)}
+              block={isMobile}
+            >
+              Izinkan
+            </Button>
+            <Button
+              size='small'
+              icon={<RefreshCcw size={14} />}
+              disabled={disabled.ulangi || repeatLoading}
+              onClick={() => confirmRepeat(item)}
+              block={isMobile}
+            >
+              Ulangi
+            </Button>
+            <Button
+              size='small'
+              danger
+              icon={<UserX size={14} />}
+              disabled={disabled.selesaikan || finishLoading}
+              onClick={() => confirmFinish(item)}
+              block={isMobile}
+            >
+              Selesaikan
+            </Button>
+          </Flex>
+        </Card>
       </MotionDiv>
     );
   };
@@ -407,9 +443,9 @@ const AttendanceTable = ({
             style={{
               display: "grid",
               gridTemplateColumns: isMobile
-                ? "1fr"
+                ? "repeat(2, minmax(0, 1fr))"
                 : "repeat(4, minmax(0, 1fr))",
-              gap: 12,
+              gap: isMobile ? 10 : 12,
             }}
           >
             {[
@@ -438,9 +474,11 @@ const AttendanceTable = ({
                 key={item.label}
                 variant='borderless'
                 style={{ borderRadius: 18, background: "#f8fafc" }}
-                styles={{ body: { padding: 16 } }}
+                styles={{ body: { padding: isMobile ? 12 : 16 } }}
               >
-                <Text type='secondary'>{item.label}</Text>
+                <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                  {item.label}
+                </Text>
                 <Title
                   level={4}
                   style={{ margin: "4px 0 0", color: item.color }}
@@ -472,12 +510,12 @@ const AttendanceTable = ({
                 placeholder='Cari nama / NIS / kelas'
                 value={searchText}
                 onChange={(event) => setSearchText(event.target.value)}
-                style={{ width: isMobile ? "100%" : 260 }}
+                style={{ width: isMobile ? "100%" : 260, maxWidth: "100%" }}
               />
               <Select
                 value={pollingMinutes}
                 onChange={setPollingMinutes}
-                style={{ width: isMobile ? "100%" : 180 }}
+                style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
                 options={[
                   { value: 1, label: "Auto Update 1 menit" },
                   { value: 2, label: "Auto Update 2 menit" },
@@ -490,7 +528,7 @@ const AttendanceTable = ({
               <Select
                 value={statusFilter}
                 onChange={setStatusFilter}
-                style={{ width: isMobile ? "100%" : 180 }}
+                style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
                 options={[
                   { value: "all", label: "Semua Status" },
                   { value: "belum_masuk", label: "Belum Masuk" },
@@ -504,7 +542,7 @@ const AttendanceTable = ({
               <Select
                 value={classFilter}
                 onChange={setClassFilter}
-                style={{ width: isMobile ? "100%" : 180 }}
+                style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
                 options={[
                   { value: "all", label: "Semua Kelas" },
                   ...classOptions,

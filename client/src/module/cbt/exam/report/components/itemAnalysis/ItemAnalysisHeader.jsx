@@ -16,7 +16,7 @@ const ItemAnalysisHeader = ({
   showRejectedOnly,
   setShowRejectedOnly,
 }) => (
-  <Space direction='vertical' size={14} style={{ width: "100%" }}>
+  <Space direction='vertical' size={isMobile ? 12 : 14} style={{ width: "100%" }}>
     <Flex
       justify='space-between'
       align={isMobile ? "stretch" : "center"}
@@ -24,23 +24,39 @@ const ItemAnalysisHeader = ({
       wrap='wrap'
       style={{ flexDirection: isMobile ? "column" : "row" }}
     >
-      <Space direction='vertical' size={4} style={{ minWidth: 0 }}>
+      <Space direction='vertical' size={4} style={{ minWidth: 0, flex: 1 }}>
         <Text type='secondary'>Analisis Butir Soal</Text>
-        <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
-          Validitas, Reliabilitas, dan Tingkat Kesukaran
+        <Title
+          level={isMobile ? 5 : 4}
+          style={{ margin: 0, wordBreak: "break-word" }}
+        >
+          {isMobile
+            ? "Validitas & Kesukaran Soal"
+            : "Validitas, Reliabilitas, dan Tingkat Kesukaran"}
         </Title>
-        <Text type='secondary'>
-          Menilai kualitas setiap soal berdasarkan daya beda, kesukaran, dan
-          konsistensi paket soal (Cronbach&apos;s Alpha).
-        </Text>
+        {!isMobile && (
+          <Text type='secondary'>
+            Menilai kualitas setiap soal berdasarkan daya beda, kesukaran, dan
+            konsistensi paket soal (Cronbach&apos;s Alpha).
+          </Text>
+        )}
       </Space>
-      <Flex gap={8} wrap='wrap' align='center'>
+      <Flex
+        gap={8}
+        wrap='wrap'
+        align='center'
+        style={{
+          width: isMobile ? "100%" : "auto",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "stretch" : "center",
+        }}
+      >
         <Tag
           color='blue'
           icon={<FlaskConical size={12} />}
-          style={{ margin: 0, borderRadius: 999 }}
+          style={{ margin: 0, borderRadius: 999, alignSelf: "flex-start" }}
         >
-          {data?.analyzed_students || 0} peserta dianalisis
+          {data?.analyzed_students || 0} peserta
         </Tag>
         <Button
           type='primary'
@@ -59,7 +75,7 @@ const ItemAnalysisHeader = ({
     {data?.sample_warning ? (
       <Alert
         type='warning'
-        showIcon
+        showIcon={!isMobile}
         message={data.sample_warning_message}
         style={{ borderRadius: 14 }}
       />
@@ -83,7 +99,7 @@ const ItemAnalysisHeader = ({
         <Input
           allowClear
           prefix={<Search size={14} />}
-          placeholder='Cari teks soal atau tipe'
+          placeholder={isMobile ? "Cari soal / tipe" : "Cari teks soal atau tipe"}
           value={searchText}
           onChange={(event) => setSearchText(event.target.value)}
           style={{ width: isMobile ? "100%" : 280, maxWidth: "100%" }}
@@ -96,6 +112,7 @@ const ItemAnalysisHeader = ({
             borderRadius: 12,
             border: "1px solid rgba(148, 163, 184, 0.22)",
             background: "#fff",
+            width: isMobile ? "100%" : "auto",
           }}
         >
           <Switch
@@ -104,7 +121,7 @@ const ItemAnalysisHeader = ({
             onChange={onIncludeEssayChange}
           />
           <Text style={{ fontSize: 13 }}>
-            Sertakan soal esai & isian singkat
+            {isMobile ? "Sertakan esai/isian" : "Sertakan soal esai & isian singkat"}
           </Text>
         </Flex>
         <Flex
@@ -115,6 +132,7 @@ const ItemAnalysisHeader = ({
             borderRadius: 12,
             border: "1px solid rgba(148, 163, 184, 0.22)",
             background: "#fff",
+            width: isMobile ? "100%" : "auto",
           }}
         >
           <Switch
@@ -122,7 +140,9 @@ const ItemAnalysisHeader = ({
             checked={showRejectedOnly}
             onChange={setShowRejectedOnly}
           />
-          <Text style={{ fontSize: 13 }}>Hanya soal tidak disarankan</Text>
+          <Text style={{ fontSize: 13 }}>
+            {isMobile ? "Hanya tidak disarankan" : "Hanya soal tidak disarankan"}
+          </Text>
         </Flex>
       </Space>
       {!includeEssay && data?.excluded_essay_questions > 0 ? (

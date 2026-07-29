@@ -430,26 +430,7 @@ const ManualReviewQueue = ({
       key: `${activeTab}_types`,
       render: (_, record) => (
         <Space wrap size={6}>
-          {Object.entries(
-            activeTab === "finalisasi"
-              ? record.finalized_types || {}
-              : record.review_types || {},
-          ).map(([key, count]) => {
-            if (!count) return null;
-            const meta = MANUAL_TYPE_META[key] || {
-              label: key,
-              color: "default",
-            };
-            return (
-              <Tag
-                key={key}
-                color={meta.color}
-                style={{ margin: 0, borderRadius: 999 }}
-              >
-                {meta.label}: {count}
-              </Tag>
-            );
-          })}
+          {renderTypeTags(record)}
         </Space>
       ),
     },
@@ -511,41 +492,159 @@ const ManualReviewQueue = ({
     {
       label:
         activeTab === "finalisasi" ? "Siswa Sudah Final" : "Siswa Perlu Review",
+      shortLabel: activeTab === "finalisasi" ? "Sudah Final" : "Perlu Review",
       value: activeStudents.length,
       color: "#2563eb",
-      icon: <Users size={18} />,
+      icon: <Users size={isMobile ? 16 : 18} />,
     },
     {
       label: activeTab === "finalisasi" ? "Total Final" : "Total Pending",
+      shortLabel: activeTab === "finalisasi" ? "Total Final" : "Pending",
       value: totalPendingAnswers,
       color: "#d97706",
-      icon: <Clock3 size={18} />,
+      icon: <Clock3 size={isMobile ? 16 : 18} />,
     },
     {
       label: "Uraian",
+      shortLabel: "Uraian",
       value: typeSummary.essay || 0,
       color: "#c026d3",
-      icon: <ClipboardList size={18} />,
+      icon: <ClipboardList size={isMobile ? 16 : 18} />,
     },
     {
       label: "Jawaban Singkat",
+      shortLabel: "Singkat",
       value: typeSummary.short || 0,
       color: "#0284c7",
-      icon: <FileText size={18} />,
+      icon: <FileText size={isMobile ? 16 : 18} />,
     },
   ];
 
+  const renderTypeTags = (record) =>
+    Object.entries(
+      activeTab === "finalisasi"
+        ? record.finalized_types || {}
+        : record.review_types || {},
+    ).map(([key, count]) => {
+      if (!count) return null;
+      const meta = MANUAL_TYPE_META[key] || {
+        label: key,
+        color: "default",
+      };
+      return (
+        <Tag
+          key={key}
+          color={meta.color}
+          style={{ margin: 0, borderRadius: 999 }}
+        >
+          {meta.label}: {count}
+        </Tag>
+      );
+    });
+
+  const reviewCount =
+    activeTab === "finalisasi" ? "finalized_count" : "review_count";
+  const reviewScore =
+    activeTab === "finalisasi"
+      ? "finalized_score_total"
+      : "review_score_total";
+
+  const renderMobileStudentCard = (student) => {
+    const pendingCount = Number(student[reviewCount] || 0);
+    const scoreValue = Number(student[reviewScore] || 0);
+
+    return (
+      <Card
+        key={student.id}
+        size='small'
+        variant='borderless'
+        style={{
+          borderRadius: 16,
+          border: "1px solid rgba(148, 163, 184, 0.14)",
+          background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+        }}
+        styles={{ body: { padding: 14 } }}
+      >
+        <Flex vertical gap={12}>
+          <Flex justify='space-between' align='flex-start' gap={10}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Text
+                strong
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {student.name || "-"}
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                {student.nis || "-"} · {student.class_name || "-"}
+              </Text>
+            </div>
+            <Tag
+              color={Number(student.score || 0) >= 75 ? "green" : "orange"}
+              style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
+            >
+              {student.score || 0}
+            </Tag>
+          </Flex>
+
+          <Flex wrap='wrap' gap={6}>
+            <Tag
+              color={activeTab === "finalisasi" ? "green" : "gold"}
+              icon={
+                activeTab === "finalisasi" ? (
+                  <CheckCircle2 size={12} />
+                ) : (
+                  <Clock3 size={12} />
+                )
+              }
+              style={{ margin: 0, borderRadius: 999 }}
+            >
+              {pendingCount} soal
+            </Tag>
+            <Tag
+              color='blue'
+              style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
+            >
+              Review {scoreValue.toFixed(2)}
+            </Tag>
+            {renderTypeTags(student)}
+          </Flex>
+
+          <Button
+            type='primary'
+            icon={<ArrowRight size={16} />}
+            onClick={() => openStudentReview(student)}
+            block
+            style={{ borderRadius: 12 }}
+          >
+            Nilai
+          </Button>
+        </Flex>
+      </Card>
+    );
+  };
+
   return (
-    <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+    <MotionDiv
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ width: "100%", minWidth: 0 }}
+    >
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
+          borderRadius: isMobile ? 18 : 24,
           boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          overflow: "hidden",
         }}
-        styles={{ body: { padding: isMobile ? 16 : 20 } }}
+        styles={{ body: { padding: isMobile ? 14 : 20 } }}
       >
-        <Space vertical size={18} style={{ width: "100%" }}>
+        <Space vertical size={isMobile ? 14 : 18} style={{ width: "100%" }}>
           <Flex
             justify='space-between'
             align={isMobile ? "stretch" : "center"}
@@ -553,21 +652,26 @@ const ManualReviewQueue = ({
             gap={12}
             style={{ flexDirection: isMobile ? "column" : "row" }}
           >
-            <Space vertical size={4} style={{ minWidth: 0 }}>
+            <Space vertical size={4} style={{ minWidth: 0, flex: 1 }}>
               <Text type='secondary'>Koreksi Manual</Text>
-              <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
+              <Title
+                level={isMobile ? 5 : 4}
+                style={{ margin: 0, wordBreak: "break-word" }}
+              >
                 Daftar Review dan Finalisasi Manual
               </Title>
-              <Text type='secondary'>
-                Tab `Review` menampilkan soal yang belum final. Tab `Finalisasi`
-                menampilkan soal yang sudah final, dan guru tetap bisa memberi
-                nilai di keduanya.
-              </Text>
+              {!isMobile && (
+                <Text type='secondary'>
+                  Tab Review menampilkan soal yang belum final. Tab Finalisasi
+                  menampilkan soal yang sudah final, dan guru tetap bisa memberi
+                  nilai di keduanya.
+                </Text>
+              )}
             </Space>
             <Tag
               color={activeTab === "finalisasi" ? "green" : "gold"}
               icon={<CheckCircle2 size={12} />}
-              style={{ margin: 0, borderRadius: 999 }}
+              style={{ margin: 0, borderRadius: 999, alignSelf: "flex-start" }}
             >
               {activeStudents.length} siswa
             </Tag>
@@ -576,6 +680,8 @@ const ManualReviewQueue = ({
           <Tabs
             activeKey={activeTab}
             onChange={setActiveTab}
+            size={isMobile ? "small" : "middle"}
+            tabBarGutter={isMobile ? 12 : 24}
             items={[
               {
                 key: "review",
@@ -583,7 +689,7 @@ const ManualReviewQueue = ({
               },
               {
                 key: "finalisasi",
-                label: `Finalisasi (${manualReviewStudents.filter((student) => Number(student.finalized_count || 0) > 0).length})`,
+                label: `${isMobile ? "Final" : "Finalisasi"} (${manualReviewStudents.filter((student) => Number(student.finalized_count || 0) > 0).length})`,
               },
             ]}
           />
@@ -592,9 +698,10 @@ const ManualReviewQueue = ({
             style={{
               display: "grid",
               gridTemplateColumns: isMobile
-                ? "1fr"
+                ? "repeat(2, minmax(0, 1fr))"
                 : "repeat(4, minmax(0, 1fr))",
-              gap: 12,
+              gap: isMobile ? 10 : 12,
+              width: "100%",
             }}
           >
             {metricItems.map((item) => (
@@ -602,29 +709,55 @@ const ManualReviewQueue = ({
                 key={item.label}
                 variant='borderless'
                 style={{
-                  borderRadius: 18,
+                  borderRadius: isMobile ? 14 : 18,
                   background: "#f8fafc",
                   border: "1px solid rgba(148, 163, 184, 0.14)",
+                  minWidth: 0,
+                  overflow: "hidden",
                 }}
-                styles={{ body: { padding: 16 } }}
+                styles={{ body: { padding: isMobile ? 12 : 16 } }}
               >
-                <Flex align='center' justify='space-between' gap={12}>
-                  <Space vertical size={4}>
-                    <Text type='secondary'>{item.label}</Text>
-                    <Title level={4} style={{ margin: 0, color: item.color }}>
+                <Flex
+                  align='center'
+                  justify='space-between'
+                  gap={isMobile ? 8 : 12}
+                  style={{ minWidth: 0 }}
+                >
+                  <Space vertical size={2} style={{ minWidth: 0, flex: 1 }}>
+                    <Text
+                      type='secondary'
+                      style={{
+                        fontSize: isMobile ? 11 : 14,
+                        display: "block",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {isMobile ? item.shortLabel : item.label}
+                    </Text>
+                    <Title
+                      level={isMobile ? 5 : 4}
+                      style={{
+                        margin: 0,
+                        color: item.color,
+                        lineHeight: 1.15,
+                      }}
+                    >
                       {item.value}
                     </Title>
                   </Space>
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 14,
+                      width: isMobile ? 32 : 42,
+                      height: isMobile ? 32 : 42,
+                      borderRadius: isMobile ? 10 : 14,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       background: "#fff",
                       color: item.color,
+                      flexShrink: 0,
                     }}
                   >
                     {item.icon}
@@ -669,7 +802,14 @@ const ManualReviewQueue = ({
               />
             </Space>
 
-            <Space>
+            <Space
+              wrap
+              style={{
+                width: isMobile ? "100%" : "auto",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: isMobile ? "stretch" : "center",
+              }}
+            >
               <Button
                 type='primary'
                 icon={<Bot size={14} />}
@@ -680,6 +820,7 @@ const ManualReviewQueue = ({
                   aiJobLatest?.status === "running"
                 }
                 onClick={handleStartAiGrading}
+                block={isMobile}
               >
                 Koreksi AI
               </Button>
@@ -688,6 +829,7 @@ const ManualReviewQueue = ({
                 onClick={handleFinalizeAll}
                 loading={isFinalizingAll}
                 disabled={activeTab !== "review" || activeStudents.length < 1}
+                block={isMobile}
               >
                 Finalisasi
               </Button>
@@ -697,7 +839,7 @@ const ManualReviewQueue = ({
           {aiJobFeedback ? (
             <Alert
               type={aiJobFeedback.type}
-              showIcon
+              showIcon={!isMobile}
               message={
                 <Flex
                   justify='space-between'
@@ -707,7 +849,9 @@ const ManualReviewQueue = ({
                 >
                   <Space vertical size={2} style={{ minWidth: 0 }}>
                     <Text strong>{aiJobFeedback.title}</Text>
-                    <Text type='secondary'>{aiJobFeedback.description}</Text>
+                    <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                      {aiJobFeedback.description}
+                    </Text>
                   </Space>
                   <Progress
                     percent={aiJobFeedback.progress}
@@ -732,6 +876,18 @@ const ManualReviewQueue = ({
                   : "Belum ada jawaban yang perlu koreksi manual."
               }
             />
+          ) : isMobile ? (
+            <Flex vertical gap={10}>
+              {tableLoading
+                ? Array.from({ length: 3 }).map((_, index) => (
+                    <Card
+                      key={`skeleton-${index}`}
+                      loading
+                      style={{ borderRadius: 16 }}
+                    />
+                  ))
+                : activeStudents.map(renderMobileStudentCard)}
+            </Flex>
           ) : (
             <div
               style={{
@@ -746,7 +902,7 @@ const ManualReviewQueue = ({
                 dataSource={activeStudents}
                 loading={tableLoading}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
-                size={isMobile ? "small" : "middle"}
+                size='middle'
                 scroll={{ x: 980 }}
               />
             </div>
