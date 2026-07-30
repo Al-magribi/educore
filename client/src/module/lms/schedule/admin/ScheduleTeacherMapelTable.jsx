@@ -116,20 +116,22 @@ const ScheduleTeacherMapelTable = ({ loading, rows, sourceLabel }) => {
   );
 
   return (
-    <Table
-      rowKey="key"
-      bordered
-      size="small"
-      loading={loading}
-      columns={columns}
-      dataSource={rows}
-      pagination={false}
-      scroll={{ y: 520 }}
-      locale={{
-        emptyText: "Belum ada guru terjadwal pada jadwal final ini.",
-      }}
-      sticky
-    />
+    <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
+      <Table
+        rowKey="key"
+        bordered
+        size="small"
+        loading={loading}
+        columns={columns}
+        dataSource={rows}
+        pagination={false}
+        scroll={{ x: 640, y: 520 }}
+        locale={{
+          emptyText: "Belum ada guru terjadwal pada jadwal final ini.",
+        }}
+        sticky
+      />
+    </div>
   );
 };
 

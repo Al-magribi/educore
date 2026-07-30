@@ -22,12 +22,6 @@ const normalizeShiftName = (value) =>
     .toLowerCase()
     .replace(/\s+/g, " ");
 
-const isMorningShift = (value) =>
-  normalizeShiftName(value) === normalizeShiftName(SHIFT_MORNING_NAME);
-
-const isAfternoonShift = (value) =>
-  normalizeShiftName(value) === normalizeShiftName(SHIFT_AFTERNOON_NAME);
-
 const ensureTimeSlotGroupIndexes = async (client) => {
   const indexResult = await client.query(
     `SELECT indexname, indexdef
@@ -65,7 +59,6 @@ const ensureTimeSlotGroupIndexes = async (client) => {
 const ensureScheduleShiftGroups = async ({
   client,
   configId,
-  homebaseId,
 }) => {
   if (!configId) return [];
 
@@ -78,6 +71,7 @@ const ensureScheduleShiftGroups = async ({
   );
 
   let groups = existingResult.rows;
+
   if (!groups.length) {
     const insertResult = await client.query(
       `INSERT INTO lms.l_schedule_config_group (
@@ -99,143 +93,38 @@ const ensureScheduleShiftGroups = async ({
         "Shift belajar siang.",
       ],
     );
-    groups = insertResult.rows;
+    return insertResult.rows;
   }
 
-  let morningGroup =
-    groups.find((item) => item.is_default === true) ||
-    groups.find((item) => isMorningShift(item.name)) ||
-    groups[0] ||
-    null;
-
-  if (
-    morningGroup &&
-    !isMorningShift(morningGroup.name) &&
-    groups.length <= 2 &&
-    normalizeShiftName(morningGroup.name) === normalizeShiftName("Semua Kelas")
-  ) {
-    const renameResult = await client.query(
+  // Legacy one-time rename only: "Semua Kelas" -> "Shift Pagi"
+  const legacyDefault = groups.find(
+    (item) =>
+      normalizeShiftName(item.name) === normalizeShiftName("Semua Kelas"),
+  );
+  if (legacyDefault) {
+    await client.query(
       `UPDATE lms.l_schedule_config_group
        SET name = $1,
            description = COALESCE(NULLIF(description, ''), $2),
-           sort_order = 1,
-           is_default = true,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3
-       RETURNING *`,
-      [SHIFT_MORNING_NAME, "Shift belajar pagi.", morningGroup.id],
+       WHERE id = $3`,
+      [SHIFT_MORNING_NAME, "Shift belajar pagi.", legacyDefault.id],
     );
-    morningGroup = renameResult.rows[0];
   }
 
-  if (!morningGroup) {
-    const insertMorningResult = await client.query(
-      `INSERT INTO lms.l_schedule_config_group (
-         config_id,
-         name,
-         description,
-         sort_order,
-         is_default
-       )
-       VALUES ($1, $2, $3, 1, true)
-       RETURNING *`,
-      [configId, SHIFT_MORNING_NAME, "Shift belajar pagi."],
-    );
-    morningGroup = insertMorningResult.rows[0];
-  } else {
-    const normalizedSortOrder = Number(morningGroup.sort_order || 0) === 1;
-    const shouldRenameMorning =
-      !isMorningShift(morningGroup.name) &&
-      normalizeShiftName(morningGroup.name) === normalizeShiftName("Semua Kelas");
-    if (!normalizedSortOrder || shouldRenameMorning || morningGroup.is_default !== true) {
-      const updateMorningResult = await client.query(
-        `UPDATE lms.l_schedule_config_group
-         SET name = CASE WHEN $1 THEN $2 ELSE name END,
-             sort_order = 1,
-             is_default = true,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2
-         RETURNING *`,
-        [shouldRenameMorning, SHIFT_MORNING_NAME, morningGroup.id],
-      );
-      morningGroup = updateMorningResult.rows[0];
-    }
-  }
-
-  let afternoonGroup =
-    groups.find(
-      (item) =>
-        Number(item.id) !== Number(morningGroup.id) &&
-        isAfternoonShift(item.name),
-    ) ||
-    groups.find(
-      (item) =>
-        Number(item.id) !== Number(morningGroup.id) &&
-        Number(item.sort_order || 0) === 2,
-    ) ||
-    null;
-
-  if (
-    afternoonGroup &&
-    !isAfternoonShift(afternoonGroup.name) ||
-    (afternoonGroup && Number(afternoonGroup.sort_order || 0) !== 2) ||
-    (afternoonGroup && afternoonGroup.is_default === true)
-  ) {
-    const updateAfternoonResult = await client.query(
-      `UPDATE lms.l_schedule_config_group
-       SET name = $1,
-           sort_order = 2,
-           is_default = false,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
-       RETURNING *`,
-      [SHIFT_AFTERNOON_NAME, afternoonGroup.id],
-    );
-    afternoonGroup = updateAfternoonResult.rows[0];
-  }
-
-  if (afternoonGroup) {
+  // Ensure exactly one default without renaming custom names.
+  const defaultGroup =
+    groups.find((item) => item.is_default === true) || groups[0];
+  if (defaultGroup) {
     await client.query(
       `UPDATE lms.l_schedule_config_group
        SET is_default = CASE WHEN id = $2 THEN true ELSE false END,
-           sort_order = CASE
-             WHEN id = $2 THEN 1
-             WHEN id = $3 THEN 2
-             ELSE GREATEST(3, sort_order)
-           END,
            updated_at = CURRENT_TIMESTAMP
-       WHERE config_id = $1`,
-      [configId, morningGroup.id, afternoonGroup.id],
-    );
-  } else {
-    await client.query(
-      `UPDATE lms.l_schedule_config_group
-       SET is_default = CASE WHEN id = $2 THEN true ELSE false END,
-           sort_order = CASE
-             WHEN id = $2 THEN 1
-             ELSE GREATEST(2, sort_order)
-           END,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE config_id = $1`,
-      [configId, morningGroup.id],
+       WHERE config_id = $1
+         AND (is_default = true OR id = $2)`,
+      [configId, defaultGroup.id],
     );
   }
-
-  await client.query(
-    `INSERT INTO lms.l_schedule_config_group_class (config_group_id, class_id)
-     SELECT $1, c.id
-     FROM public.a_class c
-     WHERE c.homebase_id = $2
-       AND COALESCE(c.is_active, true) = true
-       AND NOT EXISTS (
-         SELECT 1
-         FROM lms.l_schedule_config_group_class gcc
-         JOIN lms.l_schedule_config_group g ON g.id = gcc.config_group_id
-         WHERE g.config_id = $3
-           AND gcc.class_id = c.id
-       )`,
-    [morningGroup.id, homebaseId, configId],
-  );
 
   const refreshedResult = await client.query(
     `SELECT *
@@ -396,7 +285,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         await ensureScheduleShiftGroups({
           client: pool,
           configId,
-          homebaseId: homebase_id,
         });
       }
       const {
@@ -470,6 +358,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
                  JOIN public.a_class c ON c.id = gcc.class_id
                  LEFT JOIN public.a_grade g ON g.id = c.grade_id
                  WHERE gcc.config_group_id = $1
+                   AND COALESCE(c.is_active, true) = true
                  ORDER BY g.name ASC NULLS LAST, c.name ASC`,
                 [selectedGroupId],
               ),
@@ -507,28 +396,46 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
             ])
           : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }];
 
-      const unmappedGroupClassResult = configId
-        ? await pool.query(
-            `SELECT
-               c.id,
-               c.name,
-               c.grade_id,
-               g.name AS grade_name
-             FROM public.a_class c
-             LEFT JOIN public.a_grade g ON g.id = c.grade_id
-             WHERE c.homebase_id = $1
-               AND COALESCE(c.is_active, true) = true
-               AND NOT EXISTS (
-                 SELECT 1
-                 FROM lms.l_schedule_config_group_class gcc
-                 JOIN lms.l_schedule_config_group scg ON scg.id = gcc.config_group_id
-                 WHERE scg.config_id = $2
-                   AND gcc.class_id = c.id
-               )
-             ORDER BY g.id NULLS LAST, c.name`,
-            [homebase_id, configId],
-          )
-        : { rows: [] };
+      const [unmappedGroupClassResult, allGroupClassResult] = configId
+        ? await Promise.all([
+            pool.query(
+              `SELECT
+                 c.id,
+                 c.name,
+                 c.grade_id,
+                 g.name AS grade_name
+               FROM public.a_class c
+               LEFT JOIN public.a_grade g ON g.id = c.grade_id
+               WHERE c.homebase_id = $1
+                 AND COALESCE(c.is_active, true) = true
+                 AND NOT EXISTS (
+                   SELECT 1
+                   FROM lms.l_schedule_config_group_class gcc
+                   JOIN lms.l_schedule_config_group scg ON scg.id = gcc.config_group_id
+                   WHERE scg.config_id = $2
+                     AND gcc.class_id = c.id
+                 )
+               ORDER BY g.id NULLS LAST, c.name`,
+              [homebase_id, configId],
+            ),
+            pool.query(
+              `SELECT
+                 gcc.config_group_id,
+                 gcc.class_id,
+                 c.name AS class_name,
+                 g.name AS grade_name,
+                 scg.name AS group_name
+               FROM lms.l_schedule_config_group_class gcc
+               JOIN lms.l_schedule_config_group scg ON scg.id = gcc.config_group_id
+               JOIN public.a_class c ON c.id = gcc.class_id
+               LEFT JOIN public.a_grade g ON g.id = c.grade_id
+               WHERE scg.config_id = $1
+                 AND COALESCE(c.is_active, true) = true
+               ORDER BY scg.sort_order ASC, g.name ASC NULLS LAST, c.name ASC`,
+              [configId],
+            ),
+          ])
+        : [{ rows: [] }, { rows: [] }];
 
       const [activityResult, activityTargetResult, allActivityResult, allActivityTargetResult] =
         await Promise.all([
@@ -712,6 +619,26 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         entryParams,
       );
 
+      const configStatsResult = await pool.query(
+        `SELECT
+           cfg.id AS config_id,
+           (SELECT COUNT(*)::int
+            FROM lms.l_schedule_config_group g
+            WHERE g.config_id = cfg.id) AS group_count,
+           ${
+             hasEntryConfigId
+               ? `(SELECT COUNT(*)::int
+                   FROM lms.l_schedule_entry e
+                   WHERE e.config_id = cfg.id
+                     AND e.status <> 'archived') AS entry_count`
+               : "0::int AS entry_count"
+           }
+         FROM lms.l_schedule_config cfg
+         WHERE cfg.homebase_id = $1
+           AND cfg.periode_id = $2`,
+        [homebase_id, periodeId],
+      );
+
       const [classResult, subjectResult, teacherResult, gradeResult] = await Promise.all([
         pool.query(
           `SELECT c.id, c.name, c.grade_id, c.is_active, g.name AS grade_name
@@ -751,6 +678,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         data: {
           periode_id: periodeId,
           configs,
+          config_stats: configStatsResult.rows,
           active_config: activeConfig,
           active_config_id: activeConfig?.id || null,
           selected_config: config,
@@ -759,6 +687,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           selected_group: selectedGroup,
           selected_group_id: selectedGroupId,
           selected_group_classes: groupClassResult.rows,
+          all_group_classes: allGroupClassResult.rows,
           unmapped_group_classes: unmappedGroupClassResult.rows,
           group_coverage_complete: unmappedGroupClassResult.rows.length === 0,
           config,
@@ -980,7 +909,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
       const ensuredGroups = await ensureScheduleShiftGroups({
         client,
         configId: config.id,
-        homebaseId: homebase_id,
       });
       defaultGroupResult = {
         rowCount: ensuredGroups.length ? 1 : 0,
@@ -1005,21 +933,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           message: "Group jadwal tidak ditemukan.",
         });
       }
-
-      await client.query(
-        `INSERT INTO lms.l_schedule_config_group_class (config_group_id, class_id)
-         SELECT $1, c.id
-         FROM public.a_class c
-         WHERE c.homebase_id = $2
-           AND COALESCE(c.is_active, true) = true
-           AND NOT EXISTS (
-             SELECT 1
-             FROM lms.l_schedule_config_group_class gcc
-             WHERE gcc.config_group_id = $1
-               AND gcc.class_id = c.id
-           )`,
-        [defaultGroupResult.rows[0].id, homebase_id],
-      );
 
       if (shouldActivate && config.is_active !== true) {
         await client.query(
@@ -1539,6 +1452,381 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
     }),
   );
 
+  router.post(
+    "/schedule/config/:id/duplicate",
+    authorize("satuan"),
+    withTransaction(async (req, res, client) => {
+      const { id: userId, homebase_id } = req.user;
+      const sourceConfigId = toInt(req.params.id, null);
+      const periodeId = await ensureActivePeriode(
+        client,
+        homebase_id,
+        toInt(req.body?.periode_id, null),
+      );
+
+      if (!sourceConfigId || !periodeId) {
+        return res.status(400).json({
+          status: "error",
+          message: "Konfigurasi atau periode tidak valid.",
+        });
+      }
+
+      const sourceConfigResult = await client.query(
+        `SELECT *
+         FROM lms.l_schedule_config
+         WHERE id = $1
+           AND homebase_id = $2
+           AND periode_id = $3
+         LIMIT 1`,
+        [sourceConfigId, homebase_id, periodeId],
+      );
+      const sourceConfig = sourceConfigResult.rows[0] || null;
+      if (!sourceConfig) {
+        return res.status(404).json({
+          status: "error",
+          message: "Versi jadwal sumber tidak ditemukan.",
+        });
+      }
+
+      const requestedName = String(req.body?.name || "").trim();
+      const newName = requestedName || `${sourceConfig.name} (Salinan)`;
+
+      const newConfigResult = await client.query(
+        `INSERT INTO lms.l_schedule_config (
+           homebase_id,
+           periode_id,
+           name,
+           description,
+           is_active,
+           session_minutes,
+           max_sessions_per_meeting,
+           require_different_days_if_over_max,
+           allow_same_day_multiple_meetings,
+           minimum_gap_slots,
+           created_by
+         )
+         VALUES ($1, $2, $3, $4, false, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [
+          homebase_id,
+          periodeId,
+          newName,
+          sourceConfig.description,
+          sourceConfig.session_minutes,
+          sourceConfig.max_sessions_per_meeting,
+          sourceConfig.require_different_days_if_over_max,
+          sourceConfig.allow_same_day_multiple_meetings,
+          sourceConfig.minimum_gap_slots,
+          userId,
+        ],
+      );
+      const newConfig = newConfigResult.rows[0];
+
+      const sourceGroupsResult = await client.query(
+        `SELECT *
+         FROM lms.l_schedule_config_group
+         WHERE config_id = $1
+         ORDER BY sort_order ASC, id ASC`,
+        [sourceConfigId],
+      );
+
+      const groupIdMap = new Map();
+      for (const group of sourceGroupsResult.rows) {
+        const insertedGroupResult = await client.query(
+          `INSERT INTO lms.l_schedule_config_group (
+             config_id,
+             name,
+             description,
+             sort_order,
+             is_default
+           )
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id`,
+          [
+            newConfig.id,
+            group.name,
+            group.description,
+            group.sort_order,
+            group.is_default,
+          ],
+        );
+        groupIdMap.set(Number(group.id), Number(insertedGroupResult.rows[0].id));
+      }
+
+      for (const [oldGroupId, newGroupId] of groupIdMap.entries()) {
+        await client.query(
+          `INSERT INTO lms.l_schedule_config_group_class (config_group_id, class_id)
+           SELECT $1, class_id
+           FROM lms.l_schedule_config_group_class
+           WHERE config_group_id = $2`,
+          [newGroupId, oldGroupId],
+        );
+      }
+
+      const sourceTemplatesResult = await client.query(
+        `SELECT *
+         FROM lms.l_schedule_day_template
+         WHERE config_id = $1
+         ORDER BY id ASC`,
+        [sourceConfigId],
+      );
+
+      const templateIdMap = new Map();
+      for (const template of sourceTemplatesResult.rows) {
+        const newGroupId = groupIdMap.get(Number(template.config_group_id));
+        if (!newGroupId) continue;
+        const insertedTemplateResult = await client.query(
+          `INSERT INTO lms.l_schedule_day_template (
+             config_id,
+             config_group_id,
+             day_of_week,
+             start_time,
+             end_time,
+             session_minutes,
+             is_school_day
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            newConfig.id,
+            newGroupId,
+            template.day_of_week,
+            template.start_time,
+            template.end_time,
+            template.session_minutes,
+            template.is_school_day,
+          ],
+        );
+        templateIdMap.set(
+          Number(template.id),
+          Number(insertedTemplateResult.rows[0].id),
+        );
+      }
+
+      for (const [oldTemplateId, newTemplateId] of templateIdMap.entries()) {
+        await client.query(
+          `INSERT INTO lms.l_schedule_break (day_template_id, break_start, break_end, label)
+           SELECT $1, break_start, break_end, label
+           FROM lms.l_schedule_break
+           WHERE day_template_id = $2`,
+          [newTemplateId, oldTemplateId],
+        );
+      }
+
+      const sourceSlotsResult = await client.query(
+        `SELECT *
+         FROM lms.l_time_slot
+         WHERE config_id = $1
+         ORDER BY id ASC`,
+        [sourceConfigId],
+      );
+
+      const slotIdMap = new Map();
+      for (const slot of sourceSlotsResult.rows) {
+        const newGroupId = groupIdMap.get(Number(slot.config_group_id));
+        if (!newGroupId) continue;
+        const insertedSlotResult = await client.query(
+          `INSERT INTO lms.l_time_slot (
+             config_id,
+             config_group_id,
+             day_of_week,
+             slot_no,
+             start_time,
+             end_time,
+             is_break
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            newConfig.id,
+            newGroupId,
+            slot.day_of_week,
+            slot.slot_no,
+            slot.start_time,
+            slot.end_time,
+            slot.is_break,
+          ],
+        );
+        slotIdMap.set(Number(slot.id), Number(insertedSlotResult.rows[0].id));
+      }
+
+      const activityColumns = await getColumnPresence(
+        client,
+        "l_schedule_activity",
+        ["config_id"],
+      );
+      const hasActivityConfigId = Boolean(activityColumns.config_id);
+
+      const sourceActivitiesResult = await client.query(
+        hasActivityConfigId
+          ? `SELECT a.*
+             FROM lms.l_schedule_activity a
+             WHERE a.homebase_id = $1
+               AND a.periode_id = $2
+               AND a.config_id = $3
+             ORDER BY a.id ASC`
+          : `SELECT a.*
+             FROM lms.l_schedule_activity a
+             JOIN lms.l_time_slot ts ON ts.id = a.slot_start_id
+             WHERE a.homebase_id = $1
+               AND a.periode_id = $2
+               AND ts.config_id = $3
+             ORDER BY a.id ASC`,
+        [homebase_id, periodeId, sourceConfigId],
+      );
+
+      let copiedActivityCount = 0;
+      for (const activity of sourceActivitiesResult.rows) {
+        const newSlotStartId = slotIdMap.get(Number(activity.slot_start_id));
+        if (!newSlotStartId) continue;
+        const insertedActivityResult = await client.query(
+          `INSERT INTO lms.l_schedule_activity (
+             homebase_id,
+             periode_id,
+             ${hasActivityConfigId ? "config_id," : ""}
+             name,
+             day_of_week,
+             slot_start_id,
+             slot_count,
+             scope_type,
+             description,
+             is_active,
+             created_by
+           )
+           VALUES ($1, $2, ${
+             hasActivityConfigId
+               ? "$3, $4, $5, $6, $7, $8, $9, $10, $11"
+               : "$3, $4, $5, $6, $7, $8, $9, $10"
+           })
+           RETURNING id`,
+          [
+            homebase_id,
+            periodeId,
+            ...(hasActivityConfigId ? [newConfig.id] : []),
+            activity.name,
+            activity.day_of_week,
+            newSlotStartId,
+            activity.slot_count,
+            activity.scope_type,
+            activity.description,
+            activity.is_active,
+            userId,
+          ],
+        );
+        const newActivityId = insertedActivityResult.rows[0].id;
+        copiedActivityCount += 1;
+
+        await client.query(
+          `INSERT INTO lms.l_schedule_activity_target (
+             activity_id,
+             teaching_load_id,
+             teacher_id,
+             subject_id,
+             class_id
+           )
+           SELECT $1, teaching_load_id, teacher_id, subject_id, class_id
+           FROM lms.l_schedule_activity_target
+           WHERE activity_id = $2`,
+          [newActivityId, activity.id],
+        );
+      }
+
+      const sourceEntriesResult = await client.query(
+        `SELECT *
+         FROM lms.l_schedule_entry
+         WHERE homebase_id = $1
+           AND periode_id = $2
+           AND config_id = $3
+           AND status <> 'archived'
+         ORDER BY id ASC`,
+        [homebase_id, periodeId, sourceConfigId],
+      );
+
+      let copiedEntryCount = 0;
+      for (const entry of sourceEntriesResult.rows) {
+        const newSlotStartId = slotIdMap.get(Number(entry.slot_start_id));
+        if (!newSlotStartId) continue;
+        const insertedEntryResult = await client.query(
+          `INSERT INTO lms.l_schedule_entry (
+             homebase_id,
+             periode_id,
+             config_id,
+             teaching_load_id,
+             class_id,
+             subject_id,
+             teacher_id,
+             day_of_week,
+             slot_start_id,
+             slot_count,
+             meeting_no,
+             source_type,
+             is_manual_override,
+             locked,
+             status,
+             created_by
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'draft', $15)
+           RETURNING id`,
+          [
+            homebase_id,
+            periodeId,
+            newConfig.id,
+            entry.teaching_load_id,
+            entry.class_id,
+            entry.subject_id,
+            entry.teacher_id,
+            entry.day_of_week,
+            newSlotStartId,
+            entry.slot_count,
+            entry.meeting_no,
+            entry.source_type,
+            entry.is_manual_override,
+            entry.locked,
+            userId,
+          ],
+        );
+        const newEntryId = insertedEntryResult.rows[0].id;
+        copiedEntryCount += 1;
+
+        const sourceEntrySlotsResult = await client.query(
+          `SELECT *
+           FROM lms.l_schedule_entry_slot
+           WHERE schedule_entry_id = $1`,
+          [entry.id],
+        );
+        for (const entrySlot of sourceEntrySlotsResult.rows) {
+          const newSlotId = slotIdMap.get(Number(entrySlot.slot_id));
+          if (!newSlotId) continue;
+          await client.query(
+            `INSERT INTO lms.l_schedule_entry_slot (
+               schedule_entry_id,
+               periode_id,
+               day_of_week,
+               slot_id,
+               class_id,
+               teacher_id
+             )
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              newEntryId,
+              periodeId,
+              entrySlot.day_of_week,
+              newSlotId,
+              entrySlot.class_id,
+              entrySlot.teacher_id,
+            ],
+          );
+        }
+      }
+
+      return res.json({
+        status: "success",
+        message: `Versi jadwal "${newName}" berhasil dibuat dari "${sourceConfig.name}". ${copiedEntryCount} entri final dan ${copiedActivityCount} kegiatan ikut tersalin sebagai draft.`,
+        data: newConfig,
+      });
+    }),
+  );
+
   router.delete(
     "/schedule/config/:id",
     authorize("satuan"),
@@ -1754,25 +2042,41 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           `SELECT id
            FROM public.a_class
            WHERE homebase_id = $1
-             AND id = ANY($2::int[])`,
+             AND id = ANY($2::int[])
+             AND COALESCE(is_active, true) = true`,
           [homebase_id, normalizedClassIds],
         );
         if (classValidation.rowCount !== normalizedClassIds.length) {
           return res.status(400).json({
             status: "error",
-            message: "Ada kelas yang tidak valid untuk group ini.",
+            message:
+              "Ada kelas yang tidak valid atau tidak aktif untuk shift ini.",
           });
         }
 
-        await client.query(
-          `DELETE FROM lms.l_schedule_config_group_class gcc
-           USING lms.l_schedule_config_group g
-           WHERE gcc.config_group_id = g.id
-             AND g.config_id = $1
+        const conflictResult = await client.query(
+          `SELECT
+             c.name AS class_name,
+             g.name AS group_name
+           FROM lms.l_schedule_config_group_class gcc
+           JOIN lms.l_schedule_config_group g ON g.id = gcc.config_group_id
+           JOIN public.a_class c ON c.id = gcc.class_id
+           WHERE g.config_id = $1
              AND g.id <> $2
-             AND gcc.class_id = ANY($3::int[])`,
+             AND gcc.class_id = ANY($3::int[])
+           ORDER BY c.name ASC
+           LIMIT 5`,
           [configId, group.id, normalizedClassIds],
         );
+        if (conflictResult.rowCount > 0) {
+          const conflictLabel = conflictResult.rows
+            .map((row) => `${row.class_name} (sudah di ${row.group_name})`)
+            .join(", ");
+          return res.status(409).json({
+            status: "error",
+            message: `Kelas tidak dipindahkan otomatis antar shift. Lepas dulu dari shift asalnya: ${conflictLabel}.`,
+          });
+        }
 
         for (const classId of normalizedClassIds) {
           await client.query(
@@ -1825,7 +2129,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         });
       }
 
-      const [activityUsageResult, entryUsageResult, fallbackGroupResult, classMembershipResult] =
+      const [activityUsageResult, entryUsageResult, fallbackGroupResult] =
         await Promise.all([
           client.query(
             `SELECT COUNT(*)::int AS total
@@ -1851,12 +2155,6 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
              LIMIT 1`,
             [group.config_id, groupId],
           ),
-          client.query(
-            `SELECT class_id
-             FROM lms.l_schedule_config_group_class
-             WHERE config_group_id = $1`,
-            [groupId],
-          ),
         ]);
 
       const activityUsage = Number(activityUsageResult.rows[0]?.total || 0);
@@ -1871,15 +2169,11 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
         });
       }
 
-      for (const row of classMembershipResult.rows) {
-        if (!fallbackGroupId) continue;
-        await client.query(
-          `INSERT INTO lms.l_schedule_config_group_class (config_group_id, class_id)
-           VALUES ($1, $2)
-           ON CONFLICT (config_group_id, class_id) DO NOTHING`,
-          [fallbackGroupId, row.class_id],
-        );
-      }
+      await client.query(
+        `DELETE FROM lms.l_schedule_config_group_class
+         WHERE config_group_id = $1`,
+        [groupId],
+      );
 
       await client.query(
         `DELETE FROM lms.l_schedule_config_group

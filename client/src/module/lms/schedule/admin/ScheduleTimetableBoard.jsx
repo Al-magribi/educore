@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Button, Table, Tooltip } from "antd";
+import { Button, Grid, Table, Tooltip } from "antd";
 import {
   BORDER_COLOR,
   HEADER_BG,
@@ -10,6 +10,8 @@ import {
   getSubjectColor,
 } from "./scheduleTimetableUtils";
 
+const { useBreakpoint } = Grid;
+
 const ScheduleTimetableBoard = ({
   canManage,
   flatClasses,
@@ -18,6 +20,8 @@ const ScheduleTimetableBoard = ({
   onEditEntry,
   rows,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const mergedRows = useMemo(() => {
     const nextRows = (rows || []).map((row) => ({
       ...row,
@@ -527,18 +531,20 @@ const ScheduleTimetableBoard = ({
   }, [canManage, flatClasses, gradeGroups, onEditEntry]);
 
   return (
-    <Table
-      rowKey="key"
-      bordered
-      size="small"
-      loading={loading}
-      columns={columns}
-      dataSource={mergedRows}
-      pagination={false}
-      scroll={{ x: "max-content", y: 760 }}
-      locale={{ emptyText: "Belum ada data jadwal." }}
-      sticky
-    />
+    <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
+      <Table
+        rowKey="key"
+        bordered
+        size="small"
+        loading={loading}
+        columns={columns}
+        dataSource={mergedRows}
+        pagination={false}
+        scroll={{ x: "max-content", y: isMobile ? 480 : 760 }}
+        locale={{ emptyText: "Belum ada data jadwal." }}
+        sticky
+      />
+    </div>
   );
 };
 

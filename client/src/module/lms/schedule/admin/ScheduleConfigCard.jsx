@@ -21,11 +21,13 @@ import {
 } from "antd";
 import { CalendarClock, Pencil, Plus, Trash2, UsersRound } from "lucide-react";
 import {
-  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_HEADER_STYLE,
   SCHEDULE_CARD_STYLE,
-  SCHEDULE_INNER_CARD_BODY,
   SCHEDULE_INNER_CARD_STYLE,
   SCHEDULE_TAG_STYLE,
+  getScheduleCardBody,
+  getScheduleInnerCardBody,
+  getScheduleModalWidth,
 } from "./scheduleAdminStyles";
 
 const { Text } = Typography;
@@ -108,20 +110,25 @@ const ScheduleConfigCard = ({
   groups,
   selectedGroup,
   selectedGroupClasses,
+  allGroupClasses = [],
   classes,
   dayTemplates,
   breaks,
   slots,
   scheduleCapacity,
   hasFinalEntries = false,
+  mode = "all",
   onSave,
   onSaveGroup,
   onDeleteGroup,
   onSelectGroup,
   loading,
 }) => {
+  const showShifts = mode !== "days";
+  const showDays = mode !== "shifts";
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isNarrow = !screens.sm;
   const [dayForm] = Form.useForm();
   const [groupForm] = Form.useForm();
   const [dayRows, setDayRows] = useState([]);
@@ -139,24 +146,43 @@ const ScheduleConfigCard = ({
     setDayRows(normalizedDays);
   }, [normalizedDays]);
 
-  const classOptions = useMemo(
+  const activeClasses = useMemo(
     () =>
-      (classes || []).map((item) => ({
+      (classes || []).filter((item) => item?.is_active !== false),
+    [classes],
+  );
+
+  const editingGroupId = editingGroup?.id || selectedGroup?.id || null;
+
+  const classOptions = useMemo(() => {
+    const takenByOtherShift = new Set(
+      (allGroupClasses || [])
+        .filter(
+          (item) =>
+            Number(item.config_group_id) !== Number(editingGroupId || 0),
+        )
+        .map((item) => Number(item.class_id)),
+    );
+
+    return activeClasses
+      .filter((item) => !takenByOtherShift.has(Number(item.id)))
+      .map((item) => ({
         value: Number(item.id),
         label: item.grade_name
           ? `${item.grade_name} - ${item.name}`
           : item.name,
-      })),
-    [classes],
-  );
+      }));
+  }, [activeClasses, allGroupClasses, editingGroupId]);
 
-  const groupOptions = useMemo(
+  const activeSelectedGroupClasses = useMemo(
     () =>
-      (groups || []).map((item) => ({
-        value: Number(item.id),
-        label: item.name,
-      })),
-    [groups],
+      (selectedGroupClasses || []).filter((item) => {
+        const classMeta = activeClasses.find(
+          (cls) => Number(cls.id) === Number(item.class_id),
+        );
+        return classMeta ? classMeta.is_active !== false : true;
+      }),
+    [activeClasses, selectedGroupClasses],
   );
 
   const hasActivityUsage =
@@ -228,9 +254,9 @@ const ScheduleConfigCard = ({
     groupForm.setFieldsValue({
       name:
         (groups || []).length === 0
-          ? "Shift Pagi"
+          ? "Kelas Pagi"
           : (groups || []).length === 1
-            ? "Shift Siang"
+            ? "Kelas Siang"
             : "",
       description: "",
       class_ids: [],
@@ -238,15 +264,26 @@ const ScheduleConfigCard = ({
     setGroupModalOpen(true);
   };
 
-  const openEditGroup = () => {
-    if (!selectedGroup) return;
-    setEditingGroup(selectedGroup);
+  const openEditGroup = (groupRecord = null) => {
+    const targetGroup = groupRecord || selectedGroup;
+    if (!targetGroup) return;
+    if (Number(targetGroup.id) !== Number(selectedGroup?.id)) {
+      onSelectGroup?.(Number(targetGroup.id));
+    }
+    setEditingGroup(targetGroup);
+    const classIdsForGroup =
+      Number(targetGroup.id) === Number(selectedGroup?.id)
+        ? activeSelectedGroupClasses.map((item) => Number(item.class_id))
+        : (allGroupClasses || [])
+            .filter(
+              (item) =>
+                Number(item.config_group_id) === Number(targetGroup.id),
+            )
+            .map((item) => Number(item.class_id));
     groupForm.setFieldsValue({
-      name: selectedGroup.name,
-      description: selectedGroup.description || "",
-      class_ids: (selectedGroupClasses || []).map((item) =>
-        Number(item.class_id),
-      ),
+      name: targetGroup.name,
+      description: targetGroup.description || "",
+      class_ids: classIdsForGroup,
     });
     setGroupModalOpen(true);
   };
@@ -370,6 +407,62 @@ const ScheduleConfigCard = ({
     await persistDayRows(nextRows);
   };
 
+  const groupColumns = [
+    {
+      title: "Nama Shift",
+      dataIndex: "name",
+      key: "name",
+      render: (value, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{value}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {record.description || "Belum ada deskripsi"}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Kelas",
+      key: "class_count",
+      width: 110,
+      render: (_, record) => (
+        <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
+          {Number(record.class_count || 0)} kelas
+        </Tag>
+      ),
+    },
+    {
+      title: "Aksi",
+      key: "action",
+      width: 100,
+      render: (_, record) =>
+        canManage ? (
+          <Space size={0} onClick={(event) => event.stopPropagation()}>
+            <Button
+              type="text"
+              icon={<Pencil size={14} />}
+              onClick={() => openEditGroup(record)}
+            />
+            <Popconfirm
+              title="Hapus shift ini?"
+              description="Kelas pada shift ini tidak dipindah otomatis; mereka menjadi belum terpetakan."
+              onConfirm={() => onDeleteGroup?.(record.id)}
+              okText="Hapus"
+              cancelText="Batal"
+              disabled={(groups || []).length <= 1}
+            >
+              <Button
+                type="text"
+                danger
+                icon={<Trash2 size={14} />}
+                disabled={(groups || []).length <= 1}
+              />
+            </Popconfirm>
+          </Space>
+        ) : null,
+    },
+  ];
+
   const columns = [
     {
       title: "Hari",
@@ -428,7 +521,7 @@ const ScheduleConfigCard = ({
               title="Hapus hari ini?"
               description={
                 hasActivityUsage
-                  ? "Mengubah konfigurasi akan menghapus kegiatan yang memakai slot shift ini."
+                  ? "Mengubah konfigurasi akan menghapus kegiatan yang memakai slot jadwal ini."
                   : undefined
               }
               onConfirm={() => handleDeleteDay(index)}
@@ -451,22 +544,130 @@ const ScheduleConfigCard = ({
 
   return (
     <Card
-      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
-      styles={{ body: SCHEDULE_CARD_BODY }}
+      style={SCHEDULE_CARD_STYLE}
+      styles={{
+        header: SCHEDULE_CARD_HEADER_STYLE,
+        body: getScheduleCardBody(isMobile),
+      }}
       title={
-        <Space>
+        <Space wrap style={{ maxWidth: "100%" }}>
           <CalendarClock size={18} />
-          <span>Konfigurasi Jadwal</span>
+          <span>
+            {mode === "shifts"
+              ? "Shift & Kelas"
+              : mode === "days"
+                ? "Struktur Waktu"
+                : "Konfigurasi Jadwal"}
+          </span>
         </Space>
       }
     >
-      <Flex vertical gap={16}>
+      <Flex vertical gap={isMobile ? 12 : 16} style={{ width: "100%", minWidth: 0 }}>
+        {showShifts ? (
         <Card
           size="small"
-          title="Shift Sekolah"
+          title="Daftar Shift"
           extra={
             canManage ? (
-              <Space wrap>
+              <Button
+                type="primary"
+                size={isNarrow ? "small" : "middle"}
+                icon={<Plus size={14} />}
+                onClick={openCreateGroup}
+              >
+                {isNarrow ? "Tambah" : "Tambah Shift"}
+              </Button>
+            ) : null
+          }
+          style={SCHEDULE_INNER_CARD_STYLE}
+          styles={{
+            header: SCHEDULE_CARD_HEADER_STYLE,
+            body: getScheduleInnerCardBody(isMobile),
+          }}
+        >
+          {(groups || []).length > 0 ? (
+            <Flex vertical gap={12}>
+              <Text type="secondary">
+                Pilih salah satu shift di daftar di bawah. Hanya kelas aktif
+                yang ditampilkan. Kelas boleh dibiarkan belum masuk shift mana
+                pun.
+              </Text>
+              <div style={{ width: "100%", overflowX: "auto" }}>
+                <Table
+                  rowKey={(record) => String(record.id)}
+                  size="small"
+                  columns={groupColumns}
+                  dataSource={groups}
+                  pagination={false}
+                  scroll={{ x: isMobile ? 520 : 480 }}
+                  onRow={(record) => ({
+                    onClick: () => onSelectGroup?.(Number(record.id)),
+                    style: {
+                      cursor: "pointer",
+                      background:
+                        Number(record.id) === Number(selectedGroup?.id)
+                          ? "rgba(22, 119, 255, 0.06)"
+                          : undefined,
+                    },
+                  })}
+                  rowSelection={{
+                    type: "radio",
+                    selectedRowKeys: selectedGroup
+                      ? [String(selectedGroup.id)]
+                      : [],
+                    onChange: (keys) => {
+                      const nextId = Number(keys?.[0]);
+                      if (nextId) onSelectGroup?.(nextId);
+                    },
+                  }}
+                />
+              </div>
+
+              {selectedGroup ? (
+                <Flex vertical gap={8}>
+                  <Divider style={{ margin: "4px 0" }} />
+                  <Space wrap>
+                    <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
+                      {activeSelectedGroupClasses.length} kelas aktif
+                    </Tag>
+                  </Space>
+                  <Text strong>{selectedGroup.name}</Text>
+                  <Text type="secondary">
+                    {selectedGroup.description || "Belum ada deskripsi jadwal."}
+                  </Text>
+                  {activeSelectedGroupClasses.length > 0 ? (
+                    <Space size={[8, 8]} wrap>
+                      {activeSelectedGroupClasses.map((item) => (
+                        <Tag key={item.class_id} icon={<UsersRound size={12} />}>
+                          {item.grade_name
+                            ? `${item.grade_name} - ${item.class_name}`
+                            : item.class_name}
+                        </Tag>
+                      ))}
+                    </Space>
+                  ) : (
+                    <Alert
+                      showIcon
+                      type="info"
+                      title="Belum ada kelas aktif di shift ini"
+                      description="Tambahkan kelas aktif bila shift ini akan dipakai menyusun jadwal. Kelas yang belum dipetakan boleh dibiarkan kosong."
+                    />
+                  )}
+                </Flex>
+              ) : (
+                <Alert
+                  showIcon
+                  type="info"
+                  title="Belum ada shift yang dipilih"
+                  description="Klik salah satu baris pada daftar untuk memilih shift yang akan diatur."
+                />
+              )}
+            </Flex>
+          ) : (
+            <Empty
+              description="Belum ada shift. Tambah shift terlebih dahulu."
+            >
+              {canManage ? (
                 <Button
                   type="primary"
                   icon={<Plus size={14} />}
@@ -474,124 +675,20 @@ const ScheduleConfigCard = ({
                 >
                   Tambah Shift
                 </Button>
-                <Button
-                  icon={<Pencil size={14} />}
-                  onClick={openEditGroup}
-                  disabled={!selectedGroup}
-                >
-                  Ubah Shift
-                </Button>
-                <Popconfirm
-                  title="Hapus shift ini?"
-                  description="Kelas pada shift ini akan dipindah ke shift lain jika masih ada."
-                  onConfirm={() => onDeleteGroup?.(selectedGroup?.id)}
-                  okText="Hapus"
-                  cancelText="Batal"
-                >
-                  <Button
-                    danger
-                    icon={<Trash2 size={14} />}
-                    disabled={!selectedGroup}
-                  >
-                    Hapus Shift
-                  </Button>
-                </Popconfirm>
-              </Space>
-            ) : null
+              ) : null}
+            </Empty>
+          )}
+        </Card>
+        ) : null}
+
+        {showDays ? (
+        <Card
+          size="small"
+          title={
+            isNarrow
+              ? "Jadwal Per Hari"
+              : `Atur Jadwal Per Hari${selectedGroup ? ` - ${selectedGroup.name}` : ""}`
           }
-          style={SCHEDULE_INNER_CARD_STYLE}
-          styles={{ body: SCHEDULE_INNER_CARD_BODY }}
-        >
-          <Flex vertical gap={12}>
-            <Select
-              placeholder="Pilih shift jadwal"
-              options={groupOptions}
-              value={selectedGroup ? Number(selectedGroup.id) : undefined}
-              onChange={onSelectGroup}
-              style={{ width: "100%", maxWidth: "100%" }}
-            />
-
-            {selectedGroup ? (
-              <Flex vertical gap={8}>
-                <Space wrap>
-                  <Tag
-                    color={selectedGroup.is_default ? "blue" : "orange"}
-                    style={SCHEDULE_TAG_STYLE}
-                  >
-                    {selectedGroup.is_default ? "Utama" : "Tambahan"}
-                  </Tag>
-                  <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
-                    {selectedGroup.class_count ||
-                      selectedGroupClasses.length ||
-                      0}{" "}
-                    kelas
-                  </Tag>
-                </Space>
-                <Text strong>{selectedGroup.name}</Text>
-                <Text type="secondary">
-                  {selectedGroup.description || "Belum ada deskripsi shift."}
-                </Text>
-                {(selectedGroupClasses || []).length > 0 ? (
-                  <Space size={[8, 8]} wrap>
-                    {selectedGroupClasses.map((item) => (
-                      <Tag key={item.class_id} icon={<UsersRound size={12} />}>
-                        {item.grade_name
-                          ? `${item.grade_name} - ${item.class_name}`
-                          : item.class_name}
-                      </Tag>
-                    ))}
-                  </Space>
-                ) : (
-                  <Alert
-                    showIcon
-                    type="warning"
-                    title="Belum ada kelas di shift ini"
-                    description="Tambahkan kelas ke shift ini agar penyusunan jadwal final punya ruang kerja yang jelas."
-                  />
-                )}
-              </Flex>
-            ) : (
-              <Empty description="Belum ada shift jadwal." />
-            )}
-          </Flex>
-        </Card>
-
-        <Card
-          size="small"
-          title="Ringkasan Sesi Tersedia"
-          style={SCHEDULE_INNER_CARD_STYLE}
-          styles={{ body: SCHEDULE_INNER_CARD_BODY }}
-        >
-          <Space size={[8, 8]} wrap>
-            <Tag color="blue" style={SCHEDULE_TAG_STYLE}>
-              Slot group ini: {scheduleCapacity?.total_configured_slots || 0}
-            </Tag>
-            <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
-              Kelas aktif: {scheduleCapacity?.active_class_count || 0}
-            </Tag>
-            <Tag color="green" style={SCHEDULE_TAG_STYLE}>
-              Total sesi tersedia:{" "}
-              {scheduleCapacity?.total_available_sessions || 0}
-            </Tag>
-            <Tag color="gold" style={SCHEDULE_TAG_STYLE}>
-              Dipakai kegiatan: {scheduleCapacity?.total_activity_sessions || 0}
-            </Tag>
-            <Tag
-              style={SCHEDULE_TAG_STYLE}
-              color={
-                Number(scheduleCapacity?.remaining_sessions || 0) >= 0
-                  ? "cyan"
-                  : "red"
-              }
-            >
-              Sisa sesi bersih: {scheduleCapacity?.remaining_sessions || 0}
-            </Tag>
-          </Space>
-        </Card>
-
-        <Card
-          size="small"
-          title={`Jadwal Per Hari${selectedGroup ? ` - ${selectedGroup.name}` : ""}`}
           extra={
             canManage ? (
               <Button
@@ -601,29 +698,61 @@ const ScheduleConfigCard = ({
                 disabled={!selectedGroup}
                 size="small"
               >
-                Hari
+                {isNarrow ? "Hari" : "Tambah Hari"}
               </Button>
             ) : null
           }
           style={SCHEDULE_INNER_CARD_STYLE}
+          styles={{
+            header: SCHEDULE_CARD_HEADER_STYLE,
+            body: getScheduleInnerCardBody(isMobile),
+          }}
         >
+          {mode === "days" && (groups || []).length > 0 ? (
+            <Flex
+              align={isNarrow ? "stretch" : "center"}
+              gap={8}
+              wrap="wrap"
+              vertical={isNarrow}
+              style={{ marginBottom: 12, width: "100%" }}
+            >
+              <Text type="secondary">Shift yang diatur:</Text>
+              <Select
+                size="small"
+                style={{
+                  minWidth: isNarrow ? undefined : 200,
+                  width: isNarrow ? "100%" : undefined,
+                  maxWidth: "100%",
+                }}
+                value={selectedGroup ? Number(selectedGroup.id) : undefined}
+                options={(groups || []).map((item) => ({
+                  value: Number(item.id),
+                  label: item.name,
+                }))}
+                onChange={(value) => onSelectGroup?.(Number(value))}
+              />
+            </Flex>
+          ) : null}
           {selectedGroup ? (
             dayRows.length > 0 ? (
-              <Table
-                rowKey={(record) => String(record.day_of_week)}
-                size="small"
-                columns={columns}
-                dataSource={dayRows}
-                pagination={false}
-                scroll={{ x: isMobile ? 920 : 760 }}
-              />
+              <div style={{ width: "100%", overflowX: "auto" }}>
+                <Table
+                  rowKey={(record) => String(record.day_of_week)}
+                  size="small"
+                  columns={columns}
+                  dataSource={dayRows}
+                  pagination={false}
+                  scroll={{ x: isMobile ? 920 : 760 }}
+                />
+              </div>
             ) : (
               <Empty description="Belum ada hari yang dikonfigurasi untuk shift ini." />
             )
           ) : (
-            <Empty description="Pilih shift jadwal terlebih dahulu." />
+            <Empty description="Pilih shift terlebih dahulu sebelum mengatur hari dan jam pelajaran." />
           )}
         </Card>
+        ) : null}
 
         {!canManage ? (
           <Text type="secondary">
@@ -635,7 +764,7 @@ const ScheduleConfigCard = ({
 
       <Modal
         open={groupModalOpen}
-        title={editingGroup ? "Ubah Shift Jadwal" : "Tambah Shift Jadwal"}
+        title={editingGroup ? "Ubah Shift" : "Tambah Shift"}
         onCancel={() => {
           setGroupModalOpen(false);
           setEditingGroup(null);
@@ -644,7 +773,9 @@ const ScheduleConfigCard = ({
         onOk={handleSaveGroup}
         okText="Simpan"
         confirmLoading={loading}
-        width={720}
+        width={getScheduleModalWidth(isMobile, 720)}
+        centered
+        styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
       >
         <Form form={groupForm} layout="vertical">
           <Form.Item
@@ -652,23 +783,23 @@ const ScheduleConfigCard = ({
             label="Nama Shift"
             rules={[{ required: true, message: "Nama shift wajib diisi." }]}
           >
-            <Input placeholder="Contoh: Shift Pagi" />
+            <Input placeholder="Contoh: Kelas Pagi" />
           </Form.Item>
           <Form.Item name="description" label="Deskripsi">
             <Input.TextArea
               rows={3}
-              placeholder="Contoh: Kelas yang belajar pada sesi pagi."
+              placeholder="Contoh: Senin - Rabu = Pagi, Kamis - Sabtu = Siang."
             />
           </Form.Item>
           <Form.Item
             name="class_ids"
-            label="Kelas dalam Shift"
-            rules={[{ required: true, message: "Pilih minimal satu kelas." }]}
+            label="Kelas Aktif dalam Shift"
+            extra="Hanya kelas aktif. Kelas yang sudah masuk shift lain tidak ditampilkan agar tidak berpindah otomatis. Boleh dikosongkan."
           >
             <Select
               mode="multiple"
               options={classOptions}
-              placeholder="Pilih kelas untuk shift ini"
+              placeholder="Pilih kelas aktif untuk shift ini (opsional)"
               showSearch={{ optionFilterProp: "label" }}
               allowClear
               virtual={false}
@@ -686,7 +817,9 @@ const ScheduleConfigCard = ({
         onOk={handleSaveDay}
         okText="Simpan"
         confirmLoading={loading}
-        width={820}
+        width={getScheduleModalWidth(isMobile, 820)}
+        centered
+        styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
       >
         {hasActivityUsage || hasFinalEntries ? (
           <Alert
@@ -696,10 +829,10 @@ const ScheduleConfigCard = ({
             title="Simpan akan menyesuaikan ulang slot"
             description={
               hasActivityUsage && hasFinalEntries
-                ? "Kegiatan yang memakai slot shift ini akan dihapus. Jadwal final tetap disimpan; kosongkan lewat tab Jadwal Final bila perlu disusun ulang."
+                ? "Kegiatan yang memakai slot jadwal ini akan dihapus. Jadwal final tetap disimpan; kosongkan lewat langkah Jadwal Final bila perlu disusun ulang."
                 : hasFinalEntries
-                  ? "Jadwal final tetap disimpan. Kosongkan lewat tab Jadwal Final bila slot lama sudah tidak relevan."
-                  : "Kegiatan yang memakai slot shift ini akan dihapus."
+                  ? "Jadwal final tetap disimpan. Kosongkan lewat langkah Jadwal Final bila slot lama sudah tidak relevan."
+                  : "Kegiatan yang memakai slot jadwal ini akan dihapus."
             }
           />
         ) : null}
@@ -719,11 +852,18 @@ const ScheduleConfigCard = ({
           <Form.List name="slots">
             {(fields, { add, remove }) => (
               <Flex vertical gap={10}>
-                <Flex justify="space-between" align="center">
+                <Flex
+                  justify="space-between"
+                  align={isNarrow ? "stretch" : "center"}
+                  gap={8}
+                  wrap="wrap"
+                  vertical={isNarrow}
+                >
                   <Text strong>Jam Pelajaran</Text>
                   <Button
                     type="dashed"
                     icon={<Plus size={14} />}
+                    block={isNarrow}
                     onClick={() => {
                       const currentSlots = dayForm.getFieldValue("slots") || [];
                       const lastSlot = currentSlots[currentSlots.length - 1];
@@ -829,11 +969,18 @@ const ScheduleConfigCard = ({
           <Form.List name="breaks">
             {(fields, { add, remove }) => (
               <Flex vertical gap={10}>
-                <Flex justify="space-between" align="center">
+                <Flex
+                  justify="space-between"
+                  align={isNarrow ? "stretch" : "center"}
+                  gap={8}
+                  wrap="wrap"
+                  vertical={isNarrow}
+                >
                   <Text strong>Waktu Istirahat</Text>
                   <Button
                     type="dashed"
                     icon={<Plus size={14} />}
+                    block={isNarrow}
                     onClick={() => add({ label: "Istirahat" })}
                   >
                     Tambah Istirahat

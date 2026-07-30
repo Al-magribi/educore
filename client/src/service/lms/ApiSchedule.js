@@ -32,6 +32,14 @@ export const ApiSchedule = createApi({
       }),
       invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
     }),
+    duplicateScheduleConfig: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/schedule/config/${id}/duplicate`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "ScheduleBootstrap", id: "DATA" }],
+    }),
     deleteScheduleConfig: builder.mutation({
       query: ({ id, periode_id }) => ({
         url: `/schedule/config/${id}?${new URLSearchParams({ periode_id }).toString()}`,
@@ -107,6 +115,7 @@ export const {
   useGetScheduleBootstrapQuery,
   useSaveScheduleConfigMutation,
   useActivateScheduleConfigMutation,
+  useDuplicateScheduleConfigMutation,
   useDeleteScheduleConfigMutation,
   useSaveScheduleConfigGroupMutation,
   useDeleteScheduleConfigGroupMutation,

@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Empty,
+  Flex,
   Form,
   Grid,
   InputNumber,
@@ -21,11 +22,13 @@ import {
   formatTime,
 } from "./scheduleTimetableUtils";
 import {
-  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_HEADER_STYLE,
   SCHEDULE_CARD_STYLE,
-  SCHEDULE_INNER_CARD_BODY,
   SCHEDULE_INNER_CARD_STYLE,
   SCHEDULE_TAG_STYLE,
+  getScheduleCardBody,
+  getScheduleInnerCardBody,
+  getScheduleModalWidth,
 } from "./scheduleAdminStyles";
 
 const DAY_OPTIONS = [
@@ -70,6 +73,7 @@ const ScheduleTimetableCard = ({
 }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isNarrow = !screens.sm;
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [modalMode, setModalMode] = useState("edit");
@@ -579,78 +583,151 @@ const ScheduleTimetableCard = ({
 
   return (
     <Card
-      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
-      styles={{ body: SCHEDULE_CARD_BODY }}
+      style={SCHEDULE_CARD_STYLE}
+      styles={{
+        header: SCHEDULE_CARD_HEADER_STYLE,
+        body: getScheduleCardBody(isMobile),
+      }}
       title={
-        <Space>
+        <Space wrap>
           <LayoutGrid size={18} />
           <span>Jadwal Final</span>
         </Space>
       }
       extra={
-        <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
-          {(configs || []).length > 1 ? (
-            <Select
-              value={selectedConfig ? Number(selectedConfig.id) : undefined}
-              onChange={onSelectConfig}
-              options={configOptions}
-              placeholder='Pilih konfigurasi jadwal'
-              style={{ width: isMobile ? "100%" : 240, maxWidth: "100%" }}
-              loading={loading}
-            />
-          ) : null}
-          {groupCount > 1 ? (
-            <Select
-              value={selectedGroup ? Number(selectedGroup.id) : undefined}
-              onChange={onSelectGroup}
-              options={groupOptions}
-              placeholder='Pilih shift jadwal'
-              style={{ width: isMobile ? "100%" : 200, maxWidth: "100%" }}
-              loading={loading}
-            />
-          ) : null}
-          <Button
-            icon={<RefreshCcw size={14} />}
-            onClick={onRefresh}
-            loading={loading}
-          >
-            Muat Ulang
-          </Button>
-          {canManage && (entries || []).length > 0 ? (
-            <Popconfirm
-              title='Kosongkan jadwal final?'
-              description={
-                selectedGroup
-                  ? `Semua entri pada shift "${selectedGroup.name}" untuk master yang dipilih akan dihapus.`
-                  : "Semua entri jadwal final pada master yang dipilih akan dihapus."
-              }
-              okText='Kosongkan'
-              cancelText='Batal'
-              okButtonProps={{ danger: true }}
-              onConfirm={handleClearEntries}
-            >
-              <Button danger icon={<Eraser size={14} />} loading={loading}>
-                Kosongkan Jadwal
-              </Button>
-            </Popconfirm>
-          ) : null}
-          {canManage ? (
+        !isMobile ? (
+          <Space wrap style={{ maxWidth: "100%", justifyContent: "flex-end" }}>
+            {(configs || []).length > 1 ? (
+              <Select
+                value={selectedConfig ? Number(selectedConfig.id) : undefined}
+                onChange={onSelectConfig}
+                options={configOptions}
+                placeholder="Pilih konfigurasi jadwal"
+                style={{ width: 240, maxWidth: "100%" }}
+                loading={loading}
+              />
+            ) : null}
+            {groupCount > 1 ? (
+              <Select
+                value={selectedGroup ? Number(selectedGroup.id) : undefined}
+                onChange={onSelectGroup}
+                options={groupOptions}
+                placeholder="Pilih jadwal"
+                style={{ width: 200, maxWidth: "100%" }}
+                loading={loading}
+              />
+            ) : null}
             <Button
-              type='primary'
-              icon={<Plus size={14} />}
-              onClick={openCreateManualDialog}
+              icon={<RefreshCcw size={14} />}
+              onClick={onRefresh}
+              loading={loading}
             >
-              Tambah Jadwal Manual
+              Muat Ulang
             </Button>
-          ) : null}
-        </Space>
+            {canManage && (entries || []).length > 0 ? (
+              <Popconfirm
+                title="Kosongkan jadwal final?"
+                description={
+                  selectedGroup
+                    ? `Semua entri pada jadwal "${selectedGroup.name}" untuk master yang dipilih akan dihapus.`
+                    : "Semua entri jadwal final pada master yang dipilih akan dihapus."
+                }
+                okText="Kosongkan"
+                cancelText="Batal"
+                okButtonProps={{ danger: true }}
+                onConfirm={handleClearEntries}
+              >
+                <Button danger icon={<Eraser size={14} />} loading={loading}>
+                  Kosongkan Jadwal
+                </Button>
+              </Popconfirm>
+            ) : null}
+            {canManage ? (
+              <Button
+                type="primary"
+                icon={<Plus size={14} />}
+                onClick={openCreateManualDialog}
+              >
+                Tambah Jadwal Manual
+              </Button>
+            ) : null}
+          </Space>
+        ) : null
       }
     >
-      <Space direction='vertical' size={16} style={{ width: "100%" }}>
+      <Space direction="vertical" size={isMobile ? 12 : 16} style={{ width: "100%", minWidth: 0 }}>
+        {isMobile ? (
+          <Flex vertical gap={8} style={{ width: "100%" }}>
+            {(configs || []).length > 1 ? (
+              <Select
+                value={selectedConfig ? Number(selectedConfig.id) : undefined}
+                onChange={onSelectConfig}
+                options={configOptions}
+                placeholder="Pilih konfigurasi jadwal"
+                style={{ width: "100%" }}
+                loading={loading}
+              />
+            ) : null}
+            {groupCount > 1 ? (
+              <Select
+                value={selectedGroup ? Number(selectedGroup.id) : undefined}
+                onChange={onSelectGroup}
+                options={groupOptions}
+                placeholder="Pilih jadwal"
+                style={{ width: "100%" }}
+                loading={loading}
+              />
+            ) : null}
+            <Flex gap={8} wrap="wrap" style={{ width: "100%" }}>
+              <Button
+                icon={<RefreshCcw size={14} />}
+                onClick={onRefresh}
+                loading={loading}
+                block={isNarrow}
+              >
+                Muat Ulang
+              </Button>
+              {canManage && (entries || []).length > 0 ? (
+                <Popconfirm
+                  title="Kosongkan jadwal final?"
+                  description={
+                    selectedGroup
+                      ? `Semua entri pada jadwal "${selectedGroup.name}" untuk master yang dipilih akan dihapus.`
+                      : "Semua entri jadwal final pada master yang dipilih akan dihapus."
+                  }
+                  okText="Kosongkan"
+                  cancelText="Batal"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={handleClearEntries}
+                >
+                  <Button
+                    danger
+                    icon={<Eraser size={14} />}
+                    loading={loading}
+                    block={isNarrow}
+                  >
+                    Kosongkan
+                  </Button>
+                </Popconfirm>
+              ) : null}
+              {canManage ? (
+                <Button
+                  type="primary"
+                  icon={<Plus size={14} />}
+                  onClick={openCreateManualDialog}
+                  block={isNarrow}
+                >
+                  Tambah Manual
+                </Button>
+              ) : null}
+            </Flex>
+          </Flex>
+        ) : null}
+
         <Card
-          size='small'
+          size="small"
           style={SCHEDULE_INNER_CARD_STYLE}
-          styles={{ body: SCHEDULE_INNER_CARD_BODY }}
+          styles={{ body: getScheduleInnerCardBody(isMobile) }}
         >
           <Space size={[8, 8]} wrap>
             <Tag
@@ -661,16 +738,16 @@ const ScheduleTimetableCard = ({
                 ? "Master operasional (aktif)"
                 : "Preview master nonaktif"}
             </Tag>
-            <Tag color='blue' style={SCHEDULE_TAG_STYLE}>
+            <Tag color="blue" style={SCHEDULE_TAG_STYLE}>
               Entri jadwal: {(entries || []).length}
             </Tag>
-            <Tag color='geekblue' style={SCHEDULE_TAG_STYLE}>
+            <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
               Jadwal manual: {manualEntryCount}
             </Tag>
-            <Tag color='purple' style={SCHEDULE_TAG_STYLE}>
+            <Tag color="purple" style={SCHEDULE_TAG_STYLE}>
               Kegiatan aktif: {totalActivityCount}
             </Tag>
-            <Tag color='gold' style={SCHEDULE_TAG_STYLE}>
+            <Tag color="gold" style={SCHEDULE_TAG_STYLE}>
               Guru terjadwal: {teacherSummaryRows.length}
             </Tag>
           </Space>
@@ -679,8 +756,8 @@ const ScheduleTimetableCard = ({
         {!isSelectedConfigActive ? (
           <Alert
             showIcon
-            type='warning'
-            message='Anda melihat master jadwal yang tidak aktif'
+            type="warning"
+            message="Anda melihat master jadwal yang tidak aktif"
             description={
               activeConfigName
                 ? `Absensi RFID dan operasional sekolah memakai master aktif: "${activeConfigName}". Entri di master ini belum menjadi jadwal operasional sampai diaktifkan.`
@@ -688,44 +765,40 @@ const ScheduleTimetableCard = ({
             }
             action={
               activeConfigId && onSelectConfig ? (
-                <Button size='small' type='primary' onClick={() => onSelectConfig(activeConfigId)}>
+                <Button size="small" type="primary" onClick={() => onSelectConfig(activeConfigId)}>
                   Buka jadwal aktif
                 </Button>
               ) : null
             }
           />
-        ) : (
-          <Alert
-            showIcon
-            type='info'
-            message='Penyusunan jadwal dilakukan manual'
-            description='Gunakan tombol Tambah Jadwal Manual untuk menempatkan sesi, lalu klik kotak pelajaran di board untuk mengubah hari, slot, atau jumlah sesi. Validasi bentrok kelas, guru, dan kegiatan tetap berjalan. Jadwal di master aktif dipakai absensi sesi kelas.'
-          />
-        )}
+        ) : null}
 
         {!timetableRows.length ? (
           <Card
-            size='small'
+            size="small"
             style={SCHEDULE_INNER_CARD_STYLE}
-            styles={{ body: { ...SCHEDULE_INNER_CARD_BODY, paddingBlock: 32 } }}
+            styles={{ body: { ...getScheduleInnerCardBody(isMobile), paddingBlock: 32 } }}
           >
-            <Empty description='Belum ada jadwal untuk ditampilkan.' />
+            <Empty description="Belum ada jadwal untuk ditampilkan." />
           </Card>
         ) : (
           <Card
-            size='small'
+            size="small"
             style={SCHEDULE_INNER_CARD_STYLE}
             styles={{
               header: {
                 background: "#f8fbff",
                 borderBottom: "1px solid #e2e8f0",
               },
-              body: { padding: 0 },
+              body: { padding: 0, overflow: "hidden" },
             }}
           >
             <Tabs
-              defaultActiveKey='timetable'
-              style={{ padding: "0 16px 16px", maxWidth: "100%" }}
+              defaultActiveKey="timetable"
+              style={{
+                padding: isMobile ? "0 8px 12px" : "0 16px 16px",
+                maxWidth: "100%",
+              }}
               items={[
                 {
                   key: "timetable",
@@ -743,7 +816,7 @@ const ScheduleTimetableCard = ({
                 },
                 {
                   key: "teacher-subject",
-                  label: "Guru dan Mapel",
+                  label: isNarrow ? "Guru" : "Guru dan Mapel",
                   children: (
                     <ScheduleTeacherMapelTable
                       loading={loading}
@@ -769,24 +842,27 @@ const ScheduleTimetableCard = ({
         }
         onCancel={closeEntryModal}
         onOk={handleSubmit}
-        okText='Simpan'
+        okText="Simpan"
         confirmLoading={loading}
+        width={getScheduleModalWidth(isMobile, 520)}
+        centered
+        styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
         footer={[
           isManualEditing ? (
             <Popconfirm
-              key='delete'
-              title='Hapus jadwal manual ini?'
+              key="delete"
+              title="Hapus jadwal manual ini?"
               onConfirm={handleDeleteCurrentEntry}
             >
               <Button danger>Hapus</Button>
             </Popconfirm>
           ) : null,
-          <Button key='cancel' onClick={closeEntryModal}>
+          <Button key="cancel" onClick={closeEntryModal}>
             Batal
           </Button>,
           <Button
-            key='submit'
-            type='primary'
+            key="submit"
+            type="primary"
             loading={loading}
             onClick={handleSubmit}
           >

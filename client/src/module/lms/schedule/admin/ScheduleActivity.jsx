@@ -17,11 +17,13 @@ import {
 } from "antd";
 import { CalendarRange, Pencil, Plus, Trash2 } from "lucide-react";
 import {
-  SCHEDULE_CARD_BODY,
+  SCHEDULE_CARD_HEADER_STYLE,
   SCHEDULE_CARD_STYLE,
-  SCHEDULE_INNER_CARD_BODY,
   SCHEDULE_INNER_CARD_STYLE,
   SCHEDULE_TAG_STYLE,
+  getScheduleCardBody,
+  getScheduleInnerCardBody,
+  getScheduleModalWidth,
 } from "./scheduleAdminStyles";
 
 const { Text } = Typography;
@@ -64,6 +66,7 @@ const ScheduleActivity = ({
 }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isNarrow = !screens.sm;
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [tableShiftFilter, setTableShiftFilter] = useState("all");
@@ -230,7 +233,7 @@ const ScheduleActivity = ({
     shiftOptions.find((item) => Number(item.value) === Number(selectedShiftId))
       ?.label ||
     selectedGroup?.name ||
-    "Shift aktif";
+    "Jadwal aktif";
 
   const activityRows = useMemo(
     () =>
@@ -240,7 +243,7 @@ const ScheduleActivity = ({
           ...item,
           key: Number(item.id),
           shift_name:
-            shiftLabelById[Number(item.config_group_id)] || "Tanpa shift",
+            shiftLabelById[Number(item.config_group_id)] || "Tanpa jadwal",
           target_summary:
             item.scope_type === "all_classes"
               ? "Semua kelas"
@@ -274,7 +277,7 @@ const ScheduleActivity = ({
       render: (value) => <Text strong>{value}</Text>,
     },
     {
-      title: "Shift",
+      title: "Jadwal",
       dataIndex: "shift_name",
       key: "shift_name",
       width: 160,
@@ -340,36 +343,44 @@ const ScheduleActivity = ({
 
   return (
     <Card
-      style={{ ...SCHEDULE_CARD_STYLE, width: "100%", maxWidth: "100%" }}
-      styles={{ body: SCHEDULE_CARD_BODY }}
+      style={SCHEDULE_CARD_STYLE}
+      styles={{
+        header: SCHEDULE_CARD_HEADER_STYLE,
+        body: getScheduleCardBody(isMobile),
+      }}
       title={
-        <Space>
+        <Space wrap>
           <CalendarRange size={18} />
           <span>Jadwal Kegiatan</span>
         </Space>
       }
       extra={
         canManage ? (
-          <Button type='primary' icon={<Plus size={14} />} onClick={openCreate}>
-            Tambah Kegiatan
+          <Button
+            type="primary"
+            icon={<Plus size={14} />}
+            onClick={openCreate}
+            size={isNarrow ? "small" : "middle"}
+          >
+            {isNarrow ? "Tambah" : "Tambah Kegiatan"}
           </Button>
         ) : null
       }
     >
       <Card
-        size='small'
+        size="small"
         style={{ ...SCHEDULE_INNER_CARD_STYLE, marginBottom: 16 }}
-        styles={{ body: SCHEDULE_INNER_CARD_BODY }}
-        title='Ringkasan Okupansi Kegiatan'
+        styles={{ body: getScheduleInnerCardBody(isMobile) }}
+        title="Ringkasan Okupansi Kegiatan"
       >
         <Space size={[8, 8]} wrap>
-          <Tag color='geekblue' style={SCHEDULE_TAG_STYLE}>
+          <Tag color="geekblue" style={SCHEDULE_TAG_STYLE}>
             Kelas aktif: {scheduleCapacity?.active_class_count || 0}
           </Tag>
-          <Tag color='blue' style={SCHEDULE_TAG_STYLE}>
+          <Tag color="blue" style={SCHEDULE_TAG_STYLE}>
             Sesi tersedia: {scheduleCapacity?.total_available_sessions || 0}
           </Tag>
-          <Tag color='purple' style={SCHEDULE_TAG_STYLE}>
+          <Tag color="purple" style={SCHEDULE_TAG_STYLE}>
             Dipakai kegiatan: {scheduleCapacity?.total_activity_sessions || 0}
           </Tag>
           <Tag
@@ -385,48 +396,55 @@ const ScheduleActivity = ({
         </Space>
       </Card>
 
-      <Table
-        rowKey='key'
-        size='small'
-        loading={loading}
-        columns={columns}
-        title={() =>
-          groupCount > 1 ? (
-            <Space wrap style={{ width: "100%" }}>
-              <Text strong>Filter Shift:</Text>
-              <Select
-                style={{
-                  minWidth: isMobile ? undefined : 220,
-                  width: isMobile ? "100%" : undefined,
-                  maxWidth: "100%",
-                }}
-                value={tableShiftFilter}
-                onChange={setTableShiftFilter}
-                options={[
-                  { value: "all", label: "Semua shift" },
-                  ...shiftOptions,
-                ]}
-                virtual={false}
-              />
-            </Space>
-          ) : null
-        }
-        dataSource={filteredActivityRows}
-        pagination={false}
-        scroll={{ x: isMobile ? 1180 : 1120 }}
-        locale={{ emptyText: "Belum ada kegiatan jadwal." }}
-      />
+      <div style={{ width: "100%", overflowX: "auto" }}>
+        <Table
+          rowKey="key"
+          size="small"
+          loading={loading}
+          columns={columns}
+          title={() =>
+            groupCount > 1 ? (
+              <Space
+                wrap
+                direction={isNarrow ? "vertical" : "horizontal"}
+                style={{ width: "100%" }}
+              >
+                <Text strong>Filter Jadwal:</Text>
+                <Select
+                  style={{
+                    minWidth: isMobile ? undefined : 220,
+                    width: isMobile ? "100%" : undefined,
+                    maxWidth: "100%",
+                  }}
+                  value={tableShiftFilter}
+                  onChange={setTableShiftFilter}
+                  options={[
+                    { value: "all", label: "Semua jadwal" },
+                    ...shiftOptions,
+                  ]}
+                  virtual={false}
+                />
+              </Space>
+            ) : null
+          }
+          dataSource={filteredActivityRows}
+          pagination={false}
+          scroll={{ x: isMobile ? 1180 : 1120 }}
+          locale={{ emptyText: "Belum ada kegiatan jadwal." }}
+        />
+      </div>
 
       <Modal
         open={openModal}
         title={editing ? "Ubah Kegiatan" : "Tambah Kegiatan"}
         onCancel={closeModal}
         onOk={handleSubmit}
-        okText='Simpan'
+        okText="Simpan"
         confirmLoading={loading}
         centered
-        width={760}
+        width={getScheduleModalWidth(isMobile, 760)}
         destroyOnClose
+        styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
       >
         <Form form={form} layout='vertical'>
           <Alert
@@ -434,7 +452,7 @@ const ScheduleActivity = ({
             type='info'
             style={{ marginBottom: 16 }}
             message={`Form kegiatan untuk ${shiftLabel}`}
-            description='Hari dan slot yang dapat dipilih mengikuti konfigurasi jadwal pada shift ini.'
+            description='Hari dan slot yang dapat dipilih mengikuti konfigurasi pada jadwal ini.'
           />
           <Form.Item name='id' hidden>
             <Input />
@@ -442,12 +460,12 @@ const ScheduleActivity = ({
           {groupCount > 1 ? (
             <Form.Item
               name='config_group_id'
-              label='Shift'
-              rules={[{ required: true, message: "Shift wajib dipilih." }]}
+              label='Jadwal'
+              rules={[{ required: true, message: "Jadwal wajib dipilih." }]}
             >
               <Select
                 options={shiftOptions}
-                placeholder='Pilih shift kegiatan'
+                placeholder='Pilih jadwal kegiatan'
               />
             </Form.Item>
           ) : null}
@@ -474,7 +492,7 @@ const ScheduleActivity = ({
             >
               <Select
                 options={availableDayOptions}
-                placeholder='Pilih hari sesuai shift'
+                placeholder='Pilih hari sesuai jadwal'
               />
             </Form.Item>
             <Form.Item
@@ -485,7 +503,7 @@ const ScheduleActivity = ({
             >
               <Select
                 options={slotOptions}
-                placeholder='Pilih slot dari shift aktif'
+                placeholder='Pilih slot dari jadwal aktif'
                 virtual={false}
               />
             </Form.Item>
@@ -514,7 +532,7 @@ const ScheduleActivity = ({
                 mode='multiple'
                 showSearch={{ optionFilterProp: "label" }}
                 options={assignmentOptions}
-                placeholder='Pilih guru / mapel / kelas dari shift aktif'
+                placeholder='Pilih guru / mapel / kelas dari jadwal aktif'
                 virtual={false}
               />
             </Form.Item>

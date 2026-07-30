@@ -5,10 +5,17 @@ export const SCHEDULE_CARD_STYLE = {
   border: SCHEDULE_SURFACE_BORDER,
   background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
   boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
 };
 
 export const SCHEDULE_CARD_BODY = {
   padding: 20,
+};
+
+export const SCHEDULE_CARD_BODY_MOBILE = {
+  padding: 12,
 };
 
 export const SCHEDULE_INNER_CARD_STYLE = {
@@ -16,10 +23,16 @@ export const SCHEDULE_INNER_CARD_STYLE = {
   border: "1px solid rgba(226, 232, 240, 0.95)",
   background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
   boxShadow: "0 12px 28px rgba(15, 23, 42, 0.04)",
+  width: "100%",
+  maxWidth: "100%",
 };
 
 export const SCHEDULE_INNER_CARD_BODY = {
   padding: 16,
+};
+
+export const SCHEDULE_INNER_CARD_BODY_MOBILE = {
+  padding: 12,
 };
 
 export const SCHEDULE_MUTED_PANEL_STYLE = {
@@ -46,3 +59,18 @@ export const SCHEDULE_ICON_BOX = {
   border: "1px solid rgba(148, 163, 184, 0.14)",
   flexShrink: 0,
 };
+
+export const SCHEDULE_CARD_HEADER_STYLE = {
+  flexWrap: "wrap",
+  rowGap: 8,
+  columnGap: 8,
+};
+
+export const getScheduleCardBody = (isMobile) =>
+  isMobile ? SCHEDULE_CARD_BODY_MOBILE : SCHEDULE_CARD_BODY;
+
+export const getScheduleInnerCardBody = (isMobile) =>
+  isMobile ? SCHEDULE_INNER_CARD_BODY_MOBILE : SCHEDULE_INNER_CARD_BODY;
+
+export const getScheduleModalWidth = (isMobile, desktopWidth = 720) =>
+  isMobile ? "100%" : desktopWidth;

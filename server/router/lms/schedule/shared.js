@@ -149,10 +149,13 @@ export const listScheduleConfigGroups = async (executor, configId) => {
   const result = await executor.query(
     `SELECT
        g.*,
-       COUNT(gcc.id)::int AS class_count
+       COUNT(c.id)::int AS class_count
      FROM lms.l_schedule_config_group g
      LEFT JOIN lms.l_schedule_config_group_class gcc
        ON gcc.config_group_id = g.id
+     LEFT JOIN public.a_class c
+       ON c.id = gcc.class_id
+      AND COALESCE(c.is_active, true) = true
      WHERE g.config_id = $1
      GROUP BY g.id
      ORDER BY g.sort_order ASC, g.id ASC`,
@@ -170,7 +173,6 @@ export const resolveSelectedScheduleGroup = async ({
   const numericRequestedGroupId = toInt(requestedGroupId, null);
   const selectedGroup =
     groups.find((item) => Number(item.id) === numericRequestedGroupId) ||
-    groups.find((item) => item.is_default === true) ||
     groups[0] ||
     null;
 
