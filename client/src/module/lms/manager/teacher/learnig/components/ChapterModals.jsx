@@ -4,6 +4,7 @@ import {
   Col,
   Flex,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -17,6 +18,8 @@ import { FileText, Plus, Trash2, Upload as UploadIcon } from "lucide-react";
 import { useUploadContentFileMutation } from "../../../../../../service/lms/ApiLms";
 import Editor from "../../../../../../components/editor/TextEditor";
 import { YoutubeOutlined } from "@ant-design/icons";
+
+const { useBreakpoint } = Grid;
 
 const ChapterModals = ({
   chapterModalOpen,
@@ -32,6 +35,9 @@ const ChapterModals = ({
   onOkContent,
   contentForm,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const modalWidth = isMobile ? "calc(100vw - 24px)" : 820;
   const [uploadContentFile, { isLoading: isUploading }] =
     useUploadContentFileMutation();
 
@@ -73,7 +79,13 @@ const ChapterModals = ({
         okText={editingChapter ? "Simpan" : "Tambah"}
         destroyOnHidden
         centered
-        width={820}
+        width={modalWidth}
+        styles={{
+          body: {
+            maxHeight: isMobile ? "70vh" : undefined,
+            overflowY: isMobile ? "auto" : undefined,
+          },
+        }}
       >
         <Form layout='vertical' form={chapterForm}>
           <Form.Item
@@ -122,7 +134,13 @@ const ChapterModals = ({
         okText={editingContent ? "Simpan" : "Tambah"}
         destroyOnHidden
         centered
-        width={820}
+        width={modalWidth}
+        styles={{
+          body: {
+            maxHeight: isMobile ? "70vh" : undefined,
+            overflowY: isMobile ? "auto" : undefined,
+          },
+        }}
       >
         <Form layout='vertical' form={contentForm}>
           <Row gutter={[12, 12]}>

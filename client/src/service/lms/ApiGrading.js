@@ -113,6 +113,33 @@ export const ApiGrading = createApi({
       }),
       invalidatesTags: ["GradingFinal"],
     }),
+    getGradingSyncExams: builder.query({
+      query: ({ subjectId, classId }) =>
+        `/sync/exams?subject_id=${subjectId || ""}&class_id=${classId || ""}`,
+    }),
+    getGradingSyncFormativePreview: builder.query({
+      query: ({
+        examId,
+        subjectId,
+        classId,
+        month,
+        semester,
+        chapterId,
+      }) =>
+        `/sync/formative/preview?exam_id=${examId || ""}&subject_id=${
+          subjectId || ""
+        }&class_id=${classId || ""}&month=${encodeURIComponent(
+          month || "",
+        )}&semester=${semester || ""}&chapter_id=${chapterId || ""}`,
+    }),
+    syncGradingFormativeFromExam: builder.mutation({
+      query: (body) => ({
+        url: "/sync/formative",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["GradingFormative"],
+    }),
   }),
 });
 
@@ -129,4 +156,8 @@ export const {
   useGetGradingFinalQuery,
   useSubmitGradingFinalMutation,
   useDeleteGradingFinalMutation,
+  useGetGradingSyncExamsQuery,
+  useGetGradingSyncFormativePreviewQuery,
+  useLazyGetGradingSyncFormativePreviewQuery,
+  useSyncGradingFormativeFromExamMutation,
 } = ApiGrading;

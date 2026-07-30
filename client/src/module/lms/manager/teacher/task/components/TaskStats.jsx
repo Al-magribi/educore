@@ -17,7 +17,9 @@ const TaskStats = ({ items, isMobile }) => {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+        gridTemplateColumns: isMobile
+          ? "1fr"
+          : "repeat(auto-fit, minmax(220px, 1fr))",
         gap: 16,
       }}
     >

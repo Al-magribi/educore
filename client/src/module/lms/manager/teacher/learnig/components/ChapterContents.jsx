@@ -254,6 +254,8 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
                                   border: "1px solid #f0f0f0",
                                   borderRadius: 10,
                                   padding: isMobile ? 10 : 12,
+                                  overflowWrap: "anywhere",
+                                  wordBreak: "break-word",
                                 }}
                                 dangerouslySetInnerHTML={{ __html: item.body }}
                               />

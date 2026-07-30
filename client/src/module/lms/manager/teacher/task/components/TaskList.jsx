@@ -99,8 +99,14 @@ const TaskList = ({
               styles={{ body: { padding: 20 } }}
             >
               <Flex vertical gap={16} style={{ height: "100%" }}>
-                <Flex justify='space-between' align='start' gap={12}>
-                  <Space align='start' size={12}>
+                <Flex
+                  justify='space-between'
+                  align='start'
+                  gap={12}
+                  wrap='wrap'
+                  vertical={isMobile}
+                >
+                  <Space align='start' size={12} style={{ minWidth: 0, flex: 1 }}>
                     <div
                       style={{
                         width: 46,
@@ -175,23 +181,31 @@ const TaskList = ({
 
                 <Flex
                   justify='space-between'
-                  align='end'
-                  gap={16}
+                  align={isMobile ? "stretch" : "end"}
+                  gap={12}
+                  wrap='wrap'
+                  vertical={isMobile}
                   style={{ marginTop: "auto" }}
                 >
                   <Text type='secondary' style={{ fontSize: 12 }}>
                     Dibuat {dayjs(task.created_at).format("DD MMM YYYY")}
                   </Text>
-                  <Space wrap>
+                  <Flex
+                    wrap='wrap'
+                    gap={8}
+                    style={{ width: isMobile ? "100%" : "auto" }}
+                  >
                     <Button
                       icon={<Users size={14} />}
                       onClick={() => onViewSubmissions(task)}
+                      style={isMobile ? { flex: "1 1 140px" } : undefined}
                     >
                       Pengumpulan
                     </Button>
                     <Button
                       icon={<Pencil size={14} />}
                       onClick={() => onEditTask(task)}
+                      style={isMobile ? { flex: "1 1 100px" } : undefined}
                     >
                       Edit
                     </Button>
@@ -200,11 +214,15 @@ const TaskList = ({
                       description='Data kelas target pada tugas ini juga akan dihapus.'
                       onConfirm={() => onDeleteTask(task.id)}
                     >
-                      <Button danger icon={<Trash2 size={14} />}>
+                      <Button
+                        danger
+                        icon={<Trash2 size={14} />}
+                        style={isMobile ? { flex: "1 1 100px" } : undefined}
+                      >
                         Hapus
                       </Button>
                     </Popconfirm>
-                  </Space>
+                  </Flex>
                 </Flex>
               </Flex>
             </Card>

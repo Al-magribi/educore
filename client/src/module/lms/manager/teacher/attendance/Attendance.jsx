@@ -7,6 +7,7 @@ import {
   Card,
   DatePicker,
   Flex,
+  Grid,
   Input,
   Select,
   Space,
@@ -29,6 +30,7 @@ import {
 } from "../../../../../service/lms/ApiAttendance";
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const STATUS_OPTIONS = [
   { value: "Hadir", label: "Hadir", color: "green" },
@@ -50,6 +52,11 @@ const normalizeStatus = (status) => {
 };
 
 const Attendance = ({ subjectId, subject }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const controlStyle = isMobile
+    ? { width: "100%" }
+    : { minWidth: 170, flex: "1 1 170px", maxWidth: 240 };
   const { user } = useSelector((state) => state.auth);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(dayjs());
@@ -245,23 +252,36 @@ const Attendance = ({ subjectId, subject }) => {
 
   return (
     <Flex vertical gap={16}>
-      <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-          <Space wrap align="center">
+      <Card
+        style={{ borderRadius: 16 }}
+        styles={{ body: { padding: isMobile ? 14 : 20 } }}
+      >
+        <Flex
+          justify='space-between'
+          align={isMobile ? "stretch" : "center"}
+          wrap='wrap'
+          gap={12}
+          vertical={isMobile}
+        >
+          <Space wrap align='center'>
             <Title level={5} style={{ margin: 0 }}>
               <Space>
                 <ClipboardCheck size={18} />
                 Absensi Kelas
               </Space>
             </Title>
-            <Tag color="blue">
+            <Tag color='blue'>
               {subject?.name || meta.subject_name || "Mata Pelajaran"}
             </Tag>
           </Space>
 
-          <Space wrap>
+          <Flex
+            wrap='wrap'
+            gap={8}
+            style={{ width: isMobile ? "100%" : "auto" }}
+          >
             <Select
-              placeholder="Pilih kelas"
+              placeholder='Pilih kelas'
               value={selectedClassId}
               onChange={(value) => {
                 setSelectedClassId(value);
@@ -269,25 +289,26 @@ const Attendance = ({ subjectId, subject }) => {
               }}
               options={classOptions}
               loading={classLoading}
-              style={{ minWidth: 200 }}
+              style={controlStyle}
             />
             <DatePicker
               value={selectedDate}
               onChange={(value) => setSelectedDate(value)}
-              format="DD MMM YYYY"
+              format='DD MMM YYYY'
               allowClear={false}
               suffixIcon={<CalendarDays size={16} />}
+              style={controlStyle}
             />
             <Input.Search
-              placeholder="Cari nama / NIS"
+              placeholder='Cari nama / NIS'
               allowClear
               onSearch={(value) => setSearchText(value)}
-              style={{ width: 220 }}
+              style={controlStyle}
             />
             <Select
               value={statusFilter}
               onChange={setStatusFilter}
-              style={{ width: 170 }}
+              style={controlStyle}
               options={[
                 { value: "all", label: "Semua Status" },
                 ...STATUS_OPTIONS.map((item) => ({
@@ -296,18 +317,19 @@ const Attendance = ({ subjectId, subject }) => {
                 })),
               ]}
             />
-          </Space>
+          </Flex>
         </Flex>
 
         <Flex
-          justify="space-between"
-          align="center"
-          wrap="wrap"
+          justify='space-between'
+          align={isMobile ? "stretch" : "center"}
+          wrap='wrap'
           gap={12}
+          vertical={isMobile}
           style={{ marginTop: 16 }}
         >
-          <Space wrap>
-            <Tag color="blue" icon={<Users size={12} />}>
+          <Space wrap size={[8, 8]}>
+            <Tag color='blue' icon={<Users size={12} />}>
               Total Siswa: {meta.total_students || rows.length}
             </Tag>
             {STATUS_OPTIONS.map((item) => (
@@ -317,10 +339,14 @@ const Attendance = ({ subjectId, subject }) => {
             ))}
           </Space>
 
-          <Space wrap>
+          <Flex
+            wrap='wrap'
+            gap={8}
+            style={{ width: isMobile ? "100%" : "auto" }}
+          >
             <Select
-              placeholder="Set semua status"
-              style={{ width: 180 }}
+              placeholder='Set semua status'
+              style={controlStyle}
               options={STATUS_OPTIONS.map((item) => ({
                 value: item.value,
                 label: item.label,
@@ -332,27 +358,31 @@ const Attendance = ({ subjectId, subject }) => {
               icon={<RefreshCcw size={14} />}
               onClick={handleReset}
               disabled={!dirty}
+              block={isMobile}
+              style={isMobile ? undefined : { flexShrink: 0 }}
             >
               Reset
             </Button>
             <Button
-              type="primary"
+              type='primary'
               icon={<CheckCircle2 size={14} />}
               onClick={handleSave}
               loading={isSaving}
               disabled={!dirty || rows.length === 0}
+              block={isMobile}
+              style={isMobile ? undefined : { flexShrink: 0 }}
             >
               Simpan Absensi
             </Button>
-          </Space>
+          </Flex>
         </Flex>
       </Card>
 
       {!selectedClassId ? (
         <Alert
-          type="info"
+          type='info'
           showIcon
-          title="Pilih kelas untuk mulai mengisi absensi."
+          title='Pilih kelas untuk mulai mengisi absensi.'
         />
       ) : (
         <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
@@ -361,8 +391,9 @@ const Attendance = ({ subjectId, subject }) => {
             dataSource={filteredRows}
             pagination={false}
             loading={isFetching}
-            rowKey="student_id"
-            scroll={{ x: 720 }}
+            rowKey='student_id'
+            size={isMobile ? "small" : "middle"}
+            scroll={{ x: isMobile ? 560 : 720 }}
           />
         </Card>
       )}

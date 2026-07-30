@@ -314,89 +314,121 @@ const TeacherJournal = ({ subjectId, subject }) => {
     <Flex vertical gap={16}>
       <Card
         style={{ borderRadius: 20 }}
-        styles={{ body: { padding: isMobile ? 18 : 20 } }}
-        extra={
-          <Space wrap>
-            <Button
-              icon={<RefreshCw size={14} />}
-              onClick={() => refetch()}
-              loading={isJournalFetching}
-            >
-              Muat Ulang
-            </Button>
-            <Button icon={<DownloadCloud size={14} />} onClick={handleDownload}>
-              Download
-            </Button>
-            <Button
-              type="primary"
-              icon={<Plus size={14} />}
-              onClick={openCreateDrawer}
-              style={{
-                borderRadius: 12,
-                boxShadow: "0 12px 24px rgba(37, 99, 235, 0.18)",
-              }}
-            >
-              Input Jurnal
-            </Button>
-          </Space>
-        }
+        styles={{ body: { padding: isMobile ? 16 : 20 } }}
       >
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-          <div>
-            <Title level={5} style={{ margin: 0 }}>
-              Jurnal Pembelajaran
-            </Title>
-            <Text type="secondary">
-              Isi jurnal sesuai kelas yang Anda ampu pada mata pelajaran{" "}
-              {subject?.name || meta.subject_name || "-"}.
+        <Flex vertical gap={16}>
+          <Flex
+            justify='space-between'
+            align={isMobile ? "stretch" : "flex-start"}
+            wrap='wrap'
+            gap={12}
+            vertical={isMobile}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Title level={5} style={{ margin: 0 }}>
+                Jurnal Pembelajaran
+              </Title>
+              <Text type='secondary'>
+                Isi jurnal sesuai kelas yang Anda ampu pada mata pelajaran{" "}
+                {subject?.name || meta.subject_name || "-"}.
+              </Text>
+              <div style={{ marginTop: 10 }}>
+                <Space wrap>
+                  <Tag color='blue'>
+                    {subject?.name || meta.subject_name || "-"}
+                  </Tag>
+                  <Tag color='green'>Total Jurnal: {journals.length}</Tag>
+                </Space>
+              </div>
+            </div>
+
+            <Flex
+              wrap='wrap'
+              gap={8}
+              style={{ width: isMobile ? "100%" : "auto" }}
+            >
+              <Button
+                icon={<RefreshCw size={14} />}
+                onClick={() => refetch()}
+                loading={isJournalFetching}
+                block={isMobile}
+                style={isMobile ? { flex: "1 1 140px" } : undefined}
+              >
+                Muat Ulang
+              </Button>
+              <Button
+                icon={<DownloadCloud size={14} />}
+                onClick={handleDownload}
+                block={isMobile}
+                style={isMobile ? { flex: "1 1 140px" } : undefined}
+              >
+                Download
+              </Button>
+              <Button
+                type='primary'
+                icon={<Plus size={14} />}
+                onClick={openCreateDrawer}
+                block={isMobile}
+                style={{
+                  borderRadius: 12,
+                  boxShadow: "0 12px 24px rgba(37, 99, 235, 0.18)",
+                  ...(isMobile ? { flex: "1 1 100%" } : {}),
+                }}
+              >
+                Input Jurnal
+              </Button>
+            </Flex>
+          </Flex>
+
+          <Flex
+            justify='space-between'
+            align={isMobile ? "stretch" : "center"}
+            wrap='wrap'
+            gap={12}
+            vertical={isMobile}
+          >
+            <Flex
+              wrap='wrap'
+              gap={8}
+              style={{ width: isMobile ? "100%" : "auto", flex: 1 }}
+            >
+              <Select
+                value={journalFilterClass}
+                onChange={(value) => setJournalFilterClass(value || null)}
+                style={
+                  isMobile
+                    ? { width: "100%" }
+                    : { minWidth: 220, flex: "1 1 220px", maxWidth: 320 }
+                }
+                options={classOptions}
+                loading={isClassLoading}
+                placeholder='Filter kelas'
+                allowClear
+                showSearch
+                optionFilterProp='label'
+                virtual={false}
+              />
+              <DatePicker
+                value={journalFilterDate}
+                onChange={setJournalFilterDate}
+                format='DD MMM YYYY'
+                placeholder='Filter tanggal'
+                allowClear
+                style={isMobile ? { width: "100%" } : undefined}
+              />
+            </Flex>
+
+            <Text type='secondary'>
+              Kelas tersedia: {classOptions.length || meta.total_classes || 0}
             </Text>
-          </div>
-
-          <Space wrap>
-            <Tag color="blue">{subject?.name || meta.subject_name || "-"}</Tag>
-            <Tag color="green">Total Jurnal: {journals.length}</Tag>
-          </Space>
-        </Flex>
-
-        <Flex
-          justify="space-between"
-          align="center"
-          wrap="wrap"
-          gap={12}
-          style={{ marginTop: 16 }}
-        >
-          <Space wrap>
-            <Select
-              value={journalFilterClass}
-              onChange={(value) => setJournalFilterClass(value || null)}
-              style={{ minWidth: 220 }}
-              options={classOptions}
-              loading={isClassLoading}
-              placeholder="Filter kelas"
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              virtual={false}
-            />
-            <DatePicker
-              value={journalFilterDate}
-              onChange={setJournalFilterDate}
-              format="DD MMM YYYY"
-              placeholder="Filter tanggal"
-              allowClear
-            />
-          </Space>
-
-          <Text type="secondary">
-            Kelas tersedia: {classOptions.length || meta.total_classes || 0}
-          </Text>
+          </Flex>
         </Flex>
       </Card>
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={8}>
-          <Card size="small" style={statCardStyle}>
-            <Space align="start">
+        <Col xs={24} sm={12} md={8}>
+          <Card size='small' style={statCardStyle}>
+            <Space align='start'>
               <div
                 style={{
                   width: 44,
@@ -412,26 +444,29 @@ const TeacherJournal = ({ subjectId, subject }) => {
               >
                 <BookOpenText size={18} />
               </div>
-              <div>
-                <Text type="secondary">Mata Pelajaran</Text>
-                <Title level={5} style={{ margin: "4px 0 0" }}>
+              <div style={{ minWidth: 0 }}>
+                <Text type='secondary'>Mata Pelajaran</Text>
+                <Title
+                  level={5}
+                  style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}
+                >
                   {subject?.name || meta.subject_name || "-"}
                 </Title>
               </div>
             </Space>
           </Card>
         </Col>
-        <Col xs={24} md={8}>
-          <Card size="small" style={statCardStyle}>
-            <Text type="secondary">Total Jurnal</Text>
+        <Col xs={24} sm={12} md={8}>
+          <Card size='small' style={statCardStyle}>
+            <Text type='secondary'>Total Jurnal</Text>
             <Title level={4} style={{ margin: "6px 0 0", color: "#1d4ed8" }}>
               {journals.length}
             </Title>
           </Card>
         </Col>
-        <Col xs={24} md={8}>
-          <Card size="small" style={statCardStyle}>
-            <Text type="secondary">Kelas Tersedia</Text>
+        <Col xs={24} sm={12} md={8}>
+          <Card size='small' style={statCardStyle}>
+            <Text type='secondary'>Kelas Tersedia</Text>
             <Title level={4} style={{ margin: "6px 0 0", color: "#15803d" }}>
               {classOptions.length || meta.total_classes || 0}
             </Title>
@@ -441,9 +476,9 @@ const TeacherJournal = ({ subjectId, subject }) => {
 
       {isJournalError ? (
         <Alert
-          type="error"
+          type='error'
           showIcon
-          message="Gagal memuat jurnal pembelajaran"
+          message='Gagal memuat jurnal pembelajaran'
           description={
             journalError?.data?.message ||
             "Terjadi kendala saat mengambil data jurnal."
@@ -453,17 +488,18 @@ const TeacherJournal = ({ subjectId, subject }) => {
       ) : (
         <Card style={{ borderRadius: 20 }} styles={{ body: { padding: 0 } }}>
           <Table
-            rowKey="id"
+            rowKey='id'
             columns={columns}
             dataSource={journals}
             loading={isJournalLoading || isJournalFetching}
-            pagination={{ pageSize: 8 }}
-            scroll={{ x: 1100 }}
+            pagination={{ pageSize: isMobile ? 5 : 8, responsive: true }}
+            size={isMobile ? "small" : "middle"}
+            scroll={{ x: 980 }}
             locale={{
               emptyText: (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="Belum ada jurnal pada mata pelajaran ini."
+                  description='Belum ada jurnal pada mata pelajaran ini.'
                 />
               ),
             }}

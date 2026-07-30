@@ -4,14 +4,14 @@ import {
   Card,
   Empty,
   Flex,
+  Grid,
   Tabs,
   Typography,
   message,
   Upload,
-  Select,
   Modal,
 } from "antd";
-import { Download, Save, Upload as UploadIcon } from "lucide-react";
+import { Download, RefreshCw, Save, Upload as UploadIcon } from "lucide-react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import {
@@ -46,6 +46,11 @@ const GradingHeader = lazy(() => import("./components/GradingHeader"));
 const StudentGradingTable = lazy(() =>
   import("./components/StudentGradingTable"),
 );
+const SyncFormativeFromExamModal = lazy(() =>
+  import("./components/SyncFormativeFromExamModal"),
+);
+
+const { useBreakpoint } = Grid;
 
 const MONTH_NAMES = [
   "Januari",
@@ -63,6 +68,9 @@ const MONTH_NAMES = [
 ];
 
 const Grading = ({ subject }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const isCompact = !screens.sm;
   const { data: metaRes } = useGetGradingMetaQuery();
   const homebase = metaRes?.data?.homebase || null;
   const activePeriode = metaRes?.data?.activePeriode || null;
@@ -135,6 +143,7 @@ const Grading = ({ subject }) => {
   const [isFinalDirty, setIsFinalDirty] = useState(false);
   const [deletedFormativeScoreKeys, setDeletedFormativeScoreKeys] = useState([]);
   const [deletedSummativeScoreKeys, setDeletedSummativeScoreKeys] = useState([]);
+  const [isSyncFormativeOpen, setIsSyncFormativeOpen] = useState(false);
   const [tabFilters, setTabFilters] = useState({
     sikap: { monthId: undefined, chapterId: undefined },
     formatif: { monthId: undefined, chapterId: undefined },
@@ -2308,7 +2317,7 @@ const Grading = ({ subject }) => {
 
   return (
     <Suspense fallback={<LoadApp />}>
-      <Flex vertical gap="middle">
+      <Flex vertical gap='middle' style={{ width: "100%", minWidth: 0 }}>
       <GradingHeader
         subject={subject}
         unit={unit}
@@ -2320,125 +2329,181 @@ const Grading = ({ subject }) => {
       />
 
       {unitId && periodId && classId ? (
-        <Flex vertical gap={16}>
+        <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
           <Card
             style={{ borderRadius: 14, border: "1px solid #f0f0f0" }}
             styles={{ body: { padding: 0 } }}
           >
             <Flex
-              align="center"
-              justify="space-between"
-              wrap="wrap"
+              align={isMobile ? "stretch" : "center"}
+              justify='space-between'
+              wrap='wrap'
               gap={12}
-              style={{ padding: 16 }}
+              vertical={isMobile}
+              style={{ padding: isMobile ? 14 : 16 }}
             >
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <Typography.Title level={5} style={{ margin: 0 }}>
                   Input Penilaian
                 </Typography.Title>
-                <Typography.Text type="secondary">
+                <Typography.Text type='secondary'>
                   Pilih tab penilaian, atur filter bulan/bab/subbab, lalu isi
                   nilai siswa.
                 </Typography.Text>
               </div>
               {gradingTab === "sikap" && (
-                <Flex align="center" gap={8} wrap="wrap">
+                <Flex
+                  align='center'
+                  gap={8}
+                  wrap='wrap'
+                  style={{ width: isMobile ? "100%" : "auto" }}
+                >
                   <Button
                     icon={<Download size={16} />}
                     onClick={handleDownloadAttitudeTemplate}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
                   >
-                    Template Sikap
+                    {isCompact ? "Template" : "Template Sikap"}
                   </Button>
                   <Upload
-                    accept=".xlsx,.xls"
+                    accept='.xlsx,.xls'
                     showUploadList={false}
                     beforeUpload={handleImportAttitudeExcel}
                   >
-                    <Button icon={<UploadIcon size={16} />}>
+                    <Button
+                      icon={<UploadIcon size={16} />}
+                      style={isMobile ? { flex: "1 1 140px" } : undefined}
+                    >
                       Upload Excel
                     </Button>
                   </Upload>
                   <Button
-                    type="primary"
+                    type='primary'
                     icon={<Save size={16} />}
                     loading={isSubmittingAttitude}
                     disabled={!isAttitudeDirty}
                     onClick={handleSaveAttitude}
+                    style={isMobile ? { flex: "1 1 100%" } : undefined}
                   >
                     Simpan Sikap
                   </Button>
                 </Flex>
               )}
               {gradingTab === "formatif" && (
-                <Flex align="center" gap={8} wrap="wrap">
+                <Flex
+                  align='center'
+                  gap={8}
+                  wrap='wrap'
+                  style={{ width: isMobile ? "100%" : "auto" }}
+                >
+                  <Button
+                    icon={<RefreshCw size={16} />}
+                    disabled={!isFormativeFilterActive}
+                    onClick={() => {
+                      if (!isFormativeFilterActive) {
+                        message.warning(
+                          "Pilih bulan dan bab formatif terlebih dahulu.",
+                        );
+                        return;
+                      }
+                      setIsSyncFormativeOpen(true);
+                    }}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
+                  >
+                    {isCompact ? "Sync" : "Sync dari Ujian"}
+                  </Button>
                   <Button
                     icon={<Download size={16} />}
                     onClick={handleDownloadFormativeTemplate}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
                   >
-                    Template Formatif
+                    {isCompact ? "Template" : "Template Formatif"}
                   </Button>
                   <Upload
-                    accept=".xlsx,.xls"
+                    accept='.xlsx,.xls'
                     showUploadList={false}
                     beforeUpload={handleImportFormativeExcel}
                   >
-                    <Button icon={<UploadIcon size={16} />}>
+                    <Button
+                      icon={<UploadIcon size={16} />}
+                      style={isMobile ? { flex: "1 1 140px" } : undefined}
+                    >
                       Upload Excel
                     </Button>
                   </Upload>
                   <Button
-                    type="primary"
+                    type='primary'
                     icon={<Save size={16} />}
                     loading={isSubmittingFormative}
                     disabled={!isFormativeDirty}
                     onClick={handleSaveFormative}
+                    style={isMobile ? { flex: "1 1 100%" } : undefined}
                   >
                     Simpan Formatif
                   </Button>
                 </Flex>
               )}
               {gradingTab === "sumatif" && (
-                <Flex align="center" gap={8} wrap="wrap">
+                <Flex
+                  align='center'
+                  gap={8}
+                  wrap='wrap'
+                  style={{ width: isMobile ? "100%" : "auto" }}
+                >
                   <Button
                     icon={<Download size={16} />}
                     onClick={handleDownloadSummativeTemplate}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
                   >
-                    Template Sumatif
+                    {isCompact ? "Template" : "Template Sumatif"}
                   </Button>
                   <Upload
-                    accept=".xlsx,.xls"
+                    accept='.xlsx,.xls'
                     showUploadList={false}
                     beforeUpload={handleImportSummativeExcel}
                   >
-                    <Button icon={<UploadIcon size={16} />}>
+                    <Button
+                      icon={<UploadIcon size={16} />}
+                      style={isMobile ? { flex: "1 1 140px" } : undefined}
+                    >
                       Upload Excel
                     </Button>
                   </Upload>
                   <Button
-                    type="primary"
+                    type='primary'
                     icon={<Save size={16} />}
                     loading={isSubmittingSummative}
                     disabled={!isSummativeDirty}
                     onClick={handleSaveSummative}
+                    style={isMobile ? { flex: "1 1 100%" } : undefined}
                   >
                     Simpan Sumatif
                   </Button>
                 </Flex>
               )}
               {gradingTab === "ujianAkhir" && (
-                <Flex align="center" gap={8} wrap="wrap">
+                <Flex
+                  align='center'
+                  gap={8}
+                  wrap='wrap'
+                  style={{ width: isMobile ? "100%" : "auto" }}
+                >
                   <Button
                     icon={<Download size={16} />}
                     onClick={handleDownloadFinalTemplate}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
                   >
-                    Template Ujian Akhir
+                    {isCompact ? "Template" : "Template Ujian Akhir"}
                   </Button>
                   <Upload
-                    accept=".xlsx,.xls"
+                    accept='.xlsx,.xls'
                     showUploadList={false}
                     beforeUpload={handleImportFinalExcel}
                   >
-                    <Button icon={<UploadIcon size={16} />}>
+                    <Button
+                      icon={<UploadIcon size={16} />}
+                      style={isMobile ? { flex: "1 1 140px" } : undefined}
+                    >
                       Upload Excel
                     </Button>
                   </Upload>
@@ -2458,15 +2523,17 @@ const Grading = ({ subject }) => {
                         onOk: handleDeleteFinal,
                       });
                     }}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
                   >
                     Hapus Nilai
                   </Button>
                   <Button
-                    type="primary"
+                    type='primary'
                     icon={<Save size={16} />}
                     loading={isSubmittingFinal}
                     disabled={!isFinalDirty}
                     onClick={handleSaveFinal}
+                    style={isMobile ? { flex: "1 1 100%" } : undefined}
                   >
                     Simpan Ujian Akhir
                   </Button>
@@ -2481,7 +2548,12 @@ const Grading = ({ subject }) => {
                 children: renderGradingContent(tab.key),
               }))}
               onChange={setGradingTab}
-              style={{ padding: "0 16px 16px" }}
+              size={isMobile ? "middle" : "large"}
+              tabBarGutter={isMobile ? 8 : 16}
+              style={{
+                padding: isMobile ? "0 12px 12px" : "0 16px 16px",
+                width: "100%",
+              }}
             />
           </Card>
         </Flex>
@@ -2490,9 +2562,23 @@ const Grading = ({ subject }) => {
           style={{ borderRadius: 14, border: "1px solid #f0f0f0" }}
           styles={{ body: { padding: 24 } }}
         >
-          <Empty description="Belum ada data penilaian pada semester ini." />
+          <Empty description='Belum ada data penilaian pada semester ini.' />
         </Card>
       )}
+      <SyncFormativeFromExamModal
+        open={isSyncFormativeOpen}
+        onClose={() => setIsSyncFormativeOpen(false)}
+        subjectId={subject?.id}
+        classId={classId}
+        month={formativeMonthName}
+        semester={formativeSemester}
+        chapterId={formativeChapterId}
+        onSynced={async () => {
+          setDeletedFormativeScoreKeys([]);
+          setIsFormativeDirty(false);
+          await refetchFormative();
+        }}
+      />
       </Flex>
     </Suspense>
   );

@@ -4,6 +4,7 @@ import {
   Drawer,
   Empty,
   Flex,
+  Grid,
   Input,
   List,
   Skeleton,
@@ -24,6 +25,7 @@ import {
 import dayjs from "dayjs";
 
 const { Text, Title } = Typography;
+const { useBreakpoint } = Grid;
 
 const summaryCardStyle = {
   borderRadius: 18,
@@ -33,10 +35,19 @@ const summaryCardStyle = {
 };
 
 const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [keyword, setKeyword] = useState("");
   const summary = data?.summary;
   const students = useMemo(() => data?.students || [], [data?.students]);
   const task = data?.task;
+  const summaryGrid = {
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "1fr"
+      : "repeat(3, minmax(0, 1fr))",
+    gap: 12,
+  };
 
   const filteredStudents = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
@@ -72,13 +83,7 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
         label: `${group.className} (${group.students.length})`,
         children: (
           <Space direction='vertical' size={14} style={{ width: "100%" }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: 12,
-              }}
-            >
+            <div style={summaryGrid}>
               <div style={summaryCardStyle}>
                 <Text type='secondary'>Total Siswa</Text>
                 <Title level={5} style={{ margin: "6px 0 0" }}>
@@ -118,11 +123,17 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                         border: "1px solid rgba(148, 163, 184, 0.14)",
                         background:
                           "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-                        padding: 16,
+                        padding: isMobile ? 12 : 16,
                       }}
                     >
-                      <Flex justify='space-between' align='start' gap={12}>
-                        <Space align='start' size={12}>
+                      <Flex
+                        justify='space-between'
+                        align='start'
+                        gap={12}
+                        wrap='wrap'
+                        vertical={isMobile}
+                      >
+                        <Space align='start' size={12} style={{ minWidth: 0 }}>
                           <div
                             style={{
                               width: 42,
@@ -138,10 +149,14 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                           >
                             <Users size={18} />
                           </div>
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <Text
                               strong
-                              style={{ display: "block", fontSize: 15 }}
+                              style={{
+                                display: "block",
+                                fontSize: 15,
+                                overflowWrap: "anywhere",
+                              }}
                             >
                               {student.full_name}
                             </Text>
@@ -157,6 +172,9 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                                     style={{
                                       marginRight: 0,
                                       borderRadius: 999,
+                                      maxWidth: "100%",
+                                      whiteSpace: "normal",
+                                      height: "auto",
                                     }}
                                   >
                                     {student.submission_file_name}
@@ -179,7 +197,11 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                             ) : null}
                           </div>
                         </Space>
-                        <Space direction='vertical' size={8} align='end'>
+                        <Space
+                          direction='vertical'
+                          size={8}
+                          align={isMobile ? "start" : "end"}
+                        >
                           <Tag
                             icon={
                               isSubmitted ? (
@@ -219,8 +241,11 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
       title='Status Pengumpulan'
       open={open}
       onClose={onClose}
-      width={760}
+      width={isMobile ? "100%" : 760}
       destroyOnHidden
+      styles={{
+        body: { padding: isMobile ? 14 : 24 },
+      }}
     >
       {isLoading ? (
         <Skeleton active paragraph={{ rows: 8 }} />
@@ -229,7 +254,10 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
       ) : (
         <Space direction='vertical' size={18} style={{ width: "100%" }}>
           <div>
-            <Title level={5} style={{ marginBottom: 4 }}>
+            <Title
+              level={5}
+              style={{ marginBottom: 4, overflowWrap: "anywhere" }}
+            >
               {task.title}
             </Title>
             <Text type='secondary'>
@@ -252,13 +280,7 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: 12,
-            }}
-          >
+          <div style={summaryGrid}>
             <div style={summaryCardStyle}>
               <Text type='secondary'>Total Siswa</Text>
               <Title level={4} style={{ margin: "6px 0 0" }}>
@@ -293,6 +315,7 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
               items={classTabs}
               defaultActiveKey={classTabs[0]?.key}
               tabBarGutter={8}
+              size={isMobile ? "middle" : "large"}
             />
           ) : (
             <Empty description='Tidak ada siswa yang cocok dengan filter nama.' />

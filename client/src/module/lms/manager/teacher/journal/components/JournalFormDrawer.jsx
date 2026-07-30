@@ -250,16 +250,26 @@ const JournalFormDrawer = ({
               </Col>
             </Row>
 
-            <Flex justify="end" gap={8} wrap="wrap">
-              <Button onClick={onClose}>Batal</Button>
-              <Button onClick={onReset}>Reset Form</Button>
+            <Flex
+              justify={isMobile ? "stretch" : "end"}
+              gap={8}
+              wrap='wrap'
+              vertical={isMobile}
+            >
+              <Button onClick={onClose} block={isMobile}>
+                Batal
+              </Button>
+              <Button onClick={onReset} block={isMobile}>
+                Reset Form
+              </Button>
               <Button
-                type="primary"
+                type='primary'
                 onClick={onSubmit}
                 loading={isSaving}
+                block={isMobile}
                 style={{
                   borderRadius: 12,
-                  minWidth: isMobile ? 160 : 190,
+                  minWidth: isMobile ? undefined : 190,
                   boxShadow: "0 12px 24px rgba(37, 99, 235, 0.18)",
                 }}
               >

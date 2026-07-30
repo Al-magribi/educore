@@ -45,7 +45,7 @@ const StudentGradingTable = ({
   showFilters = true,
 }) => {
   const screens = useBreakpoint();
-  const isMobile = !screens.sm;
+  const isMobile = !screens.md;
   const usesMonthFilter = typeKey !== "ujianAkhir";
   const usesChapterFilter = typeKey === "formatif" || typeKey === "sumatif";
   const classOptions = (classes || []).map((item) => ({

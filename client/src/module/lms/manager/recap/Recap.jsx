@@ -128,10 +128,13 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
     return teachers[0].id;
   }, [isAdminView, selectedTeacherId, teachers]);
 
+  const isMobile = !screens.md;
+  const isCompact = !screens.sm;
+
   const tabItems = [
     {
       key: "attendance",
-      label: "Rekapitulasi Absensi",
+      label: isCompact ? "Absensi" : "Rekapitulasi Absensi",
       children: (
         <Suspense fallback={recapFallback}>
           <RecapAttendance
@@ -157,7 +160,7 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
     },
     {
       key: "score",
-      label: "Rekapitulasi Formatif",
+      label: isCompact ? "Formatif" : "Rekapitulasi Formatif",
       children: (
         <Suspense fallback={recapFallback}>
           <RecapFormative
@@ -183,7 +186,7 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
     },
     {
       key: "summative",
-      label: "Rekapitulasi Sumatif",
+      label: isCompact ? "Sumatif" : "Rekapitulasi Sumatif",
       children: (
         <Suspense fallback={recapFallback}>
           <RecapSummative
@@ -209,7 +212,7 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
     },
     {
       key: "final",
-      label: "Rekapitulasi Nilai Akhir",
+      label: isCompact ? "Nilai Akhir" : "Rekapitulasi Nilai Akhir",
       children: (
         <Suspense fallback={recapFallback}>
           <FinalScore
@@ -264,7 +267,7 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
   if (isAdminView) {
     tabItems.push({
       key: "learning-summary",
-      label: "Ringkasan Pembelajaran",
+      label: isCompact ? "Pembelajaran" : "Ringkasan Pembelajaran",
       children: (
         <Suspense fallback={recapFallback}>
           <RecapLearningSummary
@@ -279,7 +282,7 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
     });
     tabItems.push({
       key: "journal-summary",
-      label: "Ringkasan Jurnal",
+      label: isCompact ? "Jurnal" : "Ringkasan Jurnal",
       children: (
         <Suspense fallback={recapFallback}>
           <RecapJournal
@@ -295,7 +298,15 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
   }
 
   return (
-    <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+    <Tabs
+      activeKey={activeTab}
+      onChange={setActiveTab}
+      items={tabItems}
+      size={isMobile ? "middle" : "large"}
+      tabBarGutter={isMobile ? 8 : 16}
+      style={{ width: "100%" }}
+      tabBarStyle={{ marginBottom: isMobile ? 12 : 16 }}
+    />
   );
 };
 

@@ -1,7 +1,9 @@
 import React from "react";
-import { Col, DatePicker, Form, Input, Modal, Row, Select } from "antd";
+import { Col, DatePicker, Form, Grid, Input, Modal, Row, Select } from "antd";
 import dayjs from "dayjs";
 import Editor from "../../../../../../components/editor/TextEditor";
+
+const { useBreakpoint } = Grid;
 
 const TaskModal = ({
   open,
@@ -13,6 +15,9 @@ const TaskModal = ({
   classOptions,
   confirmLoading,
 }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+
   return (
     <Modal
       title={editingTask ? "Edit Penugasan" : "Tambah Penugasan"}
@@ -23,7 +28,13 @@ const TaskModal = ({
       okText={editingTask ? "Simpan Perubahan" : "Simpan Penugasan"}
       destroyOnHidden
       centered
-      width={920}
+      width={isMobile ? "calc(100vw - 24px)" : 920}
+      styles={{
+        body: {
+          maxHeight: isMobile ? "70vh" : undefined,
+          overflowY: isMobile ? "auto" : undefined,
+        },
+      }}
     >
       <Form layout='vertical' form={form}>
         <Row gutter={[12, 12]}>
@@ -104,7 +115,7 @@ const TaskModal = ({
         >
           <Editor
             placeholder='Tuliskan instruksi, ketentuan, dan hasil yang diharapkan.'
-            height='220px'
+            height={isMobile ? "180px" : "220px"}
           />
         </Form.Item>
       </Form>

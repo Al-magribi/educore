@@ -1,6 +1,7 @@
 ﻿import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { computeExamScoresForStudents } from "../../services/cbt/examScores.js";
 
 const router = Router();
 
@@ -2069,6 +2070,552 @@ router.delete(
       message: "Nilai ujian akhir berhasil dihapus.",
       data: {
         deleted_count: deleteResult.rowCount || 0,
+      },
+    });
+  }),
+);
+
+const assertGradingClassAccess = async ({
+  pool,
+  role,
+  userId,
+  homebaseId,
+  subjectId,
+  classId,
+}) => {
+  const classHomebaseId = await getClassHomebaseId(pool, classId);
+  if (!classHomebaseId) {
+    return {
+      ok: false,
+      status: 404,
+      message: "Kelas tidak ditemukan.",
+    };
+  }
+  if (homebaseId && Number(classHomebaseId) !== Number(homebaseId)) {
+    return {
+      ok: false,
+      status: 403,
+      message: "Kelas tidak berada di homebase yang sama.",
+    };
+  }
+
+  if (role === "teacher") {
+    const accessCheck = await pool.query(
+      `SELECT 1
+       FROM at_subject
+       WHERE teacher_id = $1 AND subject_id = $2 AND class_id = $3
+       LIMIT 1`,
+      [userId, subjectId, classId],
+    );
+    if (accessCheck.rowCount === 0) {
+      return { ok: false, status: 403, message: "Forbidden" };
+    }
+  } else {
+    const accessCheck = await pool.query(
+      `SELECT 1
+       FROM a_subject s
+       JOIN a_class c ON c.id = $2
+       WHERE s.id = $1 AND s.homebase_id = $3 AND c.homebase_id = $3
+       LIMIT 1`,
+      [subjectId, classId, homebaseId],
+    );
+    if (accessCheck.rowCount === 0) {
+      return { ok: false, status: 403, message: "Forbidden" };
+    }
+  }
+
+  return { ok: true, classHomebaseId };
+};
+
+const resolveNextFormativeSubchapterId = async ({
+  pool,
+  subjectId,
+  classId,
+  chapterId,
+  teacherId,
+  periodeId,
+  month,
+}) => {
+  const result = await pool.query(
+    `SELECT type, month
+     FROM lms.l_score_formative
+     WHERE subject_id = $1
+       AND class_id = $2
+       AND chapter_id = $3
+       AND teacher_id = $4
+       AND periode_id = $5`,
+    [subjectId, classId, chapterId, teacherId, periodeId],
+  );
+
+  let maxSubId = 0;
+  for (const row of result.rows) {
+    if (month && !isSameMonthValue(row.month, month)) continue;
+    const subId = parseTypeSubchapterNumber(row.type);
+    if (subId != null && subId > maxSubId) maxSubId = subId;
+  }
+
+  return maxSubId + 1;
+};
+
+const loadExamScoresForClass = async ({ pool, examId, classId, periodeId }) => {
+  const examResult = await pool.query(
+    `SELECT
+       e.id,
+       e.name,
+       e.is_active,
+       e.created_at,
+       b.id AS bank_id,
+       b.title AS bank_title,
+       b.subject_id,
+       b.teacher_id,
+       s.name AS subject_name
+     FROM cbt.c_exam e
+     JOIN cbt.c_bank b ON e.bank_id = b.id
+     LEFT JOIN a_subject s ON s.id = b.subject_id
+     JOIN cbt.c_exam_class ec ON ec.exam_id = e.id AND ec.class_id = $2
+     WHERE e.id = $1
+     LIMIT 1`,
+    [examId, classId],
+  );
+
+  if (examResult.rowCount === 0) {
+    return {
+      ok: false,
+      status: 404,
+      message: "Jadwal ujian tidak ditemukan untuk kelas ini.",
+    };
+  }
+
+  const exam = examResult.rows[0];
+
+  const studentsResult = await pool.query(
+    `SELECT
+       u.id AS student_id,
+       u.full_name,
+       st.nis
+     FROM u_class_enrollments e
+     JOIN u_users u ON u.id = e.student_id
+     JOIN u_students st ON st.user_id = e.student_id
+     WHERE e.class_id = $1
+       AND e.periode_id = $2
+     ORDER BY u.full_name ASC`,
+    [classId, periodeId],
+  );
+
+  const studentIds = studentsResult.rows.map((row) => row.student_id);
+  const scoreByStudent =
+    studentIds.length > 0
+      ? await computeExamScoresForStudents(pool, {
+          examId,
+          studentIds,
+        })
+      : new Map();
+
+  const students = studentsResult.rows.map((row) => {
+    const scored = scoreByStudent.get(Number(row.student_id));
+    return {
+      student_id: row.student_id,
+      full_name: row.full_name,
+      nis: row.nis,
+      score: scored?.has_score ? scored.score : null,
+      score_precise: scored?.has_score ? scored.score_precise : null,
+      has_score: Boolean(scored?.has_score),
+    };
+  });
+
+  const scoredStudents = students.filter((item) => item.has_score);
+
+  return {
+    ok: true,
+    exam: {
+      id: exam.id,
+      name: exam.name,
+      is_active: exam.is_active,
+      created_at: exam.created_at,
+      bank_id: exam.bank_id,
+      bank_title: exam.bank_title,
+      subject_id: exam.subject_id,
+      subject_name: exam.subject_name,
+      teacher_id: exam.teacher_id,
+    },
+    students,
+    scored_count: scoredStudents.length,
+    total_students: students.length,
+  };
+};
+
+// ==========================================
+// GET Sync Exam Candidates (Formatif)
+// ==========================================
+router.get(
+  "/grading/sync/exams",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { subject_id, class_id } = req.query;
+
+    if (!subject_id || !class_id) {
+      return res.status(400).json({
+        status: "error",
+        message: "subject_id dan class_id wajib diisi.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      pool,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT
+         e.id,
+         e.name,
+         e.is_active,
+         e.created_at,
+         b.id AS bank_id,
+         b.title AS bank_title,
+         b.subject_id,
+         s.name AS subject_name,
+         (
+           SELECT COUNT(DISTINCT sa.student_id)::int
+           FROM cbt.c_student_answer sa
+           JOIN u_class_enrollments en
+             ON en.student_id = sa.student_id
+            AND en.class_id = $2
+            AND en.periode_id = $3
+           WHERE sa.exam_id = e.id
+         ) AS scored_count
+       FROM cbt.c_exam e
+       JOIN cbt.c_bank b ON e.bank_id = b.id
+       LEFT JOIN a_subject s ON s.id = b.subject_id
+       JOIN cbt.c_exam_class ec ON ec.exam_id = e.id AND ec.class_id = $2
+       WHERE b.subject_id = $1
+       ORDER BY e.created_at DESC NULLS LAST, e.id DESC
+       LIMIT 100`,
+      [subject_id, class_id, activePeriode.id],
+    );
+
+    return res.json({
+      status: "success",
+      data: {
+        periode_id: activePeriode.id,
+        exams: result.rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          is_active: row.is_active,
+          created_at: row.created_at,
+          bank_id: row.bank_id,
+          bank_title: row.bank_title,
+          subject_id: row.subject_id,
+          subject_name: row.subject_name,
+          scored_count: Number(row.scored_count) || 0,
+        })),
+      },
+    });
+  }),
+);
+
+// ==========================================
+// GET Sync Formatif Preview
+// ==========================================
+router.get(
+  "/grading/sync/formative/preview",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const {
+      exam_id,
+      subject_id,
+      class_id,
+      month,
+      semester,
+      chapter_id,
+      teacher_id,
+    } = req.query;
+
+    if (!exam_id || !subject_id || !class_id || !month || !semester || !chapter_id) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "exam_id, subject_id, class_id, month, semester, dan chapter_id wajib diisi.",
+      });
+    }
+
+    const semesterValue = Number(semester);
+    if (![1, 2].includes(semesterValue)) {
+      return res.status(400).json({
+        status: "error",
+        message: "semester harus 1 atau 2.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      pool,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const scorePayload = await loadExamScoresForClass({
+      pool,
+      examId: Number(exam_id),
+      classId: Number(class_id),
+      periodeId: activePeriode.id,
+    });
+    if (!scorePayload.ok) {
+      return res.status(scorePayload.status).json({
+        status: "error",
+        message: scorePayload.message,
+      });
+    }
+
+    if (Number(scorePayload.exam.subject_id) !== Number(subject_id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Jadwal ujian tidak sesuai mata pelajaran.",
+      });
+    }
+
+    const nextSubchapterId = await resolveNextFormativeSubchapterId({
+      pool,
+      subjectId: subject_id,
+      classId: class_id,
+      chapterId: chapter_id,
+      teacherId: effectiveTeacherId,
+      periodeId: activePeriode.id,
+      month,
+    });
+
+    return res.json({
+      status: "success",
+      data: {
+        exam: scorePayload.exam,
+        next_subchapter_id: nextSubchapterId,
+        next_column_label: `Nilai ${nextSubchapterId}`,
+        scored_count: scorePayload.scored_count,
+        total_students: scorePayload.total_students,
+        students: scorePayload.students,
+      },
+    });
+  }),
+);
+
+// ==========================================
+// POST Sync Formatif from Exam (always new column)
+// ==========================================
+router.post(
+  "/grading/sync/formative",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const {
+      exam_id,
+      subject_id,
+      class_id,
+      month,
+      semester,
+      chapter_id,
+      teacher_id,
+    } = req.body;
+
+    if (!exam_id || !subject_id || !class_id || !month || !semester || !chapter_id) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "exam_id, subject_id, class_id, month, semester, dan chapter_id wajib diisi.",
+      });
+    }
+
+    const semesterValue = Number(semester);
+    if (![1, 2].includes(semesterValue)) {
+      return res.status(400).json({
+        status: "error",
+        message: "semester harus 1 atau 2.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool: client,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool: client,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      client,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const scorePayload = await loadExamScoresForClass({
+      pool: client,
+      examId: Number(exam_id),
+      classId: Number(class_id),
+      periodeId: activePeriode.id,
+    });
+    if (!scorePayload.ok) {
+      return res.status(scorePayload.status).json({
+        status: "error",
+        message: scorePayload.message,
+      });
+    }
+
+    if (Number(scorePayload.exam.subject_id) !== Number(subject_id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Jadwal ujian tidak sesuai mata pelajaran.",
+      });
+    }
+
+    const scoredItems = scorePayload.students.filter((item) => item.has_score);
+    if (!scoredItems.length) {
+      return res.status(400).json({
+        status: "error",
+        message: "Belum ada hasil ujian siswa yang dapat di-sync.",
+      });
+    }
+
+    const nextSubchapterId = await resolveNextFormativeSubchapterId({
+      pool: client,
+      subjectId: subject_id,
+      classId: class_id,
+      chapterId: chapter_id,
+      teacherId: effectiveTeacherId,
+      periodeId: activePeriode.id,
+      month,
+    });
+
+    const typeKey = buildFormativeType(month, chapter_id, nextSubchapterId);
+    const normalizedMonth = normalizeMonthLabel(month);
+
+    let insertedCount = 0;
+    for (const item of scoredItems) {
+      await client.query(
+        `INSERT INTO lms.l_score_formative (
+           periode_id,
+           semester,
+           month,
+           class_id,
+           student_id,
+           teacher_id,
+           subject_id,
+           chapter_id,
+           type,
+           score
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          activePeriode.id,
+          semesterValue,
+          normalizedMonth,
+          class_id,
+          item.student_id,
+          effectiveTeacherId,
+          subject_id,
+          chapter_id,
+          typeKey,
+          normalizeScore(item.score),
+        ],
+      );
+      insertedCount += 1;
+    }
+
+    return res.json({
+      status: "success",
+      message: `Berhasil sync ${insertedCount} nilai ke kolom ${`Nilai ${nextSubchapterId}`}.`,
+      data: {
+        exam_id: Number(exam_id),
+        exam_name: scorePayload.exam.name,
+        subchapter_id: nextSubchapterId,
+        column_label: `Nilai ${nextSubchapterId}`,
+        type: typeKey,
+        synced_count: insertedCount,
+        skipped_count: scorePayload.total_students - insertedCount,
       },
     });
   }),
