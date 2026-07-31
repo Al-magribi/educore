@@ -136,15 +136,9 @@ const TransactionList = ({
     (sum, item) => sum + Number(item.amount || 0),
     0,
   );
-  const pendingCount = transactions.filter(
-    (item) => item.status === "pending",
-  ).length;
-  const confirmedCount = transactions.filter(
-    (item) => item.status === "confirmed",
-  ).length;
-  const rejectedCount = transactions.filter(
-    (item) => item.status === "rejected",
-  ).length;
+  const pendingCount = Number(transactionSummary.pending_count || 0);
+  const confirmedCount = Number(transactionSummary.confirmed_count || 0);
+  const rejectedCount = Number(transactionSummary.rejected_count || 0);
 
   const summaryItems = [
     {

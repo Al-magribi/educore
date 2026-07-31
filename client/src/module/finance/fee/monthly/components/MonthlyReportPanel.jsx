@@ -1,12 +1,16 @@
+import { useMemo, useState } from "react";
 import {
+  Button,
   Card,
   Col,
   Empty,
   Flex,
   Grid,
+  Modal,
   Row,
   Space,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -16,13 +20,19 @@ import {
   AlertTriangle,
   BarChart3,
   CircleDollarSign,
+  Eye,
   Filter,
   Gift,
   Info,
   Target,
 } from "lucide-react";
 
-import { cardStyle, currencyFormatter } from "../constants";
+import {
+  cardStyle,
+  currencyFormatter,
+  statusColorMap,
+  statusLabelMap,
+} from "../constants";
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
@@ -55,6 +65,46 @@ const reportCardMeta = {
   },
 };
 
+const paymentStatusLabelMap = {
+  ...statusLabelMap,
+  partial: "Cicilan",
+};
+
+const paymentStatusColorMap = {
+  ...statusColorMap,
+  partial: "blue",
+};
+
+const compareStudents = (left, right) => {
+  const classCompare = String(left.class_name || "").localeCompare(
+    String(right.class_name || ""),
+    "id",
+    { sensitivity: "base" },
+  );
+  if (classCompare !== 0) {
+    return classCompare;
+  }
+
+  return String(left.student_name || "").localeCompare(
+    String(right.student_name || ""),
+    "id",
+    { sensitivity: "base" },
+  );
+};
+
+const getScholarshipNames = (payment) => {
+  const names = Array.isArray(payment.scholarship_names)
+    ? [...new Set(payment.scholarship_names.filter(Boolean))]
+    : [];
+  if (names.length > 0) {
+    return names;
+  }
+  if (Number(payment.scholarship_cover || 0) > 0 || payment.has_scholarship) {
+    return ["Beasiswa"];
+  }
+  return [];
+};
+
 const MonthlyReportPanel = ({
   payments = [],
   filterContext = {},
@@ -69,6 +119,11 @@ const MonthlyReportPanel = ({
     monthLabel,
     studentSearch,
   } = filterContext;
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailTitle, setDetailTitle] = useState("Detail Siswa");
+  const [detailStudents, setDetailStudents] = useState([]);
+  const [detailTab, setDetailTab] = useState("paid");
 
   const reportMap = new Map();
 
@@ -90,6 +145,7 @@ const MonthlyReportPanel = ({
       partialStudents: 0,
       unpaidStudents: 0,
       totalStudents: 0,
+      students: [],
     };
 
     currentItem.targetAmount += Number(payment.amount || 0);
@@ -100,6 +156,7 @@ const MonthlyReportPanel = ({
     );
     currentItem.scholarshipCover += Number(payment.scholarship_cover || 0);
     currentItem.totalStudents += 1;
+    currentItem.students.push(payment);
 
     if (payment.status === "paid") {
       currentItem.realizationAmount += Number(payment.amount || 0);
@@ -219,6 +276,148 @@ const MonthlyReportPanel = ({
     },
   ];
 
+  const openDetail = (students, title, preferredTab = "paid") => {
+    const sorted = [...students].sort(compareStudents);
+    const paidCount = sorted.filter((item) => item.status === "paid").length;
+    const unpaidCount = sorted.filter((item) => item.status !== "paid").length;
+    const scholarshipCount = sorted.filter(
+      (item) => Number(item.scholarship_cover || 0) > 0 || item.has_scholarship,
+    ).length;
+
+    let nextTab = preferredTab;
+    if (preferredTab === "paid" && paidCount === 0 && unpaidCount > 0) {
+      nextTab = "unpaid";
+    } else if (
+      preferredTab === "unpaid" &&
+      unpaidCount === 0 &&
+      paidCount > 0
+    ) {
+      nextTab = "paid";
+    } else if (
+      preferredTab === "scholarship" &&
+      scholarshipCount === 0 &&
+      paidCount > 0
+    ) {
+      nextTab = "paid";
+    } else if (
+      preferredTab === "scholarship" &&
+      scholarshipCount === 0 &&
+      unpaidCount > 0
+    ) {
+      nextTab = "unpaid";
+    }
+
+    setDetailStudents(sorted);
+    setDetailTitle(title);
+    setDetailTab(nextTab);
+    setDetailOpen(true);
+  };
+
+  const detailBuckets = useMemo(() => {
+    const paid = detailStudents.filter((item) => item.status === "paid");
+    const unpaid = detailStudents.filter((item) => item.status !== "paid");
+    const scholarship = detailStudents.filter(
+      (item) => Number(item.scholarship_cover || 0) > 0 || item.has_scholarship,
+    );
+    return { paid, unpaid, scholarship };
+  }, [detailStudents]);
+
+  const detailColumns = [
+    {
+      title: "No",
+      key: "no",
+      width: 44,
+      render: (_, __, index) => index + 1,
+    },
+    {
+      title: "Siswa",
+      key: "student",
+      render: (_, record) => {
+        const scholarshipNames = getScholarshipNames(record);
+        return (
+          <Space direction='vertical' size={2} style={{ width: "100%", minWidth: 0 }}>
+            <Text strong style={{ wordBreak: "break-word" }}>
+              {record.student_name || "-"}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12, wordBreak: "break-word" }}>
+              NIS {record.nis || "-"}
+              {record.class_name ? ` · ${record.class_name}` : ""}
+            </Text>
+            {scholarshipNames.length > 0 ? (
+              <Space size={[4, 4]} wrap>
+                {scholarshipNames.map((name) => (
+                  <Tag
+                    key={name}
+                    color='geekblue'
+                    style={{
+                      borderRadius: 999,
+                      margin: 0,
+                      maxWidth: "100%",
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {name}
+                  </Tag>
+                ))}
+              </Space>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
+      title: "Tagihan",
+      key: "amount",
+      width: isMobile ? 118 : 148,
+      align: "right",
+      render: (_, record) => (
+        <Space direction='vertical' size={2} style={{ width: "100%", alignItems: "flex-end" }}>
+          <Text strong>
+            {currencyFormatter.format(Number(record.amount || 0))}
+          </Text>
+          {Number(record.scholarship_cover || 0) > 0 ? (
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              Cover {currencyFormatter.format(Number(record.scholarship_cover || 0))}
+            </Text>
+          ) : null}
+          <Tag
+            color={paymentStatusColorMap[record.status] || "default"}
+            style={{ borderRadius: 999, margin: 0, fontWeight: 600 }}
+          >
+            {paymentStatusLabelMap[record.status] || record.status || "-"}
+          </Tag>
+        </Space>
+      ),
+    },
+  ];
+
+  const renderDetailTable = (rows, emptyDescription) => (
+    <Table
+      rowKey={(record) =>
+        record.id ||
+        `${record.student_id}-${record.periode_id}-${record.bill_month}`
+      }
+      columns={detailColumns}
+      dataSource={rows}
+      size='small'
+      tableLayout='fixed'
+      pagination={{
+        pageSize: 8,
+        size: "small",
+        showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} siswa`,
+      }}
+      locale={{
+        emptyText: (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={emptyDescription}
+          />
+        ),
+      }}
+    />
+  );
+
   const desktopColumns = [
     {
       title: "Kelas",
@@ -285,11 +484,33 @@ const MonthlyReportPanel = ({
       dataIndex: "achievementMeta",
       key: "achievementMeta",
       width: 110,
-      fixed: "right",
       render: (value) => (
         <Tag color={value.color} style={{ borderRadius: 999, fontWeight: 600 }}>
           {value.label}
         </Tag>
+      ),
+    },
+    {
+      title: "Aksi",
+      key: "actions",
+      width: 100,
+      fixed: "right",
+      render: (_, record) => (
+        <Button
+          type='link'
+          size='small'
+          icon={<Eye size={14} />}
+          onClick={() =>
+            openDetail(
+              record.students,
+              `Detail ${record.classroom}${
+                showPeriodeColumn ? ` · ${record.periodeName}` : ""
+              }`,
+            )
+          }
+        >
+          Detail
+        </Button>
       ),
     },
   ];
@@ -343,6 +564,22 @@ const MonthlyReportPanel = ({
               </Text>
             </div>
           </Flex>
+          <Button
+            type='default'
+            size='small'
+            icon={<Eye size={14} />}
+            onClick={() =>
+              openDetail(
+                record.students,
+                `Detail ${record.classroom}${
+                  showPeriodeColumn ? ` · ${record.periodeName}` : ""
+                }`,
+              )
+            }
+            block
+          >
+            Detail siswa
+          </Button>
         </Flex>
       ),
     },
@@ -477,6 +714,22 @@ const MonthlyReportPanel = ({
               <Tag color='geekblue' style={{ borderRadius: 999, fontWeight: 600, margin: 0 }}>
                 {totalStudents} siswa
               </Tag>
+              <Button
+                type='primary'
+                size={isMobile ? "small" : "middle"}
+                icon={<Eye size={14} />}
+                disabled={totalStudents === 0}
+                onClick={() =>
+                  openDetail(
+                    payments,
+                    monthLabel
+                      ? `Detail siswa · ${monthLabel}`
+                      : "Detail siswa (filter aktif)",
+                  )
+                }
+              >
+                Detail
+              </Button>
             </Space>
           }
         >
@@ -485,7 +738,7 @@ const MonthlyReportPanel = ({
             columns={isMobile ? mobileColumns : desktopColumns}
             dataSource={dataSource}
             size={isMobile ? "small" : "middle"}
-            scroll={isMobile ? undefined : { x: showPeriodeColumn ? 1200 : 1000 }}
+            scroll={isMobile ? undefined : { x: showPeriodeColumn ? 1280 : 1080 }}
             pagination={{
               pageSize: isMobile ? 8 : 10,
               size: isMobile ? "small" : "default",
@@ -515,6 +768,67 @@ const MonthlyReportPanel = ({
           />
         </Card>
       </Col>
+
+      <Modal
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        title={detailTitle}
+        width={isMobile ? "calc(100vw - 24px)" : 720}
+        footer={[
+          <Button key='close' onClick={() => setDetailOpen(false)}>
+            Tutup
+          </Button>,
+        ]}
+        destroyOnHidden
+        styles={{
+          body: { overflowX: "hidden" },
+        }}
+      >
+        <Space direction='vertical' size={12} style={{ width: "100%", maxWidth: "100%" }}>
+          <Space wrap size={[6, 6]}>
+            <Tag color='green' style={{ borderRadius: 999, margin: 0 }}>
+              Lunas {detailBuckets.paid.length}
+            </Tag>
+            <Tag color='gold' style={{ borderRadius: 999, margin: 0 }}>
+              Belum lunas {detailBuckets.unpaid.length}
+            </Tag>
+            <Tag color='geekblue' style={{ borderRadius: 999, margin: 0 }}>
+              Beasiswa {detailBuckets.scholarship.length}
+            </Tag>
+          </Space>
+
+          <Tabs
+            activeKey={detailTab}
+            onChange={setDetailTab}
+            items={[
+              {
+                key: "paid",
+                label: `Sudah Lunas (${detailBuckets.paid.length})`,
+                children: renderDetailTable(
+                  detailBuckets.paid,
+                  "Belum ada siswa yang lunas pada cakupan ini.",
+                ),
+              },
+              {
+                key: "unpaid",
+                label: `Belum Lunas (${detailBuckets.unpaid.length})`,
+                children: renderDetailTable(
+                  detailBuckets.unpaid,
+                  "Semua siswa pada cakupan ini sudah lunas.",
+                ),
+              },
+              {
+                key: "scholarship",
+                label: `Beasiswa (${detailBuckets.scholarship.length})`,
+                children: renderDetailTable(
+                  detailBuckets.scholarship,
+                  "Tidak ada siswa beasiswa pada cakupan ini.",
+                ),
+              },
+            ]}
+          />
+        </Space>
+      </Modal>
     </Row>
   );
 };

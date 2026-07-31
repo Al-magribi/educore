@@ -1,19 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { useFinanceScope } from "../../center/finance/FinanceScopeContext";
-import {
-  Alert,
-  Card,
-  Flex,
-  Form,
-  Grid,
-  Button,
-  Space,
-  Typography,
-  message,
-} from "antd";
-import { motion } from "framer-motion";
-import { Banknote, Building2, CreditCard, FileBadge2 } from "lucide-react";
-import { LoadApp } from "../../../components";
+import { useEffect, useMemo, useState } from 'react';
+import { useFinanceScope } from '../../center/finance/FinanceScopeContext';
+import { Alert, Card, Flex, Form, Grid, Button, Space, Typography, message } from 'antd';
+import { motion } from 'framer-motion';
+import { Banknote, Building2, CreditCard, FileBadge2 } from 'lucide-react';
+import { LoadApp } from '../../../components';
 import {
   useAddBankAccountMutation,
   useDeleteBankAccountMutation,
@@ -24,14 +14,12 @@ import {
   useUpdatePaymentMethodMutation,
   useUploadFinanceSignatureMutation,
   useUpdateBankAccountMutation,
-} from "../../../service/finance/ApiSetting";
-import SettingHeader from "./components/SettingHeader";
-import FinanceProfileTab from "./components/FinanceProfileTab";
-import MidtransTab from "./components/MidtransTab";
-import PaymentMethodsCard from "./components/PaymentMethodsCard";
-import BankAccountsTab, {
-  createBankColumns,
-} from "./components/BankAccountsTab";
+} from '../../../service/finance/ApiSetting';
+import SettingHeader from './components/SettingHeader';
+import FinanceProfileTab from './components/FinanceProfileTab';
+import MidtransTab from './components/MidtransTab';
+import PaymentMethodsCard from './components/PaymentMethodsCard';
+import BankAccountsTab, { createBankColumns } from './components/BankAccountsTab';
 
 const MotionDiv = motion.div;
 
@@ -62,17 +50,14 @@ const itemVariants = {
 
 const { Paragraph, Text, Title } = Typography;
 
-const hasValue = (value) =>
-  value !== undefined && value !== null && value !== "";
+const hasValue = (value) => value !== undefined && value !== null && value !== '';
 
 const Setting = () => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const financeScope = useFinanceScope();
-  const [selectedHomebaseId, setSelectedHomebaseId] = useState(
-    financeScope?.homebaseId || undefined,
-  );
-  const [activeTab, setActiveTab] = useState("profile");
+  const [selectedHomebaseId, setSelectedHomebaseId] = useState(financeScope?.homebaseId || undefined);
+  const [activeTab, setActiveTab] = useState('profile');
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [editingBankAccount, setEditingBankAccount] = useState(null);
 
@@ -80,24 +65,18 @@ const Setting = () => {
   const [financeProfileForm] = Form.useForm();
   const [bankForm] = Form.useForm();
 
-  const { data: optionsResponse, isLoading: isLoadingOptions } =
-    useGetSettingOptionsQuery(
-      hasValue(selectedHomebaseId) ? { homebase_id: selectedHomebaseId } : undefined,
-    );
+  const { data: optionsResponse, isLoading: isLoadingOptions } = useGetSettingOptionsQuery(
+    hasValue(selectedHomebaseId) ? { homebase_id: selectedHomebaseId } : undefined,
+  );
 
   const optionData = optionsResponse?.data || {};
   const homebases = Array.isArray(optionData.homebases) ? optionData.homebases : [];
-  const fallbackHomebaseId =
-    optionData.selected_homebase_id ?? homebases[0]?.id ?? null;
-  const effectiveSelectedHomebaseId =
-    hasValue(selectedHomebaseId) ? selectedHomebaseId : fallbackHomebaseId;
+  const fallbackHomebaseId = optionData.selected_homebase_id ?? homebases[0]?.id ?? null;
+  const effectiveSelectedHomebaseId = hasValue(selectedHomebaseId) ? selectedHomebaseId : fallbackHomebaseId;
   const hasSelectedHomebase = hasValue(effectiveSelectedHomebaseId);
 
   const selectedHomebaseParam = useMemo(
-    () =>
-      hasSelectedHomebase
-        ? { homebase_id: effectiveSelectedHomebaseId }
-        : undefined,
+    () => (hasSelectedHomebase ? { homebase_id: effectiveSelectedHomebaseId } : undefined),
     [effectiveSelectedHomebaseId, hasSelectedHomebase],
   );
 
@@ -109,38 +88,24 @@ const Setting = () => {
     skip: !hasSelectedHomebase,
   });
 
-  const [saveMidtransConfig, { isLoading: isSavingMidtrans }] =
-    useSaveMidtransConfigMutation();
-  const [updatePaymentMethod, { isLoading: isUpdatingPaymentMethod }] =
-    useUpdatePaymentMethodMutation();
-  const [saveFinanceProfile, { isLoading: isSavingFinanceProfile }] =
-    useSaveFinanceProfileMutation();
-  const [uploadFinanceSignature, { isLoading: isUploadingSignature }] =
-    useUploadFinanceSignatureMutation();
-  const [addBankAccount, { isLoading: isAddingBankAccount }] =
-    useAddBankAccountMutation();
-  const [updateBankAccount, { isLoading: isUpdatingBankAccount }] =
-    useUpdateBankAccountMutation();
-  const [deleteBankAccount, { isLoading: isDeletingBankAccount }] =
-    useDeleteBankAccountMutation();
+  const [saveMidtransConfig, { isLoading: isSavingMidtrans }] = useSaveMidtransConfigMutation();
+  const [updatePaymentMethod, { isLoading: isUpdatingPaymentMethod }] = useUpdatePaymentMethodMutation();
+  const [saveFinanceProfile, { isLoading: isSavingFinanceProfile }] = useSaveFinanceProfileMutation();
+  const [uploadFinanceSignature, { isLoading: isUploadingSignature }] = useUploadFinanceSignatureMutation();
+  const [addBankAccount, { isLoading: isAddingBankAccount }] = useAddBankAccountMutation();
+  const [updateBankAccount, { isLoading: isUpdatingBankAccount }] = useUpdateBankAccountMutation();
+  const [deleteBankAccount, { isLoading: isDeletingBankAccount }] = useDeleteBankAccountMutation();
 
   const settingsData = settingsResponse?.data || {};
   const selectedHomebase =
-    settingsData.homebase ||
-    homebases.find(
-      (item) => String(item.id) === String(effectiveSelectedHomebaseId),
-    ) ||
-    null;
+    settingsData.homebase || homebases.find((item) => String(item.id) === String(effectiveSelectedHomebaseId)) || null;
   const gatewayConfig = settingsData.gateway_config || null;
   const financeSetting = settingsData.finance_setting || null;
   const bankAccounts = settingsData.bank_accounts || [];
   const paymentMethods = settingsData.payment_methods || [];
-  const manualBankMethod =
-    paymentMethods.find((item) => item.method_type === "manual_bank") || null;
-  const manualCashMethod =
-    paymentMethods.find((item) => item.method_type === "manual_cash") || null;
-  const midtransMethod =
-    paymentMethods.find((item) => item.method_type === "midtrans") || null;
+  const manualBankMethod = paymentMethods.find((item) => item.method_type === 'manual_bank') || null;
+  const manualCashMethod = paymentMethods.find((item) => item.method_type === 'manual_cash') || null;
+  const midtransMethod = paymentMethods.find((item) => item.method_type === 'midtrans') || null;
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -215,7 +180,7 @@ const Setting = () => {
 
   const handleSubmitMidtrans = async (values) => {
     if (!hasSelectedHomebase) {
-      message.error("Satuan wajib dipilih terlebih dahulu");
+      message.error('Satuan wajib dipilih terlebih dahulu');
       return;
     }
 
@@ -224,46 +189,39 @@ const Setting = () => {
         homebase_id: effectiveSelectedHomebaseId,
         ...values,
       }).unwrap();
-      message.success("Pengaturan Midtrans berhasil disimpan");
-      midtransForm.setFieldValue("server_key", undefined);
+      message.success('Pengaturan Midtrans berhasil disimpan');
+      midtransForm.setFieldValue('server_key', undefined);
     } catch (error) {
-      message.error(
-        error?.data?.message || "Gagal menyimpan pengaturan Midtrans",
-      );
+      message.error(error?.data?.message || 'Gagal menyimpan pengaturan Midtrans');
     }
   };
 
   const handleSubmitFinanceProfile = async () => {
     if (!hasSelectedHomebase) {
-      message.error("Satuan wajib dipilih terlebih dahulu");
+      message.error('Satuan wajib dipilih terlebih dahulu');
       return;
     }
 
     try {
-      const values = await financeProfileForm.validateFields([
-        "officer_name",
-        "officer_signature_url",
-      ]);
+      const values = await financeProfileForm.validateFields(['officer_name', 'officer_signature_url']);
 
       await saveFinanceProfile({
         homebase_id: effectiveSelectedHomebaseId,
         ...values,
       }).unwrap();
-      message.success("Data petugas invoice berhasil disimpan");
+      message.success('Data petugas invoice berhasil disimpan');
     } catch (error) {
       if (error?.errorFields) {
         return;
       }
 
-      message.error(
-        error?.data?.message || "Gagal menyimpan data petugas invoice",
-      );
+      message.error(error?.data?.message || 'Gagal menyimpan data petugas invoice');
     }
   };
 
   const handleTogglePaymentMethod = async (methodType, nextActive) => {
     if (!hasSelectedHomebase) {
-      message.error("Satuan wajib dipilih terlebih dahulu");
+      message.error('Satuan wajib dipilih terlebih dahulu');
       return;
     }
 
@@ -274,20 +232,16 @@ const Setting = () => {
         is_active: nextActive,
       }).unwrap();
       message.success(
-        nextActive
-          ? "Metode pembayaran berhasil diaktifkan"
-          : "Metode pembayaran berhasil dinonaktifkan",
+        nextActive ? 'Metode pembayaran berhasil diaktifkan' : 'Metode pembayaran berhasil dinonaktifkan',
       );
     } catch (error) {
-      message.error(
-        error?.data?.message || "Gagal memperbarui metode pembayaran",
-      );
+      message.error(error?.data?.message || 'Gagal memperbarui metode pembayaran');
     }
   };
 
   const handleUploadSignature = async ({ file, onSuccess, onError }) => {
     if (!hasSelectedHomebase) {
-      const uploadError = new Error("Satuan wajib dipilih terlebih dahulu");
+      const uploadError = new Error('Satuan wajib dipilih terlebih dahulu');
       onError?.(uploadError);
       message.error(uploadError.message);
       return;
@@ -295,23 +249,23 @@ const Setting = () => {
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append('file', file);
 
       const response = await uploadFinanceSignature(formData).unwrap();
-      const uploadedUrl = response?.data?.url || response?.url || "";
+      const uploadedUrl = response?.data?.url || response?.url || '';
 
-      financeProfileForm.setFieldValue("officer_signature_url", uploadedUrl);
+      financeProfileForm.setFieldValue('officer_signature_url', uploadedUrl);
       onSuccess?.(response, file);
-      message.success("Tanda tangan berhasil diunggah");
+      message.success('Tanda tangan berhasil diunggah');
     } catch (error) {
       onError?.(error);
-      message.error(error?.data?.message || "Gagal mengunggah tanda tangan");
+      message.error(error?.data?.message || 'Gagal mengunggah tanda tangan');
     }
   };
 
   const handleSubmitBankAccount = async (values) => {
     if (!hasSelectedHomebase) {
-      message.error("Satuan wajib dipilih terlebih dahulu");
+      message.error('Satuan wajib dipilih terlebih dahulu');
       return;
     }
 
@@ -322,18 +276,18 @@ const Setting = () => {
           homebase_id: effectiveSelectedHomebaseId,
           ...values,
         }).unwrap();
-        message.success("Rekening bank berhasil diperbarui");
+        message.success('Rekening bank berhasil diperbarui');
       } else {
         await addBankAccount({
           homebase_id: effectiveSelectedHomebaseId,
           ...values,
         }).unwrap();
-        message.success("Rekening bank berhasil ditambahkan");
+        message.success('Rekening bank berhasil ditambahkan');
       }
 
       closeBankModal();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan rekening bank");
+      message.error(error?.data?.message || 'Gagal menyimpan rekening bank');
     }
   };
 
@@ -343,9 +297,9 @@ const Setting = () => {
         id: record.id,
         homebase_id: effectiveSelectedHomebaseId,
       }).unwrap();
-      message.success("Rekening bank berhasil dihapus");
+      message.success('Rekening bank berhasil dihapus');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus rekening bank");
+      message.error(error?.data?.message || 'Gagal menghapus rekening bank');
     }
   };
 
@@ -357,26 +311,24 @@ const Setting = () => {
 
   const financeSummaryItems = [
     {
-      title: "Satuan aktif",
-      value: selectedHomebase?.name || "Belum dipilih",
-      caption: "Konfigurasi akan tersimpan per unit",
+      title: 'Satuan aktif',
+      value: selectedHomebase?.name || 'Belum dipilih',
+      caption: 'Konfigurasi akan tersimpan per unit',
     },
     {
-      title: "Rekening bank",
+      title: 'Rekening bank',
       value: `${bankAccounts.length} rekening`,
       caption: `${bankAccounts.filter((item) => item.is_active).length} aktif`,
     },
     {
-      title: "Metode pembayaran",
+      title: 'Metode pembayaran',
       value: `${paymentMethods.length} kanal`,
-      caption: `${
-        paymentMethods.filter((item) => item.is_active).length
-      } metode aktif`,
+      caption: `${paymentMethods.filter((item) => item.is_active).length} metode aktif`,
     },
     {
-      title: "Gateway Midtrans",
-      value: midtransMethod?.is_active ? "Aktif" : "Belum aktif",
-      caption: gatewayConfig?.is_production ? "Mode production" : "Mode sandbox",
+      title: 'Gateway Midtrans',
+      value: midtransMethod?.is_active ? 'Aktif' : 'Belum aktif',
+      caption: gatewayConfig?.is_production ? 'Mode production' : 'Mode sandbox',
     },
   ];
   const isSettingsBusy = isLoadingSettings || isFetchingSettings;
@@ -386,20 +338,19 @@ const Setting = () => {
   }
 
   const createTabLabel = (label, shortLabel, icon, caption) => (
-    <Flex align='center' gap={isMobile ? 8 : 10}>
+    <Flex align="center" gap={isMobile ? 8 : 10}>
       <span
         style={{
           width: isMobile ? 28 : 34,
           height: isMobile ? 28 : 34,
-          display: "grid",
-          placeItems: "center",
+          display: 'grid',
+          placeItems: 'center',
           borderRadius: isMobile ? 10 : 12,
-          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
-          color: "#0369a1",
-          border: "1px solid rgba(148,163,184,0.14)",
+          background: 'linear-gradient(135deg, #dbeafe, #dcfce7)',
+          color: '#0369a1',
+          border: '1px solid rgba(148,163,184,0.14)',
           flexShrink: 0,
-        }}
-      >
+        }}>
         {icon}
       </span>
       <div style={{ minWidth: 0 }}>
@@ -408,27 +359,22 @@ const Setting = () => {
             fontWeight: 600,
             lineHeight: 1.2,
             fontSize: isMobile ? 13 : 14,
-          }}
-        >
+          }}>
           {isMobile ? shortLabel : label}
         </div>
-        {!isMobile ? (
-          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
-            {caption}
-          </div>
-        ) : null}
+        {!isMobile ? <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.2 }}>{caption}</div> : null}
       </div>
     </Flex>
   );
 
   const tabItems = [
     {
-      key: "profile",
+      key: 'profile',
       label: createTabLabel(
-        "Petugas Invoice",
-        "Petugas",
+        'Petugas Invoice',
+        'Petugas',
         <FileBadge2 size={isMobile ? 14 : 16} />,
-        "Profil penandatangan",
+        'Profil penandatangan',
       ),
       children: (
         <FinanceProfileTab
@@ -442,13 +388,8 @@ const Setting = () => {
       ),
     },
     {
-      key: "midtrans",
-      label: createTabLabel(
-        "Midtrans",
-        "Midtrans",
-        <CreditCard size={isMobile ? 14 : 16} />,
-        "Gateway pembayaran",
-      ),
+      key: 'midtrans',
+      label: createTabLabel('Midtrans', 'Midtrans', <CreditCard size={isMobile ? 14 : 16} />, 'Gateway pembayaran'),
       children: (
         <MidtransTab
           form={midtransForm}
@@ -460,12 +401,12 @@ const Setting = () => {
       ),
     },
     {
-      key: "banks",
+      key: 'banks',
       label: createTabLabel(
-        "Rekening Bank",
-        "Rekening",
+        'Rekening Bank',
+        'Rekening',
         <Banknote size={isMobile ? 14 : 16} />,
-        "Tujuan transfer manual",
+        'Tujuan transfer manual',
       ),
       children: (
         <BankAccountsTab
@@ -485,12 +426,12 @@ const Setting = () => {
       ),
     },
     {
-      key: "methods",
+      key: 'methods',
       label: createTabLabel(
-        "Metode Pembayaran",
-        "Metode",
+        'Metode Pembayaran',
+        'Metode',
         <Building2 size={isMobile ? 14 : 16} />,
-        "Aktif atau nonaktifkan kanal",
+        'Aktif atau nonaktifkan kanal',
       ),
       children: (
         <PaymentMethodsCard
@@ -501,25 +442,16 @@ const Setting = () => {
           bankAccounts={bankAccounts}
           isUpdatingPaymentMethod={isUpdatingPaymentMethod}
           onTogglePaymentMethod={handleTogglePaymentMethod}
-          onOpenMidtransTab={() => setActiveTab("midtrans")}
-          onOpenBankTab={() => setActiveTab("banks")}
+          onOpenMidtransTab={() => setActiveTab('midtrans')}
+          onOpenBankTab={() => setActiveTab('banks')}
         />
       ),
     },
   ];
 
   return (
-    <MotionDiv
-      variants={containerVariants}
-      initial='hidden'
-      animate='visible'
-      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
-    >
-      <Space
-        vertical
-        size={isMobile ? 16 : 24}
-        style={{ width: "100%", display: "flex" }}
-      >
+    <MotionDiv variants={containerVariants} initial="hidden" animate="visible">
+      <Space vertical size={isMobile ? 16 : 24} style={{ width: '100%', display: 'flex' }}>
         <MotionDiv variants={itemVariants}>
           <SettingHeader
             homebases={homebases}
@@ -531,10 +463,10 @@ const Setting = () => {
         {!hasSelectedHomebase ? (
           <MotionDiv variants={itemVariants}>
             <Alert
-              type='info'
+              type="info"
               showIcon
-              message='Satuan belum dipilih'
-              description='Pilih satuan terlebih dahulu untuk mengatur Midtrans, rekening bank, metode pembayaran, dan profil invoice.'
+              message="Satuan belum dipilih"
+              description="Pilih satuan terlebih dahulu untuk mengatur Midtrans, rekening bank, metode pembayaran, dan profil invoice."
               style={{ borderRadius: 18 }}
             />
           </MotionDiv>
@@ -544,25 +476,23 @@ const Setting = () => {
           <MotionDiv variants={itemVariants}>
             <Flex vertical gap={18}>
               <Card
-                variant='borderless'
+                variant="borderless"
                 style={{
-                  width: "100%",
+                  width: '100%',
                   borderRadius: isMobile ? 20 : 28,
-                  border: "1px solid rgba(148,163,184,0.14)",
-                  boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-                  background:
-                    "linear-gradient(180deg, rgba(248,250,252,0.96) 0%, #ffffff 100%)",
-                  overflow: "hidden",
+                  border: '1px solid rgba(148,163,184,0.14)',
+                  boxShadow: '0 24px 60px rgba(15,23,42,0.07)',
+                  background: 'linear-gradient(180deg, rgba(248,250,252,0.96) 0%, #ffffff 100%)',
+                  overflow: 'hidden',
                 }}
-                styles={{ body: { padding: isMobile ? 12 : 22 } }}
-              >
+                styles={{ body: { padding: isMobile ? 12 : 22 } }}>
                 <Flex vertical gap={isMobile ? 14 : 18}>
                   {isSettingsBusy ? (
                     <Alert
-                      type='info'
+                      type="info"
                       showIcon
-                      message='Memuat konfigurasi satuan'
-                      description='Panel tetap tersedia dan akan diperbarui otomatis saat data Midtrans, rekening, dan profil invoice selesai dimuat.'
+                      message="Memuat konfigurasi satuan"
+                      description="Panel tetap tersedia dan akan diperbarui otomatis saat data Midtrans, rekening, dan profil invoice selesai dimuat."
                       style={{ borderRadius: 18 }}
                     />
                   ) : null}
@@ -571,51 +501,40 @@ const Setting = () => {
                     style={{
                       padding: isMobile ? 14 : 20,
                       borderRadius: isMobile ? 16 : 22,
-                      border: "1px solid rgba(59,130,246,0.12)",
-                      background:
-                        "linear-gradient(135deg, rgba(239,246,255,0.92), rgba(240,253,250,0.88))",
-                    }}
-                  >
-                    <Title
-                      level={isMobile ? 5 : 4}
-                      style={{ margin: 0, lineHeight: 1.3 }}
-                    >
+                      border: '1px solid rgba(59,130,246,0.12)',
+                      background: 'linear-gradient(135deg, rgba(239,246,255,0.92), rgba(240,253,250,0.88))',
+                    }}>
+                    <Title level={isMobile ? 5 : 4} style={{ margin: 0, lineHeight: 1.3 }}>
                       Workspace Pengaturan Pembayaran
                     </Title>
                     {!isMobile ? (
-                      <Paragraph
-                        type='secondary'
-                        style={{ margin: "6px 0 0", maxWidth: 760 }}
-                      >
-                        Gunakan panel ini untuk memastikan profil invoice, rekening
-                        bank, dan koneksi Midtrans setiap satuan tersusun rapi dan
-                        siap dipakai operasional harian.
+                      <Paragraph type="secondary" style={{ margin: '6px 0 0', maxWidth: 760 }}>
+                        Gunakan panel ini untuk memastikan profil invoice, rekening bank, dan koneksi Midtrans setiap
+                        satuan tersusun rapi dan siap dipakai operasional harian.
                       </Paragraph>
                     ) : null}
                     <div
                       style={{
-                        display: "grid",
+                        display: 'grid',
                         gridTemplateColumns: isMobile
-                          ? "1fr"
+                          ? '1fr'
                           : screens.lg
-                            ? "repeat(4, minmax(0, 1fr))"
-                            : "repeat(2, minmax(0, 1fr))",
+                            ? 'repeat(4, minmax(0, 1fr))'
+                            : 'repeat(2, minmax(0, 1fr))',
                         gap: 12,
                         marginTop: 16,
-                      }}
-                    >
+                      }}>
                       {financeSummaryItems.map((item) => (
                         <div
                           key={item.title}
                           style={{
-                            padding: isMobile ? "12px 14px" : "14px 16px",
+                            padding: isMobile ? '12px 14px' : '14px 16px',
                             borderRadius: 18,
-                            background: "#ffffff",
-                            border: "1px solid rgba(148,163,184,0.14)",
-                            boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
-                          }}
-                        >
-                          <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                            background: '#ffffff',
+                            border: '1px solid rgba(148,163,184,0.14)',
+                            boxShadow: '0 10px 24px rgba(15,23,42,0.04)',
+                          }}>
+                          <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
                             {item.title}
                           </Text>
                           <div
@@ -623,19 +542,17 @@ const Setting = () => {
                               marginTop: 8,
                               fontSize: isMobile ? 14 : 16,
                               fontWeight: 700,
-                              color: "#0f172a",
-                              wordBreak: "break-word",
-                            }}
-                          >
+                              color: '#0f172a',
+                              wordBreak: 'break-word',
+                            }}>
                             {item.value}
                           </div>
                           <div
                             style={{
                               marginTop: 4,
                               fontSize: 12,
-                              color: "#64748b",
-                            }}
-                          >
+                              color: '#64748b',
+                            }}>
                             {item.caption}
                           </div>
                         </div>
@@ -646,46 +563,40 @@ const Setting = () => {
                   <div>
                     <div
                       style={{
-                        display: "grid",
+                        display: 'grid',
                         gridTemplateColumns: isMobile
-                          ? "repeat(2, minmax(0, 1fr))"
+                          ? 'repeat(2, minmax(0, 1fr))'
                           : screens.lg
-                            ? "repeat(4, minmax(0, 1fr))"
-                            : "repeat(2, minmax(0, 1fr))",
+                            ? 'repeat(4, minmax(0, 1fr))'
+                            : 'repeat(2, minmax(0, 1fr))',
                         gap: 12,
                         marginBottom: 18,
-                      }}
-                    >
+                      }}>
                       {tabItems.map((item) => {
                         const isActive = activeTab === item.key;
 
                         return (
                           <Button
                             key={item.key}
-                            type={isActive ? "primary" : "default"}
+                            type={isActive ? 'primary' : 'default'}
                             onClick={() => setActiveTab(item.key)}
                             style={{
-                              height: "auto",
+                              height: 'auto',
                               minHeight: isMobile ? 58 : 74,
-                              padding: isMobile ? "10px 12px" : "12px 14px",
+                              padding: isMobile ? '10px 12px' : '12px 14px',
                               borderRadius: 18,
-                              justifyContent: "flex-start",
-                              textAlign: "left",
-                              whiteSpace: "normal",
-                              boxShadow: isActive
-                                ? "0 18px 32px rgba(37, 99, 235, 0.18)"
-                                : "none",
-                            }}
-                          >
+                              justifyContent: 'flex-start',
+                              textAlign: 'left',
+                              whiteSpace: 'normal',
+                              boxShadow: isActive ? '0 18px 32px rgba(37, 99, 235, 0.18)' : 'none',
+                            }}>
                             {item.label}
                           </Button>
                         );
                       })}
                     </div>
 
-                    <div style={{ width: "100%" }}>
-                      {tabItems.find((item) => item.key === activeTab)?.children}
-                    </div>
+                    <div style={{ width: '100%' }}>{tabItems.find((item) => item.key === activeTab)?.children}</div>
                   </div>
                 </Flex>
               </Card>

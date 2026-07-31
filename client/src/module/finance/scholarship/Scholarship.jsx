@@ -1,24 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
-import { useFinanceScope } from "../../center/finance/FinanceScopeContext";
-import {
-  Alert,
-  Button,
-  Card,
-  Flex,
-  Form,
-  Grid,
-  Input,
-  Select,
-  Space,
-  Tabs,
-  Typography,
-  message,
-} from "antd";
-import { motion } from "framer-motion";
-import { RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { useFinanceScope } from '../../center/finance/FinanceScopeContext';
+import { Alert, Button, Card, Flex, Form, Grid, Input, Select, Space, Tabs, Typography, message } from 'antd';
+import { motion } from 'framer-motion';
+import { RefreshCw } from 'lucide-react';
 
-import { LoadApp } from "../../../components";
+import { LoadApp } from '../../../components';
 import {
   useAddScholarshipBenefitMutation,
   useAddScholarshipMutation,
@@ -33,16 +20,16 @@ import {
   useUpdateScholarshipBenefitMutation,
   useUpdateScholarshipMutation,
   useUpdateScholarshipStudentMutation,
-} from "../../../service/finance/ApiScholarship";
-import { cardStyle, monthKey, pageStyle, parseMonthKey } from "./constants";
-import ScholarshipBenefitModal from "./components/ScholarshipBenefitModal";
-import ScholarshipBenefitTable from "./components/ScholarshipBenefitTable";
-import ScholarshipDetailSummary from "./components/ScholarshipDetailSummary";
-import ScholarshipFormModal from "./components/ScholarshipFormModal";
-import ScholarshipHeader from "./components/ScholarshipHeader";
-import ScholarshipListTable from "./components/ScholarshipListTable";
-import ScholarshipStudentsPanel from "./components/ScholarshipStudentsPanel";
-import ScholarshipSummaryCards from "./components/ScholarshipSummaryCards";
+} from '../../../service/finance/ApiScholarship';
+import { cardStyle, monthKey, pageStyle, parseMonthKey } from './constants';
+import ScholarshipBenefitModal from './components/ScholarshipBenefitModal';
+import ScholarshipBenefitTable from './components/ScholarshipBenefitTable';
+import ScholarshipDetailSummary from './components/ScholarshipDetailSummary';
+import ScholarshipFormModal from './components/ScholarshipFormModal';
+import ScholarshipHeader from './components/ScholarshipHeader';
+import ScholarshipListTable from './components/ScholarshipListTable';
+import ScholarshipStudentsPanel from './components/ScholarshipStudentsPanel';
+import ScholarshipSummaryCards from './components/ScholarshipSummaryCards';
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
@@ -54,10 +41,10 @@ const Scholarship = () => {
   const financeScope = useFinanceScope();
   const lockHomebase = Boolean(user?.homebase_id) || Boolean(financeScope?.homebaseId);
 
-  const [activeTab, setActiveTab] = useState("list");
+  const [activeTab, setActiveTab] = useState('list');
   const [selectedId, setSelectedId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [editingScholarship, setEditingScholarship] = useState(null);
   const [benefitModalOpen, setBenefitModalOpen] = useState(false);
@@ -66,24 +53,18 @@ const Scholarship = () => {
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,
-    search: "",
+    search: '',
   });
 
   const [scholarshipForm] = Form.useForm();
   const [benefitForm] = Form.useForm();
 
   const effectiveHomebaseId = user?.homebase_id || financeScope?.homebaseId;
-  const optionsQuery = useGetScholarshipOptionsQuery(
-    lockHomebase ? { homebase_id: effectiveHomebaseId } : undefined,
-  );
+  const optionsQuery = useGetScholarshipOptionsQuery(lockHomebase ? { homebase_id: effectiveHomebaseId } : undefined);
   const options = optionsQuery.data?.data || {};
   const homebases = options.homebases || [];
   const selectedHomebaseId =
-    options.selected_homebase_id ||
-    user?.homebase_id ||
-    financeScope?.homebaseId ||
-    homebases[0]?.id ||
-    undefined;
+    options.selected_homebase_id || user?.homebase_id || financeScope?.homebaseId || homebases[0]?.id || undefined;
 
   const studentOptionsQuery = useGetScholarshipOptionsQuery(
     selectedHomebaseId
@@ -102,11 +83,7 @@ const Scholarship = () => {
 
   const listQueryArgs = {
     ...(selectedHomebaseId ? { homebase_id: selectedHomebaseId } : {}),
-    ...(statusFilter === "active"
-      ? { is_active: true }
-      : statusFilter === "inactive"
-        ? { is_active: false }
-        : {}),
+    ...(statusFilter === 'active' ? { is_active: true } : statusFilter === 'inactive' ? { is_active: false } : {}),
     ...(search ? { search } : {}),
   };
 
@@ -121,13 +98,8 @@ const Scholarship = () => {
   const scholarships = listResponse?.data || [];
   const listImpactSummary = listResponse?.summary || {};
 
-  const {
-    data: detailResponse,
-    isFetching: isFetchingDetail,
-  } = useGetScholarshipByIdQuery(
-    selectedId
-      ? { id: selectedId, homebase_id: selectedHomebaseId }
-      : undefined,
+  const { data: detailResponse, isFetching: isFetchingDetail } = useGetScholarshipByIdQuery(
+    selectedId ? { id: selectedId, homebase_id: selectedHomebaseId } : undefined,
     { skip: !selectedId || !selectedHomebaseId },
   );
   const detail = detailResponse?.data || null;
@@ -136,22 +108,15 @@ const Scholarship = () => {
   const impact = detail?.impact || {};
 
   const [addScholarship, addScholarshipState] = useAddScholarshipMutation();
-  const [updateScholarship, updateScholarshipState] =
-    useUpdateScholarshipMutation();
-  const [deleteScholarship, deleteScholarshipState] =
-    useDeleteScholarshipMutation();
+  const [updateScholarship, updateScholarshipState] = useUpdateScholarshipMutation();
+  const [deleteScholarship, deleteScholarshipState] = useDeleteScholarshipMutation();
   const [addBenefit, addBenefitState] = useAddScholarshipBenefitMutation();
-  const [updateBenefit, updateBenefitState] =
-    useUpdateScholarshipBenefitMutation();
-  const [deleteBenefit, deleteBenefitState] =
-    useDeleteScholarshipBenefitMutation();
+  const [updateBenefit, updateBenefitState] = useUpdateScholarshipBenefitMutation();
+  const [deleteBenefit, deleteBenefitState] = useDeleteScholarshipBenefitMutation();
   const [addStudents, addStudentsState] = useAddScholarshipStudentsMutation();
-  const [removeStudents, removeStudentsState] =
-    useRemoveScholarshipStudentsMutation();
-  const [updateScholarshipStudent, updateStudentState] =
-    useUpdateScholarshipStudentMutation();
-  const [syncScholarship, syncScholarshipState] =
-    useSyncScholarshipStudentsMutation();
+  const [removeStudents, removeStudentsState] = useRemoveScholarshipStudentsMutation();
+  const [updateScholarshipStudent, updateStudentState] = useUpdateScholarshipStudentMutation();
+  const [syncScholarship, syncScholarshipState] = useSyncScholarshipStudentsMutation();
 
   useEffect(() => {
     if (!selectedId && scholarships.length > 0) {
@@ -160,10 +125,7 @@ const Scholarship = () => {
   }, [scholarships, selectedId]);
 
   useEffect(() => {
-    if (
-      !studentFilter.periode_id &&
-      (studentOptions.periodes || options.periodes)?.length
-    ) {
+    if (!studentFilter.periode_id && (studentOptions.periodes || options.periodes)?.length) {
       const defaultPeriode = (studentOptions.periodes || options.periodes).find(
         (item) => item.is_default || item.is_active,
       );
@@ -181,30 +143,23 @@ const Scholarship = () => {
     return {
       total: scholarships.length,
       active: active.length,
-      students: scholarships.reduce(
-        (sum, item) => sum + Number(item.student_count || 0),
-        0,
-      ),
-      benefits: scholarships.reduce(
-        (sum, item) => sum + Number(item.benefit_count || 0),
-        0,
-      ),
+      students: scholarships.reduce((sum, item) => sum + Number(item.student_count || 0), 0),
+      benefits: scholarships.reduce((sum, item) => sum + Number(item.benefit_count || 0), 0),
       total_cover: Number(listImpactSummary.total_cover || 0),
       spp_cover: Number(listImpactSummary.spp_cover || 0),
       other_cover: Number(listImpactSummary.other_cover || 0),
     };
   }, [scholarships, listImpactSummary]);
 
-  const selectedScholarship =
-    detail || scholarships.find((item) => item.id === selectedId) || null;
+  const selectedScholarship = detail || scholarships.find((item) => item.id === selectedId) || null;
 
   const openCreate = () => {
     setEditingScholarship(null);
     scholarshipForm.setFieldsValue({
       homebase_id: selectedHomebaseId,
-      name: "",
-      code: "",
-      description: "",
+      name: '',
+      code: '',
+      description: '',
       is_active: true,
     });
     setFormModalOpen(true);
@@ -215,8 +170,8 @@ const Scholarship = () => {
     scholarshipForm.setFieldsValue({
       homebase_id: record.homebase_id || selectedHomebaseId,
       name: record.name,
-      code: record.code || "",
-      description: record.description || "",
+      code: record.code || '',
+      description: record.description || '',
       is_active: record.is_active !== false,
     });
     setFormModalOpen(true);
@@ -230,13 +185,13 @@ const Scholarship = () => {
           homebase_id: selectedHomebaseId,
           ...values,
         }).unwrap();
-        message.success("Beasiswa berhasil diperbarui");
+        message.success('Beasiswa berhasil diperbarui');
       } else {
         const created = await addScholarship({
           homebase_id: selectedHomebaseId,
           ...values,
         }).unwrap();
-        message.success("Beasiswa berhasil dibuat");
+        message.success('Beasiswa berhasil dibuat');
         if (created?.data?.id) {
           setSelectedId(created.data.id);
         }
@@ -245,7 +200,7 @@ const Scholarship = () => {
       setEditingScholarship(null);
       scholarshipForm.resetFields();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan beasiswa");
+      message.error(error?.data?.message || 'Gagal menyimpan beasiswa');
     }
   };
 
@@ -255,28 +210,28 @@ const Scholarship = () => {
         id: record.id,
         homebase_id: selectedHomebaseId,
       }).unwrap();
-      message.success("Beasiswa berhasil dihapus");
+      message.success('Beasiswa berhasil dihapus');
       if (selectedId === record.id) {
         setSelectedId(null);
       }
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus beasiswa");
+      message.error(error?.data?.message || 'Gagal menghapus beasiswa');
     }
   };
 
   const openBenefitCreate = () => {
     if (!selectedId) {
-      message.warning("Pilih beasiswa terlebih dahulu");
+      message.warning('Pilih beasiswa terlebih dahulu');
       return;
     }
     if (selectedScholarship?.is_active === false) {
-      message.warning("Aktifkan beasiswa terlebih dahulu sebelum menambah aturan");
+      message.warning('Aktifkan beasiswa terlebih dahulu sebelum menambah aturan');
       return;
     }
     setEditingBenefit(null);
     benefitForm.setFieldsValue({
-      benefit_target: "spp",
-      benefit_type: "fixed",
+      benefit_target: 'spp',
+      benefit_type: 'fixed',
       amount: undefined,
       component_id: undefined,
       periode_id: undefined,
@@ -295,9 +250,7 @@ const Scholarship = () => {
       amount: record.amount,
       component_id: record.component_id,
       periode_id: record.periode_id,
-      month_keys: (record.months || []).map((month) =>
-        monthKey(month.periode_id, month.month_num),
-      ),
+      month_keys: (record.months || []).map((month) => monthKey(month.periode_id, month.month_num)),
       draft_periode_id: undefined,
       draft_months: [],
     });
@@ -309,11 +262,8 @@ const Scholarship = () => {
       return;
     }
 
-    if (
-      values.benefit_target === "spp" &&
-      (!values.month_keys || values.month_keys.length === 0)
-    ) {
-      message.error("Minimal satu bulan wajib dipilih");
+    if (values.benefit_target === 'spp' && (!values.month_keys || values.month_keys.length === 0)) {
+      message.error('Minimal satu bulan wajib dipilih');
       return;
     }
 
@@ -322,15 +272,10 @@ const Scholarship = () => {
       homebase_id: selectedHomebaseId,
       benefit_target: values.benefit_target,
       benefit_type: values.benefit_type,
-      amount: values.benefit_type === "fixed" ? values.amount : null,
-      component_id:
-        values.benefit_target === "other" ? values.component_id : null,
-      periode_id:
-        values.benefit_target === "other" ? values.periode_id || null : null,
-      months:
-        values.benefit_target === "spp"
-          ? (values.month_keys || []).map(parseMonthKey)
-          : [],
+      amount: values.benefit_type === 'fixed' ? values.amount : null,
+      component_id: values.benefit_target === 'other' ? values.component_id : null,
+      periode_id: values.benefit_target === 'other' ? values.periode_id || null : null,
+      months: values.benefit_target === 'spp' ? (values.month_keys || []).map(parseMonthKey) : [],
     };
 
     try {
@@ -339,16 +284,16 @@ const Scholarship = () => {
           ...payload,
           benefitId: editingBenefit.id,
         }).unwrap();
-        message.success("Aturan potongan berhasil diperbarui");
+        message.success('Aturan potongan berhasil diperbarui');
       } else {
         await addBenefit(payload).unwrap();
-        message.success("Aturan potongan berhasil ditambahkan");
+        message.success('Aturan potongan berhasil ditambahkan');
       }
       setBenefitModalOpen(false);
       setEditingBenefit(null);
       benefitForm.resetFields();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan aturan");
+      message.error(error?.data?.message || 'Gagal menyimpan aturan');
     }
   };
 
@@ -359,15 +304,15 @@ const Scholarship = () => {
         benefitId: record.id,
         homebase_id: selectedHomebaseId,
       }).unwrap();
-      message.success("Aturan potongan berhasil dihapus");
+      message.success('Aturan potongan berhasil dihapus');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus aturan");
+      message.error(error?.data?.message || 'Gagal menghapus aturan');
     }
   };
 
   const handleAssignStudents = async (studentIds) => {
     if (selectedScholarship?.is_active === false) {
-      message.warning("Aktifkan beasiswa terlebih dahulu sebelum menambah penerima");
+      message.warning('Aktifkan beasiswa terlebih dahulu sebelum menambah penerima');
       return;
     }
     await addStudents({
@@ -375,7 +320,7 @@ const Scholarship = () => {
       homebase_id: selectedHomebaseId,
       student_ids: studentIds,
     }).unwrap();
-    message.success("Penerima berhasil ditambahkan");
+    message.success('Penerima berhasil ditambahkan');
   };
 
   const handleDeactivateStudents = async (studentIds) => {
@@ -386,9 +331,9 @@ const Scholarship = () => {
         student_ids: studentIds,
         soft: true,
       }).unwrap();
-      message.success("Penerima berhasil dinonaktifkan");
+      message.success('Penerima berhasil dinonaktifkan');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menonaktifkan penerima");
+      message.error(error?.data?.message || 'Gagal menonaktifkan penerima');
     }
   };
 
@@ -400,9 +345,9 @@ const Scholarship = () => {
         student_ids: studentIds,
         soft: false,
       }).unwrap();
-      message.success("Penerima berhasil dihapus permanen");
+      message.success('Penerima berhasil dihapus permanen');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus penerima");
+      message.error(error?.data?.message || 'Gagal menghapus penerima');
     }
   };
 
@@ -414,9 +359,9 @@ const Scholarship = () => {
         homebase_id: selectedHomebaseId,
         is_active: true,
       }).unwrap();
-      message.success("Penerima berhasil diaktifkan kembali");
+      message.success('Penerima berhasil diaktifkan kembali');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal mengaktifkan penerima");
+      message.error(error?.data?.message || 'Gagal mengaktifkan penerima');
     }
   };
 
@@ -429,11 +374,9 @@ const Scholarship = () => {
         id: selectedId,
         homebase_id: selectedHomebaseId,
       }).unwrap();
-      message.success(
-        `Sinkronisasi selesai (${result?.data?.synced_count || 0} tagihan)`,
-      );
+      message.success(`Sinkronisasi selesai (${result?.data?.synced_count || 0} tagihan)`);
     } catch (error) {
-      message.error(error?.data?.message || "Gagal sinkronisasi tagihan");
+      message.error(error?.data?.message || 'Gagal sinkronisasi tagihan');
     }
   };
 
@@ -443,29 +386,29 @@ const Scholarship = () => {
 
   const tabItems = [
     {
-      key: "list",
-      label: isMobile ? "Daftar" : "Daftar Beasiswa",
+      key: 'list',
+      label: isMobile ? 'Daftar' : 'Daftar Beasiswa',
       children: (
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Flex gap={8} wrap="wrap">
             <Select
               value={statusFilter}
-              style={{ width: isMobile ? "100%" : 180 }}
+              style={{ width: isMobile ? '100%' : 180 }}
               onChange={setStatusFilter}
               options={[
-                { value: "all", label: "Semua status" },
-                { value: "active", label: "Aktif" },
-                { value: "inactive", label: "Nonaktif" },
+                { value: 'all', label: 'Semua status' },
+                { value: 'active', label: 'Aktif' },
+                { value: 'inactive', label: 'Nonaktif' },
               ]}
             />
             <Input.Search
               allowClear
               placeholder="Cari nama / kode"
-              style={{ width: isMobile ? "100%" : 260 }}
+              style={{ width: isMobile ? '100%' : 260 }}
               onSearch={setSearch}
               onChange={(event) => {
                 if (!event.target.value) {
-                  setSearch("");
+                  setSearch('');
                 }
               }}
             />
@@ -479,11 +422,11 @@ const Scholarship = () => {
             onDelete={handleDeleteScholarship}
             onManageBenefits={(record) => {
               setSelectedId(record.id);
-              setActiveTab("benefits");
+              setActiveTab('benefits');
             }}
             onManageStudents={(record) => {
               setSelectedId(record.id);
-              setActiveTab("students");
+              setActiveTab('students');
             }}
             deleting={deleteScholarshipState.isLoading}
           />
@@ -491,8 +434,8 @@ const Scholarship = () => {
       ),
     },
     {
-      key: "benefits",
-      label: isMobile ? "Aturan" : "Aturan Potongan",
+      key: 'benefits',
+      label: isMobile ? 'Aturan' : 'Aturan Potongan',
       children: (
         <ScholarshipBenefitTable
           scholarship={selectedScholarship}
@@ -506,8 +449,8 @@ const Scholarship = () => {
       ),
     },
     {
-      key: "students",
-      label: isMobile ? "Penerima" : "Penerima Siswa",
+      key: 'students',
+      label: isMobile ? 'Penerima' : 'Penerima Siswa',
       children: (
         <ScholarshipStudentsPanel
           scholarship={selectedScholarship}
@@ -531,17 +474,16 @@ const Scholarship = () => {
       ),
     },
     {
-      key: "summary",
-      label: "Ringkasan",
+      key: 'summary',
+      label: 'Ringkasan',
       children: (
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Flex justify="flex-end">
             <Button
               icon={<RefreshCw size={14} />}
               loading={syncScholarshipState.isLoading}
               onClick={handleSync}
-              disabled={!selectedId}
-            >
+              disabled={!selectedId}>
               Sinkronkan Tagihan
             </Button>
           </Flex>
@@ -557,13 +499,9 @@ const Scholarship = () => {
   ];
 
   return (
-    <div style={pageStyle}>
-      <MotionDiv
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-      >
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div>
+      <MotionDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <ScholarshipHeader onCreate={openCreate} />
           <ScholarshipSummaryCards summary={summary} />
 
@@ -572,11 +510,7 @@ const Scholarship = () => {
               type="error"
               showIcon
               message="Gagal memuat data beasiswa"
-              description={
-                listError?.data?.message ||
-                listError?.error ||
-                "Terjadi kesalahan"
-              }
+              description={listError?.data?.message || listError?.error || 'Terjadi kesalahan'}
             />
           ) : null}
 
@@ -587,16 +521,8 @@ const Scholarship = () => {
             </Card>
           ) : null}
 
-          <Card
-            style={{ ...cardStyle, overflow: "hidden" }}
-            styles={{ body: { padding: isMobile ? 10 : 16 } }}
-          >
-            <Tabs
-              activeKey={activeTab}
-              onChange={setActiveTab}
-              items={tabItems}
-              size={isMobile ? "small" : "middle"}
-            />
+          <Card style={{ ...cardStyle, overflow: 'hidden' }} styles={{ body: { padding: isMobile ? 10 : 16 } }}>
+            <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} size={isMobile ? 'small' : 'middle'} />
           </Card>
         </Space>
       </MotionDiv>
@@ -605,9 +531,7 @@ const Scholarship = () => {
         open={formModalOpen}
         editing={editingScholarship}
         form={scholarshipForm}
-        confirmLoading={
-          addScholarshipState.isLoading || updateScholarshipState.isLoading
-        }
+        confirmLoading={addScholarshipState.isLoading || updateScholarshipState.isLoading}
         homebases={homebases}
         lockHomebase={lockHomebase}
         onCancel={() => {

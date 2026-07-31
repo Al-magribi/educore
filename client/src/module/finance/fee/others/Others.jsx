@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
-import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
-import { Card, Flex, Form, Grid, Space, Tabs, Typography, message } from "antd";
-import { motion } from "framer-motion";
-import { CreditCard, ReceiptText, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useFinanceScope } from '../../../center/finance/FinanceScopeContext';
+import { Card, Flex, Form, Grid, Space, Tabs, Typography, message } from 'antd';
+import { motion } from 'framer-motion';
+import { CreditCard, ReceiptText, Sparkles } from 'lucide-react';
 
-import { LoadApp } from "../../../../components";
+import { LoadApp } from '../../../../components';
 import {
+  ApiOthers,
   useAddOtherPaymentTypeMutation,
   useDeleteOtherChargeMutation,
   useDeleteOtherPaymentTypeMutation,
@@ -14,15 +15,24 @@ import {
   useGetOtherOptionsQuery,
   useGetOtherPaymentTypesQuery,
   useUpdateOtherPaymentTypeMutation,
-} from "../../../../service/finance/ApiOthers";
-import { cardStyle } from "./constants";
-import OthersChargesTable from "./components/OthersChargesTable";
-import OthersFilters from "./components/OthersFilters";
-import OthersHeader from "./components/OthersHeader";
-import OthersReportPanel from "./components/OthersReportPanel";
-import OthersSummaryCards from "./components/OthersSummaryCards";
-import OthersTypeModal from "./components/OthersTypeModal";
-import OthersTypesTable from "./components/OthersTypesTable";
+} from '../../../../service/finance/ApiOthers';
+import {
+  useCreateTransactionMutation,
+  useGetTransactionOptionsQuery,
+} from '../../../../service/finance/ApiTransaction';
+import {
+  buildOtherPaymentValue,
+  getOtherPaymentSelectionKey,
+} from '../transaction/components/transactionFormShared.jsx';
+import { cardStyle } from './constants';
+import OthersChargesTable from './components/OthersChargesTable';
+import OthersFilters from './components/OthersFilters';
+import OthersHeader from './components/OthersHeader';
+import OthersPaymentModal from './components/OthersPaymentModal';
+import OthersReportPanel from './components/OthersReportPanel';
+import OthersSummaryCards from './components/OthersSummaryCards';
+import OthersTypeModal from './components/OthersTypeModal';
+import OthersTypesTable from './components/OthersTypesTable';
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
@@ -54,6 +64,7 @@ const itemVariants = {
 
 const Others = () => {
   const { user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const isCompact = !screens.lg;
@@ -65,24 +76,28 @@ const Others = () => {
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,
-    student_search: "",
+    student_search: '',
     type_id: undefined,
     status: undefined,
   });
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedCharge, setSelectedCharge] = useState(null);
+  const [otherPaymentSelections, setOtherPaymentSelections] = useState({});
   const [periodeInitialized, setPeriodeInitialized] = useState(false);
   const [typeStudentFilter, setTypeStudentFilter] = useState({
     grade_id: undefined,
     class_id: undefined,
-    search: "",
+    search: '',
   });
 
   const [typeForm] = Form.useForm();
-  const selectedTypeHomebaseId = Form.useWatch("homebase_id", typeForm);
-  const selectedTypePeriodeId = Form.useWatch("periode_id", typeForm);
-  const selectedTypeScope = Form.useWatch("scope", typeForm) || "grade";
-  const selectedTypeStudentIds = Form.useWatch("student_ids", typeForm) || [];
+  const [paymentForm] = Form.useForm();
+  const selectedTypeHomebaseId = Form.useWatch('homebase_id', typeForm);
+  const selectedTypePeriodeId = Form.useWatch('periode_id', typeForm);
+  const selectedTypeScope = Form.useWatch('scope', typeForm) || 'grade';
+  const selectedTypeStudentIds = Form.useWatch('student_ids', typeForm) || [];
   const hasPeriodeFilter = Boolean(filters.periode_id);
 
   const typeQueryFilters = {
@@ -100,39 +115,31 @@ const Others = () => {
     ...(filters.status ? { status: filters.status } : {}),
   };
 
-  const { data: optionsResponse, isLoading: isLoadingOptions } =
-    useGetOtherOptionsQuery(
-      filters.homebase_id ? { homebase_id: filters.homebase_id } : undefined,
-    );
-  const { data: scopedOptionsResponse, isLoading: isLoadingScopedOptions } =
-    useGetOtherOptionsQuery(
-      hasPeriodeFilter
-        ? {
-            homebase_id: filters.homebase_id,
-            periode_id: filters.periode_id,
-            grade_id: filters.grade_id,
-            class_id: filters.class_id,
-            search: filters.student_search,
-          }
-        : filters.homebase_id
-          ? { homebase_id: filters.homebase_id }
-          : undefined,
-    );
+  const { data: optionsResponse, isLoading: isLoadingOptions } = useGetOtherOptionsQuery(
+    filters.homebase_id ? { homebase_id: filters.homebase_id } : undefined,
+  );
+  const { data: scopedOptionsResponse, isLoading: isLoadingScopedOptions } = useGetOtherOptionsQuery(
+    hasPeriodeFilter
+      ? {
+          homebase_id: filters.homebase_id,
+          periode_id: filters.periode_id,
+          grade_id: filters.grade_id,
+          class_id: filters.class_id,
+          search: filters.student_search,
+        }
+      : filters.homebase_id
+        ? { homebase_id: filters.homebase_id }
+        : undefined,
+  );
   const { data: typeModalOptionsResponse } = useGetOtherOptionsQuery(
     {
-      homebase_id:
-        selectedTypeHomebaseId || filters.homebase_id || undefined,
+      homebase_id: selectedTypeHomebaseId || filters.homebase_id || undefined,
     },
     {
-      skip:
-        !typeModalOpen ||
-        !(selectedTypeHomebaseId || filters.homebase_id),
+      skip: !typeModalOpen || !(selectedTypeHomebaseId || filters.homebase_id),
     },
   );
-  const {
-    data: typeStudentOptionsResponse,
-    isFetching: isFetchingTypeStudents,
-  } = useGetOtherOptionsQuery(
+  const { data: typeStudentOptionsResponse, isFetching: isFetchingTypeStudents } = useGetOtherOptionsQuery(
     {
       homebase_id: selectedTypeHomebaseId || filters.homebase_id,
       periode_id: selectedTypePeriodeId,
@@ -146,7 +153,7 @@ const Others = () => {
         !typeModalOpen ||
         !(selectedTypeHomebaseId || filters.homebase_id) ||
         !selectedTypePeriodeId ||
-        selectedTypeScope !== "student",
+        selectedTypeScope !== 'student',
     },
   );
   const {
@@ -160,14 +167,27 @@ const Others = () => {
     isFetching: isFetchingCharges,
   } = useGetOtherChargesQuery(chargeQueryFilters);
 
-  const [addOtherPaymentType, { isLoading: isAddingType }] =
-    useAddOtherPaymentTypeMutation();
-  const [updateOtherPaymentType, { isLoading: isUpdatingType }] =
-    useUpdateOtherPaymentTypeMutation();
-  const [deleteOtherPaymentType, { isLoading: isDeletingType }] =
-    useDeleteOtherPaymentTypeMutation();
-  const [deleteOtherCharge, { isLoading: isDeletingCharge }] =
-    useDeleteOtherChargeMutation();
+  const [addOtherPaymentType, { isLoading: isAddingType }] = useAddOtherPaymentTypeMutation();
+  const [updateOtherPaymentType, { isLoading: isUpdatingType }] = useUpdateOtherPaymentTypeMutation();
+  const [deleteOtherPaymentType, { isLoading: isDeletingType }] = useDeleteOtherPaymentTypeMutation();
+  const [deleteOtherCharge, { isLoading: isDeletingCharge }] = useDeleteOtherChargeMutation();
+  const [createTransaction, { isLoading: isCreatingPayment }] = useCreateTransactionMutation();
+
+  const paymentHomebaseId = selectedCharge?.homebase_id || filters.homebase_id || undefined;
+  const paymentPeriodeId = selectedCharge?.periode_id || undefined;
+  const paymentStudentId = selectedCharge?.student_id || undefined;
+
+  const { data: paymentOptionsResponse, isFetching: isFetchingPaymentOptions } = useGetTransactionOptionsQuery(
+    {
+      homebase_id: paymentHomebaseId,
+      periode_id: paymentPeriodeId,
+      student_id: paymentStudentId,
+    },
+    {
+      skip: !paymentModalOpen || !paymentHomebaseId || !paymentPeriodeId || !paymentStudentId,
+      refetchOnMountOrArgChange: true,
+    },
+  );
 
   const options = optionsResponse?.data || {};
   const scopedOptions = scopedOptionsResponse?.data || {};
@@ -175,23 +195,15 @@ const Others = () => {
   const periodes = useMemo(() => options.periodes || [], [options.periodes]);
   const grades = useMemo(() => options.grades || [], [options.grades]);
   const typeModalOptions = typeModalOptionsResponse?.data || {};
-  const typeModalGrades = useMemo(
-    () => typeModalOptions.grades || grades,
-    [typeModalOptions.grades, grades],
-  );
-  const typeModalPeriodes = useMemo(
-    () => typeModalOptions.periodes || periodes,
-    [typeModalOptions.periodes, periodes],
-  );
+  const typeModalGrades = useMemo(() => typeModalOptions.grades || grades, [typeModalOptions.grades, grades]);
+  const typeModalPeriodes = useMemo(() => typeModalOptions.periodes || periodes, [typeModalOptions.periodes, periodes]);
   const typeModalClasses = useMemo(() => {
     const apiClasses = typeStudentOptionsResponse?.data?.classes || [];
     if (!typeStudentFilter.grade_id) {
       return apiClasses;
     }
 
-    return apiClasses.filter(
-      (item) => Number(item.grade_id) === Number(typeStudentFilter.grade_id),
-    );
+    return apiClasses.filter((item) => Number(item.grade_id) === Number(typeStudentFilter.grade_id));
   }, [typeStudentFilter.grade_id, typeStudentOptionsResponse?.data?.classes]);
   const typeModalStudents = useMemo(() => {
     const apiStudents = typeStudentOptionsResponse?.data?.students || [];
@@ -207,9 +219,9 @@ const Others = () => {
         ...item,
         id,
         full_name: item.full_name || item.name || `Siswa #${id}`,
-        nis: item.nis || "-",
-        class_name: item.class_name || "-",
-        grade_name: item.grade_name || "-",
+        nis: item.nis || '-',
+        class_name: item.class_name || '-',
+        grade_name: item.grade_name || '-',
       });
     });
 
@@ -222,31 +234,98 @@ const Others = () => {
       studentMap.set(key, {
         id: key,
         full_name: `Siswa #${key}`,
-        nis: "-",
-        class_name: "-",
-        grade_name: "-",
+        nis: '-',
+        class_name: '-',
+        grade_name: '-',
       });
     });
 
     return [...studentMap.values()].sort((left, right) =>
-      String(left.full_name).localeCompare(String(right.full_name), "id", {
-        sensitivity: "base",
+      String(left.full_name).localeCompare(String(right.full_name), 'id', {
+        sensitivity: 'base',
       }),
     );
   }, [selectedTypeStudentIds, typeStudentOptionsResponse?.data?.students]);
-  const classes = useMemo(
-    () => scopedOptions.classes || [],
-    [scopedOptions.classes],
-  );
+  const classes = useMemo(() => scopedOptions.classes || [], [scopedOptions.classes]);
   const types = useMemo(() => typeResponse?.data || [], [typeResponse?.data]);
-  const charges = useMemo(
-    () => chargeResponse?.data || [],
-    [chargeResponse?.data],
+  const charges = useMemo(() => chargeResponse?.data || [], [chargeResponse?.data]);
+  const summary = useMemo(() => chargeResponse?.summary || {}, [chargeResponse?.summary]);
+  const paymentOptions = paymentOptionsResponse?.data || {};
+  const paymentStudent = paymentOptions.student || null;
+  const optionOtherCharges = useMemo(() => paymentOptions.other_charges || [], [paymentOptions.other_charges]);
+
+  const paymentOtherCharges = useMemo(() => {
+    if (!selectedCharge) {
+      return [];
+    }
+
+    const selectionKey = getOtherPaymentSelectionKey(selectedCharge);
+    const matchedFromOptions = optionOtherCharges.find((item) => getOtherPaymentSelectionKey(item) === selectionKey);
+
+    if (matchedFromOptions) {
+      return [matchedFromOptions];
+    }
+
+    return [
+      {
+        ...selectedCharge,
+        description: selectedCharge.type_name,
+        is_existing_charge: Boolean(selectedCharge.charge_id),
+      },
+    ];
+  }, [optionOtherCharges, selectedCharge]);
+
+  const selectedOtherPayments = useMemo(
+    () =>
+      paymentOtherCharges
+        .map((charge) => {
+          const selectionKey = getOtherPaymentSelectionKey(charge);
+          const selection = otherPaymentSelections?.[selectionKey];
+          const amountPaid = Number(selection?.amount_paid || 0);
+
+          if (amountPaid <= 0) {
+            return null;
+          }
+
+          return {
+            ...charge,
+            amount_paid: amountPaid,
+          };
+        })
+        .filter(Boolean),
+    [otherPaymentSelections, paymentOtherCharges],
   );
-  const summary = useMemo(
-    () => chargeResponse?.summary || {},
-    [chargeResponse?.summary],
-  );
+
+  const selectedOtherTotal = selectedOtherPayments.reduce((sum, item) => sum + Number(item.amount_paid || 0), 0);
+
+  useEffect(() => {
+    if (!paymentModalOpen || !selectedCharge || paymentOtherCharges.length === 0) {
+      return;
+    }
+
+    const charge = paymentOtherCharges[0];
+    const selectionKey = getOtherPaymentSelectionKey(charge);
+    const currentAmount = Number(otherPaymentSelections?.[selectionKey]?.amount_paid || 0);
+    const remainingAmount = Math.max(Number(charge.remaining_amount || 0), 0);
+
+    if (currentAmount > 0 || remainingAmount <= 0) {
+      return;
+    }
+
+    const nextValue = buildOtherPaymentValue(
+      charge,
+      {},
+      {
+        amount_paid: remainingAmount,
+      },
+    );
+
+    setOtherPaymentSelections((previous) => ({
+      ...previous,
+      [selectionKey]: nextValue,
+    }));
+    paymentForm.setFieldValue(['other_payments', selectionKey], nextValue);
+  }, [otherPaymentSelections, paymentForm, paymentModalOpen, paymentOtherCharges, selectedCharge]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -254,9 +333,7 @@ const Others = () => {
       return;
     }
 
-    const defaultHomebase =
-      options.selected_homebase_id ||
-      (homebases.length === 1 ? homebases[0]?.id : undefined);
+    const defaultHomebase = options.selected_homebase_id || (homebases.length === 1 ? homebases[0]?.id : undefined);
 
     if (defaultHomebase) {
       setFilters((previous) => ({
@@ -271,8 +348,7 @@ const Others = () => {
       return;
     }
 
-    const activePeriode =
-      periodes.find((item) => item.is_active) || periodes[0];
+    const activePeriode = periodes.find((item) => item.is_active) || periodes[0];
 
     setFilters((previous) => ({
       ...previous,
@@ -286,43 +362,34 @@ const Others = () => {
       return;
     }
 
-    const periodeExists = periodes.some(
-      (item) => Number(item.id) === Number(filters.periode_id),
-    );
+    const periodeExists = periodes.some((item) => Number(item.id) === Number(filters.periode_id));
     if (periodeExists) {
       return;
     }
 
-    const activePeriode =
-      periodes.find((item) => item.is_active) || periodes[0];
+    const activePeriode = periodes.find((item) => item.is_active) || periodes[0];
     setFilters((previous) => ({
       ...previous,
       periode_id: activePeriode?.id,
       grade_id: undefined,
       class_id: undefined,
-      student_search: "",
+      student_search: '',
       type_id: undefined,
     }));
   }, [periodes, filters.periode_id]);
 
   useEffect(() => {
-    if (
-      filters.class_id &&
-      !classes.some((item) => item.id === filters.class_id)
-    ) {
+    if (filters.class_id && !classes.some((item) => item.id === filters.class_id)) {
       setFilters((previous) => ({
         ...previous,
         class_id: undefined,
-        student_search: "",
+        student_search: '',
       }));
     }
   }, [classes, filters.class_id]);
 
   useEffect(() => {
-    if (
-      filters.type_id &&
-      !types.some((item) => Number(item.type_id) === Number(filters.type_id))
-    ) {
+    if (filters.type_id && !types.some((item) => Number(item.type_id) === Number(filters.type_id))) {
       setFilters((previous) => ({
         ...previous,
         type_id: undefined,
@@ -335,65 +402,45 @@ const Others = () => {
       return;
     }
 
-    const currentHomebaseId = typeForm.getFieldValue("homebase_id");
-    const fallbackHomebaseId =
-      filters.homebase_id ||
-      options.selected_homebase_id ||
-      homebases[0]?.id;
+    const currentHomebaseId = typeForm.getFieldValue('homebase_id');
+    const fallbackHomebaseId = filters.homebase_id || options.selected_homebase_id || homebases[0]?.id;
 
     if (!currentHomebaseId && fallbackHomebaseId) {
-      typeForm.setFieldValue("homebase_id", fallbackHomebaseId);
+      typeForm.setFieldValue('homebase_id', fallbackHomebaseId);
     }
-  }, [
-    filters.homebase_id,
-    homebases,
-    options.selected_homebase_id,
-    typeForm,
-    typeModalOpen,
-  ]);
+  }, [filters.homebase_id, homebases, options.selected_homebase_id, typeForm, typeModalOpen]);
 
   useEffect(() => {
     if (!typeModalOpen || !(selectedTypeHomebaseId || filters.homebase_id)) {
       return;
     }
 
-    const currentGradeIds = typeForm.getFieldValue("grade_ids") || [];
+    const currentGradeIds = typeForm.getFieldValue('grade_ids') || [];
     const validGradeIds = new Set(typeModalGrades.map((item) => Number(item.id)));
-    const nextGradeIds = currentGradeIds.filter((item) =>
-      validGradeIds.has(Number(item)),
-    );
+    const nextGradeIds = currentGradeIds.filter((item) => validGradeIds.has(Number(item)));
 
     if (nextGradeIds.length !== currentGradeIds.length) {
-      typeForm.setFieldValue("grade_ids", nextGradeIds);
+      typeForm.setFieldValue('grade_ids', nextGradeIds);
     }
 
-    const currentPeriodeId = typeForm.getFieldValue("periode_id");
+    const currentPeriodeId = typeForm.getFieldValue('periode_id');
     if (
       currentPeriodeId &&
       typeModalPeriodes.length > 0 &&
-      !typeModalPeriodes.some(
-        (item) => Number(item.id) === Number(currentPeriodeId),
-      )
+      !typeModalPeriodes.some((item) => Number(item.id) === Number(currentPeriodeId))
     ) {
-      const activePeriode =
-        typeModalPeriodes.find((item) => item.is_active) || typeModalPeriodes[0];
-      typeForm.setFieldValue("periode_id", activePeriode?.id);
-      typeForm.setFieldValue("student_ids", []);
+      const activePeriode = typeModalPeriodes.find((item) => item.is_active) || typeModalPeriodes[0];
+      typeForm.setFieldValue('periode_id', activePeriode?.id);
+      typeForm.setFieldValue('student_ids', []);
     }
-  }, [
-    selectedTypeHomebaseId,
-    typeForm,
-    typeModalOpen,
-    typeModalGrades,
-    typeModalPeriodes,
-  ]);
+  }, [selectedTypeHomebaseId, typeForm, typeModalOpen, typeModalGrades, typeModalPeriodes]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const resetTypeStudentFilter = () => {
     setTypeStudentFilter({
       grade_id: undefined,
       class_id: undefined,
-      search: "",
+      search: '',
     });
   };
 
@@ -401,16 +448,13 @@ const Others = () => {
     setEditingType(record);
     resetTypeStudentFilter();
 
-    const defaultPeriode =
-      filters.periode_id ||
-      periodes.find((item) => item.is_active)?.id ||
-      periodes[0]?.id;
+    const defaultPeriode = filters.periode_id || periodes.find((item) => item.is_active)?.id || periodes[0]?.id;
 
     if (record) {
       typeForm.setFieldsValue({
         homebase_id: record.homebase_id,
         periode_id: record.periode_id || defaultPeriode,
-        scope: record.scope === "student" ? "student" : "grade",
+        scope: record.scope === 'student' ? 'student' : 'grade',
         name: record.name,
         description: record.description,
         amount: Number(record.amount || 0),
@@ -421,10 +465,9 @@ const Others = () => {
     } else {
       typeForm.resetFields();
       typeForm.setFieldsValue({
-        homebase_id:
-          filters.homebase_id || options.selected_homebase_id || homebases[0]?.id,
+        homebase_id: filters.homebase_id || options.selected_homebase_id || homebases[0]?.id,
         periode_id: defaultPeriode,
-        scope: "grade",
+        scope: 'grade',
         is_active: true,
         grade_ids: [],
         student_ids: [],
@@ -440,9 +483,9 @@ const Others = () => {
         id: record.type_id,
         homebase_id: record.homebase_id || filters.homebase_id,
       }).unwrap();
-      message.success("Jenis biaya berhasil dihapus");
+      message.success('Jenis biaya berhasil dihapus');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus jenis biaya");
+      message.error(error?.data?.message || 'Gagal menghapus jenis biaya');
     }
   };
 
@@ -456,7 +499,7 @@ const Others = () => {
       ),
     );
 
-    const succeeded = results.filter((item) => item.status === "fulfilled").length;
+    const succeeded = results.filter((item) => item.status === 'fulfilled').length;
     const failed = results.length - succeeded;
 
     if (succeeded > 0) {
@@ -464,11 +507,8 @@ const Others = () => {
     }
 
     if (failed > 0) {
-      const firstError = results.find((item) => item.status === "rejected");
-      message.error(
-        firstError?.reason?.data?.message ||
-          `${failed} jenis biaya gagal dihapus`,
-      );
+      const firstError = results.find((item) => item.status === 'rejected');
+      message.error(firstError?.reason?.data?.message || `${failed} jenis biaya gagal dihapus`);
     }
   };
 
@@ -478,9 +518,95 @@ const Others = () => {
         id: record.charge_id,
         homebase_id: record.homebase_id || filters.homebase_id,
       }).unwrap();
-      message.success("Tagihan berhasil dihapus");
+      message.success('Tagihan berhasil dihapus');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus tagihan");
+      message.error(error?.data?.message || 'Gagal menghapus tagihan');
+    }
+  };
+
+  const closePaymentModal = () => {
+    setPaymentModalOpen(false);
+    setSelectedCharge(null);
+    setOtherPaymentSelections({});
+    paymentForm.resetFields();
+  };
+
+  const handleEditCharge = (record) => {
+    if (!record?.student_id || !record?.periode_id) {
+      message.warning('Data siswa atau periode belum lengkap untuk membuka pembayaran.');
+      return;
+    }
+
+    const remainingAmount = Math.max(Number(record.remaining_amount || 0), 0);
+    const selectionKey = getOtherPaymentSelectionKey(record);
+    const initialSelections =
+      remainingAmount > 0
+        ? {
+            [selectionKey]: buildOtherPaymentValue(
+              record,
+              {},
+              {
+                amount_paid: remainingAmount,
+              },
+            ),
+          }
+        : {};
+
+    setSelectedCharge(record);
+    setOtherPaymentSelections(initialSelections);
+    paymentForm.setFieldsValue({
+      notes: undefined,
+      other_payments: initialSelections,
+    });
+    setPaymentModalOpen(true);
+  };
+
+  const handleOtherPaymentAmountChange = (charge, value) => {
+    const selectionKey = getOtherPaymentSelectionKey(charge);
+    const numericValue = Number(value || 0);
+    const nextValue = buildOtherPaymentValue(charge, otherPaymentSelections?.[selectionKey], {
+      amount_paid: numericValue > 0 ? numericValue : undefined,
+    });
+
+    setOtherPaymentSelections((previous) => ({
+      ...previous,
+      [selectionKey]: nextValue,
+    }));
+    paymentForm.setFieldValue(['other_payments', selectionKey], nextValue);
+  };
+
+  const handleSubmitPayment = async (values) => {
+    if (!selectedCharge) {
+      return;
+    }
+
+    const otherPayments = selectedOtherPayments.map((item) => ({
+      charge_id: item.charge_id ? Number(item.charge_id) : null,
+      type_id: item.type_id ? Number(item.type_id) : null,
+      amount_paid: Number(item.amount_paid || 0),
+    }));
+
+    if (otherPayments.length === 0) {
+      message.warning('Isi nominal pembayaran terlebih dahulu');
+      return;
+    }
+
+    try {
+      await createTransaction({
+        homebase_id: selectedCharge.homebase_id || filters.homebase_id || user?.homebase_id,
+        periode_id: selectedCharge.periode_id,
+        grade_id: selectedCharge.grade_id,
+        student_id: selectedCharge.student_id,
+        notes: String(values?.notes || '').trim() || null,
+        bill_months: [],
+        other_payments: otherPayments,
+      }).unwrap();
+
+      message.success('Pembayaran berhasil disimpan');
+      dispatch(ApiOthers.util.invalidateTags([{ type: 'OtherCharge', id: 'LIST' }, 'OtherOption']));
+      closePaymentModal();
+    } catch (error) {
+      message.error(error?.data?.message || 'Gagal menyimpan pembayaran');
     }
   };
 
@@ -488,14 +614,11 @@ const Others = () => {
     try {
       const payload = {
         ...values,
-        homebase_id:
-          values.homebase_id ||
-          editingType?.homebase_id ||
-          filters.homebase_id,
-        scope: values.scope === "student" ? "student" : "grade",
+        homebase_id: values.homebase_id || editingType?.homebase_id || filters.homebase_id,
+        scope: values.scope === 'student' ? 'student' : 'grade',
       };
 
-      if (payload.scope === "student") {
+      if (payload.scope === 'student') {
         payload.student_ids = values.student_ids || [];
         payload.grade_ids = [];
       } else {
@@ -508,10 +631,10 @@ const Others = () => {
           id: editingType.type_id,
           ...payload,
         }).unwrap();
-        message.success("Jenis biaya berhasil diperbarui");
+        message.success('Jenis biaya berhasil diperbarui');
       } else {
         await addOtherPaymentType(payload).unwrap();
-        message.success("Jenis biaya berhasil ditambahkan");
+        message.success('Jenis biaya berhasil ditambahkan');
       }
 
       setTypeModalOpen(false);
@@ -519,7 +642,7 @@ const Others = () => {
       resetTypeStudentFilter();
       typeForm.resetFields();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan jenis biaya");
+      message.error(error?.data?.message || 'Gagal menyimpan jenis biaya');
     }
   };
 
@@ -536,31 +659,26 @@ const Others = () => {
   }
 
   const activeHomebaseName =
-    homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
-      ?.name ||
-    (filters.homebase_id
-      ? user?.homebase_name || user?.homebase_id || "-"
-      : "Semua satuan");
+    homebases.find((item) => Number(item.id) === Number(filters.homebase_id))?.name ||
+    (filters.homebase_id ? user?.homebase_name || user?.homebase_id || '-' : 'Semua satuan');
   const activePeriodeName = filters.periode_id
-    ? periodes.find((item) => Number(item.id) === Number(filters.periode_id))
-        ?.name || "-"
-    : "Semua periode";
+    ? periodes.find((item) => Number(item.id) === Number(filters.periode_id))?.name || '-'
+    : 'Semua periode';
 
   const createTabLabel = (label, icon, count, caption) => (
-    <Flex align='center' gap={isMobile ? 8 : 10}>
+    <Flex align="center" gap={isMobile ? 8 : 10}>
       <span
         style={{
           width: isMobile ? 28 : 34,
           height: isMobile ? 28 : 34,
-          display: "grid",
-          placeItems: "center",
+          display: 'grid',
+          placeItems: 'center',
           borderRadius: isMobile ? 10 : 12,
-          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
-          color: "#0369a1",
-          border: "1px solid rgba(148,163,184,0.14)",
+          background: 'linear-gradient(135deg, #dbeafe, #dcfce7)',
+          color: '#0369a1',
+          border: '1px solid rgba(148,163,184,0.14)',
           flexShrink: 0,
-        }}
-      >
+        }}>
         {icon}
       </span>
       <div style={{ minWidth: 0 }}>
@@ -569,32 +687,18 @@ const Others = () => {
             fontWeight: 600,
             lineHeight: 1.2,
             fontSize: isMobile ? 13 : 14,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {label} {count !== undefined ? `(${count})` : ""}
+            whiteSpace: 'nowrap',
+          }}>
+          {label} {count !== undefined ? `(${count})` : ''}
         </div>
-        {!isCompact ? (
-          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
-            {caption}
-          </div>
-        ) : null}
+        {!isCompact ? <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.2 }}>{caption}</div> : null}
       </div>
     </Flex>
   );
 
   return (
-    <MotionDiv
-      variants={containerVariants}
-      initial='hidden'
-      animate='visible'
-      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
-    >
-      <Space
-        vertical
-        size={isMobile ? 16 : 24}
-        style={{ width: "100%", display: "flex" }}
-      >
+    <MotionDiv variants={containerVariants} initial="hidden" animate="visible">
+      <Space vertical size={isMobile ? 16 : 24} style={{ width: '100%', display: 'flex' }}>
         <MotionDiv variants={itemVariants}>
           <OthersHeader onOpenType={() => openTypeModal()} />
         </MotionDiv>
@@ -615,18 +719,17 @@ const Others = () => {
           />
         </MotionDiv>
 
-        <MotionDiv variants={itemVariants} style={{ width: "100%" }}>
+        <MotionDiv variants={itemVariants} style={{ width: '100%' }}>
           <Card
             style={{
               ...cardStyle,
               borderRadius: isMobile ? 20 : 28,
-              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.07)",
-              overflow: "hidden",
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.07)',
+              overflow: 'hidden',
             }}
-            styles={{ body: { padding: isMobile ? 8 : undefined, paddingTop: 12 } }}
-          >
+            styles={{ body: { padding: isMobile ? 8 : undefined, paddingTop: 12 } }}>
             <Tabs
-              size={isMobile ? "small" : "middle"}
+              size={isMobile ? 'small' : 'middle'}
               tabBarGutter={isMobile ? 8 : 14}
               tabBarStyle={{
                 marginBottom: isMobile ? 12 : 20,
@@ -634,12 +737,12 @@ const Others = () => {
               }}
               items={[
                 {
-                  key: "types",
+                  key: 'types',
                   label: createTabLabel(
-                    isMobile ? "Jenis" : "Jenis Biaya",
+                    isMobile ? 'Jenis' : 'Jenis Biaya',
                     <ReceiptText size={isMobile ? 14 : 16} />,
                     types.length,
-                    "Master biaya non-SPP",
+                    'Master biaya non-SPP',
                   ),
                   children: (
                     <OthersTypesTable
@@ -654,32 +757,31 @@ const Others = () => {
                   ),
                 },
                 {
-                  key: "report",
+                  key: 'report',
                   label: createTabLabel(
-                    isMobile ? "Laporan" : "Laporan Pembayaran",
+                    isMobile ? 'Laporan' : 'Laporan Pembayaran',
                     <CreditCard size={isMobile ? 14 : 16} />,
                     charges.length,
-                    "Ringkasan dan daftar tagihan",
+                    'Ringkasan dan daftar tagihan',
                   ),
                   children: (
                     <Tabs
-                      size={isMobile ? "small" : "middle"}
+                      size={isMobile ? 'small' : 'middle'}
                       tabBarGutter={isMobile ? 8 : 12}
                       items={[
                         {
-                          key: "summary",
-                          label: "Rangkuman",
+                          key: 'summary',
+                          label: 'Rangkuman',
                           children: <OthersReportPanel charges={charges} />,
                         },
                         {
-                          key: "payments",
-                          label: isMobile
-                            ? `Pembayaran (${charges.length})`
-                            : `Daftar Pembayaran (${charges.length})`,
+                          key: 'payments',
+                          label: isMobile ? `Pembayaran (${charges.length})` : `Daftar Pembayaran (${charges.length})`,
                           children: (
                             <OthersChargesTable
                               charges={charges}
                               loading={isFetchingCharges}
+                              onEditCharge={handleEditCharge}
                               onDeleteCharge={handleDeleteCharge}
                               isDeletingCharge={isDeletingCharge}
                             />
@@ -696,25 +798,19 @@ const Others = () => {
 
         <MotionDiv variants={itemVariants}>
           <Card
-            variant='borderless'
+            variant="borderless"
             style={{
               borderRadius: 20,
-              border: "1px solid rgba(148,163,184,0.14)",
-              background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+              border: '1px solid rgba(148,163,184,0.14)',
+              background: 'linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)',
             }}
-            styles={{ body: { padding: isMobile ? "12px 14px" : "14px 16px" } }}
-          >
-            <Flex align='flex-start' gap={8}>
-              <Sparkles
-                size={14}
-                color='#64748b'
-                style={{ flexShrink: 0, marginTop: 3 }}
-              />
-              <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
-                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}.
-                Kosongkan filter periode untuk melihat semua periode. Tagihan
-                mengikuti cakupan jenis (tingkat / individu); siswa yang pindah
-                kelas tetap terikat jika masuk roster individu.
+            styles={{ body: { padding: isMobile ? '12px 14px' : '14px 16px' } }}>
+            <Flex align="flex-start" gap={8}>
+              <Sparkles size={14} color="#64748b" style={{ flexShrink: 0, marginTop: 3 }} />
+              <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
+                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}. Kosongkan filter periode untuk melihat
+                semua periode. Tagihan mengikuti cakupan jenis (tingkat / individu); siswa yang pindah kelas tetap
+                terikat jika masuk roster individu.
               </Text>
             </Flex>
           </Card>
@@ -731,20 +827,20 @@ const Others = () => {
         }}
         onSubmit={handleSubmitType}
         onHomebaseChange={() => {
-          typeForm.setFieldValue("grade_ids", []);
-          typeForm.setFieldValue("student_ids", []);
-          typeForm.setFieldValue("periode_id", undefined);
+          typeForm.setFieldValue('grade_ids', []);
+          typeForm.setFieldValue('student_ids', []);
+          typeForm.setFieldValue('periode_id', undefined);
           resetTypeStudentFilter();
         }}
         onPeriodeChange={() => {
-          typeForm.setFieldValue("student_ids", []);
+          typeForm.setFieldValue('student_ids', []);
           resetTypeStudentFilter();
         }}
         onScopeChange={(nextScope) => {
-          if (nextScope === "student") {
-            typeForm.setFieldValue("grade_ids", []);
+          if (nextScope === 'student') {
+            typeForm.setFieldValue('grade_ids', []);
           } else {
-            typeForm.setFieldValue("student_ids", []);
+            typeForm.setFieldValue('student_ids', []);
             resetTypeStudentFilter();
           }
         }}
@@ -763,6 +859,22 @@ const Others = () => {
         students={typeModalStudents}
         studentsLoading={isFetchingTypeStudents}
         studentFilter={typeStudentFilter}
+      />
+
+      <OthersPaymentModal
+        open={paymentModalOpen}
+        selectedCharge={selectedCharge}
+        form={paymentForm}
+        student={paymentStudent || selectedCharge}
+        otherCharges={paymentOtherCharges}
+        otherPaymentSelections={otherPaymentSelections}
+        selectedOtherPayments={selectedOtherPayments}
+        selectedOtherTotal={selectedOtherTotal}
+        loadingCharges={isFetchingPaymentOptions}
+        confirmLoading={isCreatingPayment}
+        onCancel={closePaymentModal}
+        onSubmit={handleSubmitPayment}
+        onOtherPaymentAmountChange={handleOtherPaymentAmountChange}
       />
     </MotionDiv>
   );

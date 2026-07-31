@@ -1215,6 +1215,9 @@ router.get(
     }
 
     const totalRecords = data.length;
+    const confirmedCount = data.filter((item) => item.status === "confirmed").length;
+    const pendingCount = data.filter((item) => item.status === "pending").length;
+    const rejectedCount = data.filter((item) => item.status === "rejected").length;
     const paginated = data.slice((page - 1) * limit, page * limit);
 
     res.json({
@@ -1225,6 +1228,9 @@ router.get(
         limit,
         total_records: totalRecords,
         total_pages: Math.ceil(totalRecords / limit),
+        confirmed_count: confirmedCount,
+        pending_count: pendingCount,
+        rejected_count: rejectedCount,
       },
     });
   }),
@@ -1452,6 +1458,7 @@ router.post(
     const periodeId = parseOptionalInt(req.body.periode_id);
     const studentId = parseOptionalInt(req.body.student_id);
     const paymentDate = new Date().toISOString();
+    const notes = String(req.body.notes || "").trim() || null;
     const billMonths = parseMonthArray(req.body.bill_months).sort((left, right) => left - right);
     const otherPayments = Array.isArray(req.body.other_payments)
       ? req.body.other_payments
@@ -1536,7 +1543,7 @@ router.post(
       paymentChannel: "Cash",
       amount: allocations.reduce((sum, item) => sum + item.allocated_amount, 0),
       paymentDate,
-      notes: null,
+      notes,
       createdBy: userId,
       verifiedBy: userId,
       allocations,
@@ -1721,6 +1728,10 @@ router.put(
     const transactionId = parseOptionalInt(req.params.id);
     const periodeId = parseOptionalInt(req.body.periode_id);
     const studentId = parseOptionalInt(req.body.student_id);
+    const notes =
+      req.body.notes !== undefined
+        ? String(req.body.notes || "").trim() || null
+        : undefined;
     const billMonths = parseMonthArray(req.body.bill_months).sort((left, right) => left - right);
     const otherPayments = Array.isArray(req.body.other_payments)
       ? req.body.other_payments
@@ -1876,7 +1887,7 @@ router.put(
         methodId,
         existing.rows[0].payment_date,
         allocations.reduce((sum, item) => sum + item.allocated_amount, 0),
-        existing.rows[0].notes,
+        notes !== undefined ? notes : existing.rows[0].notes,
         userId,
         transactionId,
       ],

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
-import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
-import { Form, Card, Flex, Grid, Space, Tabs, Typography, message } from "antd";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { useFinanceScope } from '../../../center/finance/FinanceScopeContext';
+import { Form, Card, Flex, Grid, Space, Tabs, Typography, message } from 'antd';
+import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   BarChart3,
@@ -13,7 +13,7 @@ import {
   Sparkles,
   Users,
   Wallet,
-} from "lucide-react";
+} from 'lucide-react';
 
 import {
   useAddMonthlyTariffMutation,
@@ -25,17 +25,17 @@ import {
   useGetMonthlyTariffsQuery,
   useUpdateMonthlyPaymentMutation,
   useUpdateMonthlyTariffMutation,
-} from "../../../../service/finance/ApiMonthly";
-import { LoadApp } from "../../../../components";
-import { currentMonth } from "./constants";
-import MonthlyHeader from "./components/MonthlyHeader";
-import MonthlyPaymentModal from "./components/MonthlyPaymentModal";
-import MonthlySummaryCards from "./components/MonthlySummaryCards";
-import MonthlyFilters from "./components/MonthlyFilters";
-import MonthlyPaymentTable from "./components/MonthlyPaymentTable";
-import MonthlyTariffTable from "./components/MonthlyTariffTable";
-import MonthlyReportPanel from "./components/MonthlyReportPanel";
-import MonthlyTariffModal from "./components/MonthlyTariffModal";
+} from '../../../../service/finance/ApiMonthly';
+import { LoadApp } from '../../../../components';
+import { currentMonth } from './constants';
+import MonthlyHeader from './components/MonthlyHeader';
+import MonthlyPaymentModal from './components/MonthlyPaymentModal';
+import MonthlySummaryCards from './components/MonthlySummaryCards';
+import MonthlyFilters from './components/MonthlyFilters';
+import MonthlyPaymentTable from './components/MonthlyPaymentTable';
+import MonthlyTariffTable from './components/MonthlyTariffTable';
+import MonthlyReportPanel from './components/MonthlyReportPanel';
+import MonthlyTariffModal from './components/MonthlyTariffModal';
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
@@ -65,7 +65,7 @@ const itemVariants = {
   },
 };
 
-const Monthly = ({ initialTab = "tariffs" }) => {
+const Monthly = ({ initialTab = 'tariffs' }) => {
   const { user } = useSelector((state) => state.auth);
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
@@ -79,7 +79,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     periode_id: undefined,
     grade_id: undefined,
     class_id: undefined,
-    student_search: "",
+    student_search: '',
     bill_month: currentMonth,
   });
   const [tariffModalOpen, setTariffModalOpen] = useState(false);
@@ -90,9 +90,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
 
   const [tariffForm] = Form.useForm();
   const [paymentForm] = Form.useForm();
-  const selectedTariffHomebaseId = Form.useWatch("homebase_id", tariffForm);
-  const selectedPaymentStudentId = Form.useWatch("student_id", paymentForm);
-  const selectedPaymentPeriodeId = Form.useWatch("periode_id", paymentForm);
+  const selectedTariffHomebaseId = Form.useWatch('homebase_id', tariffForm);
+  const selectedPaymentStudentId = Form.useWatch('student_id', paymentForm);
+  const selectedPaymentPeriodeId = Form.useWatch('periode_id', paymentForm);
   const hasPeriodeFilter = Boolean(filters.periode_id);
 
   const tariffQueryFilters = {
@@ -107,33 +107,29 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     ...(filters.periode_id ? { periode_id: filters.periode_id } : {}),
     ...(filters.grade_id ? { grade_id: filters.grade_id } : {}),
     ...(filters.class_id ? { class_id: filters.class_id } : {}),
-    ...(filters.student_search
-      ? { student_search: filters.student_search }
-      : {}),
+    ...(filters.student_search ? { student_search: filters.student_search } : {}),
   };
 
-  const { data: optionsResponse, isLoading: isLoadingOptions } =
-    useGetMonthlyOptionsQuery(
-      filters.homebase_id ? { homebase_id: filters.homebase_id } : undefined,
-    );
+  const { data: optionsResponse, isLoading: isLoadingOptions } = useGetMonthlyOptionsQuery(
+    filters.homebase_id ? { homebase_id: filters.homebase_id } : undefined,
+  );
   const { data: tariffOptionResponse } = useGetMonthlyOptionsQuery(
     { homebase_id: selectedTariffHomebaseId },
     { skip: !selectedTariffHomebaseId },
   );
-  const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } =
-    useGetMonthlyOptionsQuery(
-      hasPeriodeFilter
-        ? {
-            homebase_id: filters.homebase_id,
-            periode_id: filters.periode_id,
-            grade_id: filters.grade_id,
-            class_id: filters.class_id,
-            search: filters.student_search,
-          }
-        : filters.homebase_id
-          ? { homebase_id: filters.homebase_id }
-          : undefined,
-    );
+  const { data: filterOptionsResponse, isLoading: isLoadingFilterOptions } = useGetMonthlyOptionsQuery(
+    hasPeriodeFilter
+      ? {
+          homebase_id: filters.homebase_id,
+          periode_id: filters.periode_id,
+          grade_id: filters.grade_id,
+          class_id: filters.class_id,
+          search: filters.student_search,
+        }
+      : filters.homebase_id
+        ? { homebase_id: filters.homebase_id }
+        : undefined,
+  );
   const {
     data: tariffResponse,
     isLoading: isLoadingTariffs,
@@ -145,18 +141,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     isFetching: isFetchingPayments,
   } = useGetMonthlyPaymentsQuery(paymentQueryFilters);
 
-  const [addMonthlyTariff, { isLoading: isAddingTariff }] =
-    useAddMonthlyTariffMutation();
-  const [updateMonthlyTariff, { isLoading: isUpdatingTariff }] =
-    useUpdateMonthlyTariffMutation();
-  const [deleteMonthlyTariff, { isLoading: isDeletingTariff }] =
-    useDeleteMonthlyTariffMutation();
-  const [addMonthlyPayment, { isLoading: isAddingPayment }] =
-    useAddMonthlyPaymentMutation();
-  const [updateMonthlyPayment, { isLoading: isUpdatingPayment }] =
-    useUpdateMonthlyPaymentMutation();
-  const [deleteMonthlyPayment, { isLoading: isDeletingPayment }] =
-    useDeleteMonthlyPaymentMutation();
+  const [addMonthlyTariff, { isLoading: isAddingTariff }] = useAddMonthlyTariffMutation();
+  const [updateMonthlyTariff, { isLoading: isUpdatingTariff }] = useUpdateMonthlyTariffMutation();
+  const [deleteMonthlyTariff, { isLoading: isDeletingTariff }] = useDeleteMonthlyTariffMutation();
+  const [addMonthlyPayment, { isLoading: isAddingPayment }] = useAddMonthlyPaymentMutation();
+  const [updateMonthlyPayment, { isLoading: isUpdatingPayment }] = useUpdateMonthlyPaymentMutation();
+  const [deleteMonthlyPayment, { isLoading: isDeletingPayment }] = useDeleteMonthlyPaymentMutation();
 
   const options = optionsResponse?.data || {};
   const tariffOptions = tariffOptionResponse?.data || options;
@@ -165,26 +155,11 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const periodes = useMemo(() => options.periodes || [], [options.periodes]);
   const grades = useMemo(() => options.grades || [], [options.grades]);
   const months = useMemo(() => options.months || [], [options.months]);
-  const mainClasses = useMemo(
-    () => filterOptions.classes || [],
-    [filterOptions.classes],
-  );
-  const mainStudents = useMemo(
-    () => filterOptions.students || [],
-    [filterOptions.students],
-  );
-  const tariffs = useMemo(
-    () => tariffResponse?.data || [],
-    [tariffResponse?.data],
-  );
-  const payments = useMemo(
-    () => paymentResponse?.data || [],
-    [paymentResponse?.data],
-  );
-  const paymentSummary = useMemo(
-    () => paymentResponse?.summary || {},
-    [paymentResponse?.summary],
-  );
+  const mainClasses = useMemo(() => filterOptions.classes || [], [filterOptions.classes]);
+  const mainStudents = useMemo(() => filterOptions.students || [], [filterOptions.students]);
+  const tariffs = useMemo(() => tariffResponse?.data || [], [tariffResponse?.data]);
+  const payments = useMemo(() => paymentResponse?.data || [], [paymentResponse?.data]);
+  const paymentSummary = useMemo(() => paymentResponse?.summary || {}, [paymentResponse?.summary]);
   const paymentStudents = useMemo(() => {
     const studentMap = new Map();
 
@@ -213,13 +188,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     });
 
     return [...studentMap.values()].sort((left, right) =>
-      String(left.full_name || "").localeCompare(
-        String(right.full_name || ""),
-        "id",
-        {
-          sensitivity: "base",
-        },
-      ),
+      String(left.full_name || '').localeCompare(String(right.full_name || ''), 'id', {
+        sensitivity: 'base',
+      }),
     );
   }, [mainStudents, payments]);
 
@@ -233,9 +204,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       return;
     }
 
-    const defaultHomebase =
-      options.selected_homebase_id ||
-      (homebases.length === 1 ? homebases[0]?.id : undefined);
+    const defaultHomebase = options.selected_homebase_id || (homebases.length === 1 ? homebases[0]?.id : undefined);
 
     if (defaultHomebase) {
       setFilters((previous) => ({
@@ -250,8 +219,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       return;
     }
 
-    const activePeriode =
-      periodes.find((item) => item.is_active) || periodes[0];
+    const activePeriode = periodes.find((item) => item.is_active) || periodes[0];
 
     setFilters((previous) => ({
       ...previous,
@@ -265,29 +233,23 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       return;
     }
 
-    const periodeExists = periodes.some(
-      (item) => Number(item.id) === Number(filters.periode_id),
-    );
+    const periodeExists = periodes.some((item) => Number(item.id) === Number(filters.periode_id));
     if (periodeExists) {
       return;
     }
 
-    const activePeriode =
-      periodes.find((item) => item.is_active) || periodes[0];
+    const activePeriode = periodes.find((item) => item.is_active) || periodes[0];
     setFilters((previous) => ({
       ...previous,
       periode_id: activePeriode?.id,
       grade_id: undefined,
       class_id: undefined,
-      student_search: "",
+      student_search: '',
     }));
   }, [periodes, filters.periode_id]);
 
   useEffect(() => {
-    if (
-      filters.class_id &&
-      !mainClasses.some((item) => item.id === filters.class_id)
-    ) {
+    if (filters.class_id && !mainClasses.some((item) => item.id === filters.class_id)) {
       setFilters((previous) => ({
         ...previous,
         class_id: undefined,
@@ -301,39 +263,27 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       return;
     }
 
-    const currentPeriodeId = tariffForm.getFieldValue("periode_id");
-    const currentGradeId = tariffForm.getFieldValue("grade_id");
+    const currentPeriodeId = tariffForm.getFieldValue('periode_id');
+    const currentGradeId = tariffForm.getFieldValue('grade_id');
     const scopedPeriodes = tariffOptions.periodes || [];
     const scopedGrades = tariffOptions.grades || [];
 
     if (!currentPeriodeId && scopedPeriodes.length > 0) {
       const preferredPeriode =
-        scopedPeriodes.find(
-          (item) => Number(item.id) === Number(filters.periode_id),
-        ) ||
+        scopedPeriodes.find((item) => Number(item.id) === Number(filters.periode_id)) ||
         scopedPeriodes.find((item) => item.is_active) ||
         scopedPeriodes[0];
-      tariffForm.setFieldValue("periode_id", preferredPeriode?.id);
-    } else if (
-      currentPeriodeId &&
-      !scopedPeriodes.some(
-        (item) => Number(item.id) === Number(currentPeriodeId),
-      )
-    ) {
+      tariffForm.setFieldValue('periode_id', preferredPeriode?.id);
+    } else if (currentPeriodeId && !scopedPeriodes.some((item) => Number(item.id) === Number(currentPeriodeId))) {
       const preferredPeriode =
-        scopedPeriodes.find(
-          (item) => Number(item.id) === Number(filters.periode_id),
-        ) ||
+        scopedPeriodes.find((item) => Number(item.id) === Number(filters.periode_id)) ||
         scopedPeriodes.find((item) => item.is_active) ||
         scopedPeriodes[0];
-      tariffForm.setFieldValue("periode_id", preferredPeriode?.id);
+      tariffForm.setFieldValue('periode_id', preferredPeriode?.id);
     }
 
-    if (
-      currentGradeId &&
-      !scopedGrades.some((item) => Number(item.id) === Number(currentGradeId))
-    ) {
-      tariffForm.setFieldValue("grade_id", undefined);
+    if (currentGradeId && !scopedGrades.some((item) => Number(item.id) === Number(currentGradeId))) {
+      tariffForm.setFieldValue('grade_id', undefined);
     }
   }, [
     filters.periode_id,
@@ -346,64 +296,64 @@ const Monthly = ({ initialTab = "tariffs" }) => {
 
   const summaryCards = [
     {
-      key: "total",
-      title: "Total Siswa",
+      key: 'total',
+      title: 'Total Siswa',
       value: paymentSummary.total_records || 0,
-      prefix: "",
-      note: "Jumlah siswa sesuai filter yang dipilih",
+      prefix: '',
+      note: 'Jumlah siswa sesuai filter yang dipilih',
       icon: <Users size={18} />,
-      bg: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-      color: "#2563eb",
+      bg: 'linear-gradient(135deg, #dbeafe, #eff6ff)',
+      color: '#2563eb',
     },
     {
-      key: "paid",
-      title: "Sudah Lunas",
+      key: 'paid',
+      title: 'Sudah Lunas',
       value: paymentSummary.paid_count || 0,
-      prefix: "",
-      note: "Siswa yang sudah melunasi bulan terpilih",
+      prefix: '',
+      note: 'Siswa yang sudah melunasi bulan terpilih',
       icon: <CheckCircle2 size={18} />,
-      bg: "linear-gradient(135deg, #dcfce7, #ecfdf5)",
-      color: "#15803d",
+      bg: 'linear-gradient(135deg, #dcfce7, #ecfdf5)',
+      color: '#15803d',
     },
     {
-      key: "unpaid",
-      title: "Belum Bayar",
+      key: 'unpaid',
+      title: 'Belum Bayar',
       value: paymentSummary.unpaid_count || 0,
-      prefix: "",
-      note: "Siswa yang belum melunasi bulan terpilih",
+      prefix: '',
+      note: 'Siswa yang belum melunasi bulan terpilih',
       icon: <AlertTriangle size={18} />,
-      bg: "linear-gradient(135deg, #fef3c7, #fff7ed)",
-      color: "#d97706",
+      bg: 'linear-gradient(135deg, #fef3c7, #fff7ed)',
+      color: '#d97706',
     },
     {
-      key: "bruto",
-      title: "Target Bruto",
+      key: 'bruto',
+      title: 'Target Bruto',
       value: paymentSummary.total_bruto || 0,
-      prefix: "Rp",
-      note: "Tarif penuh sebelum beasiswa",
+      prefix: 'Rp',
+      note: 'Tarif penuh sebelum beasiswa',
       icon: <BarChart3 size={18} />,
-      bg: "linear-gradient(135deg, #e0e7ff, #eef2ff)",
-      color: "#4338ca",
+      bg: 'linear-gradient(135deg, #e0e7ff, #eef2ff)',
+      color: '#4338ca',
     },
     {
-      key: "scholarship",
-      title: "Cover Beasiswa",
+      key: 'scholarship',
+      title: 'Cover Beasiswa',
       value: paymentSummary.total_scholarship_cover || 0,
-      prefix: "Rp",
-      note: "Potongan beasiswa (bukan kas masuk)",
+      prefix: 'Rp',
+      note: 'Potongan beasiswa (bukan kas masuk)',
       icon: <Gift size={18} />,
-      bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
-      color: "#1d4ed8",
+      bg: 'linear-gradient(135deg, #dbeafe, #e0e7ff)',
+      color: '#1d4ed8',
     },
     {
-      key: "amount",
-      title: "SPP Terkumpul",
+      key: 'amount',
+      title: 'SPP Terkumpul',
       value: paymentSummary.paid_amount || 0,
-      prefix: "Rp",
-      note: `Target netto ${Number(paymentSummary.total_amount || 0).toLocaleString("id-ID")}`,
+      prefix: 'Rp',
+      note: `Target netto ${Number(paymentSummary.total_amount || 0).toLocaleString('id-ID')}`,
       icon: <Wallet size={18} />,
-      bg: "linear-gradient(135deg, #e0f2fe, #ecfeff)",
-      color: "#0369a1",
+      bg: 'linear-gradient(135deg, #e0f2fe, #ecfeff)',
+      color: '#0369a1',
     },
   ];
 
@@ -422,24 +372,15 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     } else {
       tariffForm.resetFields();
       const defaultHomebaseId =
-        filters.homebase_id ||
-        options.selected_homebase_id ||
-        homebases[0]?.id ||
-        user?.homebase_id;
-      const scopedPeriodes = tariffOptions.periodes?.length
-        ? tariffOptions.periodes
-        : periodes;
+        filters.homebase_id || options.selected_homebase_id || homebases[0]?.id || user?.homebase_id;
+      const scopedPeriodes = tariffOptions.periodes?.length ? tariffOptions.periodes : periodes;
       const defaultPeriode =
-        scopedPeriodes.find(
-          (item) => Number(item.id) === Number(filters.periode_id),
-        ) ||
+        scopedPeriodes.find((item) => Number(item.id) === Number(filters.periode_id)) ||
         scopedPeriodes.find((item) => item.is_active) ||
         scopedPeriodes[0];
 
       if (!defaultPeriode?.id) {
-        message.warning(
-          "Pilih periode di filter terlebih dahulu sebelum menambah tarif SPP.",
-        );
+        message.warning('Pilih periode di filter terlebih dahulu sebelum menambah tarif SPP.');
         return;
       }
 
@@ -461,14 +402,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   };
 
   const resolvePaymentPeriodeId = (fallbackPeriodeId) =>
-    Number(
-      filters.periode_id || fallbackPeriodeId || undefined,
-    ) || undefined;
+    Number(filters.periode_id || fallbackPeriodeId || undefined) || undefined;
 
-  const getStudentPaymentContext = (
-    studentId,
-    periodeId = filters.periode_id,
-  ) => {
+  const getStudentPaymentContext = (studentId, periodeId = filters.periode_id) => {
     if (!studentId) {
       return {
         student: null,
@@ -477,16 +413,13 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       };
     }
 
-    const student =
-      paymentStudents.find((item) => item.id === studentId) || null;
+    const student = paymentStudents.find((item) => item.id === studentId) || null;
     const paymentRows = payments.filter(
-      (item) =>
-        Number(item.student_id) === Number(studentId) &&
-        Number(item.periode_id) === Number(periodeId),
+      (item) => Number(item.student_id) === Number(studentId) && Number(item.periode_id) === Number(periodeId),
     );
-    const paidMonths = [
-      ...new Set(paymentRows.flatMap((item) => item.paid_months || [])),
-    ].sort((left, right) => left - right);
+    const paidMonths = [...new Set(paymentRows.flatMap((item) => item.paid_months || []))].sort(
+      (left, right) => left - right,
+    );
 
     return {
       student,
@@ -499,17 +432,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
     const targetPeriodeId = resolvePaymentPeriodeId(record?.periode_id);
 
     if (!targetPeriodeId) {
-      message.warning(
-        "Pilih periode di filter terlebih dahulu sebelum input pembayaran SPP.",
-      );
+      message.warning('Pilih periode di filter terlebih dahulu sebelum input pembayaran SPP.');
       return;
     }
 
     const targetStudentId = record?.student_id;
-    const { student } = getStudentPaymentContext(
-      targetStudentId,
-      targetPeriodeId,
-    );
+    const { student } = getStudentPaymentContext(targetStudentId, targetPeriodeId);
 
     paymentForm.resetFields();
     paymentForm.setFieldsValue({
@@ -528,10 +456,7 @@ const Monthly = ({ initialTab = "tariffs" }) => {
 
   const openEditPaymentModal = (record) => {
     const targetPeriodeId = resolvePaymentPeriodeId(record.periode_id);
-    const { student } = getStudentPaymentContext(
-      record.student_id,
-      targetPeriodeId || record.periode_id,
-    );
+    const { student } = getStudentPaymentContext(record.student_id, targetPeriodeId || record.periode_id);
     paymentForm.resetFields();
     paymentForm.setFieldsValue({
       homebase_id: filters.homebase_id,
@@ -550,9 +475,9 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const handleDeleteTariff = async (id) => {
     try {
       await deleteMonthlyTariff(id).unwrap();
-      message.success("Tarif SPP berhasil dihapus");
+      message.success('Tarif SPP berhasil dihapus');
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus tarif SPP");
+      message.error(error?.data?.message || 'Gagal menghapus tarif SPP');
     }
   };
 
@@ -563,50 +488,41 @@ const Monthly = ({ initialTab = "tariffs" }) => {
           id: editingTariff.id,
           ...values,
         }).unwrap();
-        message.success("Tarif SPP berhasil diperbarui");
+        message.success('Tarif SPP berhasil diperbarui');
       } else {
         await addMonthlyTariff(values).unwrap();
-        message.success("Tarif SPP berhasil ditambahkan");
+        message.success('Tarif SPP berhasil ditambahkan');
       }
 
       setTariffModalOpen(false);
       setEditingTariff(null);
       tariffForm.resetFields();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan tarif SPP");
+      message.error(error?.data?.message || 'Gagal menyimpan tarif SPP');
     }
   };
 
   const handleDeletePayment = async (id) => {
     try {
       await deleteMonthlyPayment(id).unwrap();
-      message.success("Pembayaran SPP berhasil dihapus");
+      message.success('Pembayaran SPP berhasil dihapus');
 
       if (editingPayment?.id === id) {
         closePaymentModal();
       }
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus pembayaran SPP");
+      message.error(error?.data?.message || 'Gagal menghapus pembayaran SPP');
     }
   };
 
   const handleSubmitPayment = async (values) => {
-    const selectedStudent = paymentStudents.find(
-      (item) => Number(item.id) === Number(values.student_id),
-    );
-    const effectiveHomebaseId = Number(
-      values.homebase_id || filters.homebase_id || user?.homebase_id,
-    );
+    const selectedStudent = paymentStudents.find((item) => Number(item.id) === Number(values.student_id));
+    const effectiveHomebaseId = Number(values.homebase_id || filters.homebase_id || user?.homebase_id);
     const effectivePeriodeId = Number(
-      filters.periode_id ||
-        values.periode_id ||
-        selectedStudent?.periode_id ||
-        editingPayment?.periode_id,
+      filters.periode_id || values.periode_id || selectedStudent?.periode_id || editingPayment?.periode_id,
     );
     const effectiveStudentId = Number(values.student_id);
-    const effectiveGradeId = Number(
-      selectedStudent?.grade_id || values.grade_id,
-    );
+    const effectiveGradeId = Number(selectedStudent?.grade_id || values.grade_id);
 
     const payload = {
       homebase_id: effectiveHomebaseId,
@@ -618,25 +534,15 @@ const Monthly = ({ initialTab = "tariffs" }) => {
       bill_months: values.bill_months || [],
     };
 
-    if (
-      !payload.homebase_id ||
-      !payload.periode_id ||
-      !payload.student_id ||
-      !payload.grade_id
-    ) {
+    if (!payload.homebase_id || !payload.periode_id || !payload.student_id || !payload.grade_id) {
       message.error(
-        "Satuan, periode filter, siswa, atau tingkat belum sinkron. Pastikan periode filter aktif lalu pilih siswa dari data yang tampil.",
+        'Satuan, periode filter, siswa, atau tingkat belum sinkron. Pastikan periode filter aktif lalu pilih siswa dari data yang tampil.',
       );
       return;
     }
 
-    if (
-      filters.periode_id &&
-      Number(payload.periode_id) !== Number(filters.periode_id)
-    ) {
-      message.error(
-        "Periode pembayaran harus sama dengan periode yang dipilih di filter.",
-      );
+    if (filters.periode_id && Number(payload.periode_id) !== Number(filters.periode_id)) {
+      message.error('Periode pembayaran harus sama dengan periode yang dipilih di filter.');
       return;
     }
 
@@ -646,31 +552,26 @@ const Monthly = ({ initialTab = "tariffs" }) => {
           id: editingPayment.id,
           ...payload,
         }).unwrap();
-        message.success("Pembayaran SPP berhasil diperbarui");
+        message.success('Pembayaran SPP berhasil diperbarui');
       } else {
         await addMonthlyPayment(payload).unwrap();
-        message.success("Pembayaran SPP berhasil ditambahkan");
+        message.success('Pembayaran SPP berhasil ditambahkan');
       }
 
       closePaymentModal();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan pembayaran SPP");
+      message.error(error?.data?.message || 'Gagal menyimpan pembayaran SPP');
     }
   };
 
-  const paymentModalPeriodeId =
-    filters.periode_id ||
-    selectedPaymentPeriodeId ||
-    editingPayment?.periode_id;
+  const paymentModalPeriodeId = filters.periode_id || selectedPaymentPeriodeId || editingPayment?.periode_id;
   const paymentModalStudents = useMemo(() => {
     if (!paymentModalPeriodeId) {
       return paymentStudents;
     }
 
     return paymentStudents.filter(
-      (item) =>
-        !item.periode_id ||
-        Number(item.periode_id) === Number(paymentModalPeriodeId),
+      (item) => !item.periode_id || Number(item.periode_id) === Number(paymentModalPeriodeId),
     );
   }, [paymentModalPeriodeId, paymentStudents]);
   const paymentStudentContext = getStudentPaymentContext(
@@ -680,28 +581,20 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   const paymentTariffAmount =
     payments.find(
       (item) =>
-        Number(item.student_id) ===
-          Number(selectedPaymentStudentId || editingPayment?.student_id) &&
+        Number(item.student_id) === Number(selectedPaymentStudentId || editingPayment?.student_id) &&
         Number(item.periode_id) === Number(paymentModalPeriodeId),
     )?.amount ||
     tariffs.find(
       (item) =>
         Number(item.periode_id) === Number(paymentModalPeriodeId) &&
-        Number(item.grade_id) ===
-          Number(
-            paymentStudentContext.student?.grade_id || editingPayment?.grade_id,
-          ) &&
+        Number(item.grade_id) === Number(paymentStudentContext.student?.grade_id || editingPayment?.grade_id) &&
         item.is_active !== false,
     )?.amount ||
     0;
   const blockedMonths = new Set(paymentStudentContext.paidMonths);
-  const editingMonths = (
-    editingPayment?.bill_months || [editingPayment?.bill_month].filter(Boolean)
-  ).map(Number);
+  const editingMonths = (editingPayment?.bill_months || [editingPayment?.bill_month].filter(Boolean)).map(Number);
   editingMonths.forEach((month) => blockedMonths.delete(month));
-  const availableMonths = months
-    .map((item) => item.value)
-    .filter((month) => !blockedMonths.has(month));
+  const availableMonths = months.map((item) => item.value).filter((month) => !blockedMonths.has(month));
 
   const isPageBootstrapping =
     isLoadingOptions ||
@@ -717,41 +610,33 @@ const Monthly = ({ initialTab = "tariffs" }) => {
   }
 
   const activeHomebaseName =
-    homebases.find((item) => Number(item.id) === Number(filters.homebase_id))
-      ?.name ||
-    (filters.homebase_id
-      ? user?.homebase_name || user?.homebase_id || "-"
-      : "Semua satuan");
+    homebases.find((item) => Number(item.id) === Number(filters.homebase_id))?.name ||
+    (filters.homebase_id ? user?.homebase_name || user?.homebase_id || '-' : 'Semua satuan');
   const activePeriodeName = filters.periode_id
-    ? periodes.find((item) => Number(item.id) === Number(filters.periode_id))
-        ?.name || "-"
-    : "Semua periode";
+    ? periodes.find((item) => Number(item.id) === Number(filters.periode_id))?.name || '-'
+    : 'Semua periode';
   const activeGradeName = filters.grade_id
     ? grades.find((item) => Number(item.id) === Number(filters.grade_id))?.name
     : undefined;
   const activeClassName = filters.class_id
-    ? mainClasses.find((item) => Number(item.id) === Number(filters.class_id))
-        ?.name
+    ? mainClasses.find((item) => Number(item.id) === Number(filters.class_id))?.name
     : undefined;
-  const activeMonthLabel = months.find(
-    (item) => Number(item.value) === Number(filters.bill_month),
-  )?.label;
+  const activeMonthLabel = months.find((item) => Number(item.value) === Number(filters.bill_month))?.label;
 
   const createTabLabel = (label, icon, count, caption) => (
-    <Flex align='center' gap={isMobile ? 8 : 10}>
+    <Flex align="center" gap={isMobile ? 8 : 10}>
       <span
         style={{
           width: isMobile ? 28 : 34,
           height: isMobile ? 28 : 34,
-          display: "grid",
-          placeItems: "center",
+          display: 'grid',
+          placeItems: 'center',
           borderRadius: isMobile ? 10 : 12,
-          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
-          color: "#0369a1",
-          border: "1px solid rgba(148,163,184,0.14)",
+          background: 'linear-gradient(135deg, #dbeafe, #dcfce7)',
+          color: '#0369a1',
+          border: '1px solid rgba(148,163,184,0.14)',
           flexShrink: 0,
-        }}
-      >
+        }}>
         {icon}
       </span>
       <div style={{ minWidth: 0 }}>
@@ -760,36 +645,22 @@ const Monthly = ({ initialTab = "tariffs" }) => {
             fontWeight: 600,
             lineHeight: 1.2,
             fontSize: isMobile ? 13 : 14,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {label} {count !== undefined ? `(${count})` : ""}
+            whiteSpace: 'nowrap',
+          }}>
+          {label} {count !== undefined ? `(${count})` : ''}
         </div>
-        {!isCompact ? (
-          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.2 }}>
-            {caption}
-          </div>
-        ) : null}
+        {!isCompact ? <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.2 }}>{caption}</div> : null}
       </div>
     </Flex>
   );
 
   return (
-    <MotionDiv
-      variants={containerVariants}
-      initial='hidden'
-      animate='visible'
-      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
-    >
-      <Space
-        vertical
-        size={isMobile ? 16 : 24}
-        style={{ width: "100%", display: "flex" }}
-      >
+    <MotionDiv variants={containerVariants} initial="hidden" animate="visible">
+      <Space vertical size={isMobile ? 16 : 24} style={{ width: '100%', display: 'flex' }}>
         <MotionDiv variants={itemVariants}>
           <MonthlyHeader
             onOpenTariff={() => {
-              setActiveTab("tariffs");
+              setActiveTab('tariffs');
               openTariffModal();
             }}
           />
@@ -811,21 +682,20 @@ const Monthly = ({ initialTab = "tariffs" }) => {
           />
         </MotionDiv>
 
-        <MotionDiv variants={itemVariants} style={{ width: "100%" }}>
+        <MotionDiv variants={itemVariants} style={{ width: '100%' }}>
           <Card
-            variant='borderless'
+            variant="borderless"
             style={{
               borderRadius: isMobile ? 20 : 28,
-              border: "1px solid rgba(148, 163, 184, 0.14)",
-              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.07)",
-              overflow: "hidden",
+              border: '1px solid rgba(148, 163, 184, 0.14)',
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.07)',
+              overflow: 'hidden',
             }}
-            styles={{ body: { padding: isMobile ? 8 : 12 } }}
-          >
+            styles={{ body: { padding: isMobile ? 8 : 12 } }}>
             <Tabs
               activeKey={activeTab}
               onChange={setActiveTab}
-              size={isMobile ? "small" : "middle"}
+              size={isMobile ? 'small' : 'middle'}
               tabBarGutter={isMobile ? 8 : 14}
               tabBarStyle={{
                 marginBottom: isMobile ? 12 : 20,
@@ -833,12 +703,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
               }}
               items={[
                 {
-                  key: "tariffs",
+                  key: 'tariffs',
                   label: createTabLabel(
-                    "Tarif SPP",
+                    'Tarif SPP',
                     <ReceiptText size={isMobile ? 14 : 16} />,
                     tariffs.length,
-                    "Pengaturan tarif per periode",
+                    'Pengaturan tarif per periode',
                   ),
                   children: (
                     <MonthlyTariffTable
@@ -852,24 +722,21 @@ const Monthly = ({ initialTab = "tariffs" }) => {
                   ),
                 },
                 {
-                  key: "payments",
+                  key: 'payments',
                   label: createTabLabel(
-                    isMobile ? "Pembayaran" : "Pembayaran SPP",
+                    isMobile ? 'Pembayaran' : 'Pembayaran SPP',
                     <CreditCard size={isMobile ? 14 : 16} />,
                     payments.length,
-                    "Monitoring status pelunasan",
+                    'Monitoring status pelunasan',
                   ),
                   children: (
                     <MonthlyPaymentTable
                       payments={payments}
                       loading={isFetchingPayments}
-                      selectedMonth={months.find(
-                        (item) => Number(item.value) === Number(filters.bill_month),
-                      )?.label}
+                      selectedMonth={months.find((item) => Number(item.value) === Number(filters.bill_month))?.label}
                       homebaseName={
-                        homebases.find(
-                          (item) => Number(item.id) === Number(filters.homebase_id),
-                        )?.name || user?.homebase_name
+                        homebases.find((item) => Number(item.id) === Number(filters.homebase_id))?.name ||
+                        user?.homebase_name
                       }
                       onCreatePayment={openCreatePaymentModal}
                       onEditPayment={openEditPaymentModal}
@@ -879,12 +746,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
                   ),
                 },
                 {
-                  key: "report",
+                  key: 'report',
                   label: createTabLabel(
-                    isMobile ? "Laporan" : "Laporan SPP",
+                    isMobile ? 'Laporan' : 'Laporan SPP',
                     <BarChart3 size={isMobile ? 14 : 16} />,
                     undefined,
-                    "Ringkasan capaian per kelas",
+                    'Ringkasan capaian per kelas',
                   ),
                   children: (
                     <MonthlyReportPanel
@@ -908,25 +775,18 @@ const Monthly = ({ initialTab = "tariffs" }) => {
 
         <MotionDiv variants={itemVariants}>
           <Card
-            variant='borderless'
+            variant="borderless"
             style={{
               borderRadius: 20,
-              border: "1px solid rgba(148,163,184,0.14)",
-              background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+              border: '1px solid rgba(148,163,184,0.14)',
+              background: 'linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)',
             }}
-            styles={{ body: { padding: isMobile ? "12px 14px" : "14px 16px" } }}
-          >
-            <Flex align='flex-start' gap={8}>
-              <Sparkles
-                size={14}
-                color='#64748b'
-                style={{ flexShrink: 0, marginTop: 3 }}
-              />
-              <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
-                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}.
-                Default: periode aktif. Kosongkan filter periode untuk melihat
-                semua periode, lalu bisa dipersempit berdasarkan tingkat, kelas,
-                dan siswa.
+            styles={{ body: { padding: isMobile ? '12px 14px' : '14px 16px' } }}>
+            <Flex align="flex-start" gap={8}>
+              <Sparkles size={14} color="#64748b" style={{ flexShrink: 0, marginTop: 3 }} />
+              <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
+                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}. Default: periode aktif. Kosongkan filter
+                periode untuk melihat semua periode, lalu bisa dipersempit berdasarkan tingkat, kelas, dan siswa.
               </Text>
             </Flex>
           </Card>
@@ -960,15 +820,12 @@ const Monthly = ({ initialTab = "tariffs" }) => {
         onCancel={closePaymentModal}
         onSubmit={handleSubmitPayment}
         onStudentChange={(value) => {
-          const selectedStudent = paymentModalStudents.find(
-            (item) => Number(item.id) === Number(value),
-          );
+          const selectedStudent = paymentModalStudents.find((item) => Number(item.id) === Number(value));
 
           paymentForm.setFieldsValue({
             grade_id: selectedStudent?.grade_id,
             periode_id: paymentModalPeriodeId,
-            homebase_id:
-              selectedStudent?.homebase_id || filters.homebase_id,
+            homebase_id: selectedStudent?.homebase_id || filters.homebase_id,
           });
         }}
         form={paymentForm}
@@ -978,14 +835,10 @@ const Monthly = ({ initialTab = "tariffs" }) => {
         tariffAmount={Number(paymentTariffAmount) || 0}
         availableMonths={availableMonths}
         activeHomebaseName={
-          homebases.find(
-            (item) => Number(item.id) === Number(filters.homebase_id),
-          )?.name || user?.homebase_name
+          homebases.find((item) => Number(item.id) === Number(filters.homebase_id))?.name || user?.homebase_name
         }
         activePeriodeName={
-          periodes.find(
-            (item) => Number(item.id) === Number(paymentModalPeriodeId),
-          )?.name || activePeriodeName
+          periodes.find((item) => Number(item.id) === Number(paymentModalPeriodeId))?.name || activePeriodeName
         }
         confirmLoading={isAddingPayment || isUpdatingPayment}
       />

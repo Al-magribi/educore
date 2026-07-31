@@ -225,6 +225,7 @@ const MonthlyPaymentTable = ({
           brutoAmount={record.bruto_amount}
           scholarshipCover={record.scholarship_cover}
           hasScholarship={record.has_scholarship}
+          scholarshipNames={record.scholarship_names}
         />
       ),
     },
@@ -297,8 +298,9 @@ const MonthlyPaymentTable = ({
                 amount={record.amount}
                 brutoAmount={record.bruto_amount}
                 scholarshipCover={record.scholarship_cover}
-                hasScholarship={record.has_scholarship}
-              />
+              hasScholarship={record.has_scholarship}
+              scholarshipNames={record.scholarship_names}
+            />
             </div>
             <div style={{ minWidth: 110 }}>{renderActions(record)}</div>
           </Flex>

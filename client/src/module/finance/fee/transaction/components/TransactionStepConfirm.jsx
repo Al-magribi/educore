@@ -1,4 +1,15 @@
-import { Card, Descriptions, Empty, Flex, Grid, Space, Tag, Typography } from "antd";
+import {
+  Card,
+  Descriptions,
+  Empty,
+  Flex,
+  Form,
+  Grid,
+  Input,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
 import { motion } from "framer-motion";
 
 import { currencyFormatter } from "./transactionFormShared.jsx";
@@ -127,6 +138,25 @@ const TransactionStepConfirm = ({
             <Empty description='Belum ada item pembayaran yang dipilih' />
           ) : null}
         </Space>
+      </Card>
+
+      <Card
+        style={{ borderRadius: isMobile ? 16 : 18 }}
+        styles={{ body: { padding: isMobile ? 14 : 24 } }}
+      >
+        <Form.Item
+          name='notes'
+          label='Catatan'
+          style={{ marginBottom: 0 }}
+          extra='Opsional. Catatan tersimpan pada transaksi pembayaran.'
+        >
+          <Input.TextArea
+            rows={3}
+            placeholder='Contoh: dibayar tunai di loket, transfer sebagian, atau keterangan lain.'
+            maxLength={500}
+            showCount
+          />
+        </Form.Item>
       </Card>
 
       <Card

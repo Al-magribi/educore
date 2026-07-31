@@ -1362,6 +1362,68 @@ router.get(
       result.rows.map((row) => row.student_id),
     );
 
+    const studentIds = [
+      ...new Set(
+        result.rows.map((row) => Number(row.student_id)).filter(Boolean),
+      ),
+    ];
+    const enrolledScholarshipByStudent = new Map();
+    if (homebaseId && studentIds.length > 0) {
+      const enrolledResult = await db.query(
+        `
+          SELECT
+            ss.student_id,
+            s.name AS scholarship_name
+          FROM finance.scholarship_student ss
+          JOIN finance.scholarship s ON s.id = ss.scholarship_id
+          WHERE s.homebase_id = $1
+            AND ss.student_id = ANY($2::int[])
+            AND ss.is_active = true
+            AND s.is_active = true
+          ORDER BY s.name ASC
+        `,
+        [homebaseId, studentIds],
+      );
+
+      for (const row of enrolledResult.rows) {
+        const studentId = Number(row.student_id);
+        const names = enrolledScholarshipByStudent.get(studentId) || [];
+        if (row.scholarship_name && !names.includes(row.scholarship_name)) {
+          names.push(row.scholarship_name);
+        }
+        enrolledScholarshipByStudent.set(studentId, names);
+      }
+    }
+
+    const invoiceItemIds = result.rows
+      .map((row) => Number(row.charge_id))
+      .filter(Boolean);
+    const scholarshipNameByItemId = new Map();
+    if (invoiceItemIds.length > 0) {
+      const scholarshipNameResult = await db.query(
+        `
+          SELECT
+            iis.invoice_item_id,
+            s.name AS scholarship_name
+          FROM finance.invoice_item_scholarship iis
+          JOIN finance.scholarship s ON s.id = iis.scholarship_id
+          WHERE iis.invoice_item_id = ANY($1::bigint[])
+            AND COALESCE(iis.cover_amount, 0) > 0
+          ORDER BY iis.id ASC
+        `,
+        [invoiceItemIds],
+      );
+
+      for (const row of scholarshipNameResult.rows) {
+        const itemId = Number(row.invoice_item_id);
+        const names = scholarshipNameByItemId.get(itemId) || [];
+        if (row.scholarship_name && !names.includes(row.scholarship_name)) {
+          names.push(row.scholarship_name);
+        }
+        scholarshipNameByItemId.set(itemId, names);
+      }
+    }
+
     const data = result.rows.map((item) => {
       const tariffAmount = Number(item.tariff_amount || 0);
       const hasInvoiceItem = Boolean(item.charge_id);
@@ -1381,12 +1443,25 @@ router.get(
       const paidAmount = Number(item.paid_amount || 0);
       const remainingAmount = Math.max(amountDue - paidAmount, 0);
       const derivedStatus = deriveChargeStatus(amountDue, paidAmount);
+      const storedScholarshipNames = hasInvoiceItem
+        ? scholarshipNameByItemId.get(Number(item.charge_id)) || []
+        : [];
+      const enrolledNames =
+        enrolledScholarshipByStudent.get(Number(item.student_id)) || [];
+      const scholarshipNames = [
+        ...new Set([
+          ...enrolledNames,
+          ...storedScholarshipNames,
+          ...(enriched.scholarship_names || []),
+        ]),
+      ];
 
       return {
         ...item,
         bruto_amount: enriched.bruto_amount,
         scholarship_cover: enriched.scholarship_cover,
-        has_scholarship: enriched.has_scholarship,
+        has_scholarship: enriched.has_scholarship || scholarshipNames.length > 0,
+        scholarship_names: scholarshipNames,
         amount_due: amountDue,
         paid_amount: paidAmount,
         remaining_amount: remainingAmount,

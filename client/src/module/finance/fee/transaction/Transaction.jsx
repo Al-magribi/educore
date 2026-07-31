@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSelector } from "react-redux";
-import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
-import { useSearchParams } from "react-router-dom";
-import dayjs from "dayjs";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { useFinanceScope } from '../../../center/finance/FinanceScopeContext';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import dayjs from 'dayjs';
 import {
   Alert,
   Button,
@@ -18,10 +18,10 @@ import {
   Tag,
   Typography,
   message,
-} from "antd";
-import { motion } from "framer-motion";
+} from 'antd';
+import { motion } from 'framer-motion';
 
-import { LoadApp } from "../../../../components";
+import { LoadApp } from '../../../../components';
 import {
   useCreateTransactionMutation,
   useConfirmTransactionPaymentMutation,
@@ -30,14 +30,11 @@ import {
   useGetTransactionOptionsQuery,
   useGetTransactionsQuery,
   useUpdateTransactionMutation,
-} from "../../../../service/finance/ApiTransaction";
-import TransactionFormModal from "./components/TransactionFormModal";
-import TransactionInvoicePanel from "./components/TransactionInvoicePanel.jsx";
-import TransactionList from "./components/TransactionList";
-import {
-  buildOtherPaymentValue,
-  getOtherPaymentSelectionKey,
-} from "./components/transactionFormShared.jsx";
+} from '../../../../service/finance/ApiTransaction';
+import TransactionFormModal from './components/TransactionFormModal';
+import TransactionInvoicePanel from './components/TransactionInvoicePanel.jsx';
+import TransactionList from './components/TransactionList';
+import { buildOtherPaymentValue, getOtherPaymentSelectionKey } from './components/transactionFormShared.jsx';
 
 const MotionDiv = motion.div;
 const { Text } = Typography;
@@ -62,35 +59,35 @@ const branchMotionProps = {
 };
 
 const resetStudentContextValue = {
-  student_search: "",
+  student_search: '',
   grade_id: undefined,
   class_id: undefined,
   student_id: undefined,
   bill_months: [],
   other_payments: {},
+  notes: '',
 };
 
 const formatStudentSearchLabel = (item) => {
-  const fullName = item?.full_name || item?.student_name || "";
-  const nis = item?.nis ? ` - ${item.nis}` : "";
+  const fullName = item?.full_name || item?.student_name || '';
+  const nis = item?.nis ? ` - ${item.nis}` : '';
 
   return `${fullName}${nis}`.trim();
 };
 
 const getEditableOtherPaymentItems = (transaction) =>
-  (transaction?.payment_items || []).filter(
-    (item) => item.item_type === "other",
-  );
+  (transaction?.payment_items || []).filter((item) => item.item_type === 'other');
 
-const getPrimaryInvoice = (record) =>
-  (record?.invoices || []).find((invoice) => invoice?.id) || null;
+const getPrimaryInvoice = (record) => (record?.invoices || []).find((invoice) => invoice?.id) || null;
 
 const Transaction = () => {
   const { user } = useSelector((state) => state.auth);
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialInvoiceId = Number(searchParams.get("invoice") || 0) || null;
+  const initialInvoiceId = Number(searchParams.get('invoice') || 0) || null;
   const [form] = Form.useForm();
   const [modalRequestedOpen, setModalRequestedOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -100,12 +97,12 @@ const Transaction = () => {
     action: null,
     record: null,
   });
-  const [confirmationNotes, setConfirmationNotes] = useState("");
-  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState("");
+  const [confirmationNotes, setConfirmationNotes] = useState('');
+  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState('');
   const [selectedStudentOption, setSelectedStudentOption] = useState(null);
-  const [otherPaymentSelectionsState, setOtherPaymentSelectionsState] =
-    useState({});
+  const [otherPaymentSelectionsState, setOtherPaymentSelectionsState] = useState({});
   const pendingSelectedStudentSearchRef = useRef(null);
+  const pendingOpenOtherPaymentRef = useRef(null);
   const defaultHomebaseAppliedRef = useRef(false);
   const defaultPeriodeHomebaseRef = useRef(null);
   const financeScope = useFinanceScope();
@@ -116,23 +113,19 @@ const Transaction = () => {
     periode_id: undefined,
     page: 1,
     limit: 10,
-    search: "",
+    search: '',
     category: undefined,
     status: undefined,
     payment_source: undefined,
   });
 
-  const formHomebaseId = Form.useWatch("homebase_id", form);
-  const periodeId = Form.useWatch("periode_id", form);
-  const studentId = Form.useWatch("student_id", form);
-  const studentSearch = Form.useWatch("student_search", form);
-  const monthlySelection = Form.useWatch("bill_months", form) || [];
-  const otherPaymentSelections = useMemo(
-    () => otherPaymentSelectionsState || {},
-    [otherPaymentSelectionsState],
-  );
-  const effectiveOptionHomebaseId =
-    formHomebaseId || transactionFilters.homebase_id;
+  const formHomebaseId = Form.useWatch('homebase_id', form);
+  const periodeId = Form.useWatch('periode_id', form);
+  const studentId = Form.useWatch('student_id', form);
+  const studentSearch = Form.useWatch('student_search', form);
+  const monthlySelection = Form.useWatch('bill_months', form) || [];
+  const otherPaymentSelections = useMemo(() => otherPaymentSelectionsState || {}, [otherPaymentSelectionsState]);
+  const effectiveOptionHomebaseId = formHomebaseId || transactionFilters.homebase_id;
 
   const {
     data: optionResponse,
@@ -153,53 +146,33 @@ const Transaction = () => {
 
   const options = optionResponse?.data || {};
   const homebases = useMemo(() => options.homebases || [], [options.homebases]);
-  const resolvedTransactionHomebaseId =
-    transactionFilters.homebase_id || optionResponse?.data?.selected_homebase_id;
+  const resolvedTransactionHomebaseId = transactionFilters.homebase_id || optionResponse?.data?.selected_homebase_id;
   const optionsHomebaseId = optionResponse?.data?.selected_homebase_id;
 
-  const { data: transactionResponse, isLoading: isLoadingTransactions } =
-    useGetTransactionsQuery({
-      ...transactionFilters,
-      homebase_id: resolvedTransactionHomebaseId,
-    });
-  const transactions = useMemo(
-    () => transactionResponse?.data || [],
-    [transactionResponse?.data],
-  );
+  const { data: transactionResponse, isLoading: isLoadingTransactions } = useGetTransactionsQuery({
+    ...transactionFilters,
+    homebase_id: resolvedTransactionHomebaseId,
+  });
+  const transactions = useMemo(() => transactionResponse?.data || [], [transactionResponse?.data]);
   const selectedInvoiceRecord = useMemo(
-    () =>
-      transactions.find(
-        (record) =>
-          Number(getPrimaryInvoice(record)?.id) === Number(openedInvoiceId),
-      ) || null,
+    () => transactions.find((record) => Number(getPrimaryInvoice(record)?.id) === Number(openedInvoiceId)) || null,
     [openedInvoiceId, transactions],
   );
   const activeInvoiceId =
-    openedInvoiceId &&
-    (!isLoadingTransactions
-      ? selectedInvoiceRecord
-        ? openedInvoiceId
-        : null
-      : openedInvoiceId);
-  const { data: invoiceResponse, isFetching: isFetchingInvoice } =
-    useGetTransactionInvoiceQuery(
-      {
-        invoiceId: activeInvoiceId,
-        homebase_id:
-          selectedInvoiceRecord?.homebase_id || resolvedTransactionHomebaseId,
-      },
-      {
-        skip: !activeInvoiceId,
-      },
-    );
-  const [createTransaction, { isLoading: isSubmitting }] =
-    useCreateTransactionMutation();
-  const [confirmTransactionPayment, { isLoading: isConfirmingTransaction }] =
-    useConfirmTransactionPaymentMutation();
-  const [updateTransaction, { isLoading: isUpdatingTransaction }] =
-    useUpdateTransactionMutation();
-  const [deleteTransaction, { isLoading: isDeletingTransaction }] =
-    useDeleteTransactionMutation();
+    openedInvoiceId && (!isLoadingTransactions ? (selectedInvoiceRecord ? openedInvoiceId : null) : openedInvoiceId);
+  const { data: invoiceResponse, isFetching: isFetchingInvoice } = useGetTransactionInvoiceQuery(
+    {
+      invoiceId: activeInvoiceId,
+      homebase_id: selectedInvoiceRecord?.homebase_id || resolvedTransactionHomebaseId,
+    },
+    {
+      skip: !activeInvoiceId,
+    },
+  );
+  const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
+  const [confirmTransactionPayment, { isLoading: isConfirmingTransaction }] = useConfirmTransactionPaymentMutation();
+  const [updateTransaction, { isLoading: isUpdatingTransaction }] = useUpdateTransactionMutation();
+  const [deleteTransaction, { isLoading: isDeletingTransaction }] = useDeleteTransactionMutation();
   const selectedHomebaseId = resolvedTransactionHomebaseId;
   const periodes = useMemo(() => options.periodes || [], [options.periodes]);
 
@@ -270,43 +243,21 @@ const Transaction = () => {
       periode_id: activePeriode.id,
       page: 1,
     }));
-  }, [
-    modalRequestedOpen,
-    optionsHomebaseId,
-    periodes,
-    transactionFilters.homebase_id,
-    transactionFilters.periode_id,
-  ]);
+  }, [modalRequestedOpen, optionsHomebaseId, periodes, transactionFilters.homebase_id, transactionFilters.periode_id]);
   const students = useMemo(() => options.students || [], [options.students]);
   const student = options.student || null;
-  const unpaidMonths = useMemo(
-    () => options.spp?.unpaid_months || [],
-    [options.spp?.unpaid_months],
-  );
+  const unpaidMonths = useMemo(() => options.spp?.unpaid_months || [], [options.spp?.unpaid_months]);
   const tariffAmount = Number(options.spp?.tariff_amount || 0);
-  const otherCharges = useMemo(
-    () => options.other_charges || [],
-    [options.other_charges],
-  );
+  const otherCharges = useMemo(() => options.other_charges || [], [options.other_charges]);
   const invoiceData = invoiceResponse?.data || null;
   const transactionSummary = transactionResponse?.summary || {};
-  const hasStudentKeyword = Boolean(String(studentSearch || "").trim());
+  const hasStudentKeyword = Boolean(String(studentSearch || '').trim());
 
   const isFetchingStudentOptions =
-    modalRequestedOpen &&
-    Boolean(periodeId) &&
-    hasStudentKeyword &&
-    !studentId &&
-    isFetchingOptions;
-  const isResolvingStudentContext =
-    modalRequestedOpen &&
-    Boolean(periodeId) &&
-    Boolean(studentId) &&
-    isFetchingOptions;
+    modalRequestedOpen && Boolean(periodeId) && hasStudentKeyword && !studentId && isFetchingOptions;
+  const isResolvingStudentContext = modalRequestedOpen && Boolean(periodeId) && Boolean(studentId) && isFetchingOptions;
   const isSelectedStudentContextReady =
-    !studentId ||
-    (!isFetchingOptions &&
-      Number(student?.student_id || student?.id) === Number(studentId));
+    !studentId || (!isFetchingOptions && Number(student?.student_id || student?.id) === Number(studentId));
   const modalOpen = modalRequestedOpen;
 
   useEffect(() => {
@@ -324,9 +275,9 @@ const Transaction = () => {
     const nextParams = new URLSearchParams(searchParams);
 
     if (openedInvoiceId) {
-      nextParams.set("invoice", String(openedInvoiceId));
+      nextParams.set('invoice', String(openedInvoiceId));
     } else {
-      nextParams.delete("invoice");
+      nextParams.delete('invoice');
     }
 
     if (nextParams.toString() !== searchParams.toString()) {
@@ -350,7 +301,7 @@ const Transaction = () => {
   ]);
 
   useEffect(() => {
-    const trimmedKeyword = String(studentSearch || "").trim();
+    const trimmedKeyword = String(studentSearch || '').trim();
 
     const timer = setTimeout(() => {
       setDebouncedStudentSearch(trimmedKeyword);
@@ -371,14 +322,12 @@ const Transaction = () => {
           value: month,
           label: dayjs()
             .month(month - 1)
-            .format("MMMM"),
+            .format('MMMM'),
         });
       }
     });
 
-    return Array.from(monthMap.values()).sort(
-      (left, right) => left.value - right.value,
-    );
+    return Array.from(monthMap.values()).sort((left, right) => left.value - right.value);
   }, [editingTransaction, unpaidMonths]);
 
   const wizardOtherCharges = useMemo(() => {
@@ -388,9 +337,7 @@ const Transaction = () => {
       return otherCharges;
     }
 
-    const chargeMap = new Map(
-      otherCharges.map((item) => [getOtherPaymentSelectionKey(item), item]),
-    );
+    const chargeMap = new Map(otherCharges.map((item) => [getOtherPaymentSelectionKey(item), item]));
 
     editingOtherItems.forEach((paymentItem) => {
       const selectionKey = getOtherPaymentSelectionKey(paymentItem);
@@ -406,24 +353,15 @@ const Transaction = () => {
           paymentItem.type_name ||
           editingTransaction?.item_names?.[0] ||
           editingTransaction?.description,
-        amount_due: Number(
-          existingCharge?.amount_due || paymentItem.amount_due || 0,
-        ),
-        paid_amount: Math.max(
-          Number(existingCharge?.paid_amount || 0) - currentPaidAmount,
-          0,
-        ),
+        amount_due: Number(existingCharge?.amount_due || paymentItem.amount_due || 0),
+        paid_amount: Math.max(Number(existingCharge?.paid_amount || 0) - currentPaidAmount, 0),
         remaining_amount: Math.max(
           Number(existingCharge?.remaining_amount || 0) + currentPaidAmount,
           currentPaidAmount,
         ),
-        description:
-          existingCharge?.description ||
-          editingTransaction?.description ||
-          null,
-        is_existing_charge:
-          existingCharge?.is_existing_charge ?? Boolean(paymentItem.charge_id),
-        status: existingCharge?.status || "unpaid",
+        description: existingCharge?.description || editingTransaction?.description || null,
+        is_existing_charge: existingCharge?.is_existing_charge ?? Boolean(paymentItem.charge_id),
+        status: existingCharge?.status || 'unpaid',
       });
     });
 
@@ -454,27 +392,14 @@ const Transaction = () => {
   const monthAmountMap = Object.fromEntries(
     unpaidMonths.map((month) => [
       Number(month.value),
-      Number(
-        month.amount_due != null
-          ? month.amount_due
-          : options.spp?.tariff_amount || 0,
-      ),
+      Number(month.amount_due != null ? month.amount_due : options.spp?.tariff_amount || 0),
     ]),
   );
   const totalMonthlyAmount = monthlySelection.reduce(
-    (sum, month) =>
-      sum +
-      Number(
-        monthAmountMap[Number(month)] ??
-          options.spp?.tariff_amount ??
-          0,
-      ),
+    (sum, month) => sum + Number(monthAmountMap[Number(month)] ?? options.spp?.tariff_amount ?? 0),
     0,
   );
-  const selectedOtherTotal = selectedOtherPayments.reduce(
-    (sum, item) => sum + Number(item.amount_paid || 0),
-    0,
-  );
+  const selectedOtherTotal = selectedOtherPayments.reduce((sum, item) => sum + Number(item.amount_paid || 0), 0);
   const grandTotal = totalMonthlyAmount + selectedOtherTotal;
   const resolvedStudent = useMemo(() => {
     if (student) {
@@ -513,8 +438,9 @@ const Transaction = () => {
       ...resetStudentContextValue,
     });
     pendingSelectedStudentSearchRef.current = null;
+    pendingOpenOtherPaymentRef.current = null;
     setOtherPaymentSelectionsState({});
-    setDebouncedStudentSearch("");
+    setDebouncedStudentSearch('');
     setSelectedStudentOption(null);
   };
 
@@ -534,14 +460,116 @@ const Transaction = () => {
     setModalRequestedOpen(true);
   };
 
-  const handleOtherPaymentAmountChange = (charge, value) => {
+  const openCreateFromOtherCharge = (charge) => {
+    if (!charge?.student_id || !charge?.periode_id) {
+      return;
+    }
+
+    const remainingAmount = Math.max(Number(charge.remaining_amount || 0), 0);
     const selectionKey = getOtherPaymentSelectionKey(charge);
-    const numericValue = Number(value || 0);
+    const initialOtherPayments =
+      remainingAmount > 0
+        ? {
+            [selectionKey]: buildOtherPaymentValue(
+              charge,
+              {},
+              {
+                amount_paid: remainingAmount,
+              },
+            ),
+          }
+        : {};
+
+    pendingOpenOtherPaymentRef.current = charge;
+    setEditingTransaction(null);
+    setSelectedStudentOption({
+      id: charge.student_id,
+      full_name: charge.student_name,
+      nis: charge.nis,
+      grade_name: charge.grade_name,
+      class_name: charge.class_name,
+      periode_name: charge.periode_name,
+      grade_id: charge.grade_id,
+      class_id: charge.class_id,
+    });
+    setTransactionFilters((previous) => ({
+      ...previous,
+      homebase_id: charge.homebase_id || previous.homebase_id,
+    }));
+    form.setFieldsValue({
+      homebase_id: charge.homebase_id,
+      periode_id: charge.periode_id,
+      student_search: formatStudentSearchLabel({
+        full_name: charge.student_name,
+        nis: charge.nis,
+      }),
+      grade_id: charge.grade_id,
+      class_id: charge.class_id,
+      student_id: charge.student_id,
+      bill_months: [],
+      other_payments: initialOtherPayments,
+      notes: '',
+    });
+    setOtherPaymentSelectionsState(initialOtherPayments);
+    setDebouncedStudentSearch(
+      formatStudentSearchLabel({
+        full_name: charge.student_name,
+        nis: charge.nis,
+      }),
+    );
+    setModalRequestedOpen(true);
+  };
+
+  useEffect(() => {
+    const pendingCharge = location.state?.openOtherPayment;
+    if (!pendingCharge) {
+      return;
+    }
+
+    openCreateFromOtherCharge(pendingCharge);
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: {},
+    });
+    // Consume navigation state once on mount / first landing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const pendingCharge = pendingOpenOtherPaymentRef.current;
+    if (!pendingCharge || !modalRequestedOpen || !studentId) {
+      return;
+    }
+
+    if (!isSelectedStudentContextReady || otherCharges.length === 0) {
+      return;
+    }
+
+    const matchedCharge =
+      otherCharges.find(
+        (item) =>
+          (pendingCharge.charge_id && Number(item.charge_id) === Number(pendingCharge.charge_id)) ||
+          Number(item.type_id) === Number(pendingCharge.type_id),
+      ) || pendingCharge;
+
+    const remainingAmount = Math.max(
+      Number(
+        matchedCharge.remaining_amount != null ? matchedCharge.remaining_amount : pendingCharge.remaining_amount || 0,
+      ),
+      0,
+    );
+
+    if (remainingAmount <= 0) {
+      pendingOpenOtherPaymentRef.current = null;
+      return;
+    }
+
+    const selectionKey = getOtherPaymentSelectionKey(matchedCharge);
     const nextValue = buildOtherPaymentValue(
-      charge,
-      otherPaymentSelectionsState?.[selectionKey],
+      matchedCharge,
+      {},
       {
-        amount_paid: numericValue > 0 ? numericValue : undefined,
+        amount_paid: remainingAmount,
       },
     );
 
@@ -549,7 +577,22 @@ const Transaction = () => {
       ...previous,
       [selectionKey]: nextValue,
     }));
-    form.setFieldValue(["other_payments", selectionKey], nextValue);
+    form.setFieldValue(['other_payments', selectionKey], nextValue);
+    pendingOpenOtherPaymentRef.current = null;
+  }, [form, isSelectedStudentContextReady, modalRequestedOpen, otherCharges, studentId]);
+
+  const handleOtherPaymentAmountChange = (charge, value) => {
+    const selectionKey = getOtherPaymentSelectionKey(charge);
+    const numericValue = Number(value || 0);
+    const nextValue = buildOtherPaymentValue(charge, otherPaymentSelectionsState?.[selectionKey], {
+      amount_paid: numericValue > 0 ? numericValue : undefined,
+    });
+
+    setOtherPaymentSelectionsState((previous) => ({
+      ...previous,
+      [selectionKey]: nextValue,
+    }));
+    form.setFieldValue(['other_payments', selectionKey], nextValue);
   };
 
   const handleSubmit = async (values) => {
@@ -560,14 +603,14 @@ const Transaction = () => {
       amount_paid: Number(item.amount_paid || 0),
     }));
 
+    const notes = String(currentFormValues.notes ?? values.notes ?? '').trim() || null;
+
     const commonPayload = {
-      homebase_id:
-        currentFormValues.homebase_id ||
-        values.homebase_id ||
-        selectedHomebaseId,
+      homebase_id: currentFormValues.homebase_id || values.homebase_id || selectedHomebaseId,
       periode_id: currentFormValues.periode_id || values.periode_id,
       grade_id: currentFormValues.grade_id || values.grade_id,
       student_id: currentFormValues.student_id || values.student_id,
+      notes,
     };
 
     try {
@@ -576,47 +619,40 @@ const Transaction = () => {
           category: editingTransaction.category,
           id: editingTransaction.id,
           ...commonPayload,
-          bill_months:
-            currentFormValues.bill_months || values.bill_months || [],
+          bill_months: currentFormValues.bill_months || values.bill_months || [],
           other_payments: otherPayments,
         }).unwrap();
-        message.success("Transaksi pembayaran berhasil diperbarui");
+        message.success('Transaksi pembayaran berhasil diperbarui');
       } else {
         await createTransaction({
           ...commonPayload,
-          bill_months:
-            currentFormValues.bill_months || values.bill_months || [],
+          bill_months: currentFormValues.bill_months || values.bill_months || [],
           other_payments: otherPayments,
         }).unwrap();
-        message.success("Transaksi pembayaran berhasil disimpan");
+        message.success('Transaksi pembayaran berhasil disimpan');
       }
 
       closeModal();
     } catch (error) {
-      message.error(
-        error?.data?.message || "Gagal menyimpan transaksi pembayaran",
-      );
+      message.error(error?.data?.message || 'Gagal menyimpan transaksi pembayaran');
     }
   };
 
   const handleEditTransaction = (record) => {
     const editingOtherItems = getEditableOtherPaymentItems(record);
-    const initialOtherPayments = editingOtherItems.reduce(
-      (accumulator, item) => {
-        const selectionKey = getOtherPaymentSelectionKey(item);
+    const initialOtherPayments = editingOtherItems.reduce((accumulator, item) => {
+      const selectionKey = getOtherPaymentSelectionKey(item);
 
-        accumulator[selectionKey] = buildOtherPaymentValue(
-          item,
-          {},
-          {
-            amount_paid: Number(item.amount_paid || 0),
-          },
-        );
+      accumulator[selectionKey] = buildOtherPaymentValue(
+        item,
+        {},
+        {
+          amount_paid: Number(item.amount_paid || 0),
+        },
+      );
 
-        return accumulator;
-      },
-      {},
-    );
+      return accumulator;
+    }, {});
 
     setEditingTransaction(record);
     setSelectedStudentOption({
@@ -645,6 +681,7 @@ const Transaction = () => {
       student_id: record.student_id,
       bill_months: record.bill_months || [],
       other_payments: initialOtherPayments,
+      notes: record.notes || '',
     });
     setOtherPaymentSelectionsState(initialOtherPayments);
 
@@ -658,23 +695,17 @@ const Transaction = () => {
         id: record.id,
         homebase_id: record.homebase_id,
       }).unwrap();
-      message.success("Transaksi berhasil dihapus");
+      message.success('Transaksi berhasil dihapus');
 
-      if (
-        activeInvoiceId &&
-        Number(getPrimaryInvoice(record)?.id) === Number(activeInvoiceId)
-      ) {
+      if (activeInvoiceId && Number(getPrimaryInvoice(record)?.id) === Number(activeInvoiceId)) {
         closeInvoicePanel();
       }
 
-      if (
-        editingTransaction?.category === record.category &&
-        editingTransaction?.id === record.id
-      ) {
+      if (editingTransaction?.category === record.category && editingTransaction?.id === record.id) {
         closeModal();
       }
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus transaksi");
+      message.error(error?.data?.message || 'Gagal menghapus transaksi');
     }
   };
 
@@ -684,7 +715,7 @@ const Transaction = () => {
       action,
       record,
     });
-    setConfirmationNotes(action === "reject" ? record?.notes || "" : "");
+    setConfirmationNotes(action === 'reject' ? record?.notes || '' : '');
   };
 
   const closeConfirmationModal = () => {
@@ -693,7 +724,7 @@ const Transaction = () => {
       action: null,
       record: null,
     });
-    setConfirmationNotes("");
+    setConfirmationNotes('');
   };
 
   const handleConfirmTransaction = async () => {
@@ -701,11 +732,8 @@ const Transaction = () => {
       return;
     }
 
-    if (
-      confirmationState.action === "reject" &&
-      !String(confirmationNotes || "").trim()
-    ) {
-      message.error("Alasan penolakan wajib diisi");
+    if (confirmationState.action === 'reject' && !String(confirmationNotes || '').trim()) {
+      message.error('Alasan penolakan wajib diisi');
       return;
     }
 
@@ -714,20 +742,18 @@ const Transaction = () => {
         id: confirmationState.record.id,
         homebase_id: confirmationState.record.homebase_id,
         action: confirmationState.action,
-        notes: String(confirmationNotes || "").trim() || undefined,
+        notes: String(confirmationNotes || '').trim() || undefined,
       }).unwrap();
       message.success(
-        confirmationState.action === "approve"
-          ? "Pembayaran berhasil dikonfirmasi"
-          : confirmationState.action === "reject"
-            ? "Pembayaran berhasil ditolak"
-            : "Status pembayaran berhasil dikembalikan ke pending",
+        confirmationState.action === 'approve'
+          ? 'Pembayaran berhasil dikonfirmasi'
+          : confirmationState.action === 'reject'
+            ? 'Pembayaran berhasil ditolak'
+            : 'Status pembayaran berhasil dikembalikan ke pending',
       );
       closeConfirmationModal();
     } catch (error) {
-      message.error(
-        error?.data?.message || "Gagal memproses konfirmasi pembayaran",
-      );
+      message.error(error?.data?.message || 'Gagal memproses konfirmasi pembayaran');
     }
   };
 
@@ -738,19 +764,10 @@ const Transaction = () => {
   const isInvoiceOpen = Boolean(activeInvoiceId);
 
   return (
-    <MotionDiv
-      variants={containerVariants}
-      initial='hidden'
-      animate='visible'
-      style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
-    >
-      <Space
-        vertical
-        size={isMobile ? 16 : 24}
-        style={{ width: "100%", display: "flex" }}
-      >
+    <MotionDiv variants={containerVariants} initial="hidden" animate="visible">
+      <Space vertical size={isMobile ? 16 : 24} style={{ width: '100%', display: 'flex' }}>
         {isInvoiceOpen ? (
-          <MotionDiv key='invoice-panel' {...branchMotionProps}>
+          <MotionDiv key="invoice-panel" {...branchMotionProps}>
             <TransactionInvoicePanel
               invoiceId={activeInvoiceId}
               invoiceData={invoiceData}
@@ -759,7 +776,7 @@ const Transaction = () => {
             />
           </MotionDiv>
         ) : (
-          <MotionDiv key='transaction-list' {...branchMotionProps}>
+          <MotionDiv key="transaction-list" {...branchMotionProps}>
             <TransactionList
               user={user}
               homebases={homebases}
@@ -784,9 +801,9 @@ const Transaction = () => {
 
                 setOpenedInvoiceId(Number(invoiceId));
               }}
-              onApprove={(record) => openConfirmationModal(record, "approve")}
-              onReject={(record) => openConfirmationModal(record, "reject")}
-              onRevoke={(record) => openConfirmationModal(record, "revoke")}
+              onApprove={(record) => openConfirmationModal(record, 'approve')}
+              onReject={(record) => openConfirmationModal(record, 'reject')}
+              onRevoke={(record) => openConfirmationModal(record, 'revoke')}
               onCreate={openCreateModal}
             />
           </MotionDiv>
@@ -794,9 +811,7 @@ const Transaction = () => {
 
         <TransactionFormModal
           open={modalOpen}
-          loadingOpen={
-            modalRequestedOpen && isLoadingOptions && !optionResponse
-          }
+          loadingOpen={modalRequestedOpen && isLoadingOptions && !optionResponse}
           isStudentOptionsLoading={isFetchingStudentOptions}
           isStudentContextLoading={isResolvingStudentContext}
           isStudentContextReady={isSelectedStudentContextReady}
@@ -814,9 +829,7 @@ const Transaction = () => {
           students={students}
           student={resolvedStudent}
           onStudentSelect={(item) => {
-            pendingSelectedStudentSearchRef.current = item
-              ? formatStudentSearchLabel(item)
-              : null;
+            pendingSelectedStudentSearchRef.current = item ? formatStudentSearchLabel(item) : null;
             setSelectedStudentOption(item);
           }}
           onHomebaseChange={(value) => {
@@ -841,7 +854,7 @@ const Transaction = () => {
             setSelectedStudentOption(null);
             setTransactionFilters((prev) => ({
               ...prev,
-              homebase_id: form.getFieldValue("homebase_id"),
+              homebase_id: form.getFieldValue('homebase_id'),
               periode_id: value,
               page: 1,
             }));
@@ -851,16 +864,16 @@ const Transaction = () => {
             });
           }}
           onStudentSearchChange={(value) => {
-            const keyword = String(value || "");
-            const activeStudentId = form.getFieldValue("student_id");
+            const keyword = String(value || '');
+            const activeStudentId = form.getFieldValue('student_id');
 
-            form.setFieldValue("student_search", keyword);
+            form.setFieldValue('student_search', keyword);
 
             if (pendingSelectedStudentSearchRef.current !== null) {
               const pendingKeyword = pendingSelectedStudentSearchRef.current;
               pendingSelectedStudentSearchRef.current = null;
 
-              if (keyword === pendingKeyword || keyword === "") {
+              if (keyword === pendingKeyword || keyword === '') {
                 return;
               }
             }
@@ -894,185 +907,155 @@ const Transaction = () => {
           onCancel={closeConfirmationModal}
           footer={null}
           title={
-            confirmationState.action === "approve"
-              ? "Review Konfirmasi Pembayaran"
-              : confirmationState.action === "reject"
-                ? "Review Penolakan Pembayaran"
-                : "Review Revoke Pembayaran"
+            confirmationState.action === 'approve'
+              ? 'Review Konfirmasi Pembayaran'
+              : confirmationState.action === 'reject'
+                ? 'Review Penolakan Pembayaran'
+                : 'Review Revoke Pembayaran'
           }
-          width={isMobile ? "calc(100vw - 24px)" : 760}
+          width={isMobile ? 'calc(100vw - 24px)' : 760}
           destroyOnHidden
           centered
           styles={{
             body: {
-              maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
-              overflowY: isMobile ? "auto" : undefined,
+              maxHeight: isMobile ? 'calc(100vh - 140px)' : undefined,
+              overflowY: isMobile ? 'auto' : undefined,
               padding: isMobile ? 16 : undefined,
             },
-          }}
-        >
+          }}>
           {!confirmationState.record ? null : (
-            <Space vertical size={16} style={{ width: "100%" }}>
+            <Space vertical size={16} style={{ width: '100%' }}>
               <Alert
-                type={
-                  confirmationState.action === "approve" ? "info" : "warning"
-                }
+                type={confirmationState.action === 'approve' ? 'info' : 'warning'}
                 showIcon
                 message={
-                  confirmationState.action === "approve"
-                    ? "Periksa bukti transfer sebelum mengonfirmasi"
-                    : confirmationState.action === "reject"
-                      ? "Tambahkan alasan penolakan untuk memudahkan tindak lanjut"
-                      : "Status pembayaran akan dikembalikan ke pending"
+                  confirmationState.action === 'approve'
+                    ? 'Periksa bukti transfer sebelum mengonfirmasi'
+                    : confirmationState.action === 'reject'
+                      ? 'Tambahkan alasan penolakan untuk memudahkan tindak lanjut'
+                      : 'Status pembayaran akan dikembalikan ke pending'
                 }
                 description={
-                  confirmationState.action === "approve"
-                    ? "Pembayaran transfer manual akan berubah menjadi terkonfirmasi setelah Anda menyetujui konfirmasi ini."
-                    : confirmationState.action === "reject"
-                      ? "Pembayaran parent manual akan diberi status ditolak dan tidak akan dihitung sebagai pelunasan."
-                      : "Pembayaran parent manual akan kembali ke status menunggu verifikasi agar dapat direview ulang."
+                  confirmationState.action === 'approve'
+                    ? 'Pembayaran transfer manual akan berubah menjadi terkonfirmasi setelah Anda menyetujui konfirmasi ini.'
+                    : confirmationState.action === 'reject'
+                      ? 'Pembayaran parent manual akan diberi status ditolak dan tidak akan dihitung sebagai pelunasan.'
+                      : 'Pembayaran parent manual akan kembali ke status menunggu verifikasi agar dapat direview ulang.'
                 }
               />
 
               <Card
-                size='small'
+                size="small"
                 style={{
                   borderRadius: 18,
-                  border: "1px solid rgba(148,163,184,0.14)",
-                }}
-              >
+                  border: '1px solid rgba(148,163,184,0.14)',
+                }}>
                 <Descriptions
                   column={1}
-                  size='small'
+                  size="small"
                   labelStyle={{
                     width: isMobile ? 110 : 180,
                     fontWeight: 700,
-                  }}
-                >
-                  <Descriptions.Item label='Siswa'>
-                    {confirmationState.record.student_name || "-"}
-                  </Descriptions.Item>
-                  <Descriptions.Item label='Tagihan'>
-                    {confirmationState.record.description || "-"}
-                  </Descriptions.Item>
-                  <Descriptions.Item label='Nominal'>
-                    {Number(
-                      confirmationState.record.amount || 0,
-                    ).toLocaleString("id-ID", {
-                      style: "currency",
-                      currency: "IDR",
+                  }}>
+                  <Descriptions.Item label="Siswa">{confirmationState.record.student_name || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Tagihan">{confirmationState.record.description || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Nominal">
+                    {Number(confirmationState.record.amount || 0).toLocaleString('id-ID', {
+                      style: 'currency',
+                      currency: 'IDR',
                       maximumFractionDigits: 0,
                     })}
                   </Descriptions.Item>
-                  <Descriptions.Item label='Status Saat Ini'>
-                    <Tag color='gold' style={{ borderRadius: 999 }}>
-                      {confirmationState.record.status_label || "Pending"}
+                  <Descriptions.Item label="Status Saat Ini">
+                    <Tag color="gold" style={{ borderRadius: 999 }}>
+                      {confirmationState.record.status_label || 'Pending'}
                     </Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label='Metode'>
-                    {confirmationState.record.payment_source_label || "-"}
+                  <Descriptions.Item label="Metode">
+                    {confirmationState.record.payment_source_label || '-'}
                   </Descriptions.Item>
-                  <Descriptions.Item label='Kanal'>
+                  <Descriptions.Item label="Kanal">
                     {confirmationState.record.payment_method_name ||
                       confirmationState.record.payment_source_label ||
-                      "-"}
+                      '-'}
                   </Descriptions.Item>
-                  <Descriptions.Item label='Rekening Tujuan'>
+                  <Descriptions.Item label="Rekening Tujuan">
                     {confirmationState.record.bank_name
-                      ? `${confirmationState.record.bank_name} - ${confirmationState.record.account_number || "-"}`
-                      : "-"}
+                      ? `${confirmationState.record.bank_name} - ${confirmationState.record.account_number || '-'}`
+                      : '-'}
                   </Descriptions.Item>
-                  <Descriptions.Item label='Referensi'>
-                    {confirmationState.record.reference_no || "-"}
+                  <Descriptions.Item label="Referensi">
+                    {confirmationState.record.reference_no || '-'}
                   </Descriptions.Item>
-                  <Descriptions.Item label='Tanggal Upload'>
+                  <Descriptions.Item label="Tanggal Upload">
                     {confirmationState.record.paid_at
-                      ? dayjs(confirmationState.record.paid_at).format(
-                          "DD MMM YYYY HH:mm",
-                        )
-                      : "-"}
+                      ? dayjs(confirmationState.record.paid_at).format('DD MMM YYYY HH:mm')
+                      : '-'}
                   </Descriptions.Item>
                 </Descriptions>
               </Card>
 
               {confirmationState.record.proof_url ? (
                 <Card
-                  size='small'
-                  title='Preview Bukti Transfer'
+                  size="small"
+                  title="Preview Bukti Transfer"
                   style={{
                     borderRadius: 18,
-                    border: "1px solid rgba(148,163,184,0.14)",
-                  }}
-                >
-                  {/\.(png|jpe?g|webp|gif)$/i.test(
-                    confirmationState.record.proof_url,
-                  ) ? (
+                    border: '1px solid rgba(148,163,184,0.14)',
+                  }}>
+                  {/\.(png|jpe?g|webp|gif)$/i.test(confirmationState.record.proof_url) ? (
                     <Image
                       src={confirmationState.record.proof_url}
-                      alt='Bukti transfer'
+                      alt="Bukti transfer"
                       style={{
                         maxHeight: isMobile ? 220 : 320,
-                        maxWidth: "100%",
-                        objectFit: "contain",
+                        maxWidth: '100%',
+                        objectFit: 'contain',
                       }}
                     />
                   ) : (
-                    <Button
-                      href={confirmationState.record.proof_url}
-                      target='_blank'
-                      rel='noreferrer'
-                      block={isMobile}
-                    >
+                    <Button href={confirmationState.record.proof_url} target="_blank" rel="noreferrer" block={isMobile}>
                       Buka Bukti Transfer
                     </Button>
                   )}
                 </Card>
               ) : (
                 <Alert
-                  type='warning'
+                  type="warning"
                   showIcon
-                  message='Bukti transfer tidak tersedia'
-                  description='Tidak ditemukan file bukti transfer pada pembayaran ini.'
+                  message="Bukti transfer tidak tersedia"
+                  description="Tidak ditemukan file bukti transfer pada pembayaran ini."
                 />
               )}
 
-              {confirmationState.action === "reject" ? (
+              {confirmationState.action === 'reject' ? (
                 <div>
                   <Text strong>Alasan Penolakan</Text>
                   <Input.TextArea
                     value={confirmationNotes}
-                    onChange={(event) =>
-                      setConfirmationNotes(event.target.value)
-                    }
-                    placeholder='Contoh: nominal transfer tidak sesuai dengan tagihan atau bukti transfer tidak valid.'
+                    onChange={(event) => setConfirmationNotes(event.target.value)}
+                    placeholder="Contoh: nominal transfer tidak sesuai dengan tagihan atau bukti transfer tidak valid."
                     rows={4}
                     style={{ marginTop: 8 }}
                   />
                 </div>
               ) : null}
 
-              <Flex
-                justify='flex-end'
-                gap={8}
-                wrap='wrap'
-                vertical={isMobile}
-                style={{ width: "100%" }}
-              >
+              <Flex justify="flex-end" gap={8} wrap="wrap" vertical={isMobile} style={{ width: '100%' }}>
                 <Button onClick={closeConfirmationModal} block={isMobile}>
                   Batal
                 </Button>
                 <Button
-                  type='primary'
-                  danger={confirmationState.action === "reject"}
+                  type="primary"
+                  danger={confirmationState.action === 'reject'}
                   loading={isConfirmingTransaction}
                   onClick={handleConfirmTransaction}
-                  block={isMobile}
-                >
-                  {confirmationState.action === "approve"
-                    ? "Konfirmasi Pembayaran"
-                    : confirmationState.action === "reject"
-                      ? "Tolak Pembayaran"
-                      : "Revoke Pembayaran"}
+                  block={isMobile}>
+                  {confirmationState.action === 'approve'
+                    ? 'Konfirmasi Pembayaran'
+                    : confirmationState.action === 'reject'
+                      ? 'Tolak Pembayaran'
+                      : 'Revoke Pembayaran'}
                 </Button>
               </Flex>
             </Space>

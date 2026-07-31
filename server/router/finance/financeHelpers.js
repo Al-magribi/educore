@@ -1349,6 +1349,22 @@ export const enrichDueWithScholarship = ({
   storedNetto = null,
   hasInvoiceItem = false,
 }) => {
+  const resolved = resolveDueFromBenefitIndex(benefitIndex, {
+    studentId,
+    itemType,
+    componentId,
+    periodeId,
+    billMonth,
+    brutoAmount,
+  });
+  const scholarshipNames = [
+    ...new Set(
+      (resolved.breakdown || [])
+        .map((item) => item.scholarship_name)
+        .filter(Boolean),
+    ),
+  ];
+
   if (hasInvoiceItem && storedNetto != null) {
     const bruto =
       storedBruto != null
@@ -1363,23 +1379,18 @@ export const enrichDueWithScholarship = ({
       scholarship_cover: cover,
       amount: Number(storedNetto || 0),
       has_scholarship: cover > 0,
+      scholarship_names: cover > 0 ? scholarshipNames : [],
+      scholarship_breakdown: cover > 0 ? resolved.breakdown || [] : [],
     };
   }
-
-  const resolved = resolveDueFromBenefitIndex(benefitIndex, {
-    studentId,
-    itemType,
-    componentId,
-    periodeId,
-    billMonth,
-    brutoAmount,
-  });
 
   return {
     bruto_amount: resolved.bruto,
     scholarship_cover: resolved.scholarship_cover,
     amount: resolved.netto,
     has_scholarship: resolved.scholarship_cover > 0,
+    scholarship_names: scholarshipNames,
+    scholarship_breakdown: resolved.breakdown || [],
   };
 };
 

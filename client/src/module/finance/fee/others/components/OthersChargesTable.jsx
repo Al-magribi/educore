@@ -11,7 +11,7 @@ import {
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
-import { Download, MoreHorizontal } from "lucide-react";
+import { Download, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 import {
@@ -41,6 +41,7 @@ const getPeriodeName = (record = {}) =>
 const OthersChargesTable = ({
   charges,
   loading,
+  onEditCharge,
   onDeleteCharge,
   isDeletingCharge,
 }) => {
@@ -99,6 +100,9 @@ const OthersChargesTable = ({
       Tagihan: Number(item.amount_due || 0),
       Bruto: Number(item.bruto_amount || item.amount_due || 0),
       Beasiswa: Number(item.scholarship_cover || 0),
+      "Nama Beasiswa": Array.isArray(item.scholarship_names)
+        ? item.scholarship_names.filter(Boolean).join(", ")
+        : "-",
       Dibayar: Number(item.paid_amount || 0),
       Sisa: Number(item.remaining_amount || 0),
       Status: chargeStatusLabelMap[item.status] || item.status || "-",
@@ -112,31 +116,54 @@ const OthersChargesTable = ({
 
   const renderActions = (record) => {
     const hasCharge = Boolean(record.charge_id);
-    const menuItems = hasCharge
-      ? [
-          {
-            key: "delete",
-            label: "Hapus",
-            danger: true,
-          },
-        ]
-      : [];
+    const menuItems = [
+      {
+        key: "edit",
+        label: "Edit",
+        icon: <Pencil size={14} />,
+      },
+      {
+        key: "delete",
+        label: hasCharge ? "Hapus" : "Tidak dapat dihapus",
+        danger: true,
+        disabled: !hasCharge,
+        icon: <Trash2 size={14} />,
+      },
+    ];
 
     const handleMenuClick = ({ key }) => {
+      if (key === "edit") {
+        onEditCharge?.(record);
+        return;
+      }
+
       if (key === "delete") {
+        if (!hasCharge) {
+          return;
+        }
+
         Modal.confirm({
           title: "Hapus tagihan ini?",
+          content: (
+            <Space direction='vertical' size={4}>
+              <Text>
+                Tagihan <Text strong>{record.type_name || "biaya lainnya"}</Text>{" "}
+                untuk siswa <Text strong>{record.student_name || "-"}</Text> akan
+                dihapus.
+              </Text>
+              <Text type='secondary'>
+                Riwayat pembayaran terkait tagihan ini ikut dibersihkan. Tindakan
+                ini tidak dapat dibatalkan.
+              </Text>
+            </Space>
+          ),
           okText: "Hapus",
           cancelText: "Batal",
-          okButtonProps: { danger: true },
-          onOk: () => onDeleteCharge(record),
+          okButtonProps: { danger: true, loading: isDeletingCharge },
+          onOk: () => onDeleteCharge?.(record),
         });
       }
     };
-
-    if (!hasCharge) {
-      return "-";
-    }
 
     return (
       <Dropdown.Button
@@ -147,7 +174,7 @@ const OthersChargesTable = ({
           items: menuItems,
           onClick: handleMenuClick,
         }}
-        onClick={() => handleMenuClick({ key: "delete" })}
+        onClick={() => onEditCharge?.(record)}
         loading={isDeletingCharge}
       >
         {isMobile ? "Aksi" : "Pilih Aksi"}
@@ -191,6 +218,7 @@ const OthersChargesTable = ({
               brutoAmount={record.bruto_amount}
               scholarshipCover={record.scholarship_cover}
               hasScholarship={record.has_scholarship}
+              scholarshipNames={record.scholarship_names}
             />
             <Tag
               color={record.type_scope === "student" ? "blue" : "cyan"}
@@ -242,7 +270,7 @@ const OthersChargesTable = ({
     {
       title: "Aksi",
       key: "action",
-      width: 160,
+      width: isMobile ? 120 : 160,
       fixed: "right",
       render: (_, record) => renderActions(record),
     },
@@ -296,6 +324,15 @@ const OthersChargesTable = ({
                 {getPeriodeName(record)} ·{" "}
                 {record.type_scope === "student" ? "Individu" : "Tingkat"}
               </Text>
+              <div style={{ marginTop: 6 }}>
+                <ScholarshipAmountCell
+                  amount={record.amount_due}
+                  brutoAmount={record.bruto_amount}
+                  scholarshipCover={record.scholarship_cover}
+                  hasScholarship={record.has_scholarship}
+                  scholarshipNames={record.scholarship_names}
+                />
+              </div>
             </div>
 
             <Flex justify='space-between' align='center' gap={8} wrap='wrap'>
