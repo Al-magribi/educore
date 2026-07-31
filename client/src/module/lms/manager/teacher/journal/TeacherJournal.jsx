@@ -51,7 +51,7 @@ const statCardStyle = {
 const createInitialJournalForm = () => ({
   date: dayjs(),
   class_id: null,
-  meeting_no: 1,
+  meeting_no: undefined,
   learning_material: undefined,
   activity: "",
 });

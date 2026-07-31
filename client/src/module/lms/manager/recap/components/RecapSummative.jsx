@@ -28,6 +28,21 @@ const getSummativeEntryBySlot = (record, monthKey, slotKey, index) => {
   return values[index];
 };
 
+const getSummativeDisplayScore = (value) => {
+  if (!value) return null;
+  if (value.score !== null && value.score !== undefined) return value.score;
+  if (value.final_score !== null && value.final_score !== undefined) {
+    return value.final_score;
+  }
+  if (value.score_written !== null && value.score_written !== undefined) {
+    return value.score_written;
+  }
+  if (value.score_skill !== null && value.score_skill !== undefined) {
+    return value.score_skill;
+  }
+  return null;
+};
+
 const buildExcelRows = (rows, monthMatrix) =>
   rows.map((row) => {
     const entry = {
@@ -44,15 +59,11 @@ const buildExcelRows = (rows, monthMatrix) =>
       );
       const monthEntries = monthMeta.entries || [];
       for (let index = 0; index < summativeCount; index += 1) {
-        const chapterTitle = monthEntries[index]?.chapter_title || "-";
+        const chapterTitle = monthEntries[index]?.chapter_title || "Tanpa bab";
         const slotKey = monthEntries[index]?.slot_key;
         const value = getSummativeEntryBySlot(row, monthKey, slotKey, index);
-        entry[
-          `${monthMeta.month_name} - Tertulis ${index + 1} (${chapterTitle})`
-        ] = value?.score_written ?? "-";
-        entry[
-          `${monthMeta.month_name} - Praktik ${index + 1} (${chapterTitle})`
-        ] = value?.score_skill ?? "-";
+        entry[`${monthMeta.month_name} - Nilai ${index + 1} (${chapterTitle})`] =
+          getSummativeDisplayScore(value) ?? "-";
       }
     }
 
@@ -152,49 +163,29 @@ const RecapSummative = ({
         title: monthMeta.month_name,
         key: `month-${monthKey}`,
         children: Array.from({ length: summativeCount }, (_, index) => {
-          const chapterTitle = monthEntries[index]?.chapter_title || "-";
+          const chapterTitle =
+            monthEntries[index]?.chapter_title || "Tanpa bab";
           const slotKey = monthEntries[index]?.slot_key;
-          return [
-            {
-              title: (
-                <Tooltip title={chapterTitle}>
-                  <span>{`Tertulis ${index + 1}`}</span>
-                </Tooltip>
-              ),
-              key: `${monthKey}-written-${index}`,
-              width: 110,
-              align: "center",
-              render: (_, record) => {
-                const value = getSummativeEntryBySlot(
-                  record,
-                  monthKey,
-                  slotKey,
-                  index,
-                );
-                return value?.score_written ?? "-";
-              },
+          return {
+            title: (
+              <Tooltip title={chapterTitle}>
+                <span>{`Nilai ${index + 1}`}</span>
+              </Tooltip>
+            ),
+            key: `${monthKey}-score-${index}`,
+            width: 110,
+            align: "center",
+            render: (_, record) => {
+              const value = getSummativeEntryBySlot(
+                record,
+                monthKey,
+                slotKey,
+                index,
+              );
+              return getSummativeDisplayScore(value) ?? "-";
             },
-            {
-              title: (
-                <Tooltip title={chapterTitle}>
-                  <span>{`Praktik ${index + 1}`}</span>
-                </Tooltip>
-              ),
-              key: `${monthKey}-skill-${index}`,
-              width: 110,
-              align: "center",
-              render: (_, record) => {
-                const value = getSummativeEntryBySlot(
-                  record,
-                  monthKey,
-                  slotKey,
-                  index,
-                );
-                return value?.score_skill ?? "-";
-              },
-            },
-          ];
-        }).flat(),
+          };
+        }),
       };
     });
 
@@ -239,7 +230,7 @@ const RecapSummative = ({
               Rekapitulasi Sumatif
             </Title>
             <Text type='secondary'>
-              Rekap nilai sumatif dalam satu semester
+              Rekap nilai sumatif (1 nilai per entri) dalam satu semester
             </Text>
           </Space>
           <Space wrap>
@@ -356,7 +347,7 @@ const RecapSummative = ({
               loading={isFetching}
               pagination={false}
               size={screens.xs ? "small" : "middle"}
-              scroll={{ x: 2200 }}
+              scroll={{ x: 1400 }}
               sticky
             />
           )}

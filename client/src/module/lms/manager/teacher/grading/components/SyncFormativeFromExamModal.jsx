@@ -17,10 +17,32 @@ import dayjs from "dayjs";
 import {
   useGetGradingSyncExamsQuery,
   useLazyGetGradingSyncFormativePreviewQuery,
+  useLazyGetGradingSyncSummativePreviewQuery,
+  useLazyGetGradingSyncFinalPreviewQuery,
   useSyncGradingFormativeFromExamMutation,
+  useSyncGradingSummativeFromExamMutation,
+  useSyncGradingFinalFromExamMutation,
 } from "../../../../../../service/lms/ApiGrading";
 
 const { Text } = Typography;
+
+const TARGET_META = {
+  formative: {
+    label: "formatif",
+    title: "Formatif",
+    createsNewColumn: true,
+  },
+  summative: {
+    label: "sumatif",
+    title: "Sumatif",
+    createsNewColumn: true,
+  },
+  final: {
+    label: "ujian akhir",
+    title: "Ujian Akhir",
+    createsNewColumn: false,
+  },
+};
 
 const SyncFormativeFromExamModal = ({
   open,
@@ -31,10 +53,15 @@ const SyncFormativeFromExamModal = ({
   semester,
   chapterId,
   onSynced,
+  targetType = "formative",
 }) => {
   const [search, setSearch] = useState("");
   const [selectedExamId, setSelectedExamId] = useState(null);
   const [step, setStep] = useState("pick");
+
+  const meta = TARGET_META[targetType] || TARGET_META.formative;
+  const isSummative = targetType === "summative";
+  const isFinal = targetType === "final";
 
   const {
     data: examsRes,
@@ -45,10 +72,34 @@ const SyncFormativeFromExamModal = ({
     { skip: !open || !subjectId || !classId },
   );
 
-  const [fetchPreview, { data: previewRes, isFetching: isPreviewLoading }] =
+  const [fetchFormativePreview, { data: formativePreviewRes, isFetching: isFormativePreviewLoading }] =
     useLazyGetGradingSyncFormativePreviewQuery();
-  const [syncFormative, { isLoading: isSyncing }] =
+  const [fetchSummativePreview, { data: summativePreviewRes, isFetching: isSummativePreviewLoading }] =
+    useLazyGetGradingSyncSummativePreviewQuery();
+  const [fetchFinalPreview, { data: finalPreviewRes, isFetching: isFinalPreviewLoading }] =
+    useLazyGetGradingSyncFinalPreviewQuery();
+  const [syncFormative, { isLoading: isSyncingFormative }] =
     useSyncGradingFormativeFromExamMutation();
+  const [syncSummative, { isLoading: isSyncingSummative }] =
+    useSyncGradingSummativeFromExamMutation();
+  const [syncFinal, { isLoading: isSyncingFinal }] =
+    useSyncGradingFinalFromExamMutation();
+
+  const previewRes = isFinal
+    ? finalPreviewRes
+    : isSummative
+      ? summativePreviewRes
+      : formativePreviewRes;
+  const isPreviewLoading = isFinal
+    ? isFinalPreviewLoading
+    : isSummative
+      ? isSummativePreviewLoading
+      : isFormativePreviewLoading;
+  const isSyncing = isFinal
+    ? isSyncingFinal
+    : isSummative
+      ? isSyncingSummative
+      : isSyncingFormative;
 
   useEffect(() => {
     if (!open) {
@@ -74,14 +125,31 @@ const SyncFormativeFromExamModal = ({
   const handleSelectExam = async (examId) => {
     setSelectedExamId(examId);
     try {
-      await fetchPreview({
-        examId,
-        subjectId,
-        classId,
-        month,
-        semester,
-        chapterId,
-      }).unwrap();
+      if (isFinal) {
+        await fetchFinalPreview({
+          examId,
+          subjectId,
+          classId,
+          semester,
+        }).unwrap();
+      } else if (isSummative) {
+        await fetchSummativePreview({
+          examId,
+          subjectId,
+          classId,
+          month,
+          semester,
+        }).unwrap();
+      } else {
+        await fetchFormativePreview({
+          examId,
+          subjectId,
+          classId,
+          month,
+          semester,
+          chapterId,
+        }).unwrap();
+      }
       setStep("preview");
     } catch (error) {
       message.error(
@@ -93,21 +161,57 @@ const SyncFormativeFromExamModal = ({
   const handleSync = async () => {
     if (!selectedExamId) return;
     try {
-      const res = await syncFormative({
-        exam_id: selectedExamId,
-        subject_id: subjectId,
-        class_id: classId,
-        month,
-        semester,
-        chapter_id: chapterId,
-      }).unwrap();
-      message.success(res?.message || "Sync nilai formatif berhasil.");
-      onSynced?.(res?.data);
+      let res;
+      if (isFinal) {
+        res = await syncFinal({
+          exam_id: selectedExamId,
+          subject_id: subjectId,
+          class_id: classId,
+          semester,
+        }).unwrap();
+      } else if (isSummative) {
+        res = await syncSummative({
+          exam_id: selectedExamId,
+          subject_id: subjectId,
+          class_id: classId,
+          month,
+          semester,
+        }).unwrap();
+      } else {
+        res = await syncFormative({
+          exam_id: selectedExamId,
+          subject_id: subjectId,
+          class_id: classId,
+          month,
+          semester,
+          chapter_id: chapterId,
+        }).unwrap();
+      }
+      message.success(
+        res?.message || `Sync nilai ${meta.label} berhasil.`,
+      );
+      if (onSynced) {
+        await onSynced(res?.data);
+      }
       onClose?.();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal sync nilai formatif.");
+      message.error(
+        error?.data?.message || `Gagal sync nilai ${meta.label}.`,
+      );
     }
   };
+
+  const pickDescription = isFinal
+    ? "Pilih jadwal ujian yang hasilnya ingin dipindahkan ke nilai Ujian Akhir semester yang sedang aktif. Nilai siswa yang punya hasil ujian akan ditimpa."
+    : isSummative
+      ? "Pilih jadwal ujian untuk nilai sumatif bulan yang sedang aktif. Sync sumatif tidak membutuhkan bab (cocok untuk UTS). Ujian yang sama boleh di-sync ke formatif, sumatif, dan ujian akhir."
+      : "Pilih jadwal ujian yang hasilnya ingin dipindahkan ke nilai formatif bulan & bab yang sedang aktif. Ujian yang sama boleh di-sync ke formatif, sumatif, dan ujian akhir.";
+
+  const previewDescription = preview
+    ? isFinal
+      ? `${preview.scored_count} dari ${preview.total_students} siswa punya hasil ujian. Nilai memakai rumus Nilai Akhir CBT (dibulatkan) dan akan menimpa nilai Ujian Akhir yang sudah ada untuk siswa tersebut. Siswa tanpa hasil tidak diubah.`
+      : `${preview.scored_count} dari ${preview.total_students} siswa punya hasil ujian. Nilai memakai rumus Nilai Akhir CBT (dibulatkan ke bilangan bulat untuk ${meta.label}). Siswa tanpa hasil tidak diisi.`
+    : undefined;
 
   const examColumns = [
     {
@@ -186,10 +290,10 @@ const SyncFormativeFromExamModal = ({
       },
     },
     {
-      title: "Ke Formatif",
+      title: `Ke ${meta.title}`,
       dataIndex: "score",
       key: "score",
-      width: 110,
+      width: 120,
       render: (value, record) =>
         record.has_score ? (
           <Tag color="green">{value}</Tag>
@@ -203,7 +307,7 @@ const SyncFormativeFromExamModal = ({
     <Modal
       open={open}
       onCancel={onClose}
-      title="Sync Nilai dari Jadwal Ujian"
+      title={`Sync Nilai ${meta.title} dari Jadwal Ujian`}
       width={780}
       destroyOnHidden
       footer={
@@ -219,7 +323,9 @@ const SyncFormativeFromExamModal = ({
                 disabled={!preview?.scored_count}
                 onClick={handleSync}
               >
-                Sync ke Kolom Baru
+                {meta.createsNewColumn
+                  ? "Sync ke Kolom Baru"
+                  : "Sync ke Ujian Akhir"}
               </Button>
             </Space>
           </Flex>
@@ -235,8 +341,12 @@ const SyncFormativeFromExamModal = ({
           <Alert
             type="info"
             showIcon
-            message="Sync selalu membuat kolom formatif baru."
-            description="Pilih jadwal ujian yang hasilnya ingin dipindahkan ke nilai formatif bulan & bab yang sedang aktif."
+            message={
+              meta.createsNewColumn
+                ? `Sync selalu membuat kolom ${meta.label} baru.`
+                : "Sync akan menimpa nilai Ujian Akhir siswa yang punya hasil ujian."
+            }
+            description={pickDescription}
           />
           <Input
             allowClear
@@ -266,14 +376,12 @@ const SyncFormativeFromExamModal = ({
             showIcon
             message={
               preview
-                ? `Akan membuat ${preview.next_column_label} dari "${preview.exam?.name || "-"}"`
+                ? isFinal
+                  ? `Akan sync ke Nilai Ujian Akhir dari "${preview.exam?.name || "-"}"`
+                  : `Akan membuat ${preview.next_column_label} dari "${preview.exam?.name || "-"}"`
                 : "Memuat preview..."
             }
-            description={
-              preview
-                ? `${preview.scored_count} dari ${preview.total_students} siswa punya hasil ujian. Nilai memakai rumus Nilai Akhir CBT (dibulatkan ke bilangan bulat untuk formatif). Siswa tanpa hasil tidak diisi.`
-                : undefined
-            }
+            description={previewDescription}
           />
           <Table
             rowKey={(record) => record.student_id}

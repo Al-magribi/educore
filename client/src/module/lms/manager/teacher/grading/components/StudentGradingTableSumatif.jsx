@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { BookText, Hammer, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -77,24 +77,38 @@ const StudentGradingTableSumatif = ({
 
   const getSubTitle = (sub) =>
     sub?.title || `Nilai ${sub?.labelIndex ?? sub?.id ?? "-"}`;
+
+  const getDisplayScore = (record, scoreKey) => {
+    const scoreObj = record?.summativeScores?.[scoreKey] || {};
+    const written = scoreObj.score_written;
+    if (written !== null && written !== undefined && written !== "") {
+      return written;
+    }
+    const finalScore = scoreObj.final_score;
+    if (finalScore !== null && finalScore !== undefined && finalScore !== "") {
+      return finalScore;
+    }
+    return null;
+  };
+
   const renderSubHeader = (sub) => {
     const scoreKey = getScoreKey(sub);
     const title = getSubTitle(sub);
     const canDelete = isFilterReady && scoreKey && scoreKey !== "__new";
     return (
-      <Space align='center' size={6}>
+      <Space align="center" size={6}>
         <Text>{title}</Text>
         {canDelete && (
           <Popconfirm
             title={`Hapus ${title}?`}
-            description='Kolom ini akan langsung dihapus dari data sumatif.'
-            okText='Hapus'
-            cancelText='Batal'
+            description="Kolom ini akan langsung dihapus dari data sumatif."
+            okText="Hapus"
+            cancelText="Batal"
             onConfirm={() => onDeleteColumn?.(scoreKey)}
           >
             <Button
-              type='text'
-              size='small'
+              type="text"
+              size="small"
               danger
               icon={<Trash2 size={14} />}
             />
@@ -104,53 +118,20 @@ const StudentGradingTableSumatif = ({
     );
   };
 
-  const getScoreObject = (record, scoreKey) =>
-    record?.summativeScores?.[scoreKey] || {};
-
-  const renderDualInput = (record, index, subchapter) => {
+  const renderScoreInput = (record, index, subchapter) => {
     const scoreKey = getScoreKey(subchapter);
-    const scoreObj = getScoreObject(record, scoreKey);
     return (
-      <Space vertical size={6} style={{ width: "100%" }}>
-        <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            <BookText size={13} style={{ marginRight: 4 }} />
-            Tulis
-          </Text>
-          <InputNumber
-            min={0}
-            max={100}
-            step={1}
-            precision={0}
-            size={isMobile ? "small" : "middle"}
-            style={{ width: "100%" }}
-            value={scoreObj.score_written ?? 0}
-            disabled={!isFilterReady}
-            onChange={(val) =>
-              onSummativeChange(index, scoreKey, "score_written", val)
-            }
-          />
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            <Hammer size={13} style={{ marginRight: 4 }} />
-            Praktik
-          </Text>
-          <InputNumber
-            min={0}
-            max={100}
-            step={1}
-            precision={0}
-            size={isMobile ? "small" : "middle"}
-            style={{ width: "100%" }}
-            value={scoreObj.score_skill ?? 0}
-            disabled={!isFilterReady}
-            onChange={(val) =>
-              onSummativeChange(index, scoreKey, "score_skill", val)
-            }
-          />
-        </div>
-      </Space>
+      <InputNumber
+        min={0}
+        max={100}
+        step={1}
+        precision={0}
+        size={isMobile ? "small" : "middle"}
+        style={{ width: "100%" }}
+        value={getDisplayScore(record, scoreKey)}
+        disabled={!isFilterReady}
+        onChange={(val) => onSummativeChange(index, scoreKey, val)}
+      />
     );
   };
 
@@ -189,8 +170,8 @@ const StudentGradingTableSumatif = ({
       return {
         title: renderSubHeader(sub),
         key: `sub_${scoreKey}`,
-        width: "20%",
-        render: (_, record, index) => renderDualInput(record, index, sub),
+        width: "16%",
+        render: (_, record, index) => renderScoreInput(record, index, sub),
       };
     }),
   ];
@@ -199,9 +180,9 @@ const StudentGradingTableSumatif = ({
     columns.push({
       title: "Input Nilai",
       key: "sub_new",
-      width: "20%",
+      width: "16%",
       render: (_, record, index) =>
-        renderDualInput(record, index, {
+        renderScoreInput(record, index, {
           scoreKey: "__new",
           title: "Input Nilai",
         }),
@@ -228,13 +209,13 @@ const StudentGradingTableSumatif = ({
           {normalizedSubchapters.map((sub) => (
             <div key={`sub_mobile_${getScoreKey(sub)}`}>
               <div style={{ marginBottom: 4 }}>{renderSubHeader(sub)}</div>
-              {renderDualInput(student, index, sub)}
+              {renderScoreInput(student, index, sub)}
             </div>
           ))}
           {isFilterReady && (
             <div key="sub_mobile_new">
               <Text type="secondary">Input Nilai</Text>
-              {renderDualInput(student, index, { scoreKey: "__new" })}
+              {renderScoreInput(student, index, { scoreKey: "__new" })}
             </div>
           )}
         </div>
@@ -260,7 +241,7 @@ const StudentGradingTableSumatif = ({
       pagination={false}
       size="middle"
       tableLayout="fixed"
-      scroll={normalizedSubchapters.length > 2 ? { x: 980 } : undefined}
+      scroll={normalizedSubchapters.length > 3 ? { x: 980 } : undefined}
       locale={{ emptyText: "Belum ada siswa di kelas ini." }}
     />
   );

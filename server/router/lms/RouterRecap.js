@@ -484,7 +484,9 @@ router.get(
     const summativeEntries = summativeResult.rows.map((row) => ({
       id: row.id,
       chapter_id: row.chapter_id,
-      chapter_title: row.chapter_title || `Bab ${row.chapter_id || "-"}`,
+      chapter_title:
+        row.chapter_title ||
+        (row.chapter_id ? `Bab ${row.chapter_id}` : "Tanpa bab"),
       type: row.type || "-",
       score_written:
         row.score_written === null || row.score_written === undefined
@@ -498,9 +500,17 @@ router.get(
         row.final_score === null || row.final_score === undefined
           ? null
           : Number(row.final_score),
+      score:
+        row.final_score !== null && row.final_score !== undefined
+          ? Number(row.final_score)
+          : row.score_written !== null && row.score_written !== undefined
+            ? Number(row.score_written)
+            : row.score_skill !== null && row.score_skill !== undefined
+              ? Number(row.score_skill)
+              : null,
     }));
     const summativeValues = summativeEntries
-      .flatMap((item) => [item.score_written, item.score_skill])
+      .map((item) => item.score)
       .filter((value) => value !== null && value !== undefined);
     const summativeAverage = summativeValues.length
       ? round2(
@@ -2062,7 +2072,9 @@ router.get(
         row.type && String(row.type).trim().length
           ? String(row.type).trim()
           : `c${row.chapter_id || 0}-s${row.id}`;
-      const chapterTitle = row.chapter_title || `Bab ${row.chapter_id || "-"}`;
+      const chapterTitle =
+        row.chapter_title ||
+        (row.chapter_id ? `Bab ${row.chapter_id}` : "Tanpa bab");
 
       if (!monthEntryRegistry.has(monthNumber)) {
         monthEntryRegistry.set(monthNumber, new Map());
@@ -2077,6 +2089,15 @@ router.get(
           subchapter_number: parseTypeSubchapterNumber(row.type),
         });
       }
+
+      const resolvedScore =
+        row.final_score !== null && row.final_score !== undefined
+          ? Number(row.final_score)
+          : row.score_written !== null && row.score_written !== undefined
+            ? Number(row.score_written)
+            : row.score_skill !== null && row.score_skill !== undefined
+              ? Number(row.score_skill)
+              : null;
 
       student.month_scores[monthNumber].summative.push({
         slot_key: slotKey,
@@ -2095,6 +2116,7 @@ router.get(
           row.final_score === null || row.final_score === undefined
             ? null
             : Number(row.final_score),
+        score: resolvedScore,
       });
     }
 
@@ -2106,18 +2128,8 @@ router.get(
       for (const monthNumber of semesterMonths) {
         const monthData = student.month_scores[monthNumber];
         for (const scoreItem of monthData.summative) {
-          if (
-            scoreItem.final_score !== null &&
-            scoreItem.final_score !== undefined
-          ) {
-            combinedScores.push(Number(scoreItem.final_score));
-            continue;
-          }
-          if (scoreItem.score_written !== null && scoreItem.score_written !== undefined) {
-            combinedScores.push(Number(scoreItem.score_written));
-          }
-          if (scoreItem.score_skill !== null && scoreItem.score_skill !== undefined) {
-            combinedScores.push(Number(scoreItem.score_skill));
+          if (scoreItem.score !== null && scoreItem.score !== undefined) {
+            combinedScores.push(Number(scoreItem.score));
           }
         }
       }
@@ -2674,6 +2686,7 @@ router.get(
       }
       if (row.score_written !== null && row.score_written !== undefined) {
         summativeScoresByStudent.get(key).push(Number(row.score_written));
+        continue;
       }
       if (row.score_skill !== null && row.score_skill !== undefined) {
         summativeScoresByStudent.get(key).push(Number(row.score_skill));

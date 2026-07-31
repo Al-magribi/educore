@@ -140,6 +140,42 @@ export const ApiGrading = createApi({
       }),
       invalidatesTags: ["GradingFormative"],
     }),
+    getGradingSyncSummativePreview: builder.query({
+      query: ({
+        examId,
+        subjectId,
+        classId,
+        month,
+        semester,
+      }) =>
+        `/sync/summative/preview?exam_id=${examId || ""}&subject_id=${
+          subjectId || ""
+        }&class_id=${classId || ""}&month=${encodeURIComponent(
+          month || "",
+        )}&semester=${semester || ""}`,
+    }),
+    syncGradingSummativeFromExam: builder.mutation({
+      query: (body) => ({
+        url: "/sync/summative",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["GradingSummative"],
+    }),
+    getGradingSyncFinalPreview: builder.query({
+      query: ({ examId, subjectId, classId, semester }) =>
+        `/sync/final/preview?exam_id=${examId || ""}&subject_id=${
+          subjectId || ""
+        }&class_id=${classId || ""}&semester=${semester || ""}`,
+    }),
+    syncGradingFinalFromExam: builder.mutation({
+      query: (body) => ({
+        url: "/sync/final",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["GradingFinal"],
+    }),
   }),
 });
 
@@ -160,4 +196,10 @@ export const {
   useGetGradingSyncFormativePreviewQuery,
   useLazyGetGradingSyncFormativePreviewQuery,
   useSyncGradingFormativeFromExamMutation,
+  useGetGradingSyncSummativePreviewQuery,
+  useLazyGetGradingSyncSummativePreviewQuery,
+  useSyncGradingSummativeFromExamMutation,
+  useGetGradingSyncFinalPreviewQuery,
+  useLazyGetGradingSyncFinalPreviewQuery,
+  useSyncGradingFinalFromExamMutation,
 } = ApiGrading;

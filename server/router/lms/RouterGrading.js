@@ -117,7 +117,11 @@ const buildSummativeType = (month, chapterId, subchapterId) => {
   const monthPart = monthNum
     ? `M${String(monthNum).padStart(2, "0")}`
     : "M00";
-  const chapterPart = `B${chapterId}`;
+  const normalizedChapterId =
+    chapterId === null || chapterId === undefined || chapterId === ""
+      ? 0
+      : Number(chapterId) || 0;
+  const chapterPart = `B${normalizedChapterId}`;
   const subPart = subchapterId ? `-S${subchapterId}` : "";
   return `${monthPart}-${chapterPart}${subPart}`;
 };
@@ -127,8 +131,21 @@ const buildSummativeLegacyType = (month, chapterId) => {
   const monthPart = monthNum
     ? `M${String(monthNum).padStart(2, "0")}`
     : "M00";
-  const chapterPart = `B${chapterId}`;
+  const normalizedChapterId =
+    chapterId === null || chapterId === undefined || chapterId === ""
+      ? 0
+      : Number(chapterId) || 0;
+  const chapterPart = `B${normalizedChapterId}`;
   return `${monthPart}-${chapterPart}`;
+};
+
+const normalizeOptionalChapterId = (chapterId) => {
+  if (chapterId === null || chapterId === undefined || chapterId === "") {
+    return null;
+  }
+  const numeric = Number(chapterId);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return numeric;
 };
 
 const deriveSemesterFromMonthValue = (month, fallbackSemester = null) => {
@@ -954,6 +971,10 @@ router.get(
     if (chapter_id) {
       joinConditions.push(`s.chapter_id = $${paramIndex}`);
       joinParams.push(chapter_id);
+      paramIndex += 1;
+    } else if (month) {
+      // Mode tanpa bab (UTS/sync umum): hanya nilai chapter_id NULL
+      joinConditions.push("s.chapter_id IS NULL");
     }
 
     const studentResult = await pool.query(
@@ -1004,9 +1025,18 @@ router.get(
         month: row.month,
         chapter_id: row.chapter_id,
         subchapter_id: subchapterId,
-        score_written: row.score_written ?? 0,
-        score_skill: row.score_skill ?? 0,
-        final_score: row.final_score ?? 0,
+        score_written:
+          row.score_written === null || row.score_written === undefined
+            ? null
+            : Number(row.score_written),
+        score_skill:
+          row.score_skill === null || row.score_skill === undefined
+            ? null
+            : Number(row.score_skill),
+        final_score:
+          row.final_score === null || row.final_score === undefined
+            ? null
+            : Number(row.final_score),
       });
       if (month && chapter_id) {
         const values = entry.scores
@@ -1447,13 +1477,14 @@ router.post(
       items,
     } = req.body;
 
-    if (!subject_id || !class_id || !month || !semester || !chapter_id) {
+    if (!subject_id || !class_id || !month || !semester) {
       return res.status(400).json({
         status: "error",
-        message:
-          "subject_id, class_id, month, semester, dan chapter_id wajib diisi.",
+        message: "subject_id, class_id, month, dan semester wajib diisi.",
       });
     }
+
+    const effectiveChapterId = normalizeOptionalChapterId(chapter_id);
 
     const semesterValue = Number(semester);
     if (![1, 2].includes(semesterValue)) {
@@ -1582,11 +1613,11 @@ router.post(
       new Set(
         normalizedItems.flatMap((item) => {
           const nextTypes = [
-            buildSummativeType(month, chapter_id, item.subchapter_id),
+            buildSummativeType(month, effectiveChapterId, item.subchapter_id),
           ];
           if (Number(item.subchapter_id) === 1) {
             // Backward compatibility for old rows saved without -S suffix.
-            nextTypes.push(buildSummativeLegacyType(month, chapter_id));
+            nextTypes.push(buildSummativeLegacyType(month, effectiveChapterId));
           }
           return nextTypes;
         }),
@@ -1598,18 +1629,21 @@ router.post(
        WHERE subject_id = $1
          AND periode_id = $2
          AND class_id = $3
-         AND chapter_id = $4
-         AND teacher_id = $5
-         AND type = ANY($6::text[])
-         AND student_id = ANY($7::int[])`,
+         AND teacher_id = $4
+         AND type = ANY($5::text[])
+         AND student_id = ANY($6::int[])
+         AND (
+           ($7::int IS NULL AND chapter_id IS NULL)
+           OR chapter_id = $7
+         )`,
       [
         subject_id,
         activePeriode.id,
         class_id,
-        chapter_id,
         effectiveTeacherId,
         typeKeys,
         studentIds,
+        effectiveChapterId,
       ],
     );
 
@@ -1617,7 +1651,11 @@ router.post(
       if (item.score_written == null && item.score_skill == null) {
         continue;
       }
-      const typeKey = buildSummativeType(month, chapter_id, item.subchapter_id);
+      const typeKey = buildSummativeType(
+        month,
+        effectiveChapterId,
+        item.subchapter_id,
+      );
       await client.query(
         `INSERT INTO lms.l_score_summative (
            periode_id,
@@ -1642,7 +1680,7 @@ router.post(
           item.student_id,
           effectiveTeacherId,
           subject_id,
-          chapter_id,
+          effectiveChapterId,
           typeKey,
           item.score_written,
           item.score_skill,
@@ -2157,6 +2195,49 @@ const resolveNextFormativeSubchapterId = async ({
   return maxSubId + 1;
 };
 
+const resolveNextSummativeSubchapterId = async ({
+  pool,
+  subjectId,
+  classId,
+  chapterId,
+  teacherId,
+  periodeId,
+  month,
+}) => {
+  const normalizedChapterId = normalizeOptionalChapterId(chapterId);
+  const result =
+    normalizedChapterId == null
+      ? await pool.query(
+          `SELECT type, month
+           FROM lms.l_score_summative
+           WHERE subject_id = $1
+             AND class_id = $2
+             AND chapter_id IS NULL
+             AND teacher_id = $3
+             AND periode_id = $4`,
+          [subjectId, classId, teacherId, periodeId],
+        )
+      : await pool.query(
+          `SELECT type, month
+           FROM lms.l_score_summative
+           WHERE subject_id = $1
+             AND class_id = $2
+             AND chapter_id = $3
+             AND teacher_id = $4
+             AND periode_id = $5`,
+          [subjectId, classId, normalizedChapterId, teacherId, periodeId],
+        );
+
+  let maxSubId = 0;
+  for (const row of result.rows) {
+    if (month && !isSameMonthValue(row.month, month)) continue;
+    const subId = parseTypeSubchapterNumber(row.type);
+    if (subId != null && subId > maxSubId) maxSubId = subId;
+  }
+
+  return maxSubId + 1;
+};
+
 const loadExamScoresForClass = async ({ pool, examId, classId, periodeId }) => {
   const examResult = await pool.query(
     `SELECT
@@ -2614,6 +2695,549 @@ router.post(
         subchapter_id: nextSubchapterId,
         column_label: `Nilai ${nextSubchapterId}`,
         type: typeKey,
+        synced_count: insertedCount,
+        skipped_count: scorePayload.total_students - insertedCount,
+      },
+    });
+  }),
+);
+
+// ==========================================
+// GET Sync Sumatif Preview
+// ==========================================
+router.get(
+  "/grading/sync/summative/preview",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const {
+      exam_id,
+      subject_id,
+      class_id,
+      month,
+      semester,
+      teacher_id,
+    } = req.query;
+
+    if (!exam_id || !subject_id || !class_id || !month || !semester) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "exam_id, subject_id, class_id, month, dan semester wajib diisi.",
+      });
+    }
+
+    const semesterValue = Number(semester);
+    if (![1, 2].includes(semesterValue)) {
+      return res.status(400).json({
+        status: "error",
+        message: "semester harus 1 atau 2.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      pool,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const scorePayload = await loadExamScoresForClass({
+      pool,
+      examId: Number(exam_id),
+      classId: Number(class_id),
+      periodeId: activePeriode.id,
+    });
+    if (!scorePayload.ok) {
+      return res.status(scorePayload.status).json({
+        status: "error",
+        message: scorePayload.message,
+      });
+    }
+
+    if (Number(scorePayload.exam.subject_id) !== Number(subject_id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Jadwal ujian tidak sesuai mata pelajaran.",
+      });
+    }
+
+    // Sync sumatif selalu tanpa bab (mis. UTS)
+    const nextSubchapterId = await resolveNextSummativeSubchapterId({
+      pool,
+      subjectId: subject_id,
+      classId: class_id,
+      chapterId: null,
+      teacherId: effectiveTeacherId,
+      periodeId: activePeriode.id,
+      month,
+    });
+
+    return res.json({
+      status: "success",
+      data: {
+        exam: scorePayload.exam,
+        next_subchapter_id: nextSubchapterId,
+        next_column_label: `Nilai ${nextSubchapterId}`,
+        scored_count: scorePayload.scored_count,
+        total_students: scorePayload.total_students,
+        students: scorePayload.students,
+      },
+    });
+  }),
+);
+
+// ==========================================
+// POST Sync Sumatif from Exam (always new column, written only, no chapter)
+// ==========================================
+router.post(
+  "/grading/sync/summative",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const {
+      exam_id,
+      subject_id,
+      class_id,
+      month,
+      semester,
+      teacher_id,
+    } = req.body;
+
+    if (!exam_id || !subject_id || !class_id || !month || !semester) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "exam_id, subject_id, class_id, month, dan semester wajib diisi.",
+      });
+    }
+
+    const semesterValue = Number(semester);
+    if (![1, 2].includes(semesterValue)) {
+      return res.status(400).json({
+        status: "error",
+        message: "semester harus 1 atau 2.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool: client,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool: client,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      client,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const scorePayload = await loadExamScoresForClass({
+      pool: client,
+      examId: Number(exam_id),
+      classId: Number(class_id),
+      periodeId: activePeriode.id,
+    });
+    if (!scorePayload.ok) {
+      return res.status(scorePayload.status).json({
+        status: "error",
+        message: scorePayload.message,
+      });
+    }
+
+    if (Number(scorePayload.exam.subject_id) !== Number(subject_id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Jadwal ujian tidak sesuai mata pelajaran.",
+      });
+    }
+
+    const scoredItems = scorePayload.students.filter((item) => item.has_score);
+    if (!scoredItems.length) {
+      return res.status(400).json({
+        status: "error",
+        message: "Belum ada hasil ujian siswa yang dapat di-sync.",
+      });
+    }
+
+    const nextSubchapterId = await resolveNextSummativeSubchapterId({
+      pool: client,
+      subjectId: subject_id,
+      classId: class_id,
+      chapterId: null,
+      teacherId: effectiveTeacherId,
+      periodeId: activePeriode.id,
+      month,
+    });
+
+    const typeKey = buildSummativeType(month, null, nextSubchapterId);
+    const normalizedMonth = normalizeMonthLabel(month);
+
+    let insertedCount = 0;
+    for (const item of scoredItems) {
+      const scoreWritten = normalizeScore(item.score);
+      await client.query(
+        `INSERT INTO lms.l_score_summative (
+           periode_id,
+           semester,
+           month,
+           class_id,
+           student_id,
+           teacher_id,
+           subject_id,
+           chapter_id,
+           type,
+           score_written,
+           score_skill,
+           final_score
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          activePeriode.id,
+          semesterValue,
+          normalizedMonth,
+          class_id,
+          item.student_id,
+          effectiveTeacherId,
+          subject_id,
+          null,
+          typeKey,
+          scoreWritten,
+          null,
+          normalizeFinalScore(scoreWritten, null),
+        ],
+      );
+      insertedCount += 1;
+    }
+
+    return res.json({
+      status: "success",
+      message: `Berhasil sync ${insertedCount} nilai ke kolom ${`Nilai ${nextSubchapterId}`}.`,
+      data: {
+        exam_id: Number(exam_id),
+        exam_name: scorePayload.exam.name,
+        subchapter_id: nextSubchapterId,
+        column_label: `Nilai ${nextSubchapterId}`,
+        type: typeKey,
+        synced_count: insertedCount,
+        skipped_count: scorePayload.total_students - insertedCount,
+      },
+    });
+  }),
+);
+
+// ==========================================
+// GET Sync Ujian Akhir Preview
+// ==========================================
+router.get(
+  "/grading/sync/final/preview",
+  authorize("satuan", "teacher"),
+  withQuery(async (req, res, pool) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { exam_id, subject_id, class_id, semester, teacher_id } = req.query;
+
+    if (!exam_id || !subject_id || !class_id || !semester) {
+      return res.status(400).json({
+        status: "error",
+        message: "exam_id, subject_id, class_id, dan semester wajib diisi.",
+      });
+    }
+
+    const semesterValue = Number(semester);
+    if (![1, 2].includes(semesterValue)) {
+      return res.status(400).json({
+        status: "error",
+        message: "semester harus 1 atau 2.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      pool,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const scorePayload = await loadExamScoresForClass({
+      pool,
+      examId: Number(exam_id),
+      classId: Number(class_id),
+      periodeId: activePeriode.id,
+    });
+    if (!scorePayload.ok) {
+      return res.status(scorePayload.status).json({
+        status: "error",
+        message: scorePayload.message,
+      });
+    }
+
+    if (Number(scorePayload.exam.subject_id) !== Number(subject_id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Jadwal ujian tidak sesuai mata pelajaran.",
+      });
+    }
+
+    return res.json({
+      status: "success",
+      data: {
+        exam: scorePayload.exam,
+        next_column_label: "Nilai Ujian Akhir",
+        scored_count: scorePayload.scored_count,
+        total_students: scorePayload.total_students,
+        students: scorePayload.students,
+      },
+    });
+  }),
+);
+
+// ==========================================
+// POST Sync Ujian Akhir from Exam
+// ==========================================
+router.post(
+  "/grading/sync/final",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { exam_id, subject_id, class_id, semester, teacher_id } = req.body;
+
+    if (!exam_id || !subject_id || !class_id || !semester) {
+      return res.status(400).json({
+        status: "error",
+        message: "exam_id, subject_id, class_id, dan semester wajib diisi.",
+      });
+    }
+
+    const semesterValue = Number(semester);
+    if (![1, 2].includes(semesterValue)) {
+      return res.status(400).json({
+        status: "error",
+        message: "semester harus 1 atau 2.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool: client,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool: client,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      client,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const scorePayload = await loadExamScoresForClass({
+      pool: client,
+      examId: Number(exam_id),
+      classId: Number(class_id),
+      periodeId: activePeriode.id,
+    });
+    if (!scorePayload.ok) {
+      return res.status(scorePayload.status).json({
+        status: "error",
+        message: scorePayload.message,
+      });
+    }
+
+    if (Number(scorePayload.exam.subject_id) !== Number(subject_id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Jadwal ujian tidak sesuai mata pelajaran.",
+      });
+    }
+
+    const scoredItems = scorePayload.students.filter((item) => item.has_score);
+    if (!scoredItems.length) {
+      return res.status(400).json({
+        status: "error",
+        message: "Belum ada hasil ujian siswa yang dapat di-sync.",
+      });
+    }
+
+    const studentIds = scoredItems.map((item) => item.student_id);
+    await client.query(
+      `DELETE FROM lms.l_score_final
+       WHERE subject_id = $1
+         AND periode_id = $2
+         AND semester = $3
+         AND class_id = $4
+         AND teacher_id = $5
+         AND student_id = ANY($6::int[])`,
+      [
+        subject_id,
+        activePeriode.id,
+        semesterValue,
+        class_id,
+        effectiveTeacherId,
+        studentIds,
+      ],
+    );
+
+    let insertedCount = 0;
+    for (const item of scoredItems) {
+      await client.query(
+        `INSERT INTO lms.l_score_final (
+           periode_id,
+           semester,
+           class_id,
+           student_id,
+           teacher_id,
+           subject_id,
+           final_grade
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          activePeriode.id,
+          semesterValue,
+          class_id,
+          item.student_id,
+          effectiveTeacherId,
+          subject_id,
+          normalizeScore(item.score),
+        ],
+      );
+      insertedCount += 1;
+    }
+
+    return res.json({
+      status: "success",
+      message: `Berhasil sync ${insertedCount} nilai ke Ujian Akhir.`,
+      data: {
+        exam_id: Number(exam_id),
+        exam_name: scorePayload.exam.name,
+        column_label: "Nilai Ujian Akhir",
         synced_count: insertedCount,
         skipped_count: scorePayload.total_students - insertedCount,
       },

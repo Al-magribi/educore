@@ -78,7 +78,9 @@ const StudentGradingTable = ({
   const isFilterReady =
     typeKey === "ujianAkhir"
       ? !!filters?.semesterId
-      : !!filters?.monthId && (typeKey === "sikap" || !!filters?.chapterId);
+      : typeKey === "sumatif"
+        ? !!filters?.monthId
+        : !!filters?.monthId && (typeKey === "sikap" || !!filters?.chapterId);
 
   const renderContent = () => {
     if (typeKey === "sikap") {
@@ -204,7 +206,11 @@ const StudentGradingTable = ({
                 <Select
                   value={filters?.chapterId}
                   allowClear
-                  placeholder='Pilih bab'
+                  placeholder={
+                    typeKey === "sumatif"
+                      ? "Bab (opsional)"
+                      : "Pilih bab"
+                  }
                   options={chapterOptions}
                   onChange={(value) =>
                     onFilterChange(typeKey, "chapterId", value)
@@ -217,9 +223,14 @@ const StudentGradingTable = ({
               <Text type='secondary'>
                 {typeKey === "ujianAkhir"
                   ? "Semester wajib dipilih."
-                  : typeKey === "sikap"
+                  : typeKey === "sikap" || typeKey === "sumatif"
                   ? "Bulan wajib dipilih."
                   : "Bulan wajib dipilih, bab wajib dipilih."}
+              </Text>
+            )}
+            {isFilterReady && typeKey === "sumatif" && !filters?.chapterId && (
+              <Text type='secondary'>
+                Mode tanpa bab (UTS/sync umum). Pilih bab jika ingin input per bab.
               </Text>
             )}
             {isFilterReady && derivedSemester && (

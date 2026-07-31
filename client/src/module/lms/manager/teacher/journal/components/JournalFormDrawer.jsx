@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -16,6 +16,7 @@ import {
   Typography,
 } from "antd";
 import { useGetChaptersQuery } from "../../../../../../service/lms/ApiLms";
+import { useGetTeacherJournalsQuery } from "../../../../../../service/lms/ApiJournal";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -35,6 +36,8 @@ const JournalFormDrawer = ({
   isSaving,
 }) => {
   const selectedClassId = Form.useWatch("class_id", form);
+  const appliedMeetingClassRef = useRef(null);
+  const [meetingSyncKey, setMeetingSyncKey] = useState(0);
 
   const { data: chapterRes, isLoading: isChapterLoading } = useGetChaptersQuery(
     {
@@ -46,6 +49,35 @@ const JournalFormDrawer = ({
       skip: !subjectId || !selectedClassId,
     },
   );
+
+  const { data: classJournalRes, isFetching: isMeetingLoading } =
+    useGetTeacherJournalsQuery(
+      {
+        subjectId,
+        classId: selectedClassId || null,
+      },
+      {
+        skip: !open || !subjectId || !selectedClassId,
+      },
+    );
+
+  const nextMeetingNo = useMemo(() => {
+    const journals = classJournalRes?.data || [];
+    if (!journals.length) return 1;
+
+    const maxMeeting = journals.reduce((max, item) => {
+      if (
+        editingJournal?.id &&
+        Number(item.id) === Number(editingJournal.id)
+      ) {
+        return max;
+      }
+      const meetingNo = Number(item.meeting_no) || 0;
+      return meetingNo > max ? meetingNo : max;
+    }, 0);
+
+    return maxMeeting + 1;
+  }, [classJournalRes?.data, editingJournal?.id]);
 
   const chapterOptions = useMemo(() => {
     const chapters = chapterRes?.data || [];
@@ -73,6 +105,48 @@ const JournalFormDrawer = ({
   }, [chapterRes?.data, form]);
 
   useEffect(() => {
+    if (!open) {
+      appliedMeetingClassRef.current = null;
+      return;
+    }
+
+    if (!selectedClassId) {
+      form.setFieldValue("meeting_no", undefined);
+      form.setFieldValue("learning_material", undefined);
+      appliedMeetingClassRef.current = null;
+      return;
+    }
+
+    if (isMeetingLoading) return;
+
+    if (
+      Number(appliedMeetingClassRef.current) === Number(selectedClassId)
+    ) {
+      return;
+    }
+
+    const keepEditingMeeting =
+      editingJournal &&
+      Number(editingJournal.class_id) === Number(selectedClassId);
+
+    form.setFieldValue(
+      "meeting_no",
+      keepEditingMeeting
+        ? Number(editingJournal.meeting_no)
+        : nextMeetingNo,
+    );
+    appliedMeetingClassRef.current = selectedClassId;
+  }, [
+    editingJournal,
+    form,
+    isMeetingLoading,
+    meetingSyncKey,
+    nextMeetingNo,
+    open,
+    selectedClassId,
+  ]);
+
+  useEffect(() => {
     if (!selectedClassId) {
       form.setFieldValue("learning_material", undefined);
       return;
@@ -88,6 +162,12 @@ const JournalFormDrawer = ({
       form.setFieldValue("learning_material", undefined);
     }
   }, [chapterOptions, form, selectedClassId]);
+
+  const handleReset = () => {
+    appliedMeetingClassRef.current = null;
+    onReset?.();
+    setMeetingSyncKey((key) => key + 1);
+  };
 
   return (
     <Drawer
@@ -127,7 +207,7 @@ const JournalFormDrawer = ({
                   : "Buat catatan pembelajaran baru"}
               </Title>
               <Text type="secondary">
-                Pilih kelas yang diampu, lalu materi pembelajaran akan mengikuti chapter untuk kelas tersebut.
+                Pilih kelas terlebih dahulu. Nomor pertemuan dihitung otomatis dari jurnal kelas tersebut.
               </Text>
             </div>
             <Tag
@@ -172,16 +252,6 @@ const JournalFormDrawer = ({
 
               <Col xs={24} md={12}>
                 <Form.Item
-                  name="meeting_no"
-                  label="Pertemuan"
-                  rules={[{ required: true, message: "Pertemuan wajib diisi." }]}
-                >
-                  <InputNumber min={1} style={{ width: "100%" }} />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24}>
-                <Form.Item
                   name="class_id"
                   label="Kelas"
                   rules={[{ required: true, message: "Kelas wajib dipilih." }]}
@@ -193,6 +263,33 @@ const JournalFormDrawer = ({
                     showSearch
                     optionFilterProp="label"
                     virtual={false}
+                    allowClear
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="meeting_no"
+                  label="Pertemuan"
+                  rules={[{ required: true, message: "Pertemuan wajib diisi." }]}
+                  extra={
+                    selectedClassId
+                      ? "Dihitung otomatis dari jumlah jurnal kelas ini (bisa diubah)."
+                      : "Pilih kelas terlebih dahulu untuk menghitung pertemuan."
+                  }
+                >
+                  <InputNumber
+                    min={1}
+                    style={{ width: "100%" }}
+                    disabled={!selectedClassId}
+                    placeholder={
+                      selectedClassId
+                        ? isMeetingLoading
+                          ? "Menghitung..."
+                          : "Nomor pertemuan"
+                        : "Pilih kelas dulu"
+                    }
                   />
                 </Form.Item>
               </Col>
@@ -259,7 +356,7 @@ const JournalFormDrawer = ({
               <Button onClick={onClose} block={isMobile}>
                 Batal
               </Button>
-              <Button onClick={onReset} block={isMobile}>
+              <Button onClick={handleReset} block={isMobile}>
                 Reset Form
               </Button>
               <Button

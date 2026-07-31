@@ -157,10 +157,13 @@ const ReportTab = ({ subject, classId }) => {
   const summativeRows = (summative.entries || []).map((item, index) => ({
     key: item.id || `summative-${index}`,
     no: index + 1,
-    chapter_title: item.chapter_title || "-",
-    score_written: item.score_written,
-    score_skill: item.score_skill,
-    final_score: item.final_score,
+    chapter_title: item.chapter_title || "Tanpa bab",
+    score:
+      item.score ??
+      item.final_score ??
+      item.score_written ??
+      item.score_skill ??
+      null,
   }));
 
   const formativeColumns = [
@@ -191,22 +194,8 @@ const ReportTab = ({ subject, classId }) => {
       ),
     },
     {
-      title: "Tertulis",
-      dataIndex: "score_written",
-      width: 88,
-      align: "center",
-      render: (value) => value ?? "-",
-    },
-    {
-      title: "Praktik",
-      dataIndex: "score_skill",
-      width: 88,
-      align: "center",
-      render: (value) => value ?? "-",
-    },
-    {
-      title: "Akhir",
-      dataIndex: "final_score",
+      title: "Nilai",
+      dataIndex: "score",
       width: 88,
       align: "center",
       render: (value) => (
