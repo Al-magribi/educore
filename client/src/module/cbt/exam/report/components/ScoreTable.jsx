@@ -102,7 +102,7 @@ const ScoreTable = ({
       "Benar / Salah": item.scoreTrueFalse,
       "Jawaban Singkat": item.scoreShort,
       Uraian: item.scoreEssay,
-      "Nilai Akhir": item.score,
+      "Nilai Akhir": Number(item.score || 0).toFixed(2),
     }));
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
@@ -187,7 +187,7 @@ const ScoreTable = ({
           color={value >= 75 ? "green" : "orange"}
           style={{ borderRadius: 999, margin: 0, fontWeight: 700 }}
         >
-          {value}
+          {Number(value || 0).toFixed(2)}
         </Tag>
       ),
     },
@@ -269,7 +269,7 @@ const ScoreTable = ({
             color={item.score >= 75 ? "green" : "orange"}
             style={{ margin: 0, borderRadius: 999, fontWeight: 700 }}
           >
-            {item.score}
+            {Number(item.score || 0).toFixed(2)}
           </Tag>
         </Flex>
 
