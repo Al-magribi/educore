@@ -11,14 +11,17 @@ import {
   Space,
   Tag,
   Typography,
+  message,
 } from "antd";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
+  Download,
   History,
   PiggyBank,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import * as XLSX from "xlsx";
 
 import { cardStyle, currencyFormatter, formatSavingDate } from "../constants";
 import SavingStudentDetailModal from "./SavingStudentDetailModal";
@@ -40,6 +43,26 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
     return students.slice(startIndex, startIndex + pageSize);
   }, [effectivePage, pageSize, students]);
 
+  const handleExportExcel = () => {
+    if (!students.length) {
+      message.warning("Tidak ada data siswa untuk diekspor.");
+      return;
+    }
+
+    const exportRows = students.map((student, index) => ({
+      No: index + 1,
+      NIS: student.nis || "-",
+      "Nama Siswa": student.student_name || "-",
+      Kelas: student.class_name || "-",
+      Saldo: currencyFormatter.format(Number(student.balance || 0)),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Daftar Siswa");
+    XLSX.writeFile(workbook, "tabungan-daftar-siswa.xlsx");
+  };
+
   if (!loading && students.length === 0) {
     return (
       <Card variant='borderless' style={cardStyle}>
@@ -49,7 +72,31 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
   }
 
   return (
-    <Space orientation='vertical' size={isMobile ? 14 : 20} style={{ width: "100%" }}>
+    <Space
+      orientation='vertical'
+      size={isMobile ? 14 : 20}
+      style={{ width: "100%" }}
+    >
+      <Flex
+        justify='space-between'
+        align={isMobile ? "stretch" : "center"}
+        vertical={isMobile}
+        gap={10}
+        style={{ width: "100%" }}
+      >
+        <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+          {students.length} siswa sesuai filter aktif
+        </Text>
+        <Button
+          icon={<Download size={16} />}
+          onClick={handleExportExcel}
+          disabled={!students.length}
+          block={isMobile}
+        >
+          {isMobile ? "Excel" : "Export Excel"}
+        </Button>
+      </Flex>
+
       <Row gutter={[12, 12]}>
         {paginatedStudents.map((student) => (
           <Col xs={24} sm={12} xl={8} key={student.student_id}>
@@ -67,14 +114,22 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
                 }}
                 styles={{ body: { padding: isMobile ? 14 : 18 } }}
               >
-                <Space orientation='vertical' size={14} style={{ width: "100%" }}>
+                <Space
+                  orientation='vertical'
+                  size={14}
+                  style={{ width: "100%" }}
+                >
                   <Flex
                     align='flex-start'
                     justify='space-between'
                     gap={8}
                     style={{ width: "100%" }}
                   >
-                    <Space orientation='vertical' size={2} style={{ minWidth: 0, flex: 1 }}>
+                    <Space
+                      orientation='vertical'
+                      size={2}
+                      style={{ minWidth: 0, flex: 1 }}
+                    >
                       <Title
                         level={5}
                         style={{
@@ -130,7 +185,10 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
                     </Space>
                   </div>
 
-                  <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
+                  <Text
+                    type='secondary'
+                    style={{ fontSize: isMobile ? 12 : 14 }}
+                  >
                     {student.transaction_count > 0
                       ? `Terakhir transaksi ${formatSavingDate(student.last_transaction_date)}`
                       : "Belum ada transaksi tabungan."}
@@ -190,7 +248,10 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
         ))}
       </Row>
 
-      <Flex justify={isMobile ? "center" : "flex-end"} style={{ width: "100%" }}>
+      <Flex
+        justify={isMobile ? "center" : "flex-end"}
+        style={{ width: "100%" }}
+      >
         <Pagination
           current={effectivePage}
           pageSize={pageSize}

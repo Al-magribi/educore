@@ -1,6 +1,7 @@
 import {
   BookOutlined,
   CreditCardOutlined,
+  FileTextOutlined,
   FundOutlined,
   MoneyCollectOutlined,
   ReadOutlined,
@@ -41,6 +42,11 @@ const buildFinanceMenus = (user = {}) => {
       label: 'Tabungan Siswa',
       key: '/finance/laporan-tabungan',
       icon: <BookOutlined />,
+    },
+    {
+      label: 'Laporan',
+      key: '/finance/laporan',
+      icon: <FileTextOutlined />,
     },
     {
       label: 'Pengaturan',

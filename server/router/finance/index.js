@@ -8,6 +8,7 @@ import saving from "./RouterSaving.js";
 import contribution from "./RouterContribution.js";
 import setting from "./RouterSetting.js";
 import scholarship from "./RouterScholarship.js";
+import report from "./RouterReport.js";
 
 const RouterFinance = Router();
 
@@ -20,5 +21,6 @@ RouterFinance.use(saving);
 RouterFinance.use(contribution);
 RouterFinance.use(setting);
 RouterFinance.use(scholarship);
+RouterFinance.use(report);
 
 export default RouterFinance;

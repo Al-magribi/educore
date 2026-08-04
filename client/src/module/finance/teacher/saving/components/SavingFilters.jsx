@@ -36,13 +36,16 @@ const SavingFilters = ({
       >
         <Space orientation='vertical' size={16} style={{ width: "100%" }}>
           <div>
-            <Title level={5} style={{ margin: 0, fontSize: isMobile ? 15 : undefined }}>
+            <Title
+              level={5}
+              style={{ margin: 0, fontSize: isMobile ? 15 : undefined }}
+            >
               Filter Operasional Tabungan
             </Title>
             <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
               {isMobile
                 ? "Persempit data berdasarkan kelas, siswa, jenis, atau pencarian."
-                : "Pilih kelas, siswa, jenis transaksi, periode, atau kata kunci untuk mempersempit data yang sedang dipantau."}
+                : "Pilih kelas, siswa, jenis transaksi, periode, atau kata kunci untuk mempersempit data. Daftar siswa mengikuti enrollment periode terpilih; semua periode tersedia di tab riwayat."}
             </Text>
           </div>
 
@@ -73,6 +76,26 @@ const SavingFilters = ({
             ) : null}
 
             <Col xs={24} md={12} xl={6}>
+              <Text type='secondary'>Periode</Text>
+              <Select
+                value={filters.periode_id}
+                onChange={(value) =>
+                  setFilters((previous) => ({
+                    ...previous,
+                    periode_id: value || undefined,
+                    class_id: undefined,
+                    student_id: undefined,
+                  }))
+                }
+                options={periodeOptions}
+                placeholder='Periode aktif'
+                style={{ width: "100%", marginTop: 8 }}
+                virtual={false}
+                size={isMobile ? "large" : "middle"}
+              />
+            </Col>
+
+            <Col xs={24} md={12} xl={6}>
               <Text type='secondary'>Kelas</Text>
               <Select
                 value={filters.class_id}
@@ -89,6 +112,7 @@ const SavingFilters = ({
                 disabled={!access?.can_manage_all_classes}
                 virtual={false}
                 size={isMobile ? "large" : "middle"}
+                allowClear
               />
             </Col>
 
@@ -128,25 +152,6 @@ const SavingFilters = ({
                   { value: "withdrawal", label: "Penarikan" },
                 ]}
                 placeholder='Semua transaksi'
-                style={{ width: "100%", marginTop: 8 }}
-                allowClear
-                virtual={false}
-                size={isMobile ? "large" : "middle"}
-              />
-            </Col>
-
-            <Col xs={24} md={12} xl={6}>
-              <Text type='secondary'>Periode Riwayat</Text>
-              <Select
-                value={filters.periode_id}
-                onChange={(value) =>
-                  setFilters((previous) => ({
-                    ...previous,
-                    periode_id: value || undefined,
-                  }))
-                }
-                options={periodeOptions}
-                placeholder='Periode aktif'
                 style={{ width: "100%", marginTop: 8 }}
                 allowClear
                 virtual={false}

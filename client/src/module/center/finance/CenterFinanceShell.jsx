@@ -6,6 +6,7 @@ import {
   BankOutlined,
   BookOutlined,
   CreditCardOutlined,
+  FileTextOutlined,
   FundOutlined,
   MoneyCollectOutlined,
   SettingFilled,
@@ -43,6 +44,11 @@ const TAB_ITEMS = [
     key: 'laporan-tabungan',
     label: 'Tabungan Siswa',
     icon: <BookOutlined />,
+  },
+  {
+    key: 'laporan',
+    label: 'Laporan',
+    icon: <FileTextOutlined />,
   },
   {
     key: 'pengaturan',

@@ -41,6 +41,9 @@ const Scholarship = lazy(
 const SavingReport = lazy(
   () => import("../../module/finance/report/SavingReport"),
 );
+const FinanceReport = lazy(
+  () => import("../../module/finance/report/CenterFinanceReport"),
+);
 const Setting = lazy(
   () => import("../../module/finance/setting/Setting"),
 );
@@ -118,6 +121,7 @@ const renderCenterRoutes = ({ LazyPage, NotFoundRedirect, isDbEnabled }) => (
       <Route path='pembayaran-lainnya' element={<Others />} />
       <Route path='beasiswa' element={<Scholarship />} />
       <Route path='transaksi' element={<Transaction />} />
+      <Route path='laporan' element={<FinanceReport />} />
       <Route path='laporan-tabungan' element={<SavingReport />} />
       <Route path='pengaturan' element={<Setting />} />
     </Route>

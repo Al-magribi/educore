@@ -298,17 +298,42 @@ const buildSavingsEnrollmentScope = ({
   return { params, whereClause };
 };
 
+const resolveEnrollmentPeriodeId = (accessContext, rawPeriodeId) => {
+  const rawValue = String(rawPeriodeId ?? "").trim();
+
+  // "all" / kosong → enrollment periode aktif (daftar siswa tidak boleh multi-periode).
+  if (!rawValue || rawValue === "all") {
+    return accessContext.activePeriode?.id || null;
+  }
+
+  return parseOptionalInt(rawValue);
+};
+
 const buildSavingsStudentScopeQuery = ({
   accessContext,
   classId,
   studentId,
   search,
+  periodeId = null,
 }) => {
   const isGlobalFinanceAdmin = Boolean(accessContext.isGlobalFinanceAdmin);
-  const params = isGlobalFinanceAdmin
-    ? []
-    : [accessContext.homebaseId, accessContext.activePeriode.id];
+  const enrollmentPeriodeId =
+    periodeId || accessContext.activePeriode?.id || null;
+  const params = [];
   const whereClauses = [`u.role = 'student'`, `u.is_active = true`];
+  let periodeWhereClause;
+
+  if (isGlobalFinanceAdmin) {
+    if (enrollmentPeriodeId) {
+      params.push(enrollmentPeriodeId);
+      periodeWhereClause = `e.periode_id = $${params.length}`;
+    } else {
+      periodeWhereClause = `per.is_active = true`;
+    }
+  } else {
+    params.push(accessContext.homebaseId, enrollmentPeriodeId);
+    periodeWhereClause = `e.homebase_id = $1 AND e.periode_id = $2 AND c.homebase_id = $1`;
+  }
 
   if (accessContext.homeroomClass) {
     params.push(accessContext.homeroomClass.id);
@@ -357,11 +382,7 @@ const buildSavingsStudentScopeQuery = ({
         JOIN a_periode per ON per.id = e.periode_id
         JOIN a_class c ON c.id = e.class_id
         LEFT JOIN a_grade g ON g.id = c.grade_id
-        WHERE ${
-          isGlobalFinanceAdmin
-            ? "per.is_active = true"
-            : "e.homebase_id = $1 AND e.periode_id = $2 AND c.homebase_id = $1"
-        }
+        WHERE ${periodeWhereClause}
           AND ${whereClauses.join("\n          AND ")}
       ),
       ranked_student_scope AS (
@@ -706,6 +727,10 @@ router.get(
     }
 
     const classId = parseOptionalInt(req.query.class_id);
+    const enrollmentPeriodeId = resolveEnrollmentPeriodeId(
+      accessContext,
+      req.query.periode_id,
+    );
     const classScope = await ensureClassScope(db, accessContext, classId);
     if (classScope.error) {
       return res.status(400).json({ message: classScope.error });
@@ -716,6 +741,7 @@ router.get(
       classId: classScope.data?.id || null,
       studentId: null,
       search: "",
+      periodeId: enrollmentPeriodeId,
     });
 
     const classesResult = await db.query(
@@ -821,6 +847,12 @@ router.get(
 
     const classId = parseOptionalInt(req.query.class_id);
     const search = (req.query.search || "").trim();
+    // Daftar siswa selalu terikat satu periode enrollment; "all"/kosong → aktif.
+    // Saldo tetap akumulatif lintas periode (join transaksi tanpa filter periode).
+    const enrollmentPeriodeId = resolveEnrollmentPeriodeId(
+      accessContext,
+      req.query.periode_id,
+    );
     const classScope = await ensureClassScope(db, accessContext, classId);
     if (classScope.error) {
       return res.status(400).json({ message: classScope.error });
@@ -831,6 +863,7 @@ router.get(
       classId: classScope.data?.id || null,
       studentId: null,
       search,
+      periodeId: enrollmentPeriodeId,
     });
 
     const result = await db.query(
@@ -943,6 +976,11 @@ router.get(
         : parseOptionalInt(rawPeriodeFilter) ||
           accessContext.activePeriode?.id ||
           null;
+    // Scope siswa/kelas mengikuti periode terpilih; "all" pakai enrollment aktif.
+    const enrollmentPeriodeId = resolveEnrollmentPeriodeId(
+      accessContext,
+      rawPeriodeFilter,
+    );
 
     if (
       transactionType &&
@@ -961,6 +999,7 @@ router.get(
       classId: classScope.data?.id || null,
       studentId,
       search,
+      periodeId: enrollmentPeriodeId,
     });
 
     const params = [...studentScope.params];

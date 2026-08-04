@@ -2,17 +2,21 @@ import { memo, useMemo } from "react";
 import {
   Button,
   Card,
+  Col,
   Dropdown,
   Flex,
   Grid,
   Modal,
+  Row,
   Space,
   Table,
   Tag,
   Typography,
+  message,
 } from "antd";
-import { ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import * as XLSX from "xlsx";
 
 import {
   cardStyle,
@@ -24,6 +28,14 @@ import {
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
+const summaryBoxStyle = {
+  borderRadius: 14,
+  border: "1px solid rgba(148, 163, 184, 0.16)",
+  background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+  padding: "10px 12px",
+  minWidth: 0,
+};
+
 const SavingTransactionTable = ({
   transactions,
   summary,
@@ -34,6 +46,32 @@ const SavingTransactionTable = ({
 }) => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
+  const isCompact = !screens.lg;
+
+  const handleExportExcel = () => {
+    if (!transactions.length) {
+      message.warning("Tidak ada transaksi untuk diekspor.");
+      return;
+    }
+
+    const exportRows = transactions.map((item, index) => ({
+      No: index + 1,
+      Periode: item.periode_name || "-",
+      NIS: item.nis || "-",
+      "Nama Siswa": item.student_name || "-",
+      Kelas: item.class_name || "-",
+      Jenis:
+        transactionTypeMeta[item.transaction_type]?.label ||
+        item.transaction_type ||
+        "-",
+      Nominal: currencyFormatter.format(Number(item.amount || 0)),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Riwayat Transaksi");
+    XLSX.writeFile(workbook, "tabungan-riwayat-transaksi.xlsx");
+  };
 
   const renderActions = (record) => {
     const items = [
@@ -70,7 +108,7 @@ const SavingTransactionTable = ({
 
     return (
       <Dropdown.Button
-        size={isMobile ? "small" : "middle"}
+        size='small'
         menu={{
           items,
           onClick: handleMenuClick,
@@ -79,6 +117,7 @@ const SavingTransactionTable = ({
         icon={<ChevronDown size={16} />}
         loading={deletingId === record.transaction_id}
         onClick={() => onEdit(record)}
+        style={{ maxWidth: "100%" }}
       >
         {isMobile ? "Aksi" : "Pilih Aksi"}
       </Dropdown.Button>
@@ -91,15 +130,16 @@ const SavingTransactionTable = ({
         title: "Tanggal",
         dataIndex: "transaction_date",
         key: "transaction_date",
-        width: 132,
+        width: isCompact ? 110 : 132,
         render: (value) => formatSavingDate(value),
       },
       {
         title: "Siswa",
         dataIndex: "student_name",
         key: "student_name",
+        ellipsis: true,
         render: (_, record) => (
-          <Space orientation='vertical' size={0}>
+          <Space orientation='vertical' size={0} style={{ minWidth: 0, maxWidth: "100%" }}>
             <Text strong style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
               {record.student_name}
             </Text>
@@ -113,14 +153,16 @@ const SavingTransactionTable = ({
         title: "Periode",
         dataIndex: "periode_name",
         key: "periode_name",
-        width: 130,
+        width: isCompact ? 110 : 130,
+        ellipsis: true,
+        responsive: ["lg"],
         render: (value) => value || "-",
       },
       {
         title: "Jenis",
         dataIndex: "transaction_type",
         key: "transaction_type",
-        width: 130,
+        width: isCompact ? 110 : 130,
         render: (value) => (
           <Tag color={transactionTypeMeta[value]?.color || "default"}>
             {transactionTypeMeta[value]?.label || value}
@@ -128,81 +170,98 @@ const SavingTransactionTable = ({
         ),
       },
       {
-        title: "Nominal",
-        dataIndex: "amount",
-        key: "amount",
-        width: 160,
-        render: (value, record) => (
-          <Text
-            strong
-            style={{
-              color:
-                record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
-            }}
-          >
-            {record.transaction_type === "withdrawal" ? "- " : "+ "}
-            {currencyFormatter.format(Number(value || 0))}
-          </Text>
+        title: "Nominal / Keterangan",
+        key: "amount_description",
+        width: isCompact ? 180 : 220,
+        render: (_, record) => (
+          <Space orientation='vertical' size={0} style={{ minWidth: 0, maxWidth: "100%" }}>
+            <Text
+              strong
+              style={{
+                color:
+                  record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {record.transaction_type === "withdrawal" ? "- " : "+ "}
+              {currencyFormatter.format(Number(record.amount || 0))}
+            </Text>
+            <Text
+              type='secondary'
+              style={{
+                fontSize: 12,
+                whiteSpace: "normal",
+                wordBreak: "break-word",
+              }}
+            >
+              {record.description || "-"}
+            </Text>
+          </Space>
         ),
-      },
-      {
-        title: "Keterangan",
-        dataIndex: "description",
-        key: "description",
-        render: (value) => value || "-",
       },
       {
         title: "Diproses Oleh",
         dataIndex: "processed_by_name",
         key: "processed_by_name",
-        width: 180,
+        width: 160,
+        ellipsis: true,
+        responsive: ["xl"],
         render: (value) => value || "-",
       },
       {
         title: "Aksi",
         key: "action",
-        width: 160,
+        width: isCompact ? 120 : 150,
         align: "center",
         fixed: "right",
         render: (_, record) => renderActions(record),
       },
     ],
-    [deletingId, isMobile, onDelete, onEdit],
+    [deletingId, isCompact, isMobile, onDelete, onEdit],
   );
 
-  const mobileColumns = [
-    {
-      title: "Transaksi",
-      key: "transaction",
-      render: (_, record) => (
-        <Flex vertical gap={10} style={{ width: "100%" }}>
-          <Flex justify='space-between' align='flex-start' gap={8}>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <Text
-                strong
-                style={{
-                  display: "block",
-                  whiteSpace: "normal",
-                  wordBreak: "break-word",
-                }}
+  const mobileColumns = useMemo(
+    () => [
+      {
+        title: "Transaksi",
+        key: "transaction",
+        render: (_, record) => (
+          <Flex vertical gap={10} style={{ width: "100%", minWidth: 0 }}>
+            <Flex justify='space-between' align='flex-start' gap={8}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <Text
+                  strong
+                  style={{
+                    display: "block",
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {record.student_name}
+                </Text>
+                <Text
+                  type='secondary'
+                  style={{
+                    fontSize: 12,
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {record.nis || "-"} · {record.class_name || "-"}
+                </Text>
+              </div>
+              <Tag
+                color={
+                  transactionTypeMeta[record.transaction_type]?.color || "default"
+                }
+                style={{ margin: 0, flexShrink: 0 }}
               >
-                {record.student_name}
-              </Text>
-              <Text type='secondary' style={{ fontSize: 12 }}>
-                {record.nis || "-"} · {record.class_name || "-"}
-              </Text>
-            </div>
-            <Tag
-              color={transactionTypeMeta[record.transaction_type]?.color || "default"}
-              style={{ margin: 0 }}
-            >
-              {transactionTypeMeta[record.transaction_type]?.label ||
-                record.transaction_type}
-            </Tag>
-          </Flex>
+                {transactionTypeMeta[record.transaction_type]?.label ||
+                  record.transaction_type}
+              </Tag>
+            </Flex>
 
-          <Flex justify='space-between' align='center' gap={8} wrap='wrap'>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <Text
                 strong
                 style={{
@@ -211,12 +270,20 @@ const SavingTransactionTable = ({
                       ? "#d97706"
                       : "#059669",
                   fontSize: 15,
+                  wordBreak: "break-word",
                 }}
               >
                 {record.transaction_type === "withdrawal" ? "- " : "+ "}
                 {currencyFormatter.format(Number(record.amount || 0))}
               </Text>
-              <Text type='secondary' style={{ display: "block", fontSize: 12 }}>
+              <Text
+                type='secondary'
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  wordBreak: "break-word",
+                }}
+              >
                 {formatSavingDate(record.transaction_date)}
                 {record.periode_name ? ` · ${record.periode_name}` : ""}
               </Text>
@@ -226,19 +293,28 @@ const SavingTransactionTable = ({
                   style={{
                     display: "block",
                     fontSize: 12,
+                    marginTop: 2,
                     wordBreak: "break-word",
                   }}
                 >
                   {record.description}
                 </Text>
               ) : null}
+              <Text
+                type='secondary'
+                style={{ display: "block", fontSize: 12, marginTop: 2 }}
+              >
+                Oleh: {record.processed_by_name || "-"}
+              </Text>
             </div>
-            <div>{renderActions(record)}</div>
+
+            <div style={{ width: "100%" }}>{renderActions(record)}</div>
           </Flex>
-        </Flex>
-      ),
-    },
-  ];
+        ),
+      },
+    ],
+    [deletingId, onDelete, onEdit],
+  );
 
   return (
     <MotionDiv
@@ -252,20 +328,43 @@ const SavingTransactionTable = ({
           ...cardStyle,
           borderRadius: isMobile ? 16 : undefined,
           overflow: "hidden",
+          width: "100%",
+          maxWidth: "100%",
+          ...(isMobile
+            ? {
+                border: "none",
+                boxShadow: "none",
+                background: "transparent",
+              }
+            : null),
         }}
-        styles={{ body: { padding: isMobile ? 10 : 18 } }}
+        styles={{
+          body: {
+            padding: isMobile ? 0 : 18,
+            width: "100%",
+            maxWidth: "100%",
+            overflow: "hidden",
+          },
+        }}
       >
-        <Space orientation='vertical' size={16} style={{ width: "100%" }}>
+        <Space orientation='vertical' size={isMobile ? 12 : 16} style={{ width: "100%" }}>
           <Flex
             wrap
-            gap={14}
+            gap={12}
             justify='space-between'
             align={isMobile ? "stretch" : "center"}
             vertical={isMobile}
             style={{ width: "100%" }}
           >
-            <Space orientation='vertical' size={4} style={{ minWidth: 0 }}>
-              <Title level={5} style={{ margin: 0, fontSize: isMobile ? 15 : undefined }}>
+            <Space orientation='vertical' size={4} style={{ minWidth: 0, flex: 1 }}>
+              <Title
+                level={5}
+                style={{
+                  margin: 0,
+                  fontSize: isMobile ? 15 : undefined,
+                  wordBreak: "break-word",
+                }}
+              >
                 Riwayat Transaksi Tabungan
               </Title>
               {!isMobile ? (
@@ -274,33 +373,84 @@ const SavingTransactionTable = ({
                 </Text>
               ) : null}
             </Space>
-            <Space wrap size={[8, 8]}>
-              <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
-                Setoran {currencyFormatter.format(summary?.total_deposit || 0)}
-              </Text>
-              <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
-                Penarikan{" "}
-                {currencyFormatter.format(summary?.total_withdrawal || 0)}
-              </Text>
-            </Space>
+            <Button
+              icon={<Download size={16} />}
+              onClick={handleExportExcel}
+              disabled={!transactions.length}
+              block={isMobile}
+            >
+              {isMobile ? "Excel" : "Export Excel"}
+            </Button>
           </Flex>
 
-          <Table
-            rowKey='transaction_id'
-            columns={isMobile ? mobileColumns : desktopColumns}
-            dataSource={transactions}
-            loading={loading}
-            size={isMobile ? "small" : "middle"}
-            pagination={{
-              pageSize: isMobile ? 6 : 8,
-              size: isMobile ? "small" : "default",
-              showSizeChanger: !isMobile,
-            }}
-            scroll={isMobile ? undefined : { x: 980 }}
-            locale={{
-              emptyText: "Belum ada transaksi tabungan pada filter saat ini.",
-            }}
-          />
+          <Row gutter={[8, 8]}>
+            <Col xs={24} sm={12}>
+              <div style={summaryBoxStyle}>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  Total Setoran
+                </Text>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    marginTop: 2,
+                    color: "#059669",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {currencyFormatter.format(summary?.total_deposit || 0)}
+                </div>
+              </div>
+            </Col>
+            <Col xs={24} sm={12}>
+              <div style={summaryBoxStyle}>
+                <Text type='secondary' style={{ fontSize: 12 }}>
+                  Total Penarikan
+                </Text>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    marginTop: 2,
+                    color: "#d97706",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {currencyFormatter.format(summary?.total_withdrawal || 0)}
+                </div>
+              </div>
+            </Col>
+          </Row>
+
+          <div style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+            <Table
+              rowKey='transaction_id'
+              columns={isMobile ? mobileColumns : desktopColumns}
+              dataSource={transactions}
+              loading={loading}
+              size='small'
+              showHeader={!isMobile}
+              tableLayout={isMobile ? "fixed" : undefined}
+              style={{ width: "100%" }}
+              styles={{
+                root: { width: "100%", maxWidth: "100%" },
+                content: isMobile ? { overflow: "hidden" } : undefined,
+              }}
+              pagination={{
+                pageSize: isMobile ? 5 : 8,
+                size: "small",
+                showSizeChanger: !isMobile,
+                showTotal: isMobile
+                  ? undefined
+                  : (total, range) =>
+                      `${range[0]}-${range[1]} dari ${total} transaksi`,
+                responsive: true,
+                style: { marginBottom: 0 },
+              }}
+              scroll={isMobile ? undefined : { x: isCompact ? 760 : 980 }}
+              locale={{
+                emptyText: "Belum ada transaksi tabungan pada filter saat ini.",
+              }}
+            />
+          </div>
         </Space>
       </Card>
     </MotionDiv>

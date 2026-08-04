@@ -17,6 +17,9 @@ const Scholarship = lazy(
 const SavingReport = lazy(
   () => import("../../module/finance/report/SavingReport"),
 );
+const FinanceReport = lazy(
+  () => import("../../module/finance/report/FinanceReport"),
+);
 const CashReport = lazy(() => import("../../module/finance/report/CashReport"));
 const Setting = lazy(() => import("../../module/finance/setting/Setting"));
 const TeacherContribution = lazy(
@@ -67,6 +70,14 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         <Route
           path='/finance/transaksi'
           element={<Page title='Transaksi Keuangan' Component={Transaction} />}
+        />
+        <Route
+          path='/finance/laporan'
+          element={<Page title='Laporan Keuangan' Component={FinanceReport} />}
+        />
+        <Route
+          path='/finance/laporan/:homebaseId'
+          element={<Page title='Laporan Keuangan' Component={FinanceReport} />}
         />
         <Route
           path='/finance/laporan-tabungan'

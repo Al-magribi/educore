@@ -18,10 +18,14 @@ const SavingTabs = ({
   onEditTransaction,
   onDeleteTransaction,
   deletingId,
+  activeKey = "students",
+  onActiveKeyChange,
 }) => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
-  const [activeKey, setActiveKey] = useState("students");
+  const [internalActiveKey, setInternalActiveKey] = useState("students");
+  const resolvedActiveKey = onActiveKeyChange ? activeKey : internalActiveKey;
+  const handleActiveKeyChange = onActiveKeyChange || setInternalActiveKey;
   const items = useMemo(
     () => [
       {
@@ -84,10 +88,10 @@ const SavingTabs = ({
         styles={{ body: { padding: isMobile ? 8 : undefined, paddingTop: 12 } }}
       >
         <Tabs
-          activeKey={activeKey}
+          activeKey={resolvedActiveKey}
           destroyInactiveTabPane
           items={items}
-          onChange={setActiveKey}
+          onChange={handleActiveKeyChange}
           size={isMobile ? "small" : "middle"}
           tabBarGutter={isMobile ? 8 : 16}
         />

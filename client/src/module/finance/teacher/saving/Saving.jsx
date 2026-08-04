@@ -70,13 +70,21 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [debouncedStudentSearch, setDebouncedStudentSearch] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [activeTabKey, setActiveTabKey] = useState("students");
   const pendingSelectedStudentSearchRef = useRef(null);
   const currentStudentSearch = Form.useWatch("student_search", form) || "";
+
+  // Daftar siswa & options tidak boleh "all" (hindari siswa ganda lintas kelas).
+  const enrollmentPeriodeId =
+    filters.periode_id && filters.periode_id !== "all"
+      ? filters.periode_id
+      : undefined;
 
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetSavingOptionsQuery({
       class_id: filters.class_id,
       homebase_id: filters.homebase_id,
+      periode_id: enrollmentPeriodeId,
     });
   const options = optionsResponse?.data || {};
   const access = options.access || {};
@@ -90,6 +98,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
           homebase_id: filters.homebase_id,
           class_id: effectiveClassId,
           search: filters.search,
+          periode_id: enrollmentPeriodeId,
         };
   const { data: studentsResponse, isFetching: isFetchingStudents } =
     useGetSavingStudentsQuery(baseListParams);
@@ -102,6 +111,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
           homebase_id: filters.homebase_id,
           class_id: effectiveClassId,
           search: debouncedStudentSearch,
+          // Modal setoran/penarikan selalu memakai enrollment periode aktif.
         }
       : skipToken;
   const { data: modalStudentsResponse, isFetching: isFetchingModalStudents } =
@@ -114,6 +124,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
             ...baseListParams,
             student_id: filters.student_id,
             transaction_type: filters.transaction_type,
+            // Riwayat boleh "all"; kosong/undefined → backend pakai periode aktif.
             periode_id: filters.periode_id,
           },
     );
@@ -153,15 +164,35 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
       })),
     [selectableStudents],
   );
-  const periodeOptions = useMemo(
-    () => [
-      { value: "all", label: "Semua periode" },
-      ...periodes.map((item) => ({
-        value: item.id,
-        label: `${item.name}${item.is_active ? " (Aktif)" : ""}`,
-      })),
-    ],
-    [periodes],
+  const periodeOptions = useMemo(() => {
+    const periodItems = periodes.map((item) => ({
+      value: item.id,
+      label: `${item.name}${item.is_active ? " (Aktif)" : ""}`,
+    }));
+
+    // Opsi "Semua periode" hanya untuk tab riwayat (daftar siswa tidak boleh multi-periode).
+    if (activeTabKey === "transactions") {
+      return [{ value: "all", label: "Semua periode" }, ...periodItems];
+    }
+
+    return periodItems;
+  }, [activeTabKey, periodes]);
+
+  const handleTabChange = useCallback(
+    (nextKey) => {
+      setActiveTabKey(nextKey);
+
+      // Kembali ke daftar siswa: pastikan periode konkret (bukan "all").
+      if (nextKey === "students" && filters.periode_id === "all") {
+        setFilters((previous) => ({
+          ...previous,
+          periode_id: activePeriode?.id || undefined,
+          class_id: undefined,
+          student_id: undefined,
+        }));
+      }
+    },
+    [activePeriode?.id, filters.periode_id],
   );
   const homebaseOptions = useMemo(
     () =>
@@ -182,15 +213,37 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
     }
   }, [canManageAllHomebases, filters.homebase_id, homebases]);
 
-  // Jika satuan hanya punya satu periode, langsung pilih periode tersebut.
+  // Default periode = periode aktif (daftar siswa selalu terikat satu periode).
   useEffect(() => {
-    if (periodes.length === 1 && !filters.periode_id) {
+    if (!activePeriode?.id) {
+      return;
+    }
+
+    if (!filters.periode_id) {
       setFilters((previous) => ({
         ...previous,
-        periode_id: periodes[0].id,
+        periode_id: activePeriode.id,
       }));
     }
-  }, [filters.periode_id, periodes]);
+  }, [activePeriode?.id, filters.periode_id]);
+
+  // Saat satuan diganti, reset ke periode aktif satuan baru.
+  useEffect(() => {
+    if (
+      filters.periode_id &&
+      filters.periode_id !== "all" &&
+      periodes.length > 0 &&
+      !periodes.some((item) => item.id === filters.periode_id)
+    ) {
+      setFilters((previous) => ({
+        ...previous,
+        periode_id: activePeriode?.id || undefined,
+        class_id: undefined,
+        student_id: undefined,
+      }));
+    }
+  }, [activePeriode?.id, filters.periode_id, periodes]);
+
   const modalStudentOptions = useMemo(() => {
     const keyword = String(currentStudentSearch || "").trim();
 
@@ -467,6 +520,8 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
               onEditTransaction={handleEditTransaction}
               onDeleteTransaction={handleDelete}
               deletingId={deletingId}
+              activeKey={activeTabKey}
+              onActiveKeyChange={handleTabChange}
             />
 
             <Card
@@ -606,6 +661,8 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
           onEditTransaction={handleEditTransaction}
           onDeleteTransaction={handleDelete}
           deletingId={deletingId}
+          activeKey={activeTabKey}
+          onActiveKeyChange={handleTabChange}
         />
 
         <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
