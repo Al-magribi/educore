@@ -29,6 +29,14 @@ const financeAssetDir = path.join("server", "assets", "finance");
 
 const toCurrencyNumber = (value) => Number(value || 0);
 
+const parseDateOnly = (value) => {
+  if (!value) return null;
+  const text = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const date = new Date(`${text}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : text;
+};
+
 const formatInvoiceStatus = (status) => {
   const normalized = String(status || "").toLowerCase();
 
@@ -984,6 +992,8 @@ router.get(
     const statusFilter = (req.query.status || "").trim().toLowerCase();
     const paymentSourceFilter = (req.query.payment_source || "").trim().toLowerCase();
     const search = (req.query.search || "").trim();
+    const dateFrom = parseDateOnly(req.query.date_from);
+    const dateTo = parseDateOnly(req.query.date_to);
 
     const params = [];
     let whereClause = `WHERE 1=1`;
@@ -1019,6 +1029,16 @@ router.get(
     ) {
       params.push(paymentSourceFilter);
       whereClause += ` AND p.payment_source = $${params.length}`;
+    }
+
+    if (dateFrom) {
+      params.push(dateFrom);
+      whereClause += ` AND p.payment_date::date >= $${params.length}`;
+    }
+
+    if (dateTo) {
+      params.push(dateTo);
+      whereClause += ` AND p.payment_date::date <= $${params.length}`;
     }
 
     const result = await db.query(
@@ -1218,6 +1238,9 @@ router.get(
     const confirmedCount = data.filter((item) => item.status === "confirmed").length;
     const pendingCount = data.filter((item) => item.status === "pending").length;
     const rejectedCount = data.filter((item) => item.status === "rejected").length;
+    const confirmedAmount = data
+      .filter((item) => item.status === "confirmed")
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const paginated = data.slice((page - 1) * limit, page * limit);
 
     res.json({
@@ -1231,6 +1254,7 @@ router.get(
         confirmed_count: confirmedCount,
         pending_count: pendingCount,
         rejected_count: rejectedCount,
+        confirmed_amount: confirmedAmount,
       },
     });
   }),

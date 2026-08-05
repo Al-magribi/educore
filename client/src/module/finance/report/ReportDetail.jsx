@@ -18,7 +18,6 @@ import {
 import ReportBreakdown from "./components/ReportBreakdown";
 import ReportFilters from "./components/ReportFilters";
 import ReportSummaryCards from "./components/ReportSummaryCards";
-import ReportUnpaidTable from "./components/ReportUnpaidTable";
 import { pageStyle } from "./constants";
 
 const { Title, Text } = Typography;
@@ -257,8 +256,9 @@ const ReportDetail = ({
             <ReportBreakdown
               sppByClass={report?.spp_by_class || []}
               otherByType={report?.other_by_type || []}
+              unpaidStudents={report?.unpaid_students || []}
+              homebaseId={homebaseId}
             />
-            <ReportUnpaidTable rows={report?.unpaid_students || []} />
           </>
         )}
       </Space>

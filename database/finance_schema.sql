@@ -462,3 +462,46 @@ CREATE INDEX idx_class_cash_transactions_scope
 
 CREATE INDEX idx_class_cash_transactions_student
     ON finance.class_cash_transactions(periode_id, class_id, student_id, transaction_type);
+
+
+-- =================================================================================
+-- Fitur: Pengeluaran Operasional Satuan
+-- Catatan pengeluaran admin keuangan / pusat (bukan kas kelas).
+-- =================================================================================
+
+CREATE TABLE IF NOT EXISTS finance.expense (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id INT REFERENCES public.a_periode(id) ON DELETE SET NULL,
+    category VARCHAR(30) NOT NULL
+      CHECK (category IN (
+        'operational',
+        'utilities',
+        'salary',
+        'maintenance',
+        'activity',
+        'supplies',
+        'other'
+      )),
+    title VARCHAR(150) NOT NULL,
+    description TEXT,
+    amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    payment_method VARCHAR(20) NOT NULL DEFAULT 'cash'
+      CHECK (payment_method IN ('cash', 'transfer', 'other')),
+    reference_no VARCHAR(120),
+    notes TEXT,
+    created_by INT REFERENCES public.u_users(id),
+    updated_by INT REFERENCES public.u_users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_expense_homebase_date
+    ON finance.expense(homebase_id, expense_date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_expense_periode
+    ON finance.expense(homebase_id, periode_id, expense_date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_expense_category
+    ON finance.expense(homebase_id, category, expense_date DESC);

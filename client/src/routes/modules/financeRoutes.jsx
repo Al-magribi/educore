@@ -14,6 +14,9 @@ const Transaction = lazy(
 const Scholarship = lazy(
   () => import("../../module/finance/scholarship/Scholarship"),
 );
+const Expense = lazy(
+  () => import("../../module/finance/expense/Expense"),
+);
 const SavingReport = lazy(
   () => import("../../module/finance/report/SavingReport"),
 );
@@ -66,6 +69,10 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         <Route
           path='/finance/beasiswa'
           element={<Page title='Beasiswa' Component={Scholarship} />}
+        />
+        <Route
+          path='/finance/pengeluaran'
+          element={<Page title='Pengeluaran' Component={Expense} />}
         />
         <Route
           path='/finance/transaksi'

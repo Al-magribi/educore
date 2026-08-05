@@ -122,6 +122,7 @@ export const ApiTransaction = createApi({
 export const {
   useGetTransactionOptionsQuery,
   useGetTransactionsQuery,
+  useLazyGetTransactionsQuery,
   useGetTransactionInvoiceQuery,
   useCreateTransactionMutation,
   useUpdateTransactionMutation,

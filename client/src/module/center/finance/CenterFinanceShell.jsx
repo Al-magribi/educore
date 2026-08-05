@@ -12,6 +12,7 @@ import {
   SettingFilled,
   WalletOutlined,
 } from '@ant-design/icons';
+import { BanknoteArrowDown } from 'lucide-react';
 import { LoadApp } from '../../../components';
 import { FinanceScopeContext } from './FinanceScopeContext';
 import { useDetailHomebaseQuery } from '../../../service/center/ApiHomebase';
@@ -44,6 +45,11 @@ const TAB_ITEMS = [
     key: 'laporan-tabungan',
     label: 'Tabungan Siswa',
     icon: <BookOutlined />,
+  },
+  {
+    key: 'pengeluaran',
+    label: 'Pengeluaran',
+    icon: <BanknoteArrowDown size={14} />,
   },
   {
     key: 'laporan',
