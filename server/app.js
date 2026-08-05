@@ -36,7 +36,6 @@ if (!fs.existsSync(databaseDocumentPath)) {
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
 }
-
 app.use("/temp_backup", express.static(path.join(backupPath)));
 
 registerApiRoutes(app);

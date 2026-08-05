@@ -138,6 +138,22 @@ router.post(
         SELECT 
           t.nip, t.phone, t.email, t.is_homeroom,
           hb.name AS homebase_name,
+          EXISTS (
+            SELECT 1
+            FROM lms.l_duty_assignment d
+            WHERE d.duty_teacher_id = t.user_id
+              AND d.homebase_id = t.homebase_id
+              AND d.date = CURRENT_DATE
+              AND d.status <> 'cancelled'
+          ) AS has_duty_today,
+          (
+            SELECT COUNT(*)
+            FROM lms.l_duty_assignment d
+            WHERE d.duty_teacher_id = t.user_id
+              AND d.homebase_id = t.homebase_id
+              AND d.date = CURRENT_DATE
+              AND d.status <> 'cancelled'
+          )::int AS duty_today_count,
           (
             SELECT COALESCE(json_agg(
               json_build_object(
@@ -280,6 +296,22 @@ router.get(
           u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
           t.nip, t.phone, t.email, t.is_homeroom,
           hb.name AS homebase_name,
+          EXISTS (
+            SELECT 1
+            FROM lms.l_duty_assignment d
+            WHERE d.duty_teacher_id = u.id
+              AND d.homebase_id = t.homebase_id
+              AND d.date = CURRENT_DATE
+              AND d.status <> 'cancelled'
+          ) AS has_duty_today,
+          (
+            SELECT COUNT(*)
+            FROM lms.l_duty_assignment d
+            WHERE d.duty_teacher_id = u.id
+              AND d.homebase_id = t.homebase_id
+              AND d.date = CURRENT_DATE
+              AND d.status <> 'cancelled'
+          )::int AS duty_today_count,
           (
             SELECT COALESCE(json_agg(
               json_build_object(

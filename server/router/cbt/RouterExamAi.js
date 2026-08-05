@@ -2,7 +2,7 @@ import { Router } from "express";
 import crypto from "crypto";
 import { authorize } from "../../middleware/authorize.js";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
-import { getPgBoss } from "../../config/pgBoss.js";
+import { ensurePgBossQueue, getPgBoss } from "../../config/pgBoss.js";
 import pool from "../../config/connection.js";
 
 const router = Router();
@@ -904,14 +904,7 @@ let queueReady = false;
 const ensureAiQueue = async () => {
   if (queueReady) return;
   const boss = await getPgBoss();
-  try {
-    await boss.createQueue(AI_GRADING_QUEUE);
-  } catch (error) {
-    const message = String(error?.message || "").toLowerCase();
-    if (!message.includes("already exists")) {
-      throw error;
-    }
-  }
+  await ensurePgBossQueue(boss, AI_GRADING_QUEUE);
   queueReady = true;
 };
 
