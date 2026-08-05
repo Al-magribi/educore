@@ -32,6 +32,13 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Validate API route registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check server/router/registerApiRoutes.js
+          node --input-type=module -e "await import('./server/router/registerApiRoutes.js'); process.exit(0)"
+
       - name: Install client dependencies
         run: npm ci
         working-directory: client

@@ -30,11 +30,13 @@ export const authorize = (...allowedRolesOrLevels) => {
           u.role, 
           u.is_active,
           a.level as admin_level,
-          COALESCE(a.homebase_id, t.homebase_id, s.homebase_id) as homebase_id
+          COALESCE(a.homebase_id, t.homebase_id, s.homebase_id, m.homebase_id) as homebase_id,
+          COALESCE(m.is_active, false) as is_musyrif
         FROM u_users u
         LEFT JOIN u_admin a ON u.id = a.user_id
         LEFT JOIN u_teachers t ON u.id = t.user_id
         LEFT JOIN u_students s ON u.id = s.user_id
+        LEFT JOIN tahfiz.t_musyrif m ON u.id = m.user_id
         WHERE u.id = $1
       `;
 

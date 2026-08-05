@@ -5,7 +5,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Result } from "antd";
 import resolveUserHomePath from "./resolveUserHomePath";
 
-const RouteProtection = ({ allowedRoles, allowedLevels }) => {
+const RouteProtection = ({ allowedRoles, allowedLevels, requireMusyrif = false }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   const location = useLocation();
 
@@ -50,6 +50,10 @@ const RouteProtection = ({ allowedRoles, allowedLevels }) => {
         subTitle="Level admin akun ini belum cocok dengan modul yang dibuka."
       />
     );
+  }
+
+  if (requireMusyrif && !user.is_musyrif) {
+    return <Navigate to='/' replace />;
   }
 
   return <Outlet />;

@@ -231,12 +231,6 @@ ADD COLUMN class_id integer REFERENCES a_class(id);
 ALTER TABLE l_chapter
 ADD COLUMN class_ids integer[];
 
-ALTER TABLE l_chapter
-ADD COLUMN IF NOT EXISTS teacher_id integer REFERENCES u_teachers(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_l_chapter_teacher_subject
-ON l_chapter(teacher_id, subject_id);
-
 
 CREATE TABLE l_content (
     id SERIAL PRIMARY KEY,
@@ -355,7 +349,7 @@ CREATE TABLE l_score_summative (
     student_id integer REFERENCES u_students(user_id),
     teacher_id integer REFERENCES u_teachers(user_id),
     subject_id integer REFERENCES a_subject(id),
-    chapter_id integer REFERENCES l_chapter(id) ON DELETE SET NULL,
+    chapter_id integer REFERENCES l_chapter(id),
     type varchar(50), -- Format: Mxx-B{chapter}-S{sub}
     score_written integer CHECK (score_written >= 0 AND score_written <= 100),
     score_skill integer CHECK (score_skill >= 0 AND score_skill <= 100), -- Nilai Praktek
