@@ -19,6 +19,7 @@ const modalStyles = {
   body: {
     paddingTop: 20,
     paddingBottom: 20,
+    overflow: "visible",
   },
   footer: {
     borderTop: "1px solid #eef2f7",

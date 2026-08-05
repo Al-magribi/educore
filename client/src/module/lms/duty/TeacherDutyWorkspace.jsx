@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import {
   Alert,
   Button,
+  Card,
   DatePicker,
   Flex,
   Grid,
@@ -11,6 +12,7 @@ import {
   Select,
   Space,
   Tabs,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -24,9 +26,12 @@ import {
 } from "lucide-react";
 import { useSaveTeacherDutyReportMutation } from "../../../service/lms/ApiDuty";
 import {
+  buildDayScheduleRows,
   buildStudentAbsenceRows,
   buildTeacherAbsenceRows,
   buildTeacherSessionRows,
+  formatScheduleJamLabel,
+  formatScheduleTime,
 } from "./utils";
 import TeacherDutyDailyNotePanel from "./components/TeacherDutyDailyNotePanel";
 import TeacherDutyFormModal from "./components/TeacherDutyFormModal";
@@ -37,6 +42,12 @@ const { useBreakpoint } = Grid;
 
 const modalInputStyle = {
   borderRadius: 14,
+};
+
+const mobileItemCardStyle = {
+  borderRadius: 16,
+  border: "1px solid #e8eef5",
+  background: "#f8fbff",
 };
 
 const createEmptySessionForm = (dateValue) => ({
@@ -105,6 +116,10 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
   const teacherClassAssignments = useMemo(
     () => payload.teacher_class_assignments || [],
     [payload.teacher_class_assignments],
+  );
+  const tapSessions = useMemo(
+    () => payload.tap_sessions || [],
+    [payload.tap_sessions],
   );
 
   const classOptions = useMemo(
@@ -365,24 +380,6 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     setTeacherAbsences(nextTeacherAbsences);
   };
 
-  const openCreateSessionModal = () => {
-    setSessionForm(createEmptySessionForm(dateValue));
-    setSessionModalOpen(true);
-  };
-
-  const openEditSessionModal = (record) => {
-    setSessionForm({
-      key: record.key,
-      teacher_id: record.teacher_id,
-      class_id: record.class_id,
-      schedule_entry_id: record.schedule_entry_id,
-      checkin_at: record.checkin_at ? dayjs(record.checkin_at) : null,
-      checkout_at: record.checkout_at ? dayjs(record.checkout_at) : null,
-      note: record.note || "",
-    });
-    setSessionModalOpen(true);
-  };
-
   const closeSessionModal = () => {
     setSessionModalOpen(false);
     setSessionForm(createEmptySessionForm(dateValue));
@@ -414,17 +411,25 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       return;
     }
 
-    const selectedEntry = sessionCatalog.find(
-      (item) => Number(item.class_id) === Number(sessionForm.class_id),
-    );
+    const selectedEntry =
+      scheduleEntries.find(
+        (item) => Number(item.id) === Number(sessionForm.schedule_entry_id),
+      ) ||
+      sessionCatalog.find(
+        (item) => Number(item.class_id) === Number(sessionForm.class_id),
+      );
+
     if (!selectedEntry) {
       message.warning("Kelas yang dipilih tidak valid.");
       return;
     }
 
+    const scheduleEntryId =
+      selectedEntry.id || selectedEntry.schedule_entry_id || null;
+
     const nextRow = {
       key: sessionForm.key || `session-new-${Date.now()}`,
-      schedule_entry_id: selectedEntry.schedule_entry_id,
+      schedule_entry_id: scheduleEntryId,
       teacher_id: selectedEntry.teacher_id,
       teacher_name: selectedEntry.teacher_name,
       class_id: selectedEntry.class_id,
@@ -432,6 +437,8 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       subject_name: selectedEntry.subject_name,
       start_time: selectedEntry.start_time,
       end_time: selectedEntry.end_time,
+      slot_nos: selectedEntry.slot_nos,
+      jam_label: formatScheduleJamLabel(selectedEntry.slot_nos),
       checkin_at: sessionForm.checkin_at
         ? sessionForm.checkin_at.toISOString()
         : null,
@@ -452,14 +459,22 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       }
       const withoutDuplicate = teacherSessions.filter(
         (item) =>
-          Number(item.teacher_id) !== Number(nextRow.teacher_id) ||
-          Number(item.class_id) !== Number(nextRow.class_id),
+          Number(item.schedule_entry_id) !== Number(nextRow.schedule_entry_id) &&
+          (Number(item.teacher_id) !== Number(nextRow.teacher_id) ||
+            Number(item.class_id) !== Number(nextRow.class_id)),
       );
       return [...withoutDuplicate, nextRow];
     })();
 
+    const nextTeacherAbsences = teacherAbsences.filter(
+      (item) => Number(item.teacher_id) !== Number(nextRow.teacher_id),
+    );
+
     const saved = await handleSave(
-      { teacher_sessions: nextTeacherSessions },
+      {
+        teacher_sessions: nextTeacherSessions,
+        teacher_absences: nextTeacherAbsences,
+      },
       sessionForm.key
         ? "Perubahan guru masuk kelas berhasil disimpan."
         : "Catatan guru masuk kelas berhasil ditambahkan.",
@@ -468,20 +483,238 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     if (!saved) return;
 
     setTeacherSessions(nextTeacherSessions);
+    setTeacherAbsences(nextTeacherAbsences);
     closeSessionModal();
   };
 
-  const removeTeacherSessionRow = async (key) => {
-    const nextTeacherSessions = teacherSessions.filter(
-      (item) => item.key !== key,
+  const upsertTeacherSessionFromSchedule = async (record, patch, successMessage) => {
+    const existing = teacherSessions.find(
+      (item) =>
+        Number(item.schedule_entry_id) === Number(record.id) ||
+        (Number(item.teacher_id) === Number(record.teacher_id) &&
+          Number(item.class_id) === Number(record.class_id)),
     );
+
+    const nextRow = {
+      key: existing?.key || `session-new-${Date.now()}`,
+      schedule_entry_id: record.id,
+      teacher_id: record.teacher_id,
+      teacher_name: record.teacher_name,
+      class_id: record.class_id,
+      class_name: record.class_name,
+      subject_name: record.subject_name,
+      start_time: record.start_time,
+      end_time: record.end_time,
+      slot_nos: record.slot_nos,
+      jam_label: record.jam_label,
+      checkin_at: existing?.checkin_at || null,
+      checkout_at: existing?.checkout_at || null,
+      note: existing?.note || "",
+      ...patch,
+    };
+
+    const nextTeacherSessions = [
+      ...teacherSessions.filter(
+        (item) =>
+          item.key !== nextRow.key &&
+          Number(item.schedule_entry_id) !== Number(record.id) &&
+          !(
+            Number(item.teacher_id) === Number(record.teacher_id) &&
+            Number(item.class_id) === Number(record.class_id)
+          ),
+      ),
+      nextRow,
+    ];
+
+    const nextTeacherAbsences = teacherAbsences.filter(
+      (item) => Number(item.teacher_id) !== Number(record.teacher_id),
+    );
+
     const saved = await handleSave(
-      { teacher_sessions: nextTeacherSessions },
-      "Catatan guru masuk kelas berhasil dihapus.",
+      {
+        teacher_sessions: nextTeacherSessions,
+        teacher_absences: nextTeacherAbsences,
+      },
+      successMessage,
+    );
+    if (!saved) return false;
+
+    setTeacherSessions(nextTeacherSessions);
+    setTeacherAbsences(nextTeacherAbsences);
+    return true;
+  };
+
+  const handleSelectScheduleSession = (record) => {
+    const existing = teacherSessions.find(
+      (item) =>
+        Number(item.schedule_entry_id) === Number(record.id) ||
+        (Number(item.teacher_id) === Number(record.teacher_id) &&
+          Number(item.class_id) === Number(record.class_id)),
+    );
+
+    const defaultCheckin = record.start_time
+      ? dayjs(`${dateValue} ${formatScheduleTime(record.start_time)}`, "YYYY-MM-DD HH:mm")
+      : dayjs(`${dateValue} 07:00`, "YYYY-MM-DD HH:mm");
+    const defaultCheckout = record.end_time
+      ? dayjs(`${dateValue} ${formatScheduleTime(record.end_time)}`, "YYYY-MM-DD HH:mm")
+      : dayjs(`${dateValue} 08:00`, "YYYY-MM-DD HH:mm");
+
+    setSessionForm({
+      key: existing?.key || null,
+      teacher_id: record.teacher_id,
+      class_id: record.class_id,
+      schedule_entry_id: record.id,
+      checkin_at: existing?.checkin_at
+        ? dayjs(existing.checkin_at)
+        : defaultCheckin,
+      checkout_at: existing?.checkout_at
+        ? dayjs(existing.checkout_at)
+        : defaultCheckout,
+      note: existing?.note || "",
+    });
+    setSessionModalOpen(true);
+  };
+
+  const handleMarkScheduleMasuk = async (record) => {
+    const checkinAt = record.start_time
+      ? dayjs(
+          `${dateValue} ${formatScheduleTime(record.start_time)}`,
+          "YYYY-MM-DD HH:mm",
+        ).toISOString()
+      : dayjs().toISOString();
+    const checkoutAt = record.end_time
+      ? dayjs(
+          `${dateValue} ${formatScheduleTime(record.end_time)}`,
+          "YYYY-MM-DD HH:mm",
+        ).toISOString()
+      : null;
+
+    await upsertTeacherSessionFromSchedule(
+      record,
+      {
+        checkin_at: checkinAt,
+        checkout_at: checkoutAt,
+        note: "Masuk",
+      },
+      `${record.teacher_name} ditandai masuk kelas.`,
+    );
+  };
+
+  const markScheduleAbsence = async (record, type) => {
+    const isIzin = type === "izin";
+    const label = isIzin ? "Izin" : "Tidak Masuk";
+
+    const nextTeacherSessions = teacherSessions.filter(
+      (item) =>
+        Number(item.schedule_entry_id) !== Number(record.id) &&
+        !(
+          Number(item.teacher_id) === Number(record.teacher_id) &&
+          Number(item.class_id) === Number(record.class_id)
+        ),
+    );
+
+    const existingAbsence = teacherAbsences.find(
+      (item) => Number(item.teacher_id) === Number(record.teacher_id),
+    );
+
+    const nextAbsence = {
+      key: existingAbsence?.key || `teacher-${type}-${record.teacher_id}`,
+      teacher_id: record.teacher_id,
+      reason: `${label} (${record.subject_name} - ${record.class_name})`,
+      follow_up: existingAbsence?.follow_up || "",
+    };
+
+    const nextTeacherAbsences = [
+      ...teacherAbsences.filter(
+        (item) => Number(item.teacher_id) !== Number(record.teacher_id),
+      ),
+      nextAbsence,
+    ];
+
+    const saved = await handleSave(
+      {
+        teacher_sessions: nextTeacherSessions,
+        teacher_absences: nextTeacherAbsences,
+      },
+      `${record.teacher_name} ditandai ${label.toLowerCase()}.`,
     );
     if (!saved) return;
+
     setTeacherSessions(nextTeacherSessions);
+    setTeacherAbsences(nextTeacherAbsences);
   };
+
+  const handleMarkScheduleTidakMasuk = (record) =>
+    markScheduleAbsence(record, "tidak_masuk");
+
+  const resolveAttendanceStatus = (session, absence) => {
+    if (absence) {
+      const reason = String(absence.reason || "").toLowerCase();
+      if (reason.startsWith("izin")) return "izin";
+      if (reason.startsWith("tidak masuk")) return "tidak_masuk";
+      return "tidak_masuk";
+    }
+    if (session?.checkin_at) return "masuk";
+    return "pending";
+  };
+
+  const guruMasukRows = useMemo(() => {
+    const scheduleRows = buildDayScheduleRows({
+      schedule_entries: scheduleEntries,
+    });
+
+    const firstSlot = (row) => {
+      const slots = (row.slot_nos || [])
+        .map(Number)
+        .filter((item) => Number.isFinite(item));
+      return slots.length ? Math.min(...slots) : Number.MAX_SAFE_INTEGER;
+    };
+
+    scheduleRows.sort((a, b) => {
+      const classCompare = String(a.class_name || "").localeCompare(
+        String(b.class_name || ""),
+        "id",
+        { numeric: true, sensitivity: "base" },
+      );
+      if (classCompare !== 0) return classCompare;
+
+      const slotCompare = firstSlot(a) - firstSlot(b);
+      if (slotCompare !== 0) return slotCompare;
+
+      return String(a.start_time || "").localeCompare(
+        String(b.start_time || ""),
+      );
+    });
+
+    return scheduleRows.map((entry) => {
+      const session = teacherSessions.find(
+        (item) =>
+          Number(item.schedule_entry_id) === Number(entry.id) ||
+          (Number(item.teacher_id) === Number(entry.teacher_id) &&
+            Number(item.class_id) === Number(entry.class_id)),
+      );
+      const absence = teacherAbsences.find(
+        (item) => Number(item.teacher_id) === Number(entry.teacher_id),
+      );
+      const tap = tapSessions.find(
+        (item) =>
+          Number(item.schedule_entry_id) === Number(entry.id) ||
+          (Number(item.teacher_id) === Number(entry.teacher_id) &&
+            Number(item.class_id) === Number(entry.class_id)),
+      );
+
+      return {
+        ...entry,
+        session_key: session?.key || null,
+        attendance_status: resolveAttendanceStatus(session, absence),
+        checkin_at: session?.checkin_at || null,
+        checkout_at: session?.checkout_at || null,
+        tap_checkin_time: tap?.checkin_time || null,
+        tap_checkout_time: tap?.checkout_time || null,
+        note: session?.note || absence?.reason || "",
+      };
+    });
+  }, [scheduleEntries, teacherSessions, teacherAbsences, tapSessions]);
 
   const studentColumns = [
     {
@@ -534,68 +767,255 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
     },
   ];
 
-  const teacherSessionColumns = [
+  const renderAttendanceStatusTag = (value) => {
+    if (value === "masuk") {
+      return (
+        <Tag color='green' style={{ margin: 0, borderRadius: 999 }}>
+          Masuk
+        </Tag>
+      );
+    }
+    if (value === "izin") {
+      return (
+        <Tag color='orange' style={{ margin: 0, borderRadius: 999 }}>
+          Izin
+        </Tag>
+      );
+    }
+    if (value === "tidak_masuk") {
+      return (
+        <Tag color='red' style={{ margin: 0, borderRadius: 999 }}>
+          Tidak Masuk
+        </Tag>
+      );
+    }
+    return <Tag style={{ margin: 0, borderRadius: 999 }}>Belum</Tag>;
+  };
+
+  const renderGuruMasukActions = (record) => (
+    <Flex gap={8} wrap='wrap' align='center' style={{ width: "100%" }}>
+      <Select
+        size='small'
+        placeholder='Pilih status'
+        value={
+          record.attendance_status === "masuk" ||
+          record.attendance_status === "tidak_masuk"
+            ? record.attendance_status
+            : undefined
+        }
+        options={[
+          { value: "masuk", label: "Masuk" },
+          { value: "tidak_masuk", label: "Tidak Masuk" },
+        ]}
+        loading={saving}
+        disabled={saving}
+        onChange={(value) => {
+          if (value === "masuk") {
+            handleMarkScheduleMasuk(record);
+          } else if (value === "tidak_masuk") {
+            handleMarkScheduleTidakMasuk(record);
+          }
+        }}
+        style={{ width: "100%" }}
+      />
+    </Flex>
+  );
+
+  const guruMasukColumns = [
     {
-      title: "Guru",
+      title: "Guru / Mapel",
       dataIndex: "teacher_name",
       render: (value, record) => (
+        <div style={{ minWidth: 0 }}>
+          <Text strong style={{ display: "block" }}>
+            {value || "-"}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.subject_name || "-"} · {record.class_name || "-"}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: "Jam",
+      dataIndex: "jam_label",
+      width: 140,
+      render: (value, record) => (
         <div>
-          <Text strong>{value}</Text>
+          <Text>{value || formatScheduleJamLabel(record.slot_nos)}</Text>
           <div style={{ color: "#667085", fontSize: 12 }}>
-            {record.class_name} - {record.subject_name}
+            {formatScheduleTime(record.start_time)} -{" "}
+            {formatScheduleTime(record.end_time)}
           </div>
         </div>
       ),
     },
     {
-      title: "Jadwal",
-      dataIndex: "schedule",
-      width: 170,
-      render: (_, record) =>
-        `${String(record.start_time || "").slice(0, 5)} - ${String(record.end_time || "").slice(0, 5)}`,
+      title: "Masuk / Keluar",
+      dataIndex: "tap_checkin_time",
+      width: 130,
+      render: (_, record) => (
+        <div>
+          <Text style={{ display: "block", fontSize: 12 }}>
+            Masuk: {record.tap_checkin_time || "-"}
+          </Text>
+          <Text style={{ display: "block", fontSize: 12 }}>
+            Keluar: {record.tap_checkout_time || "-"}
+          </Text>
+        </div>
+      ),
     },
     {
-      title: "Masuk",
-      dataIndex: "checkin_at",
-      width: 170,
-      render: (value) =>
-        value ? dayjs(value).format("DD MMM YYYY HH:mm") : "-",
-    },
-    {
-      title: "Keluar",
-      dataIndex: "checkout_at",
-      width: 170,
-      render: (value) =>
-        value ? dayjs(value).format("DD MMM YYYY HH:mm") : "-",
-    },
-    {
-      title: "Catatan",
-      dataIndex: "note",
-      render: (value) => value || <Text type='secondary'>-</Text>,
+      title: "Status",
+      dataIndex: "attendance_status",
+      width: 120,
+      render: (value) => renderAttendanceStatusTag(value),
     },
     {
       title: "Aksi",
       dataIndex: "action",
-      width: 120,
-      render: (_, record) => (
-        <Space size={4}>
-          <Button
-            size='small'
-            icon={<Pencil size={14} />}
-            onClick={() => openEditSessionModal(record)}
-          />
-          <Popconfirm
-            title='Hapus catatan guru masuk kelas ini?'
-            okText='Ya'
-            cancelText='Tidak'
-            onConfirm={() => removeTeacherSessionRow(record.key)}
-          >
-            <Button danger size='small' icon={<Trash2 size={14} />} />
-          </Popconfirm>
-        </Space>
-      ),
+      width: 170,
+      render: (_, record) => renderGuruMasukActions(record),
     },
   ];
+
+  const renderGuruMasukMobileItem = (record) => (
+    <Card
+      size='small'
+      style={mobileItemCardStyle}
+      styles={{ body: { padding: 14 } }}
+    >
+      <Flex vertical gap={12}>
+        <Flex justify='space-between' align='flex-start' gap={10}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Text strong style={{ display: "block", color: "#0f172a" }}>
+              {record.teacher_name || "-"}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              {record.subject_name || "-"} · {record.class_name || "-"}
+            </Text>
+          </div>
+          {renderAttendanceStatusTag(record.attendance_status)}
+        </Flex>
+
+        <div>
+          <Text style={{ display: "block" }}>
+            {record.jam_label || formatScheduleJamLabel(record.slot_nos)}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {formatScheduleTime(record.start_time)} -{" "}
+            {formatScheduleTime(record.end_time)}
+          </Text>
+          <Text type='secondary' style={{ display: "block", fontSize: 12 }}>
+            Masuk: {record.tap_checkin_time || "-"} · Keluar:{" "}
+            {record.tap_checkout_time || "-"}
+          </Text>
+        </div>
+
+        {renderGuruMasukActions(record)}
+      </Flex>
+    </Card>
+  );
+
+  const renderStudentAbsenceMobileItem = (record) => {
+    const student = students.find(
+      (item) => Number(item.student_id) === Number(record.student_id),
+    );
+
+    return (
+      <Card
+        size='small'
+        style={mobileItemCardStyle}
+        styles={{ body: { padding: 14 } }}
+      >
+        <Flex vertical gap={10}>
+          <Flex justify='space-between' align='flex-start' gap={10}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Text strong style={{ display: "block", color: "#0f172a" }}>
+                {student?.full_name || "-"}
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                {student?.class_name || "-"} · NIS {student?.nis || "-"}
+              </Text>
+            </div>
+            <Space size={4}>
+              <Button
+                size='small'
+                icon={<Pencil size={14} />}
+                onClick={() => openEditStudentModal(record)}
+              />
+              <Popconfirm
+                title='Hapus catatan siswa ini?'
+                okText='Ya'
+                cancelText='Tidak'
+                onConfirm={() => removeStudentAbsenceRow(record.key)}
+              >
+                <Button danger size='small' icon={<Trash2 size={14} />} />
+              </Popconfirm>
+            </Space>
+          </Flex>
+
+          <div>
+            <Text style={{ display: "block", fontSize: 13 }}>
+              Alasan: {record.reason || "-"}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              Tindak lanjut: {record.follow_up || "-"}
+            </Text>
+          </div>
+        </Flex>
+      </Card>
+    );
+  };
+
+  const renderTeacherAbsenceMobileItem = (record) => {
+    const teacher = teachers.find(
+      (item) => Number(item.id) === Number(record.teacher_id),
+    );
+
+    return (
+      <Card
+        size='small'
+        style={mobileItemCardStyle}
+        styles={{ body: { padding: 14 } }}
+      >
+        <Flex vertical gap={10}>
+          <Flex justify='space-between' align='flex-start' gap={10}>
+            <Text
+              strong
+              style={{ color: "#0f172a", minWidth: 0, flex: 1 }}
+            >
+              {teacher?.full_name || "-"}
+            </Text>
+            <Space size={4}>
+              <Button
+                size='small'
+                icon={<Pencil size={14} />}
+                onClick={() => openEditTeacherAbsenceModal(record)}
+              />
+              <Popconfirm
+                title='Hapus catatan guru tidak masuk ini?'
+                okText='Ya'
+                cancelText='Tidak'
+                onConfirm={() => removeTeacherAbsenceRow(record.key)}
+              >
+                <Button danger size='small' icon={<Trash2 size={14} />} />
+              </Popconfirm>
+            </Space>
+          </Flex>
+
+          <div>
+            <Text style={{ display: "block", fontSize: 13 }}>
+              Alasan: {record.reason || "-"}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              Tindak lanjut: {record.follow_up || "-"}
+            </Text>
+          </div>
+        </Flex>
+      </Card>
+    );
+  };
 
   const teacherAbsenceColumns = [
     {
@@ -642,17 +1062,22 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
   ];
 
   return (
-    <Flex vertical gap={16}>
+    <Flex
+      vertical
+      gap={16}
+      style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}
+    >
       {payload.assignment?.note ? (
         <Alert
           showIcon
           type='info'
-          title='Catatan Admin'
+          message='Catatan Admin'
           description={payload.assignment.note}
         />
       ) : null}
 
       <Tabs
+        style={{ width: "100%", maxWidth: "100%" }}
         items={[
           {
             key: "teacher-session",
@@ -665,15 +1090,13 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
             children: (
               <TeacherDutyRecordSection
                 title='Guru Masuk Kelas'
-                description='Kelola catatan guru masuk kelas untuk hari ini.'
-                addButtonText='Tambah Catatan'
-                onAdd={openCreateSessionModal}
-                columns={teacherSessionColumns}
-                dataSource={teacherSessions}
-                emptyDescription='Belum ada catatan guru masuk kelas.'
-                scrollX={900}
-                actionIcon={<Plus size={14} />}
+                description='Jadwal final hari ini, diurutkan per kelas dan jam. Pilih status Masuk / Tidak Masuk lewat dropdown.'
+                columns={guruMasukColumns}
+                dataSource={guruMasukRows}
+                emptyDescription='Belum ada jadwal final untuk hari ini.'
                 isMobile={isMobile}
+                hideAdd
+                renderMobileItem={renderGuruMasukMobileItem}
               />
             ),
           },
@@ -694,9 +1117,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
                 columns={studentColumns}
                 dataSource={studentAbsences}
                 emptyDescription='Belum ada catatan siswa tidak masuk.'
-                scrollX={760}
-                actionIcon={<Plus size={14} />}
                 isMobile={isMobile}
+                actionIcon={<Plus size={14} />}
+                renderMobileItem={renderStudentAbsenceMobileItem}
               />
             ),
           },
@@ -718,9 +1141,9 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
                 columns={teacherAbsenceColumns}
                 dataSource={teacherAbsences}
                 emptyDescription='Belum ada catatan guru tidak masuk.'
-                scrollX={760}
-                actionIcon={<Plus size={14} />}
                 isMobile={isMobile}
+                actionIcon={<Plus size={14} />}
+                renderMobileItem={renderTeacherAbsenceMobileItem}
               />
             ),
           },

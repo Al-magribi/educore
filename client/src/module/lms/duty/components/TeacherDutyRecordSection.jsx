@@ -18,65 +18,99 @@ const TeacherDutyRecordSection = ({
   columns,
   dataSource,
   emptyDescription,
-  scrollX,
   actionIcon,
   isMobile,
-}) => (
-  <Card
-    style={sectionCardStyle}
-    styles={{ body: { padding: 0, overflow: "hidden" } }}
-  >
-    <div
+  hideAdd = false,
+  renderMobileItem,
+}) => {
+  const useMobileList = Boolean(isMobile && renderMobileItem);
+  const rows = dataSource || [];
+
+  return (
+    <Card
       style={{
-        padding: isMobile ? 16 : 20,
-        borderBottom: "1px solid #edf2f7",
-        background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+        ...sectionCardStyle,
+        width: "100%",
+        maxWidth: "100%",
+        overflow: "hidden",
       }}
+      styles={{ body: { padding: 0, overflow: "hidden" } }}
     >
-      <Flex
-        vertical={isMobile}
-        justify='space-between'
-        align={isMobile ? "stretch" : "center"}
-        gap={12}
+      <div
+        style={{
+          padding: isMobile ? 16 : 20,
+          borderBottom: "1px solid #edf2f7",
+          background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+        }}
       >
-        <div>
-          <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
-            {title}
-          </Title>
-          <Text type='secondary'>{description}</Text>
-        </div>
-
-        <Button
-          type='dashed'
-          icon={actionIcon}
-          onClick={onAdd}
-          style={{
-            width: isMobile ? "100%" : "auto",
-            borderRadius: 12,
-            height: 40,
-          }}
+        <Flex
+          vertical={isMobile}
+          justify='space-between'
+          align={isMobile ? "stretch" : "center"}
+          gap={12}
         >
-          {addButtonText}
-        </Button>
-      </Flex>
-    </div>
+          <div style={{ minWidth: 0 }}>
+            <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+              {title}
+            </Title>
+            <Text type='secondary'>{description}</Text>
+          </div>
 
-    <Table
-      rowKey='key'
-      columns={columns}
-      dataSource={dataSource}
-      pagination={false}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={emptyDescription}
+          {!hideAdd ? (
+            <Button
+              type='dashed'
+              icon={actionIcon}
+              onClick={onAdd}
+              style={{
+                width: isMobile ? "100%" : "auto",
+                borderRadius: 12,
+                height: 40,
+              }}
+            >
+              {addButtonText}
+            </Button>
+          ) : null}
+        </Flex>
+      </div>
+
+      {useMobileList ? (
+        <div style={{ padding: 12 }}>
+          {rows.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={emptyDescription}
+            />
+          ) : (
+            <Flex vertical gap={10}>
+              {rows.map((record, index) => (
+                <div key={record.key || index}>{renderMobileItem(record, index)}</div>
+              ))}
+            </Flex>
+          )}
+        </div>
+      ) : (
+        <div style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+          <Table
+            rowKey='key'
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            size={isMobile ? "small" : "middle"}
+            tableLayout='fixed'
+            style={{ width: "100%" }}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={emptyDescription}
+                />
+              ),
+            }}
           />
-        ),
-      }}
-      scroll={{ x: scrollX }}
-    />
-  </Card>
-);
+        </div>
+      )}
+    </Card>
+  );
+};
 
 export default TeacherDutyRecordSection;

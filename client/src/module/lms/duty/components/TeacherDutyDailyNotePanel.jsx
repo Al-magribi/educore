@@ -41,75 +41,14 @@ const TeacherDutyDailyNotePanel = ({
 }) => {
   const noteLength = dailyNote.trim().length;
   const noteStatus =
-    noteLength === 0 ? "Kosong" : noteLength < 120 ? "Draft singkat" : "Siap disimpan";
+    noteLength === 0
+      ? "Kosong"
+      : noteLength < 120
+        ? "Draft singkat"
+        : "Siap disimpan";
 
   return (
     <Flex vertical gap={16}>
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.26 }}
-      >
-        <Card
-          variant='borderless'
-          style={heroCardStyle}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Flex
-            vertical={isMobile}
-            justify='space-between'
-            align={isMobile ? "flex-start" : "center"}
-            gap={16}
-          >
-            <Flex vertical gap={12} style={{ maxWidth: 680 }}>
-              <Space size={[8, 8]} wrap>
-                <Tag style={statPillStyle}>Catatan Harian</Tag>
-                <Tag style={statPillStyle}>{noteStatus}</Tag>
-              </Space>
-
-              <div>
-                <Title level={4} style={{ margin: 0, color: "#fff" }}>
-                  Ringkas kejadian penting hari ini dengan format yang jelas.
-                </Title>
-                <Text
-                  style={{
-                    display: "block",
-                    marginTop: 8,
-                    color: "rgba(255,255,255,0.82)",
-                  }}
-                >
-                  Tulis poin operasional, kendala, tindak lanjut, dan informasi
-                  penting lain agar admin mudah memahami kondisi hari ini.
-                </Text>
-              </div>
-            </Flex>
-
-            <Card
-              style={{
-                width: isMobile ? "100%" : 240,
-                borderRadius: 18,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.1)",
-                boxShadow: "none",
-              }}
-              styles={{ body: { padding: 18 } }}
-            >
-              <Flex vertical gap={6}>
-                <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                  Panjang catatan
-                </Text>
-                <Title level={3} style={{ margin: 0, color: "#fff" }}>
-                  {noteLength}
-                </Title>
-                <Text style={{ color: "rgba(255,255,255,0.8)" }}>
-                  karakter terisi
-                </Text>
-              </Flex>
-            </Card>
-          </Flex>
-        </Card>
-      </motion.div>
-
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -148,7 +87,8 @@ const TeacherDutyDailyNotePanel = ({
                       Editor Catatan Harian
                     </Title>
                     <Text type='secondary'>
-                      Gunakan gaya bahasa ringkas, informatif, dan mudah ditindaklanjuti.
+                      Gunakan gaya bahasa ringkas, informatif, dan mudah
+                      ditindaklanjuti.
                     </Text>
                   </div>
                 </Space>

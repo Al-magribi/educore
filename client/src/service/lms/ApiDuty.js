@@ -6,9 +6,8 @@ export const ApiDuty = createApi({
   tagTypes: ["Duty"],
   endpoints: (builder) => ({
     getDutyBootstrap: builder.query({
-      query: ({ date, periodeId } = {}) => {
+      query: ({ periodeId } = {}) => {
         const searchParams = new URLSearchParams();
-        if (date) searchParams.set("date", date);
         if (periodeId) searchParams.set("periode_id", periodeId);
         const queryString = searchParams.toString();
         return queryString ? `/duty/bootstrap?${queryString}` : "/duty/bootstrap";
@@ -25,17 +24,17 @@ export const ApiDuty = createApi({
       },
       providesTags: [{ type: "Duty", id: "LIST" }],
     }),
-    saveDutyAssignments: builder.mutation({
+    saveDutySchedule: builder.mutation({
       query: (body) => ({
-        url: "/duty/assignments",
-        method: "POST",
+        url: "/duty/schedule",
+        method: "PUT",
         body,
       }),
       invalidatesTags: [{ type: "Duty", id: "LIST" }],
     }),
-    deleteDutyAssignment: builder.mutation({
+    deleteDutySchedule: builder.mutation({
       query: (id) => ({
-        url: `/duty/assignments/${id}`,
+        url: `/duty/schedule/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: [{ type: "Duty", id: "LIST" }],
@@ -72,10 +71,10 @@ export const ApiDuty = createApi({
 
 export const {
   useDeleteDutyDailyNoteMutation,
-  useDeleteDutyAssignmentMutation,
+  useDeleteDutyScheduleMutation,
   useGetDutyBootstrapQuery,
   useGetDutyReportsQuery,
   useGetTeacherDutyBootstrapQuery,
-  useSaveDutyAssignmentsMutation,
+  useSaveDutyScheduleMutation,
   useSaveTeacherDutyReportMutation,
 } = ApiDuty;

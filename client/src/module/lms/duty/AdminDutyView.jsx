@@ -2,12 +2,7 @@ import React, { useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { Card, Flex, Grid, Space, Tabs, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
-import {
-  CalendarDays,
-  ClipboardList,
-  FileText,
-  ShieldCheck,
-} from "lucide-react";
+import { ClipboardList, FileText } from "lucide-react";
 import AdminDutyAssignmentTab from "./AdminDutyAssignmentTab";
 import AdminDutyReportTab from "./AdminDutyReportTab";
 
@@ -86,9 +81,9 @@ const AdminDutyView = () => {
 
   const viewSummary = {
     assignments: {
-      title: "Penugasan Harian",
+      title: "Jadwal Mingguan",
       description:
-        "Atur guru piket per tanggal dengan alur yang jelas dan mudah dipantau.",
+        "Atur guru piket Senin–Jumat sekali saja. Jadwal berulang setiap minggu dan bisa diubah kapan saja.",
       badge: "Operasional",
     },
     reports: {
@@ -115,10 +110,7 @@ const AdminDutyView = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.28 }}
         >
-          <AdminDutyAssignmentTab
-            selectedDate={selectedDate}
-            onChangeDate={setSelectedDate}
-          />
+          <AdminDutyAssignmentTab />
         </motion.div>
       ),
     },
@@ -208,29 +200,6 @@ const AdminDutyView = () => {
                 Kelola Piket Guru
               </Title>
             </Flex>
-
-            <Card
-              style={{
-                width: isMobile ? "100%" : 320,
-                borderRadius: 22,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.1)",
-                boxShadow: "none",
-              }}
-              styles={{ body: { padding: 20 } }}
-            >
-              <Flex vertical gap={10}>
-                <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                  Mode tampilan aktif
-                </Text>
-                <Title level={4} style={{ margin: 0, color: "#fff" }}>
-                  {viewSummary[activeTab].title}
-                </Title>
-                <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                  {viewSummary[activeTab].description}
-                </Text>
-              </Flex>
-            </Card>
           </Flex>
         </Card>
       </motion.div>

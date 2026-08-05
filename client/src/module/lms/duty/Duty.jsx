@@ -20,8 +20,8 @@ const Duty = () => {
   return (
     <Alert
       showIcon
-      type="info"
-      title="Halaman Piket tidak tersedia untuk role ini."
+      type='info'
+      title='Halaman Piket tidak tersedia untuk role ini.'
     />
   );
 };

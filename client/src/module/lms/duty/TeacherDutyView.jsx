@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import {
   Alert,
@@ -84,59 +84,80 @@ const iconWrapStyle = (background) => ({
   flexShrink: 0,
 });
 
+const toIsoDayOfWeek = (value) => {
+  const day = dayjs(value).day();
+  return day === 0 ? 7 : day;
+};
+
+const findNearestScheduleDate = (fromDate, scheduleDays) => {
+  const days = (scheduleDays || []).map(Number).filter(Boolean);
+  if (!days.length) return fromDate;
+
+  for (let offset = 0; offset <= 14; offset += 1) {
+    const forward = fromDate.add(offset, "day");
+    if (days.includes(toIsoDayOfWeek(forward))) return forward;
+  }
+
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const backward = fromDate.subtract(offset, "day");
+    if (days.includes(toIsoDayOfWeek(backward))) return backward;
+  }
+
+  return fromDate;
+};
+
 const TeacherDutyView = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [didAutoSnap, setDidAutoSnap] = useState(false);
   const dateValue = selectedDate.format("YYYY-MM-DD");
 
-  const firstQuery = useGetTeacherDutyBootstrapQuery({
-    date: dateValue,
-  });
-  const firstPayload = firstQuery.data?.data || {};
-  const assignedDates = useMemo(
-    () => firstPayload.assigned_dates || [],
-    [firstPayload.assigned_dates],
+  const { data, isLoading, isFetching, refetch } =
+    useGetTeacherDutyBootstrapQuery({
+      date: dateValue,
+    });
+  const payload = data?.data || {};
+
+  const scheduleDays = useMemo(
+    () => (payload.schedule_days || []).map(Number),
+    [payload.schedule_days],
   );
 
-  const assignmentDatesSet = useMemo(
-    () =>
-      new Set(
-        assignedDates.map(
-          (item) => item.date_key || dayjs(item.date).format("YYYY-MM-DD"),
-        ),
-      ),
-    [assignedDates],
-  );
+  const scheduleDayLabels = useMemo(() => {
+    const labels = {
+      1: "Senin",
+      2: "Selasa",
+      3: "Rabu",
+      4: "Kamis",
+      5: "Jumat",
+    };
+    return scheduleDays.map((day) => labels[Number(day)]).filter(Boolean);
+  }, [scheduleDays]);
 
-  const fallbackDateValue =
-    !firstPayload.assigned && assignedDates.length
-      ? dayjs(assignedDates[0].date).format("YYYY-MM-DD")
-      : null;
+  useEffect(() => {
+    if (didAutoSnap || isLoading || !scheduleDays.length) return;
+    if (payload.assigned) {
+      setDidAutoSnap(true);
+      return;
+    }
 
-  const fallbackQuery = useGetTeacherDutyBootstrapQuery(
-    { date: fallbackDateValue },
-    { skip: !fallbackDateValue },
-  );
+    const nearest = findNearestScheduleDate(dayjs(), scheduleDays);
+    if (nearest.format("YYYY-MM-DD") !== dateValue) {
+      setSelectedDate(nearest);
+    }
+    setDidAutoSnap(true);
+  }, [didAutoSnap, isLoading, scheduleDays, payload.assigned, dateValue]);
 
-  const data = fallbackDateValue ? fallbackQuery.data : firstQuery.data;
-  const isLoading = fallbackDateValue
-    ? fallbackQuery.isLoading
-    : firstQuery.isLoading;
-  const isFetching = fallbackDateValue
-    ? fallbackQuery.isFetching
-    : firstQuery.isFetching;
-  const refetch = fallbackDateValue
-    ? fallbackQuery.refetch
-    : firstQuery.refetch;
-  const payload = data?.data || firstPayload;
+  const isScheduleDate = (value) => {
+    if (!scheduleDays.length) return false;
+    return scheduleDays.includes(toIsoDayOfWeek(value));
+  };
 
   const selectedDateLabel = selectedDate.format("DD MMMM YYYY");
   const activeAssignmentDateLabel = payload.assignment?.date
     ? dayjs(payload.assignment.date).format("DD MMMM YYYY")
-    : fallbackDateValue
-      ? dayjs(fallbackDateValue).format("DD MMMM YYYY")
-      : selectedDateLabel;
+    : selectedDateLabel;
 
   const statItems = [
     {
@@ -148,22 +169,22 @@ const TeacherDutyView = () => {
       background: "linear-gradient(135deg, #0f766e, #14b8a6)",
     },
     {
-      key: "assigned-count",
-      title: "Total Penugasan",
-      value: assignedDates.length,
-      subtitle: assignedDates.length
-        ? "Tanggal siap dilaporkan"
+      key: "schedule",
+      title: "Jadwal Mingguan",
+      value: scheduleDayLabels.length ? scheduleDayLabels.join(", ") : "-",
+      subtitle: scheduleDayLabels.length
+        ? "Berulang setiap minggu"
         : "Belum ada jadwal",
       icon: <ClipboardCheck size={20} />,
       background: "linear-gradient(135deg, #2563eb, #38bdf8)",
     },
     {
       key: "status",
-      title: "Status Hari Ini",
+      title: "Status Tanggal",
       value: payload.assigned ? "Aktif" : "Kosong",
       subtitle: payload.assigned
         ? activeAssignmentDateLabel
-        : "Menunggu penugasan admin",
+        : "Di luar jadwal piket Anda",
       icon: <ShieldCheck size={20} />,
       background: "linear-gradient(135deg, #7c3aed, #a855f7)",
     },
@@ -201,91 +222,42 @@ const TeacherDutyView = () => {
           }}
           styles={{ body: { padding: isMobile ? 20 : 28 } }}
         >
-          <Flex
-            vertical={isMobile}
-            justify='space-between'
-            align={isMobile ? "flex-start" : "center"}
-            gap={18}
-          >
-            <Flex vertical gap={14} style={{ maxWidth: 720 }}>
-              <Space size={[10, 10]} wrap>
-                <Tag
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.12)",
-                    color: "#fff",
-                  }}
-                >
-                  Duty Workspace
-                </Tag>
-                <Tag
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "#dcfce7",
-                  }}
-                >
-                  {selectedDateLabel}
-                </Tag>
-              </Space>
+          <Flex vertical gap={14} style={{ maxWidth: 720 }}>
+            <Space size={[10, 10]} wrap>
+              <Tag
+                style={{
+                  margin: 0,
+                  borderRadius: 999,
+                  paddingInline: 12,
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#fff",
+                }}
+              >
+                Duty Workspace
+              </Tag>
+              <Tag
+                style={{
+                  margin: 0,
+                  borderRadius: 999,
+                  paddingInline: 12,
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "#dcfce7",
+                }}
+              >
+                {selectedDateLabel}
+              </Tag>
+            </Space>
 
-              <div>
-                <Title
-                  level={isMobile ? 3 : 2}
-                  style={{ margin: 0, color: "#fff", lineHeight: 1.15 }}
-                >
-                  Halaman Piket Guru.
-                </Title>
-                <Text
-                  style={{
-                    display: "block",
-                    marginTop: 10,
-                    color: "rgba(255,255,255,0.84)",
-                    maxWidth: 640,
-                    fontSize: isMobile ? 13 : 14,
-                  }}
-                >
-                  Pilih tanggal penugasan, cek status jadwal, lalu isi laporan
-                  harian dari satu tampilan yang nyaman dipakai di desktop
-                  maupun mobile.
-                </Text>
-              </div>
-            </Flex>
-
-            <Card
-              style={{
-                width: isMobile ? "100%" : 340,
-                borderRadius: 22,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.1)",
-                boxShadow: "none",
-              }}
-              styles={{ body: { padding: 20 } }}
-            >
-              <Flex vertical gap={10}>
-                <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-                  Ringkasan penugasan
-                </Text>
-                <Title level={4} style={{ margin: 0, color: "#fff" }}>
-                  {payload.assigned
-                    ? "Anda sedang bertugas"
-                    : "Belum ada tugas aktif"}
-                </Title>
-                <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                  {payload.assigned
-                    ? `Laporan aktif untuk ${activeAssignmentDateLabel}. Pastikan seluruh catatan piket terisi sebelum selesai bertugas.`
-                    : assignmentDatesSet.size
-                      ? "Anda memiliki tanggal tugas lain. Pilih salah satu tanggal yang tersedia di daftar penugasan."
-                      : "Admin belum menugaskan Anda sebagai guru piket."}
-                </Text>
-              </Flex>
-            </Card>
+            <div>
+              <Title
+                level={isMobile ? 3 : 2}
+                style={{ margin: 0, color: "#fff", lineHeight: 1.15 }}
+              >
+                Halaman Piket Guru.
+              </Title>
+            </div>
           </Flex>
         </Card>
       </motion.div>
@@ -336,15 +308,12 @@ const TeacherDutyView = () => {
                 <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
                   Kontrol Tugas Piket
                 </Title>
-                <Text type='secondary'>
-                  Isi laporan hanya untuk tanggal yang memang ditugaskan kepada
-                  Anda.
-                </Text>
               </div>
 
-              <Space
-                wrap
-                size={[10, 10]}
+              <Flex
+                vertical={isMobile}
+                wrap='wrap'
+                gap={10}
                 style={{ width: isMobile ? "100%" : "auto" }}
               >
                 <DatePicker
@@ -353,6 +322,11 @@ const TeacherDutyView = () => {
                   allowClear={false}
                   format='DD MMM YYYY'
                   style={{ width: isMobile ? "100%" : 180 }}
+                  disabledDate={(current) => {
+                    if (!current) return false;
+                    if (!scheduleDays.length) return true;
+                    return !isScheduleDate(current);
+                  }}
                 />
                 <Button
                   icon={<RefreshCcw size={14} />}
@@ -362,59 +336,8 @@ const TeacherDutyView = () => {
                 >
                   Muat Ulang
                 </Button>
-              </Space>
-            </Flex>
-
-            <Card
-              size='small'
-              style={{
-                borderRadius: 18,
-                border: "1px solid #e6eef7",
-                background: "#f8fbff",
-              }}
-              styles={{ body: { padding: 16 } }}
-            >
-              <Flex vertical gap={10}>
-                <Text strong style={{ color: "#0f172a" }}>
-                  Daftar tanggal penugasan
-                </Text>
-                <Space wrap size={[8, 8]}>
-                  {assignedDates.length === 0 ? (
-                    <Tag
-                      color='default'
-                      style={{ margin: 0, borderRadius: 999 }}
-                    >
-                      Belum ada penugasan piket
-                    </Tag>
-                  ) : (
-                    assignedDates.map((item) => {
-                      const itemDateValue =
-                        item.date_key || dayjs(item.date).format("YYYY-MM-DD");
-                      const isActive = itemDateValue === dateValue;
-
-                      return (
-                        <Tag
-                          key={item.id || itemDateValue}
-                          color={isActive ? "blue" : "default"}
-                          style={{
-                            margin: 0,
-                            borderRadius: 999,
-                            paddingInline: 12,
-                            paddingBlock: 5,
-                            cursor: "pointer",
-                            borderColor: isActive ? "#93c5fd" : undefined,
-                          }}
-                          onClick={() => setSelectedDate(dayjs(item.date))}
-                        >
-                          {dayjs(item.date).format("DD MMM YYYY")} |{" "}
-                          {item.status}
-                        </Tag>
-                      );
-                    })
-                  )}
-                </Space>
               </Flex>
-            </Card>
+            </Flex>
 
             <AnimatePresence mode='wait'>
               {!payload.assigned ? (
@@ -430,9 +353,9 @@ const TeacherDutyView = () => {
                     type='warning'
                     message='Tidak ada penugasan piket pada tanggal ini.'
                     description={
-                      assignmentDatesSet.size
-                        ? "Pilih tanggal yang termasuk dalam daftar penugasan Anda."
-                        : "Admin belum menugaskan Anda sebagai guru piket."
+                      scheduleDays.length
+                        ? `Pilih tanggal ${scheduleDayLabels.join("/")} lewat kalender. Jadwal berulang otomatis setiap minggu.`
+                        : "Anda belum masuk jadwal piket mingguan (Senin–Jumat)."
                     }
                     style={{ borderRadius: 16 }}
                   />

@@ -35,12 +35,268 @@ const normalizeTime = (value) => {
   return `${safeValue}:00`;
 };
 
+const DUTY_WEEKDAYS = [1, 2, 3, 4, 5];
+const DAY_LABELS = {
+  1: "Senin",
+  2: "Selasa",
+  3: "Rabu",
+  4: "Kamis",
+  5: "Jumat",
+};
+
 const getIsoDayOfWeek = async (executor, dateValue) => {
   const result = await executor.query(
     `SELECT EXTRACT(ISODOW FROM $1::date)::int AS day_of_week`,
     [dateValue],
   );
   return result.rows[0]?.day_of_week || null;
+};
+
+const isDutyWeekday = (dayOfWeek) => DUTY_WEEKDAYS.includes(Number(dayOfWeek));
+
+const fetchDutyScheduleRows = async (executor, homebaseId, periodeId) => {
+  const result = await executor.query(
+    `SELECT
+       s.id,
+       s.day_of_week,
+       s.duty_teacher_id,
+       s.note,
+       s.is_active,
+       s.created_at,
+       s.updated_at,
+       u.full_name AS duty_teacher_name,
+       t.nip AS duty_teacher_nip
+     FROM lms.l_duty_schedule s
+     JOIN public.u_users u ON u.id = s.duty_teacher_id
+     JOIN public.u_teachers t ON t.user_id = s.duty_teacher_id
+     WHERE s.homebase_id = $1
+       AND s.periode_id = $2
+       AND s.is_active = true
+     ORDER BY s.day_of_week ASC, u.full_name ASC`,
+    [homebaseId, periodeId],
+  );
+  return result.rows;
+};
+
+const buildScheduleByDay = (scheduleRows) => {
+  const byDay = {};
+  for (const day of DUTY_WEEKDAYS) {
+    byDay[day] = {
+      day_of_week: day,
+      day_label: DAY_LABELS[day],
+      note: "",
+      teachers: [],
+    };
+  }
+
+  for (const row of scheduleRows) {
+    const day = Number(row.day_of_week);
+    if (!byDay[day]) continue;
+    if (!byDay[day].note && row.note) {
+      byDay[day].note = row.note;
+    }
+    byDay[day].teachers.push({
+      id: row.id,
+      duty_teacher_id: row.duty_teacher_id,
+      duty_teacher_name: row.duty_teacher_name,
+      duty_teacher_nip: row.duty_teacher_nip,
+      note: row.note,
+    });
+  }
+
+  return DUTY_WEEKDAYS.map((day) => byDay[day]);
+};
+
+/**
+ * Materialize daily duty assignment rows from the weekly schedule template.
+ * Weekend dates are skipped. Existing "done" reports are never cancelled.
+ */
+const syncDutyAssignmentsForDate = async (
+  executor,
+  { homebaseId, periodeId, dateValue, assignedBy = null },
+) => {
+  const dayOfWeek = await getIsoDayOfWeek(executor, dateValue);
+  if (!isDutyWeekday(dayOfWeek)) {
+    return [];
+  }
+
+  const scheduleResult = await executor.query(
+    `SELECT duty_teacher_id, note, assigned_by
+     FROM lms.l_duty_schedule
+     WHERE homebase_id = $1
+       AND periode_id = $2
+       AND day_of_week = $3
+       AND is_active = true`,
+    [homebaseId, periodeId, dayOfWeek],
+  );
+
+  const scheduleTeacherIds = scheduleResult.rows.map((row) =>
+    Number(row.duty_teacher_id),
+  );
+  const noteByTeacher = new Map(
+    scheduleResult.rows.map((row) => [
+      Number(row.duty_teacher_id),
+      row.note || null,
+    ]),
+  );
+  const assignerByTeacher = new Map(
+    scheduleResult.rows.map((row) => [
+      Number(row.duty_teacher_id),
+      row.assigned_by || assignedBy,
+    ]),
+  );
+
+  for (const teacherId of scheduleTeacherIds) {
+    const existingResult = await executor.query(
+      `SELECT id, status
+       FROM lms.l_duty_assignment
+       WHERE homebase_id = $1
+         AND periode_id = $2
+         AND date = $3::date
+         AND duty_teacher_id = $4
+       ORDER BY CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END ASC, id DESC
+       LIMIT 1`,
+      [homebaseId, periodeId, dateValue, teacherId],
+    );
+
+    if (existingResult.rowCount === 0) {
+      await executor.query(
+        `INSERT INTO lms.l_duty_assignment (
+           homebase_id,
+           periode_id,
+           date,
+           duty_teacher_id,
+           assigned_by,
+           note,
+           status
+         )
+         VALUES ($1, $2, $3::date, $4, $5, $6, 'assigned')`,
+        [
+          homebaseId,
+          periodeId,
+          dateValue,
+          teacherId,
+          assignerByTeacher.get(teacherId) || assignedBy,
+          noteByTeacher.get(teacherId),
+        ],
+      );
+      continue;
+    }
+
+    const existing = existingResult.rows[0];
+    if (existing.status === "cancelled") {
+      await executor.query(
+        `UPDATE lms.l_duty_assignment
+         SET assigned_by = COALESCE($2, assigned_by),
+             note = COALESCE($3, note),
+             status = 'assigned',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [
+          existing.id,
+          assignerByTeacher.get(teacherId) || assignedBy,
+          noteByTeacher.get(teacherId),
+        ],
+      );
+    } else if (existing.status === "assigned") {
+      await executor.query(
+        `UPDATE lms.l_duty_assignment
+         SET note = COALESCE($2, note),
+             assigned_by = COALESCE($3, assigned_by),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [
+          existing.id,
+          noteByTeacher.get(teacherId),
+          assignerByTeacher.get(teacherId) || assignedBy,
+        ],
+      );
+    }
+  }
+
+  if (scheduleTeacherIds.length) {
+    await executor.query(
+      `UPDATE lms.l_duty_assignment
+       SET status = 'cancelled',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE homebase_id = $1
+         AND periode_id = $2
+         AND date = $3::date
+         AND status = 'assigned'
+         AND NOT (duty_teacher_id = ANY($4::int[]))`,
+      [homebaseId, periodeId, dateValue, scheduleTeacherIds],
+    );
+  } else {
+    await executor.query(
+      `UPDATE lms.l_duty_assignment
+       SET status = 'cancelled',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE homebase_id = $1
+         AND periode_id = $2
+         AND date = $3::date
+         AND status = 'assigned'`,
+      [homebaseId, periodeId, dateValue],
+    );
+  }
+
+  const assignmentResult = await executor.query(
+    `SELECT
+       d.id,
+       d.date,
+       TO_CHAR(d.date, 'YYYY-MM-DD') AS date_key,
+       d.duty_teacher_id,
+       d.note,
+       d.status,
+       d.created_at,
+       d.updated_at,
+       u.full_name AS duty_teacher_name,
+       t.nip AS duty_teacher_nip
+     FROM lms.l_duty_assignment d
+     JOIN public.u_users u ON u.id = d.duty_teacher_id
+     JOIN public.u_teachers t ON t.user_id = d.duty_teacher_id
+     WHERE d.homebase_id = $1
+       AND d.periode_id = $2
+       AND d.date = $3::date
+       AND d.status <> 'cancelled'
+     ORDER BY u.full_name ASC`,
+    [homebaseId, periodeId, dateValue],
+  );
+
+  return assignmentResult.rows;
+};
+
+const buildUpcomingScheduleDates = async (
+  executor,
+  { scheduleDays, fromDate, daysAhead = 28, existingDateKeys = new Set() },
+) => {
+  if (!scheduleDays?.length) return [];
+
+  const daySet = new Set(scheduleDays.map((day) => Number(day)));
+  const dateSeries = await executor.query(
+    `SELECT TO_CHAR(d::date, 'YYYY-MM-DD') AS date_key,
+            d::date AS date,
+            EXTRACT(ISODOW FROM d)::int AS day_of_week
+     FROM generate_series($1::date, ($1::date + $2::int), '1 day'::interval) AS d
+     WHERE EXTRACT(ISODOW FROM d)::int BETWEEN 1 AND 5
+     ORDER BY d ASC`,
+    [fromDate, daysAhead],
+  );
+
+  return dateSeries.rows
+    .filter(
+      (row) =>
+        daySet.has(Number(row.day_of_week)) &&
+        !existingDateKeys.has(row.date_key),
+    )
+    .map((row) => ({
+      id: `schedule-${row.date_key}`,
+      date: row.date,
+      date_key: row.date_key,
+      status: "assigned",
+      note: null,
+      report_note: null,
+      from_schedule: true,
+    }));
 };
 
 const hasDutyReportNoteColumn = async (executor) => {
@@ -65,6 +321,36 @@ const hasTeacherSessionClassColumn = async (executor) => {
      LIMIT 1`,
   );
   return result.rowCount > 0;
+};
+
+// Tap kartu guru di device kelas menulis actual_checkin_at / actual_checkout_at
+// ke attendance.teacher_schedule_requirement (lihat services/attendance/rfidTeacherSession.js).
+const fetchDutyTapSessions = async (executor, { homebaseId, dateValue }) => {
+  try {
+    const result = await executor.query(
+      `SELECT
+         tsr.schedule_entry_id,
+         tsr.teacher_id,
+         tsr.class_id,
+         CASE WHEN tsr.actual_checkin_at IS NULL THEN NULL
+              ELSE TO_CHAR((tsr.actual_checkin_at AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') END
+           AS checkin_time,
+         CASE WHEN tsr.actual_checkout_at IS NULL THEN NULL
+              ELSE TO_CHAR((tsr.actual_checkout_at AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') END
+           AS checkout_time,
+         tsr.session_status,
+         tsr.late_minutes
+       FROM attendance.teacher_schedule_requirement tsr
+       JOIN attendance.daily_attendance da ON da.id = tsr.attendance_id
+       WHERE da.homebase_id = $1
+         AND da.attendance_date = $2::date`,
+      [homebaseId, dateValue],
+    );
+    return result.rows;
+  } catch (error) {
+    // Skema attendance bisa belum tersedia di instalasi lama.
+    return [];
+  }
 };
 
 const ensureActivePeriode = async (executor, homebaseId, requestedPeriodeId) => {
@@ -347,15 +633,7 @@ router.get(
   authorize("satuan"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
-    const selectedDate = normalizeDate(req.query.date);
     const requestedPeriodeId = toInt(req.query.periode_id, null);
-
-    if (!selectedDate) {
-      return res.status(400).json({
-        status: "error",
-        message: "Format tanggal tidak valid.",
-      });
-    }
 
     const periodeId = await ensureActivePeriode(pool, homebase_id, requestedPeriodeId);
     if (!periodeId) {
@@ -365,9 +643,7 @@ router.get(
       });
     }
 
-    const canReadReportNote = await hasDutyReportNoteColumn(pool);
-
-    const [teacherResult, assignmentResult] = await Promise.all([
+    const [teacherResult, scheduleRows] = await Promise.all([
       pool.query(
         `SELECT u.id, u.full_name, t.nip
          FROM public.u_teachers t
@@ -376,70 +652,46 @@ router.get(
          ORDER BY u.full_name ASC`,
         [homebase_id],
       ),
-      pool.query(
-        `SELECT
-           d.id,
-           d.date,
-           TO_CHAR(d.date, 'YYYY-MM-DD') AS date_key,
-           d.duty_teacher_id,
-           d.note,
-           ${canReadReportNote ? "d.report_note" : "NULL::text AS report_note"},
-           d.status,
-           d.created_at,
-           d.updated_at,
-           u.full_name AS duty_teacher_name,
-           t.nip AS duty_teacher_nip,
-           assigner.full_name AS assigned_by_name
-         FROM lms.l_duty_assignment d
-         JOIN public.u_users u ON u.id = d.duty_teacher_id
-         JOIN public.u_teachers t ON t.user_id = d.duty_teacher_id
-         LEFT JOIN public.u_users assigner ON assigner.id = d.assigned_by
-         WHERE d.homebase_id = $1
-           AND d.periode_id = $2
-           AND d.date = $3::date
-           AND d.status <> 'cancelled'
-         ORDER BY u.full_name ASC, d.created_at ASC`,
-        [homebase_id, periodeId, selectedDate],
-      ),
+      fetchDutyScheduleRows(pool, homebase_id, periodeId),
     ]);
+
+    const scheduleByDay = buildScheduleByDay(scheduleRows);
+    const todayAssignments = await syncDutyAssignmentsForDate(pool, {
+      homebaseId: homebase_id,
+      periodeId,
+      dateValue: formatToday(),
+    });
 
     return res.json({
       status: "success",
       data: {
-        date: selectedDate,
         periode_id: periodeId,
+        weekdays: DUTY_WEEKDAYS.map((day) => ({
+          day_of_week: day,
+          day_label: DAY_LABELS[day],
+        })),
         teachers: teacherResult.rows,
-        assignments: assignmentResult.rows,
+        schedule: scheduleRows,
+        schedule_by_day: scheduleByDay,
+        today: formatToday(),
+        today_assignments: todayAssignments,
       },
     });
   }),
 );
 
-router.post(
-  "/duty/assignments",
+router.put(
+  "/duty/schedule",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
-    const selectedDate = normalizeDate(req.body?.date);
-    const teacherIds = Array.isArray(req.body?.teacher_ids)
-      ? req.body.teacher_ids
-          .map((item) => toInt(item, null))
-          .filter((item) => Number.isFinite(item))
-      : [];
-    const note = String(req.body?.note || "").trim();
     const requestedPeriodeId = toInt(req.body?.periode_id, null);
+    const daysInput = Array.isArray(req.body?.days) ? req.body.days : null;
 
-    if (!selectedDate) {
+    if (!daysInput) {
       return res.status(400).json({
         status: "error",
-        message: "Format tanggal tidak valid.",
-      });
-    }
-
-    if (!teacherIds.length) {
-      return res.status(400).json({
-        status: "error",
-        message: "Pilih minimal satu guru untuk piket.",
+        message: "Payload days wajib diisi.",
       });
     }
 
@@ -451,108 +703,219 @@ router.post(
       });
     }
 
-    const uniqueTeacherIds = [...new Set(teacherIds)];
-    const teacherCheck = await client.query(
-      `SELECT user_id
-       FROM public.u_teachers
-       WHERE homebase_id = $1
-         AND user_id = ANY($2::int[])`,
-      [homebase_id, uniqueTeacherIds],
-    );
-    if (teacherCheck.rowCount !== uniqueTeacherIds.length) {
-      return res.status(400).json({
-        status: "error",
-        message: "Ada guru yang tidak valid untuk homebase ini.",
+    const normalizedDays = [];
+    for (const dayItem of daysInput) {
+      const dayOfWeek = toInt(dayItem?.day_of_week, null);
+      if (!isDutyWeekday(dayOfWeek)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Hari piket hanya Senin sampai Jumat.",
+        });
+      }
+
+      const teacherIds = Array.isArray(dayItem?.teacher_ids)
+        ? [
+            ...new Set(
+              dayItem.teacher_ids
+                .map((item) => toInt(item, null))
+                .filter((item) => Number.isFinite(item)),
+            ),
+          ]
+        : [];
+      const note = String(dayItem?.note || "").trim();
+
+      normalizedDays.push({ dayOfWeek, teacherIds, note });
+    }
+
+    const allTeacherIds = [
+      ...new Set(normalizedDays.flatMap((item) => item.teacherIds)),
+    ];
+
+    if (allTeacherIds.length) {
+      const teacherCheck = await client.query(
+        `SELECT user_id
+         FROM public.u_teachers
+         WHERE homebase_id = $1
+           AND user_id = ANY($2::int[])`,
+        [homebase_id, allTeacherIds],
+      );
+      if (teacherCheck.rowCount !== allTeacherIds.length) {
+        return res.status(400).json({
+          status: "error",
+          message: "Ada guru yang tidak valid untuk homebase ini.",
+        });
+      }
+    }
+
+    const touchedDays = [...new Set(normalizedDays.map((item) => item.dayOfWeek))];
+
+    for (const day of normalizedDays) {
+      const existingResult = await client.query(
+        `SELECT id, duty_teacher_id
+         FROM lms.l_duty_schedule
+         WHERE homebase_id = $1
+           AND periode_id = $2
+           AND day_of_week = $3
+           AND is_active = true`,
+        [homebase_id, periodeId, day.dayOfWeek],
+      );
+
+      const existingByTeacher = new Map(
+        existingResult.rows.map((row) => [Number(row.duty_teacher_id), row.id]),
+      );
+      const nextTeacherSet = new Set(day.teacherIds);
+
+      for (const [teacherId, scheduleId] of existingByTeacher.entries()) {
+        if (!nextTeacherSet.has(teacherId)) {
+          await client.query(
+            `UPDATE lms.l_duty_schedule
+             SET is_active = false,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [scheduleId],
+          );
+        }
+      }
+
+      for (const teacherId of day.teacherIds) {
+        if (existingByTeacher.has(teacherId)) {
+          await client.query(
+            `UPDATE lms.l_duty_schedule
+             SET note = $2,
+                 assigned_by = $3,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [existingByTeacher.get(teacherId), day.note || null, userId],
+          );
+          continue;
+        }
+
+        const inactiveResult = await client.query(
+          `SELECT id
+           FROM lms.l_duty_schedule
+           WHERE homebase_id = $1
+             AND periode_id = $2
+             AND day_of_week = $3
+             AND duty_teacher_id = $4
+             AND is_active = false
+           ORDER BY id DESC
+           LIMIT 1`,
+          [homebase_id, periodeId, day.dayOfWeek, teacherId],
+        );
+
+        if (inactiveResult.rowCount) {
+          await client.query(
+            `UPDATE lms.l_duty_schedule
+             SET is_active = true,
+                 note = $2,
+                 assigned_by = $3,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [inactiveResult.rows[0].id, day.note || null, userId],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO lms.l_duty_schedule (
+               homebase_id,
+               periode_id,
+               day_of_week,
+               duty_teacher_id,
+               note,
+               assigned_by,
+               is_active
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, true)`,
+            [
+              homebase_id,
+              periodeId,
+              day.dayOfWeek,
+              teacherId,
+              day.note || null,
+              userId,
+            ],
+          );
+        }
+      }
+    }
+
+    const today = formatToday();
+    const todayDow = await getIsoDayOfWeek(client, today);
+    if (isDutyWeekday(todayDow) && touchedDays.includes(todayDow)) {
+      await syncDutyAssignmentsForDate(client, {
+        homebaseId: homebase_id,
+        periodeId,
+        dateValue: today,
+        assignedBy: userId,
       });
     }
 
-    const savedRows = [];
-    for (const teacherId of uniqueTeacherIds) {
-      const existingResult = await client.query(
-        `SELECT id
-         FROM lms.l_duty_assignment
-         WHERE homebase_id = $1
-           AND periode_id = $2
-           AND date = $3::date
-           AND duty_teacher_id = $4
-         LIMIT 1`,
-        [homebase_id, periodeId, selectedDate, teacherId],
-      );
-
-      const result = existingResult.rowCount
-        ? await client.query(
-            `UPDATE lms.l_duty_assignment
-             SET assigned_by = $2,
-                 note = $3,
-                 status = 'assigned',
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1
-             RETURNING *`,
-            [existingResult.rows[0].id, userId, note || null],
-          )
-        : await client.query(
-            `INSERT INTO lms.l_duty_assignment (
-               homebase_id,
-               periode_id,
-               date,
-               duty_teacher_id,
-               assigned_by,
-               note,
-               status
-             )
-             VALUES ($1, $2, $3::date, $4, $5, $6, 'assigned')
-             RETURNING *`,
-            [homebase_id, periodeId, selectedDate, teacherId, userId, note || null],
-          );
-
-      savedRows.push(result.rows[0]);
-    }
+    const scheduleRows = await fetchDutyScheduleRows(client, homebase_id, periodeId);
 
     return res.json({
       status: "success",
-      message: "Penugasan piket berhasil disimpan.",
+      message: "Jadwal piket mingguan berhasil disimpan.",
       data: {
-        saved_count: savedRows.length,
-        assignments: savedRows,
+        periode_id: periodeId,
+        schedule: scheduleRows,
+        schedule_by_day: buildScheduleByDay(scheduleRows),
       },
     });
   }),
 );
 
 router.delete(
-  "/duty/assignments/:id",
+  "/duty/schedule/:id",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
-    const { homebase_id } = req.user;
-    const assignmentId = toInt(req.params.id, null);
+    const { id: userId, homebase_id } = req.user;
+    const scheduleId = toInt(req.params.id, null);
 
-    if (!assignmentId) {
+    if (!scheduleId) {
       return res.status(400).json({
         status: "error",
-        message: "ID penugasan tidak valid.",
+        message: "ID jadwal tidak valid.",
       });
     }
 
-    const result = await client.query(
-      `UPDATE lms.l_duty_assignment
-       SET status = 'cancelled',
-           updated_at = CURRENT_TIMESTAMP
+    const existing = await client.query(
+      `SELECT id, periode_id, day_of_week
+       FROM lms.l_duty_schedule
        WHERE id = $1
          AND homebase_id = $2
-       RETURNING id`,
-      [assignmentId, homebase_id],
+         AND is_active = true
+       LIMIT 1`,
+      [scheduleId, homebase_id],
     );
 
-    if (result.rowCount === 0) {
+    if (existing.rowCount === 0) {
       return res.status(404).json({
         status: "error",
-        message: "Penugasan piket tidak ditemukan.",
+        message: "Jadwal piket tidak ditemukan.",
+      });
+    }
+
+    await client.query(
+      `UPDATE lms.l_duty_schedule
+       SET is_active = false,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [scheduleId],
+    );
+
+    const today = formatToday();
+    const todayDow = await getIsoDayOfWeek(client, today);
+    if (Number(existing.rows[0].day_of_week) === todayDow) {
+      await syncDutyAssignmentsForDate(client, {
+        homebaseId: homebase_id,
+        periodeId: existing.rows[0].periode_id,
+        dateValue: today,
+        assignedBy: userId,
       });
     }
 
     return res.json({
       status: "success",
-      message: "Penugasan piket dibatalkan.",
+      message: "Guru dihapus dari jadwal piket.",
     });
   }),
 );
@@ -579,6 +942,12 @@ router.get(
         message: "Periode aktif tidak ditemukan.",
       });
     }
+
+    await syncDutyAssignmentsForDate(pool, {
+      homebaseId: homebase_id,
+      periodeId,
+      dateValue: selectedDate,
+    });
 
     const canReadReportNote = await hasDutyReportNoteColumn(pool);
     const hasSessionClassColumn = await hasTeacherSessionClassColumn(pool);
@@ -808,6 +1177,27 @@ router.get(
     const canReadReportNote = await hasDutyReportNoteColumn(pool);
     const hasSessionClassColumn = await hasTeacherSessionClassColumn(pool);
 
+    await syncDutyAssignmentsForDate(pool, {
+      homebaseId: homebase_id,
+      periodeId,
+      dateValue: selectedDate,
+    });
+
+    const scheduleDaysResult = await pool.query(
+      `SELECT day_of_week
+       FROM lms.l_duty_schedule
+       WHERE homebase_id = $1
+         AND periode_id = $2
+         AND duty_teacher_id = $3
+         AND is_active = true
+       ORDER BY day_of_week ASC`,
+      [homebase_id, periodeId, userId],
+    );
+
+    const scheduleDays = scheduleDaysResult.rows.map((row) =>
+      Number(row.day_of_week),
+    );
+
     const [assignedDatesResult, dutyAssignmentResult] = await Promise.all([
       pool.query(
         `SELECT id, date, TO_CHAR(date, 'YYYY-MM-DD') AS date_key, status, note,
@@ -834,6 +1224,19 @@ router.get(
       ),
     ]);
 
+    const existingDateKeys = new Set(
+      assignedDatesResult.rows.map((item) => item.date_key),
+    );
+    const upcomingDates = await buildUpcomingScheduleDates(pool, {
+      scheduleDays,
+      fromDate: selectedDate,
+      daysAhead: 28,
+      existingDateKeys,
+    });
+    const assignedDates = [...assignedDatesResult.rows, ...upcomingDates].sort(
+      (a, b) => String(a.date_key).localeCompare(String(b.date_key)),
+    );
+
     const dutyAssignment =
       assignedDatesResult.rows.find((item) => item.date_key === selectedDate) ||
       dutyAssignmentResult.rows[0] ||
@@ -846,7 +1249,8 @@ router.get(
           assigned: false,
           date: selectedDate,
           periode_id: periodeId,
-          assigned_dates: assignedDatesResult.rows,
+          schedule_days: scheduleDays,
+          assigned_dates: assignedDates,
           assignment: null,
           schedule_entries: [],
           session_logs: [],
@@ -855,6 +1259,7 @@ router.get(
           classes: [],
           students: [],
           teachers: [],
+          tap_sessions: [],
         },
       });
     }
@@ -867,6 +1272,7 @@ router.get(
       studentAbsenceResult,
       teacherAbsenceResult,
       teacherClassAssignmentResult,
+      tapSessions,
     ] =
       await Promise.all([
         pool.query(
@@ -875,6 +1281,8 @@ router.get(
              e.class_id,
              e.teacher_id,
              e.subject_id,
+             e.slot_count,
+             e.status,
              c.name AS class_name,
              u.full_name AS teacher_name,
              s.name AS subject_name,
@@ -991,6 +1399,10 @@ router.get(
            ORDER BY u.full_name ASC, c.name ASC, s.name ASC`,
           [homebase_id],
         ),
+        fetchDutyTapSessions(pool, {
+          homebaseId: homebase_id,
+          dateValue: selectedDate,
+        }),
       ]);
 
     const classIds = [
@@ -1040,7 +1452,8 @@ router.get(
         assigned: true,
         date: selectedDate,
         periode_id: periodeId,
-        assigned_dates: assignedDatesResult.rows,
+        schedule_days: scheduleDays,
+        assigned_dates: assignedDates,
         assignment: dutyAssignment,
         schedule_entries: scheduleResult.rows,
         session_logs: sessionLogResult.rows,
@@ -1050,6 +1463,7 @@ router.get(
         classes: classResult.rows,
         students: studentResult.rows,
         teachers: teacherResult.rows,
+        tap_sessions: tapSessions,
       },
     });
   }),
