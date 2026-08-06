@@ -505,3 +505,254 @@ CREATE INDEX IF NOT EXISTS idx_expense_periode
 
 CREATE INDEX IF NOT EXISTS idx_expense_category
     ON finance.expense(homebase_id, category, expense_date DESC);
+
+
+-- =================================================================================
+-- Fitur: Honorarium — Unit section (Yayasan / Guru / Tata Usaha) + Jabatan
+-- Catatan: honor_unit ≠ a_homebase. homebase_id = satuan sekolah pemilik data.
+-- =================================================================================
+
+CREATE TABLE IF NOT EXISTS finance.honor_unit (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50),
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT honor_unit_name_not_blank CHECK (length(trim(name)) > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_unit_homebase_name
+    ON finance.honor_unit (homebase_id, lower(trim(name)));
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_unit_homebase_code
+    ON finance.honor_unit (homebase_id, lower(trim(code)))
+    WHERE code IS NOT NULL AND length(trim(code)) > 0;
+
+CREATE INDEX IF NOT EXISTS idx_honor_unit_homebase_sort
+    ON finance.honor_unit (homebase_id, sort_order ASC, id ASC);
+
+CREATE TABLE IF NOT EXISTS finance.honor_position (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    unit_id BIGINT NOT NULL REFERENCES finance.honor_unit(id) ON DELETE CASCADE,
+    name VARCHAR(120) NOT NULL,
+    allowance_amount NUMERIC(14, 2) NOT NULL DEFAULT 0
+        CHECK (allowance_amount >= 0),
+    base_salary NUMERIC(14, 2) NOT NULL DEFAULT 0
+        CHECK (base_salary >= 0),
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT honor_position_name_not_blank CHECK (length(trim(name)) > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_position_unit_name
+    ON finance.honor_position (unit_id, lower(trim(name)));
+
+CREATE INDEX IF NOT EXISTS idx_honor_position_homebase_unit
+    ON finance.honor_position (homebase_id, unit_id, sort_order ASC, id ASC);
+
+CREATE INDEX IF NOT EXISTS idx_honor_position_unit_active
+    ON finance.honor_position (unit_id, is_active);
+
+-- =================================================================================
+-- Fitur: Honorarium — Item rate (Rp/Jam, Transport, Wali Kelas, custom)
+-- =================================================================================
+
+CREATE TABLE IF NOT EXISTS finance.honor_rate_item (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    amount NUMERIC(14, 2) NOT NULL DEFAULT 0
+        CHECK (amount >= 0),
+    description TEXT,
+    valid_from DATE,
+    valid_to DATE,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT honor_rate_item_code_not_blank CHECK (length(trim(code)) > 0),
+    CONSTRAINT honor_rate_item_name_not_blank CHECK (length(trim(name)) > 0),
+    CONSTRAINT honor_rate_item_valid_range
+        CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_rate_item_homebase_code
+    ON finance.honor_rate_item (homebase_id, lower(trim(code)));
+
+CREATE INDEX IF NOT EXISTS idx_honor_rate_item_homebase_sort
+    ON finance.honor_rate_item (homebase_id, sort_order ASC, id ASC);
+
+CREATE INDEX IF NOT EXISTS idx_honor_rate_item_active_window
+    ON finance.honor_rate_item (homebase_id, is_active, valid_from, valid_to);
+
+-- =================================================================================
+-- Fitur: Honorarium — Tendik + Assignment multi-jabatan
+-- =================================================================================
+
+CREATE TABLE IF NOT EXISTS finance.honor_staff (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    full_name VARCHAR(150) NOT NULL,
+    nip VARCHAR(50),
+    phone VARCHAR(30),
+    email VARCHAR(120),
+    notes TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT honor_staff_name_not_blank CHECK (length(trim(full_name)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_honor_staff_homebase_name
+    ON finance.honor_staff (homebase_id, lower(trim(full_name)));
+
+CREATE INDEX IF NOT EXISTS idx_honor_staff_homebase_active
+    ON finance.honor_staff (homebase_id, is_active);
+
+CREATE TABLE IF NOT EXISTS finance.honor_assignment (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    position_id BIGINT NOT NULL REFERENCES finance.honor_position(id) ON DELETE RESTRICT,
+    person_type VARCHAR(20) NOT NULL
+        CHECK (person_type IN ('teacher', 'staff')),
+    teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
+    staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE CASCADE,
+    valid_from DATE,
+    valid_to DATE,
+    notes TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT honor_assignment_person_check CHECK (
+        (person_type = 'teacher' AND teacher_id IS NOT NULL AND staff_id IS NULL)
+        OR (person_type = 'staff' AND staff_id IS NOT NULL AND teacher_id IS NULL)
+    ),
+    CONSTRAINT honor_assignment_valid_range
+        CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_assignment_teacher_position
+    ON finance.honor_assignment (position_id, teacher_id)
+    WHERE person_type = 'teacher'
+      AND teacher_id IS NOT NULL
+      AND is_active = true;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_assignment_staff_position
+    ON finance.honor_assignment (position_id, staff_id)
+    WHERE person_type = 'staff'
+      AND staff_id IS NOT NULL
+      AND is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_honor_assignment_homebase_active
+    ON finance.honor_assignment (homebase_id, is_active, position_id);
+
+CREATE INDEX IF NOT EXISTS idx_honor_assignment_teacher
+    ON finance.honor_assignment (teacher_id)
+    WHERE teacher_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_honor_assignment_staff
+    ON finance.honor_assignment (staff_id)
+    WHERE staff_id IS NOT NULL;
+
+-- =================================================================================
+-- Fitur: Honorarium — Payroll period draft + line snapshot
+-- =================================================================================
+
+CREATE TABLE IF NOT EXISTS finance.honor_payroll_period (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    periode_id INT REFERENCES public.a_periode(id) ON DELETE SET NULL,
+    year INT NOT NULL CHECK (year >= 2000 AND year <= 2100),
+    month INT NOT NULL CHECK (month >= 1 AND month <= 12),
+    jam_mode VARCHAR(10) NOT NULL DEFAULT 'mati'
+        CHECK (jam_mode IN ('mati', 'hidup')),
+    status VARCHAR(20) NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'locked')),
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    teaching_rate NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (teaching_rate >= 0),
+    transport_rate NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (transport_rate >= 0),
+    homeroom_rate NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (homeroom_rate >= 0),
+    grand_total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    notes TEXT,
+    generated_at TIMESTAMP WITH TIME ZONE,
+    locked_at TIMESTAMP WITH TIME ZONE,
+    locked_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (homebase_id, year, month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_honor_payroll_period_homebase
+    ON finance.honor_payroll_period (homebase_id, year DESC, month DESC);
+
+CREATE INDEX IF NOT EXISTS idx_honor_payroll_period_status
+    ON finance.honor_payroll_period (homebase_id, status);
+
+CREATE TABLE IF NOT EXISTS finance.honor_payroll_line (
+    id BIGSERIAL PRIMARY KEY,
+    payroll_id BIGINT NOT NULL REFERENCES finance.honor_payroll_period(id) ON DELETE CASCADE,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    assignment_id BIGINT REFERENCES finance.honor_assignment(id) ON DELETE SET NULL,
+    unit_id BIGINT REFERENCES finance.honor_unit(id) ON DELETE SET NULL,
+    position_id BIGINT REFERENCES finance.honor_position(id) ON DELETE SET NULL,
+    person_type VARCHAR(20) NOT NULL
+        CHECK (person_type IN ('teacher', 'staff')),
+    teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE SET NULL,
+    staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE SET NULL,
+    person_name VARCHAR(150) NOT NULL,
+    person_nip VARCHAR(50),
+    unit_name VARCHAR(100),
+    unit_code VARCHAR(50),
+    unit_sort_order INT NOT NULL DEFAULT 0,
+    position_name VARCHAR(120),
+    subjects_text TEXT,
+    jam_mode VARCHAR(10) NOT NULL DEFAULT 'mati'
+        CHECK (jam_mode IN ('mati', 'hidup')),
+    jam_mati NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (jam_mati >= 0),
+    jam_hidup NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (jam_hidup >= 0),
+    jam_auto NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (jam_auto >= 0),
+    jam_final NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (jam_final >= 0),
+    jam_overridden BOOLEAN NOT NULL DEFAULT false,
+    hadir_auto NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (hadir_auto >= 0),
+    hadir_final NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (hadir_final >= 0),
+    hadir_overridden BOOLEAN NOT NULL DEFAULT false,
+    rp_per_jam NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (rp_per_jam >= 0),
+    transport_rate NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (transport_rate >= 0),
+    is_homeroom BOOLEAN NOT NULL DEFAULT false,
+    honor_mengajar NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    jumlah_transport NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    tunjangan_wali_kelas NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    tunjangan_jabatan NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    gapok NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    total_penerimaan NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    notes TEXT,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_honor_payroll_line_payroll
+    ON finance.honor_payroll_line (payroll_id, unit_sort_order ASC, sort_order ASC, id ASC);
+
+CREATE INDEX IF NOT EXISTS idx_honor_payroll_line_assignment
+    ON finance.honor_payroll_line (assignment_id);

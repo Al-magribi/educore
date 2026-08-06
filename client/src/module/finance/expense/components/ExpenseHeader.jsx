@@ -47,46 +47,59 @@ const ExpenseHeader = ({ onCreate }) => {
               >
                 Finance / Pengeluaran
               </Tag>
-              <Flex
-                align="center"
-                gap={6}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  color: "#ffedd5",
-                  fontWeight: 600,
-                  fontSize: isMobile ? 12 : 14,
-                }}
-              >
-                <Sparkles size={14} />
-                <span>Catat & kelola biaya operasional</span>
-              </Flex>
+              {!isMobile ? (
+                <Flex
+                  align="center"
+                  gap={6}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,0.12)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                    color: "#ffedd5",
+                    fontWeight: 600,
+                    fontSize: 14,
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>Catat & kelola biaya operasional</span>
+                </Flex>
+              ) : null}
             </Flex>
-            <Flex align="center" gap={12}>
+            <Flex align="flex-start" gap={12}>
               <div
                 style={{
-                  width: isMobile ? 44 : 54,
-                  height: isMobile ? 44 : 54,
+                  width: isMobile ? 40 : 54,
+                  height: isMobile ? 40 : 54,
                   display: "grid",
                   placeItems: "center",
-                  borderRadius: 18,
+                  borderRadius: isMobile ? 14 : 18,
                   background: "rgba(255,255,255,0.14)",
                   color: "#fff",
                   flexShrink: 0,
                 }}
               >
-                <BanknoteArrowDown size={isMobile ? 20 : 24} />
+                <BanknoteArrowDown size={isMobile ? 18 : 24} />
               </div>
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <Title
                   level={isMobile ? 4 : 3}
-                  style={{ color: "#fff", margin: 0, lineHeight: 1.25 }}
+                  style={{
+                    color: "#fff",
+                    margin: 0,
+                    lineHeight: 1.25,
+                    wordBreak: "break-word",
+                  }}
                 >
                   Pengelolaan Pengeluaran
                 </Title>
-                <Text style={{ color: "rgba(255,255,255,0.78)" }}>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.78)",
+                    fontSize: isMobile ? 13 : undefined,
+                    display: "block",
+                  }}
+                >
                   Catat pengeluaran satuan, filter per periode, dan pantau total
                   biaya.
                 </Text>

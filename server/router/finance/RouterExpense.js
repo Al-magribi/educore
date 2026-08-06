@@ -305,7 +305,7 @@ router.get(
       `;
     }
 
-    const [listResult, summaryResult, categoryResult] = await Promise.all([
+    const [listResult, summaryResult] = await Promise.all([
       db.query(
         `
           SELECT
@@ -325,25 +325,28 @@ router.get(
       db.query(
         `
           SELECT
-            COUNT(*)::int AS total_count,
-            COALESCE(SUM(e.amount), 0)::numeric AS total_amount
+            COALESCE(
+              SUM(CASE WHEN e.expense_date = CURRENT_DATE THEN e.amount ELSE 0 END),
+              0
+            )::numeric AS daily_amount,
+            COUNT(*) FILTER (WHERE e.expense_date = CURRENT_DATE)::int AS daily_count,
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN date_trunc('month', e.expense_date) = date_trunc('month', CURRENT_DATE)
+                  THEN e.amount
+                  ELSE 0
+                END
+              ),
+              0
+            )::numeric AS monthly_amount,
+            COUNT(*) FILTER (
+              WHERE date_trunc('month', e.expense_date) = date_trunc('month', CURRENT_DATE)
+            )::int AS monthly_count
           FROM finance.expense e
-          ${whereClause}
+          WHERE e.homebase_id = $1
         `,
-        params,
-      ),
-      db.query(
-        `
-          SELECT
-            e.category,
-            COUNT(*)::int AS count,
-            COALESCE(SUM(e.amount), 0)::numeric AS amount
-          FROM finance.expense e
-          ${whereClause}
-          GROUP BY e.category
-          ORDER BY amount DESC
-        `,
-        params,
+        [homebaseId],
       ),
     ]);
 
@@ -353,13 +356,10 @@ router.get(
       status: "success",
       data: listResult.rows.map(normalizeExpense),
       summary: {
-        total_count: Number(summaryRow.total_count || 0),
-        total_amount: Number(summaryRow.total_amount || 0),
-        by_category: categoryResult.rows.map((item) => ({
-          category: item.category,
-          count: Number(item.count || 0),
-          amount: Number(item.amount || 0),
-        })),
+        daily_amount: Number(summaryRow.daily_amount || 0),
+        daily_count: Number(summaryRow.daily_count || 0),
+        monthly_amount: Number(summaryRow.monthly_amount || 0),
+        monthly_count: Number(summaryRow.monthly_count || 0),
       },
     });
   }),
