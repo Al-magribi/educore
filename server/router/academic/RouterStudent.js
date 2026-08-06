@@ -6,6 +6,89 @@ import { getActivePeriode, syncUserRfid } from "../../utils/helper.js";
 
 const router = Router();
 
+const normalizeRfidUid = (value) => `${value || ""}`.trim().toUpperCase();
+
+/**
+ * Sync kartu RFID ke user. Kartu nonaktif boleh dipindah ke user lain;
+ * hanya kartu aktif milik user lain yang ditolak.
+ */
+const syncStudentRfidCard = async (client, userId, rfidNo) => {
+  const normalizedRfid = normalizeRfidUid(rfidNo);
+
+  if (!normalizedRfid) {
+    await client.query(
+      `UPDATE attendance.rfid_card
+       SET is_active = false, is_primary = false
+       WHERE user_id = $1`,
+      [userId],
+    );
+    return;
+  }
+
+  const existingByUid = await client.query(
+    `SELECT id, user_id, is_active
+     FROM attendance.rfid_card
+     WHERE upper(card_uid) = $1
+     LIMIT 1`,
+    [normalizedRfid],
+  );
+
+  if (existingByUid.rowCount > 0) {
+    const card = existingByUid.rows[0];
+    if (Number(card.user_id) !== Number(userId) && card.is_active) {
+      const error = new Error("No RFID sudah dipakai user lain.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await client.query(
+      `UPDATE attendance.rfid_card
+       SET user_id = $1, card_uid = $2, is_active = true, is_primary = true
+       WHERE id = $3`,
+      [userId, normalizedRfid, card.id],
+    );
+    await client.query(
+      `UPDATE attendance.rfid_card
+       SET is_active = false, is_primary = false
+       WHERE user_id = $1 AND id <> $2`,
+      [userId, card.id],
+    );
+    return;
+  }
+
+  const userCard = await client.query(
+    `SELECT id
+     FROM attendance.rfid_card
+     WHERE user_id = $1
+     ORDER BY is_active DESC, is_primary DESC, id DESC
+     LIMIT 1`,
+    [userId],
+  );
+
+  if (userCard.rowCount > 0) {
+    const cardId = userCard.rows[0].id;
+    await client.query(
+      `UPDATE attendance.rfid_card
+       SET card_uid = $1, is_active = true, is_primary = true
+       WHERE id = $2`,
+      [normalizedRfid, cardId],
+    );
+    await client.query(
+      `UPDATE attendance.rfid_card
+       SET is_active = false, is_primary = false
+       WHERE user_id = $1 AND id <> $2`,
+      [userId, cardId],
+    );
+    return;
+  }
+
+  await client.query(
+    `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
+     VALUES ($1, $2, 'rfid', true, true)`,
+    [userId, normalizedRfid],
+  );
+};
+
 // ============================================================================
 // 1. GET STUDENTS (Sama seperti sebelumnya, tidak diubah logic query-nya)
 // ============================================================================
@@ -65,7 +148,12 @@ router.get(
       WHERE u.role = 'student' 
         AND s.homebase_id = $1
         AND ce.periode_id = $5 
-        AND (u.full_name ILIKE $2 OR s.nis ILIKE $2)
+        AND (
+          u.full_name ILIKE $2
+          OR s.nis ILIKE $2
+          OR COALESCE(s.nisn, '') ILIKE $2
+          OR COALESCE(rc.card_uid, '') ILIKE $2
+        )
       
       ORDER BY g.name ASC NULLS LAST, c.name ASC, u.full_name ASC
       LIMIT $3 OFFSET $4
@@ -76,10 +164,22 @@ router.get(
       FROM u_users u
       JOIN u_students s ON u.id = s.user_id
       JOIN u_class_enrollments ce ON s.user_id = ce.student_id
+      LEFT JOIN LATERAL (
+        SELECT card_uid
+        FROM attendance.rfid_card
+        WHERE user_id = u.id AND is_active = true
+        ORDER BY is_primary DESC, id DESC
+        LIMIT 1
+      ) rc ON true
       WHERE u.role = 'student' 
         AND s.homebase_id = $1
         AND ce.periode_id = $3
-        AND (u.full_name ILIKE $2 OR s.nis ILIKE $2)
+        AND (
+          u.full_name ILIKE $2
+          OR s.nis ILIKE $2
+          OR COALESCE(s.nisn, '') ILIKE $2
+          OR COALESCE(rc.card_uid, '') ILIKE $2
+        )
     `;
 
     const [dataResult, countResult] = await Promise.all([
