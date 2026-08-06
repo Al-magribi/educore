@@ -1,12 +1,20 @@
 import {
   BookOutlined,
   CreditCardOutlined,
+  FileTextOutlined,
+  FundOutlined,
   MoneyCollectOutlined,
   ReadOutlined,
   SettingFilled,
   WalletOutlined,
 } from "@ant-design/icons";
-import { Landmark } from "lucide-react";
+import { HandCoins, Landmark, BanknoteArrowDown } from "lucide-react";
+
+const centerFinanceMenus = {
+  label: "Keuangan",
+  key: "/keuangan",
+  icon: <HandCoins size={14} />,
+};
 
 const buildFinanceMenus = (user = {}) => {
   const financeMenus = [
@@ -21,6 +29,11 @@ const buildFinanceMenus = (user = {}) => {
       icon: <MoneyCollectOutlined />,
     },
     {
+      label: "Beasiswa",
+      key: "/finance/beasiswa",
+      icon: <FundOutlined />,
+    },
+    {
       label: "Transaksi Keuangan",
       key: "/finance/transaksi",
       icon: <WalletOutlined />,
@@ -29,6 +42,16 @@ const buildFinanceMenus = (user = {}) => {
       label: "Tabungan Siswa",
       key: "/finance/laporan-tabungan",
       icon: <BookOutlined />,
+    },
+    {
+      label: "Pengeluaran",
+      key: "/finance/pengeluaran",
+      icon: <BanknoteArrowDown size={18} />,
+    },
+    {
+      label: "Laporan",
+      key: "/finance/laporan",
+      icon: <FileTextOutlined />,
     },
     {
       label: "Pengaturan",
@@ -48,6 +71,7 @@ const buildFinanceMenus = (user = {}) => {
         key: "/guru/keuangan-kelas",
         icon: <WalletOutlined />,
       },
+
       {
         label: "Tabungan",
         key: "/guru/tabungan",
@@ -93,12 +117,12 @@ const buildFinanceMenus = (user = {}) => {
   };
 
   return {
-    center: [],
+    center: [centerFinanceMenus],
     admin: [],
     finance: financeMenus,
-    teacher: [],
-    student: [],
-    parent: [],
+    teacher: user?.is_homeroom ? [teacherFinanceNode] : [],
+    student: [studentFinanceNode],
+    parent: [parentFinanceNode],
     tahfiz: [],
   };
 };
