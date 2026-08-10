@@ -76,6 +76,48 @@ export const formatBillingPeriod = (month) => {
   return MONTH_NAMES[month - 1];
 };
 
+/** Menolak mutasi bila bulan kalender sudah ditutup buku (finance.period_lock). */
+export const getMonthLockError = async (db, homebaseId, year, month) => {
+  const y = Number(year);
+  const m = Number(month);
+  if (!homebaseId || !y || !m || m < 1 || m > 12) {
+    return null;
+  }
+
+  const lockTable = await db.query(
+    `SELECT to_regclass('finance.period_lock') AS table_ref`,
+  );
+  if (!lockTable.rows[0]?.table_ref) {
+    return null;
+  }
+
+  const result = await db.query(
+    `
+      SELECT id
+      FROM finance.period_lock
+      WHERE homebase_id = $1
+        AND year = $2
+        AND month = $3
+      LIMIT 1
+    `,
+    [homebaseId, y, m],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return `Periode ${MONTH_NAMES[m - 1]} ${y} sudah ditutup buku. Buka kunci periode terlebih dahulu di Laporan Keuangan.`;
+};
+
+export const getMonthLockErrorFromDate = async (db, homebaseId, dateStr) => {
+  if (!dateStr) {
+    return null;
+  }
+  const [year, month] = String(dateStr).slice(0, 7).split("-").map(Number);
+  return getMonthLockError(db, homebaseId, year, month);
+};
+
 const buildCodeFromName = (name, fallbackPrefix = "ITEM") => {
   const slug = String(name || "")
     .trim()

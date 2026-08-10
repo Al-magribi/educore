@@ -30,6 +30,32 @@ export const cardStyle = {
   boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
 };
 
+export const expenseCategoryLabelMap = {
+  operational: "Operasional",
+  utilities: "Utilitas",
+  salary: "Gaji / Honor",
+  maintenance: "Pemeliharaan",
+  activity: "Kegiatan",
+  supplies: "ATK / Perlengkapan",
+  other: "Lainnya",
+};
+
+export const expenseCategoryColorMap = {
+  operational: "geekblue",
+  utilities: "cyan",
+  salary: "purple",
+  maintenance: "orange",
+  activity: "green",
+  supplies: "magenta",
+  other: "default",
+};
+
+export const paymentMethodLabelMap = {
+  cash: "Tunai",
+  transfer: "Transfer",
+  other: "Lainnya",
+};
+
 export const MODE_OPTIONS = [
   { value: "periode", label: "Satu periode utuh" },
   { value: "bulan", label: "Bulan" },

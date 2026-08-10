@@ -23,12 +23,18 @@ import {
   useGetTransactionsQuery,
   useLazyGetTransactionsQuery,
 } from "../../../../service/finance/ApiTransaction";
+import { useGetExpensesQuery } from "../../../../service/finance/ApiExpense";
 import {
   cardStyle,
   currencyFormatter,
+  expenseCategoryColorMap,
+  expenseCategoryLabelMap,
+  paymentMethodLabelMap,
   statusColorMap,
   statusLabelMap,
 } from "../constants";
+import ReportBudgetTab from "./ReportBudgetTab";
+import ReportCashflowTab from "./ReportCashflowTab";
 
 const { Text } = Typography;
 
@@ -453,11 +459,208 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
   );
 };
 
+const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
+  const [selectedDate, setSelectedDate] = useState(() => todayString());
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  const queryArgs = useMemo(
+    () => ({
+      homebase_id: homebaseId,
+      date_from: selectedDate,
+      date_to: selectedDate,
+      search: search.trim() || undefined,
+    }),
+    [homebaseId, search, selectedDate],
+  );
+
+  const { data: response, isFetching } = useGetExpensesQuery(queryArgs, {
+    skip: !enabled || !homebaseId || !selectedDate,
+  });
+
+  const expenses = response?.data || [];
+  const totalAmount = expenses.reduce(
+    (sum, item) => sum + Number(item.amount || 0),
+    0,
+  );
+
+  const handleExportExcel = () => {
+    if (!expenses.length) {
+      message.info("Tidak ada pengeluaran untuk diekspor");
+      return;
+    }
+
+    const sheetRows = [
+      ["Tanggal", "Kategori", "Judul", "Keterangan", "Metode", "Nominal"],
+      ...expenses.map((item) => [
+        dayjs(item.expense_date).format("DD/MM/YYYY"),
+        expenseCategoryLabelMap[item.category] || item.category,
+        item.title || "-",
+        item.description || "-",
+        paymentMethodLabelMap[item.payment_method] || item.payment_method,
+        currencyFormatter.format(Number(item.amount || 0)),
+      ]),
+      [
+        "Grand Total",
+        "",
+        "",
+        "",
+        "",
+        currencyFormatter.format(totalAmount),
+      ],
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 30 },
+      { wch: 36 },
+      { wch: 12 },
+      { wch: 20 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pengeluaran Harian");
+    XLSX.writeFile(workbook, `pengeluaran-harian-${selectedDate}.xlsx`);
+    message.success("Excel berhasil diunduh");
+  };
+
+  const columns = [
+    {
+      title: "Kategori",
+      dataIndex: "category",
+      key: "category",
+      width: 150,
+      render: (value) => (
+        <Tag color={expenseCategoryColorMap[value] || "default"}>
+          {expenseCategoryLabelMap[value] || value}
+        </Tag>
+      ),
+    },
+    {
+      title: "Pengeluaran",
+      dataIndex: "title",
+      key: "title",
+      render: (value, row) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{value}</div>
+          {row.description ? (
+            <div style={{ color: "#64748b", fontSize: 12 }}>
+              {row.description}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      title: "Metode",
+      dataIndex: "payment_method",
+      key: "payment_method",
+      width: 110,
+      render: (value) => paymentMethodLabelMap[value] || value || "-",
+    },
+    {
+      title: "Referensi",
+      dataIndex: "reference_no",
+      key: "reference_no",
+      width: 140,
+      render: (value) => value || "-",
+    },
+    {
+      title: "Nominal",
+      dataIndex: "amount",
+      key: "amount",
+      align: "right",
+      width: 160,
+      render: (value) => (
+        <span style={{ fontWeight: 600, color: "#dc2626" }}>
+          {currencyFormatter.format(value || 0)}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <Flex
+        justify='space-between'
+        align='center'
+        gap={12}
+        wrap='wrap'
+        style={{ marginBottom: 14 }}
+      >
+        <Space wrap>
+          <DatePicker
+            allowClear={false}
+            value={selectedDate ? dayjs(selectedDate) : null}
+            format='DD MMM YYYY'
+            onChange={(value) => {
+              setSelectedDate(
+                value ? value.format("YYYY-MM-DD") : todayString(),
+              );
+            }}
+          />
+          <Input.Search
+            allowClear
+            placeholder='Cari judul / keterangan / referensi…'
+            style={{ minWidth: 260 }}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            onSearch={(value) => setSearch(value)}
+            onClear={() => {
+              setSearchInput("");
+              setSearch("");
+            }}
+          />
+          <Button
+            icon={<Download size={16} />}
+            disabled={!expenses.length}
+            onClick={handleExportExcel}
+          >
+            Download Excel
+          </Button>
+        </Space>
+
+        <Statistic
+          title='Total pengeluaran'
+          value={totalAmount}
+          formatter={(value) => currencyFormatter.format(Number(value || 0))}
+          styles={{ content: { fontSize: 18, color: "#dc2626" } }}
+        />
+      </Flex>
+
+      <Text type='secondary' style={{ display: "block", marginBottom: 10 }}>
+        Pengeluaran tercatat pada{" "}
+        {selectedDate ? dayjs(selectedDate).format("DD MMMM YYYY") : "-"} ·{" "}
+        {expenses.length} transaksi
+      </Text>
+
+      <Table
+        rowKey='id'
+        columns={columns}
+        dataSource={expenses}
+        loading={isFetching}
+        pagination={{ pageSize: 15, showSizeChanger: true }}
+        scroll={{ x: 900 }}
+        size='middle'
+        locale={{
+          emptyText: "Tidak ada pengeluaran pada tanggal ini.",
+        }}
+      />
+    </>
+  );
+};
+
 const ReportBreakdown = ({
   sppByClass = [],
   otherByType = [],
   unpaidStudents = [],
+  expenseByCategory = [],
+  budgetItems = [],
+  monthlyCashflow = [],
   homebaseId,
+  periodeId,
 }) => {
   const [activeTab, setActiveTab] = useState("spp");
 
@@ -590,6 +793,62 @@ const ReportBreakdown = ({
     },
   ];
 
+  const expenseCategoryTotal = expenseByCategory.reduce(
+    (sum, row) => sum + Number(row.total || 0),
+    0,
+  );
+
+  const expenseCategoryColumns = [
+    {
+      title: "Kategori",
+      dataIndex: "category_label",
+      key: "category_label",
+      render: (value, row) => (
+        <Tag color={expenseCategoryColorMap[row.category] || "default"}>
+          {value}
+        </Tag>
+      ),
+    },
+    {
+      title: "Transaksi",
+      dataIndex: "entry_count",
+      key: "entry_count",
+      width: 110,
+      align: "right",
+    },
+    {
+      title: "Total",
+      dataIndex: "total",
+      key: "total",
+      align: "right",
+      render: (value) => (
+        <span style={{ fontWeight: 600 }}>
+          {currencyFormatter.format(value || 0)}
+        </span>
+      ),
+    },
+    {
+      title: "Proporsi",
+      key: "proportion",
+      width: 180,
+      render: (_, row) => {
+        const percent =
+          expenseCategoryTotal > 0
+            ? Math.round((Number(row.total || 0) / expenseCategoryTotal) * 1000) /
+              10
+            : 0;
+        return (
+          <Progress
+            percent={percent}
+            size='small'
+            strokeColor='#dc2626'
+            format={(value) => `${value}%`}
+          />
+        );
+      },
+    },
+  ];
+
   return (
     <Card style={cardStyle} styles={{ body: { paddingTop: 8 } }}>
       <Tabs
@@ -640,9 +899,71 @@ const ReportBreakdown = ({
             ),
           },
           {
+            key: "expense_category",
+            label: `Pengeluaran per Kategori (${expenseByCategory.length})`,
+            children: (
+              <Table
+                rowKey='category'
+                columns={expenseCategoryColumns}
+                dataSource={expenseByCategory}
+                pagination={false}
+                scroll={{ x: 700 }}
+                size='middle'
+                locale={{
+                  emptyText:
+                    "Belum ada pengeluaran tercatat pada cakupan laporan ini.",
+                }}
+                summary={() =>
+                  expenseByCategory.length ? (
+                    <Table.Summary.Row>
+                      <Table.Summary.Cell index={0}>
+                        <span style={{ fontWeight: 600 }}>Total</span>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={1} align='right'>
+                        <span style={{ fontWeight: 600 }}>
+                          {expenseByCategory.reduce(
+                            (sum, row) => sum + Number(row.entry_count || 0),
+                            0,
+                          )}
+                        </span>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={2} align='right'>
+                        <span style={{ fontWeight: 600, color: "#dc2626" }}>
+                          {currencyFormatter.format(expenseCategoryTotal)}
+                        </span>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={3} />
+                    </Table.Summary.Row>
+                  ) : null
+                }
+              />
+            ),
+          },
+          {
             key: "expense",
             label: "Pengeluaran Harian",
-            children: <>Pengeluaran Harian</>,
+            children: (
+              <DailyExpenseTab
+                homebaseId={homebaseId}
+                enabled={activeTab === "expense"}
+              />
+            ),
+          },
+          {
+            key: "budget",
+            label: "RAPBS (Anggaran)",
+            children: (
+              <ReportBudgetTab
+                homebaseId={homebaseId}
+                periodeId={periodeId}
+                items={budgetItems}
+              />
+            ),
+          },
+          {
+            key: "cashflow",
+            label: `Arus Kas (${monthlyCashflow.length})`,
+            children: <ReportCashflowTab rows={monthlyCashflow} />,
           },
         ]}
       />

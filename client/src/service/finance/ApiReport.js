@@ -15,7 +15,13 @@ const buildQueryString = (params = {}) => {
 export const ApiReport = createApi({
   reducerPath: "ApiFinanceReport",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/finance" }),
-  tagTypes: ["FinanceReport", "FinanceReportOption", "FinanceReportHomebase"],
+  tagTypes: [
+    "FinanceReport",
+    "FinanceReportOption",
+    "FinanceReportHomebase",
+    "FinanceBudget",
+    "FinanceClosing",
+  ],
   endpoints: (builder) => ({
     getReportHomebases: builder.query({
       query: (params) => {
@@ -36,6 +42,42 @@ export const ApiReport = createApi({
       query: (params) => `/reports/revenue?${buildQueryString(params)}`,
       providesTags: ["FinanceReport"],
     }),
+
+    getBudgets: builder.query({
+      query: (params) => `/reports/budgets?${buildQueryString(params)}`,
+      providesTags: ["FinanceBudget"],
+    }),
+
+    saveBudgets: builder.mutation({
+      query: (body) => ({
+        url: "/reports/budgets",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["FinanceBudget", "FinanceReport"],
+    }),
+
+    getClosings: builder.query({
+      query: (params) => `/reports/closings?${buildQueryString(params)}`,
+      providesTags: ["FinanceClosing"],
+    }),
+
+    lockClosing: builder.mutation({
+      query: (body) => ({
+        url: "/reports/closings",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["FinanceClosing"],
+    }),
+
+    unlockClosing: builder.mutation({
+      query: ({ id, ...params }) => ({
+        url: `/reports/closings/${id}?${buildQueryString(params)}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["FinanceClosing"],
+    }),
   }),
 });
 
@@ -43,4 +85,9 @@ export const {
   useGetReportHomebasesQuery,
   useGetReportOptionsQuery,
   useGetRevenueReportQuery,
+  useGetBudgetsQuery,
+  useSaveBudgetsMutation,
+  useGetClosingsQuery,
+  useLockClosingMutation,
+  useUnlockClosingMutation,
 } = ApiReport;

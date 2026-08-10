@@ -193,9 +193,12 @@ const ExpenseFormModal = ({
           </Col>
         </Row>
 
-        <Form.Item name="periode_id" label="Periode (opsional)">
+        <Form.Item
+          name="periode_id"
+          label="Periode"
+          rules={[{ required: true, message: "Periode wajib dipilih" }]}
+        >
           <Select
-            allowClear
             placeholder="Pilih periode"
             options={periodes.map((item) => ({
               value: item.id,

@@ -4,8 +4,11 @@ import {
   AlertTriangle,
   CircleDollarSign,
   Layers3,
+  Receipt,
+  Scale,
   Target,
   Wallet,
+  WalletCards,
 } from "lucide-react";
 import { Info } from "lucide-react";
 
@@ -63,6 +66,39 @@ const cards = [
     bg: "linear-gradient(135deg, #ffedd5, #fff7ed)",
     isCount: true,
   },
+  {
+    key: "expense_total",
+    title: "Pengeluaran Operasional",
+    note: "Total pengeluaran harian (operasional, kegiatan, dll.) sesuai filter.",
+    icon: <Receipt size={18} />,
+    color: "#dc2626",
+    bg: "linear-gradient(135deg, #fee2e2, #fff1f2)",
+  },
+  {
+    key: "honorarium_total",
+    title: "Honorarium (Terkunci)",
+    note: "Total payroll honorarium berstatus terkunci sesuai filter.",
+    icon: <WalletCards size={18} />,
+    color: "#9333ea",
+    bg: "linear-gradient(135deg, #f3e8ff, #faf5ff)",
+  },
+  {
+    key: "honorarium_draft_total",
+    title: "Honorarium Draft (Komitmen)",
+    note: "Payroll yang masih draft: kewajiban belum final dan tidak mengurangi saldo bersih.",
+    icon: <WalletCards size={18} />,
+    color: "#a16207",
+    bg: "linear-gradient(135deg, #fef9c3, #fefce8)",
+  },
+  {
+    key: "net_balance",
+    title: "Saldo Bersih",
+    note: "Pendapatan fee dikurangi pengeluaran operasional dan honorarium terkunci. Draft honorarium tidak mengurangi saldo.",
+    icon: <Scale size={18} />,
+    color: "#0f766e",
+    bg: "linear-gradient(135deg, #ccfbf1, #f0fdfa)",
+    signColored: true,
+  },
 ];
 
 const ReportSummaryCards = ({ summary = {} }) => (
@@ -101,6 +137,16 @@ const ReportSummaryCards = ({ summary = {} }) => (
                     </Flex>
                   }
                   value={summary[item.key] || 0}
+                  valueStyle={
+                    item.signColored
+                      ? {
+                          color:
+                            Number(summary[item.key] || 0) >= 0
+                              ? "#15803d"
+                              : "#dc2626",
+                        }
+                      : undefined
+                  }
                   formatter={(value) =>
                     item.isCount
                       ? Number(value || 0).toLocaleString("id-ID")

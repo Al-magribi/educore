@@ -2,6 +2,7 @@ import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import {
+  getMonthLockErrorFromDate,
   parseAmount,
   parseOptionalInt,
   resolveScopedHomebaseId,
@@ -86,6 +87,32 @@ const ensureExpenseTables = async (db) => {
         CREATE INDEX IF NOT EXISTS idx_expense_category
         ON finance.expense(homebase_id, category, expense_date DESC)
       `);
+
+      // Basis pelaporan per periode: backfill data lama tanpa periode
+      // (prioritas periode aktif, lalu periode terbaru), lalu kunci NOT NULL.
+      await db.query(`
+        UPDATE finance.expense e
+        SET periode_id = (
+          SELECT p.id
+          FROM a_periode p
+          WHERE p.homebase_id = e.homebase_id
+          ORDER BY p.is_active DESC, p.created_at DESC NULLS LAST, p.id DESC
+          LIMIT 1
+        )
+        WHERE e.periode_id IS NULL
+      `);
+
+      const nullCheck = await db.query(`
+        SELECT COUNT(*)::int AS null_count
+        FROM finance.expense
+        WHERE periode_id IS NULL
+      `);
+      if (Number(nullCheck.rows[0]?.null_count || 0) === 0) {
+        await db.query(`
+          ALTER TABLE finance.expense
+          ALTER COLUMN periode_id SET NOT NULL
+        `);
+      }
     })()
       .then(() => {
         expenseSchemaReady = true;
@@ -183,6 +210,10 @@ const validateExpensePayload = (body = {}) => {
     return { error: "Tanggal pengeluaran wajib diisi (YYYY-MM-DD)" };
   }
 
+  if (!periodeId) {
+    return { error: "Periode wajib dipilih" };
+  }
+
   return {
     data: {
       title,
@@ -197,6 +228,9 @@ const validateExpensePayload = (body = {}) => {
     },
   };
 };
+
+const getMonthLockError = (db, homebaseId, dateStr) =>
+  getMonthLockErrorFromDate(db, homebaseId, dateStr);
 
 router.get(
   "/expense/options",
@@ -457,6 +491,15 @@ router.post(
       }
     }
 
+    const lockError = await getMonthLockError(
+      client,
+      homebaseId,
+      payload.expense_date,
+    );
+    if (lockError) {
+      return res.status(409).json({ message: lockError });
+    }
+
     const result = await client.query(
       `
         INSERT INTO finance.expense (
@@ -543,6 +586,34 @@ router.put(
       }
     }
 
+    const existing = await client.query(
+      `
+        SELECT expense_date
+        FROM finance.expense
+        WHERE id = $1
+          AND homebase_id = $2
+        LIMIT 1
+      `,
+      [expenseId, homebaseId],
+    );
+
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ message: "Pengeluaran tidak ditemukan" });
+    }
+
+    // Kunci berlaku untuk bulan asal maupun bulan tujuan perubahan.
+    const existingDate = existing.rows[0].expense_date
+      ? String(existing.rows[0].expense_date instanceof Date
+          ? existing.rows[0].expense_date.toISOString().slice(0, 10)
+          : existing.rows[0].expense_date).slice(0, 10)
+      : null;
+    const lockError =
+      (await getMonthLockError(client, homebaseId, existingDate)) ||
+      (await getMonthLockError(client, homebaseId, payload.expense_date));
+    if (lockError) {
+      return res.status(409).json({ message: lockError });
+    }
+
     const result = await client.query(
       `
         UPDATE finance.expense
@@ -606,6 +677,31 @@ router.delete(
 
     if (!expenseId || !homebaseId) {
       return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    const existing = await client.query(
+      `
+        SELECT expense_date
+        FROM finance.expense
+        WHERE id = $1
+          AND homebase_id = $2
+        LIMIT 1
+      `,
+      [expenseId, homebaseId],
+    );
+
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ message: "Pengeluaran tidak ditemukan" });
+    }
+
+    const existingDate = existing.rows[0].expense_date
+      ? String(existing.rows[0].expense_date instanceof Date
+          ? existing.rows[0].expense_date.toISOString().slice(0, 10)
+          : existing.rows[0].expense_date).slice(0, 10)
+      : null;
+    const lockError = await getMonthLockError(client, homebaseId, existingDate);
+    if (lockError) {
+      return res.status(409).json({ message: lockError });
     }
 
     const result = await client.query(

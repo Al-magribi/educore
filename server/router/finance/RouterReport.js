@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { withQuery } from "../../utils/wrapper.js";
+import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import {
   MONTH_NAMES,
@@ -16,7 +16,356 @@ const router = Router();
 const SUCCESS_PAYMENT_STATUSES = ["confirmed", "paid"];
 const REPORT_MODES = new Set(["periode", "bulan", "rentang"]);
 
+const EXPENSE_CATEGORY_LABELS = {
+  operational: "Operasional",
+  utilities: "Utilitas",
+  salary: "Gaji / Honor",
+  maintenance: "Pemeliharaan",
+  activity: "Kegiatan",
+  supplies: "ATK / Perlengkapan",
+  other: "Lainnya",
+};
+
 const numberValue = (value) => Number(value || 0);
+
+const tableExists = async (db, qualifiedName) => {
+  const result = await db.query(`SELECT to_regclass($1) AS table_ref`, [
+    qualifiedName,
+  ]);
+  return Boolean(result.rows[0]?.table_ref);
+};
+
+// Baris baku RAPBS: sumber pendapatan dan pos pengeluaran yang dianggarkan.
+const BUDGET_CATALOG = [
+  { kind: "income", category: "spp", label: "Pendapatan SPP" },
+  { kind: "income", category: "other", label: "Pendapatan Lainnya" },
+  ...Object.entries(EXPENSE_CATEGORY_LABELS).map(([category, label]) => ({
+    kind: "expense",
+    category,
+    label,
+  })),
+  { kind: "expense", category: "honorarium", label: "Honorarium" },
+];
+
+const BUDGET_KEYS = new Set(
+  BUDGET_CATALOG.map((item) => `${item.kind}:${item.category}`),
+);
+
+let reportSupportSchemaReady = false;
+let reportSupportSchemaPromise = null;
+
+const ensureReportSupportTables = async (db) => {
+  if (reportSupportSchemaReady) {
+    return;
+  }
+
+  if (!reportSupportSchemaPromise) {
+    reportSupportSchemaPromise = (async () => {
+      await db.query(`CREATE SCHEMA IF NOT EXISTS finance`);
+
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS finance.budget (
+          id BIGSERIAL PRIMARY KEY,
+          homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+          periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
+          kind VARCHAR(10) NOT NULL CHECK (kind IN ('income', 'expense')),
+          category VARCHAR(30) NOT NULL,
+          amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (amount >= 0),
+          notes TEXT,
+          created_by INT REFERENCES public.u_users(id),
+          updated_by INT REFERENCES public.u_users(id),
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          UNIQUE (homebase_id, periode_id, kind, category)
+        )
+      `);
+
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS finance.period_lock (
+          id BIGSERIAL PRIMARY KEY,
+          homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+          year INT NOT NULL CHECK (year >= 2000 AND year <= 2100),
+          month INT NOT NULL CHECK (month >= 1 AND month <= 12),
+          notes TEXT,
+          locked_by INT REFERENCES public.u_users(id),
+          locked_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          UNIQUE (homebase_id, year, month)
+        )
+      `);
+    })()
+      .then(() => {
+        reportSupportSchemaReady = true;
+      })
+      .catch((error) => {
+        reportSupportSchemaPromise = null;
+        throw error;
+      });
+  }
+
+  await reportSupportSchemaPromise;
+};
+
+// Pengeluaran operasional (finance.expense) dalam cakupan filter laporan.
+const loadExpenseBreakdown = async (db, { homebaseId, periodeId, mode, month, dateFrom, dateTo }) => {
+  if (!(await tableExists(db, "finance.expense"))) {
+    return [];
+  }
+
+  const params = [homebaseId, periodeId];
+  let dateClause = "";
+  if (mode === "bulan" && month) {
+    params.push(month);
+    dateClause = ` AND EXTRACT(MONTH FROM e.expense_date) = $${params.length}`;
+  } else if (mode === "rentang" && dateFrom && dateTo) {
+    params.push(dateFrom, dateTo);
+    dateClause = ` AND e.expense_date BETWEEN $${params.length - 1} AND $${params.length}`;
+  }
+
+  const result = await db.query(
+    `
+      SELECT
+        e.category,
+        COUNT(*)::int AS entry_count,
+        COALESCE(SUM(e.amount), 0)::float AS total
+      FROM finance.expense e
+      WHERE e.homebase_id = $1
+        AND e.periode_id = $2
+        ${dateClause}
+      GROUP BY e.category
+      ORDER BY total DESC
+    `,
+    params,
+  );
+
+  return result.rows.map((row) => ({
+    category: row.category,
+    category_label: EXPENSE_CATEGORY_LABELS[row.category] || row.category,
+    entry_count: Number(row.entry_count || 0),
+    total: numberValue(row.total),
+  }));
+};
+
+// Honorarium dalam cakupan filter: locked = realisasi, draft = komitmen belum final.
+const loadHonorariumSummary = async (db, { homebaseId, periodeId, mode, month, dateFrom, dateTo }) => {
+  if (!(await tableExists(db, "finance.honor_payroll_period"))) {
+    return { total: 0, payroll_count: 0, draft_total: 0, draft_count: 0 };
+  }
+
+  const params = [homebaseId, periodeId];
+  let dateClause = "";
+  if (mode === "bulan" && month) {
+    params.push(month);
+    dateClause = ` AND hp.month = $${params.length}`;
+  } else if (mode === "rentang" && dateFrom && dateTo) {
+    params.push(dateFrom, dateTo);
+    dateClause = ` AND hp.start_date <= $${params.length} AND hp.end_date >= $${params.length - 1}`;
+  }
+
+  const result = await db.query(
+    `
+      SELECT
+        hp.status,
+        COALESCE(SUM(hp.grand_total), 0)::float AS total,
+        COUNT(*)::int AS payroll_count
+      FROM finance.honor_payroll_period hp
+      WHERE hp.homebase_id = $1
+        AND hp.periode_id = $2
+        ${dateClause}
+      GROUP BY hp.status
+    `,
+    params,
+  );
+
+  const summary = { total: 0, payroll_count: 0, draft_total: 0, draft_count: 0 };
+  for (const row of result.rows) {
+    if (row.status === "locked") {
+      summary.total = numberValue(row.total);
+      summary.payroll_count = Number(row.payroll_count || 0);
+    } else {
+      summary.draft_total += numberValue(row.total);
+      summary.draft_count += Number(row.payroll_count || 0);
+    }
+  }
+  return summary;
+};
+
+// Arus kas per bulan kalender (kunci YYYY-MM) untuk satu periode penuh.
+const loadMonthlyCashflow = async (db, { homebaseId, periodeId }) => {
+  const buckets = new Map();
+  const ensureBucket = (key) => {
+    if (!buckets.has(key)) {
+      buckets.set(key, { month_key: key, cash_in: 0, cash_out: 0 });
+    }
+    return buckets.get(key);
+  };
+
+  const incomeResult = await db.query(
+    `
+      SELECT
+        to_char(p.payment_date, 'YYYY-MM') AS month_key,
+        COALESCE(SUM(pa.allocated_amount), 0)::float AS total
+      FROM finance.payment p
+      JOIN finance.payment_allocation pa ON pa.payment_id = p.id
+      JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      WHERE inv.homebase_id = $1
+        AND inv.periode_id = $2
+        AND p.status = ANY($3::text[])
+        AND ii.item_type IN ('spp', 'other')
+        AND p.payment_date IS NOT NULL
+      GROUP BY 1
+    `,
+    [homebaseId, periodeId, SUCCESS_PAYMENT_STATUSES],
+  );
+  for (const row of incomeResult.rows) {
+    ensureBucket(row.month_key).cash_in += numberValue(row.total);
+  }
+
+  if (await tableExists(db, "finance.expense")) {
+    const expenseResult = await db.query(
+      `
+        SELECT
+          to_char(e.expense_date, 'YYYY-MM') AS month_key,
+          COALESCE(SUM(e.amount), 0)::float AS total
+        FROM finance.expense e
+        WHERE e.homebase_id = $1
+          AND e.periode_id = $2
+        GROUP BY 1
+      `,
+      [homebaseId, periodeId],
+    );
+    for (const row of expenseResult.rows) {
+      ensureBucket(row.month_key).cash_out += numberValue(row.total);
+    }
+  }
+
+  if (await tableExists(db, "finance.honor_payroll_period")) {
+    const honorResult = await db.query(
+      `
+        SELECT
+          to_char(make_date(hp.year, hp.month, 1), 'YYYY-MM') AS month_key,
+          COALESCE(SUM(hp.grand_total), 0)::float AS total
+        FROM finance.honor_payroll_period hp
+        WHERE hp.homebase_id = $1
+          AND hp.periode_id = $2
+          AND hp.status = 'locked'
+        GROUP BY 1
+      `,
+      [homebaseId, periodeId],
+    );
+    for (const row of honorResult.rows) {
+      ensureBucket(row.month_key).cash_out += numberValue(row.total);
+    }
+  }
+
+  let runningBalance = 0;
+  return [...buckets.values()]
+    .sort((a, b) => a.month_key.localeCompare(b.month_key))
+    .map((row) => {
+      const [year, month] = row.month_key.split("-").map(Number);
+      const net = row.cash_in - row.cash_out;
+      runningBalance += net;
+      return {
+        month_key: row.month_key,
+        month_label: `${MONTH_NAMES[month - 1] || month} ${year}`,
+        cash_in: row.cash_in,
+        cash_out: row.cash_out,
+        net,
+        running_balance: runningBalance,
+      };
+    });
+};
+
+// Realisasi satu periode penuh (tanpa filter bulan/rentang) untuk pembanding RAPBS.
+const loadBudgetRealization = async (db, { homebaseId, periodeId }) => {
+  const incomeResult = await db.query(
+    `
+      SELECT
+        ii.item_type,
+        COALESCE(SUM(pa.allocated_amount), 0)::float AS collected
+      FROM finance.payment p
+      JOIN finance.payment_allocation pa ON pa.payment_id = p.id
+      JOIN finance.invoice_item ii ON ii.id = pa.invoice_item_id
+      JOIN finance.invoice inv ON inv.id = ii.invoice_id
+      WHERE inv.homebase_id = $1
+        AND inv.periode_id = $2
+        AND p.status = ANY($3::text[])
+        AND ii.item_type IN ('spp', 'other')
+      GROUP BY ii.item_type
+    `,
+    [homebaseId, periodeId, SUCCESS_PAYMENT_STATUSES],
+  );
+
+  const realized = new Map();
+  for (const row of incomeResult.rows) {
+    realized.set(`income:${row.item_type}`, numberValue(row.collected));
+  }
+
+  const fullPeriodeExpenses = await loadExpenseBreakdown(db, {
+    homebaseId,
+    periodeId,
+    mode: "periode",
+  });
+  for (const row of fullPeriodeExpenses) {
+    realized.set(`expense:${row.category}`, row.total);
+  }
+
+  const fullPeriodeHonor = await loadHonorariumSummary(db, {
+    homebaseId,
+    periodeId,
+    mode: "periode",
+  });
+  realized.set("expense:honorarium", fullPeriodeHonor.total);
+
+  const budgetResult = await db.query(
+    `
+      SELECT kind, category, amount::float AS amount
+      FROM finance.budget
+      WHERE homebase_id = $1
+        AND periode_id = $2
+    `,
+    [homebaseId, periodeId],
+  );
+
+  const budgets = new Map();
+  for (const row of budgetResult.rows) {
+    budgets.set(`${row.kind}:${row.category}`, numberValue(row.amount));
+  }
+
+  const items = BUDGET_CATALOG.map((entry) => {
+    const key = `${entry.kind}:${entry.category}`;
+    const budgetAmount = budgets.get(key) || 0;
+    const realizedAmount = realized.get(key) || 0;
+    const percent =
+      budgetAmount > 0
+        ? Math.round((realizedAmount / budgetAmount) * 1000) / 10
+        : null;
+    return {
+      kind: entry.kind,
+      category: entry.category,
+      label: entry.label,
+      budget_amount: budgetAmount,
+      realized_amount: realizedAmount,
+      variance: realizedAmount - budgetAmount,
+      percent,
+    };
+  });
+
+  const sumBy = (kind, field) =>
+    items
+      .filter((item) => item.kind === kind)
+      .reduce((sum, item) => sum + item[field], 0);
+
+  return {
+    items,
+    totals: {
+      income_budget: sumBy("income", "budget_amount"),
+      income_realized: sumBy("income", "realized_amount"),
+      expense_budget: sumBy("expense", "budget_amount"),
+      expense_realized: sumBy("expense", "realized_amount"),
+    },
+  };
+};
 
 const parseDateOnly = (value) => {
   if (!value) return null;
@@ -817,6 +1166,35 @@ router.get(
     const sppCollected = collectedByType.spp;
     const otherCollected = collectedByType.other;
 
+    const expenseFilterArgs = {
+      homebaseId,
+      periodeId,
+      mode,
+      month,
+      dateFrom,
+      dateTo,
+    };
+    await ensureReportSupportTables(db);
+
+    const [expense_by_category, honorarium, monthly_cashflow, budget_realization] =
+      await Promise.all([
+        loadExpenseBreakdown(db, expenseFilterArgs),
+        loadHonorariumSummary(db, expenseFilterArgs),
+        loadMonthlyCashflow(db, { homebaseId, periodeId }),
+        loadBudgetRealization(db, { homebaseId, periodeId }),
+      ]);
+
+    const expenseTotal = expense_by_category.reduce(
+      (sum, row) => sum + row.total,
+      0,
+    );
+    const expenseEntryCount = expense_by_category.reduce(
+      (sum, row) => sum + row.entry_count,
+      0,
+    );
+    const feeIncomeTotal = sppCollected + otherCollected;
+    const expenseGrandTotal = expenseTotal + honorarium.total;
+
     res.json({
       status: "success",
       data: {
@@ -838,18 +1216,293 @@ router.get(
           other_scholarship_cover: otherScholarship,
           other_collected: otherCollected,
           other_remaining: otherRemaining,
-          fee_income_total: sppCollected + otherCollected,
+          fee_income_total: feeIncomeTotal,
           fee_target_total: sppTarget + otherTarget,
           fee_remaining_total: sppRemaining + otherRemaining,
           unpaid_student_rows: unpaid_students.length,
           unpaid_student_count: new Set(
             unpaid_students.map((item) => item.student_id),
           ).size,
+          expense_total: expenseTotal,
+          expense_entry_count: expenseEntryCount,
+          honorarium_total: honorarium.total,
+          honorarium_payroll_count: honorarium.payroll_count,
+          honorarium_draft_total: honorarium.draft_total,
+          honorarium_draft_count: honorarium.draft_count,
+          expense_grand_total: expenseGrandTotal,
+          net_balance: feeIncomeTotal - expenseGrandTotal,
         },
         spp_by_class,
         other_by_type,
         unpaid_students,
+        expense_by_category,
+        monthly_cashflow,
+        budget_realization,
       },
+    });
+  }),
+);
+
+router.get(
+  "/reports/budgets",
+  authorize("satuan", "keuangan", "pusat"),
+  withQuery(async (req, res, db) => {
+    await ensureReportSupportTables(db);
+
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveReportHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
+    const periodeId = parseOptionalInt(req.query.periode_id);
+
+    if (!homebaseId || !periodeId) {
+      return res
+        .status(400)
+        .json({ message: "Homebase dan periode wajib dipilih" });
+    }
+
+    const result = await db.query(
+      `
+        SELECT kind, category, amount::float AS amount, notes
+        FROM finance.budget
+        WHERE homebase_id = $1
+          AND periode_id = $2
+      `,
+      [homebaseId, periodeId],
+    );
+
+    const stored = new Map();
+    for (const row of result.rows) {
+      stored.set(`${row.kind}:${row.category}`, row);
+    }
+
+    res.json({
+      status: "success",
+      data: BUDGET_CATALOG.map((entry) => {
+        const row = stored.get(`${entry.kind}:${entry.category}`);
+        return {
+          kind: entry.kind,
+          category: entry.category,
+          label: entry.label,
+          amount: numberValue(row?.amount),
+          notes: row?.notes || null,
+        };
+      }),
+    });
+  }),
+);
+
+router.put(
+  "/reports/budgets",
+  authorize("satuan", "keuangan", "pusat"),
+  withTransaction(async (req, res, client) => {
+    await ensureReportSupportTables(client);
+
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveReportHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const periodeId = parseOptionalInt(req.body.periode_id);
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+
+    if (!homebaseId || !periodeId) {
+      return res
+        .status(400)
+        .json({ message: "Homebase dan periode wajib dipilih" });
+    }
+
+    const periodeCheck = await client.query(
+      `SELECT id FROM a_periode WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
+      [periodeId, homebaseId],
+    );
+    if (periodeCheck.rowCount === 0) {
+      return res
+        .status(400)
+        .json({ message: "Periode tidak valid untuk satuan ini" });
+    }
+
+    for (const item of items) {
+      const kind = String(item.kind || "").trim();
+      const category = String(item.category || "").trim();
+      const amount = Number(item.amount);
+
+      if (!BUDGET_KEYS.has(`${kind}:${category}`)) {
+        return res.status(400).json({
+          message: `Pos anggaran tidak dikenal: ${kind}/${category}`,
+        });
+      }
+      if (!Number.isFinite(amount) || amount < 0) {
+        return res.status(400).json({
+          message: "Nominal anggaran harus angka >= 0",
+        });
+      }
+
+      await client.query(
+        `
+          INSERT INTO finance.budget (
+            homebase_id, periode_id, kind, category, amount,
+            created_by, updated_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $6)
+          ON CONFLICT (homebase_id, periode_id, kind, category)
+          DO UPDATE SET
+            amount = EXCLUDED.amount,
+            updated_by = EXCLUDED.updated_by,
+            updated_at = NOW()
+        `,
+        [homebaseId, periodeId, kind, category, amount, req.user.id],
+      );
+    }
+
+    res.json({
+      status: "success",
+      message: "Anggaran berhasil disimpan",
+    });
+  }),
+);
+
+router.get(
+  "/reports/closings",
+  authorize("satuan", "keuangan", "pusat"),
+  withQuery(async (req, res, db) => {
+    await ensureReportSupportTables(db);
+
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveReportHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
+    const year =
+      parseOptionalInt(req.query.year) || new Date().getFullYear();
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Homebase wajib dipilih" });
+    }
+
+    const result = await db.query(
+      `
+        SELECT
+          pl.id,
+          pl.month,
+          pl.notes,
+          pl.locked_at,
+          locker.full_name AS locked_by_name
+        FROM finance.period_lock pl
+        LEFT JOIN u_users locker ON locker.id = pl.locked_by
+        WHERE pl.homebase_id = $1
+          AND pl.year = $2
+      `,
+      [homebaseId, year],
+    );
+
+    const lockByMonth = new Map(
+      result.rows.map((row) => [Number(row.month), row]),
+    );
+
+    res.json({
+      status: "success",
+      data: {
+        year,
+        months: MONTH_NAMES.map((label, index) => {
+          const lock = lockByMonth.get(index + 1);
+          return {
+            month: index + 1,
+            month_label: label,
+            locked: Boolean(lock),
+            lock_id: lock ? Number(lock.id) : null,
+            locked_at: lock?.locked_at || null,
+            locked_by_name: lock?.locked_by_name || null,
+            notes: lock?.notes || null,
+          };
+        }),
+      },
+    });
+  }),
+);
+
+router.post(
+  "/reports/closings",
+  authorize("satuan", "keuangan", "pusat"),
+  withTransaction(async (req, res, client) => {
+    await ensureReportSupportTables(client);
+
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveReportHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const year = parseOptionalInt(req.body.year);
+    const month = parseOptionalInt(req.body.month);
+    const notes = String(req.body.notes || "").trim() || null;
+
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Homebase wajib dipilih" });
+    }
+    if (!year || year < 2000 || year > 2100) {
+      return res.status(400).json({ message: "Tahun tidak valid" });
+    }
+    if (!month || month < 1 || month > 12) {
+      return res.status(400).json({ message: "Bulan tidak valid (1-12)" });
+    }
+
+    await client.query(
+      `
+        INSERT INTO finance.period_lock (homebase_id, year, month, notes, locked_by)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (homebase_id, year, month) DO NOTHING
+      `,
+      [homebaseId, year, month, notes, req.user.id],
+    );
+
+    res.json({
+      status: "success",
+      message: `Tutup buku ${MONTH_NAMES[month - 1]} ${year} berhasil dikunci`,
+    });
+  }),
+);
+
+router.delete(
+  "/reports/closings/:id",
+  authorize("satuan", "keuangan", "pusat"),
+  withTransaction(async (req, res, client) => {
+    await ensureReportSupportTables(client);
+
+    const lockId = parseOptionalInt(req.params.id);
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveReportHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+
+    if (!lockId || !homebaseId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    const result = await client.query(
+      `
+        DELETE FROM finance.period_lock
+        WHERE id = $1
+          AND homebase_id = $2
+        RETURNING id
+      `,
+      [lockId, homebaseId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Kunci periode tidak ditemukan" });
+    }
+
+    res.json({
+      status: "success",
+      message:
+        "Kunci periode berhasil dibuka. Data bulan ini dapat dikoreksi kembali.",
     });
   }),
 );

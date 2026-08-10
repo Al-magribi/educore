@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
+  Dropdown,
   Flex,
   Space,
   Spin,
@@ -9,6 +10,7 @@ import {
   message,
 } from "antd";
 import { ArrowLeftOutlined, BankOutlined } from "@ant-design/icons";
+import { Download, FileSpreadsheet, Printer } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import {
@@ -16,9 +18,14 @@ import {
   useGetRevenueReportQuery,
 } from "../../../service/finance/ApiReport";
 import ReportBreakdown from "./components/ReportBreakdown";
+import ReportClosingsPanel from "./components/ReportClosingsPanel";
 import ReportFilters from "./components/ReportFilters";
 import ReportSummaryCards from "./components/ReportSummaryCards";
 import { pageStyle } from "./constants";
+import {
+  exportFullFinanceReportExcel,
+  printFullFinanceReport,
+} from "./utils/exportFullFinanceReport";
 
 const { Title, Text } = Typography;
 
@@ -155,6 +162,31 @@ const ReportDetail = ({
     setAppliedFilters(next);
   };
 
+  const handleExportExcel = () => {
+    if (!report) {
+      message.warning("Laporan belum siap diekspor");
+      return;
+    }
+    try {
+      exportFullFinanceReportExcel(report, { homebaseName });
+      message.success("Excel laporan lengkap berhasil diunduh");
+    } catch (error) {
+      message.error(error?.message || "Gagal mengekspor Excel");
+    }
+  };
+
+  const handlePrintPdf = () => {
+    if (!report) {
+      message.warning("Laporan belum siap dicetak");
+      return;
+    }
+    try {
+      printFullFinanceReport(report, { homebaseName });
+    } catch (error) {
+      message.error(error?.message || "Gagal membuka halaman cetak");
+    }
+  };
+
   if (!homebaseId) {
     return (
       <div style={pageStyle}>
@@ -220,6 +252,30 @@ const ReportDetail = ({
               </div>
             </Flex>
           </div>
+
+          <Dropdown
+            disabled={!report}
+            menu={{
+              items: [
+                {
+                  key: "excel",
+                  icon: <FileSpreadsheet size={15} />,
+                  label: "Unduh Excel lengkap",
+                  onClick: handleExportExcel,
+                },
+                {
+                  key: "pdf",
+                  icon: <Printer size={15} />,
+                  label: "Cetak / Simpan PDF",
+                  onClick: handlePrintPdf,
+                },
+              ],
+            }}
+          >
+            <Button type='primary' icon={<Download size={15} />} disabled={!report}>
+              Ekspor Laporan
+            </Button>
+          </Dropdown>
         </Flex>
 
         <ReportFilters
@@ -257,8 +313,13 @@ const ReportDetail = ({
               sppByClass={report?.spp_by_class || []}
               otherByType={report?.other_by_type || []}
               unpaidStudents={report?.unpaid_students || []}
+              expenseByCategory={report?.expense_by_category || []}
+              budgetItems={report?.budget_realization?.items || []}
+              monthlyCashflow={report?.monthly_cashflow || []}
               homebaseId={homebaseId}
+              periodeId={appliedFilters?.periode_id}
             />
+            <ReportClosingsPanel homebaseId={homebaseId} />
           </>
         )}
       </Space>

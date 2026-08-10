@@ -338,32 +338,59 @@ const HonorariumPayrollPreviewPanel = ({
     if (!selectedPayrollId) {
       return;
     }
-    try {
-      if (isLocked) {
-        await unlockPayroll({
-          id: selectedPayrollId,
-          homebase_id: homebaseId,
-        }).unwrap();
-        message.success("Payroll dibuka ke draft");
-      } else {
-        Modal.confirm({
-          title: "Lock payroll ini?",
-          content:
-            "Setelah di-lock, angka tidak bisa diubah sampai di-unlock kembali.",
-          okText: "Lock",
-          cancelText: "Batal",
-          onOk: async () => {
-            await lockPayroll({
+
+    if (isLocked) {
+      Modal.confirm({
+        title: "Buka kunci payroll?",
+        content:
+          "Payroll akan kembali ke draft agar bisa dikoreksi. Jika bulan sudah ditutup buku, buka kunci tutup buku di Laporan Keuangan sebelum mengubah angka.",
+        okText: "Buka kunci",
+        cancelText: "Batal",
+        onOk: async () => {
+          try {
+            const result = await unlockPayroll({
               id: selectedPayrollId,
               homebase_id: homebaseId,
             }).unwrap();
-            message.success("Payroll di-lock");
-          },
-        });
-      }
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal mengubah status lock");
+            message.success(
+              result?.message || "Payroll dibuka kembali ke draft",
+            );
+            if (result?.meta?.period_locked) {
+              message.warning(
+                result.meta.period_lock_message ||
+                  "Bulan masih ditutup buku. Buka kunci tutup buku dulu sebelum mengubah angka.",
+              );
+            }
+          } catch (error) {
+            message.error(
+              error?.data?.message || "Gagal membuka kunci payroll",
+            );
+            throw error;
+          }
+        },
+      });
+      return;
     }
+
+    Modal.confirm({
+      title: "Lock payroll ini?",
+      content:
+        "Setelah di-lock, angka tidak bisa diubah sampai di-unlock kembali. Unlock selalu tersedia bila perlu koreksi.",
+      okText: "Lock",
+      cancelText: "Batal",
+      onOk: async () => {
+        try {
+          await lockPayroll({
+            id: selectedPayrollId,
+            homebase_id: homebaseId,
+          }).unwrap();
+          message.success("Payroll di-lock");
+        } catch (error) {
+          message.error(error?.data?.message || "Gagal mengunci payroll");
+          throw error;
+        }
+      },
+    });
   };
 
   const handleDelete = () => {

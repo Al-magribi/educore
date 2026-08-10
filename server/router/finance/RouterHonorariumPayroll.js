@@ -2,6 +2,7 @@ import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import {
+  getMonthLockError,
   parseAmount,
   parseOptionalInt,
   resolveScopedHomebaseId,
@@ -30,6 +31,28 @@ const assertDraft = (payroll) => {
     };
   }
   return null;
+};
+
+const assertPayrollMonthUnlocked = async (db, homebaseId, year, month) => {
+  const lockError = await getMonthLockError(db, homebaseId, year, month);
+  if (lockError) {
+    return { error: lockError, status: 409 };
+  }
+  return null;
+};
+
+const loadPayrollMonth = async (db, payrollId, homebaseId) => {
+  const result = await db.query(
+    `
+      SELECT id, year, month, status
+      FROM finance.honor_payroll_period
+      WHERE id = $1
+        AND homebase_id = $2
+      LIMIT 1
+    `,
+    [payrollId, homebaseId],
+  );
+  return result.rows[0] || null;
 };
 
 router.get(
@@ -149,6 +172,16 @@ router.post(
     const periodeId = parseOptionalInt(req.body.periode_id);
     const replace = Boolean(req.body.replace);
 
+    const monthLocked = await assertPayrollMonthUnlocked(
+      client,
+      homebaseId,
+      year,
+      month,
+    );
+    if (monthLocked) {
+      return res.status(monthLocked.status).json({ message: monthLocked.error });
+    }
+
     const result = await generateHonorPayroll({
       db: client,
       homebaseId,
@@ -215,9 +248,20 @@ router.post(
       return res.status(404).json({ message: "Payroll tidak ditemukan" });
     }
 
+    const payrollRow = periodResult.rows[0];
+    const monthLocked = await assertPayrollMonthUnlocked(
+      client,
+      homebaseId,
+      payrollRow.year,
+      payrollRow.month,
+    );
+    if (monthLocked) {
+      return res.status(monthLocked.status).json({ message: monthLocked.error });
+    }
+
     const result = await recalcHonorPayroll({
       db: client,
-      payroll: periodResult.rows[0],
+      payroll: payrollRow,
       userId: req.user.id,
       keepManualMoney: req.body.keep_manual_money !== false,
     });
@@ -267,9 +311,20 @@ router.put(
       [payrollId, homebaseId],
     );
 
-    const locked = assertDraft(periodResult.rows[0]);
+    const payrollRow = periodResult.rows[0];
+    const locked = assertDraft(payrollRow);
     if (locked) {
       return res.status(locked.status).json({ message: locked.error });
+    }
+
+    const monthLocked = await assertPayrollMonthUnlocked(
+      client,
+      homebaseId,
+      payrollRow.year,
+      payrollRow.month,
+    );
+    if (monthLocked) {
+      return res.status(monthLocked.status).json({ message: monthLocked.error });
     }
 
     const lineResult = await client.query(
@@ -453,6 +508,20 @@ router.post(
 
     await prepareHonorHomebase(client, homebaseId, req.user?.id || null);
 
+    const payrollRow = await loadPayrollMonth(client, payrollId, homebaseId);
+    if (!payrollRow) {
+      return res.status(404).json({ message: "Payroll tidak ditemukan" });
+    }
+    const monthLocked = await assertPayrollMonthUnlocked(
+      client,
+      homebaseId,
+      payrollRow.year,
+      payrollRow.month,
+    );
+    if (monthLocked) {
+      return res.status(monthLocked.status).json({ message: monthLocked.error });
+    }
+
     const result = await client.query(
       `
         UPDATE finance.honor_payroll_period
@@ -506,6 +575,13 @@ router.post(
 
     await prepareHonorHomebase(client, homebaseId, req.user?.id || null);
 
+    // Unlock status selalu diizinkan agar payroll bisa dikoreksi kembali.
+    // Mutasi angka (recalc/edit/hapus) tetap ditolak jika tutup buku aktif.
+    const payrollRow = await loadPayrollMonth(client, payrollId, homebaseId);
+    if (!payrollRow) {
+      return res.status(404).json({ message: "Payroll tidak ditemukan" });
+    }
+
     const result = await client.query(
       `
         UPDATE finance.honor_payroll_period
@@ -530,11 +606,23 @@ router.post(
     }
 
     const detail = await getPayrollDetail(client, payrollId, homebaseId);
+    const monthLocked = await assertPayrollMonthUnlocked(
+      client,
+      homebaseId,
+      payrollRow.year,
+      payrollRow.month,
+    );
 
     res.json({
       status: "success",
-      message: "Payroll dibuka kembali ke draft",
+      message: monthLocked
+        ? "Payroll dibuka ke draft. Bulan masih ditutup buku — buka kunci tutup buku di Laporan Keuangan sebelum mengubah angka."
+        : "Payroll dibuka kembali ke draft dan siap dikoreksi",
       data: detail,
+      meta: {
+        period_locked: Boolean(monthLocked),
+        period_lock_message: monthLocked?.error || null,
+      },
     });
   }),
 );
@@ -559,7 +647,7 @@ router.delete(
 
     const current = await client.query(
       `
-        SELECT id, status
+        SELECT id, status, year, month
         FROM finance.honor_payroll_period
         WHERE id = $1
           AND homebase_id = $2
@@ -576,6 +664,16 @@ router.delete(
       return res.status(409).json({
         message: "Payroll terkunci tidak bisa dihapus. Unlock terlebih dahulu.",
       });
+    }
+
+    const monthLocked = await assertPayrollMonthUnlocked(
+      client,
+      homebaseId,
+      current.rows[0].year,
+      current.rows[0].month,
+    );
+    if (monthLocked) {
+      return res.status(monthLocked.status).json({ message: monthLocked.error });
     }
 
     await client.query(
