@@ -41,6 +41,8 @@ const itemVariants = {
 const ReportHomebaseList = ({
   basePath = "/finance/laporan",
   getDetailPath,
+  title,
+  description,
 }) => {
   const screens = useBreakpoint();
   const navigate = useNavigate();
@@ -75,13 +77,16 @@ const ReportHomebaseList = ({
 
   const cols = screens.xl ? 6 : screens.lg ? 8 : screens.md ? 12 : 24;
 
-  const titleText = useMemo(
-    () =>
-      locked
-        ? "Laporan Keuangan Satuan"
-        : "Laporan Keuangan — Pilih Satuan Pendidikan",
-    [locked],
-  );
+  const titleText = useMemo(() => {
+    if (title) return title;
+    return locked
+      ? "Laporan Keuangan Satuan"
+      : "Laporan Keuangan — Pilih Satuan Pendidikan";
+  }, [locked, title]);
+
+  const descriptionText =
+    description ||
+    "Pilih satuan untuk melihat ringkasan pendapatan SPP dan pembayaran lainnya, breakdown, serta siswa yang belum lunas.";
 
   if (isLoading || (locked && homebases.length === 1)) {
     return (
@@ -97,10 +102,7 @@ const ReportHomebaseList = ({
         <Title level={4} style={{ margin: 0, marginBottom: 4 }}>
           {titleText}
         </Title>
-        <Text type='secondary'>
-          Pilih satuan untuk melihat ringkasan pendapatan SPP dan pembayaran
-          lainnya, breakdown, serta siswa yang belum lunas.
-        </Text>
+        <Text type='secondary'>{descriptionText}</Text>
       </div>
 
       {!locked ? (

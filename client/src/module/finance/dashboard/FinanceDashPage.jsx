@@ -10,8 +10,8 @@ import {
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
-import { Building2, LayoutDashboard, RefreshCcw, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Building2, LayoutDashboard, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { LoadApp } from "../../../components";
 import { useGetFinanceDashboardQuery } from "../../../service/finance/ApiDash";
@@ -73,6 +73,29 @@ const FinanceDashPage = () => {
   const { data, isLoading, error, refetch } =
     useGetFinanceDashboardQuery(queryParams);
 
+  const availableHomebases =
+    data?.meta?.available_homebases || data?.homebases || [];
+
+  useEffect(() => {
+    const list = data?.meta?.available_homebases || [];
+    if (list.length === 1) {
+      const onlyId = Number(list[0].homebase_id);
+      setSelectedHomebaseId((prev) =>
+        Number(prev) === onlyId ? prev : onlyId,
+      );
+      return;
+    }
+
+    if (list.length > 1 && selectedHomebaseId != null) {
+      const stillValid = list.some(
+        (item) => Number(item.homebase_id) === Number(selectedHomebaseId),
+      );
+      if (!stillValid) {
+        setSelectedHomebaseId(undefined);
+      }
+    }
+  }, [data?.meta?.available_homebases, selectedHomebaseId]);
+
   if (isLoading && !data) {
     return <LoadApp />;
   }
@@ -96,58 +119,62 @@ const FinanceDashPage = () => {
   const meta = data?.meta || {};
   const summary = data?.summary || {};
   const spp = data?.spp || {};
-  const others = data?.others || {};
-  const scholarship = data?.scholarship || {};
-  const savings = data?.savings || {};
-  const classCash = data?.class_cash || {};
+  const expense = data?.expense || {};
   const priorities = data?.priorities || [];
   const recentTransactions = data?.recent_transactions || [];
   const homebases = data?.homebases || [];
-  const availableHomebases = meta?.available_homebases || homebases;
   const showHomebaseFilter = availableHomebases.length > 1;
+
+  const feeIncome = Number(
+    summary.fee_income_total ?? summary.school_revenue ?? 0,
+  );
+  const expenseGrand = Number(summary.expense_grand_total ?? 0);
+  const netBalance = feeIncome - expenseGrand;
 
   const summaryCards = [
     {
-      key: "revenue",
-      title: "Pendapatan Sekolah",
-      value: summary.school_revenue,
-      note: "Kas masuk SPP + pembayaran lainnya (periode aktif).",
+      key: "fee_income_total",
+      title: "Pendapatan Fee",
+      value: feeIncome,
+      note: "Kas masuk SPP + pembayaran lainnya (confirmed/paid) pada periode aktif.",
     },
     {
-      key: "spp",
-      title: "SPP Terkumpul",
-      value: summary.spp_collected,
-      note: `${spp.paid_students_current_month || 0} siswa lunas ${meta.current_month_label || "bulan ini"} (target netto).`,
+      key: "expense_grand_total",
+      title: "Total Pengeluaran",
+      value: expenseGrand,
+      note: "Pengeluaran operasional + honorarium terkunci. Draft honorarium tidak termasuk.",
     },
     {
-      key: "scholarship",
-      title: "Cover Beasiswa",
-      value: scholarship.total_cover,
-      note: `SPP ${meta.current_month_label || "bulan ini"} + pembayaran lainnya (bukan kas).`,
+      key: "net_balance",
+      title: "Saldo Bersih",
+      value: netBalance,
+      note: "Pendapatan fee dikurangi total pengeluaran. Draft honorarium tidak mengurangi saldo.",
+      signColored: true,
     },
     {
-      key: "savings",
-      title: "Saldo Tabungan",
-      value: summary.savings_balance,
-      note: `${savings.transaction_count || 0} transaksi tabungan.`,
+      key: "fee_remaining_total",
+      title: "Sisa Tagihan",
+      value: summary.fee_remaining_total,
+      note: `Outstanding SPP ${meta.current_month_label || "bulan ini"} + sisa pembayaran lainnya.`,
     },
     {
-      key: "cash",
-      title: "Saldo Kas Kelas",
-      value: summary.class_cash_balance,
-      note: `${classCash.transaction_count || 0} transaksi kas kelas.`,
+      key: "unpaid_student_count",
+      title: "Siswa Belum Lunas",
+      value: summary.unpaid_student_count ?? spp.unpaid_students_current_month,
+      note: `Jumlah siswa yang belum lunas SPP ${meta.current_month_label || "bulan ini"}.`,
+      isCount: true,
     },
   ];
 
-  const createTabLabel = (label, icon, caption) => (
-    <Flex align='center' gap={10}>
+  const createTabLabel = (label, icon) => (
+    <Flex align='center' gap={isMobile ? 8 : 10}>
       <span
         style={{
-          width: 34,
-          height: 34,
+          width: isMobile ? 28 : 32,
+          height: isMobile ? 28 : 32,
           display: "grid",
           placeItems: "center",
-          borderRadius: 12,
+          borderRadius: 10,
           background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
           color: "#0369a1",
           border: "1px solid rgba(148,163,184,0.14)",
@@ -156,20 +183,9 @@ const FinanceDashPage = () => {
       >
         {icon}
       </span>
-      <Flex vertical gap={0}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
-        {!isMobile && (
-          <span
-            style={{
-              fontSize: 12,
-              color: "rgba(100,116,139,0.9)",
-              lineHeight: 1.2,
-            }}
-          >
-            {caption}
-          </span>
-        )}
-      </Flex>
+      <span style={{ fontWeight: 600, lineHeight: 1.2, whiteSpace: "nowrap" }}>
+        {label}
+      </span>
     </Flex>
   );
 
@@ -180,15 +196,13 @@ const FinanceDashPage = () => {
       variants={pageVariants}
       style={{ width: "100%" }}
     >
-      <Space vertical size={20} style={{ width: "100%", display: "flex" }}>
+      <Space
+        vertical
+        size={isMobile ? 12 : 16}
+        style={{ width: "100%", display: "flex" }}
+      >
         <MotionDiv variants={sectionVariants}>
-          <FinanceDashboardHero
-            meta={meta}
-            summary={summary}
-            spp={spp}
-            others={others}
-            isMobile={isMobile}
-          />
+          <FinanceDashboardHero meta={meta} spp={spp} isMobile={isMobile} />
         </MotionDiv>
 
         {showHomebaseFilter ? (
@@ -196,51 +210,48 @@ const FinanceDashPage = () => {
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: 18,
                 border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 18px 40px rgba(15,23,42,0.06)",
+                boxShadow: "0 12px 28px rgba(15,23,42,0.05)",
               }}
-              styles={{ body: { padding: isMobile ? 16 : 18 } }}
+              styles={{ body: { padding: isMobile ? 12 : 14 } }}
             >
               <Flex
                 justify='space-between'
                 align={isMobile ? "stretch" : "center"}
                 vertical={isMobile}
-                gap={14}
+                gap={12}
               >
-                <div>
-                  <Flex align='center' gap={10} style={{ marginBottom: 6 }}>
-                    <span
-                      style={{
-                        width: 38,
-                        height: 38,
-                        display: "grid",
-                        placeItems: "center",
-                        borderRadius: 14,
-                        background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                        color: "#2563eb",
-                      }}
-                    >
-                      <Building2 size={18} />
-                    </span>
-                    <div>
-                      <Text
-                        strong
-                        style={{ display: "block", color: "#0f172a" }}
-                      >
-                        Filter Satuan Aktif
+                <Flex align='center' gap={10}>
+                  <span
+                    style={{
+                      width: 34,
+                      height: 34,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 12,
+                      background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
+                      color: "#2563eb",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Building2 size={16} />
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <Text strong style={{ display: "block", color: "#0f172a" }}>
+                      Filter satuan
+                    </Text>
+                    {!isMobile ? (
+                      <Text type='secondary' style={{ fontSize: 12 }}>
+                        Fokuskan dashboard ke satuan tertentu.
                       </Text>
-                      <Text type='secondary'>
-                        Fokuskan dashboard ke satuan tertentu bila diperlukan.
-                      </Text>
-                    </div>
-                  </Flex>
-                </div>
+                    ) : null}
+                  </div>
+                </Flex>
                 <Select
                   allowClear
                   placeholder='Semua satuan'
-                  size='large'
-                  style={{ width: isMobile ? "100%" : 300 }}
+                  style={{ width: isMobile ? "100%" : 280 }}
                   value={selectedHomebaseId}
                   onChange={setSelectedHomebaseId}
                   options={availableHomebases.map((item) => ({
@@ -257,23 +268,25 @@ const FinanceDashPage = () => {
           <Card
             variant='borderless'
             style={{
-              borderRadius: 28,
+              borderRadius: isMobile ? 18 : 22,
               border: "1px solid rgba(148,163,184,0.14)",
-              boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
+              boxShadow: "0 16px 40px rgba(15,23,42,0.06)",
             }}
-            styles={{ body: { padding: isMobile ? 12 : 16 } }}
+            styles={{ body: { padding: isMobile ? 10 : 14 } }}
           >
             <Tabs
               size={isMobile ? "small" : "middle"}
-              tabBarGutter={isMobile ? 12 : 18}
-              tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+              tabBarGutter={isMobile ? 8 : 16}
+              tabBarStyle={{
+                marginBottom: isMobile ? 12 : 16,
+                paddingBottom: 4,
+              }}
               items={[
                 {
                   key: "overview",
                   label: createTabLabel(
                     "Ringkasan",
-                    <LayoutDashboard size={16} />,
-                    "Kinerja inti dashboard",
+                    <LayoutDashboard size={isMobile ? 14 : 15} />,
                   ),
                   children: (
                     <FinanceDashboardOverviewTab
@@ -281,6 +294,7 @@ const FinanceDashPage = () => {
                       summary={summary}
                       meta={meta}
                       spp={spp}
+                      expense={expense}
                     />
                   ),
                 },
@@ -288,8 +302,7 @@ const FinanceDashPage = () => {
                   key: "units",
                   label: createTabLabel(
                     `Satuan (${homebases.length})`,
-                    <Building2 size={16} />,
-                    "Performa per unit",
+                    <Building2 size={isMobile ? 14 : 15} />,
                   ),
                   children: (
                     <FinanceDashboardUnitsTab
@@ -303,8 +316,7 @@ const FinanceDashPage = () => {
                   key: "activity",
                   label: createTabLabel(
                     `Aktivitas (${recentTransactions.length})`,
-                    <Sparkles size={16} />,
-                    "Transaksi terbaru",
+                    <Sparkles size={isMobile ? 14 : 15} />,
                   ),
                   children: (
                     <FinanceDashboardActivityTab

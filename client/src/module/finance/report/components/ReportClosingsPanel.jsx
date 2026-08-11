@@ -25,7 +25,7 @@ import { cardStyle } from "../constants";
 
 const { Text, Title } = Typography;
 
-const ReportClosingsPanel = ({ homebaseId }) => {
+const ReportClosingsPanel = ({ homebaseId, embedded = false }) => {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [notes, setNotes] = useState("");
 
@@ -167,8 +167,8 @@ const ReportClosingsPanel = ({ homebaseId }) => {
     },
   ];
 
-  return (
-    <Card style={cardStyle} styles={{ body: { padding: 18 } }}>
+  const content = (
+    <>
       <Flex
         justify='space-between'
         align='flex-start'
@@ -177,9 +177,11 @@ const ReportClosingsPanel = ({ homebaseId }) => {
         style={{ marginBottom: 14 }}
       >
         <div>
-          <Title level={5} style={{ margin: 0 }}>
-            Tutup Buku Bulanan
-          </Title>
+          {!embedded ? (
+            <Title level={5} style={{ margin: 0 }}>
+              Tutup Buku Bulanan
+            </Title>
+          ) : null}
           <Text type='secondary'>
             Bulan terkunci menolak perubahan pengeluaran harian dan angka
             honorarium. Kunci selalu dapat dibuka kembali untuk koreksi.
@@ -218,6 +220,16 @@ const ReportClosingsPanel = ({ homebaseId }) => {
         size='middle'
         scroll={{ x: 780 }}
       />
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <Card style={cardStyle} styles={{ body: { padding: 18 } }}>
+      {content}
     </Card>
   );
 };

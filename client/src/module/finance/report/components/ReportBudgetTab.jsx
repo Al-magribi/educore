@@ -40,7 +40,13 @@ const percentColor = (value) => {
   return "#16a34a";
 };
 
-const ReportBudgetTab = ({ homebaseId, periodeId, items = [] }) => {
+const ReportBudgetTab = ({
+  homebaseId,
+  periodeId,
+  items = [],
+  readOnly = false,
+  emptyMessage = "Pilih periode terlebih dahulu untuk mengelola anggaran (RAPBS).",
+}) => {
   const [draftAmounts, setDraftAmounts] = useState({});
   const [saveBudgets, saveState] = useSaveBudgetsMutation();
 
@@ -103,18 +109,25 @@ const ReportBudgetTab = ({ homebaseId, periodeId, items = [] }) => {
       title: "Anggaran",
       key: "budget_amount",
       width: 210,
-      render: (_, row) => (
-        <InputNumber
-          {...rupiahInputProps}
-          value={draftAmounts[row.key] ?? 0}
-          onChange={(value) =>
-            setDraftAmounts((prev) => ({
-              ...prev,
-              [row.key]: Number(value || 0),
-            }))
-          }
-        />
-      ),
+      render: (_, row) =>
+        readOnly ? (
+          <span style={{ fontWeight: 600 }}>
+            {currencyFormatter.format(
+              Number(draftAmounts[row.key] ?? row.budget_amount ?? 0),
+            )}
+          </span>
+        ) : (
+          <InputNumber
+            {...rupiahInputProps}
+            value={draftAmounts[row.key] ?? 0}
+            onChange={(value) =>
+              setDraftAmounts((prev) => ({
+                ...prev,
+                [row.key]: Number(value || 0),
+              }))
+            }
+          />
+        ),
     },
     {
       title: "Realisasi",
@@ -131,7 +144,6 @@ const ReportBudgetTab = ({ homebaseId, periodeId, items = [] }) => {
       render: (_, row) => {
         const budget = Number(draftAmounts[row.key] ?? row.budget_amount ?? 0);
         const variance = Number(row.realized_amount || 0) - budget;
-        // Pendapatan: positif = melampaui target. Pengeluaran: positif = melebihi anggaran.
         const good = row.kind === "income" ? variance >= 0 : variance <= 0;
         return (
           <span style={{ fontWeight: 600, color: good ? "#15803d" : "#dc2626" }}>
@@ -167,11 +179,7 @@ const ReportBudgetTab = ({ homebaseId, periodeId, items = [] }) => {
 
   if (!periodeId) {
     return (
-      <Alert
-        type='info'
-        showIcon
-        message='Pilih periode terlebih dahulu untuk mengelola anggaran (RAPBS).'
-      />
+      <Alert type='info' showIcon message={emptyMessage} />
     );
   }
 
@@ -189,15 +197,17 @@ const ReportBudgetTab = ({ homebaseId, periodeId, items = [] }) => {
           dari kas masuk terkonfirmasi; realisasi pengeluaran dari pengeluaran
           harian dan payroll honorarium terkunci.
         </Text>
-        <Button
-          type='primary'
-          icon={<Save size={15} />}
-          disabled={!isDirty}
-          loading={saveState.isLoading}
-          onClick={handleSave}
-        >
-          Simpan Anggaran
-        </Button>
+        {!readOnly ? (
+          <Button
+            type='primary'
+            icon={<Save size={15} />}
+            disabled={!isDirty}
+            loading={saveState.isLoading}
+            onClick={handleSave}
+          >
+            Simpan Anggaran
+          </Button>
+        ) : null}
       </Flex>
 
       <Table

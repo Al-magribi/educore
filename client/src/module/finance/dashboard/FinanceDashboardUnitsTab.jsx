@@ -37,36 +37,35 @@ const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
       ),
     },
     {
-      title: "Target SPP",
-      dataIndex: "expected_spp_current_month",
-      key: "expected_spp_current_month",
-      align: "right",
-      render: (value) => currency(value),
-    },
-    {
-      title: "Terkumpul",
+      title: "Pendapatan Fee",
       dataIndex: "school_revenue",
       key: "school_revenue",
       align: "right",
       render: (value) => currency(value),
     },
     {
-      title: "Dana Terkelola",
-      dataIndex: "managed_funds",
-      key: "managed_funds",
+      title: "Sisa Tagihan",
+      dataIndex: "fee_remaining_total",
+      key: "fee_remaining_total",
+      align: "right",
+      render: (value, record) =>
+        currency(
+          Number(
+            value ??
+              Number(record.outstanding_spp_current_month || 0) +
+                Number(record.other_remaining || 0),
+          ),
+        ),
+    },
+    {
+      title: "SPP Bulan Ini",
+      dataIndex: "paid_spp_current_month",
+      key: "paid_spp_current_month",
       align: "right",
       render: (value) => currency(value),
     },
     {
-      title: "Outstanding",
-      dataIndex: "outstanding_spp_current_month",
-      key: "outstanding_spp_current_month",
-      align: "right",
-      render: (value, record) =>
-        currency(Number(value || 0) + Number(record.other_remaining || 0)),
-    },
-    {
-      title: "Rate",
+      title: "Rate SPP",
       dataIndex: "collection_rate_current_month",
       key: "collection_rate_current_month",
       width: 96,
@@ -127,8 +126,8 @@ const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
                     Performa Keuangan per Satuan
                   </Text>
                   <Text type='secondary'>
-                    Tabel ini membantu membandingkan target, realisasi, dan outstanding
-                    tiap unit.
+                    Tabel ini membandingkan pendapatan fee, sisa tagihan, dan
+                    collection rate SPP tiap unit.
                   </Text>
                 </div>
               </Space>
@@ -139,7 +138,7 @@ const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
               dataSource={homebases}
               columns={columns}
               pagination={false}
-              scroll={{ x: 980 }}
+              scroll={{ x: 900 }}
             />
           </Space>
         </Card>

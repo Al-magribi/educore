@@ -10,21 +10,15 @@ import {
   parseOptionalInt,
   resolveScopedHomebaseId,
 } from "./financeHelpers.js";
+import {
+  buildBudgetCatalog,
+  getExpenseCategoryLabelMap,
+} from "./expenseCategoryHelpers.js";
 
 const router = Router();
 
 const SUCCESS_PAYMENT_STATUSES = ["confirmed", "paid"];
 const REPORT_MODES = new Set(["periode", "bulan", "rentang"]);
-
-const EXPENSE_CATEGORY_LABELS = {
-  operational: "Operasional",
-  utilities: "Utilitas",
-  salary: "Gaji / Honor",
-  maintenance: "Pemeliharaan",
-  activity: "Kegiatan",
-  supplies: "ATK / Perlengkapan",
-  other: "Lainnya",
-};
 
 const numberValue = (value) => Number(value || 0);
 
@@ -34,22 +28,6 @@ const tableExists = async (db, qualifiedName) => {
   ]);
   return Boolean(result.rows[0]?.table_ref);
 };
-
-// Baris baku RAPBS: sumber pendapatan dan pos pengeluaran yang dianggarkan.
-const BUDGET_CATALOG = [
-  { kind: "income", category: "spp", label: "Pendapatan SPP" },
-  { kind: "income", category: "other", label: "Pendapatan Lainnya" },
-  ...Object.entries(EXPENSE_CATEGORY_LABELS).map(([category, label]) => ({
-    kind: "expense",
-    category,
-    label,
-  })),
-  { kind: "expense", category: "honorarium", label: "Honorarium" },
-];
-
-const BUDGET_KEYS = new Set(
-  BUDGET_CATALOG.map((item) => `${item.kind}:${item.category}`),
-);
 
 let reportSupportSchemaReady = false;
 let reportSupportSchemaPromise = null;
@@ -69,7 +47,7 @@ const ensureReportSupportTables = async (db) => {
           homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
           periode_id INT NOT NULL REFERENCES public.a_periode(id) ON DELETE CASCADE,
           kind VARCHAR(10) NOT NULL CHECK (kind IN ('income', 'expense')),
-          category VARCHAR(30) NOT NULL,
+          category VARCHAR(40) NOT NULL,
           amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (amount >= 0),
           notes TEXT,
           created_by INT REFERENCES public.u_users(id),
@@ -78,6 +56,11 @@ const ensureReportSupportTables = async (db) => {
           updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           UNIQUE (homebase_id, periode_id, kind, category)
         )
+      `);
+
+      await db.query(`
+        ALTER TABLE finance.budget
+        ALTER COLUMN category TYPE VARCHAR(40)
       `);
 
       await db.query(`
@@ -139,7 +122,7 @@ const loadExpenseBreakdown = async (db, { homebaseId, periodeId, mode, month, da
 
   return result.rows.map((row) => ({
     category: row.category,
-    category_label: EXPENSE_CATEGORY_LABELS[row.category] || row.category,
+    category_label: row.category,
     entry_count: Number(row.entry_count || 0),
     total: numberValue(row.total),
   }));
@@ -278,6 +261,9 @@ const loadMonthlyCashflow = async (db, { homebaseId, periodeId }) => {
 
 // Realisasi satu periode penuh (tanpa filter bulan/rentang) untuk pembanding RAPBS.
 const loadBudgetRealization = async (db, { homebaseId, periodeId }) => {
+  const catalog = await buildBudgetCatalog(db, homebaseId);
+  const labelMap = await getExpenseCategoryLabelMap(db, homebaseId);
+
   const incomeResult = await db.query(
     `
       SELECT
@@ -332,7 +318,41 @@ const loadBudgetRealization = async (db, { homebaseId, periodeId }) => {
     budgets.set(`${row.kind}:${row.category}`, numberValue(row.amount));
   }
 
-  const items = BUDGET_CATALOG.map((entry) => {
+  const catalogMap = new Map(
+    catalog.map((entry) => [`${entry.kind}:${entry.category}`, entry]),
+  );
+
+  // Sertakan pos yang punya anggaran/realisasi meski kategori sudah nonaktif.
+  for (const [key, amount] of budgets.entries()) {
+    if (catalogMap.has(key) || amount <= 0) continue;
+    const [kind, category] = key.split(":");
+    catalogMap.set(key, {
+      kind,
+      category,
+      label:
+        kind === "income"
+          ? category === "spp"
+            ? "Pendapatan SPP"
+            : "Pendapatan Lainnya"
+          : labelMap[category] || category,
+    });
+  }
+  for (const [key, amount] of realized.entries()) {
+    if (catalogMap.has(key) || amount <= 0) continue;
+    const [kind, category] = key.split(":");
+    catalogMap.set(key, {
+      kind,
+      category,
+      label:
+        kind === "income"
+          ? category === "spp"
+            ? "Pendapatan SPP"
+            : "Pendapatan Lainnya"
+          : labelMap[category] || category,
+    });
+  }
+
+  const items = [...catalogMap.values()].map((entry) => {
     const key = `${entry.kind}:${entry.category}`;
     const budgetAmount = budgets.get(key) || 0;
     const realizedAmount = realized.get(key) || 0;
@@ -443,7 +463,7 @@ const buildRealizationDateFilter = ({
 
 router.get(
   "/reports/homebases",
-  authorize("satuan", "keuangan", "pusat"),
+  authorize("satuan", "keuangan", "finance", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -471,7 +491,7 @@ router.get(
 
 router.get(
   "/reports/options",
-  authorize("satuan", "keuangan", "pusat"),
+  authorize("satuan", "keuangan", "finance", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureFinalFinanceTables(db);
 
@@ -1176,13 +1196,19 @@ router.get(
     };
     await ensureReportSupportTables(db);
 
-    const [expense_by_category, honorarium, monthly_cashflow, budget_realization] =
+    const [expense_by_category_raw, honorarium, monthly_cashflow, budget_realization, categoryLabelMap] =
       await Promise.all([
         loadExpenseBreakdown(db, expenseFilterArgs),
         loadHonorariumSummary(db, expenseFilterArgs),
         loadMonthlyCashflow(db, { homebaseId, periodeId }),
         loadBudgetRealization(db, { homebaseId, periodeId }),
+        getExpenseCategoryLabelMap(db, homebaseId),
       ]);
+
+    const expense_by_category = expense_by_category_raw.map((row) => ({
+      ...row,
+      category_label: categoryLabelMap[row.category] || row.category,
+    }));
 
     const expenseTotal = expense_by_category.reduce(
       (sum, row) => sum + row.total,
@@ -1245,7 +1271,7 @@ router.get(
 
 router.get(
   "/reports/budgets",
-  authorize("satuan", "keuangan", "pusat"),
+  authorize("satuan", "keuangan", "finance", "pusat"),
   withQuery(async (req, res, db) => {
     await ensureReportSupportTables(db);
 
@@ -1263,40 +1289,35 @@ router.get(
         .json({ message: "Homebase dan periode wajib dipilih" });
     }
 
-    const result = await db.query(
-      `
-        SELECT kind, category, amount::float AS amount, notes
-        FROM finance.budget
-        WHERE homebase_id = $1
-          AND periode_id = $2
-      `,
-      [homebaseId, periodeId],
+    const periodeCheck = await db.query(
+      `SELECT id, name FROM a_periode WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
+      [periodeId, homebaseId],
     );
-
-    const stored = new Map();
-    for (const row of result.rows) {
-      stored.set(`${row.kind}:${row.category}`, row);
+    if (periodeCheck.rowCount === 0) {
+      return res
+        .status(400)
+        .json({ message: "Periode tidak valid untuk satuan ini" });
     }
+
+    const realization = await loadBudgetRealization(db, {
+      homebaseId,
+      periodeId,
+    });
 
     res.json({
       status: "success",
-      data: BUDGET_CATALOG.map((entry) => {
-        const row = stored.get(`${entry.kind}:${entry.category}`);
-        return {
-          kind: entry.kind,
-          category: entry.category,
-          label: entry.label,
-          amount: numberValue(row?.amount),
-          notes: row?.notes || null,
-        };
-      }),
+      data: {
+        periode: periodeCheck.rows[0],
+        ...realization,
+      },
     });
   }),
 );
 
+// Write RAPBS: hanya admin keuangan/finance dan pusat.
 router.put(
   "/reports/budgets",
-  authorize("satuan", "keuangan", "pusat"),
+  authorize("keuangan", "finance", "pusat"),
   withTransaction(async (req, res, client) => {
     await ensureReportSupportTables(client);
 
@@ -1325,12 +1346,17 @@ router.put(
         .json({ message: "Periode tidak valid untuk satuan ini" });
     }
 
+    const catalog = await buildBudgetCatalog(client, homebaseId);
+    const budgetKeys = new Set(
+      catalog.map((item) => `${item.kind}:${item.category}`),
+    );
+
     for (const item of items) {
       const kind = String(item.kind || "").trim();
       const category = String(item.category || "").trim();
       const amount = Number(item.amount);
 
-      if (!BUDGET_KEYS.has(`${kind}:${category}`)) {
+      if (!budgetKeys.has(`${kind}:${category}`)) {
         return res.status(400).json({
           message: `Pos anggaran tidak dikenal: ${kind}/${category}`,
         });

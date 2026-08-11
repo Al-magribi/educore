@@ -121,15 +121,6 @@ export const exportFullFinanceReportExcel = (report, options = {}) => {
     ]),
   ]);
 
-  appendSheet(workbook, "Pengeluaran", [
-    ["Kategori", "Transaksi", "Total"],
-    ...(report.expense_by_category || []).map((row) => [
-      row.category_label,
-      row.entry_count,
-      money(row.total),
-    ]),
-  ]);
-
   appendSheet(workbook, "RAPBS", [
     ["Jenis", "Uraian", "Anggaran", "Realisasi", "Selisih", "Capaian %"],
     ...budgetItems.map((row) => [
@@ -189,7 +180,6 @@ export const printFullFinanceReport = (report, options = {}) => {
   const summary = report.summary || {};
   const budgetItems = report.budget_realization?.items || [];
   const cashflow = report.monthly_cashflow || [];
-  const expenses = report.expense_by_category || [];
   const printedAt = new Date().toLocaleString("id-ID");
 
   const rowHtml = (cells) =>
@@ -256,16 +246,6 @@ export const printFullFinanceReport = (report, options = {}) => {
       money(row.realized_amount),
       money(row.variance),
       row.percent == null ? "-" : `${row.percent}%`,
-    ]),
-  )}
-
-  <h2>Pengeluaran per Kategori</h2>
-  ${table(
-    ["Kategori", "Transaksi", "Total"],
-    expenses.map((row) => [
-      row.category_label,
-      row.entry_count,
-      money(row.total),
     ]),
   )}
 

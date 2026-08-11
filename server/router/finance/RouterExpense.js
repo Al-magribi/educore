@@ -7,18 +7,18 @@ import {
   parseOptionalInt,
   resolveScopedHomebaseId,
 } from "./financeHelpers.js";
+import {
+  CATEGORY_COLOR_OPTIONS,
+  ensureExpenseCategoryTables,
+  isActiveExpenseCategory,
+  listExpenseCategories,
+  normalizeCategoryCode,
+  normalizeExpenseCategoryRow,
+  parseCategoryId,
+  seedDefaultExpenseCategories,
+} from "./expenseCategoryHelpers.js";
 
 const router = Router();
-
-const EXPENSE_CATEGORIES = [
-  { value: "operational", label: "Operasional" },
-  { value: "utilities", label: "Utilitas" },
-  { value: "salary", label: "Gaji / Honor" },
-  { value: "maintenance", label: "Pemeliharaan" },
-  { value: "activity", label: "Kegiatan" },
-  { value: "supplies", label: "ATK / Perlengkapan" },
-  { value: "other", label: "Lainnya" },
-];
 
 const EXPENSE_PAYMENT_METHODS = [
   { value: "cash", label: "Tunai" },
@@ -26,10 +26,10 @@ const EXPENSE_PAYMENT_METHODS = [
   { value: "other", label: "Lainnya" },
 ];
 
-const CATEGORY_VALUES = new Set(EXPENSE_CATEGORIES.map((item) => item.value));
 const PAYMENT_METHOD_VALUES = new Set(
   EXPENSE_PAYMENT_METHODS.map((item) => item.value),
 );
+const COLOR_VALUES = new Set(CATEGORY_COLOR_OPTIONS);
 
 let expenseSchemaReady = false;
 let expenseSchemaReadyPromise = null;
@@ -42,22 +42,14 @@ const ensureExpenseTables = async (db) => {
   if (!expenseSchemaReadyPromise) {
     expenseSchemaReadyPromise = (async () => {
       await db.query(`CREATE SCHEMA IF NOT EXISTS finance`);
+      await ensureExpenseCategoryTables(db);
 
       await db.query(`
         CREATE TABLE IF NOT EXISTS finance.expense (
           id BIGSERIAL PRIMARY KEY,
           homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
           periode_id INT REFERENCES public.a_periode(id) ON DELETE SET NULL,
-          category VARCHAR(30) NOT NULL
-            CHECK (category IN (
-              'operational',
-              'utilities',
-              'salary',
-              'maintenance',
-              'activity',
-              'supplies',
-              'other'
-            )),
+          category VARCHAR(40) NOT NULL,
           title VARCHAR(150) NOT NULL,
           description TEXT,
           amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
@@ -71,6 +63,12 @@ const ensureExpenseTables = async (db) => {
           created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         )
+      `);
+
+      // Tabel lama mungkin masih VARCHAR(30) + CHECK hardcode.
+      await db.query(`
+        ALTER TABLE finance.expense
+        ALTER COLUMN category TYPE VARCHAR(40)
       `);
 
       await db.query(`
@@ -173,9 +171,9 @@ const parseExpenseDate = (value) => {
   return raw.slice(0, 10);
 };
 
-const validateExpensePayload = (body = {}) => {
+const validateExpensePayload = async (db, homebaseId, body = {}) => {
   const title = String(body.title || "").trim();
-  const category = String(body.category || "").trim().toLowerCase();
+  const category = normalizeCategoryCode(body.category);
   const paymentMethod = String(body.payment_method || "cash")
     .trim()
     .toLowerCase();
@@ -194,8 +192,8 @@ const validateExpensePayload = (body = {}) => {
     return { error: "Judul maksimal 150 karakter" };
   }
 
-  if (!CATEGORY_VALUES.has(category)) {
-    return { error: "Kategori pengeluaran tidak valid" };
+  if (!(await isActiveExpenseCategory(db, homebaseId, category))) {
+    return { error: "Kategori pengeluaran tidak valid atau nonaktif" };
   }
 
   if (!PAYMENT_METHOD_VALUES.has(paymentMethod)) {
@@ -262,6 +260,10 @@ router.get(
       [homebaseId],
     );
 
+    const categories = await listExpenseCategories(db, homebaseId, {
+      includeInactive: false,
+    });
+
     res.json({
       status: "success",
       data: {
@@ -271,7 +273,7 @@ router.get(
           ...item,
           is_default: item.is_active,
         })),
-        categories: EXPENSE_CATEGORIES,
+        categories,
         payment_methods: EXPENSE_PAYMENT_METHODS,
       },
     });
@@ -291,9 +293,7 @@ router.get(
       requestedHomebaseId,
     );
     const periodeId = parseOptionalInt(req.query.periode_id);
-    const category = String(req.query.category || "")
-      .trim()
-      .toLowerCase();
+    const category = normalizeCategoryCode(req.query.category);
     const search = String(req.query.search || "").trim();
     const dateFrom = parseExpenseDate(req.query.date_from);
     const dateTo = parseExpenseDate(req.query.date_to);
@@ -312,7 +312,7 @@ router.get(
       whereClause += ` AND e.periode_id = $${params.length}`;
     }
 
-    if (category && CATEGORY_VALUES.has(category)) {
+    if (category) {
       params.push(category);
       whereClause += ` AND e.category = $${params.length}`;
     }
@@ -400,6 +400,341 @@ router.get(
 );
 
 router.get(
+  "/expense/categories",
+  authorize("satuan", "keuangan", "pusat", "finance"),
+  withQuery(async (req, res, db) => {
+    await ensureExpenseTables(db);
+
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
+    const includeInactive =
+      String(req.query.include_inactive || "").toLowerCase() === "true" ||
+      String(req.query.include_inactive || "") === "1";
+
+    if (!homebaseId) {
+      return res.status(400).json({
+        message: "Satuan belum dipilih atau tidak valid",
+      });
+    }
+
+    const categories = await listExpenseCategories(db, homebaseId, {
+      includeInactive,
+      withUsage: true,
+    });
+
+    res.json({
+      status: "success",
+      data: categories,
+      meta: {
+        homebase_id: homebaseId,
+        color_options: CATEGORY_COLOR_OPTIONS,
+      },
+    });
+  }),
+);
+
+router.post(
+  "/expense/categories",
+  authorize("keuangan", "finance", "pusat"),
+  withTransaction(async (req, res, client) => {
+    await ensureExpenseTables(client);
+
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+
+    if (!homebaseId) {
+      return res.status(400).json({
+        message: "Satuan belum dipilih atau tidak valid",
+      });
+    }
+
+    await seedDefaultExpenseCategories(client, homebaseId, req.user.id);
+
+    const label = String(req.body.label || "").trim();
+    const code =
+      normalizeCategoryCode(req.body.code) || normalizeCategoryCode(label);
+    const color = String(req.body.color || "default").trim().toLowerCase();
+    const sortOrder = Number.isFinite(Number(req.body.sort_order))
+      ? Number(req.body.sort_order)
+      : 100;
+    const isActive = req.body.is_active !== false && req.body.is_active !== 0;
+
+    if (!label) {
+      return res.status(400).json({ message: "Nama kategori wajib diisi" });
+    }
+    if (label.length > 100) {
+      return res.status(400).json({ message: "Nama kategori maksimal 100 karakter" });
+    }
+    if (!code) {
+      return res.status(400).json({ message: "Kode kategori tidak valid" });
+    }
+    if (code === "honorarium" || code === "spp" || code === "other_income") {
+      return res.status(400).json({
+        message: "Kode kategori ini digunakan sistem dan tidak dapat dipakai",
+      });
+    }
+    if (!COLOR_VALUES.has(color)) {
+      return res.status(400).json({ message: "Warna kategori tidak valid" });
+    }
+
+    try {
+      const result = await client.query(
+        `
+          INSERT INTO finance.expense_category (
+            homebase_id, code, label, color, sort_order,
+            is_active, is_system, created_by, updated_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, FALSE, $7, $7)
+          RETURNING *
+        `,
+        [homebaseId, code, label, color, sortOrder, isActive, req.user.id],
+      );
+
+      res.status(201).json({
+        status: "success",
+        message: "Kategori berhasil ditambahkan",
+        data: normalizeExpenseCategoryRow(result.rows[0]),
+      });
+    } catch (error) {
+      if (error?.code === "23505") {
+        return res.status(409).json({
+          message: "Kode kategori sudah dipakai di satuan ini",
+        });
+      }
+      throw error;
+    }
+  }),
+);
+
+router.put(
+  "/expense/categories/:id",
+  authorize("keuangan", "finance", "pusat"),
+  withTransaction(async (req, res, client) => {
+    await ensureExpenseTables(client);
+
+    const categoryId = parseCategoryId(req.params.id);
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+
+    if (!categoryId || !homebaseId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    const existing = await client.query(
+      `
+        SELECT *
+        FROM finance.expense_category
+        WHERE id = $1
+          AND homebase_id = $2
+        LIMIT 1
+      `,
+      [categoryId, homebaseId],
+    );
+
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ message: "Kategori tidak ditemukan" });
+    }
+
+    const current = existing.rows[0];
+    const label = String(req.body.label ?? current.label).trim();
+    const color = String(req.body.color ?? current.color)
+      .trim()
+      .toLowerCase();
+    const sortOrder = Number.isFinite(Number(req.body.sort_order))
+      ? Number(req.body.sort_order)
+      : Number(current.sort_order || 0);
+    const isActive =
+      req.body.is_active === undefined
+        ? current.is_active !== false
+        : req.body.is_active !== false && req.body.is_active !== 0;
+
+    // Kode kategori sistem dikunci; kategori custom boleh diubah jika belum terpakai.
+    let nextCode = current.code;
+    if (!current.is_system && req.body.code !== undefined) {
+      const requestedCode = normalizeCategoryCode(req.body.code);
+      if (!requestedCode) {
+        return res.status(400).json({ message: "Kode kategori tidak valid" });
+      }
+      if (
+        requestedCode === "honorarium" ||
+        requestedCode === "spp" ||
+        requestedCode === "other_income"
+      ) {
+        return res.status(400).json({
+          message: "Kode kategori ini digunakan sistem dan tidak dapat dipakai",
+        });
+      }
+
+      if (requestedCode !== current.code) {
+        const usage = await client.query(
+          `
+            SELECT COUNT(*)::int AS total
+            FROM finance.expense
+            WHERE homebase_id = $1
+              AND category = $2
+          `,
+          [homebaseId, current.code],
+        );
+        if (Number(usage.rows[0]?.total || 0) > 0) {
+          return res.status(409).json({
+            message:
+              "Kode tidak bisa diubah karena sudah dipakai pada transaksi pengeluaran",
+          });
+        }
+        nextCode = requestedCode;
+      }
+    }
+
+    if (!label) {
+      return res.status(400).json({ message: "Nama kategori wajib diisi" });
+    }
+    if (label.length > 100) {
+      return res.status(400).json({ message: "Nama kategori maksimal 100 karakter" });
+    }
+    if (!COLOR_VALUES.has(color)) {
+      return res.status(400).json({ message: "Warna kategori tidak valid" });
+    }
+
+    try {
+      const result = await client.query(
+        `
+          UPDATE finance.expense_category
+          SET
+            code = $3,
+            label = $4,
+            color = $5,
+            sort_order = $6,
+            is_active = $7,
+            updated_by = $8,
+            updated_at = NOW()
+          WHERE id = $1
+            AND homebase_id = $2
+          RETURNING *
+        `,
+        [
+          categoryId,
+          homebaseId,
+          nextCode,
+          label,
+          color,
+          sortOrder,
+          isActive,
+          req.user.id,
+        ],
+      );
+
+      res.json({
+        status: "success",
+        message: "Kategori berhasil diperbarui",
+        data: normalizeExpenseCategoryRow(result.rows[0]),
+      });
+    } catch (error) {
+      if (error?.code === "23505") {
+        return res.status(409).json({
+          message: "Kode kategori sudah dipakai di satuan ini",
+        });
+      }
+      throw error;
+    }
+  }),
+);
+
+router.delete(
+  "/expense/categories/:id",
+  authorize("keuangan", "finance", "pusat"),
+  withTransaction(async (req, res, client) => {
+    await ensureExpenseTables(client);
+
+    const categoryId = parseCategoryId(req.params.id);
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+
+    if (!categoryId || !homebaseId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    const existing = await client.query(
+      `
+        SELECT *
+        FROM finance.expense_category
+        WHERE id = $1
+          AND homebase_id = $2
+        LIMIT 1
+      `,
+      [categoryId, homebaseId],
+    );
+
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ message: "Kategori tidak ditemukan" });
+    }
+
+    const current = existing.rows[0];
+    const usage = await client.query(
+      `
+        SELECT COUNT(*)::int AS total
+        FROM finance.expense
+        WHERE homebase_id = $1
+          AND category = $2
+      `,
+      [homebaseId, current.code],
+    );
+    const usageCount = Number(usage.rows[0]?.total || 0);
+
+    if (usageCount > 0) {
+      return res.status(409).json({
+        message: `Kategori tidak bisa dihapus karena masih dipakai ${usageCount} transaksi pengeluaran. Pindahkan/hapus transaksi tersebut atau nonaktifkan kategori lewat Edit.`,
+      });
+    }
+
+    const budgetTable = await client.query(
+      `SELECT to_regclass('finance.budget') AS table_ref`,
+    );
+    if (budgetTable.rows[0]?.table_ref) {
+      await client.query(
+        `
+          DELETE FROM finance.budget
+          WHERE homebase_id = $1
+            AND kind = 'expense'
+            AND category = $2
+        `,
+        [homebaseId, current.code],
+      );
+    }
+
+    await client.query(
+      `
+        DELETE FROM finance.expense_category
+        WHERE id = $1
+          AND homebase_id = $2
+      `,
+      [categoryId, homebaseId],
+    );
+
+    res.json({
+      status: "success",
+      message: "Kategori berhasil dihapus",
+      data: { id: categoryId, deleted: true },
+    });
+  }),
+);
+
+router.get(
   "/expense/:id",
   authorize("satuan", "keuangan", "pusat", "finance"),
   withQuery(async (req, res, db) => {
@@ -465,7 +800,7 @@ router.post(
       });
     }
 
-    const validated = validateExpensePayload(req.body);
+    const validated = await validateExpensePayload(client, homebaseId, req.body);
     if (validated.error) {
       return res.status(400).json({ message: validated.error });
     }
@@ -560,7 +895,7 @@ router.put(
       return res.status(400).json({ message: "Parameter tidak valid" });
     }
 
-    const validated = validateExpensePayload(req.body);
+    const validated = await validateExpensePayload(client, homebaseId, req.body);
     if (validated.error) {
       return res.status(400).json({ message: validated.error });
     }

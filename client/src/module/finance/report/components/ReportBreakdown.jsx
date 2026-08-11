@@ -16,14 +16,16 @@ import {
   message,
 } from "antd";
 import dayjs from "dayjs";
-import { Download } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
 
+import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import {
   useGetTransactionsQuery,
   useLazyGetTransactionsQuery,
 } from "../../../../service/finance/ApiTransaction";
-import { useGetExpensesQuery } from "../../../../service/finance/ApiExpense";
+import { useGetExpensesQuery, useGetExpenseOptionsQuery } from "../../../../service/finance/ApiExpense";
 import {
   cardStyle,
   currencyFormatter,
@@ -35,6 +37,7 @@ import {
 } from "../constants";
 import ReportBudgetTab from "./ReportBudgetTab";
 import ReportCashflowTab from "./ReportCashflowTab";
+import ReportClosingsPanel from "./ReportClosingsPanel";
 
 const { Text } = Typography;
 
@@ -221,28 +224,35 @@ const fetchAllDailyTransactions = async (trigger, baseParams) => {
 };
 
 const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
-  const [selectedDate, setSelectedDate] = useState(() => todayString());
+  const [dateRange, setDateRange] = useState(() => [
+    todayString(),
+    todayString(),
+  ]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
 
+  const dateFrom = dateRange?.[0];
+  const dateTo = dateRange?.[1];
+  const isSingleDay = Boolean(dateFrom && dateTo && dateFrom === dateTo);
+
   const queryArgs = useMemo(
     () => ({
       homebase_id: homebaseId,
-      date_from: selectedDate,
-      date_to: selectedDate,
+      date_from: dateFrom,
+      date_to: dateTo,
       page,
       limit: pageSize,
       search: search.trim() || undefined,
       status: "confirmed",
     }),
-    [homebaseId, page, pageSize, search, selectedDate],
+    [dateFrom, dateTo, homebaseId, page, pageSize, search],
   );
 
   const { data: response, isFetching } = useGetTransactionsQuery(queryArgs, {
-    skip: !enabled || !homebaseId || !selectedDate,
+    skip: !enabled || !homebaseId || !dateFrom || !dateTo,
   });
   const [triggerTransactions] = useLazyGetTransactionsQuery();
 
@@ -251,9 +261,16 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
   const totalRecords = Number(summary.total_records || 0);
   const confirmedAmount = Number(summary.confirmed_amount || 0);
 
+  const rangeLabel =
+    dateFrom && dateTo
+      ? isSingleDay
+        ? dayjs(dateFrom).format("DD MMMM YYYY")
+        : `${dayjs(dateFrom).format("DD MMM YYYY")} – ${dayjs(dateTo).format("DD MMM YYYY")}`
+      : "-";
+
   const handleExportExcel = async () => {
-    if (!homebaseId || !selectedDate) {
-      message.warning("Pilih tanggal terlebih dahulu");
+    if (!homebaseId || !dateFrom || !dateTo) {
+      message.warning("Pilih rentang tanggal terlebih dahulu");
       return;
     }
 
@@ -261,8 +278,8 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
     try {
       const rows = await fetchAllDailyTransactions(triggerTransactions, {
         homebase_id: homebaseId,
-        date_from: selectedDate,
-        date_to: selectedDate,
+        date_from: dateFrom,
+        date_to: dateTo,
         search: search.trim() || undefined,
         status: "confirmed",
       });
@@ -282,7 +299,7 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
         ...rows.map((item) => [
           item.paid_at
             ? dayjs(item.paid_at).format("DD/MM/YYYY HH:mm")
-            : dayjs(selectedDate).format("DD/MM/YYYY"),
+            : dayjs(dateFrom).format("DD/MM/YYYY"),
           item.student_name || "-",
           item.class_name || item.grade_name || "-",
           item.description || "-",
@@ -302,7 +319,10 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Pendapatan Harian");
-      XLSX.writeFile(workbook, `pendapatan-harian-${selectedDate}.xlsx`);
+      XLSX.writeFile(
+        workbook,
+        `pendapatan-harian-${dateFrom}_${dateTo}.xlsx`,
+      );
       message.success("Excel berhasil diunduh");
     } catch (error) {
       message.error(error?.data?.message || "Gagal mengunduh Excel");
@@ -313,11 +333,14 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
 
   const columns = [
     {
-      title: "Waktu",
+      title: isSingleDay ? "Waktu" : "Tanggal",
       dataIndex: "paid_at",
       key: "paid_at",
-      width: 150,
-      render: (value) => (value ? dayjs(value).format("HH:mm") : "-"),
+      width: isSingleDay ? 90 : 150,
+      render: (value) =>
+        value
+          ? dayjs(value).format(isSingleDay ? "HH:mm" : "DD/MM/YYYY HH:mm")
+          : "-",
     },
     {
       title: "Siswa",
@@ -380,14 +403,17 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
         style={{ marginBottom: 14 }}
       >
         <Space wrap>
-          <DatePicker
+          <DatePicker.RangePicker
             allowClear={false}
-            value={selectedDate ? dayjs(selectedDate) : null}
+            value={
+              dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : null
+            }
             format='DD MMM YYYY'
-            onChange={(value) => {
-              setSelectedDate(
-                value ? value.format("YYYY-MM-DD") : todayString(),
-              );
+            onChange={(values) => {
+              setDateRange([
+                values?.[0] ? values[0].format("YYYY-MM-DD") : todayString(),
+                values?.[1] ? values[1].format("YYYY-MM-DD") : todayString(),
+              ]);
               setPage(1);
             }}
           />
@@ -426,8 +452,8 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
       </Flex>
 
       <Text type='secondary' style={{ display: "block", marginBottom: 10 }}>
-        Transaksi terkonfirmasi pada{" "}
-        {selectedDate ? dayjs(selectedDate).format("DD MMMM YYYY") : "-"} ·{" "}
+        Transaksi terkonfirmasi pada {rangeLabel}
+        {search.trim() ? ` · pencarian "${search.trim()}"` : ""} ·{" "}
         {totalRecords} transaksi
       </Text>
 
@@ -452,7 +478,7 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
         scroll={{ x: 900 }}
         size='middle'
         locale={{
-          emptyText: "Tidak ada transaksi pada tanggal ini.",
+          emptyText: "Tidak ada transaksi pada rentang tanggal ini.",
         }}
       />
     </>
@@ -460,22 +486,47 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
 };
 
 const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
-  const [selectedDate, setSelectedDate] = useState(() => todayString());
+  const [dateRange, setDateRange] = useState(() => [
+    todayString(),
+    todayString(),
+  ]);
+  const [category, setCategory] = useState("all");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+
+  const { data: optionsResponse } = useGetExpenseOptionsQuery(
+    homebaseId ? { homebase_id: homebaseId } : undefined,
+    { skip: !enabled || !homebaseId },
+  );
+  const categories = optionsResponse?.data?.categories || [];
+  const categoryMeta = useMemo(() => {
+    const map = {};
+    for (const item of categories) {
+      const key = item.value || item.code;
+      map[key] = {
+        label: item.label || expenseCategoryLabelMap[key] || key,
+        color: item.color || expenseCategoryColorMap[key] || "default",
+      };
+    }
+    return map;
+  }, [categories]);
+
+  const dateFrom = dateRange?.[0];
+  const dateTo = dateRange?.[1];
 
   const queryArgs = useMemo(
     () => ({
       homebase_id: homebaseId,
-      date_from: selectedDate,
-      date_to: selectedDate,
+      date_from: dateFrom,
+      date_to: dateTo,
+      ...(category !== "all" ? { category } : {}),
       search: search.trim() || undefined,
     }),
-    [homebaseId, search, selectedDate],
+    [category, dateFrom, dateTo, homebaseId, search],
   );
 
   const { data: response, isFetching } = useGetExpensesQuery(queryArgs, {
-    skip: !enabled || !homebaseId || !selectedDate,
+    skip: !enabled || !homebaseId || !dateFrom || !dateTo,
   });
 
   const expenses = response?.data || [];
@@ -483,6 +534,13 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
     (sum, item) => sum + Number(item.amount || 0),
     0,
   );
+
+  const rangeLabel =
+    dateFrom && dateTo
+      ? dateFrom === dateTo
+        ? dayjs(dateFrom).format("DD MMMM YYYY")
+        : `${dayjs(dateFrom).format("DD MMM YYYY")} – ${dayjs(dateTo).format("DD MMM YYYY")}`
+      : "-";
 
   const handleExportExcel = () => {
     if (!expenses.length) {
@@ -494,7 +552,9 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
       ["Tanggal", "Kategori", "Judul", "Keterangan", "Metode", "Nominal"],
       ...expenses.map((item) => [
         dayjs(item.expense_date).format("DD/MM/YYYY"),
-        expenseCategoryLabelMap[item.category] || item.category,
+        categoryMeta[item.category]?.label ||
+          expenseCategoryLabelMap[item.category] ||
+          item.category,
         item.title || "-",
         item.description || "-",
         paymentMethodLabelMap[item.payment_method] || item.payment_method,
@@ -522,19 +582,38 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Pengeluaran Harian");
-    XLSX.writeFile(workbook, `pengeluaran-harian-${selectedDate}.xlsx`);
+    XLSX.writeFile(
+      workbook,
+      `pengeluaran-${dateFrom || "all"}_${dateTo || "all"}.xlsx`,
+    );
     message.success("Excel berhasil diunduh");
   };
 
   const columns = [
+    {
+      title: "Tanggal",
+      dataIndex: "expense_date",
+      key: "expense_date",
+      width: 120,
+      render: (value) =>
+        value ? dayjs(value).format("DD MMM YYYY") : "-",
+    },
     {
       title: "Kategori",
       dataIndex: "category",
       key: "category",
       width: 150,
       render: (value) => (
-        <Tag color={expenseCategoryColorMap[value] || "default"}>
-          {expenseCategoryLabelMap[value] || value}
+        <Tag
+          color={
+            categoryMeta[value]?.color ||
+            expenseCategoryColorMap[value] ||
+            "default"
+          }
+        >
+          {categoryMeta[value]?.label ||
+            expenseCategoryLabelMap[value] ||
+            value}
         </Tag>
       ),
     },
@@ -591,20 +670,35 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
         style={{ marginBottom: 14 }}
       >
         <Space wrap>
-          <DatePicker
+          <DatePicker.RangePicker
             allowClear={false}
-            value={selectedDate ? dayjs(selectedDate) : null}
+            value={
+              dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : null
+            }
             format='DD MMM YYYY'
-            onChange={(value) => {
-              setSelectedDate(
-                value ? value.format("YYYY-MM-DD") : todayString(),
-              );
+            onChange={(values) => {
+              setDateRange([
+                values?.[0] ? values[0].format("YYYY-MM-DD") : todayString(),
+                values?.[1] ? values[1].format("YYYY-MM-DD") : todayString(),
+              ]);
             }}
+          />
+          <Select
+            style={{ minWidth: 180 }}
+            value={category}
+            onChange={setCategory}
+            options={[
+              { value: "all", label: "Semua kategori" },
+              ...categories.map((item) => ({
+                value: item.value || item.code,
+                label: item.label || item.value || item.code,
+              })),
+            ]}
           />
           <Input.Search
             allowClear
-            placeholder='Cari judul / keterangan / referensi…'
-            style={{ minWidth: 260 }}
+            placeholder='Cari judul pengeluaran / keterangan / referensi…'
+            style={{ minWidth: 280 }}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             onSearch={(value) => setSearch(value)}
@@ -631,8 +725,11 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
       </Flex>
 
       <Text type='secondary' style={{ display: "block", marginBottom: 10 }}>
-        Pengeluaran tercatat pada{" "}
-        {selectedDate ? dayjs(selectedDate).format("DD MMMM YYYY") : "-"} ·{" "}
+        Pengeluaran tercatat pada {rangeLabel}
+        {category !== "all"
+          ? ` · kategori ${categoryMeta[category]?.label || category}`
+          : ""}
+        {search.trim() ? ` · pencarian "${search.trim()}"` : ""} ·{" "}
         {expenses.length} transaksi
       </Text>
 
@@ -642,10 +739,10 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
         dataSource={expenses}
         loading={isFetching}
         pagination={{ pageSize: 15, showSizeChanger: true }}
-        scroll={{ x: 900 }}
+        scroll={{ x: 980 }}
         size='middle'
         locale={{
-          emptyText: "Tidak ada pengeluaran pada tanggal ini.",
+          emptyText: "Tidak ada pengeluaran pada filter ini.",
         }}
       />
     </>
@@ -656,13 +753,18 @@ const ReportBreakdown = ({
   sppByClass = [],
   otherByType = [],
   unpaidStudents = [],
-  expenseByCategory = [],
   budgetItems = [],
   monthlyCashflow = [],
   homebaseId,
   periodeId,
 }) => {
   const [activeTab, setActiveTab] = useState("spp");
+  const location = useLocation();
+  const financeScope = useFinanceScope();
+  const rapbsManagePath =
+    financeScope?.homebaseId || location.pathname.startsWith("/keuangan/")
+      ? `/keuangan/${homebaseId}/rapbs`
+      : `/finance/rapbs/${homebaseId}`;
 
   const sppColumns = [
     {
@@ -793,62 +895,6 @@ const ReportBreakdown = ({
     },
   ];
 
-  const expenseCategoryTotal = expenseByCategory.reduce(
-    (sum, row) => sum + Number(row.total || 0),
-    0,
-  );
-
-  const expenseCategoryColumns = [
-    {
-      title: "Kategori",
-      dataIndex: "category_label",
-      key: "category_label",
-      render: (value, row) => (
-        <Tag color={expenseCategoryColorMap[row.category] || "default"}>
-          {value}
-        </Tag>
-      ),
-    },
-    {
-      title: "Transaksi",
-      dataIndex: "entry_count",
-      key: "entry_count",
-      width: 110,
-      align: "right",
-    },
-    {
-      title: "Total",
-      dataIndex: "total",
-      key: "total",
-      align: "right",
-      render: (value) => (
-        <span style={{ fontWeight: 600 }}>
-          {currencyFormatter.format(value || 0)}
-        </span>
-      ),
-    },
-    {
-      title: "Proporsi",
-      key: "proportion",
-      width: 180,
-      render: (_, row) => {
-        const percent =
-          expenseCategoryTotal > 0
-            ? Math.round((Number(row.total || 0) / expenseCategoryTotal) * 1000) /
-              10
-            : 0;
-        return (
-          <Progress
-            percent={percent}
-            size='small'
-            strokeColor='#dc2626'
-            format={(value) => `${value}%`}
-          />
-        );
-      },
-    },
-  ];
-
   return (
     <Card style={cardStyle} styles={{ body: { paddingTop: 8 } }}>
       <Tabs
@@ -899,47 +945,6 @@ const ReportBreakdown = ({
             ),
           },
           {
-            key: "expense_category",
-            label: `Pengeluaran per Kategori (${expenseByCategory.length})`,
-            children: (
-              <Table
-                rowKey='category'
-                columns={expenseCategoryColumns}
-                dataSource={expenseByCategory}
-                pagination={false}
-                scroll={{ x: 700 }}
-                size='middle'
-                locale={{
-                  emptyText:
-                    "Belum ada pengeluaran tercatat pada cakupan laporan ini.",
-                }}
-                summary={() =>
-                  expenseByCategory.length ? (
-                    <Table.Summary.Row>
-                      <Table.Summary.Cell index={0}>
-                        <span style={{ fontWeight: 600 }}>Total</span>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell index={1} align='right'>
-                        <span style={{ fontWeight: 600 }}>
-                          {expenseByCategory.reduce(
-                            (sum, row) => sum + Number(row.entry_count || 0),
-                            0,
-                          )}
-                        </span>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell index={2} align='right'>
-                        <span style={{ fontWeight: 600, color: "#dc2626" }}>
-                          {currencyFormatter.format(expenseCategoryTotal)}
-                        </span>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell index={3} />
-                    </Table.Summary.Row>
-                  ) : null
-                }
-              />
-            ),
-          },
-          {
             key: "expense",
             label: "Pengeluaran Harian",
             children: (
@@ -953,17 +958,43 @@ const ReportBreakdown = ({
             key: "budget",
             label: "RAPBS (Anggaran)",
             children: (
-              <ReportBudgetTab
-                homebaseId={homebaseId}
-                periodeId={periodeId}
-                items={budgetItems}
-              />
+              <Space direction='vertical' size={12} style={{ width: "100%" }}>
+                <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
+                  <Text type='secondary'>
+                    Ringkasan realisasi vs anggaran. Pengelolaan nominal RAPBS
+                    dipindah ke menu khusus.
+                  </Text>
+                  <Link to={rapbsManagePath}>
+                    <Button
+                      type='link'
+                      icon={<ExternalLink size={14} />}
+                      style={{ paddingInline: 0 }}
+                    >
+                      Kelola di menu RAPBS
+                    </Button>
+                  </Link>
+                </Flex>
+                <ReportBudgetTab
+                  homebaseId={homebaseId}
+                  periodeId={periodeId}
+                  items={budgetItems}
+                  readOnly
+                  emptyMessage='Pilih periode untuk melihat realisasi RAPBS.'
+                />
+              </Space>
             ),
           },
           {
             key: "cashflow",
             label: `Arus Kas (${monthlyCashflow.length})`,
             children: <ReportCashflowTab rows={monthlyCashflow} />,
+          },
+          {
+            key: "closing",
+            label: "Tutup Buku Bulanan",
+            children: (
+              <ReportClosingsPanel homebaseId={homebaseId} embedded />
+            ),
           },
         ]}
       />

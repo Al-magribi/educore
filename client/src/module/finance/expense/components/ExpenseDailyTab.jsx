@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import {
   Alert,
@@ -34,8 +34,6 @@ import ExpenseSummaryCards from "./ExpenseSummaryCards";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
-const DAILY_EXCLUDED_CATEGORIES = new Set(["utilities", "salary"]);
-
 const ExpenseDailyTab = () => {
   const { user } = useSelector((state) => state.auth);
   const screens = Grid.useBreakpoint();
@@ -59,14 +57,28 @@ const ExpenseDailyTab = () => {
   const options = optionsQuery.data?.data || {};
   const homebases = options.homebases || [];
   const periodes = options.periodes || [];
+  // Pakai kategori aktif dari API apa adanya (tanpa filter hardcode).
   const categories = useMemo(
     () =>
-      (options.categories || []).filter(
-        (item) => !DAILY_EXCLUDED_CATEGORIES.has(item.value),
-      ),
+      (options.categories || []).map((item) => ({
+        ...item,
+        value: item.value || item.code,
+        label: item.label || categoryLabel[item.value || item.code] || item.code,
+      })),
     [options.categories],
   );
   const paymentMethods = options.payment_methods || [];
+  const categoryMeta = useMemo(() => {
+    const map = {};
+    for (const item of categories) {
+      const key = item.value || item.code;
+      map[key] = {
+        label: item.label || categoryLabel[key] || key,
+        color: item.color || "default",
+      };
+    }
+    return map;
+  }, [categories]);
 
   const selectedHomebaseId =
     options.selected_homebase_id ||
@@ -112,11 +124,41 @@ const ExpenseDailyTab = () => {
       { value: "all", label: "Semua kategori" },
       ...categories.map((item) => ({
         value: item.value,
-        label: item.label || categoryLabel[item.value] || item.value,
+        label: item.label,
       })),
     ],
     [categories],
   );
+
+  useEffect(() => {
+    if (
+      categoryFilter !== "all" &&
+      !categories.some((item) => item.value === categoryFilter)
+    ) {
+      setCategoryFilter("all");
+    }
+  }, [categories, categoryFilter]);
+
+  const formCategories = useMemo(() => {
+    if (!editingExpense?.category) return categories;
+    const exists = categories.some(
+      (item) => item.value === editingExpense.category,
+    );
+    if (exists) return categories;
+    // Saat edit, tetap tampilkan kategori lama meski sudah nonaktif/terhapus dari list aktif.
+    return [
+      ...categories,
+      {
+        value: editingExpense.category,
+        code: editingExpense.category,
+        label:
+          categoryMeta[editingExpense.category]?.label ||
+          categoryLabel[editingExpense.category] ||
+          editingExpense.category,
+        color: categoryMeta[editingExpense.category]?.color || "default",
+      },
+    ];
+  }, [categories, categoryMeta, editingExpense]);
 
   const openCreate = () => {
     setEditingExpense(null);
@@ -124,7 +166,7 @@ const ExpenseDailyTab = () => {
     form.setFieldsValue({
       homebase_id: selectedHomebaseId,
       periode_id: periodeFilter || defaultPeriodeId,
-      category: "operational",
+      category: categories[0]?.value || undefined,
       payment_method: "cash",
       expense_date: dayjs(),
       amount: undefined,
@@ -304,6 +346,7 @@ const ExpenseDailyTab = () => {
                 onEdit={openEdit}
                 onDelete={handleDelete}
                 deleting={deleteExpenseState.isLoading}
+                categoryMeta={categoryMeta}
               />
             </Flex>
           </Card>
@@ -319,7 +362,7 @@ const ExpenseDailyTab = () => {
         }
         homebases={homebases}
         periodes={periodes}
-        categories={categories}
+        categories={formCategories}
         paymentMethods={paymentMethods}
         lockHomebase={lockHomebase}
         onCancel={closeModal}

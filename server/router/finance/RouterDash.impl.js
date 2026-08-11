@@ -122,8 +122,16 @@ const buildEmptyPayload = ({
   },
   summary: {
     school_revenue: 0,
+    fee_income_total: 0,
     spp_collected: 0,
     other_collected: 0,
+    expense_operational: 0,
+    honorarium_locked: 0,
+    honorarium_draft: 0,
+    expense_grand_total: 0,
+    net_balance: 0,
+    fee_remaining_total: 0,
+    unpaid_student_count: 0,
     savings_balance: 0,
     class_cash_balance: 0,
     managed_funds: 0,
@@ -134,6 +142,13 @@ const buildEmptyPayload = ({
     active_other_types: 0,
     homebase_count: 0,
     active_periode_count: 0,
+  },
+  expense: {
+    operational_total: 0,
+    operational_count: 0,
+    honorarium_locked: 0,
+    honorarium_draft: 0,
+    grand_total: 0,
   },
   spp: {
     expected_bruto_current_month: 0,
@@ -181,7 +196,7 @@ const buildEmptyPayload = ({
 
 router.get(
   "/dashboard",
-  authorize("satuan", "keuangan", "pusat"),
+  authorize("satuan", "keuangan", "finance", "pusat"),
   withQuery(async (req, res, db) => {
     const client = await db.connect();
 
@@ -276,10 +291,14 @@ router.get(
             COUNT(DISTINCT e.class_id)::int AS total_classes,
             COUNT(DISTINCT c.grade_id)::int AS total_grades
           FROM active_scope scope
-          LEFT JOIN u_class_enrollments e
+          JOIN u_class_enrollments e
             ON e.homebase_id = scope.homebase_id
-            AND e.periode_id = scope.periode_id
-          LEFT JOIN a_class c ON c.id = e.class_id
+           AND e.periode_id = scope.periode_id
+          JOIN u_users u
+            ON u.id = e.student_id
+           AND u.role = 'student'
+           AND u.is_active = true
+          JOIN a_class c ON c.id = e.class_id
         `,
           scopeParams,
         ),
@@ -319,6 +338,10 @@ router.get(
             JOIN u_class_enrollments e
               ON e.homebase_id = scope.homebase_id
               AND e.periode_id = scope.periode_id
+            JOIN u_users u
+              ON u.id = e.student_id
+             AND u.role = 'student'
+             AND u.is_active = true
             JOIN a_class c ON c.id = e.class_id
             LEFT JOIN LATERAL (
               SELECT spp_rule.amount
@@ -568,9 +591,13 @@ router.get(
               COUNT(DISTINCT e.student_id)::int AS total_students,
               COUNT(DISTINCT e.class_id)::int AS total_classes
             FROM active_scope scope
-            LEFT JOIN u_class_enrollments e
+            JOIN u_class_enrollments e
               ON e.homebase_id = scope.homebase_id
-              AND e.periode_id = scope.periode_id
+             AND e.periode_id = scope.periode_id
+            JOIN u_users u
+              ON u.id = e.student_id
+             AND u.role = 'student'
+             AND u.is_active = true
             GROUP BY scope.homebase_id
           ),
           expected_scope AS (
@@ -582,6 +609,10 @@ router.get(
             JOIN u_class_enrollments e
               ON e.homebase_id = scope.homebase_id
               AND e.periode_id = scope.periode_id
+            JOIN u_users u
+              ON u.id = e.student_id
+             AND u.role = 'student'
+             AND u.is_active = true
             JOIN a_class c ON c.id = e.class_id
             LEFT JOIN LATERAL (
               SELECT spp_rule.amount
@@ -760,81 +791,192 @@ router.get(
         expectedSppCurrentMonth - paidSppCurrentMonth,
         0,
       );
-      const totalStudents = Number(
-        sppCurrent.total_students || population.total_students || 0,
-      );
+      const totalStudents = Number(population.total_students || 0);
       const paidStudentsCurrentMonth = Number(sppCurrent.paid_students || 0);
       const unpaidStudentsCurrentMonth = Math.max(
         totalStudents - paidStudentsCurrentMonth,
         0,
       );
+      const otherRemaining = numberValue(others.total_remaining);
+
+      // Pengeluaran operasional & honorarium (periode aktif).
+      let expenseOperational = 0;
+      let expenseOperationalCount = 0;
+      let honorariumLocked = 0;
+      let honorariumDraft = 0;
+      let recentExpenseRows = [];
+
+      const expenseTable = await client.query(
+        `SELECT to_regclass('finance.expense') AS table_ref`,
+      );
+      if (expenseTable.rows[0]?.table_ref) {
+        const [expenseSummaryResult, recentExpenseResult] = await Promise.all([
+          client.query(
+            `
+              WITH active_scope AS (${activeScopeSql})
+              SELECT
+                COALESCE(SUM(e.amount), 0)::float AS expense_total,
+                COUNT(*)::int AS expense_count
+              FROM finance.expense e
+              JOIN active_scope scope
+                ON scope.homebase_id = e.homebase_id
+               AND scope.periode_id = e.periode_id
+            `,
+            scopeParams,
+          ),
+          client.query(
+            `
+              WITH active_scope AS (${activeScopeSql})
+              SELECT
+                e.id,
+                e.title,
+                e.amount,
+                e.expense_date,
+                e.category,
+                e.payment_method,
+                scope.homebase_name
+              FROM finance.expense e
+              JOIN active_scope scope
+                ON scope.homebase_id = e.homebase_id
+               AND scope.periode_id = e.periode_id
+              ORDER BY e.expense_date DESC, e.id DESC
+              LIMIT 12
+            `,
+            scopeParams,
+          ),
+        ]);
+        expenseOperational = numberValue(
+          expenseSummaryResult.rows[0]?.expense_total,
+        );
+        expenseOperationalCount = Number(
+          expenseSummaryResult.rows[0]?.expense_count || 0,
+        );
+        recentExpenseRows = recentExpenseResult.rows;
+      }
+
+      const honorTable = await client.query(
+        `SELECT to_regclass('finance.honor_payroll_period') AS table_ref`,
+      );
+      if (honorTable.rows[0]?.table_ref) {
+        const honorResult = await client.query(
+          `
+            WITH active_scope AS (${activeScopeSql})
+            SELECT
+              COALESCE(
+                SUM(CASE WHEN hp.status = 'locked' THEN hp.grand_total ELSE 0 END),
+                0
+              )::float AS honorarium_locked,
+              COALESCE(
+                SUM(CASE WHEN hp.status = 'draft' THEN hp.grand_total ELSE 0 END),
+                0
+              )::float AS honorarium_draft
+            FROM finance.honor_payroll_period hp
+            JOIN active_scope scope
+              ON scope.homebase_id = hp.homebase_id
+             AND scope.periode_id = hp.periode_id
+          `,
+          scopeParams,
+        );
+        honorariumLocked = numberValue(
+          honorResult.rows[0]?.honorarium_locked,
+        );
+        honorariumDraft = numberValue(honorResult.rows[0]?.honorarium_draft);
+      }
+
+      const expenseGrandTotal = expenseOperational + honorariumLocked;
 
       const recentTransactions = [
-      ...recentPaymentResult.rows.map((item) => ({
-        key: `payment-${item.id}`,
-        subject: item.student_name,
-        channel:
-          item.category === "spp"
-            ? `SPP ${(item.bill_months || []).map(formatMonthLabel).join(", ")}`
-            : item.category === "other"
-              ? (item.item_names || []).join(", ")
-              : (item.item_names || []).join(", "),
-        method: item.payment_method || "-",
-        amount: numberValue(item.amount),
-        status: "Lunas",
-        time: item.payment_date,
-        note: item.class_name || item.nis || "-",
-        category: item.category,
-        homebase_name: item.homebase_name,
-      })),
-      ...recentSavingResult.rows.map((item) => ({
-        key: `saving-${item.transaction_id}`,
-        subject: item.student_name || `Siswa #${item.student_id}`,
-        channel: "Tabungan",
-        method: "-",
-        amount:
-          item.transaction_type === "withdrawal"
-            ? -numberValue(item.amount)
-            : numberValue(item.amount),
-        status: item.transaction_type === "withdrawal" ? "Penarikan" : "Setoran",
-        time: item.transaction_date,
-        note: item.description || item.nis || "-",
-        category: "savings",
-        homebase_name: item.homebase_name,
-      })),
-      ...recentCashResult.rows.map((item) => ({
-        key: `cash-${item.transaction_id}`,
-        subject: item.class_name || `Kelas #${item.class_id}`,
-        channel: "Kas Kelas",
-        method: "-",
-        amount:
-          item.transaction_type === "expense"
-            ? -numberValue(item.amount)
-            : numberValue(item.amount),
-        status: item.transaction_type === "expense" ? "Pengeluaran" : "Pemasukan",
-        time: item.transaction_date,
-        note: item.description || "-",
-        category: "class_cash",
-        homebase_name: item.homebase_name,
-      })),
-    ]
-      .sort((left, right) => new Date(right.time) - new Date(left.time))
-      .slice(0, 12);
+        ...recentPaymentResult.rows.map((item) => ({
+          key: `payment-${item.id}`,
+          subject: item.student_name,
+          channel:
+            item.category === "spp"
+              ? `SPP ${(item.bill_months || []).map(formatMonthLabel).join(", ")}`
+              : item.category === "other"
+                ? (item.item_names || []).join(", ")
+                : (item.item_names || []).join(", "),
+          method: item.payment_method || "-",
+          amount: numberValue(item.amount),
+          status: "Lunas",
+          time: item.payment_date,
+          note: item.class_name || item.nis || "-",
+          category: item.category,
+          homebase_name: item.homebase_name,
+        })),
+        ...recentSavingResult.rows.map((item) => ({
+          key: `saving-${item.transaction_id}`,
+          subject: item.student_name || `Siswa #${item.student_id}`,
+          channel: "Tabungan",
+          method: "-",
+          amount:
+            item.transaction_type === "withdrawal"
+              ? -numberValue(item.amount)
+              : numberValue(item.amount),
+          status:
+            item.transaction_type === "withdrawal" ? "Penarikan" : "Setoran",
+          time: item.transaction_date,
+          note: item.description || item.nis || "-",
+          category: "savings",
+          homebase_name: item.homebase_name,
+        })),
+        ...recentCashResult.rows.map((item) => ({
+          key: `cash-${item.transaction_id}`,
+          subject: item.class_name || `Kelas #${item.class_id}`,
+          channel: "Kas Kelas",
+          method: "-",
+          amount:
+            item.transaction_type === "expense"
+              ? -numberValue(item.amount)
+              : numberValue(item.amount),
+          status:
+            item.transaction_type === "expense" ? "Pengeluaran" : "Pemasukan",
+          time: item.transaction_date,
+          note: item.description || "-",
+          category: "class_cash",
+          homebase_name: item.homebase_name,
+        })),
+        ...recentExpenseRows.map((item) => ({
+          key: `expense-${item.id}`,
+          subject: item.title || "Pengeluaran",
+          channel: item.category || "Pengeluaran",
+          method: item.payment_method || "-",
+          amount: -numberValue(item.amount),
+          status: "Pengeluaran",
+          time: item.expense_date,
+          note: item.homebase_name || "-",
+          category: "expense",
+          homebase_name: item.homebase_name,
+        })),
+      ]
+        .sort((left, right) => new Date(right.time) - new Date(left.time))
+        .slice(0, 12);
+
+      const feeRemainingTotal = outstandingSppCurrentMonth + otherRemaining;
 
       const priorities = [
-      {
-        key: "spp-current-month",
-        title: `SPP ${currentMonthLabel} belum lunas`,
-        subject: `${unpaidStudentsCurrentMonth} siswa`,
-        amount: outstandingSppCurrentMonth,
-        status:
-          unpaidStudentsCurrentMonth > 0 ? "Perlu tindak lanjut" : "Terkendali",
-        note:
-          activeScopes.length > 1
-            ? `Akumulasi ${activeScopes.length} satuan aktif`
-            : `Target bulan berjalan ${currentMonthLabel}`,
-      },
-    ].filter((item) => item.amount > 0 || item.key === "spp-current-month");
+        {
+          key: "spp-current-month",
+          title: `SPP ${currentMonthLabel} belum lunas`,
+          subject: `${unpaidStudentsCurrentMonth} siswa`,
+          amount: outstandingSppCurrentMonth,
+          status:
+            unpaidStudentsCurrentMonth > 0
+              ? "Perlu tindak lanjut"
+              : "Terkendali",
+          note:
+            activeScopes.length > 1
+              ? `Akumulasi ${activeScopes.length} satuan aktif`
+              : `Target bulan berjalan ${currentMonthLabel}`,
+        },
+        {
+          key: "other-remaining",
+          title: "Pembayaran lainnya belum lunas",
+          subject: `${Number(others.unpaid_count || 0) + Number(others.partial_count || 0)} tagihan`,
+          amount: otherRemaining,
+          status: otherRemaining > 0 ? "Perlu tindak lanjut" : "Terkendali",
+          note: "Sisa kewajiban pembayaran non-SPP pada periode aktif",
+        },
+      ].filter((item) => item.amount > 0 || item.key === "spp-current-month");
 
       const channels = [
       {
@@ -918,6 +1060,9 @@ router.get(
           other_collected: numberValue(item.other_collected),
           school_revenue:
             numberValue(item.spp_collected) + numberValue(item.other_collected),
+          fee_remaining_total:
+            numberValue(item.outstanding_spp_current_month) +
+            numberValue(item.other_remaining),
           savings_balance: numberValue(item.savings_balance),
           class_cash_balance: numberValue(item.class_cash_balance),
           managed_funds:
@@ -934,6 +1079,8 @@ router.get(
         (sum, item) => sum + numberValue(item.spp_collected),
         0,
       );
+      const feeIncomeTotal = periodSppCollected + otherCollected;
+      const netBalance = feeIncomeTotal - expenseGrandTotal;
 
       res.json({
         status: "success",
@@ -954,9 +1101,17 @@ router.get(
             })),
           },
           summary: {
-            school_revenue: periodSppCollected + otherCollected,
-            spp_collected: paidSppCurrentMonth,
+            school_revenue: feeIncomeTotal,
+            fee_income_total: feeIncomeTotal,
+            spp_collected: periodSppCollected,
             other_collected: otherCollected,
+            expense_operational: expenseOperational,
+            honorarium_locked: honorariumLocked,
+            honorarium_draft: honorariumDraft,
+            expense_grand_total: expenseGrandTotal,
+            net_balance: netBalance,
+            fee_remaining_total: feeRemainingTotal,
+            unpaid_student_count: unpaidStudentsCurrentMonth,
             savings_balance: savingsBalance,
             class_cash_balance: classCashBalance,
             managed_funds: savingsBalance + classCashBalance,
@@ -971,6 +1126,13 @@ router.get(
             ),
             homebase_count: activeScopes.length,
             active_periode_count: activeScopes.length,
+          },
+          expense: {
+            operational_total: expenseOperational,
+            operational_count: expenseOperationalCount,
+            honorarium_locked: honorariumLocked,
+            honorarium_draft: honorariumDraft,
+            grand_total: expenseGrandTotal,
           },
           spp: {
             expected_bruto_current_month: expectedSppBrutoCurrentMonth,

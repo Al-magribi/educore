@@ -23,6 +23,7 @@ const SavingReport = lazy(
 const FinanceReport = lazy(
   () => import("../../module/finance/report/FinanceReport"),
 );
+const Rapbs = lazy(() => import("../../module/finance/rapbs/Rapbs"));
 const CashReport = lazy(() => import("../../module/finance/report/CashReport"));
 const Setting = lazy(() => import("../../module/finance/setting/Setting"));
 const TeacherContribution = lazy(
@@ -97,6 +98,24 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         <Route
           path='/finance/pengaturan'
           element={<Page title='Pengaturan Keuangan' Component={Setting} />}
+        />
+      </Route>
+
+      <Route
+        element={
+          <RouteProtection
+            allowedRoles={["admin"]}
+            allowedLevels={["finance", "keuangan", "pusat"]}
+          />
+        }
+      >
+        <Route
+          path='/finance/rapbs'
+          element={<Page title='RAPBS / Anggaran' Component={Rapbs} />}
+        />
+        <Route
+          path='/finance/rapbs/:homebaseId'
+          element={<Page title='RAPBS / Anggaran' Component={Rapbs} />}
         />
       </Route>
 

@@ -13,9 +13,21 @@ import {
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
-const ExpenseListTable = ({ data, loading, onEdit, onDelete, deleting }) => {
+const ExpenseListTable = ({
+  data,
+  loading,
+  onEdit,
+  onDelete,
+  deleting,
+  categoryMeta = {},
+}) => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
+
+  const resolveCategory = (value) => ({
+    label: categoryMeta[value]?.label || categoryLabel[value] || value,
+    color: categoryMeta[value]?.color || categoryColor[value] || "default",
+  });
 
   const handleDelete = (record) => {
     Modal.confirm({
@@ -52,11 +64,14 @@ const ExpenseListTable = ({ data, loading, onEdit, onDelete, deleting }) => {
       title: "Kategori",
       dataIndex: "category",
       width: 150,
-      render: (value) => (
-        <Tag color={categoryColor[value] || "default"} style={{ borderRadius: 999 }}>
-          {categoryLabel[value] || value}
-        </Tag>
-      ),
+      render: (value) => {
+        const meta = resolveCategory(value);
+        return (
+          <Tag color={meta.color} style={{ borderRadius: 999 }}>
+            {meta.label}
+          </Tag>
+        );
+      },
     },
     {
       title: "Metode",
@@ -117,10 +132,10 @@ const ExpenseListTable = ({ data, loading, onEdit, onDelete, deleting }) => {
               </Text>
             </div>
             <Tag
-              color={categoryColor[record.category] || "default"}
+              color={resolveCategory(record.category).color}
               style={{ borderRadius: 999, margin: 0 }}
             >
-              {categoryLabel[record.category] || record.category}
+              {resolveCategory(record.category).label}
             </Tag>
           </Flex>
 

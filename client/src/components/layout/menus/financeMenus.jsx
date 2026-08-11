@@ -1,5 +1,6 @@
 import {
   BookOutlined,
+  CalculatorOutlined,
   CreditCardOutlined,
   FileTextOutlined,
   FundOutlined,
@@ -47,6 +48,11 @@ const buildFinanceMenus = (user = {}) => {
       label: "Pengeluaran",
       key: "/finance/pengeluaran",
       icon: <BanknoteArrowDown size={18} />,
+    },
+    {
+      label: "RAPBS",
+      key: "/finance/rapbs",
+      icon: <CalculatorOutlined />,
     },
     {
       label: "Laporan",

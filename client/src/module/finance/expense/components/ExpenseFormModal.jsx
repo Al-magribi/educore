@@ -107,7 +107,6 @@ const ExpenseFormModal = ({
         style={{ padding: isMobile ? "8px 16px 0" : "10px 24px 0" }}
         initialValues={{
           payment_method: "cash",
-          category: "operational",
         }}
       >
         {!lockHomebase ? (
@@ -146,7 +145,7 @@ const ExpenseFormModal = ({
             >
               <Select
                 options={categories.map((item) => ({
-                  value: item.value,
+                  value: item.value || item.code,
                   label: item.label,
                 }))}
               />

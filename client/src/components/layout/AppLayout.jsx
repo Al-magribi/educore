@@ -61,6 +61,11 @@ const routePreloaders = {
     import("../../module/finance/scholarship/Scholarship"),
   "/finance/transaksi": () =>
     import("../../module/finance/fee/transaction/Transaction"),
+  "/finance/pengeluaran": () =>
+    import("../../module/finance/expense/Expense"),
+  "/finance/rapbs": () => import("../../module/finance/rapbs/Rapbs"),
+  "/finance/laporan": () =>
+    import("../../module/finance/report/FinanceReport"),
   "/finance/laporan-tabungan": () =>
     import("../../module/finance/report/SavingReport"),
   "/finance/laporan-kas-kelas": () =>

@@ -5,6 +5,7 @@ import {
   ArrowLeftOutlined,
   BankOutlined,
   BookOutlined,
+  CalculatorOutlined,
   CreditCardOutlined,
   FileTextOutlined,
   FundOutlined,
@@ -50,6 +51,11 @@ const TAB_ITEMS = [
     key: 'pengeluaran',
     label: 'Pengeluaran',
     icon: <BanknoteArrowDown size={14} />,
+  },
+  {
+    key: 'rapbs',
+    label: 'RAPBS',
+    icon: <CalculatorOutlined />,
   },
   {
     key: 'laporan',

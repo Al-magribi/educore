@@ -1,9 +1,10 @@
 import {
+  AlertTriangle,
   Banknote,
-  CreditCard,
-  Landmark,
-  PiggyBank,
-  Wallet,
+  Layers3,
+  Receipt,
+  Scale,
+  Users,
 } from "lucide-react";
 
 export const currency = (value) =>
@@ -23,10 +24,10 @@ export const formatDateTime = (value) => {
 };
 
 export const cardBaseStyle = {
-  borderRadius: 28,
+  borderRadius: 20,
   border: "1px solid rgba(148,163,184,0.14)",
-  boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-  background: "rgba(255,255,255,0.9)",
+  boxShadow: "0 12px 28px rgba(15,23,42,0.05)",
+  background: "rgba(255,255,255,0.96)",
 };
 
 export const statusColorMap = {
@@ -46,28 +47,34 @@ export const percentColor = (value) => {
 };
 
 export const summaryIconMap = {
-  revenue: Banknote,
-  spp: CreditCard,
-  scholarship: Landmark,
-  savings: PiggyBank,
-  cash: Wallet,
+  fee_income_total: Layers3,
+  expense_grand_total: Receipt,
+  net_balance: Scale,
+  fee_remaining_total: AlertTriangle,
+  unpaid_student_count: Users,
 };
 
 export const summaryToneMap = {
-  revenue: {
+  fee_income_total: {
     color: "#0f766e",
-    bg: "linear-gradient(135deg, #ccfbf1, #d1fae5)",
+    bg: "linear-gradient(135deg, #ccfbf1, #f0fdfa)",
   },
-  spp: { color: "#2563eb", bg: "linear-gradient(135deg, #dbeafe, #eff6ff)" },
-  scholarship: {
-    color: "#1d4ed8",
-    bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
+  expense_grand_total: {
+    color: "#dc2626",
+    bg: "linear-gradient(135deg, #fee2e2, #fff1f2)",
   },
-  savings: {
-    color: "#15803d",
-    bg: "linear-gradient(135deg, #dcfce7, #f0fdf4)",
+  net_balance: {
+    color: "#0f766e",
+    bg: "linear-gradient(135deg, #ccfbf1, #f0fdfa)",
   },
-  cash: { color: "#7c3aed", bg: "linear-gradient(135deg, #ede9fe, #f5f3ff)" },
+  fee_remaining_total: {
+    color: "#d97706",
+    bg: "linear-gradient(135deg, #fef3c7, #fff7ed)",
+  },
+  unpaid_student_count: {
+    color: "#b45309",
+    bg: "linear-gradient(135deg, #ffedd5, #fff7ed)",
+  },
 };
 
-export const heroIcon = Landmark;
+export const heroIcon = Banknote;
