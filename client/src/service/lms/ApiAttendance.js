@@ -18,7 +18,14 @@ export const ApiAttendance = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: [{ type: "Attendance", id: "LIST" }],
+      // Auto-save updates local state; avoid full-list refetch flicker.
+    }),
+    deleteAttendance: builder.mutation({
+      query: (body) => ({
+        url: "/attendance/delete",
+        method: "POST",
+        body,
+      }),
     }),
 
     getAttendanceConfig: builder.query({
@@ -561,6 +568,7 @@ export const ApiAttendance = createApi({
 export const {
   useGetAttendanceStudentsQuery,
   useSubmitAttendanceMutation,
+  useDeleteAttendanceMutation,
   useGetAttendanceConfigQuery,
   useUpdateAttendanceFeaturesMutation,
   useGetAttendancePoliciesQuery,

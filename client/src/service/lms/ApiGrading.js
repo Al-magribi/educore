@@ -42,12 +42,16 @@ export const ApiGrading = createApi({
         semester,
         chapterId,
         subchapterId,
-      }) =>
-        `/formative?subject_id=${subjectId || ""}&class_id=${
-          classId || ""
-        }&month=${encodeURIComponent(month || "")}&semester=${
-          semester || ""
-        }&chapter_id=${chapterId || ""}&subchapter_id=${subchapterId || ""}`,
+      }) => {
+        const params = new URLSearchParams();
+        if (subjectId) params.set("subject_id", subjectId);
+        if (classId) params.set("class_id", classId);
+        if (month) params.set("month", month);
+        if (semester) params.set("semester", semester);
+        if (chapterId) params.set("chapter_id", chapterId);
+        if (subchapterId) params.set("subchapter_id", subchapterId);
+        return `/formative?${params.toString()}`;
+      },
       providesTags: ["GradingFormative"],
     }),
     getGradingSummative: builder.query({
@@ -58,12 +62,16 @@ export const ApiGrading = createApi({
         semester,
         chapterId,
         subchapterId,
-      }) =>
-        `/summative?subject_id=${subjectId || ""}&class_id=${
-          classId || ""
-        }&month=${encodeURIComponent(month || "")}&semester=${
-          semester || ""
-        }&chapter_id=${chapterId || ""}&subchapter_id=${subchapterId || ""}`,
+      }) => {
+        const params = new URLSearchParams();
+        if (subjectId) params.set("subject_id", subjectId);
+        if (classId) params.set("class_id", classId);
+        if (month) params.set("month", month);
+        if (semester) params.set("semester", semester);
+        if (chapterId) params.set("chapter_id", chapterId);
+        if (subchapterId) params.set("subchapter_id", subchapterId);
+        return `/summative?${params.toString()}`;
+      },
       providesTags: ["GradingSummative"],
     }),
     getGradingFinal: builder.query({
@@ -112,6 +120,22 @@ export const ApiGrading = createApi({
         body,
       }),
       invalidatesTags: ["GradingFinal"],
+    }),
+    deleteGradingFormativeColumn: builder.mutation({
+      query: (body) => ({
+        url: "/formative/column",
+        method: "DELETE",
+        body,
+      }),
+      invalidatesTags: ["GradingFormative"],
+    }),
+    deleteGradingSummativeColumn: builder.mutation({
+      query: (body) => ({
+        url: "/summative/column",
+        method: "DELETE",
+        body,
+      }),
+      invalidatesTags: ["GradingSummative"],
     }),
     getGradingSyncExams: builder.query({
       query: ({ subjectId, classId }) =>
@@ -192,6 +216,8 @@ export const {
   useGetGradingFinalQuery,
   useSubmitGradingFinalMutation,
   useDeleteGradingFinalMutation,
+  useDeleteGradingFormativeColumnMutation,
+  useDeleteGradingSummativeColumnMutation,
   useGetGradingSyncExamsQuery,
   useGetGradingSyncFormativePreviewQuery,
   useLazyGetGradingSyncFormativePreviewQuery,

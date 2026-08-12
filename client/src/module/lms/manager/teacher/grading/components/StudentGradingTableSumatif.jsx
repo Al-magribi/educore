@@ -7,9 +7,14 @@ import {
   Popconfirm,
   Space,
   Table,
+  Tooltip,
   Typography,
 } from "antd";
 import LoadApp from "../../../../../../components/loader/LoadApp";
+import {
+  buildScoreColumnLabel,
+  buildScoreColumnTooltip,
+} from "./StudentGradingTableFormatif";
 
 const { Text } = Typography;
 
@@ -53,7 +58,7 @@ const StudentGradingTableSumatif = ({
           id: key,
           scoreKey: key,
           labelIndex,
-          title: `Nilai ${labelIndex}`,
+          title: buildScoreColumnLabel(labelIndex),
         };
       });
     const merged = [...base];
@@ -69,14 +74,21 @@ const StudentGradingTableSumatif = ({
         existingKeys.add(itemKey);
       }
     });
-    return merged;
+    return merged.map((item, index) => ({
+      ...item,
+      labelIndex:
+        Number(item?.labelIndex) > 0 ? Number(item.labelIndex) : index + 1,
+      title: buildScoreColumnLabel(
+        Number(item?.labelIndex) > 0 ? item.labelIndex : index + 1,
+      ),
+    }));
   }, [subchapters, students]);
 
   const getScoreKey = (sub) =>
     sub?.scoreKey ?? sub?.id ?? sub?.key ?? sub?.value;
 
   const getSubTitle = (sub) =>
-    sub?.title || `Nilai ${sub?.labelIndex ?? sub?.id ?? "-"}`;
+    buildScoreColumnLabel(sub?.labelIndex ?? sub?.id ?? 1);
 
   const getDisplayScore = (record, scoreKey) => {
     const scoreObj = record?.summativeScores?.[scoreKey] || {};
@@ -94,14 +106,31 @@ const StudentGradingTableSumatif = ({
   const renderSubHeader = (sub) => {
     const scoreKey = getScoreKey(sub);
     const title = getSubTitle(sub);
-    const canDelete = isFilterReady && scoreKey && scoreKey !== "__new";
+    const canDelete = Boolean(onDeleteColumn) && scoreKey && scoreKey !== "__new";
+    const tooltipText = buildScoreColumnTooltip({
+      month: sub?.month,
+      chapterTitle: sub?.chapterTitle,
+      examName: sub?.examName,
+      createdAt: sub?.createdAt,
+    });
+    const labelNode = tooltipText ? (
+      <Tooltip
+        title={
+          <div style={{ whiteSpace: "pre-line" }}>{tooltipText}</div>
+        }
+      >
+        <Text style={{ cursor: "help" }}>{title}</Text>
+      </Tooltip>
+    ) : (
+      <Text>{title}</Text>
+    );
     return (
-      <Space align="center" size={6}>
-        <Text>{title}</Text>
+      <Space align="center" size={6} wrap>
+        {labelNode}
         {canDelete && (
           <Popconfirm
             title={`Hapus ${title}?`}
-            description="Kolom ini akan langsung dihapus dari data sumatif."
+            description="Semua nilai siswa pada kolom ini akan dihapus secara bulk."
             okText="Hapus"
             cancelText="Batal"
             onConfirm={() => onDeleteColumn?.(scoreKey)}
@@ -120,6 +149,7 @@ const StudentGradingTableSumatif = ({
 
   const renderScoreInput = (record, index, subchapter) => {
     const scoreKey = getScoreKey(subchapter);
+    const isNewColumn = scoreKey === "__new";
     return (
       <InputNumber
         min={0}
@@ -129,7 +159,7 @@ const StudentGradingTableSumatif = ({
         size={isMobile ? "small" : "middle"}
         style={{ width: "100%" }}
         value={getDisplayScore(record, scoreKey)}
-        disabled={!isFilterReady}
+        disabled={isNewColumn ? !isFilterReady : false}
         onChange={(val) => onSummativeChange(index, scoreKey, val)}
       />
     );
@@ -223,7 +253,7 @@ const StudentGradingTableSumatif = ({
     </Card>
   );
 
-  if (isFilterReady && isLoading) {
+  if (isLoading) {
     return <LoadApp />;
   }
 

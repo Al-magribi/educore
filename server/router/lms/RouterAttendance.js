@@ -906,7 +906,7 @@ router.get(
          c.name AS class_name,
          a.id AS attendance_id,
          a.status,
-         a.date
+         TO_CHAR(a.date::date, 'YYYY-MM-DD') AS date
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
@@ -918,6 +918,7 @@ router.get(
         AND a.date = $2::date
        WHERE e.class_id = $3
          AND e.periode_id = $4
+         AND COALESCE(u.is_active, true) = true
        ORDER BY u.full_name ASC`,
       [subject_id, date, class_id, activePeriode.id],
     );
@@ -1003,12 +1004,16 @@ router.post(
       }
     }
 
-    await client.query(
-      `DELETE FROM lms.l_attendance
-       WHERE class_id = $1 AND subject_id = $2 AND date = $3::date`,
-      [class_id, subject_id, date],
-    );
+    const activePeriode = await ensureActivePeriode(client, homebase_id);
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
 
+    const normalizedItems = [];
+    const studentIds = new Set();
     for (const item of items) {
       const status = normalizeStatus(item.status);
       if (!ALLOWED_STATUSES.has(status)) {
@@ -1017,7 +1022,46 @@ router.post(
           message: `Status tidak valid: ${item.status}`,
         });
       }
+      const studentId = Number(item.student_id || 0);
+      if (!studentId || studentIds.has(studentId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Data siswa pada absensi tidak valid.",
+        });
+      }
+      studentIds.add(studentId);
+      normalizedItems.push({ student_id: studentId, status });
+    }
 
+    const enrollmentCheck = await client.query(
+      `SELECT e.student_id
+       FROM u_class_enrollments e
+       JOIN u_users u ON u.id = e.student_id
+       WHERE e.class_id = $1
+         AND e.periode_id = $2
+         AND e.student_id = ANY($3::int[])
+         AND COALESCE(u.is_active, true) = true`,
+      [class_id, activePeriode.id, [...studentIds]],
+    );
+    if (enrollmentCheck.rowCount !== studentIds.size) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "Sebagian siswa tidak terdaftar di kelas/periode aktif. Muat ulang daftar absensi.",
+      });
+    }
+
+    // Upsert hanya siswa yang dikirim (auto-save per baris / set-all header).
+    await client.query(
+      `DELETE FROM lms.l_attendance
+       WHERE class_id = $1
+         AND subject_id = $2
+         AND date = $3::date
+         AND student_id = ANY($4::int[])`,
+      [class_id, subject_id, date, [...studentIds]],
+    );
+
+    for (const item of normalizedItems) {
       await client.query(
         `INSERT INTO lms.l_attendance (
            class_id,
@@ -1033,7 +1077,7 @@ router.post(
           subject_id,
           item.student_id,
           date,
-          status,
+          item.status,
           effectiveTeacherId,
         ],
       );
@@ -1042,6 +1086,86 @@ router.post(
     return res.json({
       status: "success",
       message: "Absensi berhasil disimpan.",
+      data: {
+        total_saved: normalizedItems.length,
+        class_id: Number(class_id),
+        subject_id: Number(subject_id),
+        date,
+        periode_id: activePeriode.id,
+      },
+    });
+  }),
+);
+
+// ==========================================
+// DELETE Attendance (per siswa / bulk)
+// ==========================================
+router.post(
+  "/attendance/delete",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { subject_id, class_id, date, student_ids } = req.body || {};
+
+    if (!subject_id || !class_id || !date) {
+      return res.status(400).json({
+        status: "error",
+        message: "subject_id, class_id, dan date wajib diisi.",
+      });
+    }
+
+    const studentIds = [
+      ...new Set(
+        (Array.isArray(student_ids) ? student_ids : [])
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    ];
+    if (!studentIds.length) {
+      return res.status(400).json({
+        status: "error",
+        message: "student_ids wajib diisi.",
+      });
+    }
+
+    if (role === "teacher") {
+      const accessCheck = await client.query(
+        `SELECT 1
+         FROM at_subject
+         WHERE teacher_id = $1 AND subject_id = $2 AND class_id = $3
+         LIMIT 1`,
+        [userId, subject_id, class_id],
+      );
+      if (accessCheck.rowCount === 0) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+    } else {
+      const accessCheck = await client.query(
+        `SELECT 1
+         FROM a_subject s
+         JOIN a_class c ON c.id = $2
+         WHERE s.id = $1 AND s.homebase_id = $3 AND c.homebase_id = $3
+         LIMIT 1`,
+        [subject_id, class_id, homebase_id],
+      );
+      if (accessCheck.rowCount === 0) {
+        return res.status(403).json({ status: "error", message: "Forbidden" });
+      }
+    }
+
+    const result = await client.query(
+      `DELETE FROM lms.l_attendance
+       WHERE class_id = $1
+         AND subject_id = $2
+         AND date = $3::date
+         AND student_id = ANY($4::int[])`,
+      [class_id, subject_id, date, studentIds],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Absensi berhasil dihapus.",
+      data: { total_deleted: result.rowCount || 0 },
     });
   }),
 );

@@ -182,6 +182,37 @@ const normalizeFinalScore = (scoreWritten, scoreSkill) => {
   return Number(average.toFixed(2));
 };
 
+const formatScoreDateLabel = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const buildScoreColumnTitle = ({
+  examName,
+  createdAt,
+  month,
+  chapterTitle,
+  labelIndex,
+}) => {
+  if (examName) {
+    return `Dari: ${examName}`;
+  }
+  const dateLabel = formatScoreDateLabel(createdAt);
+  if (dateLabel) {
+    return dateLabel;
+  }
+  const parts = [];
+  if (month) parts.push(String(month));
+  if (chapterTitle) parts.push(String(chapterTitle));
+  parts.push(`Nilai ${labelIndex || 1}`);
+  return parts.join(" · ");
+};
+
 const ensureActivePeriode = async (pool, homebaseId) => {
   const periodeResult = await pool.query(
     `SELECT id, name
@@ -635,21 +666,14 @@ router.get(
       teacher_id,
     } = req.query;
 
-    if (!subject_id || !class_id || !semester) {
+    if (!subject_id || !class_id) {
       return res.status(400).json({
         status: "error",
-        message:
-          "subject_id, class_id, dan semester wajib diisi.",
+        message: "subject_id dan class_id wajib diisi.",
       });
     }
 
     const semesterValue = deriveSemesterFromMonthValue(month, semester);
-    if (![1, 2].includes(semesterValue)) {
-      return res.status(400).json({
-        status: "error",
-        message: "semester harus 1 atau 2.",
-      });
-    }
 
     const effectiveTeacherId = await resolveReadableTeacherId({
       pool,
@@ -723,7 +747,7 @@ router.get(
       activePeriode.id,
     ];
     let paramIndex = 4;
-    if (!month) {
+    if (!month && semesterValue) {
       joinConditions.push(`f.semester = $${paramIndex}`);
       joinParams.push(semesterValue);
       paramIndex += 1;
@@ -748,13 +772,17 @@ router.get(
          f.chapter_id,
          f.type,
          f.score,
-         ch.title AS chapter_title
+         f.exam_id,
+         f.created_at,
+         ch.title AS chapter_title,
+         ex.name AS exam_name
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
        LEFT JOIN lms.l_score_formative f
          ON ${joinConditions.join("\n        AND ")}
        LEFT JOIN lms.l_chapter ch ON ch.id = f.chapter_id
+       LEFT JOIN cbt.c_exam ex ON ex.id = f.exam_id
        WHERE e.class_id = $2
          AND e.periode_id = $3
        ORDER BY u.full_name ASC, f.chapter_id ASC, f.type ASC, f.id ASC`,
@@ -795,7 +823,20 @@ router.get(
           type: row.type || null,
           subchapter_id: subchapterId,
           subchapter_number: parsedSubchapter,
+          month: row.month || null,
+          exam_id: row.exam_id ? Number(row.exam_id) : null,
+          exam_name: row.exam_name || null,
+          created_at: row.created_at || null,
         });
+      } else {
+        const existing = slotRegistry.get(slotKey);
+        if (!existing.exam_id && row.exam_id) {
+          existing.exam_id = Number(row.exam_id);
+          existing.exam_name = row.exam_name || null;
+        }
+        if (!existing.created_at && row.created_at) {
+          existing.created_at = row.created_at;
+        }
       }
       entry.scores.push({
         id: row.score_id ?? null,
@@ -806,6 +847,9 @@ router.get(
         chapter_title: chapterTitle,
         subchapter_id: subchapterId,
         score: row.score ?? 0,
+        exam_id: row.exam_id ? Number(row.exam_id) : null,
+        exam_name: row.exam_name || null,
+        created_at: row.created_at || null,
       });
       if (month && chapter_id && entry.score == null) {
         entry.score = row.score ?? 0;
@@ -834,10 +878,20 @@ router.get(
 
         return String(a.slot_key).localeCompare(String(b.slot_key));
       })
-      .map((slot, index) => ({
-        ...slot,
-        label_index: index + 1,
-      }));
+      .map((slot, index) => {
+        const labelIndex = index + 1;
+        return {
+          ...slot,
+          label_index: labelIndex,
+          title: buildScoreColumnTitle({
+            examName: slot.exam_name,
+            createdAt: slot.created_at,
+            month: slot.month,
+            chapterTitle: slot.chapter_title,
+            labelIndex,
+          }),
+        };
+      });
 
     return res.json({
       status: "success",
@@ -871,20 +925,14 @@ router.get(
       teacher_id,
     } = req.query;
 
-    if (!subject_id || !class_id || !semester) {
+    if (!subject_id || !class_id) {
       return res.status(400).json({
         status: "error",
-        message: "subject_id, class_id, dan semester wajib diisi.",
+        message: "subject_id dan class_id wajib diisi.",
       });
     }
 
     const semesterValue = deriveSemesterFromMonthValue(month, semester);
-    if (![1, 2].includes(semesterValue)) {
-      return res.status(400).json({
-        status: "error",
-        message: "semester harus 1 atau 2.",
-      });
-    }
 
     const effectiveTeacherId = await resolveReadableTeacherId({
       pool,
@@ -958,7 +1006,7 @@ router.get(
       activePeriode.id,
     ];
     let paramIndex = 4;
-    if (!month) {
+    if (!month && semesterValue) {
       joinConditions.push(`s.semester = $${paramIndex}`);
       joinParams.push(semesterValue);
       paramIndex += 1;
@@ -988,12 +1036,18 @@ router.get(
          s.type,
          s.score_written,
          s.score_skill,
-         s.final_score
+         s.final_score,
+         s.exam_id,
+         s.created_at,
+         ch.title AS chapter_title,
+         ex.name AS exam_name
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
        LEFT JOIN lms.l_score_summative s
          ON ${joinConditions.join("\n        AND ")}
+       LEFT JOIN lms.l_chapter ch ON ch.id = s.chapter_id
+       LEFT JOIN cbt.c_exam ex ON ex.id = s.exam_id
        WHERE e.class_id = $2
          AND e.periode_id = $3
        ORDER BY u.full_name ASC, s.id DESC`,
@@ -1001,6 +1055,7 @@ router.get(
     );
 
     const studentsMap = new Map();
+    const slotRegistry = new Map();
     for (const row of studentResult.rows) {
       const studentId = String(row.student_id);
       if (!studentsMap.has(studentId)) {
@@ -1010,20 +1065,53 @@ router.get(
           nis: row.nis,
           score: null,
           scores: [],
-          _subSet: new Set(),
+          _typeSet: new Set(),
         });
       }
       const entry = studentsMap.get(studentId);
       if (!row.type) continue;
       if (month && !isSameMonthValue(row.month, month)) continue;
+      const slotKey =
+        row.type && String(row.type).trim().length
+          ? String(row.type).trim()
+          : `c${row.chapter_id || 0}-s${row.score_id || 0}`;
       const parsedSubchapter = extractSubchapterFromType(row.type);
       const subchapterId = parsedSubchapter ?? 1;
-      if (entry._subSet.has(subchapterId)) continue;
-      entry._subSet.add(subchapterId);
+      if (entry._typeSet.has(slotKey)) continue;
+      entry._typeSet.add(slotKey);
+      const chapterTitle =
+        row.chapter_id == null
+          ? "Tanpa bab"
+          : row.chapter_title || `Bab ${row.chapter_id || "-"}`;
+      if (!slotRegistry.has(slotKey)) {
+        slotRegistry.set(slotKey, {
+          slot_key: slotKey,
+          chapter_id: row.chapter_id ?? null,
+          chapter_title: chapterTitle,
+          type: row.type || null,
+          subchapter_id: subchapterId,
+          subchapter_number: parsedSubchapter,
+          month: row.month || null,
+          exam_id: row.exam_id ? Number(row.exam_id) : null,
+          exam_name: row.exam_name || null,
+          created_at: row.created_at || null,
+        });
+      } else {
+        const existing = slotRegistry.get(slotKey);
+        if (!existing.exam_id && row.exam_id) {
+          existing.exam_id = Number(row.exam_id);
+          existing.exam_name = row.exam_name || null;
+        }
+        if (!existing.created_at && row.created_at) {
+          existing.created_at = row.created_at;
+        }
+      }
       entry.scores.push({
         type: row.type,
+        slot_key: slotKey,
         month: row.month,
         chapter_id: row.chapter_id,
+        chapter_title: chapterTitle,
         subchapter_id: subchapterId,
         score_written:
           row.score_written === null || row.score_written === undefined
@@ -1037,6 +1125,9 @@ router.get(
           row.final_score === null || row.final_score === undefined
             ? null
             : Number(row.final_score),
+        exam_id: row.exam_id ? Number(row.exam_id) : null,
+        exam_name: row.exam_name || null,
+        created_at: row.created_at || null,
       });
       if (month && chapter_id) {
         const values = entry.scores
@@ -1049,9 +1140,42 @@ router.get(
     }
 
     const students = Array.from(studentsMap.values()).map((item) => {
-      const { _subSet, ...rest } = item;
+      const { _typeSet, ...rest } = item;
       return rest;
     });
+    const slots = Array.from(slotRegistry.values())
+      .sort((a, b) => {
+        const monthA = String(a.month || "");
+        const monthB = String(b.month || "");
+        if (monthA !== monthB) return monthA.localeCompare(monthB);
+        const chapterA = Number(a.chapter_id || 0);
+        const chapterB = Number(b.chapter_id || 0);
+        if (chapterA !== chapterB) return chapterA - chapterB;
+        const subA =
+          a.subchapter_number === null || a.subchapter_number === undefined
+            ? Number.MAX_SAFE_INTEGER
+            : Number(a.subchapter_number);
+        const subB =
+          b.subchapter_number === null || b.subchapter_number === undefined
+            ? Number.MAX_SAFE_INTEGER
+            : Number(b.subchapter_number);
+        if (subA !== subB) return subA - subB;
+        return String(a.slot_key).localeCompare(String(b.slot_key));
+      })
+      .map((slot, index) => {
+        const labelIndex = index + 1;
+        return {
+          ...slot,
+          label_index: labelIndex,
+          title: buildScoreColumnTitle({
+            examName: slot.exam_name,
+            createdAt: slot.created_at,
+            month: slot.month,
+            chapterTitle: slot.chapter_title,
+            labelIndex,
+          }),
+        };
+      });
 
     return res.json({
       status: "success",
@@ -1061,6 +1185,7 @@ router.get(
         month: month || null,
         semester: semesterValue,
         chapter_id: chapter_id ? Number(chapter_id) : null,
+        slots,
         students,
       },
     });
@@ -1254,6 +1379,7 @@ router.post(
       chapter_id,
       subchapter_id,
       teacher_id,
+      recorded_at,
       items,
     } = req.body;
 
@@ -1347,6 +1473,11 @@ router.post(
     }
 
     const normalizedMonth = normalizeMonthLabel(month);
+    const recordedAtValue = recorded_at ? new Date(recorded_at) : null;
+    const createdAt =
+      recordedAtValue instanceof Date && !Number.isNaN(recordedAtValue.getTime())
+        ? recordedAtValue
+        : new Date();
 
     const normalizedItemsMap = new Map();
     for (const item of items) {
@@ -1433,9 +1564,10 @@ router.post(
            subject_id,
            chapter_id,
            type,
-           score
+           score,
+           created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           activePeriode.id,
           semesterValue,
@@ -1447,6 +1579,7 @@ router.post(
           chapter_id,
           typeKey,
           normalizeScore(item.score),
+          createdAt,
         ],
       );
     }
@@ -1454,6 +1587,93 @@ router.post(
     return res.json({
       status: "success",
       message: "Nilai formatif berhasil disimpan.",
+    });
+  }),
+);
+
+// ==========================================
+// DELETE Formatif Column (bulk by type)
+// ==========================================
+router.delete(
+  "/grading/formative/column",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { subject_id, class_id, type, teacher_id } = req.body || {};
+    const typeKey = String(type || "").trim();
+
+    if (!subject_id || !class_id || !typeKey) {
+      return res.status(400).json({
+        status: "error",
+        message: "subject_id, class_id, dan type wajib diisi.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool: client,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool: client,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      client,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const deleteResult = await client.query(
+      `DELETE FROM lms.l_score_formative
+       WHERE subject_id = $1
+         AND class_id = $2
+         AND periode_id = $3
+         AND teacher_id = $4
+         AND type = $5`,
+      [
+        subject_id,
+        class_id,
+        activePeriode.id,
+        effectiveTeacherId,
+        typeKey,
+      ],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Kolom formatif berhasil dihapus.",
+      data: {
+        type: typeKey,
+        deleted_count: deleteResult.rowCount || 0,
+      },
     });
   }),
 );
@@ -1474,6 +1694,7 @@ router.post(
       chapter_id,
       subchapter_id,
       teacher_id,
+      recorded_at,
       items,
     } = req.body;
 
@@ -1568,6 +1789,11 @@ router.post(
     }
 
     const normalizedMonth = normalizeMonthLabel(month);
+    const recordedAtValue = recorded_at ? new Date(recorded_at) : null;
+    const createdAt =
+      recordedAtValue instanceof Date && !Number.isNaN(recordedAtValue.getTime())
+        ? recordedAtValue
+        : new Date();
 
     const normalizedItemsMap = new Map();
     for (const item of items) {
@@ -1669,9 +1895,10 @@ router.post(
            type,
            score_written,
            score_skill,
-           final_score
+           final_score,
+           created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           activePeriode.id,
           semesterValue,
@@ -1685,6 +1912,7 @@ router.post(
           item.score_written,
           item.score_skill,
           item.final_score,
+          createdAt,
         ],
       );
     }
@@ -1692,6 +1920,93 @@ router.post(
     return res.json({
       status: "success",
       message: "Nilai sumatif berhasil disimpan.",
+    });
+  }),
+);
+
+// ==========================================
+// DELETE Sumatif Column (bulk by type)
+// ==========================================
+router.delete(
+  "/grading/summative/column",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const { id: userId, role, homebase_id } = req.user;
+    const { subject_id, class_id, type, teacher_id } = req.body || {};
+    const typeKey = String(type || "").trim();
+
+    if (!subject_id || !class_id || !typeKey) {
+      return res.status(400).json({
+        status: "error",
+        message: "subject_id, class_id, dan type wajib diisi.",
+      });
+    }
+
+    const access = await assertGradingClassAccess({
+      pool: client,
+      role,
+      userId,
+      homebaseId: homebase_id,
+      subjectId: subject_id,
+      classId: class_id,
+    });
+    if (!access.ok) {
+      return res.status(access.status).json({
+        status: "error",
+        message: access.message,
+      });
+    }
+
+    const effectiveTeacherId = await resolveEffectiveTeacherId({
+      pool: client,
+      role,
+      userId,
+      teacherId: teacher_id,
+      subjectId: subject_id,
+      classId: class_id,
+      homebaseId: homebase_id,
+    });
+    if (!effectiveTeacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "teacher_id wajib diisi.",
+      });
+    }
+
+    const activePeriode = await ensureActivePeriode(
+      client,
+      access.classHomebaseId || homebase_id,
+    );
+    if (!activePeriode) {
+      return res.status(400).json({
+        status: "error",
+        message: "Periode aktif belum diatur.",
+      });
+    }
+
+    const deleteResult = await client.query(
+      `DELETE FROM lms.l_score_summative
+       WHERE subject_id = $1
+         AND class_id = $2
+         AND periode_id = $3
+         AND teacher_id = $4
+         AND type = $5`,
+      [
+        subject_id,
+        class_id,
+        activePeriode.id,
+        effectiveTeacherId,
+        typeKey,
+      ],
+    );
+
+    return res.json({
+      status: "success",
+      message: "Kolom sumatif berhasil dihapus.",
+      data: {
+        type: typeKey,
+        deleted_count: deleteResult.rowCount || 0,
+      },
     });
   }),
 );
@@ -2553,6 +2868,7 @@ router.post(
       semester,
       chapter_id,
       teacher_id,
+      recorded_at,
     } = req.body;
 
     if (!exam_id || !subject_id || !class_id || !month || !semester || !chapter_id) {
@@ -2653,6 +2969,13 @@ router.post(
 
     const typeKey = buildFormativeType(month, chapter_id, nextSubchapterId);
     const normalizedMonth = normalizeMonthLabel(month);
+    const recordedAtValue = recorded_at
+      ? new Date(recorded_at)
+      : new Date();
+    const createdAt =
+      recordedAtValue instanceof Date && !Number.isNaN(recordedAtValue.getTime())
+        ? recordedAtValue
+        : new Date();
 
     let insertedCount = 0;
     for (const item of scoredItems) {
@@ -2667,9 +2990,11 @@ router.post(
            subject_id,
            chapter_id,
            type,
-           score
+           score,
+           exam_id,
+           created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           activePeriode.id,
           semesterValue,
@@ -2681,6 +3006,8 @@ router.post(
           chapter_id,
           typeKey,
           normalizeScore(item.score),
+          Number(exam_id),
+          createdAt,
         ],
       );
       insertedCount += 1;
@@ -2837,6 +3164,7 @@ router.post(
       month,
       semester,
       teacher_id,
+      recorded_at,
     } = req.body;
 
     if (!exam_id || !subject_id || !class_id || !month || !semester) {
@@ -2937,6 +3265,13 @@ router.post(
 
     const typeKey = buildSummativeType(month, null, nextSubchapterId);
     const normalizedMonth = normalizeMonthLabel(month);
+    const recordedAtValue = recorded_at
+      ? new Date(recorded_at)
+      : new Date();
+    const createdAt =
+      recordedAtValue instanceof Date && !Number.isNaN(recordedAtValue.getTime())
+        ? recordedAtValue
+        : new Date();
 
     let insertedCount = 0;
     for (const item of scoredItems) {
@@ -2954,9 +3289,11 @@ router.post(
            type,
            score_written,
            score_skill,
-           final_score
+           final_score,
+           exam_id,
+           created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           activePeriode.id,
           semesterValue,
@@ -2970,6 +3307,8 @@ router.post(
           scoreWritten,
           null,
           normalizeFinalScore(scoreWritten, null),
+          Number(exam_id),
+          createdAt,
         ],
       );
       insertedCount += 1;

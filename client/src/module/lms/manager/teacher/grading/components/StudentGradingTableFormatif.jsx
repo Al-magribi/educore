@@ -6,6 +6,7 @@ import {
   Popconfirm,
   Space,
   Table,
+  Tooltip,
   Typography,
 } from "antd";
 import { Trash2 } from "lucide-react";
@@ -21,6 +22,42 @@ export const extractSubIdFromType = (typeValue) => {
   return null;
 };
 
+export const buildScoreColumnLabel = (labelIndex) =>
+  `Nilai ${Number(labelIndex) > 0 ? Number(labelIndex) : 1}`;
+
+export const buildScoreColumnTooltip = ({
+  month,
+  chapterTitle,
+  examName,
+  createdAt,
+}) => {
+  const formatDateLabel = (value) => {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    const day = String(date.getDate()).padStart(2, "0");
+    const monthNum = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${monthNum}/${year}`;
+  };
+
+  const lines = [];
+  const dateLabel = formatDateLabel(createdAt);
+  if (dateLabel) {
+    lines.push(`Tanggal: ${dateLabel}`);
+  }
+  if (month) {
+    lines.push(`Bulan: ${month}`);
+  }
+  if (chapterTitle && chapterTitle !== "Tanpa bab") {
+    lines.push(`Bab: ${chapterTitle}`);
+  }
+  if (examName) {
+    lines.push(`Jadwal ujian: ${examName}`);
+  }
+  return lines.length ? lines.join("\n") : null;
+};
+
 export const buildFormatifSubchapters = ({
   students = [],
   isFormativeFilterActive,
@@ -29,32 +66,48 @@ export const buildFormatifSubchapters = ({
   chaptersWithContents = [],
   slots = [],
 }) => {
+  const resolveTitle = ({ labelIndex }) => buildScoreColumnLabel(labelIndex);
+
   if (isFormativeFilterActive) {
     if (!activeChapterId) return [];
     const slotMap = new Map();
     (slots || []).forEach((slot, index) => {
       const slotKey = String(slot?.slot_key ?? slot?.type ?? "");
       if (!slotKey) return;
+      const labelIndex = Number(slot?.label_index) || index + 1;
       slotMap.set(slotKey, {
         id: slotKey,
         scoreKey: slotKey,
         slotKey,
+        type: slot?.type || slotKey,
         subchapterId: Number(slot?.subchapter_id) || null,
-        labelIndex: Number(slot?.label_index) || index + 1,
-        title: `Nilai ${Number(slot?.label_index) || index + 1}`,
+        labelIndex,
+        month: slot?.month || null,
+        chapterTitle: slot?.chapter_title || null,
+        examId: slot?.exam_id || null,
+        examName: slot?.exam_name || null,
+        createdAt: slot?.created_at || null,
+        title: resolveTitle({ labelIndex }),
       });
     });
     students.forEach((student) => {
       (student.scores || []).forEach((score) => {
         const slotKey = String(score?.slot_key ?? score?.type ?? "");
         if (!slotKey || slotMap.has(slotKey)) return;
+        const labelIndex = slotMap.size + 1;
         slotMap.set(slotKey, {
           id: slotKey,
           scoreKey: slotKey,
           slotKey,
+          type: score?.type || slotKey,
           subchapterId: Number(score?.subchapter_id) || null,
-          labelIndex: slotMap.size + 1,
-          title: `Nilai ${slotMap.size + 1}`,
+          labelIndex,
+          month: score?.month || null,
+          chapterTitle: score?.chapter_title || null,
+          examId: score?.exam_id || null,
+          examName: score?.exam_name || null,
+          createdAt: score?.created_at || null,
+          title: resolveTitle({ labelIndex }),
         });
       });
     });
@@ -63,7 +116,7 @@ export const buildFormatifSubchapters = ({
       return {
         ...slot,
         labelIndex,
-        title: `Nilai ${labelIndex}`,
+        title: resolveTitle({ labelIndex }),
         scoreKey: slot.scoreKey || slot.slotKey || slot.id,
       };
     });
@@ -84,6 +137,28 @@ export const buildFormatifSubchapters = ({
 
   const columns = new Map();
   const groupSubIds = new Map();
+
+  (slots || []).forEach((slot, index) => {
+    const scoreKey = String(slot?.slot_key ?? slot?.type ?? "");
+    if (!scoreKey || columns.has(scoreKey)) return;
+    const labelIndex = Number(slot?.label_index) || index + 1;
+    columns.set(scoreKey, {
+      id: scoreKey,
+      scoreKey,
+      type: slot?.type || scoreKey,
+      subchapterId: Number(slot?.subchapter_id) || null,
+      labelIndex,
+      month: slot?.month || null,
+      chapterTitle: slot?.chapter_title || null,
+      examId: slot?.exam_id || null,
+      examName: slot?.exam_name || null,
+      createdAt: slot?.created_at || null,
+      title: resolveTitle({
+        labelIndex,
+      }),
+    });
+  });
+
   students.forEach((student) => {
     (student.scores || []).forEach((score) => {
       if (!score) return;
@@ -122,8 +197,26 @@ export const buildFormatifSubchapters = ({
         `${score.month || "M00"}-B${score.chapter_id ?? "0"}-S${
           extractSubIdFromType(score.type) ?? "0"
         }`;
-      if (columns.has(scoreKey)) return;
+      if (columns.has(scoreKey)) {
+        const existing = columns.get(scoreKey);
+        if (!existing.examName && score.exam_name) {
+          existing.examName = score.exam_name;
+          existing.examId = score.exam_id || null;
+        }
+        if (!existing.createdAt && score.created_at) {
+          existing.createdAt = score.created_at;
+        }
+        if (!existing.month && score.month) {
+          existing.month = score.month;
+        }
+        if (!existing.chapterTitle && score.chapter_title) {
+          existing.chapterTitle = score.chapter_title;
+        }
+        existing.title = resolveTitle({ labelIndex: existing.labelIndex });
+        return;
+      }
       const chapterTitle =
+        score.chapter_title ||
         chapterTitleMap.get(String(score.chapter_id)) ||
         `Bab ${score.chapter_id ?? "-"}`;
       const monthLabel = score.month || "-";
@@ -139,11 +232,18 @@ export const buildFormatifSubchapters = ({
         subId != null
           ? subIndexMap.get(`${score.chapter_id}:${subId}`)
           : null;
-      const labelIndex = derivedIndex || baseIndex || 1;
+      const labelIndex = derivedIndex || baseIndex || columns.size + 1;
       columns.set(scoreKey, {
         id: subId ?? scoreKey,
         scoreKey,
-        title: `${monthLabel} - ${chapterTitle} - Nilai ${labelIndex}`,
+        type: score.type || scoreKey,
+        subchapterId: subId,
+        month: monthLabel,
+        chapterTitle,
+        examId: score.exam_id || null,
+        examName: score.exam_name || null,
+        createdAt: score.created_at || null,
+        title: resolveTitle({ labelIndex }),
         labelIndex,
       });
     });
@@ -191,7 +291,7 @@ const StudentGradingTableFormatif = ({
           id: key,
           scoreKey: key,
           labelIndex,
-          title: `Nilai ${labelIndex}`,
+          title: buildScoreColumnLabel(labelIndex),
         };
       });
     const merged = [...base];
@@ -207,25 +307,50 @@ const StudentGradingTableFormatif = ({
         existingKeys.add(itemKey);
       }
     });
-    return merged;
+    return merged.map((item, index) => ({
+      ...item,
+      labelIndex:
+        Number(item?.labelIndex) > 0 ? Number(item.labelIndex) : index + 1,
+      title: buildScoreColumnLabel(
+        Number(item?.labelIndex) > 0 ? item.labelIndex : index + 1,
+      ),
+    }));
   }, [subchapters, students]);
 
   const getScoreKey = (sub) =>
     sub?.scoreKey ?? sub?.id ?? sub?.key ?? sub?.value;
 
   const getSubTitle = (sub) =>
-    sub?.title || `Nilai ${sub?.labelIndex ?? sub?.id ?? "-"}`;
+    buildScoreColumnLabel(sub?.labelIndex ?? sub?.id ?? 1);
+
   const renderSubHeader = (sub) => {
     const scoreKey = getScoreKey(sub);
     const title = getSubTitle(sub);
-    const canDelete = isFilterReady && scoreKey && scoreKey !== "__new";
+    const canDelete = Boolean(onDeleteColumn) && scoreKey && scoreKey !== "__new";
+    const tooltipText = buildScoreColumnTooltip({
+      month: sub?.month,
+      chapterTitle: sub?.chapterTitle,
+      examName: sub?.examName,
+      createdAt: sub?.createdAt,
+    });
+    const labelNode = tooltipText ? (
+      <Tooltip
+        title={
+          <div style={{ whiteSpace: "pre-line" }}>{tooltipText}</div>
+        }
+      >
+        <Text style={{ cursor: "help" }}>{title}</Text>
+      </Tooltip>
+    ) : (
+      <Text>{title}</Text>
+    );
     return (
-      <Space align='center' size={6}>
-        <Text>{title}</Text>
+      <Space align='center' size={6} wrap>
+        {labelNode}
         {canDelete && (
           <Popconfirm
             title={`Hapus ${title}?`}
-            description='Kolom ini akan langsung dihapus dari data formatif.'
+            description='Semua nilai siswa pada kolom ini akan dihapus secara bulk.'
             okText='Hapus'
             cancelText='Batal'
             onConfirm={() => onDeleteColumn?.(scoreKey)}
@@ -244,6 +369,7 @@ const StudentGradingTableFormatif = ({
 
   const renderScoreInput = (record, index, subchapter) => {
     const scoreKey = getScoreKey(subchapter);
+    const isNewColumn = scoreKey === "__new";
     return (
     <InputNumber
       min={0}
@@ -252,8 +378,8 @@ const StudentGradingTableFormatif = ({
       precision={0}
       size={isMobile ? "small" : "middle"}
       style={{ width: "100%" }}
-      value={record.formatifScores?.[scoreKey] ?? 0}
-      disabled={!isFilterReady}
+      value={record.formatifScores?.[scoreKey] ?? (isNewColumn ? null : 0)}
+      disabled={isNewColumn ? !isFilterReady : false}
       onChange={(val) => onFormativeChange(index, scoreKey, val)}
     />
     );
@@ -347,7 +473,7 @@ const StudentGradingTableFormatif = ({
     </Card>
   );
 
-  if (isFilterReady && isLoading) {
+  if (isLoading) {
     return <LoadApp />;
   }
 

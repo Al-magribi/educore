@@ -52,6 +52,7 @@ const SyncFormativeFromExamModal = ({
   month,
   semester,
   chapterId,
+  recordedAt = null,
   onSynced,
   targetType = "formative",
 }) => {
@@ -176,6 +177,7 @@ const SyncFormativeFromExamModal = ({
           class_id: classId,
           month,
           semester,
+          recorded_at: recordedAt || undefined,
         }).unwrap();
       } else {
         res = await syncFormative({
@@ -185,6 +187,7 @@ const SyncFormativeFromExamModal = ({
           month,
           semester,
           chapter_id: chapterId,
+          recorded_at: recordedAt || undefined,
         }).unwrap();
       }
       message.success(

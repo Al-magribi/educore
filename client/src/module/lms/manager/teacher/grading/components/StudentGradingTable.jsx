@@ -46,16 +46,11 @@ const StudentGradingTable = ({
 }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const usesMonthFilter = typeKey !== "ujianAkhir";
-  const usesChapterFilter = typeKey === "formatif" || typeKey === "sumatif";
+  const usesMonthFilter = typeKey === "sikap";
+  const usesSemesterFilter = typeKey === "ujianAkhir";
   const classOptions = (classes || []).map((item) => ({
     value: item.id,
     label: item.name,
-  }));
-
-  const chapterOptions = (chapters || []).map((chapter) => ({
-    value: chapter.id,
-    label: chapter.title,
   }));
 
   const monthValue = filters?.monthId
@@ -75,12 +70,13 @@ const StudentGradingTable = ({
     { value: 2, label: "Semester 2" },
   ];
 
+  // Formatif/sumatif: nilai selalu bisa dilihat/diedit; bulan & bab dipilih saat upload/sync.
   const isFilterReady =
     typeKey === "ujianAkhir"
       ? !!filters?.semesterId
-      : typeKey === "sumatif"
-        ? !!filters?.monthId
-        : !!filters?.monthId && (typeKey === "sikap" || !!filters?.chapterId);
+      : typeKey === "formatif" || typeKey === "sumatif"
+        ? false
+        : !!filters?.monthId;
 
   const renderContent = () => {
     if (typeKey === "sikap") {
@@ -147,11 +143,9 @@ const StudentGradingTable = ({
                 gap: 12,
                 gridTemplateColumns: isMobile
                   ? "1fr"
-                  : typeKey === "ujianAkhir"
+                  : typeKey === "ujianAkhir" || typeKey === "sikap"
                     ? "minmax(160px, 240px) repeat(2, minmax(160px, 1fr))"
-                    : typeKey === "sikap"
-                    ? "minmax(160px, 240px) repeat(2, minmax(160px, 1fr))"
-                    : "minmax(160px, 240px) repeat(3, minmax(160px, 1fr))",
+                    : "minmax(160px, 240px) minmax(160px, 1fr)",
               }}
             >
               <Space align='center' size={8}>
@@ -191,7 +185,7 @@ const StudentGradingTable = ({
                   style={{ width: "100%" }}
                 />
               )}
-              {!usesMonthFilter && (
+              {usesSemesterFilter && (
                 <Select
                   value={filters?.semesterId}
                   placeholder='Pilih semester'
@@ -202,40 +196,27 @@ const StudentGradingTable = ({
                   style={{ width: "100%" }}
                 />
               )}
-              {usesChapterFilter && (
-                <Select
-                  value={filters?.chapterId}
-                  allowClear
-                  placeholder={
-                    typeKey === "sumatif"
-                      ? "Bab (opsional)"
-                      : "Pilih bab"
-                  }
-                  options={chapterOptions}
-                  onChange={(value) =>
-                    onFilterChange(typeKey, "chapterId", value)
-                  }
-                  style={{ width: "100%" }}
-                />
-              )}
             </div>
-            {!isFilterReady && (
+            {typeKey === "sikap" && !isFilterReady && (
+              <Text type='secondary'>Bulan wajib dipilih.</Text>
+            )}
+            {typeKey === "ujianAkhir" && !isFilterReady && (
+              <Text type='secondary'>Semester wajib dipilih.</Text>
+            )}
+            {(typeKey === "formatif" || typeKey === "sumatif") && (
               <Text type='secondary'>
-                {typeKey === "ujianAkhir"
-                  ? "Semester wajib dipilih."
-                  : typeKey === "sikap" || typeKey === "sumatif"
-                  ? "Bulan wajib dipilih."
-                  : "Bulan wajib dipilih, bab wajib dipilih."}
+                Nilai yang ada bisa langsung diedit. Tanggal dan bab dipilih saat
+                upload Excel atau sync dari ujian.
               </Text>
             )}
-            {isFilterReady && typeKey === "sumatif" && !filters?.chapterId && (
-              <Text type='secondary'>
-                Mode tanpa bab (UTS/sync umum). Pilih bab jika ingin input per bab.
-              </Text>
-            )}
-            {isFilterReady && derivedSemester && (
+            {isFilterReady && typeKey === "sikap" && derivedSemester && (
               <Text type='secondary'>
                 {`Filter aktif menggunakan Semester ${derivedSemester}.`}
+              </Text>
+            )}
+            {isFilterReady && typeKey === "ujianAkhir" && (
+              <Text type='secondary'>
+                {`Filter aktif menggunakan Semester ${Number(filters?.semesterId) || 1}.`}
               </Text>
             )}
           </Space>
