@@ -70,13 +70,21 @@ const StudentGradingTable = ({
     { value: 2, label: "Semester 2" },
   ];
 
-  // Formatif/sumatif: nilai selalu bisa dilihat/diedit; bulan & bab dipilih saat upload/sync.
   const isFilterReady =
     typeKey === "ujianAkhir"
       ? !!filters?.semesterId
-      : typeKey === "formatif" || typeKey === "sumatif"
-        ? false
-        : !!filters?.monthId;
+      : typeKey === "formatif"
+        ? !!(filters?.monthId && filters?.chapterId)
+        : typeKey === "sumatif"
+          ? !!filters?.monthId
+          : !!filters?.monthId;
+  const selectedChapter = (chapters || []).find(
+    (chapter) => String(chapter.id) === String(filters?.chapterId),
+  );
+  const newColumnMeta = {
+    createdAt: filters?.date,
+    chapterTitle: selectedChapter?.title || null,
+  };
 
   const renderContent = () => {
     if (typeKey === "sikap") {
@@ -101,6 +109,7 @@ const StudentGradingTable = ({
           onFormativeChange={onFormativeChange}
           subchapters={formativeSubchapters}
           onDeleteColumn={onDeleteFormativeColumn}
+          newColumnMeta={newColumnMeta}
         />
       );
     }
@@ -114,6 +123,7 @@ const StudentGradingTable = ({
           onSummativeChange={onSummativeChange}
           subchapters={summativeSubchapters}
           onDeleteColumn={onDeleteSummativeColumn}
+          newColumnMeta={newColumnMeta}
         />
       );
     }
@@ -203,10 +213,22 @@ const StudentGradingTable = ({
             {typeKey === "ujianAkhir" && !isFilterReady && (
               <Text type='secondary'>Semester wajib dipilih.</Text>
             )}
-            {(typeKey === "formatif" || typeKey === "sumatif") && (
+            {typeKey === "formatif" && (
               <Text type='secondary'>
-                Nilai yang ada bisa langsung diedit. Tanggal dan bab dipilih saat
-                upload Excel atau sync dari ujian.
+                {isFilterReady
+                  ? `Kolom Input Nilai aktif${
+                      selectedChapter ? ` untuk ${selectedChapter.title}` : ""
+                    }. Isi nilai baru lalu simpan.`
+                  : "Nilai yang ada bisa langsung diedit. Klik Tambah Nilai untuk memilih tanggal dan bab, lalu isi kolom Input Nilai."}
+              </Text>
+            )}
+            {typeKey === "sumatif" && (
+              <Text type='secondary'>
+                {isFilterReady
+                  ? `Kolom Input Nilai aktif${
+                      selectedChapter ? ` untuk ${selectedChapter.title}` : ""
+                    }. Isi nilai baru lalu simpan.`
+                  : "Nilai yang ada bisa langsung diedit. Klik Tambah Nilai untuk memilih tanggal dan bab, lalu isi kolom Input Nilai."}
               </Text>
             )}
             {isFilterReady && typeKey === "sikap" && derivedSemester && (

@@ -6,12 +6,13 @@ import {
   Flex,
   Grid,
   Tabs,
+  Tag,
   Typography,
   message,
   Upload,
   Modal,
 } from "antd";
-import { Download, RefreshCw, Save, Upload as UploadIcon } from "lucide-react";
+import { Download, Plus, RefreshCw, Save, Upload as UploadIcon } from "lucide-react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import {
@@ -1537,6 +1538,7 @@ const Grading = ({ subject }) => {
         ...prev[targetType === "summative" ? "sumatif" : "formatif"],
         monthId: context.monthId,
         chapterId: context.chapterId || undefined,
+        date: context.date || undefined,
       },
     }));
   };
@@ -2179,13 +2181,18 @@ const handleDownloadFinalTemplate = () => {
           });
         });
         if (!items.length) continue;
+        const hasNewColumn = group.columns.some(
+          (column) => column.scoreKey === "__new",
+        );
         await submitFormative({
           subject_id: subject.id,
           class_id: classId,
           month: group.month,
           semester: group.semester,
           chapter_id: group.chapterId,
-          recorded_at: lastUploadContext?.date || undefined,
+          recorded_at: hasNewColumn
+            ? tabFilters.formatif?.date || lastUploadContext?.date || undefined
+            : undefined,
           items,
         }).unwrap();
       }
@@ -2200,7 +2207,6 @@ const handleDownloadFinalTemplate = () => {
         })),
       );
       setIsFormativeDirty(false);
-      setLastUploadContext(null);
       await refetchFormative();
     } catch (error) {
       message.error(error?.data?.message || "Gagal menyimpan nilai formatif.");
@@ -2308,13 +2314,18 @@ const handleDownloadFinalTemplate = () => {
           });
         });
         if (!items.length) continue;
+        const hasNewColumn = group.columns.some(
+          (column) => column.scoreKey === "__new",
+        );
         await submitSummative({
           subject_id: subject.id,
           class_id: classId,
           month: group.month,
           semester: group.semester,
           chapter_id: group.chapterId || null,
-          recorded_at: lastUploadContext?.date || undefined,
+          recorded_at: hasNewColumn
+            ? tabFilters.sumatif?.date || lastUploadContext?.date || undefined
+            : undefined,
           items,
         }).unwrap();
       }
@@ -2333,7 +2344,6 @@ const handleDownloadFinalTemplate = () => {
         })),
       );
       setIsSummativeDirty(false);
-      setLastUploadContext(null);
       await refetchSummative();
     } catch (error) {
       message.error(error?.data?.message || "Gagal menyimpan nilai sumatif.");
@@ -2466,8 +2476,8 @@ const handleDownloadFinalTemplate = () => {
                   Input Penilaian
                 </Typography.Title>
                 <Typography.Text type='secondary'>
-                  Nilai formatif/sumatif bisa langsung diedit. Tanggal & bab
-                  dipilih saat upload Excel atau sync. Hover label Nilai untuk
+                  Guru dapat memberi nilai formatif/sumatif langsung lewat
+                  Tambah Nilai (pilih tanggal & bab). Hover label Nilai untuk
                   melihat detail.
                 </Typography.Text>
               </div>
@@ -2516,6 +2526,37 @@ const handleDownloadFinalTemplate = () => {
                   wrap='wrap'
                   style={{ width: isMobile ? "100%" : "auto" }}
                 >
+                  {formativeMonthName && formativeChapterId ? (
+                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+                      {tabFilters.formatif?.date
+                        ? dayjs(tabFilters.formatif.date).format("DD/MM/YYYY")
+                        : formativeMonthName}
+                      {` · ${
+                        chapters.find(
+                          (chapter) =>
+                            String(chapter.id) === String(formativeChapterId),
+                        )?.title || "Bab"
+                      }`}
+                    </Tag>
+                  ) : null}
+                  <Button
+                    icon={<Plus size={16} />}
+                    onClick={() => {
+                      if (!chapters.length) {
+                        message.warning(
+                          "Belum ada bab pada mapel ini. Tambahkan bab terlebih dahulu.",
+                        );
+                        return;
+                      }
+                      setScoreContextModal({
+                        mode: "input",
+                        targetType: "formative",
+                      });
+                    }}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
+                  >
+                    {isCompact ? "Tambah" : "Tambah Nilai"}
+                  </Button>
                   <Button
                     icon={<RefreshCw size={16} />}
                     onClick={() => {
@@ -2566,6 +2607,34 @@ const handleDownloadFinalTemplate = () => {
                   wrap='wrap'
                   style={{ width: isMobile ? "100%" : "auto" }}
                 >
+                  {summativeMonthName ? (
+                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+                      {tabFilters.sumatif?.date
+                        ? dayjs(tabFilters.sumatif.date).format("DD/MM/YYYY")
+                        : summativeMonthName}
+                      {summativeChapterId
+                        ? ` · ${
+                            chapters.find(
+                              (chapter) =>
+                                String(chapter.id) ===
+                                String(summativeChapterId),
+                            )?.title || "Bab"
+                          }`
+                        : ""}
+                    </Tag>
+                  ) : null}
+                  <Button
+                    icon={<Plus size={16} />}
+                    onClick={() => {
+                      setScoreContextModal({
+                        mode: "input",
+                        targetType: "summative",
+                      });
+                    }}
+                    style={isMobile ? { flex: "1 1 140px" } : undefined}
+                  >
+                    {isCompact ? "Tambah" : "Tambah Nilai"}
+                  </Button>
                   <Button
                     icon={<RefreshCw size={16} />}
                     onClick={() => {
@@ -2763,18 +2832,37 @@ const handleDownloadFinalTemplate = () => {
       <ScoreContextModal
         open={
           scoreContextModal?.mode === "upload" ||
-          scoreContextModal?.mode === "sync"
+          scoreContextModal?.mode === "sync" ||
+          scoreContextModal?.mode === "input"
         }
         title={
           scoreContextModal?.mode === "sync"
             ? "Pilih Tanggal & Bab untuk Sync"
-            : "Pilih Tanggal & Bab untuk Upload"
+            : scoreContextModal?.mode === "input"
+              ? "Pilih Tanggal & Bab untuk Nilai Baru"
+              : "Pilih Tanggal & Bab untuk Upload"
         }
-        okText={scoreContextModal?.mode === "sync" ? "Pilih Ujian" : "Terapkan"}
+        okText={
+          scoreContextModal?.mode === "sync"
+            ? "Pilih Ujian"
+            : scoreContextModal?.mode === "input"
+              ? "Mulai Input"
+              : "Terapkan"
+        }
         requireChapter={scoreContextModal?.targetType === "formative"}
         chapterOptional={scoreContextModal?.targetType === "summative"}
         chapters={chapters}
         period={period}
+        initialDate={
+          scoreContextModal?.targetType === "summative"
+            ? tabFilters.sumatif?.date
+            : tabFilters.formatif?.date
+        }
+        initialChapterId={
+          scoreContextModal?.targetType === "summative"
+            ? summativeChapterId
+            : formativeChapterId
+        }
         onCancel={() => {
           setScoreContextModal(null);
           setPendingUploadFile(null);
@@ -2785,6 +2873,16 @@ const handleDownloadFinalTemplate = () => {
             setSyncContext(context);
             setSyncExamTarget(scoreContextModal.targetType);
             setScoreContextModal(null);
+            return;
+          }
+
+          if (scoreContextModal?.mode === "input") {
+            applyUploadContextFilters(scoreContextModal.targetType, context);
+            setLastUploadContext(context);
+            setScoreContextModal(null);
+            message.success(
+              "Kolom Input Nilai siap. Isi nilai siswa lalu simpan.",
+            );
             return;
           }
 

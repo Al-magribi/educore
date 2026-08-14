@@ -26,6 +26,7 @@ const StudentGradingTableSumatif = ({
   onSummativeChange,
   onDeleteColumn,
   subchapters = [],
+  newColumnMeta = null,
 }) => {
   const normalizedSubchapters = useMemo(() => {
     const base = Array.isArray(subchapters) ? subchapters : [];
@@ -207,8 +208,23 @@ const StudentGradingTableSumatif = ({
   ];
 
   if (isFilterReady) {
+    const newColumnTooltip = buildScoreColumnTooltip({
+      month: newColumnMeta?.month,
+      chapterTitle: newColumnMeta?.chapterTitle,
+      createdAt: newColumnMeta?.createdAt,
+    });
     columns.push({
-      title: "Input Nilai",
+      title: newColumnTooltip ? (
+        <Tooltip
+          title={
+            <div style={{ whiteSpace: "pre-line" }}>{newColumnTooltip}</div>
+          }
+        >
+          <Text style={{ cursor: "help" }}>Input Nilai</Text>
+        </Tooltip>
+      ) : (
+        "Input Nilai"
+      ),
       key: "sub_new",
       width: "16%",
       render: (_, record, index) =>
