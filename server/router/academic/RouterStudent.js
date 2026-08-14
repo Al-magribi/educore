@@ -6,87 +6,58 @@ import { getActivePeriode, syncUserRfid } from "../../utils/helper.js";
 
 const router = Router();
 
-const normalizeRfidUid = (value) => `${value || ""}`.trim().toUpperCase();
+const normalizeText = (value) => `${value ?? ""}`.trim();
 
-/**
- * Sync kartu RFID ke user. Kartu nonaktif boleh dipindah ke user lain;
- * hanya kartu aktif milik user lain yang ditolak.
- */
-const syncStudentRfidCard = async (client, userId, rfidNo) => {
-  const normalizedRfid = normalizeRfidUid(rfidNo);
+const normalizeKey = (value) =>
+  normalizeText(value).toLowerCase().replace(/\s+/g, " ");
 
-  if (!normalizedRfid) {
-    await client.query(
-      `UPDATE attendance.rfid_card
-       SET is_active = false, is_primary = false
-       WHERE user_id = $1`,
-      [userId],
-    );
-    return;
+const normalizeIdValue = (value) => {
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return normalizeText(value);
+};
+
+const normalizeRfid = (value) => {
+  const text = normalizeText(value);
+  return text ? text.toUpperCase() : "";
+};
+
+const valuesEqual = (left, right) => normalizeKey(left) === normalizeKey(right);
+
+const rfidEqual = (left, right) => normalizeRfid(left) === normalizeRfid(right);
+
+const buildClassLookup = (rows = []) => {
+  const byGradeAndName = new Map();
+  const byName = new Map();
+
+  rows.forEach((row) => {
+    const classNameKey = normalizeKey(row.class_name);
+    const gradeKey = normalizeKey(row.grade_name);
+    if (!classNameKey) return;
+
+    byGradeAndName.set(`${gradeKey}||${classNameKey}`, row);
+    if (!byName.has(classNameKey)) byName.set(classNameKey, []);
+    byName.get(classNameKey).push(row);
+  });
+
+  return { byGradeAndName, byName };
+};
+
+const resolveClass = (lookup, tingkat, kelas) => {
+  const classNameKey = normalizeKey(kelas);
+  const gradeKey = normalizeKey(tingkat);
+  if (!classNameKey) return null;
+
+  if (gradeKey) {
+    const exact = lookup.byGradeAndName.get(`${gradeKey}||${classNameKey}`);
+    if (exact) return exact;
   }
 
-  const existingByUid = await client.query(
-    `SELECT id, user_id, is_active
-     FROM attendance.rfid_card
-     WHERE upper(card_uid) = $1
-     LIMIT 1`,
-    [normalizedRfid],
-  );
-
-  if (existingByUid.rowCount > 0) {
-    const card = existingByUid.rows[0];
-    if (Number(card.user_id) !== Number(userId) && card.is_active) {
-      const error = new Error("No RFID sudah dipakai user lain.");
-      error.statusCode = 400;
-      throw error;
-    }
-
-    await client.query(
-      `UPDATE attendance.rfid_card
-       SET user_id = $1, card_uid = $2, is_active = true, is_primary = true
-       WHERE id = $3`,
-      [userId, normalizedRfid, card.id],
-    );
-    await client.query(
-      `UPDATE attendance.rfid_card
-       SET is_active = false, is_primary = false
-       WHERE user_id = $1 AND id <> $2`,
-      [userId, card.id],
-    );
-    return;
-  }
-
-  const userCard = await client.query(
-    `SELECT id
-     FROM attendance.rfid_card
-     WHERE user_id = $1
-     ORDER BY is_active DESC, is_primary DESC, id DESC
-     LIMIT 1`,
-    [userId],
-  );
-
-  if (userCard.rowCount > 0) {
-    const cardId = userCard.rows[0].id;
-    await client.query(
-      `UPDATE attendance.rfid_card
-       SET card_uid = $1, is_active = true, is_primary = true
-       WHERE id = $2`,
-      [normalizedRfid, cardId],
-    );
-    await client.query(
-      `UPDATE attendance.rfid_card
-       SET is_active = false, is_primary = false
-       WHERE user_id = $1 AND id <> $2`,
-      [userId, cardId],
-    );
-    return;
-  }
-
-  await client.query(
-    `INSERT INTO attendance.rfid_card (user_id, card_uid, card_type, is_primary, is_active)
-     VALUES ($1, $2, 'rfid', true, true)`,
-    [userId, normalizedRfid],
-  );
+  const matches = lookup.byName.get(classNameKey) || [];
+  if (matches.length === 1) return matches[0];
+  return null;
 };
 
 // ============================================================================
@@ -198,6 +169,63 @@ router.get(
       totalData: parseInt(countResult.rows[0].count),
       totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limitNum),
       activePeriodeId: activePeriodeId,
+    });
+  }),
+);
+
+// ============================================================================
+// 1b. EXPORT STUDENTS (Periode Aktif)
+// ============================================================================
+router.get(
+  "/students/export",
+  authorize("satuan"),
+  withQuery(async (req, res, pool) => {
+    const homebaseId = req.user.homebase_id;
+    const activePeriodeId = await getActivePeriode(pool, homebaseId);
+
+    const [studentsResult, classesResult] = await Promise.all([
+      pool.query(
+        `SELECT
+           s.nis,
+           s.nisn,
+           u.full_name,
+           g.name AS tingkat,
+           c.name AS kelas,
+           rc.card_uid AS rfid_no
+         FROM u_users u
+         JOIN u_students s ON u.id = s.user_id
+         LEFT JOIN LATERAL (
+           SELECT card_uid
+           FROM attendance.rfid_card
+           WHERE user_id = u.id AND is_active = true
+           ORDER BY is_primary DESC, id DESC
+           LIMIT 1
+         ) rc ON true
+         JOIN u_class_enrollments ce ON s.user_id = ce.student_id
+         JOIN a_class c ON ce.class_id = c.id
+         LEFT JOIN a_grade g ON c.grade_id = g.id
+         WHERE u.role = 'student'
+           AND s.homebase_id = $1
+           AND ce.periode_id = $2
+         ORDER BY g.name ASC NULLS LAST, c.name ASC, u.full_name ASC`,
+        [homebaseId, activePeriodeId],
+      ),
+      pool.query(
+        `SELECT
+           g.name AS tingkat,
+           c.name AS kelas
+         FROM a_class c
+         LEFT JOIN a_grade g ON c.grade_id = g.id
+         WHERE c.homebase_id = $1
+         ORDER BY g.name ASC NULLS LAST, c.name ASC`,
+        [homebaseId],
+      ),
+    ]);
+
+    res.json({
+      data: studentsResult.rows,
+      classes: classesResult.rows,
+      activePeriodeId,
     });
   }),
 );
@@ -338,6 +366,300 @@ router.put(
     }
 
     res.json({ message: "Data siswa dan kelas berhasil diperbarui" });
+  }),
+);
+
+// ============================================================================
+// 3b. IMPORT STUDENTS (Update only when data differs)
+// ============================================================================
+router.post(
+  "/students/import",
+  authorize("satuan"),
+  withTransaction(async (req, res, client) => {
+    const payload = Array.isArray(req.body) ? { students: req.body } : req.body;
+    const students = Array.isArray(payload?.students) ? payload.students : [];
+    const homebaseId = req.user.homebase_id;
+
+    if (students.length === 0) {
+      return res.status(400).json({ message: "Data import tidak boleh kosong." });
+    }
+
+    const activePeriodeId = await getActivePeriode(client, homebaseId);
+    const classResult = await client.query(
+      `SELECT
+         c.id,
+         c.name AS class_name,
+         c.is_active,
+         g.name AS grade_name
+       FROM a_class c
+       LEFT JOIN a_grade g ON c.grade_id = g.id
+       WHERE c.homebase_id = $1`,
+      [homebaseId],
+    );
+    const classLookup = buildClassLookup(classResult.rows);
+
+    const uniqueRows = [];
+    const seenNis = new Set();
+    const invalid = [];
+    const duplicate = [];
+
+    students.forEach((row, index) => {
+      const nis = normalizeIdValue(row?.nis);
+      const nisn = normalizeIdValue(row?.nisn);
+      const fullName = normalizeText(row?.full_name || row?.name);
+      const tingkat = normalizeText(row?.tingkat);
+      const kelas = normalizeText(row?.kelas);
+      const rfidNo = normalizeRfid(row?.rfid_no ?? row?.rfid);
+
+      if (!nis) {
+        invalid.push({
+          row: index + 1,
+          nis,
+          name: fullName,
+          reason: "NIS wajib diisi",
+        });
+        return;
+      }
+
+      if (seenNis.has(nis)) {
+        duplicate.push({
+          row: index + 1,
+          nis,
+          name: fullName,
+          reason: "NIS duplikat di file import",
+        });
+        return;
+      }
+      seenNis.add(nis);
+
+      if (!fullName) {
+        invalid.push({
+          row: index + 1,
+          nis,
+          name: fullName,
+          reason: "Nama wajib diisi",
+        });
+        return;
+      }
+
+      if (!kelas) {
+        invalid.push({
+          row: index + 1,
+          nis,
+          name: fullName,
+          reason: "Kelas wajib diisi",
+        });
+        return;
+      }
+
+      const matchedClass = resolveClass(classLookup, tingkat, kelas);
+      if (!matchedClass) {
+        invalid.push({
+          row: index + 1,
+          nis,
+          name: fullName,
+          reason: `Kelas tidak ditemukan: ${tingkat ? `${tingkat} - ${kelas}` : kelas}`,
+        });
+        return;
+      }
+
+      uniqueRows.push({
+        nis,
+        nisn: nisn || null,
+        full_name: fullName,
+        tingkat,
+        kelas,
+        class_id: matchedClass.id,
+        class_active: matchedClass.is_active !== false,
+        rfid_no: rfidNo || null,
+      });
+    });
+
+    if (uniqueRows.length === 0) {
+      return res.status(400).json({
+        message: "Tidak ada data valid untuk diimpor.",
+        summary: {
+          total: students.length,
+          updated: 0,
+          unchanged: 0,
+          not_found: 0,
+          invalid: invalid.length,
+          duplicate: duplicate.length,
+        },
+        invalid,
+        duplicate,
+      });
+    }
+
+    const existingResult = await client.query(
+      `SELECT
+         u.id,
+         u.full_name,
+         s.nis,
+         s.nisn,
+         rc.card_uid AS rfid_no,
+         c.id AS class_id,
+         c.name AS class_name,
+         g.name AS grade_name
+       FROM u_users u
+       JOIN u_students s ON u.id = s.user_id
+       LEFT JOIN LATERAL (
+         SELECT card_uid
+         FROM attendance.rfid_card
+         WHERE user_id = u.id AND is_active = true
+         ORDER BY is_primary DESC, id DESC
+         LIMIT 1
+       ) rc ON true
+       LEFT JOIN u_class_enrollments ce
+         ON ce.student_id = u.id AND ce.periode_id = $2
+       LEFT JOIN a_class c ON ce.class_id = c.id
+       LEFT JOIN a_grade g ON c.grade_id = g.id
+       WHERE u.role = 'student'
+         AND s.homebase_id = $1
+         AND s.nis::text = ANY($3::text[])`,
+      [homebaseId, activePeriodeId, uniqueRows.map((item) => item.nis)],
+    );
+
+    const existingByNis = new Map(
+      existingResult.rows.map((row) => [normalizeIdValue(row.nis), row]),
+    );
+
+    const updated = [];
+    const unchanged = [];
+    const notFound = [];
+
+    for (const row of uniqueRows) {
+      const current = existingByNis.get(row.nis);
+      if (!current) {
+        notFound.push({
+          nis: row.nis,
+          name: row.full_name,
+          reason: "Siswa tidak ditemukan",
+        });
+        continue;
+      }
+
+      const nameChanged = !valuesEqual(current.full_name, row.full_name);
+      const nisnChanged = normalizeIdValue(current.nisn) !== normalizeIdValue(row.nisn);
+      const rfidChanged = !rfidEqual(current.rfid_no, row.rfid_no);
+      const classChanged = Number(current.class_id || 0) !== Number(row.class_id || 0);
+
+      if (!nameChanged && !nisnChanged && !rfidChanged && !classChanged) {
+        unchanged.push({ nis: row.nis, name: row.full_name });
+        continue;
+      }
+
+      if (classChanged && row.class_active === false) {
+        invalid.push({
+          nis: row.nis,
+          name: row.full_name,
+          reason: "Kelas tujuan nonaktif",
+        });
+        continue;
+      }
+
+      if (rfidChanged && row.rfid_no) {
+        const existingCard = await client.query(
+          `SELECT user_id FROM attendance.rfid_card WHERE card_uid = $1 LIMIT 1`,
+          [row.rfid_no],
+        );
+        if (
+          existingCard.rowCount > 0 &&
+          Number(existingCard.rows[0].user_id) !== Number(current.id)
+        ) {
+          invalid.push({
+            nis: row.nis,
+            name: row.full_name,
+            reason: "No RFID sudah dipakai user lain.",
+          });
+          continue;
+        }
+      }
+
+      if (nameChanged) {
+        await client.query(`UPDATE u_users SET full_name = $1 WHERE id = $2`, [
+          row.full_name,
+          current.id,
+        ]);
+      }
+
+      if (nisnChanged || classChanged) {
+        await client.query(
+          `UPDATE u_students
+           SET nisn = $1, current_class_id = $2, current_periode_id = $3
+           WHERE user_id = $4`,
+          [
+            nisnChanged ? row.nisn : current.nisn,
+            classChanged ? row.class_id : current.class_id,
+            activePeriodeId,
+            current.id,
+          ],
+        );
+      }
+
+      if (classChanged) {
+        const enrollRes = await client.query(
+          `SELECT id FROM u_class_enrollments
+           WHERE student_id = $1 AND periode_id = $2`,
+          [current.id, activePeriodeId],
+        );
+
+        if (enrollRes.rows.length > 0) {
+          await client.query(
+            `UPDATE u_class_enrollments
+             SET class_id = $1
+             WHERE student_id = $2 AND periode_id = $3`,
+            [row.class_id, current.id, activePeriodeId],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO u_class_enrollments (student_id, class_id, periode_id, homebase_id)
+             VALUES ($1, $2, $3, $4)`,
+            [current.id, row.class_id, activePeriodeId, homebaseId],
+          );
+        }
+      }
+
+      if (rfidChanged) {
+        const rfidResult = await syncUserRfid(client, current.id, row.rfid_no);
+        if (!rfidResult.ok) {
+          invalid.push({
+            nis: row.nis,
+            name: row.full_name,
+            reason: rfidResult.message,
+          });
+          continue;
+        }
+      }
+
+      updated.push({
+        nis: row.nis,
+        name: row.full_name,
+        changes: [
+          nameChanged ? "Nama" : null,
+          nisnChanged ? "NISN" : null,
+          classChanged ? "Kelas" : null,
+          rfidChanged ? "RFID" : null,
+        ].filter(Boolean),
+      });
+    }
+
+    res.json({
+      message: `Import selesai. ${updated.length} data diperbarui, ${unchanged.length} tidak berubah.`,
+      summary: {
+        total: students.length,
+        updated: updated.length,
+        unchanged: unchanged.length,
+        not_found: notFound.length,
+        invalid: invalid.length,
+        duplicate: duplicate.length,
+      },
+      updated,
+      unchanged,
+      notFound,
+      invalid,
+      duplicate,
+    });
   }),
 );
 
