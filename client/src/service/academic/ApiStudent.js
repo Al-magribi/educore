@@ -40,12 +40,27 @@ export const ApiStudent = createApi({
       }),
       invalidatesTags: ["Student"],
     }),
+
+    exportStudents: builder.query({
+      query: () => "/students/export",
+    }),
+
+    importStudents: builder.mutation({
+      query: (body) => ({
+        url: "/students/import",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Student"],
+    }),
   }),
 });
 
 export const {
   useGetStudentsQuery,
+  useLazyExportStudentsQuery,
   useAddStudentMutation,
   useUpdateStudentMutation,
   useDeleteStudentMutation,
+  useImportStudentsMutation,
 } = ApiStudent;

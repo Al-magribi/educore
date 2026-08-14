@@ -31,14 +31,18 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
+import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import {
   useGetStudentsQuery,
+  useLazyExportStudentsQuery,
   useAddStudentMutation,
   useUpdateStudentMutation,
   useDeleteStudentMutation,
 } from '../../../../service/academic/ApiStudent';
 
 import StudentForm from './StudentForm';
+import ImportStudent from './ImportStudent';
+import { downloadStudentExcel } from './studentImportTemplate';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -95,7 +99,9 @@ const StudentPage = ({ screens }) => {
   const [accumulatedData, setAccumulatedData] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const loadMoreRef = useRef(null);
   const { data: apiData, isFetching } = useGetStudentsQuery({
     page,
@@ -103,6 +109,7 @@ const StudentPage = ({ screens }) => {
     search,
   });
 
+  const [fetchExport] = useLazyExportStudentsQuery();
   const [addStudent, { isLoading: isAdding }] = useAddStudentMutation();
   const [updateStudent, { isLoading: isUpdating }] = useUpdateStudentMutation();
   const [deleteStudent, { isLoading: isDeleting }] = useDeleteStudentMutation();
@@ -204,6 +211,33 @@ const StudentPage = ({ screens }) => {
     } catch (error) {
       message.error(error?.data?.message || 'Gagal menyimpan data siswa');
     }
+  };
+
+  const handleDownloadExcel = async () => {
+    setIsDownloading(true);
+    try {
+      const result = await fetchExport().unwrap();
+      const students = result?.data || [];
+      downloadStudentExcel({
+        students,
+        classes: result?.classes || [],
+      });
+      message.success(
+        students.length > 0
+          ? `File berisi ${students.length} data siswa periode aktif siap diunduh.`
+          : 'Template berhasil diunduh. Belum ada data siswa di periode aktif.',
+      );
+    } catch (error) {
+      message.error(error?.data?.message || 'Gagal mengunduh data siswa.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleImportFinish = () => {
+    setPage(1);
+    setHasMore(true);
+    setAccumulatedData([]);
   };
 
   const handleDelete = async (id) => {
@@ -382,7 +416,7 @@ const StudentPage = ({ screens }) => {
                   Kelola data siswa secara lebih tertata dan akurat
                 </Title>
                 <Text type="secondary" style={{ maxWidth: 760 }}>
-                  Lakukan pencarian, pembaruan biodata, dan penambahan siswa
+                  Lakukan pencarian, unduh Excel, impor pembaruan, dan penambahan siswa
                 </Text>
               </div>
 
@@ -463,19 +497,29 @@ const StudentPage = ({ screens }) => {
                   Pencarian & Aksi Cepat
                 </Title>
                 <Text type="secondary">
-                  Cari berdasarkan nama, NIS, NISN, atau No RFID, lalu lanjutkan edit atau penambahan data.
+                  Cari berdasarkan nama, NIS, NISN, atau No RFID, lalu unduh, impor, atau tambah data.
                 </Text>
               </div>
 
-              <Flex gap={10} vertical={!activeScreens.md} style={{ width: !activeScreens.md ? '100%' : 'auto' }}>
+              <Flex gap={10} wrap="wrap" vertical={!activeScreens.md} style={{ width: !activeScreens.md ? '100%' : 'auto' }}>
                 <Input
                   placeholder="Cari nama, NIS, NISN, atau No RFID..."
                   prefix={<SearchIcon size={16} color="rgba(0,0,0,.25)" />}
                   onChange={handleSearch}
-                  style={{ width: !activeScreens.md ? '100%' : 320 }}
+                  style={{ width: !activeScreens.md ? '100%' : 280 }}
                   size="large"
                   allowClear
                 />
+                <Button
+                  icon={<DownloadOutlined />}
+                  onClick={handleDownloadExcel}
+                  loading={isDownloading}
+                  size="large">
+                  Download
+                </Button>
+                <Button icon={<UploadOutlined />} onClick={() => setIsImportOpen(true)} size="large">
+                  Import
+                </Button>
                 <Button type="primary" icon={<Plus size={18} />} onClick={() => handleOpenDrawer(null)} size="large">
                   Tambah Siswa
                 </Button>
@@ -604,6 +648,12 @@ const StudentPage = ({ screens }) => {
         onSubmit={handleSubmit}
         initialValues={editingItem}
         isLoading={isAdding || isUpdating}
+      />
+
+      <ImportStudent
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onFinish={handleImportFinish}
       />
     </>
   );
