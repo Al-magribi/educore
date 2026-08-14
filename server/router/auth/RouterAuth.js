@@ -3,6 +3,10 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { withTransaction, withQuery } from "../../utils/wrapper.js"; // Sesuaikan path wrapper
 import { authorize } from "../../middleware/authorize.js";
+import {
+  attachAssignmentFlags,
+  fetchTeacherAssignments,
+} from "../../utils/staffAssignment.js";
 
 const router = Router();
 
@@ -137,6 +141,7 @@ router.post(
         `
         SELECT 
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           EXISTS (
             SELECT 1
@@ -243,13 +248,24 @@ router.post(
 
     delete user.password;
 
+    const payload = {
+      ...user,
+      ...roleData,
+    };
+
+    if (user.role === "teacher") {
+      const assignments = await fetchTeacherAssignments(
+        client,
+        user.id,
+        payload.homebase_id,
+      );
+      Object.assign(payload, attachAssignmentFlags(payload, assignments));
+    }
+
     // 7. Kirim Response
     return res.status(200).json({
       message: "Login berhasil",
-      user: {
-        ...user, // id, role, username...
-        ...roleData, // level (jika admin), nis (jika siswa), dll
-      },
+      user: payload,
     });
   }),
 );
@@ -295,6 +311,7 @@ router.get(
         SELECT 
           u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           EXISTS (
             SELECT 1
@@ -381,6 +398,17 @@ router.get(
 
     if (!userData) {
       return res.status(404).json({ message: "Data user tidak ditemukan" });
+    }
+
+    if (role === "teacher") {
+      const assignments = await fetchTeacherAssignments(
+        pool,
+        userData.id,
+        userData.homebase_id,
+      );
+      return res
+        .status(200)
+        .json(attachAssignmentFlags(userData, assignments));
     }
 
     return res.status(200).json(userData);

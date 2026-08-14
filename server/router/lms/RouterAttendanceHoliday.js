@@ -15,7 +15,7 @@ const router = Router();
 
 router.get(
   "/attendance/calendar/config",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const config = await getCalendarConfig(pool, homebase_id);
@@ -29,7 +29,7 @@ router.get(
 
 router.put(
   "/attendance/calendar/config",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
     const body = req.body || {};
@@ -53,7 +53,7 @@ router.put(
 
 router.get(
   "/attendance/calendar/holidays",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const year = req.query.year ? Number(req.query.year) : null;
@@ -75,7 +75,7 @@ router.get(
 
 router.post(
   "/attendance/calendar/holidays",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
 
@@ -103,7 +103,7 @@ router.post(
 
 router.put(
   "/attendance/calendar/holidays/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const holidayId = Number(req.params.id);
@@ -148,7 +148,7 @@ router.put(
 
 router.delete(
   "/attendance/calendar/holidays/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const holidayId = Number(req.params.id);
@@ -179,7 +179,7 @@ router.delete(
 
 router.post(
   "/attendance/calendar/holidays/bulk-delete",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];

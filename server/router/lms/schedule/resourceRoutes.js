@@ -5,7 +5,7 @@ import { ensureActivePeriode, ensureTeachingLoad, getColumnPresence, resolveTeac
 export const registerScheduleResourceRoutes = (router) => {
   router.post(
     "/schedule/activity",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
       const {
@@ -327,7 +327,7 @@ export const registerScheduleResourceRoutes = (router) => {
 
   router.delete(
     "/schedule/activity/:id",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { homebase_id } = req.user;
       const id = toInt(req.params.id, null);

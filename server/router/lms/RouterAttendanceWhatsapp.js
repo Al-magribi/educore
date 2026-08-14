@@ -54,7 +54,7 @@ const startWhatsappClientInBackground = (homebaseId) => {
 
 router.get(
   "/attendance/whatsapp/config",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const config = await getWhatsappNotificationConfig(pool, homebase_id);
@@ -68,7 +68,7 @@ router.get(
 
 router.put(
   "/attendance/whatsapp/config",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
     const body = req.body || {};
@@ -99,7 +99,7 @@ router.put(
 
 router.get(
   "/attendance/whatsapp/session",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const autoStart = String(req.query.auto_start || "").toLowerCase() === "true";
@@ -126,7 +126,7 @@ router.get(
 
 router.post(
   "/attendance/whatsapp/session/reconnect",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
 
@@ -156,7 +156,7 @@ router.post(
 
 router.post(
   "/attendance/whatsapp/test",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const phone = String(req.body?.phone || "").trim();
@@ -211,7 +211,7 @@ router.post(
 
 router.get(
   "/attendance/whatsapp/batches",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const startDate = req.query.start_date || null;
@@ -241,7 +241,7 @@ router.get(
 
 router.get(
   "/attendance/whatsapp/logs",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const batchId = req.query.batch_id ? Number(req.query.batch_id) : null;
@@ -281,7 +281,7 @@ router.get(
 
 router.post(
   "/attendance/whatsapp/batches/:id/retry-failed",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const batchId = Number(req.params.id);
@@ -317,7 +317,7 @@ router.post(
 
 router.delete(
   "/attendance/whatsapp/batches/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const batchId = Number(req.params.id);
@@ -381,7 +381,7 @@ router.delete(
 
 router.delete(
   "/attendance/whatsapp/batches/:id/logs",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const batchId = Number(req.params.id);
@@ -449,7 +449,7 @@ router.delete(
 
 router.delete(
   "/attendance/whatsapp/logs/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const logId = Number(req.params.id);
@@ -532,7 +532,7 @@ router.delete(
 
 router.post(
   "/attendance/whatsapp/run-now",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res) => {
     const { homebase_id } = req.user;
     const attendanceDate = req.body?.attendance_date || toJakartaDateString();

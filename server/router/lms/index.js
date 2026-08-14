@@ -11,6 +11,7 @@ import task from "./RouterTask.js";
 import schedule from "./RouterSchedule.js";
 import duty from "./RouterDuty.js";
 import journal from "./RouterJournal.js";
+import staffAssignment from "./RouterStaffAssignment.js";
 
 const RouterLms = Router();
 
@@ -26,5 +27,6 @@ RouterLms.use(task);
 RouterLms.use(schedule);
 RouterLms.use(duty);
 RouterLms.use(journal);
+RouterLms.use(staffAssignment);
 
 export default RouterLms;

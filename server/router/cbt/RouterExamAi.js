@@ -4,6 +4,7 @@ import { authorize } from "../../middleware/authorize.js";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { ensurePgBossQueue, getPgBoss } from "../../config/pgBoss.js";
 import pool from "../../config/connection.js";
+import { isForbiddenCbtOwner } from "../../utils/staffAssignment.js";
 
 const router = Router();
 const AI_GRADING_QUEUE = "cbt-ai-grading";
@@ -188,10 +189,7 @@ const validateExamOwnership = async ({ db, user, examId }) => {
     return { ok: false, status: 404, message: "Ujian tidak ditemukan" };
   }
   const examOwner = examCheck.rows[0];
-  if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-    return { ok: false, status: 403, message: "Akses tidak diizinkan" };
-  }
-  if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+  if (isForbiddenCbtOwner(user, examOwner)) {
     return { ok: false, status: 403, message: "Akses tidak diizinkan" };
   }
   return { ok: true };

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -6,6 +6,7 @@ import {
   Flex,
   Grid,
   Input,
+  Select,
   Space,
   Tabs,
   Tag,
@@ -90,19 +91,28 @@ const TeacherPointView = () => {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
+  const [classId, setClassId] = useState(null);
 
   const {
     data: bootstrapRes,
     isLoading: isBootstrapLoading,
     isError: isBootstrapError,
     error: bootstrapError,
-  } = useGetTeacherPointBootstrapQuery();
+  } = useGetTeacherPointBootstrapQuery({ classId }, { skip: false });
 
   const activePeriode = bootstrapRes?.data?.active_periode || null;
   const pointConfig = bootstrapRes?.data?.point_config || null;
   const homeroomClass = bootstrapRes?.data?.homeroom_class || null;
+  const classOptions = bootstrapRes?.data?.classes || [];
+  const canPickClass = Boolean(bootstrapRes?.data?.can_pick_class);
   const students = bootstrapRes?.data?.students || [];
   const rules = bootstrapRes?.data?.rules || [];
+
+  useEffect(() => {
+    if (!classId && homeroomClass?.id) {
+      setClassId(homeroomClass.id);
+    }
+  }, [classId, homeroomClass?.id]);
 
   const {
     data: entriesRes,
@@ -111,6 +121,7 @@ const TeacherPointView = () => {
   } = useGetTeacherPointEntriesQuery(
     {
       periodeId: activePeriode?.id,
+      classId: classId || homeroomClass?.id,
     },
     { skip: !activePeriode?.id },
   );
@@ -185,6 +196,7 @@ const TeacherPointView = () => {
         const res = await updateEntry({
           id: values.id,
           periode_id: activePeriode?.id,
+          class_id: classId || homeroomClass?.id,
           student_id: values.student_id,
           rule_id: values.rule_id,
           entry_date: values.entry_date,
@@ -194,6 +206,7 @@ const TeacherPointView = () => {
       } else {
         const res = await createEntry({
           periode_id: activePeriode?.id,
+          class_id: classId || homeroomClass?.id,
           student_id: values.student_id,
           rule_id: values.rule_id,
           entry_date: values.entry_date,
@@ -213,6 +226,7 @@ const TeacherPointView = () => {
       const res = await deleteEntry({
         id: entry.id,
         periodeId: activePeriode?.id,
+        classId: classId || homeroomClass?.id,
       }).unwrap();
       message.success(res?.message || "Poin siswa berhasil dihapus.");
     } catch (error) {
@@ -531,6 +545,34 @@ const TeacherPointView = () => {
             pointConfig={pointConfig}
           />
         </motion.div>
+
+        {canPickClass && classOptions.length > 0 ? (
+          <motion.div variants={itemVariants}>
+            <Card style={panelCardStyle} styles={{ body: { padding: 16 } }}>
+              <Flex
+                align={isMobile ? "stretch" : "center"}
+                gap={12}
+                vertical={isMobile}
+              >
+                <Text strong>Kelas</Text>
+                <Select
+                  value={classId || homeroomClass?.id}
+                  options={classOptions.map((item) => ({
+                    value: item.id,
+                    label: item.grade_name
+                      ? `${item.name} · ${item.grade_name}`
+                      : item.name,
+                  }))}
+                  onChange={(value) => {
+                    setClassId(value);
+                    setSelectedStudentId(null);
+                  }}
+                  style={{ minWidth: isMobile ? "100%" : 280 }}
+                />
+              </Flex>
+            </Card>
+          </motion.div>
+        ) : null}
 
         <motion.div variants={itemVariants}>
           <Card style={tabsCardStyle} styles={{ body: { padding: isMobile ? 16 : 20 } }}>

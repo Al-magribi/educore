@@ -12,6 +12,7 @@ import {
   toInt,
   toTimeString,
 } from "./shared.js";
+import { canManageKurikulum } from "../../../utils/staffAssignment.js";
 
 const SHIFT_MORNING_NAME = "Shift Pagi";
 const SHIFT_AFTERNOON_NAME = "Shift Siang";
@@ -256,7 +257,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
     "/schedule/bootstrap",
     authorize("satuan", "teacher", "student"),
     withQuery(async (req, res, pool) => {
-      const { id: userId, role, homebase_id, admin_level } = req.user;
+      const { id: userId, role, homebase_id } = req.user;
       const requestedPeriodeId = toInt(req.query.periode_id, null);
       const requestedConfigId = toInt(req.query.config_id, null);
       const requestedGroupId = toInt(req.query.group_id, null);
@@ -705,7 +706,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           subjects: subjectResult.rows,
           teachers: teacherResult.rows,
           grades: gradeResult.rows,
-          can_manage: role === "admin" && admin_level === "satuan",
+          can_manage: canManageKurikulum(req.user),
         },
       });
     }),
@@ -713,7 +714,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
 
   router.put(
     "/schedule/config",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
       await ensureTimeSlotGroupIndexes(client);
@@ -1382,7 +1383,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
 
   router.patch(
     "/schedule/config/:id/activate",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { homebase_id } = req.user;
       const configId = toInt(req.params.id, null);
@@ -1454,7 +1455,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
 
   router.post(
     "/schedule/config/:id/duplicate",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
       const sourceConfigId = toInt(req.params.id, null);
@@ -1829,7 +1830,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
 
   router.delete(
     "/schedule/config/:id",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { homebase_id } = req.user;
       const configId = toInt(req.params.id, null);
@@ -1921,7 +1922,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
 
   router.post(
     "/schedule/config-group",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { homebase_id } = req.user;
       const {
@@ -2097,7 +2098,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
 
   router.delete(
     "/schedule/config-group/:id",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { homebase_id } = req.user;
       const groupId = toInt(req.params.id, null);

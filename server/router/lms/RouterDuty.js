@@ -630,7 +630,7 @@ const ensureSessionScheduleEntry = async ({
 
 router.get(
   "/duty/bootstrap",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const requestedPeriodeId = toInt(req.query.periode_id, null);
@@ -682,7 +682,7 @@ router.get(
 
 router.put(
   "/duty/schedule",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
     const requestedPeriodeId = toInt(req.body?.periode_id, null);
@@ -865,7 +865,7 @@ router.put(
 
 router.delete(
   "/duty/schedule/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
     const scheduleId = toInt(req.params.id, null);
@@ -922,7 +922,7 @@ router.delete(
 
 router.get(
   "/duty/reports",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const selectedDate = normalizeDate(req.query.date);
@@ -1106,7 +1106,7 @@ router.get(
 
 router.delete(
   "/duty/reports/daily-note/:assignmentId",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const assignmentId = toInt(req.params.assignmentId, null);

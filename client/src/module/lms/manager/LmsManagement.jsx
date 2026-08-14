@@ -29,6 +29,10 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useGetSubjectsQuery } from "../../../service/lms/ApiLms";
+import {
+  canManageKurikulum,
+  teacherOwnsSubject,
+} from "../../../utils/staffAssignment";
 import { useSearchParams } from "react-router-dom";
 const TeacherView = lazy(() => import("./teacher/TeacherView"));
 const AdminView = lazy(() => import("./admin/AdminView"));
@@ -108,7 +112,8 @@ const iconWrapStyle = (background, color) => ({
 const LmsManagement = () => {
   const { user } = useSelector((state) => state.auth);
   const isTeacher = user?.role === "teacher";
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || canManageKurikulum(user);
+  const canKurikulum = canManageKurikulum(user);
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -138,9 +143,11 @@ const LmsManagement = () => {
     });
   }, [subjects, searchText]);
 
-  const roleLabel = isAdmin ? "Admin" : "Guru";
+  const roleLabel = isAdmin ? (isTeacher ? "Kurikulum" : "Admin") : "Guru";
   const roleHint = isAdmin
-    ? "Menampilkan semua pelajaran pada satuan Anda."
+    ? isTeacher
+      ? "Mapel yang Anda ampu dibuka sebagai guru; mapel lain sebagai pengelola satuan."
+      : "Menampilkan semua pelajaran pada satuan Anda."
     : "Menampilkan pelajaran yang Anda ampu.";
   const activeSubject = subjects.find(
     (item) => String(item.id) === String(subject_id),
@@ -341,7 +348,10 @@ const LmsManagement = () => {
               </Card>
             }
           >
-            {isTeacher ? (
+            {isTeacher &&
+            (!canKurikulum ||
+              teacherOwnsSubject(user, subject_id) ||
+              activeSubject?.taught_by_me) ? (
               <TeacherView subjectId={subject_id} subject={activeSubject} />
             ) : (
               <AdminView subjectId={subject_id} subject={activeSubject} />

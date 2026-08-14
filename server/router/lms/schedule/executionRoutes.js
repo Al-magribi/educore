@@ -14,7 +14,7 @@ import {
 export const registerScheduleExecutionRoutes = (router) => {
   router.post(
     "/schedule/entries/manual",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
       const periodeId = await ensureActivePeriode(
@@ -210,7 +210,7 @@ export const registerScheduleExecutionRoutes = (router) => {
 
   router.delete(
     "/schedule/entries/:id",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
       const entryId = toInt(req.params.id, null);
@@ -284,7 +284,7 @@ export const registerScheduleExecutionRoutes = (router) => {
 
   router.post(
     "/schedule/entries/clear",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
       const periodeId = await ensureActivePeriode(
@@ -420,7 +420,7 @@ export const registerScheduleExecutionRoutes = (router) => {
 
   router.patch(
     "/schedule/entries/:id",
-    authorize("satuan"),
+    authorize("satuan", "assignment:kurikulum"),
     withTransaction(async (req, res, client) => {
       const { id: userId, homebase_id } = req.user;
       const entryId = toInt(req.params.id, null);

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { canManageKesiswaan } from "../../utils/staffAssignment.js";
 
 const router = Router();
 
@@ -152,11 +153,30 @@ const getTeacherHomeroomClass = async (executor, teacherId, homebaseId) => {
   return result.rows[0] || null;
 };
 
+const getHomebaseClasses = async (executor, homebaseId) => {
+  const result = await executor.query(
+    `SELECT
+       c.id,
+       c.name,
+       c.grade_id,
+       g.name AS grade_name
+     FROM public.a_class c
+     LEFT JOIN public.a_grade g
+       ON g.id = c.grade_id
+     WHERE c.homebase_id = $1
+     ORDER BY c.name ASC`,
+    [homebaseId],
+  );
+  return result.rows;
+};
+
 const ensureTeacherPointAccess = async ({
   executor,
+  user,
   teacherId,
   homebaseId,
   requestedPeriodeId,
+  requestedClassId,
 }) => {
   const periode = await resolvePeriode(executor, homebaseId, requestedPeriodeId);
   if (!periode) {
@@ -165,6 +185,31 @@ const ensureTeacherPointAccess = async ({
         status: 400,
         message: "Periode aktif tidak ditemukan.",
       },
+    };
+  }
+
+  if (canManageKesiswaan(user)) {
+    const classes = await getHomebaseClasses(executor, homebaseId);
+    if (!classes.length) {
+      return {
+        error: {
+          status: 404,
+          message: "Belum ada kelas pada satuan ini.",
+        },
+      };
+    }
+
+    const selectedClass =
+      classes.find((item) => Number(item.id) === Number(requestedClassId)) ||
+      classes[0];
+    const pointConfig = await getPointConfig(executor, homebaseId, periode.id);
+
+    return {
+      periode,
+      homeroomClass: selectedClass,
+      pointConfig,
+      classes,
+      can_pick_class: true,
     };
   }
 
@@ -192,12 +237,14 @@ const ensureTeacherPointAccess = async ({
     periode,
     homeroomClass,
     pointConfig,
+    classes: [homeroomClass],
+    can_pick_class: false,
   };
 };
 
 router.get(
   "/points/admin/meta",
-  authorize("admin"),
+  authorize("admin", "assignment:kesiswaan"),
   withQuery(async (req, res, pool) => {
     const homebaseId = req.user.homebase_id;
     const periode = await resolvePeriode(pool, homebaseId, req.query.periode_id);
@@ -236,7 +283,7 @@ router.get(
 
 router.get(
   "/points/admin/rules",
-  authorize("admin"),
+  authorize("admin", "assignment:kesiswaan"),
   withQuery(async (req, res, pool) => {
     const homebaseId = req.user.homebase_id;
     const periode = await resolvePeriode(pool, homebaseId, req.query.periode_id);
@@ -323,7 +370,7 @@ router.get(
 
 router.get(
   "/points/admin/students-summary",
-  authorize("admin"),
+  authorize("admin", "assignment:kesiswaan"),
   withQuery(async (req, res, pool) => {
     const homebaseId = req.user.homebase_id;
     const periode = await resolvePeriode(pool, homebaseId, req.query.periode_id);
@@ -425,7 +472,7 @@ router.get(
 
 router.put(
   "/points/admin/config",
-  authorize("admin"),
+  authorize("admin", "assignment:kesiswaan"),
   withTransaction(async (req, res, client) => {
     const homebaseId = req.user.homebase_id;
     const userId = req.user.id;
@@ -477,16 +524,19 @@ router.get(
 
     const access = await ensureTeacherPointAccess({
       executor: pool,
+      user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.query.periode_id,
+      requestedClassId: req.query.class_id,
     });
 
     if (access.error) {
       return res.status(access.error.status).json({ message: access.error.message });
     }
 
-    const { periode, homeroomClass, pointConfig } = access;
+    const { periode, homeroomClass, pointConfig, classes, can_pick_class } =
+      access;
 
     const [studentsResult, rulesResult] = await Promise.all([
       pool.query(
@@ -549,6 +599,8 @@ router.get(
         active_periode: periode,
         point_config: pointConfig,
         homeroom_class: homeroomClass,
+        classes: classes || [homeroomClass],
+        can_pick_class: Boolean(can_pick_class),
         students: studentsResult.rows,
         rules: rulesResult.rows,
       },
@@ -566,9 +618,11 @@ router.get(
 
     const access = await ensureTeacherPointAccess({
       executor: pool,
+      user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.query.periode_id,
+      requestedClassId: req.query.class_id,
     });
 
     if (access.error) {
@@ -649,9 +703,11 @@ router.post(
 
     const access = await ensureTeacherPointAccess({
       executor: client,
+      user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.body?.periode_id,
+      requestedClassId: req.body?.class_id,
     });
 
     if (access.error) {
@@ -756,9 +812,11 @@ router.put(
 
     const access = await ensureTeacherPointAccess({
       executor: client,
+      user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.body?.periode_id,
+      requestedClassId: req.body?.class_id,
     });
 
     if (access.error) {
@@ -871,9 +929,11 @@ router.delete(
 
     const access = await ensureTeacherPointAccess({
       executor: client,
+      user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.query.periode_id,
+      requestedClassId: req.query.class_id,
     });
 
     if (access.error) {
@@ -902,7 +962,7 @@ router.delete(
 
 router.post(
   "/points/admin/rules",
-  authorize("admin"),
+  authorize("admin", "assignment:kesiswaan"),
   withTransaction(async (req, res, client) => {
     const homebaseId = req.user.homebase_id;
     const createdBy = req.user.id;
@@ -979,7 +1039,7 @@ router.post(
 
 router.put(
   "/points/admin/rules/:id",
-  authorize("admin"),
+  authorize("admin", "assignment:kesiswaan"),
   withTransaction(async (req, res, client) => {
     const homebaseId = req.user.homebase_id;
     const ruleId = toInt(req.params.id, null);
@@ -1059,7 +1119,7 @@ router.put(
 
 router.delete(
   "/points/admin/rules/:id",
-  authorize("admin"),
+  authorize("admin", "assignment:kesiswaan"),
   withTransaction(async (req, res, client) => {
     const homebaseId = req.user.homebase_id;
     const ruleId = toInt(req.params.id, null);

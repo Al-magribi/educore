@@ -1,15 +1,39 @@
-import React from "react";
+import React, { useState } from "react";
 import { useSelector } from "react-redux";
-import { Alert } from "antd";
+import { Alert, Tabs } from "antd";
 import AdminDutyView from "./AdminDutyView";
 import TeacherDutyView from "./TeacherDutyView";
+import { canManageKurikulum } from "../../../utils/staffAssignment";
 
 const Duty = () => {
   const { user } = useSelector((state) => state.auth);
-  const isManager = user?.role === "admin" && user?.level === "satuan";
+  const canManage = canManageKurikulum(user);
   const isTeacher = user?.role === "teacher";
+  const showTeacherDuty = isTeacher && Boolean(user?.has_duty_today);
+  const [activeTab, setActiveTab] = useState("manage");
 
-  if (isManager) {
+  if (canManage && showTeacherDuty) {
+    return (
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: "manage",
+            label: "Kelola Piket",
+            children: <AdminDutyView />,
+          },
+          {
+            key: "mine",
+            label: "Piket Saya",
+            children: <TeacherDutyView />,
+          },
+        ]}
+      />
+    );
+  }
+
+  if (canManage) {
     return <AdminDutyView />;
   }
 
@@ -20,8 +44,8 @@ const Duty = () => {
   return (
     <Alert
       showIcon
-      type='info'
-      title='Halaman Piket tidak tersedia untuk role ini.'
+      type="info"
+      title="Halaman Piket tidak tersedia untuk role ini."
     />
   );
 };

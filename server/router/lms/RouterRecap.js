@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import {
+  canManageKurikulum,
+  isTeacherDataScoped,
+} from "../../utils/staffAssignment.js";
 
 const router = Router();
 
@@ -677,7 +681,7 @@ router.get(
       });
     }
 
-    if (role === "teacher") {
+    if (role === "teacher" && !canManageKurikulum(req.user)) {
       const teacherAccessSql = class_id
         ? `SELECT 1
            FROM at_subject
@@ -790,9 +794,11 @@ router.get(
     }
 
     const requestedTeacherId = Number(teacher_id || 0) || null;
-    const effectiveTeacherId = role === "teacher" ? userId : requestedTeacherId;
+    const effectiveTeacherId = isTeacherDataScoped(req.user, requestedTeacherId)
+      ? userId
+      : requestedTeacherId;
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const teacherAccessSql = class_id
         ? `SELECT 1
            FROM at_subject
@@ -1129,9 +1135,11 @@ router.get(
     }
 
     const requestedTeacherId = Number(teacher_id || 0) || null;
-    const effectiveTeacherId = role === "teacher" ? userId : requestedTeacherId;
+    const effectiveTeacherId = isTeacherDataScoped(req.user, requestedTeacherId)
+      ? userId
+      : requestedTeacherId;
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const teacherAccessSql = class_id
         ? `SELECT 1
            FROM at_subject
@@ -1362,10 +1370,14 @@ router.get(
       });
     }
 
-    const effectiveTeacherId =
-      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    const effectiveTeacherId = isTeacherDataScoped(
+      req.user,
+      Number(teacher_id || 0) || null,
+    )
+      ? userId
+      : Number(teacher_id || 0) || null;
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const accessCheck = await pool.query(
         `SELECT 1
          FROM at_subject
@@ -1635,7 +1647,7 @@ router.get(
       });
     }
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const accessCheck = await pool.query(
         `SELECT 1
          FROM at_subject
@@ -1660,8 +1672,12 @@ router.get(
       }
     }
 
-    const effectiveTeacherId =
-      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    const effectiveTeacherId = isTeacherDataScoped(
+      req.user,
+      Number(teacher_id || 0) || null,
+    )
+      ? userId
+      : Number(teacher_id || 0) || null;
 
     const activePeriode = await ensureActivePeriode(
       pool,
@@ -1943,7 +1959,7 @@ router.get(
       });
     }
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const accessCheck = await pool.query(
         `SELECT 1
          FROM at_subject
@@ -1968,8 +1984,12 @@ router.get(
       }
     }
 
-    const effectiveTeacherId =
-      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    const effectiveTeacherId = isTeacherDataScoped(
+      req.user,
+      Number(teacher_id || 0) || null,
+    )
+      ? userId
+      : Number(teacher_id || 0) || null;
 
     const activePeriode = await ensureActivePeriode(
       pool,
@@ -2276,10 +2296,14 @@ router.get(
       });
     }
 
-    const effectiveTeacherId =
-      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    const effectiveTeacherId = isTeacherDataScoped(
+      req.user,
+      Number(teacher_id || 0) || null,
+    )
+      ? userId
+      : Number(teacher_id || 0) || null;
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const accessCheck = await pool.query(
         `SELECT 1
          FROM at_subject
@@ -2473,10 +2497,14 @@ router.get(
       });
     }
 
-    const effectiveTeacherId =
-      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    const effectiveTeacherId = isTeacherDataScoped(
+      req.user,
+      Number(teacher_id || 0) || null,
+    )
+      ? userId
+      : Number(teacher_id || 0) || null;
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const accessCheck = await pool.query(
         `SELECT 1
          FROM at_subject
@@ -2879,8 +2907,12 @@ router.put(
       });
     }
 
-    const effectiveTeacherId =
-      role === "teacher" ? userId : Number(teacher_id || 0) || null;
+    const effectiveTeacherId = isTeacherDataScoped(
+      req.user,
+      Number(teacher_id || 0) || null,
+    )
+      ? userId
+      : Number(teacher_id || 0) || null;
 
     if (!effectiveTeacherId) {
       return res.status(400).json({
@@ -2910,7 +2942,7 @@ router.put(
       });
     }
 
-    if (role === "teacher") {
+    if (isTeacherDataScoped(req.user, req.query?.teacher_id)) {
       const accessCheck = await pool.query(
         `SELECT 1
          FROM at_subject

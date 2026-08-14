@@ -3,6 +3,22 @@ import path from "path";
 import multer from "multer";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { canManageKurikulum } from "../../utils/staffAssignment.js";
+
+const teacherTeachesSubject = async (executor, teacherId, subjectId) => {
+  if (!teacherId || !subjectId) return false;
+  const result = await executor.query(
+    `SELECT 1 FROM at_subject WHERE teacher_id = $1 AND subject_id = $2 LIMIT 1`,
+    [teacherId, subjectId],
+  );
+  return result.rowCount > 0;
+};
+
+const useTeacherSubjectScope = async (user, executor, subjectId) => {
+  if (user?.role !== "teacher") return false;
+  if (!canManageKurikulum(user)) return true;
+  return teacherTeachesSubject(executor, user.id, subjectId);
+};
 import {
   ensureDir,
   getLmsTeacherDir,
@@ -135,8 +151,8 @@ router.get(
   withQuery(async (req, res, pool) => {
     const { id: userId, role, homebase_id } = req.user;
 
-    // Guru: hanya mapel yang diampu
-    if (role === "teacher") {
+    // Guru: hanya mapel yang diampu, kecuali penugasan kurikulum
+    if (role === "teacher" && !canManageKurikulum(req.user)) {
       const sql = `
         SELECT
           s.id,
@@ -200,7 +216,7 @@ router.get(
       return res.json({ status: "success", data: result.rows });
     }
 
-    // Admin Satuan: semua mapel di homebase
+    // Admin Satuan / guru kurikulum: semua mapel di homebase
     const sql = `
       SELECT
         s.id,
@@ -209,14 +225,23 @@ router.get(
         s.kkm,
         s.branch_id,
         b.name AS branch_name,
-        c.name AS category_name
+        c.name AS category_name,
+        EXISTS (
+          SELECT 1
+          FROM at_subject ats
+          WHERE ats.subject_id = s.id
+            AND ats.teacher_id = $2
+        ) AS taught_by_me
       FROM a_subject s
       LEFT JOIN a_subject_branch b ON s.branch_id = b.id
       LEFT JOIN a_subject_category c ON b.category_id = c.id
       WHERE s.homebase_id = $1
       ORDER BY s.name ASC
     `;
-    const result = await pool.query(sql, [homebase_id]);
+    const result = await pool.query(sql, [
+      homebase_id,
+      role === "teacher" ? userId : null,
+    ]);
     return res.json({ status: "success", data: result.rows });
   }),
 );
@@ -254,7 +279,7 @@ router.get(
     const { id: userId, role, homebase_id } = req.user;
     const { subject_id } = req.query;
 
-    if (role === "teacher") {
+    if (await useTeacherSubjectScope(req.user, pool, subject_id)) {
       const sql = `
         SELECT DISTINCT g.id, g.name
         FROM a_grade g
@@ -290,7 +315,7 @@ router.get(
     const { id: userId, role, homebase_id } = req.user;
     const { subject_id, grade_id } = req.query;
 
-    if (role === "teacher") {
+    if (await useTeacherSubjectScope(req.user, pool, subject_id)) {
       const sql = `
         SELECT DISTINCT cl.id, cl.name, cl.grade_id
         FROM a_class cl
@@ -335,7 +360,7 @@ router.get(
 
     await ensureChapterTeacherColumn(pool);
 
-    if (role === "teacher") {
+    if (await useTeacherSubjectScope(req.user, pool, subjectId)) {
       const sql = `
         SELECT
           ch.id,

@@ -14,6 +14,9 @@ const Duty = lazy(() => import("../../module/lms/duty/Duty"));
 const AdminPointView = lazy(
   () => import("../../module/lms/point/view/AdminPointView"),
 );
+const StaffAssignment = lazy(
+  () => import("../../module/lms/assignment/StaffAssignment"),
+);
 const TeacherPointView = lazy(
   () => import("../../module/lms/point/view/TeacherPointView"),
 );
@@ -86,27 +89,47 @@ const renderLmsRoutes = ({ LazyRoute }) => (
 );
 
 const renderAdminOnlyLmsRoutes = ({ LazyRoute }) => (
-  <Route
-    element={
-      <RouteProtection allowedRoles={["admin"]} allowedLevels={["satuan"]} />
-    }
-  >
+  <>
     <Route
-      path='/manajemen-poin'
-      element={createElement(LazyRoute, {
-        title: "Rule Poin",
-        Component: AdminPointView,
-      })}
-    />
-  </Route>
+      element={
+        <RouteProtection allowedRoles={["admin"]} allowedLevels={["satuan"]} />
+      }
+    >
+      <Route
+        path='/manajemen-penugasan'
+        element={createElement(LazyRoute, {
+          title: "Penugasan Wewenang",
+          Component: StaffAssignment,
+        })}
+      />
+    </Route>
+    <Route
+      element={
+        <RouteProtection
+          allowedRoles={["admin", "teacher"]}
+          allowedLevels={["satuan"]}
+          allowedAssignments={["kesiswaan"]}
+        />
+      }
+    >
+      <Route
+        path='/manajemen-poin'
+        element={createElement(LazyRoute, {
+          title: "Rule Poin",
+          Component: AdminPointView,
+        })}
+      />
+    </Route>
+  </>
 );
 
 const renderAttendanceReportRoutes = ({ LazyRoute }) => (
   <Route
     element={
       <RouteProtection
-        allowedRoles={["admin"]}
+        allowedRoles={["admin", "teacher"]}
         allowedLevels={["satuan", "pusat"]}
+        allowedAssignments={["kurikulum"]}
       />
     }
   >

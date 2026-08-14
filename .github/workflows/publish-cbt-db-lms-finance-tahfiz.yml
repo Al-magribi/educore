@@ -70,15 +70,21 @@ jobs:
               client/src/components/editor \
               client/src/components/index.js \
               client/src/components/layout/menus/lmsMenus.jsx \
+              client/src/components/layout/AppLayout.jsx \
               client/src/components/scroll/InfiniteScrollList.jsx \
               client/src/module/lms \
               client/src/module/parent/dashboard/ParentDash.jsx \
               client/src/routes/modules/lmsRoutes.jsx \
               client/src/service/lms \
+              client/src/utils/RouteProtection.jsx \
+              client/src/utils/staffAssignment.js \
               database/attendance_schema.sql \
               database/lms_schema.sql \
               docs/esp32_rfid_attendance_mfrc522.ino \
-              server/router/lms
+              server/middleware/authorize.js \
+              server/router/auth/RouterAuth.js \
+              server/router/lms \
+              server/utils/staffAssignment.js
             git add -A
           }
 

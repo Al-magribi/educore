@@ -1175,7 +1175,7 @@ router.post(
 // ==========================================
 router.get(
   "/attendance/config",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
 
@@ -1203,7 +1203,7 @@ router.get(
 // ==========================================
 router.put(
   "/attendance/config/features",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { id: userId, homebase_id } = req.user;
     const { items } = req.body || {};
@@ -1262,7 +1262,7 @@ router.put(
 // ==========================================
 router.get(
   "/attendance/config/policies",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const targetRole = String(req.query?.target_role || "").trim() || null;
@@ -1476,13 +1476,13 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
 
 router.post(
   "/attendance/config/policies",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => upsertPolicyHandler(req, res, client)),
 );
 
 router.put(
   "/attendance/config/policies/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) =>
     upsertPolicyHandler(req, res, client, Number(req.params.id || 0) || null),
   ),
@@ -1490,7 +1490,7 @@ router.put(
 
 router.delete(
   "/attendance/config/policies/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const policyId = Number(req.params.id || 0);
@@ -1553,7 +1553,7 @@ router.delete(
 // ==========================================
 router.get(
   "/attendance/config/devices",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -1810,13 +1810,13 @@ const upsertDeviceHandler = async (req, res, client, deviceIdFromParam = null) =
 
 router.post(
   "/attendance/config/devices",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => upsertDeviceHandler(req, res, client)),
 );
 
 router.put(
   "/attendance/config/devices/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) =>
     upsertDeviceHandler(req, res, client, Number(req.params.id || 0) || null),
   ),
@@ -1824,7 +1824,7 @@ router.put(
 
 router.post(
   "/attendance/config/devices/:id/rotate-token",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const deviceId = Number(req.params.id || 0) || null;
@@ -1871,7 +1871,7 @@ router.post(
 
 router.post(
   "/attendance/config/devices/bulk-delete",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const { ids, error } = normalizeBulkIds(req.body?.ids);
@@ -1906,7 +1906,7 @@ router.post(
 // ==========================================
 router.get(
   "/attendance/config/policy-assignments/bootstrap",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const [options, assignments] = await Promise.all([
@@ -1926,7 +1926,7 @@ router.get(
 
 router.get(
   "/attendance/config/policy-assignments",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
     const targetRole = String(req.query?.target_role || "").trim() || null;
@@ -2257,7 +2257,7 @@ const upsertAssignmentHandler = async (
 
 router.post(
   "/attendance/config/policy-assignments",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) =>
     upsertAssignmentHandler(req, res, client),
   ),
@@ -2265,7 +2265,7 @@ router.post(
 
 router.put(
   "/attendance/config/policy-assignments/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) =>
     upsertAssignmentHandler(req, res, client, Number(req.params.id || 0) || null),
   ),
@@ -2273,7 +2273,7 @@ router.put(
 
 router.delete(
   "/attendance/config/policy-assignments/:id",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const assignmentId = Number(req.params.id || 0);
@@ -2321,7 +2321,7 @@ router.delete(
 
 router.post(
   "/attendance/config/policy-assignments/bulk-delete",
-  authorize("satuan"),
+  authorize("satuan", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const { homebase_id } = req.user;
     const { ids, error } = normalizeBulkIds(req.body?.ids);
@@ -2899,7 +2899,7 @@ router.post(
 // ==========================================
 router.get(
   "/attendance/reports/students",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -3047,7 +3047,7 @@ router.get(
 
 router.get(
   "/attendance/reports/teachers",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -3305,7 +3305,7 @@ router.get(
 
 router.get(
   "/attendance/reports/teachers/teaching-recap",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -3560,7 +3560,7 @@ router.get(
 
 router.get(
   "/attendance/reports/scan-logs",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withQuery(async (req, res, pool) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -3718,7 +3718,7 @@ router.get(
 
 router.delete(
   "/attendance/reports/scan-logs/:id",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -3757,7 +3757,7 @@ router.delete(
 
 router.post(
   "/attendance/reports/scan-logs/bulk-delete",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -3790,7 +3790,7 @@ router.post(
 
 router.put(
   "/attendance/reports/daily/:id",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -3964,7 +3964,7 @@ router.put(
 
 router.delete(
   "/attendance/reports/daily/:id",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -4003,7 +4003,7 @@ router.delete(
 
 router.post(
   "/attendance/reports/daily/bulk-delete",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -4036,7 +4036,7 @@ router.post(
 
 router.post(
   "/attendance/reports/teacher-sessions/bulk-delete",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -4077,7 +4077,7 @@ router.post(
 
 router.put(
   "/attendance/reports/teacher-sessions/:id",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {
@@ -4264,7 +4264,7 @@ router.put(
 
 router.delete(
   "/attendance/reports/teacher-sessions/:id",
-  authorize("satuan", "pusat"),
+  authorize("satuan", "pusat", "assignment:kurikulum"),
   withTransaction(async (req, res, client) => {
     const scoped = resolveScopedHomebaseId(req);
     if (scoped.errorStatus) {

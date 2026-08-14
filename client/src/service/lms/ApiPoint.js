@@ -71,19 +71,21 @@ export const ApiPoint = createApi({
       invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "LIST" }],
     }),
     getTeacherPointBootstrap: builder.query({
-      query: ({ periodeId } = {}) => {
+      query: ({ periodeId, classId } = {}) => {
         const params = new URLSearchParams();
         if (periodeId) params.set("periode_id", String(periodeId));
+        if (classId) params.set("class_id", String(classId));
         const qs = params.toString();
         return qs ? `/points/teacher/bootstrap?${qs}` : "/points/teacher/bootstrap";
       },
       providesTags: ["PointAdminMeta"],
     }),
     getTeacherPointEntries: builder.query({
-      query: ({ periodeId, studentId } = {}) => {
+      query: ({ periodeId, studentId, classId } = {}) => {
         const params = new URLSearchParams();
         if (periodeId) params.set("periode_id", String(periodeId));
         if (studentId) params.set("student_id", String(studentId));
+        if (classId) params.set("class_id", String(classId));
         const qs = params.toString();
         return qs ? `/points/teacher/entries?${qs}` : "/points/teacher/entries";
       },
@@ -106,9 +108,10 @@ export const ApiPoint = createApi({
       invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "TEACHER_ENTRIES" }],
     }),
     deleteTeacherPointEntry: builder.mutation({
-      query: ({ id, periodeId }) => {
+      query: ({ id, periodeId, classId }) => {
         const params = new URLSearchParams();
         if (periodeId) params.set("periode_id", String(periodeId));
+        if (classId) params.set("class_id", String(classId));
         const qs = params.toString();
         return {
           url: qs
