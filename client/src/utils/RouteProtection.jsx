@@ -5,7 +5,12 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Result } from "antd";
 import resolveUserHomePath from "./resolveUserHomePath";
 
-const RouteProtection = ({ allowedRoles, allowedLevels, requireMusyrif = false }) => {
+const RouteProtection = ({
+  allowedRoles,
+  allowedLevels,
+  allowedAssignments,
+  requireMusyrif = false,
+}) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   const location = useLocation();
 
