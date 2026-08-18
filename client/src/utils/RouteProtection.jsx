@@ -6,7 +6,12 @@ import { Result } from "antd";
 import resolveUserHomePath from "./resolveUserHomePath";
 import { hasStaffAssignment } from "./staffAssignment";
 
-const RouteProtection = ({ allowedRoles, allowedLevels, allowedAssignments }) => {
+const RouteProtection = ({
+  allowedRoles,
+  allowedLevels,
+  allowedAssignments,
+  requireMusyrif = false,
+}) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   const location = useLocation();
 
@@ -76,6 +81,10 @@ const RouteProtection = ({ allowedRoles, allowedLevels, allowedAssignments }) =>
         subTitle="Level admin akun ini belum cocok dengan modul yang dibuka."
       />
     );
+  }
+
+  if (requireMusyrif && !user.is_musyrif) {
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
