@@ -77,6 +77,7 @@ jobs:
               client/src/service/lms \
               client/src/utils/RouteProtection.jsx \
               client/src/utils/staffAssignment.js \
+              scripts/ci/ensure-route-protection.js \
               database/attendance_schema.sql \
               database/lms_schema.sql \
               docs/esp32_rfid_attendance_mfrc522.ino \
@@ -106,52 +107,14 @@ jobs:
 
           ensure_route_protection() {
             local file="client/src/utils/RouteProtection.jsx"
+            local script="scripts/ci/ensure-route-protection.js"
             if [[ ! -f "${file}" ]]; then
               return 0
             fi
-
-            node <<'NODE'
-const fs = require("fs");
-const file = "client/src/utils/RouteProtection.jsx";
-const text = fs.readFileSync(file, "utf8");
-const match = text.match(/const RouteProtection = \(\{([\s\S]*?)\}\) =>/);
-if (!match) {
-  console.error("Could not parse RouteProtection signature");
-  process.exit(1);
-}
-const params = match[1];
-const extras = [];
-if (/\ballowedAssignments\b/.test(text) && !/\ballowedAssignments\b/.test(params)) {
-  extras.push("allowedAssignments");
-}
-if (/\brequireMusyrif\b/.test(text) && !/\brequireMusyrif\b/.test(params)) {
-  extras.push("requireMusyrif = false");
-}
-if (extras.length) {
-  const trimmed = params.replace(/\s+$/, "");
-  const sep = trimmed.trim() ? (trimmed.trim().endsWith(",") ? "\n  " : ",\n  ") : "";
-  const nextParams = `${trimmed}${sep}${extras.join(",\n  ")}\n`;
-  fs.writeFileSync(
-    file,
-    text.replace(match[0], `const RouteProtection = ({${nextParams}}) =>`),
-  );
-  console.log("harmonized RouteProtection params:", extras.join(", "));
-}
-const finalText = fs.readFileSync(file, "utf8");
-const finalMatch = finalText.match(/const RouteProtection = \(\{([\s\S]*?)\}\) =>/);
-const finalParams = finalMatch ? finalMatch[1] : "";
-const missing = [];
-if (/\ballowedAssignments\b/.test(finalText) && !/\ballowedAssignments\b/.test(finalParams)) {
-  missing.push("allowedAssignments");
-}
-if (/\brequireMusyrif\b/.test(finalText) && !/\brequireMusyrif\b/.test(finalParams)) {
-  missing.push("requireMusyrif");
-}
-if (missing.length) {
-  console.error("RouteProtection still missing destructured params:", missing.join(", "));
-  process.exit(1);
-}
-NODE
+            if [[ ! -f "${script}" ]]; then
+              checkout_owned_paths origin/feature/lms "${script}"
+            fi
+            node "${script}"
             git add "${file}"
           }
 
