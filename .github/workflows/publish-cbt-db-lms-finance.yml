@@ -69,15 +69,21 @@ jobs:
               client/src/components/editor \
               client/src/components/index.js \
               client/src/components/layout/menus/lmsMenus.jsx \
+              client/src/components/layout/AppLayout.jsx \
               client/src/components/scroll/InfiniteScrollList.jsx \
               client/src/module/lms \
               client/src/module/parent/dashboard/ParentDash.jsx \
               client/src/routes/modules/lmsRoutes.jsx \
               client/src/service/lms \
+              client/src/utils/RouteProtection.jsx \
+              client/src/utils/staffAssignment.js \
               database/attendance_schema.sql \
               database/lms_schema.sql \
               docs/esp32_rfid_attendance_mfrc522.ino \
-              server/router/lms
+              server/middleware/authorize.js \
+              server/router/auth/RouterAuth.js \
+              server/router/lms \
+              server/utils/staffAssignment.js
             git add -A
           }
 
@@ -96,6 +102,57 @@ jobs:
               client/src/service/finance \
               server/router/finance
             git add -A
+          }
+
+          ensure_route_protection() {
+            local file="client/src/utils/RouteProtection.jsx"
+            if [[ ! -f "${file}" ]]; then
+              return 0
+            fi
+
+            node <<'NODE'
+const fs = require("fs");
+const file = "client/src/utils/RouteProtection.jsx";
+const text = fs.readFileSync(file, "utf8");
+const match = text.match(/const RouteProtection = \(\{([\s\S]*?)\}\) =>/);
+if (!match) {
+  console.error("Could not parse RouteProtection signature");
+  process.exit(1);
+}
+const params = match[1];
+const extras = [];
+if (/\ballowedAssignments\b/.test(text) && !/\ballowedAssignments\b/.test(params)) {
+  extras.push("allowedAssignments");
+}
+if (/\brequireMusyrif\b/.test(text) && !/\brequireMusyrif\b/.test(params)) {
+  extras.push("requireMusyrif = false");
+}
+if (extras.length) {
+  const trimmed = params.replace(/\s+$/, "");
+  const sep = trimmed.trim() ? (trimmed.trim().endsWith(",") ? "\n  " : ",\n  ") : "";
+  const nextParams = `${trimmed}${sep}${extras.join(",\n  ")}\n`;
+  fs.writeFileSync(
+    file,
+    text.replace(match[0], `const RouteProtection = ({${nextParams}}) =>`),
+  );
+  console.log("harmonized RouteProtection params:", extras.join(", "));
+}
+const finalText = fs.readFileSync(file, "utf8");
+const finalMatch = finalText.match(/const RouteProtection = \(\{([\s\S]*?)\}\) =>/);
+const finalParams = finalMatch ? finalMatch[1] : "";
+const missing = [];
+if (/\ballowedAssignments\b/.test(finalText) && !/\ballowedAssignments\b/.test(finalParams)) {
+  missing.push("allowedAssignments");
+}
+if (/\brequireMusyrif\b/.test(finalText) && !/\brequireMusyrif\b/.test(finalParams)) {
+  missing.push("requireMusyrif");
+}
+if (missing.length) {
+  console.error("RouteProtection still missing destructured params:", missing.join(", "));
+  process.exit(1);
+}
+NODE
+            git add "${file}"
           }
 
           # Compose always starts from `main`, then layers feature branches
@@ -126,6 +183,7 @@ jobs:
           restore_lms_owned_paths
           ensure_parent_report_components
           restore_finance_owned_paths
+          ensure_route_protection
 
           if ! git diff --cached --quiet; then
             git commit -m "chore(compose): restore feature-owned paths"
