@@ -57,6 +57,7 @@ const StudentFormDrawer = ({
       if (initialValues) {
         const normalizedValues = {
           ...initialValues,
+          password: "",
           grade_id: initialValues.grade_id ?? initialValues.current_grade_id,
           class_id: initialValues.class_id ?? initialValues.current_class_id,
         };
@@ -222,7 +223,10 @@ const StudentFormDrawer = ({
                       <Form.Item
                         name="password"
                         label="Password"
-                        rules={[{ required: true, message: "Password wajib diisi" }]}
+                        rules={[
+                          { required: true, message: "Password wajib diisi" },
+                          { min: 6, message: "Minimal 6 karakter" },
+                        ]}
                       >
                         <Input.Password
                           prefix={<KeyRound size={16} color="#94a3b8" />}
@@ -236,12 +240,44 @@ const StudentFormDrawer = ({
                 )}
 
                 {initialValues && (
-                  <Form.Item name="is_active" label="Status Akun">
-                    <Select size="large" virtual={false}>
-                      <Option value={true}>Aktif</Option>
-                      <Option value={false}>Non-Aktif</Option>
-                    </Select>
-                  </Form.Item>
+                  <Row gutter={16}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="password"
+                        label="Password Baru"
+                        extra="Kosongkan jika tidak ingin mengubah password"
+                        rules={[
+                          {
+                            validator: (_, value) => {
+                              const next = String(value || "").trim();
+                              if (!next) return Promise.resolve();
+                              if (next.length < 6) {
+                                return Promise.reject(
+                                  new Error("Minimal 6 karakter"),
+                                );
+                              }
+                              return Promise.resolve();
+                            },
+                          },
+                        ]}
+                      >
+                        <Input.Password
+                          prefix={<KeyRound size={16} color="#94a3b8" />}
+                          placeholder="Kosongkan jika tidak diubah"
+                          size="large"
+                          style={{ borderRadius: 14, paddingBlock: 8 }}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item name="is_active" label="Status Akun">
+                        <Select size="large" virtual={false}>
+                          <Option value={true}>Aktif</Option>
+                          <Option value={false}>Non-Aktif</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                  </Row>
                 )}
               </Card>
 

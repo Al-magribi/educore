@@ -307,7 +307,8 @@ router.put(
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params; // user_id
-    const { full_name, nis, nisn, rfid_no, gender, is_active, class_id } = req.body;
+    const { full_name, nis, nisn, rfid_no, gender, is_active, class_id, password } =
+      req.body;
     const homebaseId = req.user.homebase_id;
 
     // 1. Ambil Periode Aktif untuk update enrollment
@@ -320,6 +321,15 @@ router.put(
        WHERE id = $4`,
       [full_name, gender, is_active, id],
     );
+
+    if (password && `${password}`.trim() !== "") {
+      const salt = await bcrypt.genSalt(10);
+      const hashPassword = await bcrypt.hash(password, salt);
+      await client.query(`UPDATE u_users SET password = $1 WHERE id = $2`, [
+        hashPassword,
+        id,
+      ]);
+    }
 
     // 3. Update u_students (Tanpa data lahir)
     await client.query(
