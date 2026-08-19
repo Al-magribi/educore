@@ -186,6 +186,10 @@ const StudentPage = ({ screens }) => {
           class_id: values.class_id,
         };
 
+        if (values.password && `${values.password}`.trim() !== "") {
+          payload.password = `${values.password}`.trim();
+        }
+
         await updateStudent({ id: editingItem.id, ...payload }).unwrap();
         setAccumulatedData((prev) =>
           prev.map((item) => (item.id === editingItem.id ? { ...item, ...payload } : item)),
