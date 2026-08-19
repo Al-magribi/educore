@@ -154,11 +154,13 @@ const TeacherForm = ({
 
         form.setFieldsValue({
           ...initialValues,
+          password: "",
           homeroom_class_id: initialValues.homeroom_class?.id,
           allocations: formattedAllocations,
         });
       } else {
         form.resetFields();
+        form.setFieldsValue({ password: "123456" });
       }
     }
   }, [open, initialValues, form, classOrderMap]);
@@ -195,7 +197,7 @@ const TeacherForm = ({
         form={form}
         layout="vertical"
         onFinish={onSubmit}
-        initialValues={{ allocations: [] }}
+        initialValues={{ allocations: [], password: "123456" }}
       >
         <div
           style={{
@@ -261,6 +263,46 @@ const TeacherForm = ({
                     rules={[{ required: true }]}
                   >
                     <Input placeholder="Username unik" size="large" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    name="password"
+                    label={initialValues ? "Password Baru" : "Password"}
+                    rules={[
+                      {
+                        validator: (_, value) => {
+                          const next = String(value || "").trim();
+                          if (!next) {
+                            return initialValues
+                              ? Promise.resolve()
+                              : Promise.reject(
+                                  new Error("Password wajib diisi"),
+                                );
+                          }
+                          if (next.length < 6) {
+                            return Promise.reject(
+                              new Error("Minimal 6 karakter"),
+                            );
+                          }
+                          return Promise.resolve();
+                        },
+                      },
+                    ]}
+                    extra={
+                      initialValues
+                        ? "Kosongkan jika tidak ingin mengubah password"
+                        : "Default 123456, bisa diganti sebelum disimpan"
+                    }
+                  >
+                    <Input.Password
+                      placeholder={
+                        initialValues
+                          ? "Kosongkan jika tidak diubah"
+                          : "Password login guru"
+                      }
+                      size="large"
+                    />
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={12}>
@@ -414,12 +456,6 @@ const TeacherForm = ({
                 </div>
               </Flex>
             </Card>
-
-            {!initialValues && (
-              <Form.Item name="password" hidden initialValue="123456">
-                <Input />
-              </Form.Item>
-            )}
 
             <Flex justify="flex-end" gap={10}>
               <Button size="large" onClick={onCancel} style={{ borderRadius: 14, minWidth: 120 }}>

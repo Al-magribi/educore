@@ -164,6 +164,7 @@ router.put(
     const { id } = req.params; // ini adalah user_id
     const {
       username,
+      password,
       full_name,
       nip,
       rfid_no,
@@ -178,6 +179,15 @@ router.put(
       `UPDATE u_users SET username = $1, full_name = $2 WHERE id = $3`,
       [username, full_name, id],
     );
+
+    if (password && `${password}`.trim() !== "") {
+      const salt = await bcrypt.genSalt(10);
+      const hashPassword = await bcrypt.hash(password, salt);
+      await client.query(`UPDATE u_users SET password = $1 WHERE id = $2`, [
+        hashPassword,
+        id,
+      ]);
+    }
 
     // 2. Update u_teachers & Reset is_homeroom sementara
     await client.query(
