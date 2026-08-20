@@ -73,6 +73,8 @@ const MONTH_NAMES = [
   "Desember",
 ];
 
+const TEMPLATE_GUIDE_SHEET_NAME = "Panduan";
+
 const Grading = ({ subject }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
@@ -1084,6 +1086,130 @@ const Grading = ({ subject }) => {
       .trim()
       .toLowerCase();
 
+  const getWorkbookDataSheetName = (workbook) =>
+    workbook.SheetNames.find((name) => name !== TEMPLATE_GUIDE_SHEET_NAME) ||
+    workbook.SheetNames[0];
+
+  const applyWorksheetColumnWidths = (worksheet, headers = []) => {
+    worksheet["!cols"] = (headers || []).map((header) => ({
+      wch: Math.max(14, String(header || "").length + 4),
+    }));
+  };
+
+  const buildGradingTemplateGuideSheet = (kind) => {
+    const isFormative = kind === "formative";
+    const dataSheetName = isFormative ? "Template Formatif" : "Template Sumatif";
+    const scoreLabel = isFormative ? "formatif" : "sumatif";
+    const rows = [
+      [`Panduan Template Nilai ${isFormative ? "Formatif" : "Sumatif"}`],
+      [],
+      [
+        "Isi sheet",
+        `Isi nilai siswa hanya pada sheet ${dataSheetName}. Sheet Panduan ini tidak diimpor.`,
+      ],
+      [
+        "Langkah 1",
+        "Jangan ubah baris header (baris pertama) kecuali Anda memang ingin menambah kolom nilai baru.",
+      ],
+      [
+        "Langkah 2",
+        "Jangan ubah kolom NIS. NIS dipakai untuk mencocokkan data siswa.",
+      ],
+      [
+        "Langkah 3",
+        "Isi nilai 0–100. Sel kosong dilewati dan tidak menimpa nilai yang sudah ada.",
+      ],
+      [
+        "Langkah 4",
+        "Unggah kembali file Excel di halaman penilaian, pilih tanggal/bulan dan bab, lalu simpan.",
+      ],
+      [],
+      ["PENAMAAN HEADER (baris pertama) — sangat penting"],
+      [],
+      ["Header", "Fungsi"],
+      [
+        "NIS",
+        "Wajib. Kunci siswa. Jangan diubah. Alternatif yang dikenali: No Induk, no_induk.",
+      ],
+      [
+        "Nama",
+        "Hanya untuk memudahkan pengisian. Tidak diimpor. Alternatif: Nama Siswa.",
+      ],
+    ];
+
+    if (isFormative) {
+      rows.push(
+        [
+          "Nilai 1, Nilai 2, dst.",
+          "Kolom nilai yang sudah ada. Nama harus tetap 'Nilai' diikuti nomor (contoh: Nilai 1). Jangan diganti judul lain, atau nilai tidak masuk ke kolom tersebut.",
+        ],
+        [
+          "Input Nilai",
+          "Kolom untuk menambah nilai baru. Boleh juga Input Nilai 1, Input Nilai 2, dst. Setiap kolom Input Nilai menjadi kolom nilai baru.",
+        ],
+        [],
+        ["Aturan penamaan header nilai", ""],
+        [
+          "Memperbarui nilai lama",
+          "Gunakan header persis seperti template: Nilai 1, Nilai 2, dan seterusnya. Jangan mengubah ejaan atau menambah kata lain.",
+        ],
+        [
+          "Menambah nilai baru",
+          "Tambahkan kolom dengan header Input Nilai. Untuk beberapa kolom baru, gunakan Input Nilai, Input Nilai 2, Input Nilai 3.",
+        ],
+        [
+          "Header Nilai N yang belum ada",
+          "Header seperti Nilai 5 akan membuat kolom baru bernomor 5 jika kolom itu belum ada di sistem.",
+        ],
+        [
+          "Header yang diabaikan",
+          "Nama kolom lain (selain NIS, Nama, Nilai N, dan Input Nilai) tidak dibaca saat unggah.",
+        ],
+      );
+    } else {
+      rows.push(
+        [
+          "Nilai 1, Nilai 2, dst.",
+          "Kolom nilai yang sudah ada. Nama harus sama persis dengan template (contoh: Nilai 1). Jika diubah, nilai tidak masuk ke kolom tersebut.",
+        ],
+        [
+          "Input Nilai",
+          "Kolom untuk menambah nilai baru. Alternatif yang dikenali: Nilai Baru, Nilai, Score, Nilai Tertulis, Tertulis.",
+        ],
+        [],
+        ["Aturan penamaan header nilai", ""],
+        [
+          "Memperbarui nilai lama",
+          "Biarkan header kolom nilai tetap seperti template (Nilai 1, Nilai 2, dst.). Jangan diganti judul lain.",
+        ],
+        [
+          "Menambah nilai baru",
+          "Isi kolom Input Nilai. Header ini wajib tetap bernama Input Nilai (atau salah satu alternatif di atas).",
+        ],
+        [
+          "Header yang diabaikan",
+          "Nama kolom selain NIS, Nama, Nilai N, dan Input Nilai tidak dipakai saat unggah.",
+        ],
+      );
+    }
+
+    rows.push(
+      [],
+      [
+        "Catatan",
+        `Satu file hanya untuk satu konteks ${scoreLabel} (bulan/tanggal dan bab) yang dipilih saat unggah.`,
+      ],
+      [
+        "Rentang nilai",
+        "0 sampai 100. Nilai di luar rentang akan dibulatkan ke batas terdekat.",
+      ],
+    );
+
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 36 }, { wch: 110 }];
+    return sheet;
+  };
+
   const buildFormativeImportColumns = (headerRow = []) => {
     const explicitSubchapterIds = visibleFormativeColumns
       .map((column) =>
@@ -1393,8 +1519,14 @@ const Grading = ({ subject }) => {
     const worksheet = XLSX.utils.json_to_sheet(templateRows, {
       header: headers,
     });
+    applyWorksheetColumnWidths(worksheet, headers);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Template Formatif");
+    XLSX.utils.book_append_sheet(
+      workbook,
+      buildGradingTemplateGuideSheet("formative"),
+      TEMPLATE_GUIDE_SHEET_NAME,
+    );
     const className =
       classes.find((item) => String(item.id) === String(classId))?.name ||
       "Kelas";
@@ -1558,7 +1690,7 @@ const Grading = ({ subject }) => {
         try {
           const data = new Uint8Array(event.target.result);
           const workbook = XLSX.read(data, { type: "array" });
-          const sheetName = workbook.SheetNames[0];
+          const sheetName = getWorkbookDataSheetName(workbook);
           const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
             header: 1,
             defval: "",
@@ -1694,8 +1826,14 @@ const Grading = ({ subject }) => {
     const worksheet = XLSX.utils.json_to_sheet(templateRows, {
       header: headers,
     });
+    applyWorksheetColumnWidths(worksheet, headers);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Template Sumatif");
+    XLSX.utils.book_append_sheet(
+      workbook,
+      buildGradingTemplateGuideSheet("summative"),
+      TEMPLATE_GUIDE_SHEET_NAME,
+    );
     const className =
       classes.find((item) => String(item.id) === String(classId))?.name ||
       "Kelas";
@@ -1722,7 +1860,7 @@ const Grading = ({ subject }) => {
         try {
           const data = new Uint8Array(event.target.result);
           const workbook = XLSX.read(data, { type: "array" });
-          const sheetName = workbook.SheetNames[0];
+          const sheetName = getWorkbookDataSheetName(workbook);
           const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
             defval: "",
           });
@@ -2572,6 +2710,7 @@ const handleDownloadFinalTemplate = () => {
                   <Button
                     icon={<Download size={16} />}
                     onClick={handleDownloadFormativeTemplate}
+                    title="Unduh Excel. Sheet Panduan berisi aturan penamaan header."
                     style={isMobile ? { flex: "1 1 140px" } : undefined}
                   >
                     {isCompact ? "Template" : "Template Formatif"}
@@ -2650,6 +2789,7 @@ const handleDownloadFinalTemplate = () => {
                   <Button
                     icon={<Download size={16} />}
                     onClick={handleDownloadSummativeTemplate}
+                    title="Unduh Excel. Sheet Panduan berisi aturan penamaan header."
                     style={isMobile ? { flex: "1 1 140px" } : undefined}
                   >
                     {isCompact ? "Template" : "Template Sumatif"}
