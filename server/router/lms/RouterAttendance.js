@@ -1321,16 +1321,28 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
 
   for (const rawRule of dayRules) {
     const dayOfWeek = normalizeNumberOrNull(rawRule?.day_of_week);
+    const isRuleActive = rawRule?.is_active !== false;
     const lateToleranceMinutes = normalizeNumberOrNull(rawRule?.late_tolerance_minutes) ?? 0;
     const minPresenceMinutes = normalizeNumberOrNull(rawRule?.min_presence_minutes);
-    const checkinStart = normalizeTimeOrNull(rawRule?.checkin_start);
-    const checkinEnd = normalizeTimeOrNull(rawRule?.checkin_end);
-    const checkoutStart = normalizeTimeOrNull(rawRule?.checkout_start);
-    const referenceCheckoutTime = normalizeTimeOrNull(rawRule?.reference_checkout_time);
+    const checkinStart = isRuleActive
+      ? normalizeTimeOrNull(rawRule?.checkin_start)
+      : null;
+    const checkinEnd =
+      isRuleActive && policyType !== "teacher_schedule_based"
+        ? normalizeTimeOrNull(rawRule?.checkin_end)
+        : null;
+    const checkoutStart = isRuleActive
+      ? normalizeTimeOrNull(rawRule?.checkout_start)
+      : null;
+    const referenceCheckoutTime = isRuleActive
+      ? normalizeTimeOrNull(rawRule?.reference_checkout_time)
+      : null;
+    const dayLabel = `hari ke-${dayOfWeek || "?"}`;
 
     if (!dayOfWeek || dayOfWeek < 1 || dayOfWeek > 7) {
       return res.status(400).json({ status: "error", message: "day_of_week harus antara 1-7." });
     }
+    if (!isRuleActive) continue;
     if (lateToleranceMinutes < 0) {
       return res.status(400).json({ status: "error", message: "late_tolerance_minutes tidak boleh negatif." });
     }
@@ -1342,10 +1354,16 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
       if ((checkinStart && !checkinEnd) || (!checkinStart && checkinEnd)) {
         return res.status(400).json({
           status: "error",
-          message: "checkin_start dan checkin_end harus diisi berpasangan.",
+          message: `checkin_start dan checkin_end harus diisi berpasangan (${dayLabel}).`,
         });
       }
-    } else if (checkinEnd) {
+      if (checkinStart && checkinEnd && checkinStart >= checkinEnd) {
+        return res.status(400).json({
+          status: "error",
+          message: `checkin_start harus lebih kecil dari checkin_end (${dayLabel}).`,
+        });
+      }
+    } else if (normalizeTimeOrNull(rawRule?.checkin_end)) {
       return res.status(400).json({
         status: "error",
         message:
@@ -1355,7 +1373,7 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
     if (checkoutStart && referenceCheckoutTime && checkoutStart >= referenceCheckoutTime) {
       return res.status(400).json({
         status: "error",
-        message: "checkout_start harus lebih kecil dari reference_checkout_time.",
+        message: `checkout_start harus lebih kecil dari reference_checkout_time (${dayLabel}).`,
       });
     }
   }
@@ -1415,10 +1433,31 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
   for (const rawRule of dayRules) {
     const dayOfWeek = normalizeNumberOrNull(rawRule?.day_of_week);
     const isRuleActive = rawRule?.is_active !== false;
-    const lateToleranceMinutes = normalizeNumberOrNull(rawRule?.late_tolerance_minutes) ?? 0;
-    const minPresenceMinutes = normalizeNumberOrNull(rawRule?.min_presence_minutes);
-    const checkoutIsOptional = rawRule?.checkout_is_optional === true;
+    const lateToleranceMinutes = isRuleActive
+      ? normalizeNumberOrNull(rawRule?.late_tolerance_minutes) ?? 0
+      : 0;
+    const minPresenceMinutes = isRuleActive
+      ? normalizeNumberOrNull(rawRule?.min_presence_minutes)
+      : null;
+    const checkoutIsOptional =
+      isRuleActive && rawRule?.checkout_is_optional === true;
     const ruleNotes = String(rawRule?.notes || "").trim() || null;
+    const checkinStart = isRuleActive
+      ? normalizeTimeOrNull(rawRule?.checkin_start)
+      : null;
+    const checkinEnd =
+      isRuleActive && policyType !== "teacher_schedule_based"
+        ? normalizeTimeOrNull(rawRule?.checkin_end)
+        : null;
+    const referenceCheckinTime = isRuleActive
+      ? normalizeTimeOrNull(rawRule?.reference_checkin_time)
+      : null;
+    const checkoutStart = isRuleActive
+      ? normalizeTimeOrNull(rawRule?.checkout_start)
+      : null;
+    const referenceCheckoutTime = isRuleActive
+      ? normalizeTimeOrNull(rawRule?.reference_checkout_time)
+      : null;
 
     await client.query(
       `INSERT INTO attendance.attendance_policy_day_rule (
@@ -1444,14 +1483,12 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
         policyId,
         dayOfWeek,
         isRuleActive,
-        normalizeTimeOrNull(rawRule?.checkin_start),
-        policyType === "teacher_schedule_based"
-          ? null
-          : normalizeTimeOrNull(rawRule?.checkin_end),
-        normalizeTimeOrNull(rawRule?.reference_checkin_time),
+        checkinStart,
+        checkinEnd,
+        referenceCheckinTime,
         lateToleranceMinutes,
-        normalizeTimeOrNull(rawRule?.checkout_start),
-        normalizeTimeOrNull(rawRule?.reference_checkout_time),
+        checkoutStart,
+        referenceCheckoutTime,
         checkoutIsOptional,
         minPresenceMinutes,
         ruleNotes,

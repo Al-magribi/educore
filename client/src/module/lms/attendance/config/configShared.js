@@ -93,6 +93,22 @@ export const innerCardStyle = {
   background: "#ffffff",
 };
 
+/** Normalize DB/API time (`11:00:00`, dayjs, Date) to `HH:mm` or null. */
+export const toTimeHm = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value?.format === "function") {
+    return value.format("HH:mm");
+  }
+  const text = String(value).trim();
+  if (!text) return null;
+  const match = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
 export const mapRuleRows = (rules = []) => {
   const map = new Map(
     (rules || []).map((rule) => [Number(rule.day_of_week), rule]),
@@ -102,12 +118,12 @@ export const mapRuleRows = (rules = []) => {
     return {
       day_of_week: day.value,
       is_active: current?.is_active !== false,
-      checkin_start: current?.checkin_start || null,
-      checkin_end: current?.checkin_end || null,
-      reference_checkin_time: current?.reference_checkin_time || null,
+      checkin_start: toTimeHm(current?.checkin_start),
+      checkin_end: toTimeHm(current?.checkin_end),
+      reference_checkin_time: toTimeHm(current?.reference_checkin_time),
       late_tolerance_minutes: Number(current?.late_tolerance_minutes || 0),
-      checkout_start: current?.checkout_start || null,
-      reference_checkout_time: current?.reference_checkout_time || null,
+      checkout_start: toTimeHm(current?.checkout_start),
+      reference_checkout_time: toTimeHm(current?.reference_checkout_time),
       checkout_is_optional: current?.checkout_is_optional === true,
       min_presence_minutes:
         current?.min_presence_minutes === null ||
