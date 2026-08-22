@@ -83,6 +83,27 @@ const cloneRuleTimes = (source = {}) => ({
   checkout_is_optional: source.checkout_is_optional === true,
 });
 
+const slugifyCode = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 50);
+
+const nextUniqueCode = (baseCode, existingCodes = []) => {
+  const used = new Set(
+    existingCodes.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean),
+  );
+  const base = slugifyCode(baseCode) || 'policy';
+  if (!used.has(base)) return base;
+  let index = 2;
+  while (used.has(`${base}_${index}`)) {
+    index += 1;
+  }
+  return `${base}_${index}`;
+};
+
 const rulesToFormValues = (rules = []) =>
   mapRuleRows(rules).map((rule) => ({
     ...rule,
@@ -114,7 +135,9 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
 
   const openCreatePolicyModal = () => {
     setEditingPolicy(null);
+    policyForm.resetFields();
     policyForm.setFieldsValue({
+      id: undefined,
       name: '',
       code: '',
       target_role: 'student',
@@ -124,6 +147,25 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
       day_rules: rulesToFormValues([]),
     });
     resetTemplateForm();
+    setPolicyModalOpen(true);
+  };
+
+  const openDuplicatePolicyModal = (record) => {
+    setEditingPolicy(null);
+    policyForm.resetFields();
+    const uniqueCode = nextUniqueCode(`${record.code || record.name}_copy`, policyRows.map((item) => item.code));
+    policyForm.setFieldsValue({
+      id: undefined,
+      name: `${record.name || 'Policy'} (salinan)`,
+      code: uniqueCode,
+      target_role: record.target_role,
+      policy_type: record.policy_type,
+      description: record.description || '',
+      is_active: record.is_active === true,
+      day_rules: rulesToFormValues(record.day_rules),
+    });
+    const seed = mapRuleRows(record.day_rules).find((rule) => rule?.is_active !== false);
+    resetTemplateForm(seed);
     setPolicyModalOpen(true);
   };
 
@@ -262,6 +304,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
 
       await saveAttendancePolicy({
         ...values,
+        id: editingPolicy?.id || undefined,
         day_rules: normalizedDayRules,
       }).unwrap();
       setPolicyModalOpen(false);
@@ -286,6 +329,11 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
   const handleRowAction = (action, record) => {
     if (action === 'edit') {
       openEditPolicyModal(record);
+      return;
+    }
+
+    if (action === 'duplicate') {
+      openDuplicatePolicyModal(record);
       return;
     }
 
@@ -360,15 +408,16 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
               },
               {
                 title: 'Aksi',
-                width: 110,
+                width: 130,
                 render: (_, record) => (
                   <Select
                     placeholder="Aksi"
                     value={null}
                     virtual={false}
-                    style={{ width: '100%', maxWidth: 110 }}
+                    style={{ width: '100%', maxWidth: 130 }}
                     options={[
                       { value: 'edit', label: 'Edit' },
+                      { value: 'duplicate', label: 'Duplikat' },
                       { value: 'delete', label: 'Hapus' },
                     ]}
                     onChange={(value) => handleRowAction(value, record)}
@@ -398,7 +447,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
               name="name"
               label="Nama Policy"
               rules={[{ required: true, message: 'Nama policy wajib diisi.' }]}
-              extra="Contoh: Kelas Pagi / Kelas Siang">
+              extra="Contoh: Kelas Pagi, Guru Pagi, atau Silat. Setiap tipe policy boleh lebih dari satu.">
               <Input placeholder="Contoh: Kelas Pagi" />
             </Form.Item>
             <Form.Item
@@ -416,7 +465,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
               name="target_role"
               label="Target Role"
               rules={[{ required: true, message: 'Target role wajib diisi.' }]}
-              extra="Boleh dipakai ulang di policy lain">
+              extra="Boleh ada banyak policy aktif untuk role dan tipe yang sama">
               <Select
                 options={
                   selectedPolicyType === 'activity_fixed'
@@ -429,7 +478,8 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
               style={{ minWidth: 260 }}
               name="policy_type"
               label="Tipe Policy"
-              rules={[{ required: true, message: 'Tipe policy wajib diisi.' }]}>
+              rules={[{ required: true, message: 'Tipe policy wajib diisi.' }]}
+              extra="Siswa, guru, dan ekstra masing-masing boleh punya beberapa policy.">
               <Select
                 options={POLICY_TYPE_OPTIONS}
                 onChange={(value) => {

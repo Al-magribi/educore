@@ -1319,6 +1319,23 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
     return res.status(400).json({ status: "error", message: "policy_type tidak valid." });
   }
 
+  const duplicateCode = await client.query(
+    `SELECT id
+     FROM attendance.attendance_policy
+     WHERE homebase_id = $1
+       AND LOWER(code) = LOWER($2)
+       AND ($3::int IS NULL OR id <> $3)
+     LIMIT 1`,
+    [homebase_id, code, editingPolicyId],
+  );
+  if (duplicateCode.rowCount > 0) {
+    return res.status(409).json({
+      status: "error",
+      message:
+        "Code policy sudah dipakai. Gunakan code berbeda; setiap tipe policy boleh lebih dari satu.",
+    });
+  }
+
   for (const rawRule of dayRules) {
     const dayOfWeek = normalizeNumberOrNull(rawRule?.day_of_week);
     const isRuleActive = rawRule?.is_active !== false;
