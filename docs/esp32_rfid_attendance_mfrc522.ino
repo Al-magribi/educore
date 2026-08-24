@@ -42,6 +42,9 @@
 #include <LiquidCrystal_I2C.h>
 #include <time.h>
 
+void appendDeviceIdentity(DynamicJsonDocument& doc);
+bool registerDevice();
+
 enum ScanOutcome {
   SCAN_OUTCOME_ACCEPTED = 0,
   SCAN_OUTCOME_DUPLICATE = 1,
@@ -101,6 +104,7 @@ const char* API_URL = "https://YOUR_SERVER_HOST:2310/api/lms/attendance/rfid/sca
 // Samakan dengan Code Device di LMS (tab Device RFID)
 const char* DEVICE_CODE = "RFID-GATE-HB-0008";
 const char* DEVICE_TOKEN = "PUT_DEVICE_API_TOKEN_HERE";
+const char* FIRMWARE_VERSION = "1.1.0";
 
 // "gate"             -> absensi harian (datang/pulang)
 // "classroom"        -> absensi sesi guru (1 device boleh banyak kelas di LMS)
@@ -538,10 +542,11 @@ bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
   http.begin(API_URL);
   http.addHeader("Content-Type", "application/json");
 
-  DynamicJsonDocument doc(512);
+  DynamicJsonDocument doc(768);
   doc["device_code"] = DEVICE_CODE;
   doc["device_token"] = DEVICE_TOKEN;
   doc["card_uid"] = cardUid;
+  appendDeviceIdentity(doc);
 
   // Gate: kirim daily_gate.
   // Classroom / extracurricular: JANGAN kirim scan_action (atau kosong) agar server
@@ -600,8 +605,80 @@ bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
   return false;
 }
 
+String getDeviceMac() {
+  return WiFi.macAddress();
+}
+
+String macWithoutColons(const String& mac) {
+  String compact = mac;
+  compact.replace(":", "");
+  compact.toUpperCase();
+  return compact;
+}
+
+void appendDeviceIdentity(DynamicJsonDocument& doc) {
+  String mac = getDeviceMac();
+  if (mac.length() > 0) {
+    doc["mac_address"] = mac;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    doc["ip_address"] = WiFi.localIP().toString();
+  }
+  doc["firmware_version"] = FIRMWARE_VERSION;
+}
+
+String getHeartbeatUrl() {
+  String url = String(API_URL);
+  url.replace("/attendance/rfid/scan", "/attendance/rfid/heartbeat");
+  return url;
+}
+
+bool registerDevice() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[RFID] Heartbeat dilewati: WiFi tidak tersambung.");
+    return false;
+  }
+
+  String mac = getDeviceMac();
+  lcdShow("Simpan MAC", macWithoutColons(mac).c_str());
+
+  HTTPClient http;
+  String url = getHeartbeatUrl();
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+
+  DynamicJsonDocument doc(384);
+  doc["device_code"] = DEVICE_CODE;
+  doc["device_token"] = DEVICE_TOKEN;
+  appendDeviceIdentity(doc);
+
+  String payload;
+  serializeJson(doc, payload);
+
+  int httpCode = http.POST(payload);
+  String body = http.getString();
+  http.end();
+
+  Serial.printf("[RFID] Heartbeat HTTP %d | MAC=%s\n", httpCode, mac.c_str());
+  Serial.println(body);
+
+  bool ok = httpCode >= 200 && httpCode < 300;
+  if (ok) {
+    lcdShow("MAC Tersimpan", macWithoutColons(mac).c_str());
+  } else {
+    lcdShow("MAC Gagal", "Cek kode/token");
+  }
+  delay(2000);
+  return ok;
+}
+
 void connectWifi() {
   WiFi.mode(WIFI_STA);
+  String mac = getDeviceMac();
+  Serial.printf("MAC: %s\n", mac.c_str());
+  lcdShow("MAC Device", macWithoutColons(mac).c_str());
+  delay(2000);
+
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   Serial.println("Menyambungkan Wifi ....");
@@ -620,9 +697,11 @@ void connectWifi() {
       lcd.print(" ");
     }
   }
+
   Serial.println();
   Serial.println("Wifi Terhubung");
   Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("MAC: %s\n", mac.c_str());
   lcdShow("Wifi Terhubung", WiFi.localIP().toString().c_str());
   delay(1500);
 }
@@ -654,6 +733,7 @@ void setup() {
   lcdInit();
   connectWifi();
   setupNtpUtc();
+  registerDevice();
 
   if (!initMfrc522()) {
     Serial.println("[RFID] MFRC522 tidak terdeteksi. Cek kabel.");

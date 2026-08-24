@@ -629,6 +629,45 @@ const getDevicePolicyIds = async (client, deviceId) => {
     .filter((id) => Number.isFinite(id) && id > 0);
 };
 
+const normalizeMacAddress = (value) => {
+  const compact = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^0-9A-F]/g, "");
+  if (compact.length !== 12) return null;
+  return compact.match(/.{2}/g).join(":");
+};
+
+const normalizeOptionalText = (value, maxLength) => {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  return text.slice(0, maxLength);
+};
+
+const parseDeviceTelemetry = (payload = {}) => ({
+  macAddress: normalizeMacAddress(payload.mac_address),
+  ipAddress: normalizeOptionalText(payload.ip_address, 60),
+  firmwareVersion: normalizeOptionalText(payload.firmware_version, 50),
+});
+
+const touchRfidDevice = async (client, deviceId, telemetry = {}) => {
+  const { macAddress = null, ipAddress = null, firmwareVersion = null } =
+    telemetry;
+  const updated = await client.query(
+    `UPDATE attendance.rfid_device
+     SET
+       mac_address = COALESCE($2, mac_address),
+       ip_address = COALESCE($3, ip_address),
+       firmware_version = COALESCE($4, firmware_version),
+       last_seen_at = NOW(),
+       updated_at = NOW()
+     WHERE id = $1
+     RETURNING mac_address, ip_address, firmware_version, last_seen_at, is_active`,
+    [deviceId, macAddress, ipAddress, firmwareVersion],
+  );
+  return updated.rows[0] || null;
+};
+
 const getPolicyAssignments = async (pool, homebaseId, filters = {}) => {
   const { targetRole, assignmentScope } = filters;
   const params = [homebaseId];
@@ -2423,6 +2462,59 @@ router.get(
 );
 
 router.post(
+  "/attendance/rfid/heartbeat",
+  withTransaction(async (req, res, client) => {
+    const payload = req.body || {};
+    const deviceCode = String(payload.device_code || "").trim();
+    const deviceToken = String(payload.device_token || "").trim();
+    const telemetry = parseDeviceTelemetry(payload);
+
+    if (!deviceCode || !deviceToken) {
+      return res.status(400).json({
+        status: "error",
+        message: "device_code dan device_token wajib diisi.",
+      });
+    }
+
+    const deviceRes = await client.query(
+      `SELECT id, api_token, is_active
+       FROM attendance.rfid_device
+       WHERE code = $1
+       LIMIT 1`,
+      [deviceCode],
+    );
+    if (deviceRes.rowCount === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Device tidak ditemukan.",
+      });
+    }
+
+    const device = deviceRes.rows[0];
+    if (device.api_token !== deviceToken) {
+      return res.status(400).json({
+        status: "error",
+        result_status: "rejected",
+        message: "Token device tidak valid.",
+      });
+    }
+
+    const saved = await touchRfidDevice(client, device.id, telemetry);
+    return res.json({
+      status: "success",
+      message: "Identitas device tersimpan.",
+      data: {
+        mac_address: saved?.mac_address || null,
+        ip_address: saved?.ip_address || null,
+        firmware_version: saved?.firmware_version || null,
+        last_seen_at: saved?.last_seen_at || null,
+        is_active: saved?.is_active === true,
+      },
+    });
+  }),
+);
+
+router.post(
   "/attendance/rfid/scan",
   withTransaction(async (req, res, client) => {
     const payload = req.body || {};
@@ -2560,6 +2652,9 @@ router.post(
     if (device.api_token !== deviceToken) {
       return rejectAndLog("rejected", "Token device tidak valid.");
     }
+
+    await touchRfidDevice(client, device.id, parseDeviceTelemetry(payload));
+
     if (device.is_active !== true) {
       return rejectAndLog("device_inactive", "Device tidak aktif.");
     }
