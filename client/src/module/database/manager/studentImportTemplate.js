@@ -1,15 +1,20 @@
 import * as XLSX from "xlsx";
 
 const normalizeText = (value) => value?.toString().trim() || "";
+const pad2 = (value) => String(value).padStart(2, "0");
 
 const formatDateValue = (value) => {
   if (!value) return "";
-  if (typeof value === "string" && value.includes("T")) {
-    return value.split("T")[0];
+
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
   }
-  const date = new Date(value);
+
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return normalizeText(value);
-  return date.toISOString().split("T")[0];
+
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 };
 
 const formatSiblingsForExcel = (siblings = []) => {
@@ -113,7 +118,7 @@ const COLUMN_GUIDE_ROWS = [
   [
     "Jenis Kelamin",
     "Opsional",
-    'Isi persis: "Laki-laki" atau "Perempuan". Disimpan ke u_users.gender.',
+    'Isi "Laki-laki"/"Perempuan" atau singkat "L"/"P". Disimpan ke u_users.gender.',
   ],
   [
     "Tingkat",
@@ -133,7 +138,7 @@ const COLUMN_GUIDE_ROWS = [
   [
     "Tanggal Lahir",
     "Opsional",
-    "Format tanggal YYYY-MM-DD (contoh: 2012-08-17). Disimpan ke u_students.birth_date.",
+    "Format YYYY-MM-DD (contoh: 2012-08-17) atau tanggal Indonesia (contoh: 17 Juni 2014 / 20-Apr-14). Kosong boleh. Disimpan ke u_students.birth_date.",
   ],
   [
     "Tinggi",

@@ -124,6 +124,112 @@ const normalizeText = (value) => {
   return String(value).trim();
 };
 
+const pad2 = (value) => String(value).padStart(2, "0");
+
+const MONTH_MAP = {
+  januari: 1,
+  jan: 1,
+  february: 2,
+  februari: 2,
+  feb: 2,
+  maret: 3,
+  march: 3,
+  mar: 3,
+  april: 4,
+  apr: 4,
+  mei: 5,
+  may: 5,
+  juni: 6,
+  june: 6,
+  jun: 6,
+  juli: 7,
+  july: 7,
+  jul: 7,
+  agustus: 8,
+  august: 8,
+  agu: 8,
+  agt: 8,
+  aug: 8,
+  september: 9,
+  sep: 9,
+  sept: 9,
+  oktober: 10,
+  october: 10,
+  okt: 10,
+  oct: 10,
+  november: 11,
+  nov: 11,
+  desember: 12,
+  december: 12,
+  des: 12,
+  dec: 12,
+};
+
+const expandYear = (yearText) => {
+  const year = normalizeText(yearText);
+  if (!year) return null;
+  if (year.length === 2) {
+    const numeric = Number(year);
+    return numeric > 50 ? 1900 + numeric : 2000 + numeric;
+  }
+  const numeric = Number(year);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const toLocalYmd = (year, month, day) => {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (![y, m, d].every((item) => Number.isFinite(item))) return null;
+  const date = new Date(y, m - 1, d);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== m - 1 ||
+    date.getDate() !== d
+  ) {
+    return null;
+  }
+  return `${y}-${pad2(m)}-${pad2(d)}`;
+};
+
+const toSqlDate = (value) => {
+  const text = normalizeText(value);
+  if (!text || text === "-") return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  let match = text.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (match) {
+    return toLocalYmd(expandYear(match[3]), match[2], match[1]);
+  }
+
+  match = text.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$/);
+  if (match) {
+    return toLocalYmd(match[1], match[2], match[3]);
+  }
+
+  match = text.match(
+    /^(\d{1,2})[/\-\s]+([A-Za-zÀ-ÿ]+)\.?[/\-\s,]+(\d{2,4})$/i,
+  );
+  if (match) {
+    const month = MONTH_MAP[match[2].toLowerCase()];
+    if (month) return toLocalYmd(expandYear(match[3]), month, match[1]);
+  }
+
+  return null;
+};
+
+const normalizeGender = (value) => {
+  const text = normalizeText(value).toLowerCase();
+  if (!text) return null;
+  if (["l", "laki-laki", "laki", "laki laki", "male", "m"].includes(text)) {
+    return "Laki-laki";
+  }
+  if (["p", "perempuan", "wanita", "female", "f"].includes(text)) {
+    return "Perempuan";
+  }
+  return normalizeText(value) || null;
+};
+
 const normalizeSearch = (value) => `%${normalizeText(value).toLowerCase()}%`;
 
 const normalizeStudentIds = (studentIds) => {
@@ -784,6 +890,25 @@ const updateStudentProfileData = async (client, studentId, payload) => {
     siblings = [],
   } = payload;
 
+  const safeBirthDate = toSqlDate(birth_date);
+  const safeFatherBirthDate = toSqlDate(father_birth_date);
+  const safeMotherBirthDate = toSqlDate(mother_birth_date);
+  const safeGender = normalizeGender(gender);
+  const safeOrderNumber =
+    order_number === null || order_number === undefined || order_number === ""
+      ? null
+      : Number.isFinite(Number(order_number))
+        ? Number(order_number)
+        : null;
+  const safeSiblingsCount =
+    siblings_count === null ||
+    siblings_count === undefined ||
+    siblings_count === ""
+      ? null
+      : Number.isFinite(Number(siblings_count))
+        ? Number(siblings_count)
+        : null;
+
   await client.query(
     `
       UPDATE u_users
@@ -792,7 +917,7 @@ const updateStudentProfileData = async (client, studentId, payload) => {
         gender = COALESCE($2, gender)
       WHERE id = $3
     `,
-    [full_name || null, gender || null, studentId],
+    [full_name || null, safeGender, studentId],
   );
 
   await client.query(
@@ -816,12 +941,12 @@ const updateStudentProfileData = async (client, studentId, payload) => {
       nis || null,
       nisn || null,
       birth_place || null,
-      birth_date || null,
+      safeBirthDate,
       height || null,
       weight || null,
       head_circumference || null,
-      order_number || null,
-      siblings_count || null,
+      safeOrderNumber,
+      safeSiblingsCount,
       postal_code || null,
       address || null,
       studentId,
@@ -837,12 +962,12 @@ const updateStudentProfileData = async (client, studentId, payload) => {
     father_nik || null,
     father_name || null,
     father_birth_place || null,
-    father_birth_date || null,
+    safeFatherBirthDate,
     father_phone || null,
     mother_nik || null,
     mother_name || null,
     mother_birth_place || null,
-    mother_birth_date || null,
+    safeMotherBirthDate,
     mother_phone || null,
   ];
 
@@ -892,7 +1017,10 @@ const updateStudentProfileData = async (client, studentId, payload) => {
   ]);
 
   const cleanSiblings = Array.isArray(siblings)
-    ? siblings.filter((item) => item?.name?.trim())
+    ? siblings.filter((item) => {
+        const name = normalizeText(item?.name);
+        return name && name !== "-";
+      })
     : [];
 
   for (const sibling of cleanSiblings) {
@@ -903,9 +1031,9 @@ const updateStudentProfileData = async (client, studentId, payload) => {
       `,
       [
         studentId,
-        sibling.name.trim(),
-        sibling.gender || null,
-        sibling.birth_date || null,
+        normalizeText(sibling.name),
+        normalizeGender(sibling.gender),
+        toSqlDate(sibling.birth_date),
       ],
     );
   }
@@ -1662,11 +1790,16 @@ router.post(
 
     for (const [index, item] of students.entries()) {
       const nis = normalizeText(item.nis);
+      const savepoint = `sp_student_${index}`;
+      let savepointCreated = false;
 
       try {
         if (!nis) {
           throw new Error("NIS wajib diisi.");
         }
+
+        await client.query(`SAVEPOINT ${savepoint}`);
+        savepointCreated = true;
 
         const student = await findStudentByNis({
           client,
@@ -1686,6 +1819,7 @@ router.post(
         }
 
         await updateStudentProfileData(client, student.student_id, item);
+        await client.query(`RELEASE SAVEPOINT ${savepoint}`);
 
         updated.push({
           row: index + 1,
@@ -1693,6 +1827,10 @@ router.post(
           full_name: student.full_name,
         });
       } catch (error) {
+        if (savepointCreated) {
+          await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        }
+
         failed.push({
           row: index + 1,
           nis: nis || "-",
