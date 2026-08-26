@@ -24,6 +24,10 @@ export const ApiParent = createApi({
       },
       providesTags: ["ParentMeta"],
     }),
+    getParentTelegram: builder.query({
+      query: () => "/parent/telegram",
+      providesTags: ["ParentMeta"],
+    }),
     getParents: builder.query({
       query: ({
         page = 1,
@@ -94,6 +98,7 @@ export const ApiParent = createApi({
 export const {
   useGetParentDashboardQuery,
   useGetParentAcademicReportQuery,
+  useGetParentTelegramQuery,
   useGetParentsQuery,
   useGetParentMetaQuery,
   useGetParentStudentLinksQuery,

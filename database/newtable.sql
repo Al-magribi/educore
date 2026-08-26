@@ -56,8 +56,13 @@ CREATE TABLE u_parents (
     user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
     student_id integer REFERENCES u_students(user_id), -- Legacy primary child (opsional)
     phone text,
-    email text
+    email text,
+    telegram_chat_id varchar(64)
 );
+
+CREATE UNIQUE INDEX uq_u_parents_telegram_chat_id
+ON u_parents (telegram_chat_id)
+WHERE telegram_chat_id IS NOT NULL AND NULLIF(TRIM(telegram_chat_id), '') IS NOT NULL;
 
 -- RELASI ORANG TUA - SISWA (multi anak per orang tua)
 -- Rule:

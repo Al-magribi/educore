@@ -33,7 +33,8 @@ import {
   deleteScanLogsCascade,
 } from "../../services/attendance/attendanceReportDelete.js";
 import "../../services/attendance/attendanceJobs.js";
-import "../../services/whatsapp/whatsappJobs.js";
+import "../../services/telegram/telegramJobs.js";
+import "../../services/telegram/telegramPoller.js";
 
 const router = Router();
 

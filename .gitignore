@@ -6,3 +6,6 @@ client/node_modules
 
 # build output
 **/dist/
+
+# legacy WhatsApp Web session data
+.wwebjs_auth/

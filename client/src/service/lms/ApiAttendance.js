@@ -3,7 +3,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 export const ApiAttendance = createApi({
   reducerPath: "ApiAttendance",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/lms" }),
-  tagTypes: ["Attendance", "AttendanceConfig", "AttendancePolicy", "AttendanceDevice", "AttendanceAssignment", "WhatsappNotification", "AttendanceCalendar"],
+  tagTypes: ["Attendance", "AttendanceConfig", "AttendancePolicy", "AttendanceDevice", "AttendanceAssignment", "TelegramNotification", "AttendanceCalendar"],
   endpoints: (builder) => ({
     getAttendanceStudents: builder.query({
       query: ({ subjectId, classId, date }) =>
@@ -406,52 +406,72 @@ export const ApiAttendance = createApi({
       invalidatesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
 
-    getWhatsappNotificationConfig: builder.query({
-      query: () => "/attendance/whatsapp/config",
-      providesTags: [{ type: "WhatsappNotification", id: "CONFIG" }],
+    getTelegramNotificationConfig: builder.query({
+      query: () => "/attendance/telegram/config",
+      providesTags: [{ type: "TelegramNotification", id: "CONFIG" }],
     }),
-    updateWhatsappNotificationConfig: builder.mutation({
+    updateTelegramNotificationConfig: builder.mutation({
       query: (body) => ({
-        url: "/attendance/whatsapp/config",
+        url: "/attendance/telegram/config",
         method: "PUT",
         body,
       }),
-      invalidatesTags: [{ type: "WhatsappNotification", id: "CONFIG" }],
+      invalidatesTags: [
+        { type: "TelegramNotification", id: "CONFIG" },
+        { type: "TelegramNotification", id: "PARENTS" },
+      ],
     }),
-    getWhatsappSession: builder.query({
-      query: ({ autoStart } = {}) =>
-        `/attendance/whatsapp/session?auto_start=${autoStart ? "true" : "false"}`,
-      providesTags: [{ type: "WhatsappNotification", id: "SESSION" }],
+    verifyTelegramBot: builder.mutation({
+      query: (body) => ({
+        url: "/attendance/telegram/bot/verify",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "TelegramNotification", id: "CONFIG" }],
+    }),
+    getTelegramStatus: builder.query({
+      query: () => "/attendance/telegram/status",
+      providesTags: [{ type: "TelegramNotification", id: "CONFIG" }],
       keepUnusedDataFor: 0,
     }),
-    reconnectWhatsappSession: builder.mutation({
-      query: () => ({
-        url: "/attendance/whatsapp/session/reconnect",
-        method: "POST",
+    getTelegramParents: builder.query({
+      query: ({ limit } = {}) => ({
+        url: "/attendance/telegram/parents",
+        params: { limit },
       }),
-      invalidatesTags: [{ type: "WhatsappNotification", id: "SESSION" }],
+      providesTags: [{ type: "TelegramNotification", id: "PARENTS" }],
     }),
-    sendWhatsappTestMessage: builder.mutation({
+    unbindTelegramParent: builder.mutation({
+      query: (parentUserId) => ({
+        url: `/attendance/telegram/parents/${parentUserId}/bind`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [
+        { type: "TelegramNotification", id: "PARENTS" },
+        { type: "TelegramNotification", id: "CONFIG" },
+      ],
+    }),
+    sendTelegramTestMessage: builder.mutation({
       query: (body) => ({
-        url: "/attendance/whatsapp/test",
+        url: "/attendance/telegram/test",
         method: "POST",
         body,
       }),
     }),
-    getWhatsappNotificationBatches: builder.query({
+    getTelegramNotificationBatches: builder.query({
       query: ({ startDate, endDate, limit } = {}) => ({
-        url: "/attendance/whatsapp/batches",
+        url: "/attendance/telegram/batches",
         params: {
           start_date: startDate,
           end_date: endDate,
           limit,
         },
       }),
-      providesTags: [{ type: "WhatsappNotification", id: "BATCHES" }],
+      providesTags: [{ type: "TelegramNotification", id: "BATCHES" }],
     }),
-    getWhatsappNotificationLogs: builder.query({
+    getTelegramNotificationLogs: builder.query({
       query: ({ batchId, attendanceDate, deliveryStatus, limit } = {}) => ({
-        url: "/attendance/whatsapp/logs",
+        url: "/attendance/telegram/logs",
         params: {
           batch_id: batchId,
           attendance_date: attendanceDate,
@@ -459,58 +479,58 @@ export const ApiAttendance = createApi({
           limit,
         },
       }),
-      providesTags: [{ type: "WhatsappNotification", id: "LOGS" }],
+      providesTags: [{ type: "TelegramNotification", id: "LOGS" }],
     }),
-    retryFailedWhatsappBatch: builder.mutation({
+    retryFailedTelegramBatch: builder.mutation({
       query: (batchId) => ({
-        url: `/attendance/whatsapp/batches/${batchId}/retry-failed`,
+        url: `/attendance/telegram/batches/${batchId}/retry-failed`,
         method: "POST",
       }),
       invalidatesTags: [
-        { type: "WhatsappNotification", id: "BATCHES" },
-        { type: "WhatsappNotification", id: "LOGS" },
+        { type: "TelegramNotification", id: "BATCHES" },
+        { type: "TelegramNotification", id: "LOGS" },
       ],
     }),
-    deleteWhatsappNotificationBatch: builder.mutation({
+    deleteTelegramNotificationBatch: builder.mutation({
       query: (batchId) => ({
-        url: `/attendance/whatsapp/batches/${batchId}`,
+        url: `/attendance/telegram/batches/${batchId}`,
         method: "DELETE",
       }),
       invalidatesTags: [
-        { type: "WhatsappNotification", id: "BATCHES" },
-        { type: "WhatsappNotification", id: "LOGS" },
+        { type: "TelegramNotification", id: "BATCHES" },
+        { type: "TelegramNotification", id: "LOGS" },
       ],
     }),
-    deleteWhatsappNotificationBatchLogs: builder.mutation({
+    deleteTelegramNotificationBatchLogs: builder.mutation({
       query: (batchId) => ({
-        url: `/attendance/whatsapp/batches/${batchId}/logs`,
+        url: `/attendance/telegram/batches/${batchId}/logs`,
         method: "DELETE",
       }),
       invalidatesTags: [
-        { type: "WhatsappNotification", id: "BATCHES" },
-        { type: "WhatsappNotification", id: "LOGS" },
+        { type: "TelegramNotification", id: "BATCHES" },
+        { type: "TelegramNotification", id: "LOGS" },
       ],
     }),
-    deleteWhatsappNotificationLog: builder.mutation({
+    deleteTelegramNotificationLog: builder.mutation({
       query: (logId) => ({
-        url: `/attendance/whatsapp/logs/${logId}`,
+        url: `/attendance/telegram/logs/${logId}`,
         method: "DELETE",
       }),
       invalidatesTags: [
-        { type: "WhatsappNotification", id: "BATCHES" },
-        { type: "WhatsappNotification", id: "LOGS" },
+        { type: "TelegramNotification", id: "BATCHES" },
+        { type: "TelegramNotification", id: "LOGS" },
       ],
     }),
-    runWhatsappNotificationNow: builder.mutation({
+    runTelegramNotificationNow: builder.mutation({
       query: (body) => ({
-        url: "/attendance/whatsapp/run-now",
+        url: "/attendance/telegram/run-now",
         method: "POST",
         body,
       }),
       invalidatesTags: [
-        { type: "WhatsappNotification", id: "BATCHES" },
-        { type: "WhatsappNotification", id: "LOGS" },
-        { type: "WhatsappNotification", id: "CONFIG" },
+        { type: "TelegramNotification", id: "BATCHES" },
+        { type: "TelegramNotification", id: "LOGS" },
+        { type: "TelegramNotification", id: "CONFIG" },
       ],
     }),
 
@@ -595,18 +615,20 @@ export const {
   useUpdateTeacherSessionRecordMutation,
   useDeleteTeacherSessionRecordMutation,
   useBulkDeleteTeacherSessionRecordsMutation,
-  useGetWhatsappNotificationConfigQuery,
-  useUpdateWhatsappNotificationConfigMutation,
-  useGetWhatsappSessionQuery,
-  useReconnectWhatsappSessionMutation,
-  useSendWhatsappTestMessageMutation,
-  useGetWhatsappNotificationBatchesQuery,
-  useGetWhatsappNotificationLogsQuery,
-  useRetryFailedWhatsappBatchMutation,
-  useDeleteWhatsappNotificationBatchMutation,
-  useDeleteWhatsappNotificationBatchLogsMutation,
-  useDeleteWhatsappNotificationLogMutation,
-  useRunWhatsappNotificationNowMutation,
+  useGetTelegramNotificationConfigQuery,
+  useUpdateTelegramNotificationConfigMutation,
+  useVerifyTelegramBotMutation,
+  useGetTelegramStatusQuery,
+  useGetTelegramParentsQuery,
+  useUnbindTelegramParentMutation,
+  useSendTelegramTestMessageMutation,
+  useGetTelegramNotificationBatchesQuery,
+  useGetTelegramNotificationLogsQuery,
+  useRetryFailedTelegramBatchMutation,
+  useDeleteTelegramNotificationBatchMutation,
+  useDeleteTelegramNotificationBatchLogsMutation,
+  useDeleteTelegramNotificationLogMutation,
+  useRunTelegramNotificationNowMutation,
   useGetAttendanceCalendarConfigQuery,
   useUpdateAttendanceCalendarConfigMutation,
   useGetAttendanceHolidaysQuery,

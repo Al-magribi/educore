@@ -565,13 +565,18 @@ FOREIGN KEY(attendance_id) REFERENCES attendance.daily_attendance(id) ON DELETE 
 -- WHATSAPP NOTIFICATION (LAPORAN KEHADIRAN KE ORANG TUA)
 -- ================================================================
 
-CREATE TABLE whatsapp_notification_config(
+CREATE TABLE telegram_notification_config(
     id SERIAL NOT NULL,
     homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
     is_enabled boolean NOT NULL DEFAULT false,
+    bot_token text,
+    bot_username varchar(120),
+    bot_status varchar(20) NOT NULL DEFAULT 'disconnected',
+    last_update_id bigint,
+    last_error text,
     send_time time without time zone NOT NULL DEFAULT '08:00:00',
-    send_delay_min_seconds integer NOT NULL DEFAULT 15,
-    send_delay_max_seconds integer NOT NULL DEFAULT 20,
+    send_delay_min_seconds integer NOT NULL DEFAULT 1,
+    send_delay_max_seconds integer NOT NULL DEFAULT 3,
     message_template text NOT NULL DEFAULT
         'Assalamu''alaikum Bapak/Ibu {parent_name},
 
@@ -583,53 +588,33 @@ Terima kasih.
 -{school_name}',
     skip_on_holiday boolean NOT NULL DEFAULT true,
     last_run_date date,
+    last_connected_at timestamp with time zone,
     created_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT whatsapp_notification_config_delay_min_check
-        CHECK (send_delay_min_seconds >= 1),
-    CONSTRAINT whatsapp_notification_config_delay_max_check
+    CONSTRAINT telegram_notification_config_delay_min_check
+        CHECK (send_delay_min_seconds >= 0),
+    CONSTRAINT telegram_notification_config_delay_max_check
         CHECK (send_delay_max_seconds >= send_delay_min_seconds),
-    CONSTRAINT whatsapp_notification_config_delay_cap_check
-        CHECK (send_delay_max_seconds <= 120)
-);
-CREATE UNIQUE INDEX uq_whatsapp_notification_config_homebase
-ON attendance.whatsapp_notification_config(homebase_id);
-CREATE INDEX idx_whatsapp_notification_config_schedule
-ON attendance.whatsapp_notification_config(is_enabled, send_time);
-
-CREATE TABLE whatsapp_session(
-    id SERIAL NOT NULL,
-    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    session_status varchar(20) NOT NULL DEFAULT 'disconnected',
-    connected_phone varchar(30),
-    qr_code text,
-    qr_generated_at timestamp with time zone,
-    last_connected_at timestamp with time zone,
-    last_disconnected_at timestamp with time zone,
-    last_error text,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY(id),
-    CONSTRAINT whatsapp_session_status_check
+    CONSTRAINT telegram_notification_config_delay_cap_check
+        CHECK (send_delay_max_seconds <= 120),
+    CONSTRAINT telegram_notification_config_bot_status_check
         CHECK (
-            session_status IN (
+            bot_status IN (
                 'disconnected',
-                'initializing',
-                'qr_pending',
-                'authenticated',
                 'ready',
-                'auth_failure'
+                'invalid_token',
+                'error'
             )
         )
 );
-CREATE UNIQUE INDEX uq_whatsapp_session_homebase
-ON attendance.whatsapp_session(homebase_id);
-CREATE INDEX idx_whatsapp_session_status
-ON attendance.whatsapp_session(session_status, updated_at DESC);
+CREATE UNIQUE INDEX uq_telegram_notification_config_homebase
+ON attendance.telegram_notification_config(homebase_id);
+CREATE INDEX idx_telegram_notification_config_schedule
+ON attendance.telegram_notification_config(is_enabled, send_time);
 
-CREATE TABLE whatsapp_notification_batch(
+CREATE TABLE telegram_notification_batch(
     id BIGSERIAL NOT NULL,
     homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
     periode_id integer REFERENCES public.a_periode(id) ON DELETE SET NULL,
@@ -647,7 +632,7 @@ CREATE TABLE whatsapp_notification_batch(
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT whatsapp_notification_batch_status_check
+    CONSTRAINT telegram_notification_batch_status_check
         CHECK (
             batch_status IN (
                 'pending',
@@ -657,7 +642,7 @@ CREATE TABLE whatsapp_notification_batch(
                 'cancelled'
             )
         ),
-    CONSTRAINT whatsapp_notification_batch_count_check
+    CONSTRAINT telegram_notification_batch_count_check
         CHECK (
             total_recipients >= 0
             AND sent_count >= 0
@@ -665,30 +650,30 @@ CREATE TABLE whatsapp_notification_batch(
             AND skipped_count >= 0
         )
 );
-CREATE UNIQUE INDEX uq_whatsapp_notification_batch_homebase_date
-ON attendance.whatsapp_notification_batch(homebase_id, attendance_date);
-CREATE INDEX idx_whatsapp_notification_batch_status
-ON attendance.whatsapp_notification_batch(batch_status, attendance_date DESC);
-CREATE INDEX idx_whatsapp_notification_batch_homebase_lookup
-ON attendance.whatsapp_notification_batch(homebase_id, attendance_date DESC, batch_status);
+CREATE UNIQUE INDEX uq_telegram_notification_batch_homebase_date
+ON attendance.telegram_notification_batch(homebase_id, attendance_date);
+CREATE INDEX idx_telegram_notification_batch_status
+ON attendance.telegram_notification_batch(batch_status, attendance_date DESC);
+CREATE INDEX idx_telegram_notification_batch_homebase_lookup
+ON attendance.telegram_notification_batch(homebase_id, attendance_date DESC, batch_status);
 
-CREATE TABLE whatsapp_notification_log(
+CREATE TABLE telegram_notification_log(
     id BIGSERIAL NOT NULL,
-    batch_id bigint NOT NULL REFERENCES attendance.whatsapp_notification_batch(id) ON DELETE CASCADE,
+    batch_id bigint NOT NULL REFERENCES attendance.telegram_notification_batch(id) ON DELETE CASCADE,
     homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
     parent_user_id integer REFERENCES public.u_users(id) ON DELETE SET NULL,
     parent_name text,
-    phone varchar(30) NOT NULL,
+    chat_id varchar(64) NOT NULL,
     message text NOT NULL,
     students_payload jsonb NOT NULL DEFAULT '[]'::jsonb,
     delivery_status varchar(20) NOT NULL DEFAULT 'queued',
-    whatsapp_message_id varchar(120),
+    telegram_message_id varchar(120),
     error_message text,
     queued_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     sent_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT whatsapp_notification_log_delivery_status_check
+    CONSTRAINT telegram_notification_log_delivery_status_check
         CHECK (
             delivery_status IN (
                 'queued',
@@ -697,18 +682,18 @@ CREATE TABLE whatsapp_notification_log(
                 'skipped'
             )
         ),
-    CONSTRAINT whatsapp_notification_log_students_payload_check
+    CONSTRAINT telegram_notification_log_students_payload_check
         CHECK (jsonb_typeof(students_payload) = 'array')
 );
-CREATE UNIQUE INDEX uq_whatsapp_notification_log_batch_parent
-ON attendance.whatsapp_notification_log(batch_id, parent_user_id)
+CREATE UNIQUE INDEX uq_telegram_notification_log_batch_parent
+ON attendance.telegram_notification_log(batch_id, parent_user_id)
 WHERE parent_user_id IS NOT NULL;
-CREATE INDEX idx_whatsapp_notification_log_batch_status
-ON attendance.whatsapp_notification_log(batch_id, delivery_status);
-CREATE INDEX idx_whatsapp_notification_log_homebase_sent
-ON attendance.whatsapp_notification_log(homebase_id, sent_at DESC);
-CREATE INDEX idx_whatsapp_notification_log_phone
-ON attendance.whatsapp_notification_log(phone, created_at DESC);
+CREATE INDEX idx_telegram_notification_log_batch_status
+ON attendance.telegram_notification_log(batch_id, delivery_status);
+CREATE INDEX idx_telegram_notification_log_homebase_sent
+ON attendance.telegram_notification_log(homebase_id, sent_at DESC);
+CREATE INDEX idx_telegram_notification_log_chat
+ON attendance.telegram_notification_log(chat_id, created_at DESC);
 
 SET search_path TO public;
 COMMIT;

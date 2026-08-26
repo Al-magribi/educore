@@ -4,7 +4,7 @@ import { CalendarClock, CalendarDays, MessageCircle, Settings2 } from "lucide-re
 import { itemVariants } from "../configShared";
 import AttendanceFeaturePanel from "./AttendanceFeaturePanel";
 import HolidayCalendarTab from "./HolidayCalendarTab";
-import WhatsappFeatureTab from "./WhatsappFeatureTab";
+import TelegramFeatureTab from "./TelegramFeatureTab";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -66,7 +66,7 @@ const FeatureSettingsTab = ({ featureRows = [] }) => {
               </Text>
             </Flex>
             <Text type="secondary">
-              Kelola toggle absensi, notifikasi WhatsApp ke orang tua, dan kalender libur sekolah.
+              Kelola toggle absensi, notifikasi Telegram ke orang tua, dan kalender libur sekolah.
             </Text>
           </div>
         </Flex>
@@ -87,13 +87,13 @@ const FeatureSettingsTab = ({ featureRows = [] }) => {
               children: <AttendanceFeaturePanel featureRows={featureRows} />,
             },
             {
-              key: "whatsapp",
+              key: "telegram",
               label: createTabLabel(
-                "Fitur WhatsApp",
+                "Fitur Telegram",
                 <MessageCircle size={16} />,
                 "Notifikasi ke orang tua",
               ),
-              children: <WhatsappFeatureTab />,
+              children: <TelegramFeatureTab />,
             },
             {
               key: "holiday",

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Alert,
+  Button,
   Card,
   Col,
   Empty,
@@ -18,12 +19,16 @@ import {
   BookOpen,
   CalendarDays,
   Landmark,
+  MessageCircle,
   Sparkles,
   UserRound,
   UsersRound,
   Wallet,
 } from "lucide-react";
-import { useGetParentDashboardQuery } from "../../../service/lms/ApiParent";
+import {
+  useGetParentDashboardQuery,
+  useGetParentTelegramQuery,
+} from "../../../service/lms/ApiParent";
 
 const { Title, Text } = Typography;
 
@@ -70,9 +75,11 @@ const formatDate = (value) => {
 
 const ParentDash = () => {
   const { data, isLoading, isError, error } = useGetParentDashboardQuery();
+  const { data: telegramRes } = useGetParentTelegramQuery();
   const [selectedStudentId, setSelectedStudentId] = useState("all");
 
   const payload = data?.data;
+  const telegram = telegramRes?.data;
   const summary = payload?.summary || {};
   const students = Array.isArray(payload?.students)
     ? payload.students.filter(Boolean)
@@ -211,6 +218,60 @@ const ParentDash = () => {
 
   return (
     <Space direction='vertical' size={20} style={{ width: "100%" }}>
+      <motion.div {...fadeUp}>
+        <Card style={cardSurface}>
+          <Space align='start' size={14} style={{ width: "100%" }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #dbeafe, #ccfbf1)",
+                color: "#0f766e",
+                flexShrink: 0,
+              }}
+            >
+              <MessageCircle size={20} />
+            </div>
+            <Space direction='vertical' size={8} style={{ flex: 1, width: "100%" }}>
+              <Space wrap>
+                <Text strong style={{ fontSize: 16 }}>
+                  Notifikasi Absensi Telegram
+                </Text>
+                {telegram?.is_bound ? (
+                  <Tag color='success'>Terhubung</Tag>
+                ) : (
+                  <Tag>Belum terhubung</Tag>
+                )}
+              </Space>
+              <Text type='secondary'>
+                {telegram?.is_bound
+                  ? "Akun Telegram Anda sudah terhubung. Laporan kehadiran anak akan dikirim ke chat bot sekolah."
+                  : "Hubungkan Telegram agar menerima laporan kehadiran anak otomatis setiap hari."}
+              </Text>
+              {telegram?.bind_link ? (
+                <Button
+                  type={telegram?.is_bound ? "default" : "primary"}
+                  href={telegram.bind_link}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  {telegram?.is_bound ? "Buka Bot Lagi" : "Hubungkan Telegram"}
+                </Button>
+              ) : (
+                <Alert
+                  type='warning'
+                  showIcon
+                  message='Bot Telegram sekolah belum dikonfigurasi. Hubungi admin sekolah.'
+                />
+              )}
+            </Space>
+          </Space>
+        </Card>
+      </motion.div>
+
       <motion.div {...fadeUp}>
         <Card
           bodyStyle={{ padding: 0 }}
