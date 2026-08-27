@@ -780,11 +780,25 @@ const syncParentAccount = async ({
 
     await client.query(
       `
-        DELETE FROM u_parents
-        WHERE user_id = $1
-          AND student_id <> ALL($2::int[])
+        DELETE FROM u_parents p
+        USING u_students s
+        JOIN u_class_enrollments ce
+          ON ce.student_id = s.user_id
+         AND ($3::int IS NULL OR ce.periode_id = $3)
+        WHERE p.user_id = $1
+          AND p.student_id = s.user_id
+          AND s.homebase_id = $4
+          AND p.student_id <> ALL($2::int[])
+          AND ($5::boolean = false OR ce.class_id = ANY($6::int[]))
       `,
-      [parentUserId, validStudents.map((item) => item.student_id)],
+      [
+        parentUserId,
+        validStudents.map((item) => item.student_id),
+        activePeriodeId,
+        homebaseId,
+        restrictToHomeroom,
+        classIds,
+      ],
     );
   }
 
@@ -2233,9 +2247,9 @@ router.get(
               SELECT 1
               FROM u_parents p
               JOIN u_students s ON s.user_id = p.student_id
-              LEFT JOIN u_class_enrollments ce
+              JOIN u_class_enrollments ce
                 ON ce.student_id = s.user_id
-               AND ($4::boolean = false OR ce.periode_id = $5)
+               AND ce.periode_id = $5
               WHERE p.user_id = u.id
                 AND s.homebase_id = $1
                 AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
@@ -2258,9 +2272,9 @@ router.get(
                 FROM u_parents p3
                 JOIN u_students s3 ON s3.user_id = p3.student_id
                 JOIN u_users su3 ON su3.id = s3.user_id
-                LEFT JOIN u_class_enrollments ce3
+                JOIN u_class_enrollments ce3
                   ON ce3.student_id = s3.user_id
-                 AND ($4::boolean = false OR ce3.periode_id = $5)
+                 AND ce3.periode_id = $5
                 WHERE p3.user_id = u.id
                   AND s3.homebase_id = $1
                   AND ($4::boolean = false OR ce3.class_id = ANY($6::int[]))
@@ -2293,9 +2307,9 @@ router.get(
             SELECT COUNT(*) AS total_students
             FROM u_parents p
             JOIN u_students s ON s.user_id = p.student_id
-            LEFT JOIN u_class_enrollments ce
+            JOIN u_class_enrollments ce
               ON ce.student_id = s.user_id
-             AND ($2::boolean = false OR ce.periode_id = $3)
+             AND ce.periode_id = $3
             WHERE p.user_id = u.id
               AND s.homebase_id = $1
               AND ($2::boolean = false OR ce.class_id = ANY($4::int[]))
@@ -2329,9 +2343,9 @@ router.get(
             MAX(p.email) AS email
           FROM u_parents p
           JOIN u_students s ON s.user_id = p.student_id
-          LEFT JOIN u_class_enrollments ce
+          JOIN u_class_enrollments ce
             ON ce.student_id = s.user_id
-           AND ($4::boolean = false OR ce.periode_id = $5)
+           AND ce.periode_id = $5
           WHERE p.user_id = u.id
             AND s.homebase_id = $1
             AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
@@ -2355,10 +2369,10 @@ router.get(
           FROM u_parents p
           JOIN u_students s ON s.user_id = p.student_id
           JOIN u_users su ON su.id = s.user_id
-          LEFT JOIN u_class_enrollments ce
+          JOIN u_class_enrollments ce
             ON ce.student_id = s.user_id
-           AND ($4::boolean = false OR ce.periode_id = $5)
-          LEFT JOIN a_class cl ON cl.id = COALESCE(ce.class_id, s.current_class_id)
+           AND ce.periode_id = $5
+          LEFT JOIN a_class cl ON cl.id = ce.class_id
           LEFT JOIN a_grade gr ON gr.id = cl.grade_id
           WHERE p.user_id = u.id
             AND s.homebase_id = $1
@@ -2377,9 +2391,9 @@ router.get(
               FROM u_parents p3
               JOIN u_students s3 ON s3.user_id = p3.student_id
               JOIN u_users su3 ON su3.id = s3.user_id
-              LEFT JOIN u_class_enrollments ce3
+              JOIN u_class_enrollments ce3
                 ON ce3.student_id = s3.user_id
-               AND ($4::boolean = false OR ce3.periode_id = $5)
+               AND ce3.periode_id = $5
               WHERE p3.user_id = u.id
                 AND s3.homebase_id = $1
                 AND ($4::boolean = false OR ce3.class_id = ANY($6::int[]))
@@ -2532,9 +2546,9 @@ router.delete(
             SELECT 1
             FROM u_parents p
             JOIN u_students s ON s.user_id = p.student_id
-            LEFT JOIN u_class_enrollments ce
+            JOIN u_class_enrollments ce
               ON ce.student_id = s.user_id
-             AND ($3::boolean = false OR ce.periode_id = $4)
+             AND ce.periode_id = $4
             WHERE p.user_id = u.id
               AND s.homebase_id = $2
               AND ($3::boolean = false OR ce.class_id = ANY($5::int[]))

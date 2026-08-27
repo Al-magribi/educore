@@ -253,14 +253,17 @@ const ParentAccountManager = ({ scope = "all" }) => {
     {
       title: "Relasi Siswa",
       key: "students",
-      width: 260,
+      width: 280,
       render: (_, record) => (
         <Space vertical size={4}>
           <Tag color='blue'>{record.total_students} siswa</Tag>
           <Text type='secondary' style={{ fontSize: 12 }}>
             {(record.students || [])
               .slice(0, 2)
-              .map((item) => `${item.full_name} (${item.nis || "-"})`)
+              .map(
+                (item) =>
+                  `${item.full_name} (${item.class_name || item.nis || "-"})`,
+              )
               .join(", ") || "-"}
             {record.total_students > 2
               ? ` +${record.total_students - 2} lainnya`
@@ -723,7 +726,7 @@ const ParentAccountManager = ({ scope = "all" }) => {
                           Siswa Terhubung
                         </Text>
                         <Text type='secondary' style={{ fontSize: 12 }}>
-                          Daftar siswa yang terhubung ke akun orang tua ini
+                          Siswa terhubung pada periode aktif saja
                         </Text>
                       </div>
                     </Flex>
