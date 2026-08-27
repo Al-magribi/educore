@@ -330,16 +330,15 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
       const entryConfigFilter = hasEntryConfigId
         ? `AND e.config_id = ${role === "teacher" ? "$4" : "$3"}`
         : "";
-      const entryGroupFilter = hasTimeSlotConfigGroupId
-        ? role === "teacher"
-          ? `AND ($${hasEntryConfigId ? 5 : 4}::int IS NULL OR start_slot.config_group_id = $${hasEntryConfigId ? 5 : 4})`
-          : `AND ($${hasEntryConfigId ? 4 : 3}::int IS NULL OR start_slot.config_group_id = $${hasEntryConfigId ? 4 : 3})`
-        : "";
+      const entryGroupFilter =
+        hasTimeSlotConfigGroupId && role !== "teacher"
+          ? `AND ($${hasEntryConfigId ? 4 : 3}::int IS NULL OR start_slot.config_group_id = $${hasEntryConfigId ? 4 : 3})`
+          : "";
       const entryParams =
         role === "teacher"
           ? hasEntryConfigId
-            ? [periodeId, homebase_id, userId, configId, selectedGroupId]
-            : [periodeId, homebase_id, userId, selectedGroupId]
+            ? [periodeId, homebase_id, userId, configId]
+            : [periodeId, homebase_id, userId]
           : hasEntryConfigId
             ? [periodeId, homebase_id, configId, selectedGroupId]
             : [periodeId, homebase_id, selectedGroupId];
@@ -540,6 +539,9 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
           ),
         ]);
 
+      const assignmentTeacherFilter = role === "teacher" ? "AND b.teacher_id = $3" : "";
+      const assignmentParams =
+        role === "teacher" ? [homebase_id, periodeId, userId] : [homebase_id, periodeId];
       const assignmentResult = await pool.query(
         `WITH base_assignment AS (
            SELECT DISTINCT
@@ -561,16 +563,25 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
            s.name AS subject_name,
            COALESCE(NULLIF(s.code, ''), s.name) AS subject_code,
            c.name AS class_name,
-           g.name AS grade_name
+           g.name AS grade_name,
+           tl.weekly_sessions
          FROM base_assignment b
          JOIN public.a_class c ON c.id = b.class_id
          JOIN public.u_users u ON u.id = b.teacher_id
          JOIN public.a_subject s ON s.id = b.subject_id
          LEFT JOIN public.a_grade g ON g.id = c.grade_id
+         LEFT JOIN lms.l_teaching_load tl
+           ON tl.periode_id = $2
+          AND tl.homebase_id = $1
+          AND tl.teacher_id = b.teacher_id
+          AND tl.subject_id = b.subject_id
+          AND tl.class_id = c.id
+          AND COALESCE(tl.is_active, true) = true
          WHERE c.homebase_id = $1
            AND COALESCE(c.is_active, true) = true
+           ${assignmentTeacherFilter}
          ORDER BY u.full_name, s.name, g.name, c.name`,
-        [homebase_id],
+        assignmentParams,
       );
 
       const teacherFilterClause = role === "teacher" ? "AND e.teacher_id = $3" : "";
@@ -589,6 +600,7 @@ export const registerScheduleBootstrapConfigRoutes = (router) => {
            e.class_id,
            e.subject_id,
            e.slot_start_id,
+           start_slot.config_group_id,
            c.name AS class_name,
            s.name AS subject_name,
            COALESCE(NULLIF(s.code, ''), s.name) AS subject_code,
