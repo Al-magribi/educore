@@ -45,10 +45,39 @@ const ensureParentStudentTable = async (client) => {
       student_id integer NOT NULL REFERENCES u_students(user_id) ON DELETE CASCADE,
       homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
       created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT uq_parent_student_pair UNIQUE (parent_user_id, student_id),
-      CONSTRAINT uq_parent_student_owner UNIQUE (student_id)
+      CONSTRAINT uq_parent_student_pair UNIQUE (parent_user_id, student_id)
     )
   `);
+
+  await client.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_parent_student_pair
+    ON u_parent_students(parent_user_id, student_id)
+  `);
+
+  try {
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          WHERE t.relname = 'u_parent_students'
+            AND c.conname = 'uq_parent_student_owner'
+        ) THEN
+          ALTER TABLE u_parent_students
+            ADD CONSTRAINT uq_parent_student_owner UNIQUE (student_id);
+        END IF;
+      END
+      $$;
+    `);
+  } catch (error) {
+    // Skip if duplicates already exist; sync/read paths do not require this constraint.
+    console.warn(
+      "[parent] gagal memastikan uq_parent_student_owner:",
+      error.message,
+    );
+  }
 
   await client.query(`
     CREATE INDEX IF NOT EXISTS idx_parent_students_parent_homebase
@@ -71,7 +100,12 @@ const syncLegacyParentLinks = async (client, homebaseId) => {
      WHERE up.student_id IS NOT NULL
        AND up.user_id IS NOT NULL
        AND s.homebase_id = $1
-     ON CONFLICT (student_id) DO NOTHING`,
+       AND NOT EXISTS (
+         SELECT 1
+         FROM u_parent_students existing
+         WHERE existing.parent_user_id = up.user_id
+           AND existing.student_id = up.student_id
+       )`,
     [homebaseId],
   );
 };
@@ -245,46 +279,24 @@ router.get(
   authorize("parent"),
   withQuery(async (req, res, pool) => {
     const parentUserId = req.user.id;
+    const homebaseId = parsePositiveInt(req.user.homebase_id);
 
     await ensureParentStudentTable(pool);
 
-    const [parentRes, studentsRes] = await Promise.all([
-      pool.query(
-        `SELECT
-           u.id,
-           u.full_name,
-           u.img_url,
-           p.phone,
-           p.email
-         FROM u_users u
-         LEFT JOIN u_parents p ON p.user_id = u.id
-         WHERE u.id = $1
-           AND u.role = 'parent'
-         LIMIT 1`,
-        [parentUserId],
-      ),
-      pool.query(
-        `SELECT
-           s.user_id AS student_id,
-           su.full_name AS student_name,
-           s.nis,
-           s.current_class_id AS class_id,
-           s.current_periode_id AS periode_id,
-           c.name AS class_name,
-           g.name AS grade_name,
-           hb.id AS homebase_id,
-           hb.name AS homebase_name
-         FROM u_parent_students ups
-         JOIN u_students s ON s.user_id = ups.student_id
-         JOIN u_users su ON su.id = s.user_id
-         LEFT JOIN a_class c ON c.id = s.current_class_id
-         LEFT JOIN a_grade g ON g.id = c.grade_id
-         LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
-         WHERE ups.parent_user_id = $1
-         ORDER BY su.full_name ASC`,
-        [parentUserId],
-      ),
-    ]);
+    const parentRes = await pool.query(
+      `SELECT
+         u.id,
+         u.full_name,
+         u.img_url,
+         p.phone,
+         p.email
+       FROM u_users u
+       LEFT JOIN u_parents p ON p.user_id = u.id
+       WHERE u.id = $1
+         AND u.role = 'parent'
+       LIMIT 1`,
+      [parentUserId],
+    );
 
     if (parentRes.rowCount === 0) {
       return res.status(404).json({
@@ -292,6 +304,47 @@ router.get(
         message: "Data orang tua tidak ditemukan.",
       });
     }
+
+    const studentsRes = await pool.query(
+      `SELECT
+         s.user_id AS student_id,
+         su.full_name AS student_name,
+         s.nis,
+         ce.class_id AS class_id,
+         ap.id AS periode_id,
+         c.name AS class_name,
+         g.name AS grade_name,
+         hb.id AS homebase_id,
+         hb.name AS homebase_name
+       FROM (
+         SELECT parent_user_id, student_id
+         FROM u_parent_students
+         WHERE parent_user_id = $1
+         UNION
+         SELECT user_id AS parent_user_id, student_id
+         FROM u_parents
+         WHERE user_id = $1
+           AND student_id IS NOT NULL
+       ) links
+       JOIN u_students s ON s.user_id = links.student_id
+       JOIN u_users su ON su.id = s.user_id
+       JOIN LATERAL (
+         SELECT p.id, p.name
+         FROM a_periode p
+         WHERE p.homebase_id = s.homebase_id
+           AND p.is_active = true
+         ORDER BY p.id DESC
+         LIMIT 1
+       ) ap ON true
+       JOIN u_class_enrollments ce
+         ON ce.student_id = s.user_id
+        AND ce.periode_id = ap.id
+       LEFT JOIN a_class c ON c.id = ce.class_id
+       LEFT JOIN a_grade g ON g.id = c.grade_id
+       LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
+       ORDER BY su.full_name ASC`,
+      [parentUserId],
+    );
 
     const students = studentsRes.rows;
     const studentIds = Array.from(
@@ -301,10 +354,14 @@ router.get(
       new Set(students.map((item) => Number(item.class_id)).filter(Boolean)),
     );
 
-    const activePeriode =
-      students[0]?.homebase_id && Number.isInteger(Number(students[0].homebase_id))
-        ? await getActivePeriode(pool, Number(students[0].homebase_id))
-        : null;
+    const activePeriodeHomebaseId =
+      homebaseId ||
+      (students[0]?.homebase_id && Number.isInteger(Number(students[0].homebase_id))
+        ? Number(students[0].homebase_id)
+        : null);
+    const activePeriode = activePeriodeHomebaseId
+      ? await getActivePeriode(pool, activePeriodeHomebaseId)
+      : null;
 
     const financeAvailability = await loadFinanceFeatureAvailability(pool);
 
@@ -554,7 +611,11 @@ router.get(
   authorize("parent"),
   withQuery(async (req, res, pool) => {
     const parentUserId = req.user.id;
+    const homebaseId = parsePositiveInt(req.user.homebase_id);
     await ensureParentStudentTable(pool);
+    if (homebaseId) {
+      await syncLegacyParentLinks(pool, homebaseId);
+    }
 
     const semester = parseSemester(req.query.semester);
     const month = parseMonth(req.query.month);
@@ -578,14 +639,33 @@ router.get(
          s.user_id AS student_id,
          su.full_name AS student_name,
          s.nis,
-         s.current_class_id AS class_id,
-         s.current_periode_id AS periode_id,
+         ce.class_id AS class_id,
+         ap.id AS periode_id,
          c.name AS class_name
-       FROM u_parent_students ups
-       JOIN u_students s ON s.user_id = ups.student_id
+       FROM (
+         SELECT parent_user_id, student_id
+         FROM u_parent_students
+         WHERE parent_user_id = $1
+         UNION
+         SELECT user_id AS parent_user_id, student_id
+         FROM u_parents
+         WHERE user_id = $1
+           AND student_id IS NOT NULL
+       ) links
+       JOIN u_students s ON s.user_id = links.student_id
        JOIN u_users su ON su.id = s.user_id
-       LEFT JOIN a_class c ON c.id = s.current_class_id
-       WHERE ups.parent_user_id = $1
+       JOIN LATERAL (
+         SELECT p.id
+         FROM a_periode p
+         WHERE p.homebase_id = s.homebase_id
+           AND p.is_active = true
+         ORDER BY p.id DESC
+         LIMIT 1
+       ) ap ON true
+       JOIN u_class_enrollments ce
+         ON ce.student_id = s.user_id
+        AND ce.periode_id = ap.id
+       LEFT JOIN a_class c ON c.id = ce.class_id
        ORDER BY su.full_name ASC`,
       [parentUserId],
     );
