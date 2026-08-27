@@ -8,11 +8,9 @@ import {
   Descriptions,
   Empty,
   Flex,
-  Grid,
   Input,
   Modal,
   Select,
-  Statistic,
   Table,
   Tag,
   Typography,
@@ -25,24 +23,32 @@ import {
   useGetAttendanceScanLogReportQuery,
   useGetRfidDevicesQuery,
 } from '../../../../service/lms/ApiAttendance';
+import {
+  BulkDeleteBar,
+  DETAIL_ACTIONS,
+  FilterBar,
+  ReportHeader,
+  StackedCell,
+  StatCardGrid,
+  StatusTag,
+  buildActionColumn,
+  buildPagination,
+  buildRowSelection,
+  buildTableProps,
+  detailColumnConfig,
+  filterControlStyle,
+  formatDateTimeCell,
+  formatDetailValue,
+  modalWidth,
+  surfaceCardBodyStyles,
+  surfaceCardStyle,
+  tableShellStyle,
+  toolbarButtonStyle,
+  useResponsiveFlags,
+} from './reportShared';
 
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
-const { useBreakpoint } = Grid;
-
-const surfaceCardStyle = {
-  borderRadius: 22,
-  border: '1px solid #e5edf6',
-  background: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)',
-  boxShadow: '0 18px 36px rgba(15, 23, 42, 0.06)',
-};
-
-const statCardStyle = {
-  borderRadius: 18,
-  border: '1px solid #e2ebf5',
-  background: '#ffffff',
-  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.05)',
-};
 
 const RESULT_STATUS_COLORS = {
   accepted: 'green',
@@ -65,17 +71,6 @@ const isUnregisteredScan = (row) =>
 
 const resolveResultStatus = (row) => (isUnregisteredScan(row) ? 'unregistered' : row?.result_status);
 
-const formatScanTimeCell = (value) => {
-  if (!value) return '-';
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format('DD MMM YY HH:mm') : value;
-};
-
-const formatDetailValue = (value) => {
-  if (value === null || value === undefined || value === '') return '-';
-  return value;
-};
-
 const formatRawPayload = (value) => {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'string') {
@@ -87,8 +82,6 @@ const formatRawPayload = (value) => {
   }
   return JSON.stringify(value, null, 2);
 };
-
-const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
 const GUIDE_RESULT_ITEMS = [
   {
@@ -171,7 +164,8 @@ const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
     onCancel={onClose}
     footer={null}
     centered
-    width={isMobile ? '100%' : 760}>
+    width={modalWidth(isMobile, 760)}
+    styles={{ body: { maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 } }}>
     <Flex vertical gap={20}>
       <div>
         <Title level={5} style={{ marginTop: 0 }}>
@@ -293,8 +287,7 @@ const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
 );
 
 const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { isMobile, isCompact } = useResponsiveFlags();
   const [range, setRange] = useState([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [deviceId, setDeviceId] = useState();
   const [resultStatus, setResultStatus] = useState();
@@ -397,7 +390,7 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
 
     const exportRows = rows.map((row, index) => ({
       No: index + 1,
-      'Waktu Scan': formatScanTimeCell(row.scanned_at),
+      'Waktu Scan': formatDateTimeCell(row.scanned_at),
       Device: row.device_name || '-',
       'Kode Device': row.device_code || '-',
       User: isUnregisteredScan(row) ? '-' : row.user_name || '-',
@@ -417,51 +410,113 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     XLSX.writeFile(workbook, `Laporan_Scan_RFID_${startLabel}_${endLabel}.xlsx`);
   };
 
-  return (
-    <Flex vertical gap={18}>
-      <Card style={surfaceCardStyle} bordered={false}>
-        <Flex vertical gap={16}>
-          <Flex justify="space-between" align={isMobile ? 'stretch' : 'flex-start'} vertical={isMobile} gap={12}>
-            <Flex vertical gap={10}>
-              <Text strong style={{ color: '#0f172a', fontSize: 16 }}>
-                Laporan Scan RFID
-              </Text>
-              <Button
-                icon={<BookOpen size={16} />}
-                onClick={() => setGuideOpen(true)}
-                style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
-                Panduan Log Scan
-              </Button>
-            </Flex>
-            <Flex gap={8} wrap="wrap" style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
-              <Button
-                icon={<Download size={16} />}
-                onClick={handleDownloadExcel}
-                disabled={rows.length === 0}
-                style={{ flex: isMobile ? '1 1 100%' : undefined }}>
-                Download Excel
-              </Button>
-              <Button
-                icon={<RefreshCw size={16} />}
-                loading={isFetching}
-                onClick={() => refetch()}
-                style={{ flex: isMobile ? '1 1 100%' : undefined }}>
-                Refresh
-              </Button>
-            </Flex>
-          </Flex>
+  const statItems = [
+    {
+      key: 'accepted',
+      title: 'Accepted',
+      value: Number(summary.accepted_count || 0),
+      icon: <ClipboardX size={isMobile ? 14 : 18} />,
+      color: '#166534',
+      bg: '#f0fdf4',
+    },
+    {
+      key: 'follow-up',
+      title: 'Butuh Tindak Lanjut',
+      value:
+        Number(summary.rejected_count || 0) +
+        Number(summary.unregistered_count || 0) +
+        Number(summary.out_of_window_count || 0) +
+        Number(summary.device_inactive_count || 0) +
+        Number(summary.card_inactive_count || 0) +
+        Number(summary.user_inactive_count || 0) +
+        Number(summary.policy_missing_count || 0),
+      icon: <AlertTriangle size={isMobile ? 14 : 18} />,
+      color: '#b91c1c',
+      bg: '#fef2f2',
+    },
+  ];
 
-          <Flex
-            gap={12}
-            align="center"
-            wrap={isMobile ? 'wrap' : 'nowrap'}
-            style={isMobile ? undefined : { overflowX: 'auto' }}>
+  const columns = [
+    {
+      title: 'Waktu Scan',
+      dataIndex: 'scanned_at',
+      width: isMobile ? 118 : 150,
+      fixed: 'left',
+      ellipsis: true,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    {
+      title: 'Device',
+      key: 'device',
+      width: isMobile ? 150 : 200,
+      ellipsis: true,
+      render: (_, row) => <StackedCell primary={row.device_name} secondary={row.device_code} />,
+    },
+    {
+      title: 'User',
+      key: 'user',
+      width: isMobile ? 160 : 230,
+      ellipsis: true,
+      render: (_, row) => (
+        <StackedCell
+          primary={isUnregisteredScan(row) ? '-' : row.user_name}
+          secondary={`UID ${row.card_uid || '-'}`}
+        />
+      ),
+    },
+    {
+      title: 'Result',
+      dataIndex: 'result_status',
+      width: isMobile ? 140 : 165,
+      render: (_, row) => (
+        <StatusTag value={resolveResultStatus(row)} colorMap={RESULT_STATUS_COLORS} />
+      ),
+    },
+    buildActionColumn(handleRowAction, DETAIL_ACTIONS),
+  ];
+
+  return (
+    <Flex vertical gap={isMobile ? 12 : 18} style={{ width: '100%', minWidth: 0 }}>
+      <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
+        <Flex vertical gap={16} style={{ minWidth: 0 }}>
+          <ReportHeader
+            title="Laporan Scan RFID"
+            description="Semua percobaan tap kartu dari device gate dan classroom, termasuk yang ditolak."
+            isMobile={isMobile}
+            extra={
+              <>
+                <Button
+                  icon={<BookOpen size={16} />}
+                  onClick={() => setGuideOpen(true)}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Panduan
+                </Button>
+                <Button
+                  icon={<Download size={16} />}
+                  onClick={handleDownloadExcel}
+                  disabled={rows.length === 0}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Excel
+                </Button>
+                <Button
+                  icon={<RefreshCw size={16} />}
+                  loading={isFetching}
+                  onClick={() => refetch()}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Refresh
+                </Button>
+              </>
+            }
+          />
+
+          <FilterBar isMobile={isMobile}>
             <RangePicker
               value={range}
               onChange={(value) => setRange(value)}
-              format="YYYY-MM-DD"
+              format={isMobile ? 'DD/MM/YY' : 'YYYY-MM-DD'}
               placeholder={['Tanggal awal', 'Tanggal akhir']}
-              style={{ flex: isMobile ? '1 1 100%' : '0 0 260px' }}
+              inputReadOnly={isMobile}
+              style={filterControlStyle(isCompact, 260)}
             />
             <Input
               allowClear
@@ -469,7 +524,7 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               onChange={(event) => setUserName(event.target.value)}
               placeholder="Filter nama user"
               prefix={<Search size={16} />}
-              style={{ flex: isMobile ? '1 1 100%' : '1 1 200px', minWidth: 160 }}
+              style={filterControlStyle(isMobile, 190)}
             />
             <Select
               allowClear
@@ -477,10 +532,10 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               onChange={setDeviceId}
               options={deviceOptions}
               placeholder="Filter device"
-              showSearch
-              optionFilterProp="label"
+              showSearch={{ optionFilterProp: 'label' }}
               virtual={false}
-              style={{ flex: isMobile ? '1 1 100%' : '1 1 220px', minWidth: 180 }}
+              popupMatchSelectWidth={false}
+              style={filterControlStyle(isMobile, 200)}
             />
             <Select
               allowClear
@@ -488,7 +543,8 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               onChange={setResultStatus}
               placeholder="Filter result status"
               virtual={false}
-              style={{ flex: isMobile ? '1 1 100%' : '0 0 200px' }}
+              popupMatchSelectWidth={false}
+              style={filterControlStyle(isMobile, 190)}
               options={[
                 { value: 'accepted', label: 'accepted' },
                 { value: 'duplicate', label: 'duplicate' },
@@ -504,160 +560,41 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
                 { value: 'not_scheduled', label: 'not_scheduled' },
               ]}
             />
-          </Flex>
+          </FilterBar>
         </Flex>
       </Card>
 
-      <Flex gap={12} wrap="wrap">
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 220px' }}>
-          <Flex justify="space-between" align="start">
-            <Statistic title="Accepted" value={Number(summary.accepted_count || 0)} />
-            <span
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 14,
-                display: 'grid',
-                placeItems: 'center',
-                background: '#f0fdf4',
-                color: '#166534',
-              }}>
-              <ClipboardX size={18} />
-            </span>
-          </Flex>
-        </Card>
-        <Card bordered={false} style={{ ...statCardStyle, flex: '1 1 220px' }}>
-          <Flex justify="space-between" align="start">
-            <Statistic
-              title="Butuh Tindak Lanjut"
-              value={
-                Number(summary.rejected_count || 0) +
-                Number(summary.unregistered_count || 0) +
-                Number(summary.out_of_window_count || 0) +
-                Number(summary.device_inactive_count || 0) +
-                Number(summary.card_inactive_count || 0) +
-                Number(summary.user_inactive_count || 0) +
-                Number(summary.policy_missing_count || 0)
-              }
-            />
-            <span
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 14,
-                display: 'grid',
-                placeItems: 'center',
-                background: '#fef2f2',
-                color: '#b91c1c',
-              }}>
-              <AlertTriangle size={18} />
-            </span>
-          </Flex>
-        </Card>
-      </Flex>
+      <StatCardGrid items={statItems} isMobile={isMobile} />
 
-      <Card style={surfaceCardStyle} bordered={false}>
+      <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
         {rows.length > 0 && (
-          <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
-            <Text type="secondary">
-              {selectedRowKeys.length > 0
-                ? `${selectedRowKeys.length} log scan terpilih`
-                : 'Centang baris untuk hapus bulk'}
-            </Text>
-            <Button
-              danger
-              icon={<Trash2 size={16} />}
-              disabled={selectedRowKeys.length === 0}
-              loading={bulkDeleting}
-              onClick={handleBulkDelete}>
-              Hapus Terpilih
-            </Button>
-          </Flex>
+          <BulkDeleteBar
+            selectedCount={selectedRowKeys.length}
+            loading={bulkDeleting}
+            onDelete={handleBulkDelete}
+            label="log scan"
+            isMobile={isMobile}
+            icon={<Trash2 size={16} />}
+          />
         )}
         {rows.length === 0 && !isLoading && !isFetching ? (
           <Empty description="Belum ada log scan pada rentang ini." />
         ) : (
-          <Table
-            rowKey="id"
-            loading={isLoading || (isFetching && rows.length > 0)}
-            dataSource={rows}
-            tableLayout="fixed"
-            pagination={{
-              pageSize,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS,
-              showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} log`,
-              onChange: (_page, size) => setPageSize(size),
-            }}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
-            columns={[
-              {
-                title: 'Waktu Scan',
-                dataIndex: 'scanned_at',
-                ellipsis: true,
-                render: (value) => formatScanTimeCell(value),
-              },
-              {
-                title: 'Device',
-                ellipsis: true,
-                render: (_, row) => (
-                  <Flex vertical gap={2}>
-                    <Text strong ellipsis>
-                      {row.device_name || '-'}
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                      {row.device_code || '-'}
-                    </Text>
-                  </Flex>
-                ),
-              },
-              {
-                title: 'User',
-                ellipsis: true,
-                render: (_, row) => {
-                  const showUser = !isUnregisteredScan(row);
-                  return (
-                    <Flex vertical gap={2}>
-                      <Text strong ellipsis>
-                        {showUser ? row.user_name || '-' : '-'}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                        UID {row.card_uid || '-'}
-                      </Text>
-                    </Flex>
-                  );
-                },
-              },
-              {
-                title: 'Result',
-                dataIndex: 'result_status',
-                render: (_, row) => {
-                  const status = resolveResultStatus(row);
-                  return <Tag color={RESULT_STATUS_COLORS[status] || 'default'}>{status}</Tag>;
-                },
-              },
-              {
-                title: 'Aksi',
-                width: 110,
-                render: (_, row) => (
-                  <Select
-                    placeholder="Aksi"
-                    value={null}
-                    virtual={false}
-                    style={{ width: '100%', maxWidth: 110 }}
-                    options={[
-                      { value: 'detail', label: 'Detail' },
-                      { value: 'delete', label: 'Hapus' },
-                    ]}
-                    onChange={(value) => handleRowAction(value, row)}
-                  />
-                ),
-              },
-            ]}
-          />
+          <div style={tableShellStyle}>
+            <Table
+              rowKey="id"
+              loading={isLoading || (isFetching && rows.length > 0)}
+              dataSource={rows}
+              columns={columns}
+              {...buildTableProps({ isMobile, minWidth: isMobile ? 680 : 860 })}
+              pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'log' })}
+              rowSelection={buildRowSelection({
+                selectedRowKeys,
+                onChange: setSelectedRowKeys,
+                isMobile,
+              })}
+            />
+          </div>
         )}
       </Card>
 
@@ -667,56 +604,101 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         open={!!detailRow}
         onCancel={() => setDetailRow(null)}
         footer={null}
-        width={720}>
+        width={modalWidth(isMobile)}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
         {detailRow && (
-          <Descriptions bordered column={isMobile ? 1 : 2} size="small">
-            <Descriptions.Item label="ID Log">{detailRow.id}</Descriptions.Item>
-            <Descriptions.Item label="Result">
-              <Tag color={RESULT_STATUS_COLORS[resolveResultStatus(detailRow)] || 'default'}>
-                {resolveResultStatus(detailRow)}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Waktu Scan" span={2}>
-              {formatDetailValue(detailRow.scanned_at)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Waktu Device">{formatDetailValue(detailRow.device_time_at)}</Descriptions.Item>
-            <Descriptions.Item label="Diterima Server">
-              {formatDetailValue(detailRow.server_received_at)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Device">
-              {formatDetailValue(detailRow.device_name)} ({formatDetailValue(detailRow.device_code)})
-            </Descriptions.Item>
-            <Descriptions.Item label="Device ID">{formatDetailValue(detailRow.device_id)}</Descriptions.Item>
-            <Descriptions.Item label="User">
-              {isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_name)}
-            </Descriptions.Item>
-            <Descriptions.Item label="User ID">
-              {isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_id)}
-            </Descriptions.Item>
-            <Descriptions.Item label="UID Kartu" span={2}>
-              {formatDetailValue(detailRow.card_uid)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Source">{formatDetailValue(detailRow.scan_source)}</Descriptions.Item>
-            <Descriptions.Item label="Action">{formatDetailValue(detailRow.scan_action)}</Descriptions.Item>
-            <Descriptions.Item label="Attendance ID">{formatDetailValue(detailRow.attendance_id)}</Descriptions.Item>
-            <Descriptions.Item label="Dibuat">{formatDetailValue(detailRow.created_at)}</Descriptions.Item>
-            <Descriptions.Item label="Alasan Penolakan" span={2}>
-              {formatDetailValue(detailRow.rejection_reason)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Raw Payload" span={2}>
-              <pre
-                style={{
-                  margin: 0,
-                  maxHeight: 220,
-                  overflow: 'auto',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontSize: 12,
-                }}>
-                {formatRawPayload(detailRow.raw_payload)}
-              </pre>
-            </Descriptions.Item>
-          </Descriptions>
+          <Descriptions
+            bordered
+            column={detailColumnConfig}
+            size="small"
+            styles={{ label: { width: isMobile ? 130 : 160, whiteSpace: 'nowrap' }, content: { wordBreak: 'break-word' } }}
+            items={[
+              { key: 'id', label: 'ID Log', children: formatDetailValue(detailRow.id) },
+              {
+                key: 'result',
+                label: 'Result',
+                children: (
+                  <Tag
+                    color={RESULT_STATUS_COLORS[resolveResultStatus(detailRow)] || 'default'}
+                    style={{ margin: 0 }}>
+                    {resolveResultStatus(detailRow)}
+                  </Tag>
+                ),
+              },
+              {
+                key: 'scanned_at',
+                label: 'Waktu Scan',
+                span: 2,
+                children: formatDetailValue(detailRow.scanned_at),
+              },
+              {
+                key: 'device_time_at',
+                label: 'Waktu Device',
+                children: formatDetailValue(detailRow.device_time_at),
+              },
+              {
+                key: 'server_received_at',
+                label: 'Diterima Server',
+                children: formatDetailValue(detailRow.server_received_at),
+              },
+              {
+                key: 'device',
+                label: 'Device',
+                children: `${formatDetailValue(detailRow.device_name)} (${formatDetailValue(
+                  detailRow.device_code,
+                )})`,
+              },
+              { key: 'device_id', label: 'Device ID', children: formatDetailValue(detailRow.device_id) },
+              {
+                key: 'user',
+                label: 'User',
+                children: isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_name),
+              },
+              {
+                key: 'user_id',
+                label: 'User ID',
+                children: isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_id),
+              },
+              {
+                key: 'card_uid',
+                label: 'UID Kartu',
+                span: 2,
+                children: formatDetailValue(detailRow.card_uid),
+              },
+              { key: 'source', label: 'Source', children: formatDetailValue(detailRow.scan_source) },
+              { key: 'action', label: 'Action', children: formatDetailValue(detailRow.scan_action) },
+              {
+                key: 'attendance_id',
+                label: 'Attendance ID',
+                children: formatDetailValue(detailRow.attendance_id),
+              },
+              { key: 'created_at', label: 'Dibuat', children: formatDetailValue(detailRow.created_at) },
+              {
+                key: 'rejection_reason',
+                label: 'Alasan Penolakan',
+                span: 2,
+                children: formatDetailValue(detailRow.rejection_reason),
+              },
+              {
+                key: 'raw_payload',
+                label: 'Raw Payload',
+                span: 2,
+                children: (
+                  <pre
+                    style={{
+                      margin: 0,
+                      maxHeight: 220,
+                      overflow: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      fontSize: 12,
+                    }}>
+                    {formatRawPayload(detailRow.raw_payload)}
+                  </pre>
+                ),
+              },
+            ]}
+          />
         )}
       </Modal>
 

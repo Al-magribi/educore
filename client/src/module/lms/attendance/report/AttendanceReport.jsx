@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Alert, Card, Flex, Grid, Select, Space, Tabs, Typography, theme } from 'antd';
+import { Alert, Card, Flex, Select, Tabs, Typography, theme } from 'antd';
 import { motion } from 'framer-motion';
 import { Building2, CalendarRange, GraduationCap, ScanLine, ScanSearch, TimerReset, UsersRound } from 'lucide-react';
 import { useGetHomebaseQuery } from '../../../../service/center/ApiHomebase';
@@ -9,9 +9,9 @@ import StudentReport from './StudentReport';
 import TeacherReport from './TeacherReport';
 import ScanLogReport from './ScanLogReport';
 import { itemVariants } from '../config/configShared';
+import { useResponsiveFlags } from './reportShared';
 
 const { Text } = Typography;
-const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
 const AUTO_REFRESH_OPTIONS = [
@@ -21,8 +21,7 @@ const AUTO_REFRESH_OPTIONS = [
 ];
 
 const AttendanceReport = () => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { isMobile, isCompact } = useResponsiveFlags();
   const { token } = theme.useToken();
   const user = useSelector((state) => state.auth.user);
   const isPusat = user?.role === 'admin' && user?.level === 'pusat';
@@ -85,14 +84,14 @@ const AttendanceReport = () => {
   const reportKey = `${scopedHomebaseId || 'local'}-${periodeId || 'all'}`;
 
   const createTabLabel = (label, icon, caption) => (
-    <Flex align="center" gap={10}>
+    <Flex align="center" gap={isMobile ? 8 : 10} style={{ minWidth: 0 }}>
       <span
         style={{
-          width: 34,
-          height: 34,
+          width: isMobile ? 28 : 34,
+          height: isMobile ? 28 : 34,
           display: 'grid',
           placeItems: 'center',
-          borderRadius: 12,
+          borderRadius: 10,
           background: 'linear-gradient(135deg, #e0f2fe, #dcfce7)',
           color: '#0f766e',
           border: '1px solid rgba(148, 163, 184, 0.14)',
@@ -100,14 +99,15 @@ const AttendanceReport = () => {
         }}>
         {icon}
       </span>
-      <Flex vertical gap={0}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
-        {!isMobile && (
+      <Flex vertical gap={0} style={{ minWidth: 0 }}>
+        <span style={{ fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap' }}>{label}</span>
+        {!isCompact && (
           <span
             style={{
               fontSize: 12,
               color: token.colorTextSecondary,
               lineHeight: 1.2,
+              whiteSpace: 'nowrap',
             }}>
             {caption}
           </span>
@@ -116,25 +116,42 @@ const AttendanceReport = () => {
     </Flex>
   );
 
+  const filterFieldStyle = (basis) => ({
+    flex: isMobile ? '1 1 100%' : `1 1 ${basis}px`,
+    minWidth: 0,
+    maxWidth: '100%',
+  });
+
   return (
-    <MotionDiv variants={itemVariants}>
-      <Flex vertical gap={18}>
-        <Flex justify="space-between" align={isMobile ? 'stretch' : 'center'} vertical={isMobile} gap={12}>
-          <div>
+    <MotionDiv variants={itemVariants} style={{ width: '100%', minWidth: 0 }}>
+      <Flex vertical gap={isMobile ? 14 : 18} style={{ width: '100%', minWidth: 0 }}>
+        <Flex
+          justify="space-between"
+          align={isCompact ? 'stretch' : 'flex-end'}
+          vertical={isCompact}
+          gap={12}
+          style={{ width: '100%', minWidth: 0 }}>
+          <Flex vertical gap={2} style={{ minWidth: 0, flex: 1 }}>
             <Flex align="center" gap={10} wrap="wrap">
               <ScanSearch size={18} color="#0f766e" />
-              <Text strong style={{ color: '#0f172a', fontSize: 17 }}>
+              <Text strong style={{ color: '#0f172a', fontSize: isMobile ? 16 : 17 }}>
                 Laporan Presensi
               </Text>
             </Flex>
-            <Text type="secondary">Pantau log scan RFID mentah, rekap harian siswa, dan presensi guru.</Text>
-          </div>
+            <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
+              Pantau log scan RFID mentah, rekap harian siswa, dan presensi guru.
+            </Text>
+          </Flex>
 
-          <Space
-            wrap
-            size={12}
-            style={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
-            <Flex vertical gap={4} style={{ minWidth: isMobile ? '100%' : 160 }}>
+          <Flex
+            gap={12}
+            wrap="wrap"
+            style={{
+              width: isCompact ? '100%' : 'auto',
+              minWidth: 0,
+              justifyContent: isCompact ? 'flex-start' : 'flex-end',
+            }}>
+            <Flex vertical gap={4} style={filterFieldStyle(150)}>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 Update otomatis
               </Text>
@@ -150,13 +167,12 @@ const AttendanceReport = () => {
 
             {isPusat && (
               <>
-                <Flex vertical gap={4} style={{ minWidth: isMobile ? '100%' : 260 }}>
+                <Flex vertical gap={4} style={filterFieldStyle(240)}>
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     Satuan
                   </Text>
                   <Select
-                    showSearch
-                    optionFilterProp="label"
+                    showSearch={{ optionFilterProp: 'label' }}
                     placeholder="Pilih satuan"
                     loading={loadingHomebases}
                     value={homebaseId}
@@ -167,17 +183,17 @@ const AttendanceReport = () => {
                     options={homebaseOptions}
                     style={{ width: '100%' }}
                     suffixIcon={<Building2 size={14} />}
+                    popupMatchSelectWidth={false}
                     virtual={false}
                   />
                 </Flex>
-                <Flex vertical gap={4} style={{ minWidth: isMobile ? '100%' : 240 }}>
+                <Flex vertical gap={4} style={filterFieldStyle(220)}>
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     Periode
                   </Text>
                   <Select
-                    showSearch
+                    showSearch={{ optionFilterProp: 'label' }}
                     allowClear
-                    optionFilterProp="label"
                     placeholder={scopedHomebaseId ? 'Semua periode' : 'Pilih satuan dulu'}
                     loading={loadingPeriodes}
                     disabled={!scopedHomebaseId}
@@ -186,12 +202,13 @@ const AttendanceReport = () => {
                     options={periodeOptions}
                     style={{ width: '100%' }}
                     suffixIcon={<CalendarRange size={14} />}
+                    popupMatchSelectWidth={false}
                     virtual={false}
                   />
                 </Flex>
               </>
             )}
-          </Space>
+          </Flex>
         </Flex>
 
         {waitingHomebase ? (
@@ -207,8 +224,9 @@ const AttendanceReport = () => {
           <Tabs
             defaultActiveKey="scan-logs"
             size={isMobile ? 'middle' : 'large'}
-            tabBarGutter={8}
+            tabBarGutter={isMobile ? 4 : 8}
             destroyOnHidden
+            style={{ width: '100%', minWidth: 0 }}
             items={[
               {
                 key: 'scan-logs',

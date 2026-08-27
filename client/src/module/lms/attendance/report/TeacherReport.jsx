@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   Button,
@@ -7,18 +7,15 @@ import {
   Descriptions,
   Empty,
   Flex,
-  Grid,
   Input,
   Modal,
   Select,
-  Statistic,
   Table,
   Tabs,
   Tag,
   Typography,
   message,
 } from 'antd';
-import { motion } from 'framer-motion';
 import {
   BookOpen,
   ChartColumn,
@@ -40,25 +37,36 @@ import {
 } from '../../../../service/lms/ApiAttendance';
 import { useGetClassesQuery } from '../../../../service/public/ApiPublic';
 import TeachingRecapPanel from './TeachingRecapPanel';
+import {
+  BulkDeleteBar,
+  FilterBar,
+  ReportHeader,
+  StackedCell,
+  StatCardGrid,
+  StatusTag,
+  buildActionColumn,
+  buildPagination,
+  buildRowSelection,
+  buildTableProps,
+  detailColumnConfig,
+  filterControlStyle,
+  formatDateCell,
+  formatDateTimeCell,
+  formatDateTimeDetail,
+  formatDetailValue,
+  formatMinutesToHours,
+  modalWidth,
+  parseReportDateTime,
+  sortByLatestTap,
+  surfaceCardBodyStyles,
+  surfaceCardStyle,
+  tableShellStyle,
+  toolbarButtonStyle,
+  useResponsiveFlags,
+} from './reportShared';
 
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
-const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
-
-const surfaceCardStyle = {
-  borderRadius: 22,
-  border: '1px solid #e5edf6',
-  background: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)',
-  boxShadow: '0 18px 36px rgba(15, 23, 42, 0.06)',
-};
-
-const statCardStyle = {
-  borderRadius: 18,
-  border: '1px solid #e2ebf5',
-  background: '#ffffff',
-  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.05)',
-};
 
 const STATUS_COLORS = {
   present: 'green',
@@ -67,6 +75,7 @@ const STATUS_COLORS = {
   incomplete: 'orange',
   insufficient_hours: 'volcano',
   not_scheduled: 'blue',
+  pending: 'default',
 };
 
 const SESSION_STATUS_COLORS = {
@@ -76,29 +85,6 @@ const SESSION_STATUS_COLORS = {
   missed: 'red',
   partial: 'orange',
   excused: 'blue',
-};
-
-const formatDateTimeCell = (value) => {
-  if (!value) return '-';
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format('DD MMM YY HH:mm') : value;
-};
-
-const formatDateTimeDetail = (value) => {
-  if (!value) return '-';
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format('DD MMM YYYY HH:mm:ss') : value;
-};
-
-const formatDetailValue = (value) => {
-  if (value === null || value === undefined || value === '') return '-';
-  return value;
-};
-
-const formatMinutesToHours = (value) => {
-  const minutes = Number(value || 0);
-  const hours = minutes / 60;
-  return `${hours.toFixed(2)} jam`;
 };
 
 const formatSlotRange = (row) => {
@@ -122,40 +108,6 @@ const compareClassName = (a, b) =>
     sensitivity: 'base',
   });
 
-const renderGuruCell = (row) => (
-  <Flex vertical gap={2}>
-    <Text strong ellipsis>
-      {row.full_name}
-    </Text>
-    <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-      {[row.class_name, row.subject_name].filter(Boolean).join(' · ') || '-'}
-    </Text>
-  </Flex>
-);
-
-const renderWaktuCell = (row) => (
-  <Flex vertical gap={2}>
-    <Text>{formatSlotRange(row)}</Text>
-    <Text type="secondary" style={{ fontSize: 12 }}>
-      {formatSlotTimeRange(row)}
-    </Text>
-  </Flex>
-);
-
-const parseReportDateTime = (value) => {
-  if (!value) return null;
-  const text = String(value).trim();
-  const match = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
-  if (match) {
-    const parsed = dayjs(`${match[1]}T${match[2]}`);
-    return parsed.isValid() ? parsed : null;
-  }
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed : null;
-};
-
-const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
-
 const TEACHER_STATUS_OPTIONS = [
   { value: 'present', label: 'Present' },
   { value: 'late', label: 'Late' },
@@ -165,6 +117,11 @@ const TEACHER_STATUS_OPTIONS = [
   { value: 'not_scheduled', label: 'Not Scheduled' },
   { value: 'pending', label: 'Pending' },
 ];
+
+/** Pending is only reachable via manual edit, so it is not offered as a filter. */
+const TEACHER_STATUS_FILTER_OPTIONS = TEACHER_STATUS_OPTIONS.filter(
+  (option) => option.value !== 'pending',
+);
 
 const TEACHER_SESSION_STATUS_OPTIONS = [
   { value: 'present', label: 'Present' },
@@ -226,7 +183,8 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
     onCancel={onClose}
     footer={null}
     centered
-    width={isMobile ? '100%' : 760}>
+    width={modalWidth(isMobile, 760)}
+    styles={{ body: { maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 } }}>
     <Flex vertical gap={20}>
       <div>
         <Title level={5} style={{ marginTop: 0 }}>
@@ -357,8 +315,7 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
 );
 
 const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { isMobile, isCompact } = useResponsiveFlags();
   const [range, setRange] = useState([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [status, setStatus] = useState();
   const [userName, setUserName] = useState('');
@@ -415,33 +372,25 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
 
   const summary = data?.data?.summary || {};
   const sessionSummary = data?.data?.session_summary || {};
-  const rows = [...(data?.data?.rows || [])].sort((a, b) => {
-    const aTap = Math.max(
-      parseReportDateTime(a.checkin_at)?.valueOf() || 0,
-      parseReportDateTime(a.checkout_at)?.valueOf() || 0,
-    );
-    const bTap = Math.max(
-      parseReportDateTime(b.checkin_at)?.valueOf() || 0,
-      parseReportDateTime(b.checkout_at)?.valueOf() || 0,
-    );
-    return bTap - aTap;
-  });
-  const sessionRows = [...(data?.data?.session_rows || [])].sort((a, b) => {
-    const byClass = compareClassName(a.class_name, b.class_name);
-    if (byClass !== 0) return byClass;
+  const rows = useMemo(() => sortByLatestTap(data?.data?.rows), [data?.data?.rows]);
+  const sessionRows = useMemo(
+    () =>
+      [...(data?.data?.session_rows || [])].sort((a, b) => {
+        const byClass = compareClassName(a.class_name, b.class_name);
+        if (byClass !== 0) return byClass;
 
-    const byDate = String(a.attendance_date || '').localeCompare(
-      String(b.attendance_date || ''),
-    );
-    if (byDate !== 0) return byDate;
+        const byDate = String(a.attendance_date || '').localeCompare(String(b.attendance_date || ''));
+        if (byDate !== 0) return byDate;
 
-    const bySlot = Number(a.first_slot_no || 0) - Number(b.first_slot_no || 0);
-    if (bySlot !== 0) return bySlot;
+        const bySlot = Number(a.first_slot_no || 0) - Number(b.first_slot_no || 0);
+        if (bySlot !== 0) return bySlot;
 
-    return String(a.full_name || '').localeCompare(String(b.full_name || ''), 'id', {
-      sensitivity: 'base',
-    });
-  });
+        return String(a.full_name || '').localeCompare(String(b.full_name || ''), 'id', {
+          sensitivity: 'base',
+        });
+      }),
+    [data?.data?.session_rows],
+  );
 
   const statItems =
     activeTab === 'kehadiran'
@@ -451,7 +400,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             title: 'Hadir',
             value: Number(summary.present_teachers || 0),
             suffix: 'guru',
-            icon: <UserCheck size={18} />,
+            icon: <UserCheck size={isMobile ? 14 : 18} />,
             color: '#15803d',
             bg: '#f0fdf4',
           },
@@ -460,7 +409,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             title: 'Absent',
             value: Number(summary.absent_teachers || 0),
             suffix: 'guru',
-            icon: <UserX size={18} />,
+            icon: <UserX size={isMobile ? 14 : 18} />,
             color: '#b91c1c',
             bg: '#fef2f2',
           },
@@ -472,7 +421,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               title: 'Hadir',
               value: Number(sessionSummary.present_teachers || 0),
               suffix: 'guru',
-              icon: <UserCheck size={18} />,
+              icon: <UserCheck size={isMobile ? 14 : 18} />,
               color: '#15803d',
               bg: '#f0fdf4',
             },
@@ -481,7 +430,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               title: 'Absent',
               value: Number(sessionSummary.absent_teachers || 0),
               suffix: 'guru',
-              icon: <UserX size={18} />,
+              icon: <UserX size={isMobile ? 14 : 18} />,
               color: '#b91c1c',
               bg: '#fef2f2',
             },
@@ -695,126 +644,204 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     }
   };
 
-  return (
-    <Flex vertical gap={18}>
-      <Card style={surfaceCardStyle} bordered={false}>
-        <Flex vertical gap={16}>
-          <Flex justify="space-between" align={isMobile ? 'stretch' : 'flex-start'} vertical={isMobile} gap={12}>
-            <Flex vertical gap={10}>
-              <Text strong style={{ color: '#0f172a', fontSize: 16 }}>
-                Laporan Presensi Guru
-              </Text>
-              <Button
-                icon={<BookOpen size={16} />}
-                onClick={() => setGuideOpen(true)}
-                style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
-                Panduan Presensi Guru
-              </Button>
-            </Flex>
-            <Button
-              icon={<RefreshCw size={16} />}
-              loading={isFetching}
-              onClick={() => refetch()}
-              disabled={activeTab === 'rekap'}
-              style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
-              Refresh
-            </Button>
-          </Flex>
+  const dailyColumns = [
+    {
+      title: 'Guru',
+      key: 'teacher',
+      width: isMobile ? 170 : 250,
+      fixed: 'left',
+      ellipsis: true,
+      render: (_, row) => (
+        <StackedCell
+          primary={row.full_name}
+          secondary={
+            isMobile ? `NIP ${row.nip || '-'}` : `RFID ${row.card_uid || '-'} · NIP ${row.nip || '-'}`
+          }
+        />
+      ),
+    },
+    {
+      title: 'Tanggal',
+      dataIndex: 'attendance_date',
+      width: isMobile ? 96 : 130,
+      ellipsis: true,
+      render: (value) => formatDateCell(value, isMobile),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'attendance_status',
+      width: isMobile ? 130 : 160,
+      render: (value) => <StatusTag value={value} colorMap={STATUS_COLORS} />,
+    },
+    {
+      title: 'Datang',
+      dataIndex: 'checkin_at',
+      width: isMobile ? 108 : 140,
+      ellipsis: true,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    {
+      title: 'Pulang',
+      dataIndex: 'checkout_at',
+      width: isMobile ? 108 : 140,
+      ellipsis: true,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    buildActionColumn(handleRowAction),
+  ];
 
-          <Flex gap={'middle'} vertical={isMobile} wrap="wrap">
-            {activeTab !== 'rekap' && (
+  const sessionColumns = [
+    {
+      title: 'Tanggal',
+      dataIndex: 'attendance_date',
+      width: isMobile ? 92 : 120,
+      fixed: 'left',
+      ellipsis: true,
+      render: (value) => formatDateCell(value, isMobile),
+    },
+    {
+      title: 'Jam / Status',
+      key: 'slot',
+      width: isMobile ? 140 : 165,
+      render: (_, row) => (
+        <Flex vertical gap={4} style={{ minWidth: 0 }}>
+          <StackedCell primary={formatSlotRange(row)} secondary={formatSlotTimeRange(row)} />
+          <StatusTag value={row.session_status} colorMap={SESSION_STATUS_COLORS} />
+        </Flex>
+      ),
+    },
+    {
+      title: 'Guru',
+      key: 'teacher',
+      width: isMobile ? 160 : 230,
+      ellipsis: true,
+      render: (_, row) => (
+        <StackedCell
+          primary={row.full_name}
+          secondary={
+            isMobile ? `NIP ${row.nip || '-'}` : `RFID ${row.card_uid || '-'} · NIP ${row.nip || '-'}`
+          }
+        />
+      ),
+    },
+    {
+      title: 'Kelas / Mapel',
+      key: 'class',
+      width: isMobile ? 140 : 190,
+      ellipsis: true,
+      render: (_, row) => <StackedCell primary={row.class_name} secondary={row.subject_name} />,
+    },
+    {
+      title: 'Masuk',
+      dataIndex: 'actual_checkin_at',
+      width: isMobile ? 108 : 140,
+      ellipsis: true,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    {
+      title: 'Keluar',
+      dataIndex: 'actual_checkout_at',
+      width: isMobile ? 108 : 140,
+      ellipsis: true,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    buildActionColumn(handleSessionRowAction),
+  ];
+
+  return (
+    <Flex vertical gap={isMobile ? 12 : 18} style={{ width: '100%', minWidth: 0 }}>
+      <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
+        <Flex vertical gap={16} style={{ minWidth: 0 }}>
+          <ReportHeader
+            title="Laporan Presensi Guru"
+            description="Kehadiran harian dari tap gate, sesi mengajar per kelas, dan rekapitulasi bulanan."
+            isMobile={isMobile}
+            extra={
               <>
-                <RangePicker value={range} onChange={(value) => setRange(value)} format="YYYY-MM-DD" />
-                <Input
-                  allowClear
-                  value={userName}
-                  onChange={(event) => setUserName(event.target.value)}
-                  placeholder="Cari nama guru"
-                  prefix={<Search size={16} />}
-                  style={{ width: isMobile ? '100%' : 180 }}
-                />
+                <Button
+                  icon={<BookOpen size={16} />}
+                  onClick={() => setGuideOpen(true)}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Panduan
+                </Button>
+                <Button
+                  icon={<RefreshCw size={16} />}
+                  loading={isFetching}
+                  onClick={() => refetch()}
+                  disabled={activeTab === 'rekap'}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Refresh
+                </Button>
               </>
-            )}
-            {activeTab === 'kehadiran' && (
-              <Select
-                showSearch={{ optionFilterProp: 'label' }}
-                virtual={false}
-                allowClear
-                value={status}
-                onChange={setStatus}
-                placeholder="Filter status"
-                options={[
-                  { value: 'present', label: 'Present' },
-                  { value: 'late', label: 'Late' },
-                  { value: 'absent', label: 'Absent' },
-                  { value: 'incomplete', label: 'Incomplete' },
-                  { value: 'insufficient_hours', label: 'Insufficient Hours' },
-                  { value: 'not_scheduled', label: 'Not Scheduled' },
-                ]}
-                style={{ width: isMobile ? '100%' : 180 }}
+            }
+          />
+
+          {activeTab !== 'rekap' && (
+            <FilterBar isMobile={isMobile}>
+              <RangePicker
+                value={range}
+                onChange={(value) => setRange(value)}
+                format={isMobile ? 'DD/MM/YY' : 'YYYY-MM-DD'}
+                placeholder={['Tanggal awal', 'Tanggal akhir']}
+                inputReadOnly={isMobile}
+                style={filterControlStyle(isCompact, 260)}
               />
-            )}
-            {activeTab === 'mengajar' && (
-              <>
-                <Input
-                  allowClear
-                  value={sessionCardUid}
-                  onChange={(event) => setSessionCardUid(event.target.value)}
-                  placeholder="Filter no RFID"
-                  style={{ width: isMobile ? '100%' : 180 }}
-                />
+              <Input
+                allowClear
+                value={userName}
+                onChange={(event) => setUserName(event.target.value)}
+                placeholder="Cari nama guru"
+                prefix={<Search size={16} />}
+                style={filterControlStyle(isMobile, 180)}
+              />
+              {activeTab === 'kehadiran' && (
                 <Select
                   showSearch={{ optionFilterProp: 'label' }}
                   virtual={false}
                   allowClear
-                  value={sessionClassId}
-                  onChange={setSessionClassId}
-                  placeholder="Filter kelas"
-                  options={classOptions}
-                  style={{ width: isMobile ? '100%' : 180 }}
+                  popupMatchSelectWidth={false}
+                  value={status}
+                  onChange={setStatus}
+                  placeholder="Filter status"
+                  options={TEACHER_STATUS_FILTER_OPTIONS}
+                  style={filterControlStyle(isMobile, 180)}
                 />
-              </>
-            )}
-          </Flex>
+              )}
+              {activeTab === 'mengajar' && (
+                <>
+                  <Input
+                    allowClear
+                    value={sessionCardUid}
+                    onChange={(event) => setSessionCardUid(event.target.value)}
+                    placeholder="Filter no RFID"
+                    style={filterControlStyle(isMobile, 170)}
+                  />
+                  <Select
+                    showSearch={{ optionFilterProp: 'label' }}
+                    virtual={false}
+                    allowClear
+                    popupMatchSelectWidth={false}
+                    value={sessionClassId}
+                    onChange={setSessionClassId}
+                    placeholder="Filter kelas"
+                    options={classOptions}
+                    style={filterControlStyle(isMobile, 170)}
+                  />
+                </>
+              )}
+            </FilterBar>
+          )}
         </Flex>
       </Card>
 
-      {statItems.length > 0 && (
-        <Flex gap={12} wrap="wrap">
-          {statItems.map((item, index) => (
-            <MotionDiv
-              key={item.key}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.24, delay: index * 0.04 }}
-              style={{ flex: '1 1 220px' }}>
-              <Card bordered={false} style={statCardStyle}>
-                <Flex justify="space-between" align="start" gap={10}>
-                  <Statistic title={item.title} value={item.value} suffix={item.suffix} />
-                  <span
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 14,
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: item.bg,
-                      color: item.color,
-                      flexShrink: 0,
-                    }}>
-                    {item.icon}
-                  </span>
-                </Flex>
-              </Card>
-            </MotionDiv>
-          ))}
-        </Flex>
-      )}
+      <StatCardGrid items={statItems} isMobile={isMobile} />
 
-      <Card style={surfaceCardStyle} bordered={false}>
+      <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
+          size={isMobile ? 'small' : 'middle'}
+          tabBarGutter={isMobile ? 12 : 24}
           items={[
             {
               key: 'kehadiran',
@@ -827,98 +854,38 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               children: (
                 <>
                   {rows.length > 0 && (
-                    <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
-                      <Text type="secondary">
-                        {selectedRowKeys.length > 0
-                          ? `${selectedRowKeys.length} data absensi terpilih`
-                          : 'Centang baris untuk hapus bulk'}
-                      </Text>
-                      <Button
-                        danger
-                        icon={<Trash2 size={16} />}
-                        disabled={selectedRowKeys.length === 0}
-                        loading={bulkDeleting}
-                        onClick={handleBulkDelete}>
-                        Hapus Terpilih
-                      </Button>
-                    </Flex>
+                    <BulkDeleteBar
+                      selectedCount={selectedRowKeys.length}
+                      loading={bulkDeleting}
+                      onDelete={handleBulkDelete}
+                      label="data absensi"
+                      isMobile={isMobile}
+                      icon={<Trash2 size={16} />}
+                    />
                   )}
                   {rows.length === 0 && !isLoading && !isFetching ? (
                     <Empty description="Belum ada data presensi guru pada rentang ini." />
                   ) : (
-                    <Table
-                      rowKey="id"
-                      loading={isLoading || (isFetching && rows.length > 0)}
-                      dataSource={rows}
-                      tableLayout="fixed"
-                      pagination={{
-                        pageSize,
-                        showSizeChanger: true,
-                        pageSizeOptions: PAGE_SIZE_OPTIONS,
-                        showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} catatan`,
-                        onChange: (_page, size) => setPageSize(size),
-                      }}
-                      rowSelection={{
-                        selectedRowKeys,
-                        onChange: setSelectedRowKeys,
-                      }}
-                      columns={[
-                        {
-                          title: 'Guru',
-                          ellipsis: true,
-                          render: (_, row) => (
-                            <Flex vertical gap={2}>
-                              <Text strong ellipsis>
-                                {row.full_name}
-                              </Text>
-                              <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                                RFID {row.card_uid || '-'} · NIP {row.nip || '-'}
-                              </Text>
-                            </Flex>
-                          ),
-                        },
-                        {
-                          title: 'Tanggal',
-                          dataIndex: 'attendance_date',
-                          ellipsis: true,
-                        },
-                        {
-                          title: 'Status',
-                          dataIndex: 'attendance_status',
-                          render: (value) => <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>,
-                        },
-                        {
-                          title: 'Datang',
-                          dataIndex: 'checkin_at',
-                          ellipsis: true,
-                          render: (value) => formatDateTimeCell(value),
-                        },
-                        {
-                          title: 'Pulang',
-                          dataIndex: 'checkout_at',
-                          ellipsis: true,
-                          render: (value) => formatDateTimeCell(value),
-                        },
-                        {
-                          title: 'Aksi',
-                          width: 110,
-                          render: (_, row) => (
-                            <Select
-                              placeholder="Aksi"
-                              value={null}
-                              virtual={false}
-                              style={{ width: '100%', maxWidth: 110 }}
-                              options={[
-                                { value: 'detail', label: 'Detail' },
-                                { value: 'edit', label: 'Edit' },
-                                { value: 'delete', label: 'Hapus' },
-                              ]}
-                              onChange={(value) => handleRowAction(value, row)}
-                            />
-                          ),
-                        },
-                      ]}
-                    />
+                    <div style={tableShellStyle}>
+                      <Table
+                        rowKey="id"
+                        loading={isLoading || (isFetching && rows.length > 0)}
+                        dataSource={rows}
+                        columns={dailyColumns}
+                        {...buildTableProps({ isMobile, minWidth: isMobile ? 720 : 930 })}
+                        pagination={buildPagination({
+                          pageSize,
+                          setPageSize,
+                          isMobile,
+                          unit: 'catatan',
+                        })}
+                        rowSelection={buildRowSelection({
+                          selectedRowKeys,
+                          onChange: setSelectedRowKeys,
+                          isMobile,
+                        })}
+                      />
+                    </div>
                   )}
                 </>
               ),
@@ -934,123 +901,38 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               children: (
                 <>
                   {sessionRows.length > 0 && (
-                    <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
-                      <Text type="secondary">
-                        {selectedSessionRowKeys.length > 0
-                          ? `${selectedSessionRowKeys.length} data sesi mengajar terpilih`
-                          : 'Centang baris untuk hapus bulk'}
-                      </Text>
-                      <Button
-                        danger
-                        icon={<Trash2 size={16} />}
-                        disabled={selectedSessionRowKeys.length === 0}
-                        loading={bulkDeletingSessions}
-                        onClick={handleBulkDeleteSessions}>
-                        Hapus Terpilih
-                      </Button>
-                    </Flex>
+                    <BulkDeleteBar
+                      selectedCount={selectedSessionRowKeys.length}
+                      loading={bulkDeletingSessions}
+                      onDelete={handleBulkDeleteSessions}
+                      label="data sesi mengajar"
+                      isMobile={isMobile}
+                      icon={<Trash2 size={16} />}
+                    />
                   )}
                   {sessionRows.length === 0 && !isLoading && !isFetching ? (
                     <Empty description="Belum ada data sesi mengajar pada rentang ini." />
                   ) : (
-                    <Table
-                      rowKey="id"
-                      loading={isLoading || (isFetching && sessionRows.length > 0)}
-                      dataSource={sessionRows}
-                      tableLayout="fixed"
-                      pagination={{
-                        pageSize: sessionPageSize,
-                        showSizeChanger: true,
-                        pageSizeOptions: PAGE_SIZE_OPTIONS,
-                        showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} sesi`,
-                        onChange: (_page, size) => setSessionPageSize(size),
-                      }}
-                      rowSelection={{
-                        selectedRowKeys: selectedSessionRowKeys,
-                        onChange: setSelectedSessionRowKeys,
-                      }}
-                      columns={[
-                        {
-                          title: 'Tanggal',
-                          dataIndex: 'attendance_date',
-                          ellipsis: true,
-                          width: 110,
-                        },
-                        {
-                          title: 'Jam / Status',
-                          ellipsis: true,
-                          width: 150,
-                          render: (_, row) => (
-                            <Flex vertical gap={4}>
-                              {renderWaktuCell(row)}
-                              <Tag
-                                color={SESSION_STATUS_COLORS[row.session_status] || 'default'}
-                                style={{ width: 'fit-content', margin: 0 }}>
-                                {row.session_status || '-'}
-                              </Tag>
-                            </Flex>
-                          ),
-                        },
-                        {
-                          title: 'Guru',
-                          ellipsis: true,
-                          render: (_, row) => (
-                            <Flex vertical gap={2}>
-                              <Text strong ellipsis>
-                                {row.full_name}
-                              </Text>
-                              <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                                RFID {row.card_uid || '-'} · NIP {row.nip || '-'}
-                              </Text>
-                            </Flex>
-                          ),
-                        },
-                        {
-                          title: 'Kelas / Mapel',
-                          ellipsis: true,
-                          render: (_, row) => (
-                            <Flex vertical gap={2}>
-                              <Text strong ellipsis>
-                                {row.class_name || '-'}
-                              </Text>
-                              <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                                {row.subject_name || '-'}
-                              </Text>
-                            </Flex>
-                          ),
-                        },
-                        {
-                          title: 'Masuk',
-                          dataIndex: 'actual_checkin_at',
-                          ellipsis: true,
-                          render: (value) => formatDateTimeCell(value),
-                        },
-                        {
-                          title: 'Keluar',
-                          dataIndex: 'actual_checkout_at',
-                          ellipsis: true,
-                          render: (value) => formatDateTimeCell(value),
-                        },
-                        {
-                          title: 'Aksi',
-                          width: 110,
-                          render: (_, row) => (
-                            <Select
-                              placeholder="Aksi"
-                              value={null}
-                              virtual={false}
-                              style={{ width: '100%', maxWidth: 110 }}
-                              options={[
-                                { value: 'detail', label: 'Detail' },
-                                { value: 'edit', label: 'Edit' },
-                                { value: 'delete', label: 'Hapus' },
-                              ]}
-                              onChange={(value) => handleSessionRowAction(value, row)}
-                            />
-                          ),
-                        },
-                      ]}
-                    />
+                    <div style={tableShellStyle}>
+                      <Table
+                        rowKey="id"
+                        loading={isLoading || (isFetching && sessionRows.length > 0)}
+                        dataSource={sessionRows}
+                        columns={sessionColumns}
+                        {...buildTableProps({ isMobile, minWidth: isMobile ? 900 : 1140 })}
+                        pagination={buildPagination({
+                          pageSize: sessionPageSize,
+                          setPageSize: setSessionPageSize,
+                          isMobile,
+                          unit: 'sesi',
+                        })}
+                        rowSelection={buildRowSelection({
+                          selectedRowKeys: selectedSessionRowKeys,
+                          onChange: setSelectedSessionRowKeys,
+                          isMobile,
+                        })}
+                      />
+                    </div>
                   )}
                 </>
               ),
@@ -1082,42 +964,80 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         open={!!detailSessionRow}
         onCancel={() => setDetailSessionRow(null)}
         footer={null}
-        width={720}>
+        width={modalWidth(isMobile)}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
         {detailSessionRow && (
-          <Descriptions bordered column={isMobile ? 1 : 2} size="small">
-            <Descriptions.Item label="ID">{detailSessionRow.id}</Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag color={SESSION_STATUS_COLORS[detailSessionRow.session_status] || 'default'}>
-                {detailSessionRow.session_status}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Tanggal" span={2}>
-              {formatDetailValue(detailSessionRow.attendance_date)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Nama Guru">{formatDetailValue(detailSessionRow.full_name)}</Descriptions.Item>
-            <Descriptions.Item label="NIP">{formatDetailValue(detailSessionRow.nip)}</Descriptions.Item>
-            <Descriptions.Item label="Kelas">{formatDetailValue(detailSessionRow.class_name)}</Descriptions.Item>
-            <Descriptions.Item label="No RFID">{formatDetailValue(detailSessionRow.card_uid)}</Descriptions.Item>
-            <Descriptions.Item label="Mata Pelajaran">{formatDetailValue(detailSessionRow.subject_name)}</Descriptions.Item>
-            <Descriptions.Item label="Jam Ke">{formatSlotRange(detailSessionRow)}</Descriptions.Item>
-            <Descriptions.Item label="Jadwal">{formatSlotTimeRange(detailSessionRow)}</Descriptions.Item>
-            <Descriptions.Item label="Rencana Mulai">
-              {formatDateTimeDetail(detailSessionRow.planned_start_at)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Rencana Selesai">
-              {formatDateTimeDetail(detailSessionRow.planned_end_at)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Masuk Kelas">
-              {formatDateTimeDetail(detailSessionRow.actual_checkin_at)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Keluar Kelas">
-              {formatDateTimeDetail(detailSessionRow.actual_checkout_at)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Terlambat (menit)">{formatDetailValue(detailSessionRow.late_minutes)}</Descriptions.Item>
-            <Descriptions.Item label="Catatan" span={2}>
-              {formatDetailValue(detailSessionRow.notes)}
-            </Descriptions.Item>
-          </Descriptions>
+          <Descriptions
+            bordered
+            column={detailColumnConfig}
+            size="small"
+            styles={{
+              label: { width: isMobile ? 130 : 170, whiteSpace: 'nowrap' },
+              content: { wordBreak: 'break-word' },
+            }}
+            items={[
+              { key: 'id', label: 'ID', children: formatDetailValue(detailSessionRow.id) },
+              {
+                key: 'status',
+                label: 'Status',
+                children: (
+                  <Tag
+                    color={SESSION_STATUS_COLORS[detailSessionRow.session_status] || 'default'}
+                    style={{ margin: 0 }}>
+                    {detailSessionRow.session_status}
+                  </Tag>
+                ),
+              },
+              {
+                key: 'date',
+                label: 'Tanggal',
+                span: 2,
+                children: formatDetailValue(detailSessionRow.attendance_date),
+              },
+              { key: 'name', label: 'Nama Guru', children: formatDetailValue(detailSessionRow.full_name) },
+              { key: 'nip', label: 'NIP', children: formatDetailValue(detailSessionRow.nip) },
+              { key: 'class', label: 'Kelas', children: formatDetailValue(detailSessionRow.class_name) },
+              { key: 'card', label: 'No RFID', children: formatDetailValue(detailSessionRow.card_uid) },
+              {
+                key: 'subject',
+                label: 'Mata Pelajaran',
+                children: formatDetailValue(detailSessionRow.subject_name),
+              },
+              { key: 'slot', label: 'Jam Ke', children: formatSlotRange(detailSessionRow) },
+              { key: 'schedule', label: 'Jadwal', children: formatSlotTimeRange(detailSessionRow) },
+              {
+                key: 'planned_start',
+                label: 'Rencana Mulai',
+                children: formatDateTimeDetail(detailSessionRow.planned_start_at),
+              },
+              {
+                key: 'planned_end',
+                label: 'Rencana Selesai',
+                children: formatDateTimeDetail(detailSessionRow.planned_end_at),
+              },
+              {
+                key: 'checkin',
+                label: 'Masuk Kelas',
+                children: formatDateTimeDetail(detailSessionRow.actual_checkin_at),
+              },
+              {
+                key: 'checkout',
+                label: 'Keluar Kelas',
+                children: formatDateTimeDetail(detailSessionRow.actual_checkout_at),
+              },
+              {
+                key: 'late',
+                label: 'Terlambat (menit)',
+                children: formatDetailValue(detailSessionRow.late_minutes),
+              },
+              {
+                key: 'notes',
+                label: 'Catatan',
+                span: 2,
+                children: formatDetailValue(detailSessionRow.notes),
+              },
+            ]}
+          />
         )}
       </Modal>
 
@@ -1127,46 +1047,78 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         open={!!detailRow}
         onCancel={() => setDetailRow(null)}
         footer={null}
-        width={720}>
+        width={modalWidth(isMobile)}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
         {detailRow && (
-          <Descriptions bordered column={isMobile ? 1 : 2} size="small">
-            <Descriptions.Item label="ID">{detailRow.id}</Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag color={STATUS_COLORS[detailRow.attendance_status] || 'default'}>{detailRow.attendance_status}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Tanggal" span={2}>
-              {formatDetailValue(detailRow.attendance_date)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Nama Guru">{formatDetailValue(detailRow.full_name)}</Descriptions.Item>
-            <Descriptions.Item label="NIP">{formatDetailValue(detailRow.nip)}</Descriptions.Item>
-            <Descriptions.Item label="No RFID">{formatDetailValue(detailRow.card_uid)}</Descriptions.Item>
-            <Descriptions.Item label="User ID" span={2}>
-              {formatDetailValue(detailRow.user_id)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Datang">{formatDateTimeDetail(detailRow.checkin_at)}</Descriptions.Item>
-            <Descriptions.Item label="Pulang">{formatDateTimeDetail(detailRow.checkout_at)}</Descriptions.Item>
-            <Descriptions.Item label="Terlambat (menit)">{formatDetailValue(detailRow.late_minutes)}</Descriptions.Item>
-            <Descriptions.Item label="Durasi Hadir">
-              {formatMinutesToHours(detailRow.presence_minutes)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Min. Wajib">
-              {formatMinutesToHours(detailRow.minimum_required_minutes)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Catatan" span={2}>
-              {formatDetailValue(detailRow.notes)}
-            </Descriptions.Item>
-          </Descriptions>
+          <Descriptions
+            bordered
+            column={detailColumnConfig}
+            size="small"
+            styles={{
+              label: { width: isMobile ? 130 : 170, whiteSpace: 'nowrap' },
+              content: { wordBreak: 'break-word' },
+            }}
+            items={[
+              { key: 'id', label: 'ID', children: formatDetailValue(detailRow.id) },
+              {
+                key: 'status',
+                label: 'Status',
+                children: (
+                  <Tag
+                    color={STATUS_COLORS[detailRow.attendance_status] || 'default'}
+                    style={{ margin: 0 }}>
+                    {detailRow.attendance_status}
+                  </Tag>
+                ),
+              },
+              {
+                key: 'date',
+                label: 'Tanggal',
+                span: 2,
+                children: formatDetailValue(detailRow.attendance_date),
+              },
+              { key: 'name', label: 'Nama Guru', children: formatDetailValue(detailRow.full_name) },
+              { key: 'nip', label: 'NIP', children: formatDetailValue(detailRow.nip) },
+              { key: 'card', label: 'No RFID', children: formatDetailValue(detailRow.card_uid) },
+              {
+                key: 'user_id',
+                label: 'User ID',
+                span: 2,
+                children: formatDetailValue(detailRow.user_id),
+              },
+              { key: 'checkin', label: 'Datang', children: formatDateTimeDetail(detailRow.checkin_at) },
+              { key: 'checkout', label: 'Pulang', children: formatDateTimeDetail(detailRow.checkout_at) },
+              {
+                key: 'late',
+                label: 'Terlambat (menit)',
+                children: formatDetailValue(detailRow.late_minutes),
+              },
+              {
+                key: 'presence',
+                label: 'Durasi Hadir',
+                children: formatMinutesToHours(detailRow.presence_minutes),
+              },
+              {
+                key: 'minimum',
+                label: 'Min. Wajib',
+                children: formatMinutesToHours(detailRow.minimum_required_minutes),
+              },
+              { key: 'notes', label: 'Catatan', span: 2, children: formatDetailValue(detailRow.notes) },
+            ]}
+          />
         )}
       </Modal>
 
       <Modal
         title="Edit Presensi Guru"
+        centered
         open={!!editingRow}
         onCancel={closeEditModal}
         onOk={handleSaveEdit}
         confirmLoading={savingEdit}
-        okText="Simpan">
-        <Flex vertical gap={12}>
+        okText="Simpan"
+        width={modalWidth(isMobile, 520)}>
+        <Flex vertical gap={12} style={{ marginTop: 8 }}>
           <Select
             showSearch={{ optionFilterProp: 'label' }}
             virtual={false}
@@ -1174,6 +1126,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             onChange={setEditStatus}
             placeholder="Status"
             options={TEACHER_STATUS_OPTIONS}
+            style={{ width: '100%' }}
           />
           <DatePicker
             showTime
@@ -1202,12 +1155,14 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
 
       <Modal
         title="Edit Sesi Mengajar"
+        centered
         open={!!editingSessionRow}
         onCancel={closeEditSessionModal}
         onOk={handleSaveSessionEdit}
         confirmLoading={savingSessionEdit}
-        okText="Simpan">
-        <Flex vertical gap={12}>
+        okText="Simpan"
+        width={modalWidth(isMobile, 520)}>
+        <Flex vertical gap={12} style={{ marginTop: 8 }}>
           <Select
             showSearch={{ optionFilterProp: 'label' }}
             virtual={false}
@@ -1215,6 +1170,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             onChange={setEditSessionStatus}
             placeholder="Status"
             options={TEACHER_SESSION_STATUS_OPTIONS}
+            style={{ width: '100%' }}
           />
           <DatePicker
             showTime

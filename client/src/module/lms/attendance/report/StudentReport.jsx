@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   Button,
@@ -7,17 +7,13 @@ import {
   Descriptions,
   Empty,
   Flex,
-  Grid,
   Input,
   Modal,
   Select,
-  Statistic,
   Table,
   Tag,
-  Typography,
   message,
 } from 'antd';
-import { motion } from 'framer-motion';
 import { BookOpenCheck, CalendarRange, RefreshCw, School, Search, Trash2, Users } from 'lucide-react';
 import {
   useBulkDeleteDailyAttendanceRecordsMutation,
@@ -26,25 +22,34 @@ import {
   useUpdateDailyAttendanceRecordMutation,
 } from '../../../../service/lms/ApiAttendance';
 import { useGetClassesQuery, useGetGradesQuery } from '../../../../service/public/ApiPublic';
+import {
+  BulkDeleteBar,
+  FilterBar,
+  ReportHeader,
+  StackedCell,
+  StatCardGrid,
+  StatusTag,
+  buildActionColumn,
+  buildPagination,
+  buildRowSelection,
+  buildTableProps,
+  detailColumnConfig,
+  filterControlStyle,
+  formatDateCell,
+  formatDateTimeCell,
+  formatDateTimeDetail,
+  formatDetailValue,
+  modalWidth,
+  parseReportDateTime,
+  sortByLatestTap,
+  surfaceCardBodyStyles,
+  surfaceCardStyle,
+  tableShellStyle,
+  toolbarButtonStyle,
+  useResponsiveFlags,
+} from './reportShared';
 
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
-const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
-
-const surfaceCardStyle = {
-  borderRadius: 22,
-  border: '1px solid #e5edf6',
-  background: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)',
-  boxShadow: '0 18px 36px rgba(15, 23, 42, 0.06)',
-};
-
-const statCardStyle = {
-  borderRadius: 18,
-  border: '1px solid #e2ebf5',
-  background: '#ffffff',
-  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.05)',
-};
 
 const STATUS_COLORS = {
   present: 'green',
@@ -52,38 +57,8 @@ const STATUS_COLORS = {
   absent: 'red',
   excused: 'blue',
   incomplete: 'orange',
+  pending: 'default',
 };
-
-const formatDateTimeCell = (value) => {
-  if (!value) return '-';
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format('DD MMM YY HH:mm') : value;
-};
-
-const formatDateTimeDetail = (value) => {
-  if (!value) return '-';
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format('DD MMM YYYY HH:mm:ss') : value;
-};
-
-const formatDetailValue = (value) => {
-  if (value === null || value === undefined || value === '') return '-';
-  return value;
-};
-
-const parseReportDateTime = (value) => {
-  if (!value) return null;
-  const text = String(value).trim();
-  const match = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
-  if (match) {
-    const parsed = dayjs(`${match[1]}T${match[2]}`);
-    return parsed.isValid() ? parsed : null;
-  }
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed : null;
-};
-
-const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
 const STUDENT_STATUS_OPTIONS = [
   { value: 'present', label: 'Present (Hadir)' },
@@ -95,8 +70,7 @@ const STUDENT_STATUS_OPTIONS = [
 ];
 
 const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { isMobile, isCompact } = useResponsiveFlags();
   const [range, setRange] = useState([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [gradeId, setGradeId] = useState();
   const [classId, setClassId] = useState();
@@ -132,17 +106,7 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   );
 
   const summary = data?.data?.summary || {};
-  const rows = [...(data?.data?.rows || [])].sort((a, b) => {
-    const aTap = Math.max(
-      parseReportDateTime(a.checkin_at)?.valueOf() || 0,
-      parseReportDateTime(a.checkout_at)?.valueOf() || 0,
-    );
-    const bTap = Math.max(
-      parseReportDateTime(b.checkin_at)?.valueOf() || 0,
-      parseReportDateTime(b.checkout_at)?.valueOf() || 0,
-    );
-    return bTap - aTap;
-  });
+  const rows = useMemo(() => sortByLatestTap(data?.data?.rows), [data?.data?.rows]);
   const gradeOptions = (Array.isArray(gradesRes) ? gradesRes : []).map((item) => ({
     value: Number(item.id),
     label: item.name,
@@ -259,7 +223,7 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
       key: 'present',
       title: 'Hadir/Telat',
       value: Number(summary.present_count || 0) + Number(summary.late_count || 0),
-      icon: <CalendarRange size={18} />,
+      icon: <CalendarRange size={isMobile ? 14 : 18} />,
       color: '#166534',
       bg: '#f0fdf4',
     },
@@ -267,7 +231,7 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
       key: 'pending',
       title: 'Belum tap',
       value: Number(summary.pending_count || 0),
-      icon: <Users size={18} />,
+      icon: <Users size={isMobile ? 14 : 18} />,
       color: '#a16207',
       bg: '#fefce8',
     },
@@ -275,7 +239,7 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
       key: 'excused',
       title: 'Sakit/Izin',
       value: Number(summary.excused_count || 0),
-      icon: <BookOpenCheck size={18} />,
+      icon: <BookOpenCheck size={isMobile ? 14 : 18} />,
       color: '#1d4ed8',
       bg: '#eff6ff',
     },
@@ -283,48 +247,101 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
       key: 'absent',
       title: 'Absen',
       value: Number(summary.absent_count || 0),
-      icon: <School size={18} />,
+      icon: <School size={isMobile ? 14 : 18} />,
       color: '#b91c1c',
       bg: '#fef2f2',
     },
   ];
 
-  return (
-    <Flex vertical gap={18}>
-      <Card style={surfaceCardStyle} bordered={false}>
-        <Flex vertical gap={16}>
-          <Flex justify="space-between" align={isMobile ? 'stretch' : 'center'} vertical={isMobile} gap={12}>
-            <div>
-              <Text strong style={{ color: '#0f172a', fontSize: 16 }}>
-                Laporan Presensi Siswa
-              </Text>
-              <div>
-                <Text type="secondary">Rekap kehadiran harian siswa berdasarkan data `daily_attendance`.</Text>
-              </div>
-            </div>
-            <Button
-              icon={<RefreshCw size={16} />}
-              loading={isFetching}
-              onClick={() => refetch()}
-              style={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}>
-              Refresh
-            </Button>
-          </Flex>
+  const columns = [
+    {
+      title: 'Siswa',
+      key: 'student',
+      width: isMobile ? 170 : 250,
+      fixed: 'left',
+      ellipsis: true,
+      render: (_, row) => (
+        <StackedCell
+          primary={row.full_name}
+          secondary={
+            isMobile
+              ? `${row.class_name || '-'} · NIS ${row.nis || '-'}`
+              : `NIS ${row.nis || '-'} · ${row.grade_name || '-'} / ${row.class_name || '-'}`
+          }
+        />
+      ),
+    },
+    {
+      title: 'Tanggal',
+      dataIndex: 'attendance_date',
+      width: isMobile ? 96 : 130,
+      ellipsis: true,
+      render: (value) => formatDateCell(value, isMobile),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'attendance_status',
+      width: isMobile ? 108 : 125,
+      render: (value) => <StatusTag value={value} colorMap={STATUS_COLORS} />,
+    },
+    {
+      title: 'Datang',
+      dataIndex: 'checkin_at',
+      width: isMobile ? 108 : 140,
+      ellipsis: true,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    {
+      title: 'Pulang',
+      dataIndex: 'checkout_at',
+      width: isMobile ? 108 : 140,
+      ellipsis: true,
+      render: (value) => formatDateTimeCell(value, isMobile),
+    },
+    buildActionColumn(handleRowAction),
+  ];
 
-          <Flex gap={'middle'} vertical={isMobile}>
-            <RangePicker value={range} onChange={(value) => setRange(value)} format="YYYY-MM-DD" />
+  return (
+    <Flex vertical gap={isMobile ? 12 : 18} style={{ width: '100%', minWidth: 0 }}>
+      <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
+        <Flex vertical gap={16} style={{ minWidth: 0 }}>
+          <ReportHeader
+            title="Laporan Presensi Siswa"
+            description="Rekap kehadiran harian siswa berdasarkan data daily_attendance."
+            isMobile={isMobile}
+            extra={
+              <Button
+                icon={<RefreshCw size={16} />}
+                loading={isFetching}
+                onClick={() => refetch()}
+                style={toolbarButtonStyle(isMobile)}>
+                Refresh
+              </Button>
+            }
+          />
+
+          <FilterBar isMobile={isMobile}>
+            <RangePicker
+              value={range}
+              onChange={(value) => setRange(value)}
+              format={isMobile ? 'DD/MM/YY' : 'YYYY-MM-DD'}
+              placeholder={['Tanggal awal', 'Tanggal akhir']}
+              inputReadOnly={isMobile}
+              style={filterControlStyle(isCompact, 260)}
+            />
             <Input
               allowClear
               value={userName}
               onChange={(event) => setUserName(event.target.value)}
               placeholder="Cari nama siswa"
               prefix={<Search size={16} />}
-              style={{ width: isMobile ? '100%' : 180 }}
+              style={filterControlStyle(isMobile, 180)}
             />
             <Select
               showSearch={{ optionFilterProp: 'label' }}
               virtual={false}
               allowClear
+              popupMatchSelectWidth={false}
               value={gradeId}
               onChange={(value) => {
                 setGradeId(value);
@@ -332,163 +349,65 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               }}
               placeholder="Filter tingkat"
               options={gradeOptions}
+              style={filterControlStyle(isMobile, 160)}
             />
             <Select
               showSearch={{ optionFilterProp: 'label' }}
               virtual={false}
               allowClear
+              popupMatchSelectWidth={false}
               value={classId}
               onChange={setClassId}
               placeholder="Filter kelas"
               options={classOptions}
+              style={filterControlStyle(isMobile, 160)}
             />
             <Select
               showSearch={{ optionFilterProp: 'label' }}
               virtual={false}
               allowClear
+              popupMatchSelectWidth={false}
               value={status}
               onChange={setStatus}
               placeholder="Filter status"
-              options={[
-                { value: 'present', label: 'Present (Hadir)' },
-                { value: 'late', label: 'Late (Telat)' },
-                { value: 'absent', label: 'Absent (Absen)' },
-                { value: 'excused', label: 'Excused (Sakit/Izin)' },
-                { value: 'incomplete', label: 'Incomplete' },
-                { value: 'pending', label: 'Pending (Belum tap)' },
-              ]}
+              options={STUDENT_STATUS_OPTIONS}
+              style={filterControlStyle(isMobile, 180)}
             />
-          </Flex>
+          </FilterBar>
         </Flex>
       </Card>
 
-      <Flex gap={12} wrap="wrap">
-        {statItems.map((item, index) => (
-          <MotionDiv
-            key={item.key}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, delay: index * 0.04 }}
-            style={{ flex: '1 1 220px' }}>
-            <Card bordered={false} style={statCardStyle}>
-              <Flex justify="space-between" align="start" gap={10}>
-                <Statistic title={item.title} value={item.value} />
-                <span
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 14,
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: item.bg,
-                    color: item.color,
-                    flexShrink: 0,
-                  }}>
-                  {item.icon}
-                </span>
-              </Flex>
-            </Card>
-          </MotionDiv>
-        ))}
-      </Flex>
+      <StatCardGrid items={statItems} isMobile={isMobile} />
 
-      <Card style={surfaceCardStyle} bordered={false}>
+      <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
         {rows.length > 0 && (
-          <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
-            <Text type="secondary">
-              {selectedRowKeys.length > 0
-                ? `${selectedRowKeys.length} data absensi terpilih`
-                : 'Centang baris untuk hapus bulk'}
-            </Text>
-            <Button
-              danger
-              icon={<Trash2 size={16} />}
-              disabled={selectedRowKeys.length === 0}
-              loading={bulkDeleting}
-              onClick={handleBulkDelete}>
-              Hapus Terpilih
-            </Button>
-          </Flex>
+          <BulkDeleteBar
+            selectedCount={selectedRowKeys.length}
+            loading={bulkDeleting}
+            onDelete={handleBulkDelete}
+            label="data absensi"
+            isMobile={isMobile}
+            icon={<Trash2 size={16} />}
+          />
         )}
         {rows.length === 0 && !isLoading && !isFetching ? (
           <Empty description="Belum ada data presensi siswa pada rentang ini." />
         ) : (
-          <Table
-            rowKey="id"
-            loading={isLoading || (isFetching && rows.length > 0)}
-            dataSource={rows}
-            tableLayout="fixed"
-            pagination={{
-              pageSize,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS,
-              showTotal: (total, range) => `${range[0]}-${range[1]} dari ${total} catatan`,
-              onChange: (_page, size) => setPageSize(size),
-            }}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
-            columns={[
-              {
-                title: 'Siswa',
-                ellipsis: true,
-                render: (_, row) => (
-                  <Flex vertical gap={2}>
-                    <Text strong ellipsis>
-                      {row.full_name}
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                      NIS {row.nis || '-'}
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                      {row.grade_name || '-'} / {row.class_name || '-'}
-                    </Text>
-                  </Flex>
-                ),
-              },
-              {
-                title: 'Tanggal',
-                dataIndex: 'attendance_date',
-                ellipsis: true,
-              },
-              {
-                title: 'Status',
-                dataIndex: 'attendance_status',
-                render: (value) => <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>,
-              },
-              {
-                title: 'Datang',
-                dataIndex: 'checkin_at',
-                ellipsis: true,
-                render: (value) => formatDateTimeCell(value),
-              },
-              {
-                title: 'Pulang',
-                dataIndex: 'checkout_at',
-                ellipsis: true,
-                render: (value) => formatDateTimeCell(value),
-              },
-              {
-                title: 'Aksi',
-                width: 110,
-                render: (_, row) => (
-                  <Select
-                    placeholder="Aksi"
-                    value={null}
-                    virtual={false}
-                    style={{ width: '100%', maxWidth: 110 }}
-                    options={[
-                      { value: 'detail', label: 'Detail' },
-                      { value: 'edit', label: 'Edit' },
-                      { value: 'delete', label: 'Hapus' },
-                    ]}
-                    onChange={(value) => handleRowAction(value, row)}
-                  />
-                ),
-              },
-            ]}
-          />
+          <div style={tableShellStyle}>
+            <Table
+              rowKey="id"
+              loading={isLoading || (isFetching && rows.length > 0)}
+              dataSource={rows}
+              columns={columns}
+              {...buildTableProps({ isMobile, minWidth: isMobile ? 700 : 900 })}
+              pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'catatan' })}
+              rowSelection={buildRowSelection({
+                selectedRowKeys,
+                onChange: setSelectedRowKeys,
+                isMobile,
+              })}
+            />
+          </div>
         )}
       </Card>
 
@@ -498,43 +417,70 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         open={!!detailRow}
         onCancel={() => setDetailRow(null)}
         footer={null}
-        width={720}>
+        width={modalWidth(isMobile)}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
         {detailRow && (
-          <Descriptions bordered column={isMobile ? 1 : 2} size="small">
-            <Descriptions.Item label="ID">{detailRow.id}</Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag color={STATUS_COLORS[detailRow.attendance_status] || 'default'}>{detailRow.attendance_status}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Tanggal" span={2}>
-              {formatDetailValue(detailRow.attendance_date)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Nama Siswa">{formatDetailValue(detailRow.full_name)}</Descriptions.Item>
-            <Descriptions.Item label="NIS">{formatDetailValue(detailRow.nis)}</Descriptions.Item>
-            <Descriptions.Item label="Tingkat">{formatDetailValue(detailRow.grade_name)}</Descriptions.Item>
-            <Descriptions.Item label="Kelas">{formatDetailValue(detailRow.class_name)}</Descriptions.Item>
-            <Descriptions.Item label="User ID">{formatDetailValue(detailRow.user_id)}</Descriptions.Item>
-            <Descriptions.Item label="Class ID">{formatDetailValue(detailRow.class_id)}</Descriptions.Item>
-            <Descriptions.Item label="Datang">{formatDateTimeDetail(detailRow.checkin_at)}</Descriptions.Item>
-            <Descriptions.Item label="Pulang">{formatDateTimeDetail(detailRow.checkout_at)}</Descriptions.Item>
-            <Descriptions.Item label="Terlambat (menit)">{formatDetailValue(detailRow.late_minutes)}</Descriptions.Item>
-            <Descriptions.Item label="Durasi Hadir (menit)">
-              {formatDetailValue(detailRow.presence_minutes)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Catatan" span={2}>
-              {formatDetailValue(detailRow.notes)}
-            </Descriptions.Item>
-          </Descriptions>
+          <Descriptions
+            bordered
+            column={detailColumnConfig}
+            size="small"
+            styles={{
+              label: { width: isMobile ? 130 : 170, whiteSpace: 'nowrap' },
+              content: { wordBreak: 'break-word' },
+            }}
+            items={[
+              { key: 'id', label: 'ID', children: formatDetailValue(detailRow.id) },
+              {
+                key: 'status',
+                label: 'Status',
+                children: (
+                  <Tag
+                    color={STATUS_COLORS[detailRow.attendance_status] || 'default'}
+                    style={{ margin: 0 }}>
+                    {detailRow.attendance_status}
+                  </Tag>
+                ),
+              },
+              {
+                key: 'date',
+                label: 'Tanggal',
+                span: 2,
+                children: formatDetailValue(detailRow.attendance_date),
+              },
+              { key: 'name', label: 'Nama Siswa', children: formatDetailValue(detailRow.full_name) },
+              { key: 'nis', label: 'NIS', children: formatDetailValue(detailRow.nis) },
+              { key: 'grade', label: 'Tingkat', children: formatDetailValue(detailRow.grade_name) },
+              { key: 'class', label: 'Kelas', children: formatDetailValue(detailRow.class_name) },
+              { key: 'user_id', label: 'User ID', children: formatDetailValue(detailRow.user_id) },
+              { key: 'class_id', label: 'Class ID', children: formatDetailValue(detailRow.class_id) },
+              { key: 'checkin', label: 'Datang', children: formatDateTimeDetail(detailRow.checkin_at) },
+              { key: 'checkout', label: 'Pulang', children: formatDateTimeDetail(detailRow.checkout_at) },
+              {
+                key: 'late',
+                label: 'Terlambat (menit)',
+                children: formatDetailValue(detailRow.late_minutes),
+              },
+              {
+                key: 'presence',
+                label: 'Durasi Hadir (menit)',
+                children: formatDetailValue(detailRow.presence_minutes),
+              },
+              { key: 'notes', label: 'Catatan', span: 2, children: formatDetailValue(detailRow.notes) },
+            ]}
+          />
         )}
       </Modal>
 
       <Modal
         title="Edit Presensi Siswa"
+        centered
         open={!!editingRow}
         onCancel={closeEditModal}
         onOk={handleSaveEdit}
         confirmLoading={savingEdit}
-        okText="Simpan">
-        <Flex vertical gap={12}>
+        okText="Simpan"
+        width={modalWidth(isMobile, 520)}>
+        <Flex vertical gap={12} style={{ marginTop: 8 }}>
           <Select
             showSearch={{ optionFilterProp: 'label' }}
             virtual={false}
@@ -542,6 +488,7 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             onChange={setEditStatus}
             placeholder="Status"
             options={STUDENT_STATUS_OPTIONS}
+            style={{ width: '100%' }}
           />
           <DatePicker
             showTime
