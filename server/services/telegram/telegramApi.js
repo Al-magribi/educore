@@ -49,3 +49,8 @@ export const getTelegramUpdates = async (botToken, { offset, timeout = 0, limit 
     limit,
     allowed_updates: ["message"],
   });
+
+export const deleteTelegramWebhook = async (botToken, { dropPendingUpdates = false } = {}) =>
+  callTelegramApi(botToken, "deleteWebhook", {
+    drop_pending_updates: dropPendingUpdates === true,
+  });

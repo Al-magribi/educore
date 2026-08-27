@@ -575,8 +575,6 @@ CREATE TABLE telegram_notification_config(
     last_update_id bigint,
     last_error text,
     send_time time without time zone NOT NULL DEFAULT '08:00:00',
-    send_delay_min_seconds integer NOT NULL DEFAULT 1,
-    send_delay_max_seconds integer NOT NULL DEFAULT 3,
     message_template text NOT NULL DEFAULT
         'Assalamu''alaikum Bapak/Ibu {parent_name},
 
@@ -593,12 +591,6 @@ Terima kasih.
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT telegram_notification_config_delay_min_check
-        CHECK (send_delay_min_seconds >= 0),
-    CONSTRAINT telegram_notification_config_delay_max_check
-        CHECK (send_delay_max_seconds >= send_delay_min_seconds),
-    CONSTRAINT telegram_notification_config_delay_cap_check
-        CHECK (send_delay_max_seconds <= 120),
     CONSTRAINT telegram_notification_config_bot_status_check
         CHECK (
             bot_status IN (

@@ -9,7 +9,6 @@ import {
   Form,
   Grid,
   Input,
-  InputNumber,
   Modal,
   Space,
   Switch,
@@ -20,7 +19,7 @@ import {
   message,
 } from 'antd';
 import { motion } from 'framer-motion';
-import { ExternalLink, MessageCircle, Play, RefreshCw, Save, Send, Trash2, Unlink } from 'lucide-react';
+import { ExternalLink, MessageCircle, Play, RefreshCw, Save, Send, Trash2 } from 'lucide-react';
 import {
   useDeleteTelegramNotificationBatchLogsMutation,
   useDeleteTelegramNotificationBatchMutation,
@@ -28,12 +27,10 @@ import {
   useGetTelegramNotificationBatchesQuery,
   useGetTelegramNotificationConfigQuery,
   useGetTelegramNotificationLogsQuery,
-  useGetTelegramParentsQuery,
   useGetTelegramStatusQuery,
   useRetryFailedTelegramBatchMutation,
   useRunTelegramNotificationNowMutation,
   useSendTelegramTestMessageMutation,
-  useUnbindTelegramParentMutation,
   useUpdateTelegramNotificationConfigMutation,
   useVerifyTelegramBotMutation,
 } from '../../../../../service/lms/ApiAttendance';
@@ -128,12 +125,6 @@ const TelegramFeatureTab = () => {
     { skip: !selectedBatchId },
   );
 
-  const {
-    data: parentsRes,
-    isFetching: fetchingParents,
-    refetch: refetchParents,
-  } = useGetTelegramParentsQuery({ limit: 200 });
-
   const [sendTestMessage, { isLoading: sendingTest }] = useSendTelegramTestMessageMutation();
   const [retryFailedBatch, { isLoading: retryingBatch }] = useRetryFailedTelegramBatchMutation();
   const [deleteBatch, { isLoading: deletingBatch }] = useDeleteTelegramNotificationBatchMutation();
@@ -141,18 +132,14 @@ const TelegramFeatureTab = () => {
     useDeleteTelegramNotificationBatchLogsMutation();
   const [deleteLog, { isLoading: deletingLog }] = useDeleteTelegramNotificationLogMutation();
   const [runNow, { isLoading: runningNow }] = useRunTelegramNotificationNowMutation();
-  const [unbindParent, { isLoading: unbindingParent }] = useUnbindTelegramParentMutation();
 
   const batches = batchesRes?.data || [];
   const logs = logsRes?.data || [];
-  const parents = parentsRes?.data || [];
 
   const configInitialValues = useMemo(
     () => ({
       is_enabled: config?.is_enabled === true,
       send_time: parseSendTime(config?.send_time),
-      send_delay_min_seconds: Number(config?.send_delay_min_seconds ?? 1),
-      send_delay_max_seconds: Number(config?.send_delay_max_seconds ?? 3),
       skip_on_holiday: config?.skip_on_holiday !== false,
       message_template: config?.message_template || DEFAULT_TEMPLATE,
     }),
@@ -183,8 +170,6 @@ const TelegramFeatureTab = () => {
       const payload = {
         is_enabled: values.is_enabled === true,
         send_time: values.send_time?.format('HH:mm'),
-        send_delay_min_seconds: Number(values.send_delay_min_seconds),
-        send_delay_max_seconds: Number(values.send_delay_max_seconds),
         skip_on_holiday: values.skip_on_holiday !== false,
         message_template: values.message_template,
       };
@@ -198,7 +183,6 @@ const TelegramFeatureTab = () => {
       setBotTokenInput('');
       refetchConfig();
       refetchStatus();
-      refetchParents();
     } catch (error) {
       message.error(error?.data?.message || 'Gagal menyimpan konfigurasi Telegram.');
     }
@@ -332,27 +316,6 @@ const TelegramFeatureTab = () => {
     });
   };
 
-  const handleUnbindParent = (parent) => {
-    Modal.confirm({
-      title: 'Lepas ikatan Telegram?',
-      content: `${parent.parent_name} tidak akan menerima notifikasi sampai bind ulang.`,
-      okText: 'Lepas',
-      okType: 'danger',
-      cancelText: 'Batal',
-      onOk: async () => {
-        try {
-          await unbindParent(parent.parent_user_id).unwrap();
-          message.success('Ikatan Telegram dilepas.');
-          refetchParents();
-          refetchConfig();
-        } catch (error) {
-          message.error(error?.data?.message || 'Gagal melepas ikatan.');
-          throw error;
-        }
-      },
-    });
-  };
-
   const selectedBatch = batches.find((batch) => Number(batch.id) === Number(selectedBatchId));
   const canDeleteSelectedBatchLogs =
     Boolean(selectedBatch) && selectedBatch.batch_status !== 'running' && logs.length > 0;
@@ -437,29 +400,13 @@ const TelegramFeatureTab = () => {
                 />
               </Form.Item>
 
-              <Flex gap={12} wrap="wrap">
-                <Form.Item
-                  name="send_time"
-                  label="Jam Kirim (WIB)"
-                  rules={[{ required: true, message: 'Jam kirim wajib diisi.' }]}
-                  style={{ flex: '1 1 160px', minWidth: 160 }}>
-                  <TimePicker format="HH:mm" style={{ width: '100%' }} />
-                </Form.Item>
-                <Form.Item
-                  name="send_delay_min_seconds"
-                  label="Jeda Min (detik)"
-                  rules={[{ required: true, message: 'Wajib diisi.' }]}
-                  style={{ flex: '1 1 140px', minWidth: 140 }}>
-                  <InputNumber min={0} max={120} style={{ width: '100%' }} />
-                </Form.Item>
-                <Form.Item
-                  name="send_delay_max_seconds"
-                  label="Jeda Max (detik)"
-                  rules={[{ required: true, message: 'Wajib diisi.' }]}
-                  style={{ flex: '1 1 140px', minWidth: 140 }}>
-                  <InputNumber min={0} max={120} style={{ width: '100%' }} />
-                </Form.Item>
-              </Flex>
+              <Form.Item
+                name="send_time"
+                label="Jam Kirim (WIB)"
+                rules={[{ required: true, message: 'Jam kirim wajib diisi.' }]}
+                style={{ maxWidth: 220 }}>
+                <TimePicker format="HH:mm" style={{ width: '100%' }} />
+              </Form.Item>
 
               <Form.Item name="skip_on_holiday" label="Lewati Hari Libur" valuePropName="checked">
                 <Switch checkedChildren="Ya" unCheckedChildren="Tidak" />
@@ -508,7 +455,9 @@ const TelegramFeatureTab = () => {
                   {status?.bot_username ? `@${status.bot_username}` : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Orang Tua Terhubung">
-                  {bindStats.bound_parents || 0} / {bindStats.total_parents || 0}
+                  <Text>
+                    {bindStats.bound_parents || 0} dari {bindStats.total_parents || 0} sudah bind Telegram
+                  </Text>
                 </Descriptions.Item>
                 {status?.last_error ? (
                   <Descriptions.Item label="Error Terakhir">
@@ -522,7 +471,7 @@ const TelegramFeatureTab = () => {
                   type="success"
                   showIcon
                   message="Bot siap mengirim notifikasi."
-                  description="Orang tua harus buka link bind lalu tekan Start di Telegram."
+                  description="Orang tua menghubungkan Telegram lewat tombol di portal orang tua, lalu tekan Start."
                 />
               ) : (
                 <Alert
@@ -577,90 +526,13 @@ const TelegramFeatureTab = () => {
                   </Button>
                 </Flex>
                 <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}>
-                  Chat ID didapat setelah orang tua Start bot, atau dari daftar bind di bawah.
+                  Chat ID didapat setelah orang tua Start bot di Telegram.
                 </Paragraph>
               </Card>
             </Flex>
           </Card>
         </MotionDiv>
       </Flex>
-
-      <MotionDiv variants={itemVariants} initial="hidden" animate="show">
-        <Card
-          title="Ikatan Orang Tua ↔ Telegram"
-          style={innerCardStyle}
-          extra={
-            <Button icon={<RefreshCw size={14} />} loading={fetchingParents} onClick={refetchParents}>
-              Refresh
-            </Button>
-          }>
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message="Cara bind orang tua"
-            description="Bagikan link bind ke orang tua. Mereka buka link tersebut di Telegram lalu tekan Start. Sistem otomatis menyimpan chat_id."
-          />
-          <Table
-            rowKey="parent_user_id"
-            size="small"
-            loading={fetchingParents}
-            dataSource={parents}
-            pagination={{ pageSize: 8, showSizeChanger: false }}
-            columns={[
-              {
-                title: 'Orang Tua',
-                dataIndex: 'parent_name',
-                ellipsis: true,
-              },
-              {
-                title: 'Status',
-                dataIndex: 'is_bound',
-                width: 120,
-                render: (value) =>
-                  value ? <Tag color="success">Terhubung</Tag> : <Tag>Belum</Tag>,
-              },
-              {
-                title: 'Chat ID',
-                dataIndex: 'telegram_chat_id',
-                width: 140,
-                render: (value) => value || '-',
-              },
-              {
-                title: 'Anak',
-                dataIndex: 'student_count',
-                width: 70,
-              },
-              {
-                title: 'Aksi',
-                width: 160,
-                render: (_, row) => (
-                  <Space size={4}>
-                    {row.bind_link ? (
-                      <Button
-                        size="small"
-                        href={row.bind_link}
-                        target="_blank"
-                        rel="noreferrer"
-                        icon={<ExternalLink size={14} />}
-                      />
-                    ) : null}
-                    {row.is_bound ? (
-                      <Button
-                        size="small"
-                        danger
-                        icon={<Unlink size={14} />}
-                        loading={unbindingParent}
-                        onClick={() => handleUnbindParent(row)}
-                      />
-                    ) : null}
-                  </Space>
-                ),
-              },
-            ]}
-          />
-        </Card>
-      </MotionDiv>
 
       <MotionDiv variants={itemVariants} initial="hidden" animate="show">
         <Card

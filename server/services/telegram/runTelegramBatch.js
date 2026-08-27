@@ -16,6 +16,10 @@ import {
   releaseTelegramRunDate,
 } from "./telegramConfigStore.js";
 
+/** Fixed inter-message delay (seconds). Not configurable in UI/DB. */
+const SEND_DELAY_MIN_SECONDS = 1;
+const SEND_DELAY_MAX_SECONDS = 3;
+
 const finalizeBatch = async (executor, batchId, fields) => {
   await executor.query(
     `UPDATE attendance.telegram_notification_batch
@@ -251,7 +255,6 @@ const executeTelegramBatchSend = async (prepared) => {
     batch_id: batchId,
     total_recipients: totalRecipients,
     queued_items: queuedItems,
-    config,
   } = prepared;
 
   if (!batchId) {
@@ -316,9 +319,7 @@ const executeTelegramBatchSend = async (prepared) => {
     }
 
     if (index < queuedItems.length - 1) {
-      await sleep(
-        randomDelayMs(config.send_delay_min_seconds, config.send_delay_max_seconds),
-      );
+      await sleep(randomDelayMs(SEND_DELAY_MIN_SECONDS, SEND_DELAY_MAX_SECONDS));
     }
   }
 
@@ -592,9 +593,7 @@ export const retryFailedTelegramBatch = async ({
       }
 
       if (index < failedLogs.rows.length - 1) {
-        await sleep(
-          randomDelayMs(config.send_delay_min_seconds, config.send_delay_max_seconds),
-        );
+        await sleep(randomDelayMs(SEND_DELAY_MIN_SECONDS, SEND_DELAY_MAX_SECONDS));
       }
     }
 

@@ -32,8 +32,6 @@ export const getDefaultTelegramConfig = (homebaseId) => ({
   last_update_id: null,
   last_error: null,
   send_time: "08:00:00",
-  send_delay_min_seconds: 1,
-  send_delay_max_seconds: 3,
   message_template: DEFAULT_MESSAGE_TEMPLATE,
   skip_on_holiday: true,
   last_run_date: null,
@@ -150,23 +148,12 @@ export const upsertTelegramNotificationConfig = async (
     throw new Error("Format send_time tidak valid. Gunakan HH:mm.");
   }
 
-  const minDelay = Number(payload.send_delay_min_seconds ?? 1);
-  const maxDelay = Number(payload.send_delay_max_seconds ?? 3);
   const messageTemplate = String(payload.message_template || "").trim();
   const incomingToken =
     payload.bot_token === undefined || payload.bot_token === null
       ? undefined
       : String(payload.bot_token).trim();
 
-  if (!Number.isFinite(minDelay) || minDelay < 0) {
-    throw new Error("send_delay_min_seconds minimal 0 detik.");
-  }
-  if (!Number.isFinite(maxDelay) || maxDelay < minDelay) {
-    throw new Error("send_delay_max_seconds harus >= send_delay_min_seconds.");
-  }
-  if (maxDelay > 120) {
-    throw new Error("send_delay_max_seconds maksimal 120 detik.");
-  }
   if (!messageTemplate) {
     throw new Error("message_template wajib diisi.");
   }
@@ -190,15 +177,13 @@ export const upsertTelegramNotificationConfig = async (
        bot_status,
        last_error,
        send_time,
-       send_delay_min_seconds,
-       send_delay_max_seconds,
        message_template,
        skip_on_holiday,
        last_connected_at,
        created_by,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
      ON CONFLICT (homebase_id)
      DO UPDATE SET
        is_enabled = EXCLUDED.is_enabled,
@@ -207,8 +192,6 @@ export const upsertTelegramNotificationConfig = async (
        bot_status = EXCLUDED.bot_status,
        last_error = EXCLUDED.last_error,
        send_time = EXCLUDED.send_time,
-       send_delay_min_seconds = EXCLUDED.send_delay_min_seconds,
-       send_delay_max_seconds = EXCLUDED.send_delay_max_seconds,
        message_template = EXCLUDED.message_template,
        skip_on_holiday = EXCLUDED.skip_on_holiday,
        last_connected_at = EXCLUDED.last_connected_at,
@@ -222,8 +205,6 @@ export const upsertTelegramNotificationConfig = async (
       payload.bot_status || existing.bot_status || "disconnected",
       payload.last_error === undefined ? existing.last_error || null : payload.last_error,
       sendTime,
-      minDelay,
-      maxDelay,
       messageTemplate,
       payload.skip_on_holiday !== false,
       payload.last_connected_at === undefined
