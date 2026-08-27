@@ -1,4 +1,4 @@
-# Panduan Perakitan Hardware — ESP32 + MFRC522 + LCD + Buzzer
+# Panduan Perakitan Hardware — ESP32 + MFRC522 + LCD + Buzzer + (opsional) Mini W5500
 
 Dokumentasi ini menjelaskan cara merakit unit reader RFID presensi EduCore LMS dari nol: daftar komponen, urutan sambungan kabel, dan langkah uji sebelum upload firmware produksi.
 
@@ -7,9 +7,11 @@ Dokumentasi ini menjelaskan cara merakit unit reader RFID presensi EduCore LMS d
 | File | Kegunaan |
 |------|----------|
 | [`esp32_rfid_hardware_test.ino`](./esp32_rfid_hardware_test.ino) | Uji LCD, kabel MFRC522, dan baca kartu |
-| [`esp32_rfid_attendance_mfrc522.ino`](./esp32_rfid_attendance_mfrc522.ino) | Firmware produksi (WiFi + API presensi) |
+| [`esp32_rfid_attendance_mfrc522.ino`](./esp32_rfid_attendance_mfrc522.ino) | Firmware produksi (WiFi **atau** Ethernet W5500 + API presensi) |
 
 Untuk konfigurasi server, device admin, dan policy absensi, lihat [`rfid_attendance_panduan.md`](./rfid_attendance_panduan.md).
+
+**Koneksi jaringan:** default firmware memakai **WiFi**. Untuk lokasi dengan WiFi lemah/tidak stabil (gerbang, ruang server), sambungkan **Mini W5500 Ethernet Module** ke LAN kabel dan set `NETWORK_MODE = "ethernet"` — lihat [§5.4](#54-mini-w5500-ethernet--esp32) dan [§11](#11-ethernet-mini-w5500).
 
 ---
 
@@ -27,6 +29,8 @@ Untuk konfigurasi server, device admin, dan policy absensi, lihat [`rfid_attenda
 | 8 | Base plate extension (opsional) | ESP32 DOIT V1 **30 pin** | Shield expander GVS + power; lihat [§3](#3-base-plate-extension-esp32-doit-v1-30-pin) |
 | 9 | Power supply | USB 5V 1A+ | Via micro-USB ESP32, base plate, atau VIN 5V stabil |
 | 10 | Casing (opsional) | Box ABS / 3D print | Lindungi modul dari debu & benturan |
+| 11 | **Mini W5500 Ethernet** (opsional) | W5500 SPI, RJ45 | LAN kabel; **3.3V**; bus SPI **terpisah** dari MFRC522 — lihat [§5.4](#54-mini-w5500-ethernet--esp32) |
+| 12 | Kabel UTP / patch cord (jika Ethernet) | Cat5e/Cat6 | Ke switch/router sekolah |
 
 **Library Arduino IDE** (install via Library Manager):
 
@@ -34,6 +38,8 @@ Untuk konfigurasi server, device admin, dan policy absensi, lihat [`rfid_attenda
 - `LiquidCrystal I2C` by Frank de Brabander
 - `ArduinoJson` by Benoit Blanchon (v6+) — untuk firmware produksi
 - Board package: **esp32** by Espressif Systems
+  - WiFi saja: v2.x atau v3.x OK
+  - **Ethernet W5500:** wajib **v3.0.0+** (`ETH.h` + `ETH_PHY_W5500`, tanpa library tambahan)
 
 ---
 
@@ -45,17 +51,25 @@ Pin berikut dipakai oleh sketch referensi EduCore:
 |------|--------|----------|
 | **D4** (GPIO 4) | Output digital | Buzzer (+) |
 | **D5** (GPIO 5) | SPI SS / SDA | MFRC522 SDA |
-| **D18** (GPIO 18) | SPI SCK | MFRC522 SCK |
-| **D19** (GPIO 19) | SPI MISO | MFRC522 MISO |
+| **D13** (GPIO 13) | SPI MOSI (HSPI) | Mini W5500 MOSI *(opsional Ethernet)* |
+| **D14** (GPIO 14) | SPI SCK (HSPI) | Mini W5500 SCK *(opsional Ethernet)* |
+| **D15** (GPIO 15) | SPI CS (HSPI) | Mini W5500 SCS/CS *(opsional Ethernet)* |
+| **D16** (GPIO 16) | SPI MISO (HSPI) | Mini W5500 MISO *(opsional Ethernet)* |
+| **D17** (GPIO 17) | Reset | Mini W5500 RST *(opsional Ethernet)* |
+| **D18** (GPIO 18) | SPI SCK (VSPI) | MFRC522 SCK |
+| **D19** (GPIO 19) | SPI MISO (VSPI) | MFRC522 MISO |
 | **D21** (GPIO 21) | I2C SDA | LCD SDA |
 | **D22** (GPIO 22) | Output digital | MFRC522 RST |
-| **D23** (GPIO 23) | SPI MOSI | MFRC522 MOSI |
+| **D23** (GPIO 23) | SPI MOSI (VSPI) | MFRC522 MOSI |
+| **D25** (GPIO 25) | Interrupt | Mini W5500 INT *(opsional, disarankan)* |
 | **D27** (GPIO 27) | I2C SCL | LCD SCL |
-| **3V3** | Power 3.3V | MFRC522 VCC |
+| **3V3** | Power 3.3V | MFRC522 VCC (+ W5500 jika dipakai) |
 | **5V / VIN** | Power 5V | LCD VCC |
 | **GND** | Ground | Semua modul (satu titik GND bersama) |
 
 > **Penting:** MFRC522 **SDA** (chip select SPI) **bukan** I2C SDA. Jangan sambungkan MFRC522 SDA ke D21 — itu pin LCD.
+
+> **Penting (Ethernet):** Mini W5500 memakai **bus SPI HSPI terpisah** (D13/D14/D15/D16). **Jangan** share SCK/MOSI/MISO dengan MFRC522 — bentrok SPI sering membuat RFID atau Ethernet gagal.
 
 ---
 
@@ -105,6 +119,7 @@ Aturan untuk unit RFID EduCore:
 | Modul | Ambil VCC dari | Catatan |
 |-------|----------------|---------|
 | **MFRC522** | Header **3V3** tetap, atau baris **V** hanya jika jumper di **3.3V** | ⚠️ **Jangan 5V** — modul bisa rusak |
+| **Mini W5500** | Header **3V3** (sama seperti MFRC522) | ⚠️ **Jangan 5V**; konsumsi ~130 mA — power 3V3 harus stabil |
 | **LCD I2C** | Header **5V** atau baris **V** saat jumper **5V** | Umumnya butuh 5V |
 | **Buzzer** | Sesuai label modul (3.3V/5V) + sinyal ke **S** di **D4** | GND ke **G** |
 
@@ -216,6 +231,16 @@ LCD     ──SCL───► D27 baris S     ← wajib D27 (bukan header I2C D2
 Buzzer  ──(+)───► D4  baris S
 Buzzer  ──(-)───► [GND]
 
+W5500   ──3.3V──► [3V3] base plate          (jangan ke 5V; opsional Ethernet)
+W5500   ──GND───► [GND] atau G sembarang
+W5500   ──MOSI──► D13 baris S               (HSPI — jangan share dengan MFRC522)
+W5500   ──MISO──► D16 baris S
+W5500   ──SCK───► D14 baris S
+W5500   ──SCS───► D15 baris S
+W5500   ──RST───► D17 baris S
+W5500   ──INT───► D25 baris S               (disarankan)
+W5500   ──RJ45──► switch/router LAN
+
 Upload sketch   ──► USB di ESP32 (bukan USB power base plate)
 Operasional     ──► USB ESP32 / Type-C base / Jack DC + adaptor
 ```
@@ -225,6 +250,7 @@ Operasional     ──► USB ESP32 / Type-C base / Jack DC + adaptor
    LCD SCL ──► I2C header             LCD SCL ──► D27.S
               (sering = D22)          MFRC522 RST ──► D22.S
    MFRC522 VCC ──► V jumper 5V        MFRC522 VCC ──► [3V3]
+   W5500 VCC ──► 5V / SPI MFRC522     W5500 VCC ──► [3V3]; SPI D13–D16
 ```
 
 ### 3.6 Wiring ringkas di base plate
@@ -241,6 +267,12 @@ Pin signal (**S**) mengikuti §2 / §5 — tidak berubah:
 | LCD SDA | **D21** | 5V | G |
 | LCD SCL | **D27** | — | — |
 | Buzzer (+) | **D4** | sesuai modul | G |
+| W5500 MOSI | **D13** | 3V3 | G |
+| W5500 SCK | **D14** | — | — |
+| W5500 SCS | **D15** | — | — |
+| W5500 MISO | **D16** | — | — |
+| W5500 RST | **D17** | — | — |
+| W5500 INT | **D25** | — | — |
 
 > **Jangan pakai header I2C “default” di shield tanpa dicek.** Banyak base plate melabeli I2C sebagai **SDA=D21 / SCL=D22**. Firmware EduCore memakai **SCL = D27** dan **D22 = RST MFRC522**. Sambungkan LCD SCL ke kolom **D27**, bukan ke header I2C bawaan shield.
 
@@ -261,13 +293,20 @@ Pin signal (**S**) mengikuti §2 / §5 — tidak berubah:
                     ┌─────────────────────────────────┐
                     │         ESP32 DevKit V1         │
                     │                                 │
-   MFRC522 3.3V ────┤ 3V3                             │
-   MFRC522 GND  ────┤ GND ◄── LCD GND ◄── Buzzer (-)  │
-   MFRC522 SDA  ────┤ D5  (SS)                         │
+   MFRC522 3.3V ────┤ 3V3 ◄── W5500 3.3V (opsional)   │
+   MFRC522 GND  ────┤ GND ◄── LCD / Buzzer / W5500    │
+   MFRC522 SDA  ────┤ D5  (SS VSPI)                   │
    MFRC522 SCK  ────┤ D18                             │
    MFRC522 MOSI ────┤ D23                             │
    MFRC522 MISO ────┤ D19                             │
    MFRC522 RST  ────┤ D22                             │
+                    │                                 │
+   W5500 MOSI   ────┤ D13 (HSPI, opsional Ethernet)   │
+   W5500 MISO   ────┤ D16                             │
+   W5500 SCK    ────┤ D14                             │
+   W5500 SCS    ────┤ D15                             │
+   W5500 RST    ────┤ D17                             │
+   W5500 INT    ────┤ D25                             │
                     │                                 │
    LCD SDA      ────┤ D21 (I2C)                       │
    LCD SCL      ────┤ D27 (I2C)                       │
@@ -336,6 +375,45 @@ Potensiometer kontras (jika ada di modul LCD) bisa diputar jika karakter samar.
 
 > Saat menjalankan sketch **uji kabel** (`esp32_rfid_hardware_test.ino` perintah `c`), **cabut buzzer dari D4** — pin D4 dipakai sebagai pin bantu tes kontinuitas.
 
+### 5.4 Mini W5500 Ethernet → ESP32
+
+Modul **Mini W5500** (chip Wiznet W5500 + RJ45) dipakai jika unit RFID harus online lewat **LAN kabel** (bukan WiFi).
+
+| Label modul W5500 | ESP32 | Keterangan |
+|-------------------|-------|------------|
+| **VCC** / **3.3V** | **3V3** | ⚠️ **Jangan 5V** — chip W5500 3.3V |
+| **GND** | **GND** | Ground bersama |
+| **MOSI** | **D13** | SPI data ESP32 → W5500 (HSPI) |
+| **MISO** | **D16** | SPI data W5500 → ESP32 |
+| **SCK** / **SCLK** | **D14** | Clock SPI |
+| **SCS** / **CS** / **SS** | **D15** | Chip Select |
+| **RST** | **D17** | Reset modul (boleh dikosongkan → set `#define W5500_RST -1`) |
+| **INT** | **D25** | Interrupt (disarankan; boleh dikosongkan → set `#define W5500_IRQ -1`) |
+
+**Jangan** sambungkan W5500 ke pin SPI MFRC522 (D5/D18/D19/D23). Firmware memakai **dua bus SPI**:
+
+| Bus | Pin | Perangkat |
+|-----|-----|-----------|
+| VSPI | D5, D18, D19, D23 | MFRC522 |
+| HSPI | D13, D14, D15, D16 (+ D17, D25) | Mini W5500 |
+
+Layout label di PCB Mini W5500 sering seperti:
+
+```
+VCC | GND | MOSI | MISO | SCLK | SCS | INT | RST
+```
+
+Selalu ikuti **cetakan silkscreen** di modul Anda.
+
+```
+        ❌ SALAH                              ✅ BENAR
+   W5500 SCK  ──► D18 (sama MFRC522)    W5500 SCK  ──► D14
+   W5500 MOSI ──► D23                   W5500 MOSI ──► D13
+   W5500 VCC  ──► 5V                    W5500 VCC  ──► 3V3
+```
+
+Setelah wiring: colok kabel RJ45 ke switch/router → upload firmware dengan `NETWORK_MODE = "ethernet"` (lihat [§11](#11-ethernet-mini-w5500)).
+
 ---
 
 ## 6. Urutan Perakitan (Disarankan)
@@ -378,17 +456,34 @@ Ikuti urutan ini agar mudah debug jika ada masalah.
 ### Langkah 5 — Firmware produksi
 
 1. Salin `esp32_rfid_attendance_mfrc522.ino` ke folder sketch Arduino.
-2. Isi konstanta:
+2. Pastikan board package **esp32** sesuai mode jaringan (Ethernet → **v3.0.0+**).
+3. Isi konstanta:
    ```cpp
-   const char* WIFI_SSID = "...";
+   // Dukungan W5500 (1) butuh esp32 core 3.0+; WiFi saja bisa set 0
+   #define ENABLE_W5500_ETHERNET 1
+   // "wifi" atau "ethernet"
+   const char* NETWORK_MODE = "wifi";
+
+   const char* WIFI_SSID = "...";       // jika wifi
    const char* WIFI_PASS = "...";
+   // jika ethernet: biarkan WIFI_*; set ETH_USE_DHCP / IP statis bila perlu
+
    const char* API_URL = "http://IP_SERVER:PORT/api/lms/attendance/rfid/scan";
    const char* DEVICE_CODE = "...";      // dari admin → Device RFID
    const char* DEVICE_TOKEN = "...";     // token device
    const char* SCAN_ACTION = "daily_gate"; // gate
-   // atau "teacher_session_checkin" untuk device classroom
+   // atau kosongkan untuk classroom / extracurricular (server auto)
    ```
-3. Upload dan verifikasi di admin → **Log Scan**.
+4. Upload dan verifikasi di admin → **Log Scan**.
+5. Jika memakai W5500, ikuti [§11](#11-ethernet-mini-w5500) setelah Langkah 4.
+
+### Langkah 6 — (Opsional) Mini W5500 Ethernet
+
+1. **Matikan power** sebelum menyambung W5500.
+2. Sambungkan sesuai [§5.4](#54-mini-w5500-ethernet--esp32) (3V3, GND, HSPI D13–D16, RST D17, INT D25).
+3. Colok patch cord RJ45 ke switch/router yang sama / reachable ke server LMS.
+4. Di sketch: `ENABLE_W5500_ETHERNET 1`, `NETWORK_MODE = "ethernet"`; upload ulang (board package esp32 ≥ 3.0.0).
+5. LCD harus menampilkan `Eth Terhubung` + IP. Jika `ETH Timeout` / `ETH ERROR`, lihat troubleshooting §8.
 
 ---
 
@@ -404,7 +499,9 @@ Ikuti urutan ini agar mudah debug jika ada masalah.
 | ☐ | LCD tampil normal (uji perintah `l`) |
 | ☐ | Kartu terbaca, UID muncul (uji perintah `r`) |
 | ☐ | Buzzer bunyi saat scan (firmware produksi) |
-| ☐ | WiFi tersambung, IP server bisa diakses ESP32 |
+| ☐ | Jaringan OK: WiFi **atau** Ethernet (LCD tampil IP) |
+| ☐ | (Jika Ethernet) W5500 ke **3V3**; SPI di D13/D14/D15/D16 (bukan pin MFRC522) |
+| ☐ | (Jika Ethernet) Kabel RJ45 link up; `ENABLE_W5500_ETHERNET 1` + `NETWORK_MODE = "ethernet"`; board package esp32 ≥ 3.0.0 |
 | ☐ | Device terdaftar & aktif di admin LMS |
 | ☐ | Kartu RFID user sudah terdaftar di sistem |
 
@@ -424,6 +521,10 @@ Ikuti urutan ini agar mudah debug jika ada masalah.
 | Buzzer tidak bunyi | Polarity aktif LOW | Invert `BUZZER_ON` / `BUZZER_OFF` di sketch |
 | Buzzer tidak bunyi | Pin bentrok dengan uji kabel | Cabut buzzer saat mode `c`, pasang kembali untuk produksi |
 | WiFi gagal | SSID/password salah | Cek `WIFI_SSID` / `WIFI_PASS` |
+| ETH ERROR / begin gagal | Wiring SPI / power W5500 | Cek 3V3, GND, CS=D15, SCK=D14, MOSI=D13, MISO=D16 |
+| ETH Timeout (tidak dapat IP) | Kabel RJ45 / DHCP / INT | Cek link LED di modul; pastikan switch DHCP ON; sambungkan INT→D25; coba IP statis (`ETH_USE_DHCP = false`) |
+| Ethernet OK, RFID error / reboot | SPI bus digabung | Pisahkan bus: W5500 di HSPI (D13–D16), MFRC522 di VSPI (D5/D18/D19/D23) |
+| Compile error `ETH_PHY_W5500` | Board package terlalu lama | Update **esp32** by Espressif ke **v3.0.0+** |
 | Scan HTTP gagal | Server mati / token salah | Cek URL, port, `DEVICE_CODE`, `DEVICE_TOKEN` |
 | Scan ditolak duplicate | Tap terlalu cepat | Tunggu beberapa detik antar tap |
 | Upload gagal / port tidak muncul | USB hanya ke base plate | Colok USB ke **port ESP32** (programming), bukan hanya Type-C/Micro di shield |
@@ -435,6 +536,7 @@ Ikuti urutan ini agar mudah debug jika ada masalah.
 - Antena MFRC522 harus **tidak tertutup logam** — plastik tipis di depan antena OK.
 - Beri lubang akses USB atau gunakan power 5V permanen ke VIN / jack DC base plate.
 - Jika pakai base plate di dalam casing: pastikan soket USB ESP32 tetap bisa diakses untuk update firmware.
+- Jika pakai Mini W5500: sediakan lubang **RJ45** di sisi casing; jauhkan kabel UTP dari antena MFRC522 bila memungkinkan.
 - Label device (kode gate/kelas) tempel di luar casing agar teknisi mudah identifikasi.
 - Kabel jumper di dalam casing: kencangkan dengan tie-wrap, hindari tarikan ke pin header.
 
@@ -449,9 +551,86 @@ MFRC522:  3.3V→3V3  GND→GND  SDA→D5
           SCK→D18   MOSI→D23  MISO→D19  RST→D22
 LCD I2C:  VCC→5V    GND→GND  SDA→D21   SCL→D27
 Buzzer:   (+)→D4    (-)→GND
+W5500:    3.3V→3V3  GND→GND  MOSI→D13  MISO→D16
+          SCK→D14   SCS→D15  RST→D17   INT→D25
+          NETWORK_MODE = "ethernet" + ENABLE_W5500_ETHERNET 1
 ─────────────────────────────────
 Base plate DOIT V1 30P: signal di baris S;
-  MFRC522 power 3V3 saja; LCD SCL = D27 (bukan D22)
+  MFRC522/W5500 power 3V3 saja; LCD SCL = D27 (bukan D22)
 Uji: esp32_rfid_hardware_test.ino
 Prod: esp32_rfid_attendance_mfrc522.ino
 ```
+
+---
+
+## 11. Ethernet Mini W5500
+
+Gunakan bagian ini jika unit harus online lewat **kabel LAN** (WiFi sekolah lemah, jarak jauh dari AP, atau kebijakan IT mewajibkan wired).
+
+### 11.1 Persyaratan
+
+| Item | Keterangan |
+|------|------------|
+| Modul | Mini W5500 (Wiznet W5500 SPI + magnetics RJ45) |
+| Tegangan | **3.3V saja** |
+| Board package Arduino | **esp32 ≥ 3.0.0** (built-in `ETH.h`) |
+| Jaringan | Port switch/router dengan DHCP, atau siapkan IP statis |
+| Firmware | `ENABLE_W5500_ETHERNET 1` + `NETWORK_MODE = "ethernet"` di `esp32_rfid_attendance_mfrc522.ino` |
+
+### 11.2 Diagram ringkas
+
+```
+  Switch / Router
+        │
+        │  kabel UTP (RJ45)
+        ▼
+  ┌─────────────┐         HSPI          ┌──────────────────┐
+  │ Mini W5500  │◄──── D13/D14/D15/D16 ──┤                  │
+  │             │◄──── RST D17, INT D25 ─┤  ESP32 DevKit V1 │
+  │  3.3V / GND │◄──────────────────────┤                  │
+  └─────────────┘                       │     VSPI          │
+                                        │◄── MFRC522        │
+                                        │    D5/D18/D19/D23 │
+                                        └──────────────────┘
+```
+
+### 11.3 Konfigurasi sketch
+
+```cpp
+#define ENABLE_W5500_ETHERNET 1
+const char* NETWORK_MODE = "ethernet";
+
+// DHCP (default sekolah)
+const bool ETH_USE_DHCP = true;
+
+// Atau IP statis:
+// const bool ETH_USE_DHCP = false;
+// IPAddress ETH_STATIC_IP(192, 168, 1, 50);
+// IPAddress ETH_GATEWAY(192, 168, 1, 1);
+// IPAddress ETH_SUBNET(255, 255, 255, 0);
+// IPAddress ETH_DNS(8, 8, 8, 8);
+```
+
+`WIFI_SSID` / `WIFI_PASS` diabaikan saat mode ethernet. `API_URL`, `DEVICE_CODE`, dan `DEVICE_TOKEN` tetap wajib diisi.
+
+Jika pin **INT** atau **RST** tidak disambung:
+
+```cpp
+#define W5500_IRQ  -1
+#define W5500_RST  -1
+```
+
+Sambungan INT (D25) tetap disarankan agar driver lebih stabil.
+
+### 11.4 Urutan uji Ethernet
+
+1. Wiring §5.4 selesai; power 3V3 stabil (USB 1A+ atau adaptor base plate).
+2. RJ45 terpasang; LED link di modul W5500 biasanya menyala/berkedip.
+3. Upload firmware mode ethernet.
+4. Serial Monitor 115200: muncul `[ETH] Got IP: ...`.
+5. LCD: `Eth Terhubung` + alamat IP.
+6. Heartbeat/MAC tersimpan; tap kartu → Log Scan di LMS.
+
+### 11.5 Kembali ke WiFi
+
+Cabut W5500 (opsional), set `NETWORK_MODE = "wifi"` (atau `ENABLE_W5500_ETHERNET 0` jika ingin compile tanpa ETH), isi SSID/password, upload ulang — pin MFRC522/LCD/buzzer tidak berubah.

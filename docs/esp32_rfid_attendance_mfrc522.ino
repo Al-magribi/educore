@@ -1,11 +1,18 @@
 /*
-  ESP32 DevKit V1 + MFRC522 + LCD I2C + Buzzer
+  ESP32 DevKit V1 + MFRC522 + LCD I2C + Buzzer + (opsional) Mini W5500 Ethernet
   RFID Attendance Client — EduCore LMS
 
-  Wiring MFRC522:
+  Wiring MFRC522 (SPI VSPI):
     SDA(SS) -> D5    SCK  -> D18   MOSI -> D23
     MISO    -> D19   RST  -> D22   3.3V -> 3V3
     GND     -> GND
+
+  Wiring Mini W5500 Ethernet (SPI HSPI terpisah — jangan share bus dengan MFRC522):
+    MOSI -> D13   MISO -> D16   SCK -> D14
+    SCS  -> D15   RST  -> D17   INT -> D25 (disarankan)
+    3.3V -> 3V3   GND  -> GND
+    RJ45 -> switch/router LAN sekolah
+    Set ENABLE_W5500_ETHERNET 1 dan NETWORK_MODE = "ethernet".
 
   Wiring LCD I2C:
     SDA -> D21   SCL -> D27   VCC -> 5V/VIN   GND -> GND
@@ -31,6 +38,13 @@
     - Mapping policy kegiatan diatur di LMS.
     - Hanya guru/siswa yang terdaftar di assignment policy device yang boleh tap;
       lainnya → "Akses ditolak".
+
+  Catatan Ethernet (W5500):
+    - Set ENABLE_W5500_ETHERNET 1 dan NETWORK_MODE = "ethernet".
+    - Butuh board package esp32 by Espressif Systems v3.0.0+ (ETH_PHY_W5500).
+    - Bus SPI W5500 = HSPI terpisah dari MFRC522 agar tidak bentrok.
+    - HTTPClient & NTP tetap dipakai (stack lwIP via ETH.h).
+    - WiFi saja: biarkan ENABLE_W5500_ETHERNET 0 (kompatibel core 2.x).
 */
 
 #include <WiFi.h>
@@ -41,6 +55,17 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <time.h>
+
+// 1 = dukungan Mini W5500 (wajib esp32 core 3.0+)
+// 0 = WiFi saja (default; kompatibel core 2.x)
+#define ENABLE_W5500_ETHERNET 0
+
+#if ENABLE_W5500_ETHERNET
+#include <ETH.h>
+#if !defined(ETH_PHY_W5500)
+#error "ENABLE_W5500_ETHERNET=1 butuh esp32 board package v3.0.0+ (ETH_PHY_W5500). Update Board Manager, atau set ENABLE_W5500_ETHERNET 0 untuk WiFi saja."
+#endif
+#endif
 
 void appendDeviceIdentity(DynamicJsonDocument& doc);
 bool registerDevice();
@@ -92,10 +117,26 @@ void resetScanResult(ScanResult& result) {
 }
 
 // =============================
-// WiFi & API Config
+// Network & API Config
 // =============================
+// "wifi"      -> koneksi via WiFi ESP32
+// "ethernet"  -> koneksi via Mini W5500 (LAN kabel)
+const char* NETWORK_MODE = "wifi";
+
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
+
+// Ethernet W5500 (hanya dipakai jika NETWORK_MODE = "ethernet")
+// true  = ambil IP dari DHCP router/switch
+// false = pakai IP statis di bawah
+const bool ETH_USE_DHCP = true;
+IPAddress ETH_STATIC_IP(192, 168, 1, 50);
+IPAddress ETH_GATEWAY(192, 168, 1, 1);
+IPAddress ETH_SUBNET(255, 255, 255, 0);
+IPAddress ETH_DNS(8, 8, 8, 8);
+
+// Timeout tunggu link + IP Ethernet (ms)
+const unsigned long ETH_CONNECT_TIMEOUT_MS = 30000;
 
 // Gunakan https jika server menggunakan SSL
 // Gunakan http jika server tidak menggunakan SSL
@@ -104,7 +145,7 @@ const char* API_URL = "https://YOUR_SERVER_HOST:2310/api/lms/attendance/rfid/sca
 // Samakan dengan Code Device di LMS (tab Device RFID)
 const char* DEVICE_CODE = "RFID-GATE-HB-0008";
 const char* DEVICE_TOKEN = "PUT_DEVICE_API_TOKEN_HERE";
-const char* FIRMWARE_VERSION = "1.1.0";
+const char* FIRMWARE_VERSION = "1.2.0";
 
 // "gate"             -> absensi harian (datang/pulang)
 // "classroom"        -> absensi sesi guru (1 device boleh banyak kelas di LMS)
@@ -117,7 +158,7 @@ const char* DEVICE_TYPE = "gate";
 const char* SCAN_ACTION = "daily_gate";
 
 // =============================
-// MFRC522 Pins (sesuai hasil uji)
+// MFRC522 Pins (SPI VSPI — sesuai hasil uji)
 // =============================
 #define SS_PIN   5
 #define RST_PIN 22
@@ -125,6 +166,24 @@ const char* SCAN_ACTION = "daily_gate";
 #define SPI_MISO 19
 #define SPI_MOSI 23
 MFRC522 mfrc522(SS_PIN, RST_PIN);
+
+// =============================
+// Mini W5500 Pins (SPI HSPI terpisah)
+// Aktif hanya jika ENABLE_W5500_ETHERNET 1
+// =============================
+#if ENABLE_W5500_ETHERNET
+#define W5500_CS    15
+#define W5500_IRQ   25
+#define W5500_RST   17
+#define W5500_SCK   14
+#define W5500_MISO  16
+#define W5500_MOSI  13
+#define W5500_PHY_ADDR 1
+
+SPIClass ethSPI(HSPI);
+volatile bool ethGotIp = false;
+volatile bool ethLinkUp = false;
+#endif
 
 // =============================
 // Buzzer
@@ -157,6 +216,41 @@ bool isExtracurricularDevice() {
 
 bool isAutoSessionDevice() {
   return isClassroomDevice() || isExtracurricularDevice();
+}
+
+bool useEthernet() {
+#if ENABLE_W5500_ETHERNET
+  return String(NETWORK_MODE).equalsIgnoreCase("ethernet");
+#else
+  return false;
+#endif
+}
+
+bool isNetworkConnected() {
+#if ENABLE_W5500_ETHERNET
+  if (useEthernet()) {
+    return ethGotIp && ethLinkUp;
+  }
+#endif
+  return WiFi.status() == WL_CONNECTED;
+}
+
+String getDeviceMac() {
+#if ENABLE_W5500_ETHERNET
+  if (useEthernet()) {
+    return ETH.macAddress();
+  }
+#endif
+  return WiFi.macAddress();
+}
+
+String getDeviceIp() {
+#if ENABLE_W5500_ETHERNET
+  if (useEthernet()) {
+    return ETH.localIP().toString();
+  }
+#endif
+  return WiFi.localIP().toString();
 }
 
 bool mfrc522VersionOk(byte version) {
@@ -402,8 +496,8 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
   }
 
   if (result.httpCode == 0) {
-    if (WiFi.status() != WL_CONNECTED) {
-      line1 = "No WiFi";
+    if (!isNetworkConnected()) {
+      line1 = useEthernet() ? "No Ethernet" : "No WiFi";
       line2 = "Cek Koneksi";
     } else {
       line1 = "Server Error";
@@ -533,8 +627,8 @@ void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
 bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
   resetScanResult(resultOut);
 
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[RFID] WiFi tidak tersambung.");
+  if (!isNetworkConnected()) {
+    Serial.printf("[RFID] Jaringan tidak tersambung (%s).\n", useEthernet() ? "ethernet" : "wifi");
     return false;
   }
 
@@ -605,10 +699,6 @@ bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
   return false;
 }
 
-String getDeviceMac() {
-  return WiFi.macAddress();
-}
-
 String macWithoutColons(const String& mac) {
   String compact = mac;
   compact.replace(":", "");
@@ -621,10 +711,11 @@ void appendDeviceIdentity(DynamicJsonDocument& doc) {
   if (mac.length() > 0) {
     doc["mac_address"] = mac;
   }
-  if (WiFi.status() == WL_CONNECTED) {
-    doc["ip_address"] = WiFi.localIP().toString();
+  if (isNetworkConnected()) {
+    doc["ip_address"] = getDeviceIp();
   }
   doc["firmware_version"] = FIRMWARE_VERSION;
+  doc["network_mode"] = useEthernet() ? "ethernet" : "wifi";
 }
 
 String getHeartbeatUrl() {
@@ -634,8 +725,10 @@ String getHeartbeatUrl() {
 }
 
 bool registerDevice() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[RFID] Heartbeat dilewati: WiFi tidak tersambung.");
+  if (!isNetworkConnected()) {
+    Serial.printf(
+      "[RFID] Heartbeat dilewati: jaringan tidak tersambung (%s).\n",
+      useEthernet() ? "ethernet" : "wifi");
     return false;
   }
 
@@ -672,6 +765,133 @@ bool registerDevice() {
   return ok;
 }
 
+#if ENABLE_W5500_ETHERNET
+void onEthEvent(arduino_event_id_t event, arduino_event_info_t info) {
+  switch (event) {
+    case ARDUINO_EVENT_ETH_START:
+      Serial.println("[ETH] Started");
+      ETH.setHostname("educore-rfid");
+      break;
+    case ARDUINO_EVENT_ETH_CONNECTED:
+      Serial.println("[ETH] Link up (kabel tersambung)");
+      ethLinkUp = true;
+      break;
+    case ARDUINO_EVENT_ETH_GOT_IP:
+      Serial.printf("[ETH] Got IP: %s\n", ETH.localIP().toString().c_str());
+      Serial.println(ETH);
+      ethGotIp = true;
+      ethLinkUp = true;
+      break;
+    case ARDUINO_EVENT_ETH_LOST_IP:
+      Serial.println("[ETH] Lost IP");
+      ethGotIp = false;
+      break;
+    case ARDUINO_EVENT_ETH_DISCONNECTED:
+      Serial.println("[ETH] Disconnected");
+      ethGotIp = false;
+      ethLinkUp = false;
+      break;
+    case ARDUINO_EVENT_ETH_STOP:
+      Serial.println("[ETH] Stopped");
+      ethGotIp = false;
+      ethLinkUp = false;
+      break;
+    default:
+      break;
+  }
+  (void)info;
+}
+#endif
+
+void connectEthernet() {
+#if !ENABLE_W5500_ETHERNET
+  Serial.println("[ETH] ENABLE_W5500_ETHERNET=0. Set ke 1 dan pakai esp32 core 3.0+.");
+  lcdShow("ETH Disabled", "Cek firmware");
+  buzzerError();
+  while (true) {
+    delay(1000);
+  }
+#else
+  ethGotIp = false;
+  ethLinkUp = false;
+
+  WiFi.mode(WIFI_OFF);
+
+  lcdShow("Ethernet", "Init W5500");
+  Serial.println("[ETH] Init Mini W5500 (HSPI)...");
+  Serial.printf(
+    "[ETH] CS=%d IRQ=%d RST=%d SCK=%d MISO=%d MOSI=%d\n",
+    W5500_CS, W5500_IRQ, W5500_RST, W5500_SCK, W5500_MISO, W5500_MOSI);
+
+  Network.onEvent(onEthEvent);
+
+  ethSPI.begin(W5500_SCK, W5500_MISO, W5500_MOSI, W5500_CS);
+
+  if (!ETH_USE_DHCP) {
+    ETH.config(ETH_STATIC_IP, ETH_GATEWAY, ETH_SUBNET, ETH_DNS);
+    Serial.printf(
+      "[ETH] Static IP %s gw %s\n",
+      ETH_STATIC_IP.toString().c_str(),
+      ETH_GATEWAY.toString().c_str());
+  }
+
+  bool started = ETH.begin(
+    ETH_PHY_W5500,
+    W5500_PHY_ADDR,
+    W5500_CS,
+    W5500_IRQ,
+    W5500_RST,
+    ethSPI);
+
+  if (!started) {
+    Serial.println("[ETH] ETH.begin gagal. Cek kabel W5500 / power 3.3V.");
+    lcdShow("ETH ERROR", "Cek W5500");
+    buzzerError();
+    while (true) {
+      delay(1000);
+    }
+  }
+
+  String mac = getDeviceMac();
+  Serial.printf("[ETH] MAC: %s\n", mac.c_str());
+  lcdShow("MAC Device", macWithoutColons(mac).c_str());
+  delay(1500);
+
+  Serial.println("[ETH] Menunggu link + IP ....");
+  lcdShow("Menyambungkan", "Ethernet...");
+
+  unsigned long startMs = millis();
+  uint8_t dotCount = 0;
+  while (!isNetworkConnected()) {
+    if (millis() - startMs > ETH_CONNECT_TIMEOUT_MS) {
+      Serial.println();
+      Serial.println("[ETH] Timeout. Cek kabel RJ45, switch, DHCP, wiring SPI.");
+      lcdShow("ETH Timeout", "Cek kabel LAN");
+      buzzerError();
+      while (true) {
+        delay(1000);
+      }
+    }
+    delay(500);
+    Serial.print(".");
+    dotCount = (uint8_t)((dotCount + 1) % 4);
+    lcd.setCursor(9, 1);
+    for (uint8_t i = 0; i < dotCount; i++) {
+      lcd.print(".");
+    }
+    for (uint8_t i = dotCount; i < 3; i++) {
+      lcd.print(" ");
+    }
+  }
+
+  Serial.println();
+  Serial.println("[ETH] Terhubung");
+  Serial.printf("[ETH] IP: %s\n", getDeviceIp().c_str());
+  lcdShow("Eth Terhubung", getDeviceIp().c_str());
+  delay(1500);
+#endif
+}
+
 void connectWifi() {
   WiFi.mode(WIFI_STA);
   String mac = getDeviceMac();
@@ -700,10 +920,18 @@ void connectWifi() {
 
   Serial.println();
   Serial.println("Wifi Terhubung");
-  Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("IP: %s\n", getDeviceIp().c_str());
   Serial.printf("MAC: %s\n", mac.c_str());
-  lcdShow("Wifi Terhubung", WiFi.localIP().toString().c_str());
+  lcdShow("Wifi Terhubung", getDeviceIp().c_str());
   delay(1500);
+}
+
+void connectNetwork() {
+  if (useEthernet()) {
+    connectEthernet();
+  } else {
+    connectWifi();
+  }
 }
 
 void setupNtpUtc() {
@@ -731,7 +959,7 @@ void setup() {
 
   buzzerInit();
   lcdInit();
-  connectWifi();
+  connectNetwork();
   setupNtpUtc();
   registerDevice();
 
@@ -744,7 +972,11 @@ void setup() {
     }
   }
 
-  Serial.printf("[RFID] Device ready | code=%s | type=%s\n", DEVICE_CODE, DEVICE_TYPE);
+  Serial.printf(
+    "[RFID] Device ready | code=%s | type=%s | net=%s\n",
+    DEVICE_CODE,
+    DEVICE_TYPE,
+    useEthernet() ? "ethernet" : "wifi");
   if (isClassroomDevice()) {
     lcdShow("Tap Kartu", "Mode Kelas");
     Serial.println("[RFID] Classroom mode: class_id tidak dikirim; server resolve dari jadwal.");
