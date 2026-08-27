@@ -7,7 +7,10 @@ import {
   updateTelegramBotMeta,
 } from "./telegramConfigStore.js";
 
-export const buildTelegramBindPayload = (parentUserId) => `p${Number(parentUserId)}`;
+export const buildTelegramBindPayload = (userId, role = "parent") => {
+  const prefix = role === "teacher" ? "t" : "p";
+  return `${prefix}${Number(userId)}`;
+};
 
 export const parseTelegramBindPayload = (text) => {
   const raw = String(text || "").trim();
@@ -17,19 +20,29 @@ export const parseTelegramBindPayload = (text) => {
   const payload = startMatch ? String(startMatch[1] || "").trim() : raw;
   if (!payload) return { type: "start_plain" };
 
-  const match = payload.match(/^p[_-]?(\d+)$/i);
-  if (!match) return { type: "unknown", payload };
+  const parentMatch = payload.match(/^p[_-]?(\d+)$/i);
+  if (parentMatch) {
+    return {
+      type: "bind_parent",
+      parent_user_id: Number(parentMatch[1]),
+    };
+  }
 
-  return {
-    type: "bind_parent",
-    parent_user_id: Number(match[1]),
-  };
+  const teacherMatch = payload.match(/^t[_-]?(\d+)$/i);
+  if (teacherMatch) {
+    return {
+      type: "bind_teacher",
+      teacher_user_id: Number(teacherMatch[1]),
+    };
+  }
+
+  return { type: "unknown", payload };
 };
 
-export const buildTelegramDeepLink = (botUsername, parentUserId) => {
+export const buildTelegramDeepLink = (botUsername, userId, role = "parent") => {
   const username = String(botUsername || "").replace(/^@/, "").trim();
   if (!username) return null;
-  return `https://t.me/${username}?start=${buildTelegramBindPayload(parentUserId)}`;
+  return `https://t.me/${username}?start=${buildTelegramBindPayload(userId, role)}`;
 };
 
 export const verifyAndSyncTelegramBot = async (executor, homebaseId, botToken) => {
@@ -179,6 +192,51 @@ export const bindParentTelegramChat = async (
   };
 };
 
+export const bindTeacherTelegramChat = async (
+  executor,
+  { homebaseId, teacherUserId, chatId },
+) => {
+  const teacherCheck = await executor.query(
+    `SELECT
+       u.id,
+       u.full_name,
+       t.telegram_chat_id
+     FROM public.u_users u
+     JOIN public.u_teachers t
+       ON t.user_id = u.id
+      AND t.homebase_id = $1
+     WHERE u.id = $2
+       AND u.role = 'teacher'
+       AND u.is_active = true
+     LIMIT 1`,
+    [homebaseId, teacherUserId],
+  );
+
+  const teacher = teacherCheck.rows[0];
+  if (!teacher) {
+    return {
+      ok: false,
+      message: "Akun guru tidak ditemukan di sekolah ini.",
+    };
+  }
+
+  await executor.query(
+    `UPDATE public.u_teachers
+     SET telegram_chat_id = $2
+     WHERE user_id = $1
+       AND homebase_id = $3`,
+    [teacherUserId, String(chatId), homebaseId],
+  );
+
+  return {
+    ok: true,
+    teacher_user_id: Number(teacher.id),
+    teacher_name: teacher.full_name,
+    chat_id: String(chatId),
+    message: `Berhasil terhubung sebagai ${teacher.full_name}.`,
+  };
+};
+
 export const unbindParentTelegramChat = async (executor, { homebaseId, parentUserId }) => {
   const result = await executor.query(
     `UPDATE public.u_parents p
@@ -217,7 +275,7 @@ export const handleTelegramUpdate = async (executor, homebaseId, update) => {
       homebaseId,
       chatId,
       message:
-        "Assalamu'alaikum. Bot notifikasi absensi siap.\n\nBuka tautan khusus dari portal sekolah/orang tua, lalu tekan Start agar akun Anda terhubung.",
+        "Assalamu'alaikum. Bot notifikasi absensi siap.\n\nBuka tautan khusus dari portal orang tua atau dashboard guru, lalu tekan Start agar akun Anda terhubung.",
     });
     return { handled: true, action: "start_help" };
   }
@@ -241,6 +299,29 @@ export const handleTelegramUpdate = async (executor, homebaseId, update) => {
     return {
       handled: true,
       action: "bind_parent",
+      ...bindResult,
+    };
+  }
+
+  if (parsed?.type === "bind_teacher") {
+    const bindResult = await bindTeacherTelegramChat(executor, {
+      homebaseId,
+      teacherUserId: parsed.teacher_user_id,
+      chatId,
+    });
+
+    await sendTelegramMessage({
+      executor,
+      homebaseId,
+      chatId,
+      message: bindResult.ok
+        ? `${bindResult.message}\n\nAnda akan menerima notifikasi saat tap absensi datang/pulang di mesin RFID.`
+        : bindResult.message,
+    });
+
+    return {
+      handled: true,
+      action: "bind_teacher",
       ...bindResult,
     };
   }

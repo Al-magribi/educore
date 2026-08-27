@@ -533,6 +533,10 @@ export const ApiAttendance = createApi({
         { type: "TelegramNotification", id: "CONFIG" },
       ],
     }),
+    getTeacherTelegram: builder.query({
+      query: () => "/teacher/telegram",
+      providesTags: [{ type: "TelegramNotification", id: "TEACHER_BIND" }],
+    }),
 
     getAttendanceCalendarConfig: builder.query({
       query: () => "/attendance/calendar/config",
@@ -629,6 +633,7 @@ export const {
   useDeleteTelegramNotificationBatchLogsMutation,
   useDeleteTelegramNotificationLogMutation,
   useRunTelegramNotificationNowMutation,
+  useGetTeacherTelegramQuery,
   useGetAttendanceCalendarConfigQuery,
   useUpdateAttendanceCalendarConfigMutation,
   useGetAttendanceHolidaysQuery,

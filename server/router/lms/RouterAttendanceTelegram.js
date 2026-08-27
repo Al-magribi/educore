@@ -189,7 +189,7 @@ router.get(
     const rows = parents.map((parent) => ({
       ...parent,
       is_bound: Boolean(String(parent.telegram_chat_id || "").trim()),
-      bind_link: buildTelegramDeepLink(config.bot_username, parent.parent_user_id),
+      bind_link: buildTelegramDeepLink(config.bot_username, parent.parent_user_id, "parent"),
     }));
 
     return res.json({
@@ -702,7 +702,52 @@ router.get(
         is_bound: Boolean(String(chatId || "").trim()),
         telegram_chat_id: chatId,
         bot_username: config.bot_username || null,
-        bind_link: buildTelegramDeepLink(config.bot_username, parentUserId),
+        bind_link: buildTelegramDeepLink(config.bot_username, parentUserId, "parent"),
+        bot_ready: config.bot_status === "ready" && Boolean(config.bot_username),
+      },
+    });
+  }),
+);
+
+router.get(
+  "/teacher/telegram",
+  authorize("teacher"),
+  withQuery(async (req, res, pool) => {
+    const teacherUserId = Number(req.user.id);
+    const homebaseId = Number(req.user.homebase_id || 0);
+
+    if (!homebaseId) {
+      return res.json({
+        status: "success",
+        data: {
+          is_bound: false,
+          telegram_chat_id: null,
+          bot_username: null,
+          bind_link: null,
+          bot_ready: false,
+        },
+      });
+    }
+
+    const config = await getTelegramNotificationConfig(pool, homebaseId);
+    const teacherResult = await pool.query(
+      `SELECT telegram_chat_id
+       FROM public.u_teachers
+       WHERE user_id = $1
+         AND homebase_id = $2
+       LIMIT 1`,
+      [teacherUserId, homebaseId],
+    );
+
+    const chatId = teacherResult.rows[0]?.telegram_chat_id || null;
+
+    return res.json({
+      status: "success",
+      data: {
+        is_bound: Boolean(String(chatId || "").trim()),
+        telegram_chat_id: chatId,
+        bot_username: config.bot_username || null,
+        bind_link: buildTelegramDeepLink(config.bot_username, teacherUserId, "teacher"),
         bot_ready: config.bot_status === "ready" && Boolean(config.bot_username),
       },
     });

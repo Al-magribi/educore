@@ -46,8 +46,13 @@ CREATE TABLE u_teachers (
     phone text,
     email text,
     homebase_id integer, -- Relasi ke a_homebase
-    is_homeroom boolean DEFAULT false -- Wali kelas
+    is_homeroom boolean DEFAULT false, -- Wali kelas
+    telegram_chat_id varchar(64)
 );
+
+CREATE UNIQUE INDEX uq_u_teachers_telegram_chat_id
+ON u_teachers (telegram_chat_id)
+WHERE telegram_chat_id IS NOT NULL AND NULLIF(TRIM(telegram_chat_id), '') IS NOT NULL;
 
 
 

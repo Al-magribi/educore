@@ -74,6 +74,7 @@ jobs:
               client/src/components/scroll/InfiniteScrollList.jsx \
               client/src/module/lms \
               client/src/module/parent/dashboard/ParentDash.jsx \
+              client/src/module/teacher/dashboard/TeacherDash.jsx \
               client/src/routes/modules/lmsRoutes.jsx \
               client/src/service/lms \
               client/src/utils/RouteProtection.jsx \
@@ -92,6 +93,7 @@ jobs:
           ensure_parent_report_components() {
             checkout_owned_paths origin/feature/lms \
               client/src/module/parent/dashboard/ParentDash.jsx \
+              client/src/module/teacher/dashboard/TeacherDash.jsx \
               client/src/module/lms/report/AcademicReport.jsx
             git add -A
           }
@@ -175,6 +177,7 @@ jobs:
 
           git diff --quiet origin/feature/lms -- \
             client/src/module/parent/dashboard/ParentDash.jsx \
+            client/src/module/teacher/dashboard/TeacherDash.jsx \
             client/src/module/lms/report/AcademicReport.jsx
 
       - name: Setup Node.js
