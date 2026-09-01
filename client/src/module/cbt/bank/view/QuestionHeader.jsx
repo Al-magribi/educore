@@ -37,6 +37,7 @@ const QuestionHeader = ({
 }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isCompact = !screens.sm;
   const isOverScore = totalScore > 100;
 
   return (
@@ -48,14 +49,14 @@ const QuestionHeader = ({
       <Card
         variant="borderless"
         style={{
-          borderRadius: 24,
+          borderRadius: isMobile ? 18 : 24,
           overflow: "hidden",
           position: "relative",
           background:
             "radial-gradient(circle at top left, rgba(56,189,248,0.24), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
           boxShadow: "0 22px 46px rgba(15, 23, 42, 0.16)",
         }}
-        styles={{ body: { padding: isMobile ? 18 : 22 } }}
+        styles={{ body: { padding: isMobile ? 14 : 22 } }}
       >
         <div
           style={{
@@ -103,16 +104,17 @@ const QuestionHeader = ({
                   align="center"
                   gap={6}
                   style={{
-                    padding: "6px 12px",
+                    padding: isCompact ? "4px 10px" : "6px 12px",
                     borderRadius: 999,
                     background: "rgba(255,255,255,0.12)",
                     border: "1px solid rgba(255,255,255,0.16)",
                     color: "#e0f2fe",
                     fontWeight: 600,
+                    fontSize: isCompact ? 12 : 14,
                   }}
                 >
                   <Sparkles size={14} />
-                  <span>Kelola isi bank soal</span>
+                  <span>{isCompact ? "Kelola bank" : "Kelola isi bank soal"}</span>
                 </Flex>
               </Flex>
 
@@ -130,10 +132,12 @@ const QuestionHeader = ({
 
               <Text
                 style={{
-                  display: "block",
+                  display: isCompact ? "none" : "block",
                   marginTop: 6,
                   color: "rgba(241,245,249,0.84)",
                   maxWidth: 640,
+                  fontSize: 14,
+                  lineHeight: 1.5,
                 }}
               >
                 Susun, review, dan optimalkan pertanyaan dalam bank soal ini
@@ -143,20 +147,20 @@ const QuestionHeader = ({
           </Flex>
 
           <Flex
-            gap={12}
+            gap={isMobile ? 10 : 12}
             wrap="wrap"
             style={{ minWidth: isMobile ? "100%" : 280 }}
           >
             <Card
               size="small"
               style={{
-                flex: 1,
-                minWidth: 120,
-                borderRadius: 18,
+                flex: "1 1 calc(50% - 6px)",
+                minWidth: isMobile ? "calc(50% - 6px)" : 120,
+                borderRadius: isMobile ? 14 : 18,
                 background: "rgba(255,255,255,0.12)",
                 border: "1px solid rgba(255,255,255,0.16)",
               }}
-              styles={{ body: { padding: "12px 14px" } }}
+              styles={{ body: { padding: isMobile ? "10px 12px" : "12px 14px" } }}
             >
               <Statistic
                 title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Jumlah Soal</span>}
@@ -168,13 +172,13 @@ const QuestionHeader = ({
             <Card
               size="small"
               style={{
-                flex: 1,
-                minWidth: 120,
-                borderRadius: 18,
+                flex: "1 1 calc(50% - 6px)",
+                minWidth: isMobile ? "calc(50% - 6px)" : 120,
+                borderRadius: isMobile ? 14 : 18,
                 background: "rgba(255,255,255,0.12)",
                 border: "1px solid rgba(255,255,255,0.16)",
               }}
-              styles={{ body: { padding: "12px 14px" } }}
+              styles={{ body: { padding: isMobile ? "10px 12px" : "12px 14px" } }}
             >
               <Statistic
                 title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Bobot Total</span>}
@@ -192,7 +196,8 @@ const QuestionHeader = ({
           gap={10}
           wrap="wrap"
           justify={isMobile ? "stretch" : "flex-end"}
-          style={{ position: "relative", marginTop: 18 }}
+          className="qh-actions"
+          style={{ position: "relative", marginTop: isMobile ? 14 : 18 }}
         >
           {isOverScore && (
             <Tag
@@ -274,7 +279,7 @@ const QuestionHeader = ({
             type="primary"
             icon={<Plus size={16} />}
             onClick={onAdd}
-            className="res-btn-full"
+            className="res-btn-full qh-btn-primary"
             style={{
               borderRadius: 14,
               minHeight: 42,
@@ -290,9 +295,19 @@ const QuestionHeader = ({
         </Flex>
 
         <style>{`
-          @media (max-width: 576px) {
+          @media (max-width: 767px) {
+            .qh-actions {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              width: 100%;
+            }
+
+            .qh-actions .qh-btn-primary {
+              grid-column: 1 / -1;
+            }
+
             .res-btn-full {
-              flex: 1;
+              width: 100%;
               justify-content: center;
             }
           }
