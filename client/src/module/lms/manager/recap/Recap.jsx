@@ -131,6 +131,28 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
   const isMobile = !screens.md;
   const isCompact = !screens.sm;
 
+  const commonProps = {
+    subjectId,
+    subject,
+    activePeriode,
+    screens,
+  };
+
+  const gradebookProps = {
+    ...commonProps,
+    classes,
+    classLoading,
+    classId,
+    setClassId: setSelectedClassId,
+    semester,
+    setSemester,
+    isAdminView,
+    setTeacherId,
+    teachers,
+    teacherLoading,
+    teacherId: normalizedTeacherId,
+  };
+
   const tabItems = [
     {
       key: "attendance",
@@ -138,22 +160,9 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       children: (
         <Suspense fallback={recapFallback}>
           <RecapAttendance
+            {...gradebookProps}
             isActive={activeTab === "attendance"}
-            subjectId={subjectId}
-            subject={subject}
-            activePeriode={activePeriode}
-            classes={classes}
-            classLoading={classLoading}
-            classId={classId}
-            setClassId={setSelectedClassId}
-            semester={semester}
-            setSemester={setSemester}
-            isAdminView={isAdminView}
             teacherId={selectedTeacherId}
-            setTeacherId={setTeacherId}
-            teachers={teachers}
-            teacherLoading={teacherLoading}
-            screens={screens}
           />
         </Suspense>
       ),
@@ -164,22 +173,8 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       children: (
         <Suspense fallback={recapFallback}>
           <RecapFormative
+            {...gradebookProps}
             isActive={activeTab === "score"}
-            subjectId={subjectId}
-            subject={subject}
-            activePeriode={activePeriode}
-            classes={classes}
-            classLoading={classLoading}
-            classId={classId}
-            setClassId={setSelectedClassId}
-            semester={semester}
-            setSemester={setSemester}
-            isAdminView={isAdminView}
-            teacherId={normalizedTeacherId}
-            setTeacherId={setTeacherId}
-            teachers={teachers}
-            teacherLoading={teacherLoading}
-            screens={screens}
           />
         </Suspense>
       ),
@@ -190,22 +185,8 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       children: (
         <Suspense fallback={recapFallback}>
           <RecapSummative
+            {...gradebookProps}
             isActive={activeTab === "summative"}
-            subjectId={subjectId}
-            subject={subject}
-            activePeriode={activePeriode}
-            classes={classes}
-            classLoading={classLoading}
-            classId={classId}
-            setClassId={setSelectedClassId}
-            semester={semester}
-            setSemester={setSemester}
-            isAdminView={isAdminView}
-            teacherId={normalizedTeacherId}
-            setTeacherId={setTeacherId}
-            teachers={teachers}
-            teacherLoading={teacherLoading}
-            screens={screens}
           />
         </Suspense>
       ),
@@ -215,24 +196,7 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       label: isCompact ? "Nilai Akhir" : "Rekapitulasi Nilai Akhir",
       children: (
         <Suspense fallback={recapFallback}>
-          <FinalScore
-            isActive={activeTab === "final"}
-            subjectId={subjectId}
-            subject={subject}
-            activePeriode={activePeriode}
-            classes={classes}
-            classLoading={classLoading}
-            classId={classId}
-            setClassId={setSelectedClassId}
-            semester={semester}
-            setSemester={setSemester}
-            isAdminView={isAdminView}
-            teacherId={normalizedTeacherId}
-            setTeacherId={setTeacherId}
-            teachers={teachers}
-            teacherLoading={teacherLoading}
-            screens={screens}
-          />
+          <FinalScore {...gradebookProps} isActive={activeTab === "final"} />
         </Suspense>
       ),
     },
@@ -242,22 +206,8 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       children: (
         <Suspense fallback={recapFallback}>
           <NilaiRaport
+            {...gradebookProps}
             isActive={activeTab === "nilai-raport"}
-            subjectId={subjectId}
-            subject={subject}
-            activePeriode={activePeriode}
-            classes={classes}
-            classLoading={classLoading}
-            classId={classId}
-            setClassId={setSelectedClassId}
-            semester={semester}
-            setSemester={setSemester}
-            isAdminView={isAdminView}
-            teacherId={normalizedTeacherId}
-            setTeacherId={setTeacherId}
-            teachers={teachers}
-            teacherLoading={teacherLoading}
-            screens={screens}
           />
         </Suspense>
       ),
@@ -271,11 +221,8 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       children: (
         <Suspense fallback={recapFallback}>
           <RecapLearningSummary
+            {...commonProps}
             isActive={activeTab === "learning-summary"}
-            subjectId={subjectId}
-            subject={subject}
-            activePeriode={activePeriode}
-            screens={screens}
           />
         </Suspense>
       ),
@@ -286,11 +233,8 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       children: (
         <Suspense fallback={recapFallback}>
           <RecapJournal
+            {...commonProps}
             isActive={activeTab === "journal-summary"}
-            subjectId={subjectId}
-            subject={subject}
-            activePeriode={activePeriode}
-            screens={screens}
           />
         </Suspense>
       ),
@@ -302,9 +246,9 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
       activeKey={activeTab}
       onChange={setActiveTab}
       items={tabItems}
-      size={isMobile ? "middle" : "large"}
-      tabBarGutter={isMobile ? 8 : 16}
-      style={{ width: "100%" }}
+      size={isMobile ? "small" : "large"}
+      tabBarGutter={isCompact ? 6 : isMobile ? 8 : 16}
+      style={{ width: "100%", minWidth: 0 }}
       tabBarStyle={{ marginBottom: isMobile ? 12 : 16 }}
     />
   );

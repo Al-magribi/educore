@@ -6,12 +6,10 @@ import {
   Card,
   DatePicker,
   Descriptions,
-  Empty,
   Flex,
   Input,
   Modal,
   Select,
-  Table,
   Tag,
   Typography,
   message,
@@ -28,13 +26,13 @@ import {
   DETAIL_ACTIONS,
   FilterBar,
   ReportHeader,
+  RowActionMenu,
   StackedCell,
   StatCardGrid,
   StatusTag,
   buildActionColumn,
   buildPagination,
   buildRowSelection,
-  buildTableProps,
   detailColumnConfig,
   filterControlStyle,
   formatDateTimeCell,
@@ -42,10 +40,10 @@ import {
   modalWidth,
   surfaceCardBodyStyles,
   surfaceCardStyle,
-  tableShellStyle,
   toolbarButtonStyle,
   useResponsiveFlags,
 } from './reportShared';
+import { ReportDataView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
@@ -577,25 +575,46 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             icon={<Trash2 size={16} />}
           />
         )}
-        {rows.length === 0 && !isLoading && !isFetching ? (
-          <Empty description="Belum ada log scan pada rentang ini." />
-        ) : (
-          <div style={tableShellStyle}>
-            <Table
-              rowKey="id"
-              loading={isLoading || (isFetching && rows.length > 0)}
-              dataSource={rows}
-              columns={columns}
-              {...buildTableProps({ isMobile, minWidth: isMobile ? 680 : 860 })}
-              pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'log' })}
-              rowSelection={buildRowSelection({
-                selectedRowKeys,
-                onChange: setSelectedRowKeys,
-                isMobile,
-              })}
-            />
-          </div>
-        )}
+        <ReportDataView
+          isMobile={isMobile}
+          loading={isLoading || (isFetching && rows.length > 0)}
+          dataSource={rows}
+          columns={columns}
+          emptyText="Belum ada log scan pada rentang ini."
+          minWidth={860}
+          pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'log' })}
+          rowSelection={buildRowSelection({
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+            isMobile,
+          })}
+          renderCard={(row, selectProps) => (
+            <ReportRecordCard
+              {...selectProps}
+              title={isUnregisteredScan(row) ? 'Kartu tidak terdaftar' : row.user_name || '-'}
+              subtitle={formatDateTimeCell(row.scanned_at)}
+              extra={<StatusTag value={resolveResultStatus(row)} colorMap={RESULT_STATUS_COLORS} />}
+              actions={
+                <RowActionMenu
+                  actions={DETAIL_ACTIONS}
+                  onSelect={(key) => handleRowAction(key, row)}
+                />
+              }>
+              <ReportMetricGrid
+                items={[
+                  {
+                    key: 'device',
+                    label: 'Device',
+                    value: row.device_name || row.device_code || '-',
+                  },
+                  { key: 'uid', label: 'UID Kartu', value: row.card_uid || '-' },
+                  { key: 'source', label: 'Source', value: row.scan_source || '-' },
+                  { key: 'action', label: 'Action', value: row.scan_action || '-' },
+                ]}
+              />
+            </ReportRecordCard>
+          )}
+        />
       </Card>
 
       <Modal

@@ -5,12 +5,10 @@ import {
   Card,
   DatePicker,
   Descriptions,
-  Empty,
   Flex,
   Input,
   Modal,
   Select,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -40,14 +38,15 @@ import TeachingRecapPanel from './TeachingRecapPanel';
 import {
   BulkDeleteBar,
   FilterBar,
+  FULL_ROW_ACTIONS,
   ReportHeader,
+  RowActionMenu,
   StackedCell,
   StatCardGrid,
   StatusTag,
   buildActionColumn,
   buildPagination,
   buildRowSelection,
-  buildTableProps,
   detailColumnConfig,
   filterControlStyle,
   formatDateCell,
@@ -60,10 +59,10 @@ import {
   sortByLatestTap,
   surfaceCardBodyStyles,
   surfaceCardStyle,
-  tableShellStyle,
   toolbarButtonStyle,
   useResponsiveFlags,
 } from './reportShared';
+import { ReportDataView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
@@ -848,7 +847,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               label: (
                 <Flex align="center" gap={8}>
                   <DoorOpen size={16} />
-                  Kehadiran
+                  {isMobile ? 'Hadir' : 'Kehadiran'}
                 </Flex>
               ),
               children: (
@@ -863,30 +862,65 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
                       icon={<Trash2 size={16} />}
                     />
                   )}
-                  {rows.length === 0 && !isLoading && !isFetching ? (
-                    <Empty description="Belum ada data presensi guru pada rentang ini." />
-                  ) : (
-                    <div style={tableShellStyle}>
-                      <Table
-                        rowKey="id"
-                        loading={isLoading || (isFetching && rows.length > 0)}
-                        dataSource={rows}
-                        columns={dailyColumns}
-                        {...buildTableProps({ isMobile, minWidth: isMobile ? 720 : 930 })}
-                        pagination={buildPagination({
-                          pageSize,
-                          setPageSize,
-                          isMobile,
-                          unit: 'catatan',
-                        })}
-                        rowSelection={buildRowSelection({
-                          selectedRowKeys,
-                          onChange: setSelectedRowKeys,
-                          isMobile,
-                        })}
-                      />
-                    </div>
-                  )}
+                  <ReportDataView
+                    isMobile={isMobile}
+                    loading={isLoading || (isFetching && rows.length > 0)}
+                    dataSource={rows}
+                    columns={dailyColumns}
+                    emptyText="Belum ada data presensi guru pada rentang ini."
+                    minWidth={930}
+                    pagination={buildPagination({
+                      pageSize,
+                      setPageSize,
+                      isMobile,
+                      unit: 'catatan',
+                    })}
+                    rowSelection={buildRowSelection({
+                      selectedRowKeys,
+                      onChange: setSelectedRowKeys,
+                      isMobile,
+                    })}
+                    renderCard={(row, selectProps) => (
+                      <ReportRecordCard
+                        {...selectProps}
+                        title={row.full_name}
+                        subtitle={`NIP ${row.nip || '-'}`}
+                        extra={
+                          <StatusTag value={row.attendance_status} colorMap={STATUS_COLORS} />
+                        }
+                        actions={
+                          <RowActionMenu
+                            actions={FULL_ROW_ACTIONS}
+                            onSelect={(key) => handleRowAction(key, row)}
+                          />
+                        }>
+                        <ReportMetricGrid
+                          items={[
+                            {
+                              key: 'date',
+                              label: 'Tanggal',
+                              value: formatDateCell(row.attendance_date, true),
+                            },
+                            {
+                              key: 'rfid',
+                              label: 'RFID',
+                              value: row.card_uid || '-',
+                            },
+                            {
+                              key: 'checkin',
+                              label: 'Datang',
+                              value: formatDateTimeCell(row.checkin_at, true),
+                            },
+                            {
+                              key: 'checkout',
+                              label: 'Pulang',
+                              value: formatDateTimeCell(row.checkout_at, true),
+                            },
+                          ]}
+                        />
+                      </ReportRecordCard>
+                    )}
+                  />
                 </>
               ),
             },
@@ -910,30 +944,68 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
                       icon={<Trash2 size={16} />}
                     />
                   )}
-                  {sessionRows.length === 0 && !isLoading && !isFetching ? (
-                    <Empty description="Belum ada data sesi mengajar pada rentang ini." />
-                  ) : (
-                    <div style={tableShellStyle}>
-                      <Table
-                        rowKey="id"
-                        loading={isLoading || (isFetching && sessionRows.length > 0)}
-                        dataSource={sessionRows}
-                        columns={sessionColumns}
-                        {...buildTableProps({ isMobile, minWidth: isMobile ? 900 : 1140 })}
-                        pagination={buildPagination({
-                          pageSize: sessionPageSize,
-                          setPageSize: setSessionPageSize,
-                          isMobile,
-                          unit: 'sesi',
-                        })}
-                        rowSelection={buildRowSelection({
-                          selectedRowKeys: selectedSessionRowKeys,
-                          onChange: setSelectedSessionRowKeys,
-                          isMobile,
-                        })}
-                      />
-                    </div>
-                  )}
+                  <ReportDataView
+                    isMobile={isMobile}
+                    loading={isLoading || (isFetching && sessionRows.length > 0)}
+                    dataSource={sessionRows}
+                    columns={sessionColumns}
+                    emptyText="Belum ada data sesi mengajar pada rentang ini."
+                    minWidth={1140}
+                    pagination={buildPagination({
+                      pageSize: sessionPageSize,
+                      setPageSize: setSessionPageSize,
+                      isMobile,
+                      unit: 'sesi',
+                    })}
+                    rowSelection={buildRowSelection({
+                      selectedRowKeys: selectedSessionRowKeys,
+                      onChange: setSelectedSessionRowKeys,
+                      isMobile,
+                    })}
+                    renderCard={(row, selectProps) => (
+                      <ReportRecordCard
+                        {...selectProps}
+                        title={row.full_name}
+                        subtitle={`${row.class_name || '-'} · ${row.subject_name || '-'}`}
+                        extra={
+                          <StatusTag
+                            value={row.session_status}
+                            colorMap={SESSION_STATUS_COLORS}
+                          />
+                        }
+                        actions={
+                          <RowActionMenu
+                            actions={FULL_ROW_ACTIONS}
+                            onSelect={(key) => handleSessionRowAction(key, row)}
+                          />
+                        }>
+                        <ReportMetricGrid
+                          items={[
+                            {
+                              key: 'date',
+                              label: 'Tanggal',
+                              value: formatDateCell(row.attendance_date, true),
+                            },
+                            {
+                              key: 'slot',
+                              label: 'Jam',
+                              value: `${formatSlotRange(row)} · ${formatSlotTimeRange(row)}`,
+                            },
+                            {
+                              key: 'checkin',
+                              label: 'Masuk',
+                              value: formatDateTimeCell(row.actual_checkin_at, true),
+                            },
+                            {
+                              key: 'checkout',
+                              label: 'Keluar',
+                              value: formatDateTimeCell(row.actual_checkout_at, true),
+                            },
+                          ]}
+                        />
+                      </ReportRecordCard>
+                    )}
+                  />
                 </>
               ),
             },
@@ -942,7 +1014,7 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               label: (
                 <Flex align="center" gap={8}>
                   <ChartColumn size={16} />
-                  Rekapitulasi
+                  {isMobile ? 'Rekap' : 'Rekapitulasi'}
                 </Flex>
               ),
               children: (

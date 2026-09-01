@@ -5,12 +5,10 @@ import {
   Card,
   DatePicker,
   Descriptions,
-  Empty,
   Flex,
   Input,
   Modal,
   Select,
-  Table,
   Tag,
   message,
 } from 'antd';
@@ -25,14 +23,15 @@ import { useGetClassesQuery, useGetGradesQuery } from '../../../../service/publi
 import {
   BulkDeleteBar,
   FilterBar,
+  FULL_ROW_ACTIONS,
   ReportHeader,
+  RowActionMenu,
   StackedCell,
   StatCardGrid,
   StatusTag,
   buildActionColumn,
   buildPagination,
   buildRowSelection,
-  buildTableProps,
   detailColumnConfig,
   filterControlStyle,
   formatDateCell,
@@ -44,10 +43,10 @@ import {
   sortByLatestTap,
   surfaceCardBodyStyles,
   surfaceCardStyle,
-  tableShellStyle,
   toolbarButtonStyle,
   useResponsiveFlags,
 } from './reportShared';
+import { ReportDataView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
 const { RangePicker } = DatePicker;
 
@@ -390,25 +389,58 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             icon={<Trash2 size={16} />}
           />
         )}
-        {rows.length === 0 && !isLoading && !isFetching ? (
-          <Empty description="Belum ada data presensi siswa pada rentang ini." />
-        ) : (
-          <div style={tableShellStyle}>
-            <Table
-              rowKey="id"
-              loading={isLoading || (isFetching && rows.length > 0)}
-              dataSource={rows}
-              columns={columns}
-              {...buildTableProps({ isMobile, minWidth: isMobile ? 700 : 900 })}
-              pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'catatan' })}
-              rowSelection={buildRowSelection({
-                selectedRowKeys,
-                onChange: setSelectedRowKeys,
-                isMobile,
-              })}
-            />
-          </div>
-        )}
+        <ReportDataView
+          isMobile={isMobile}
+          loading={isLoading || (isFetching && rows.length > 0)}
+          dataSource={rows}
+          columns={columns}
+          emptyText="Belum ada data presensi siswa pada rentang ini."
+          minWidth={900}
+          pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'catatan' })}
+          rowSelection={buildRowSelection({
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+            isMobile,
+          })}
+          renderCard={(row, selectProps) => (
+            <ReportRecordCard
+              {...selectProps}
+              title={row.full_name}
+              subtitle={`${row.class_name || '-'} · NIS ${row.nis || '-'}`}
+              extra={<StatusTag value={row.attendance_status} colorMap={STATUS_COLORS} />}
+              actions={
+                <RowActionMenu
+                  actions={FULL_ROW_ACTIONS}
+                  onSelect={(key) => handleRowAction(key, row)}
+                />
+              }>
+              <ReportMetricGrid
+                items={[
+                  {
+                    key: 'date',
+                    label: 'Tanggal',
+                    value: formatDateCell(row.attendance_date, true),
+                  },
+                  {
+                    key: 'grade',
+                    label: 'Tingkat',
+                    value: row.grade_name || '-',
+                  },
+                  {
+                    key: 'checkin',
+                    label: 'Datang',
+                    value: formatDateTimeCell(row.checkin_at, true),
+                  },
+                  {
+                    key: 'checkout',
+                    label: 'Pulang',
+                    value: formatDateTimeCell(row.checkout_at, true),
+                  },
+                ]}
+              />
+            </ReportRecordCard>
+          )}
+        />
       </Card>
 
       <Modal

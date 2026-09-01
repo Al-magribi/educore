@@ -10,7 +10,6 @@ import {
   InputNumber,
   Modal,
   Select,
-  Space,
   Table,
   Tag,
   Typography,
@@ -21,8 +20,25 @@ import {
   useGetReportScoreRecapQuery,
   useUpsertScoreWeightingMutation,
 } from "../../../../../service/lms/ApiRecap";
+import {
+  MetricGrid,
+  RecapMobileList,
+  RecapSectionHeader,
+  RecapStatTags,
+  RecapToolbar,
+  RecordCard,
+} from "./recapShared";
+import {
+  actionButtonStyle,
+  filterControlStyle,
+  surfaceCardBody,
+  surfaceCardStyle,
+  tableCardBody,
+  tableCardStyle,
+  useRecapLayout,
+} from "./recapStyles";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
@@ -43,7 +59,9 @@ const scoreTag = (value, color) =>
   value === null || value === undefined ? (
     "-"
   ) : (
-    <Tag color={color}>{round2(value)}</Tag>
+    <Tag color={color} style={{ margin: 0 }}>
+      {round2(value)}
+    </Tag>
   );
 
 const NilaiRaport = ({
@@ -64,6 +82,7 @@ const NilaiRaport = ({
   teacherLoading = false,
   screens,
 }) => {
+  const { screens: activeScreens, isMobile } = useRecapLayout(screens);
   const [weightModalOpen, setWeightModalOpen] = useState(false);
   const [weightForm] = Form.useForm();
 
@@ -187,7 +206,11 @@ const NilaiRaport = ({
         align: "center",
         render: (value) => {
           if (!weightConfigured) {
-            return <Tag color='orange'>Bobot Belum diatur</Tag>;
+            return (
+              <Tag color='orange' style={{ margin: 0 }}>
+                Bobot Belum diatur
+              </Tag>
+            );
           }
           return scoreTag(value, "green");
         },
@@ -261,143 +284,215 @@ const NilaiRaport = ({
     ? `Nilai raport = (${weighting.weight_formative}% × formatif) + (${weighting.weight_summative}% × sumatif) + (${weighting.weight_final}% × nilai akhir)`
     : "Nilai raport = Bobot Belum diatur";
 
-  return (
-    <Flex vertical gap={16}>
-      <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-          <Space vertical size={2}>
-            <Title level={5} style={{ margin: 0 }}>
-              Rekapitulasi Nilai Raport
-            </Title>
-            <Text type='secondary'>{formulaText}</Text>
-          </Space>
-          <Space wrap>
-            <Tag color='blue'>{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color='processing'>
-              {activePeriode?.name ||
-                recapData?.meta?.periode_name ||
-                "Periode"}
-            </Tag>
-            {weightConfigured ? (
-              <Tag color='green'>
-                Bobot {weighting.weight_formative}/
-                {weighting.weight_summative}/{weighting.weight_final}
-              </Tag>
-            ) : (
-              <Tag color='orange'>Bobot Belum diatur</Tag>
-            )}
-          </Space>
-        </Flex>
+  const renderMobileCard = (row) => (
+    <RecordCard
+      index={row.no}
+      title={row.full_name}
+      subtitle={`NIS ${row.nis}`}
+      extra={
+        weightConfigured ? (
+          scoreTag(row.report_grade, "green")
+        ) : (
+          <Tag color='orange' style={{ margin: 0 }}>
+            Bobot belum diatur
+          </Tag>
+        )
+      }
+    >
+      <MetricGrid
+        columns={2}
+        items={[
+          {
+            key: "formative",
+            label: "Rata-rata Formatif",
+            value: scoreTag(row.formative_average, "purple"),
+          },
+          {
+            key: "summative",
+            label: "Rata-rata Sumatif",
+            value: scoreTag(row.summative_average, "cyan"),
+          },
+          {
+            key: "final",
+            label: "Nilai Akhir",
+            value: scoreTag(row.final_grade, "blue"),
+          },
+          {
+            key: "report",
+            label: "Nilai Raport",
+            value: weightConfigured ? scoreTag(row.report_grade, "green") : "-",
+          },
+        ]}
+      />
+    </RecordCard>
+  );
 
-        <Flex
-          justify='space-between'
-          align='center'
-          wrap='wrap'
-          gap={12}
-          style={{ marginTop: 16 }}
-        >
-          <Space wrap>
-            <Select
-              value={semester}
-              onChange={setSemester}
-              style={{ minWidth: 160 }}
-              options={[
-                { value: 1, label: "Semester 1" },
-                { value: 2, label: "Semester 2" },
-              ]}
-              suffixIcon={<Filter size={14} />}
-              virtual={false}
-              allowClear
-              showSearch={{ optionFilterProp: "label" }}
-            />
-            {isAdminView && (
+  return (
+    <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
+      <Card style={surfaceCardStyle} styles={surfaceCardBody(isMobile)}>
+        <RecapSectionHeader
+          isMobile={isMobile}
+          title='Rekapitulasi Nilai Raport'
+          description={formulaText}
+          tags={
+            <>
+              <Tag color='blue' style={{ margin: 0 }}>
+                {subject?.name || "Mata Pelajaran"}
+              </Tag>
+              <Tag color='processing' style={{ margin: 0 }}>
+                {activePeriode?.name ||
+                  recapData?.meta?.periode_name ||
+                  "Periode"}
+              </Tag>
+              {weightConfigured ? (
+                <Tag color='green' style={{ margin: 0 }}>
+                  Bobot {weighting.weight_formative}/
+                  {weighting.weight_summative}/{weighting.weight_final}
+                </Tag>
+              ) : (
+                <Tag color='orange' style={{ margin: 0 }}>
+                  Bobot Belum diatur
+                </Tag>
+              )}
+            </>
+          }
+        />
+
+        <RecapToolbar
+          isMobile={isMobile}
+          filters={
+            <>
               <Select
-                value={teacherId}
-                onChange={setTeacherId}
-                style={{ minWidth: 220 }}
-                placeholder='Pilih guru'
-                options={teachers.map((item) => ({
-                  value: item.id,
-                  label: item.full_name,
-                }))}
-                loading={teacherLoading}
+                value={semester}
+                onChange={setSemester}
+                style={filterControlStyle(isMobile, 160)}
+                options={[
+                  { value: 1, label: "Semester 1" },
+                  { value: 2, label: "Semester 2" },
+                ]}
+                suffixIcon={<Filter size={14} />}
                 virtual={false}
                 allowClear
                 showSearch={{ optionFilterProp: "label" }}
               />
-            )}
-            <Select
-              value={classId}
-              onChange={setClassId}
-              style={{ minWidth: 220 }}
-              placeholder='Pilih kelas'
-              options={classes.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              loading={classLoading}
-              virtual={false}
-              allowClear
-              showSearch={{ optionFilterProp: "label" }}
-            />
-          </Space>
+              {isAdminView && (
+                <Select
+                  value={teacherId}
+                  onChange={setTeacherId}
+                  style={filterControlStyle(isMobile, 220)}
+                  placeholder='Pilih guru'
+                  options={teachers.map((item) => ({
+                    value: item.id,
+                    label: item.full_name,
+                  }))}
+                  loading={teacherLoading}
+                  virtual={false}
+                  allowClear
+                  showSearch={{ optionFilterProp: "label" }}
+                />
+              )}
+              <Select
+                value={classId}
+                onChange={setClassId}
+                style={filterControlStyle(isMobile, 220)}
+                placeholder='Pilih kelas'
+                options={classes.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                loading={classLoading}
+                virtual={false}
+                allowClear
+                showSearch={{ optionFilterProp: "label" }}
+              />
+            </>
+          }
+          actions={
+            <>
+              <Button
+                icon={<RefreshCcw size={14} />}
+                onClick={refetch}
+                style={actionButtonStyle(isMobile)}
+              >
+                Refresh
+              </Button>
+              <Button
+                icon={<Percent size={14} />}
+                disabled={!canOpenWeightModal}
+                onClick={() => setWeightModalOpen(true)}
+                style={actionButtonStyle(isMobile)}
+              >
+                Bobot
+              </Button>
+              <Button
+                type='primary'
+                icon={<Download size={14} />}
+                disabled={!rows.length}
+                onClick={handleDownloadExcel}
+                style={actionButtonStyle(isMobile)}
+              >
+                {isMobile ? "Excel" : "Download Excel"}
+              </Button>
+            </>
+          }
+        />
 
-          <Space wrap>
-            <Button icon={<RefreshCcw size={14} />} onClick={refetch}>
-              Refresh
-            </Button>
-            <Button
-              icon={<Percent size={14} />}
-              disabled={!canOpenWeightModal}
-              onClick={() => setWeightModalOpen(true)}
-            >
-              Bobot
-            </Button>
-            <Button
-              type='primary'
-              icon={<Download size={14} />}
-              disabled={!rows.length}
-              onClick={handleDownloadExcel}
-            >
-              Download Excel
-            </Button>
-          </Space>
-        </Flex>
-
-        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
-          <Tag color='geekblue' icon={<Users size={12} />}>
-            Total Siswa: {recapData?.meta?.total_students || 0}
-          </Tag>
-          <Tag color='purple'>
-            Avg Formatif: {round2(summary.formative_average)}
-          </Tag>
-          <Tag color='cyan'>
-            Avg Sumatif: {round2(summary.summative_average)}
-          </Tag>
-          <Tag color='blue'>
-            Avg Nilai Akhir: {round2(summary.final_average)}
-          </Tag>
-          <Tag color='green'>
-            Avg Nilai Raport:{" "}
-            {weightConfigured ? round2(summary.report_average) : "-"}
-          </Tag>
-        </Flex>
+        <RecapStatTags
+          isMobile={isMobile}
+          items={[
+            {
+              key: "students",
+              color: "geekblue",
+              icon: <Users size={12} />,
+              label: `Total Siswa: ${recapData?.meta?.total_students || 0}`,
+            },
+            {
+              key: "formative",
+              color: "purple",
+              label: `Avg Formatif: ${round2(summary.formative_average)}`,
+            },
+            {
+              key: "summative",
+              color: "cyan",
+              label: `Avg Sumatif: ${round2(summary.summative_average)}`,
+            },
+            {
+              key: "final",
+              color: "blue",
+              label: `Avg Nilai Akhir: ${round2(summary.final_average)}`,
+            },
+            {
+              key: "report",
+              color: "green",
+              label: `Avg Nilai Raport: ${
+                weightConfigured ? round2(summary.report_average) : "-"
+              }`,
+            },
+          ]}
+        />
       </Card>
 
       {!classId ? (
         <Alert
           type='info'
           showIcon
-          message='Pilih kelas untuk menampilkan rekap nilai raport.'
+          title='Pilih kelas untuk menampilkan rekap nilai raport.'
         />
       ) : isAdminView && !teacherId ? (
         <Alert
           type='info'
           showIcon
-          message='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
+          title='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
+        />
+      ) : isMobile ? (
+        <RecapMobileList
+          dataSource={rows}
+          loading={isFetching}
+          emptyText='Belum ada data nilai raport pada filter ini.'
+          renderItem={renderMobileCard}
         />
       ) : (
-        <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
+        <Card style={tableCardStyle} styles={tableCardBody}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
               <Empty description='Belum ada data nilai raport pada filter ini.' />
@@ -409,9 +504,10 @@ const NilaiRaport = ({
               columns={columns}
               loading={isFetching}
               pagination={false}
-              size={screens.xs ? "small" : "middle"}
+              size={activeScreens.lg ? "middle" : "small"}
               tableLayout='fixed'
               scroll={{ x: 980 }}
+              sticky
             />
           )}
         </Card>
@@ -426,6 +522,8 @@ const NilaiRaport = ({
         cancelText='Batal'
         confirmLoading={savingWeight}
         destroyOnHidden
+        width={isMobile ? "94vw" : 520}
+        centered={isMobile}
       >
         <Text type='secondary'>
           Bobot per guru dan mata pelajaran. Total harus 0 (belum diatur) atau
@@ -446,21 +544,36 @@ const NilaiRaport = ({
             name='weight_formative'
             rules={[{ required: true, message: "Wajib diisi" }]}
           >
-            <InputNumber min={0} max={100} precision={0} style={{ width: "100%" }} />
+            <InputNumber
+              min={0}
+              max={100}
+              precision={0}
+              style={{ width: "100%" }}
+            />
           </Form.Item>
           <Form.Item
             label='Bobot Sumatif (%)'
             name='weight_summative'
             rules={[{ required: true, message: "Wajib diisi" }]}
           >
-            <InputNumber min={0} max={100} precision={0} style={{ width: "100%" }} />
+            <InputNumber
+              min={0}
+              max={100}
+              precision={0}
+              style={{ width: "100%" }}
+            />
           </Form.Item>
           <Form.Item
             label='Bobot Nilai Akhir (%)'
             name='weight_final'
             rules={[{ required: true, message: "Wajib diisi" }]}
           >
-            <InputNumber min={0} max={100} precision={0} style={{ width: "100%" }} />
+            <InputNumber
+              min={0}
+              max={100}
+              precision={0}
+              style={{ width: "100%" }}
+            />
           </Form.Item>
         </Form>
         <Tag color={weightTotal === 0 || weightTotal === 100 ? "green" : "red"}>

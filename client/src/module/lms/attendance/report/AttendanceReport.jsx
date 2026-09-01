@@ -216,14 +216,14 @@ const AttendanceReport = () => {
             <Alert
               type="info"
               showIcon
-              message="Pilih satuan terlebih dahulu"
+              title="Pilih satuan terlebih dahulu"
               description="Admin pusat perlu memilih satuan (dan opsional periode) untuk melihat laporan presensi."
             />
           </Card>
         ) : (
           <Tabs
             defaultActiveKey="scan-logs"
-            size={isMobile ? 'middle' : 'large'}
+            size={isMobile ? 'small' : 'large'}
             tabBarGutter={isMobile ? 4 : 8}
             destroyOnHidden
             style={{ width: '100%', minWidth: 0 }}
@@ -242,7 +242,11 @@ const AttendanceReport = () => {
               },
               {
                 key: 'students',
-                label: createTabLabel('Presensi Siswa', <GraduationCap size={16} />, 'Harian siswa'),
+                label: createTabLabel(
+                  isMobile ? 'Siswa' : 'Presensi Siswa',
+                  <GraduationCap size={16} />,
+                  'Harian siswa',
+                ),
                 children: (
                   <StudentReport
                     key={reportKey}
@@ -254,7 +258,11 @@ const AttendanceReport = () => {
               },
               {
                 key: 'teachers',
-                label: createTabLabel('Presensi Guru', <UsersRound size={16} />, 'Harian & sesi'),
+                label: createTabLabel(
+                  isMobile ? 'Guru' : 'Presensi Guru',
+                  <UsersRound size={16} />,
+                  'Harian & sesi',
+                ),
                 children: (
                   <TeacherReport
                     key={reportKey}

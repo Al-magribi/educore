@@ -4,18 +4,36 @@ import {
   Alert,
   Button,
   Card,
+  Collapse,
   Empty,
   Flex,
   Select,
-  Space,
   Table,
   Tag,
   Typography,
 } from "antd";
 import { Download, Filter, RefreshCcw, Users } from "lucide-react";
 import { useGetAttendanceRecapQuery } from "../../../../../service/lms/ApiRecap";
+import {
+  DetailSection,
+  MetricGrid,
+  RecapMobileList,
+  RecapSectionHeader,
+  RecapStatTags,
+  RecapToolbar,
+  RecordCard,
+} from "./recapShared";
+import {
+  actionButtonStyle,
+  filterControlStyle,
+  surfaceCardBody,
+  surfaceCardStyle,
+  tableCardBody,
+  tableCardStyle,
+  useRecapLayout,
+} from "./recapStyles";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const MONTH_OPTIONS = [
   { value: 1, label: "Januari" },
@@ -32,6 +50,30 @@ const MONTH_OPTIONS = [
   { value: 12, label: "Desember" },
 ];
 
+const STATUS_LEGEND = [
+  { code: "H", label: "Hadir" },
+  { code: "T", label: "Terlambat" },
+  { code: "S", label: "Sakit" },
+  { code: "I", label: "Izin" },
+  { code: "A", label: "Alpa" },
+];
+
+const STATUS_PALETTE = {
+  H: { background: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
+  T: { background: "#fffbeb", color: "#b45309", border: "#fde68a" },
+  S: { background: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  I: { background: "#f5f3ff", color: "#6d28d9", border: "#ddd6fe" },
+  A: { background: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
+};
+
+const NEUTRAL_PALETTE = {
+  background: "#f8fafc",
+  color: "#94a3b8",
+  border: "#e2e8f0",
+};
+
+const statusPalette = (code) => STATUS_PALETTE[code] || NEUTRAL_PALETTE;
+
 const statusTagColor = (code) => {
   if (code === "H") return "green";
   if (code === "T") return "gold";
@@ -42,6 +84,29 @@ const statusTagColor = (code) => {
 };
 
 const toPercentText = (value) => `${Number(value || 0)}%`;
+
+const DayChip = ({ day, code }) => {
+  const palette = statusPalette(code);
+  return (
+    <Flex
+      vertical
+      align='center'
+      justify='center'
+      style={{
+        borderRadius: 8,
+        border: `1px solid ${palette.border}`,
+        background: palette.background,
+        color: palette.color,
+        padding: "4px 2px",
+        lineHeight: 1.2,
+        minWidth: 0,
+      }}
+    >
+      <span style={{ fontSize: 10, opacity: 0.75 }}>{day}</span>
+      <span style={{ fontSize: 12, fontWeight: 700 }}>{code}</span>
+    </Flex>
+  );
+};
 
 const RecapAttendance = ({
   isActive,
@@ -61,6 +126,8 @@ const RecapAttendance = ({
   teacherLoading = false,
   screens,
 }) => {
+  const { screens: activeScreens, isMobile } = useRecapLayout(screens);
+
   const {
     data: recapRes,
     isFetching: isFetchingAttendance,
@@ -109,6 +176,29 @@ const RecapAttendance = ({
     [students, dayColumns],
   );
 
+  const monthSections = useMemo(() => {
+    const dayColumnsByMonth = dayColumns.reduce((acc, day) => {
+      const monthNumber = Number(day.month || 0);
+      if (!monthNumber) return acc;
+      if (!acc[monthNumber]) acc[monthNumber] = [];
+      acc[monthNumber].push(day);
+      return acc;
+    }, {});
+
+    return (recapMeta.months || [])
+      .map((monthMeta) => {
+        const monthNumber = Number(monthMeta.month || 0);
+        const monthDays = dayColumnsByMonth[monthNumber] || [];
+        if (!monthDays.length) return null;
+        return {
+          key: String(monthNumber),
+          name: monthMeta.month_name || "-",
+          days: monthDays,
+        };
+      })
+      .filter(Boolean);
+  }, [dayColumns, recapMeta.months]);
+
   const attendanceColumns = useMemo(() => {
     const baseColumns = [
       {
@@ -133,39 +223,21 @@ const RecapAttendance = ({
       },
     ];
 
-    const dayColumnsByMonth = dayColumns.reduce((acc, day) => {
-      const monthNumber = Number(day.month || 0);
-      if (!monthNumber) return acc;
-      if (!acc[monthNumber]) acc[monthNumber] = [];
-      acc[monthNumber].push(day);
-      return acc;
-    }, {});
-
-    const monthGroups = (recapMeta.months || [])
-      .map((monthMeta) => {
-        const monthNumber = Number(monthMeta.month || 0);
-        const monthDays = dayColumnsByMonth[monthNumber] || [];
-        if (!monthDays.length) return null;
-        return {
-          title: monthMeta.month_name || "-",
-          children: monthDays.map((day) => ({
-            title: String(day.day).padStart(2, "0"),
-            dataIndex: `day_${day.date}`,
-            key: `day_${day.date}`,
-            width: 56,
-            align: "center",
-            render: (value) => (
-              <Tag
-                color={statusTagColor(value)}
-                style={{ marginInlineEnd: 0, minWidth: 34 }}
-              >
-                {value}
-              </Tag>
-            ),
-          })),
-        };
-      })
-      .filter(Boolean);
+    const monthGroups = monthSections.map((month) => ({
+      title: month.name,
+      children: month.days.map((day) => ({
+        title: String(day.day).padStart(2, "0"),
+        dataIndex: `day_${day.date}`,
+        key: `day_${day.date}`,
+        width: 56,
+        align: "center",
+        render: (value) => (
+          <Tag color={statusTagColor(value)} style={{ marginInlineEnd: 0, minWidth: 34 }}>
+            {value}
+          </Tag>
+        ),
+      })),
+    }));
 
     return [
       ...baseColumns,
@@ -238,7 +310,7 @@ const RecapAttendance = ({
         ],
       },
     ];
-  }, [dayColumns, recapMeta.months]);
+  }, [monthSections]);
 
   const handleDownloadAttendanceExcel = () => {
     if (!attendanceRows.length) return;
@@ -285,106 +357,196 @@ const RecapAttendance = ({
     XLSX.writeFile(workbook, `${safeName}.xlsx`);
   };
 
-  return (
-    <Flex vertical gap={16}>
-      <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-          <Space vertical size={2}>
-            <Title level={5} style={{ margin: 0 }}>
-              Rekapitulasi Absensi
-            </Title>
-            <Text type='secondary'>
-              Rekap absensi dalam satu semester berdasarkan periode aktif dan
-              kelas.
-            </Text>
-          </Space>
-          <Space wrap>
-            <Tag color='blue'>
-              {subject?.name || recapMeta.subject_name || "Mata Pelajaran"}
-            </Tag>
-            <Tag color='processing'>
-              {activePeriode?.name || recapMeta.periode_name || "Periode"}
-            </Tag>
-          </Space>
-        </Flex>
+  const renderMobileCard = (row) => (
+    <RecordCard
+      index={row.no}
+      title={row.full_name}
+      subtitle={`NIS ${row.nis}`}
+      extra={
+        <Tag color={statusTagColor("H")} style={{ margin: 0 }}>
+          {toPercentText(row.percent_hadir)} hadir
+        </Tag>
+      }
+    >
+      <MetricGrid
+        columns={2}
+        items={[
+          {
+            key: "hadir",
+            label: "Hadir",
+            value: `${row.summary_hadir} · ${toPercentText(row.percent_hadir)}`,
+          },
+          {
+            key: "sakit",
+            label: "Sakit",
+            value: `${row.summary_sakit} · ${toPercentText(row.percent_sakit)}`,
+          },
+          {
+            key: "izin",
+            label: "Izin",
+            value: `${row.summary_izin} · ${toPercentText(row.percent_izin)}`,
+          },
+          {
+            key: "alpa",
+            label: "Alpa",
+            value: `${row.summary_alpa} · ${toPercentText(row.percent_alpa)}`,
+          },
+        ]}
+      />
 
-        <Flex
-          justify='space-between'
-          align='center'
-          wrap='wrap'
-          gap={12}
-          style={{ marginTop: 16 }}
-        >
-          <Space wrap>
-            <Select
-              value={semester}
-              onChange={setSemester}
-              style={{ minWidth: 160 }}
-              options={[
-                { value: 1, label: "Semester 1" },
-                { value: 2, label: "Semester 2" },
-              ]}
-              suffixIcon={<Filter size={14} />}
-            />
-            {isAdminView && (teacherLoading || teachers.length > 0) && (
+      {monthSections.length ? (
+        <Collapse
+          ghost
+          size='small'
+          items={[
+            {
+              key: "daily",
+              label: (
+                <Text style={{ fontSize: 12, fontWeight: 600 }}>
+                  Rincian kehadiran harian
+                </Text>
+              ),
+              children: (
+                <Flex vertical gap={12}>
+                  {monthSections.map((month) => (
+                    <DetailSection key={month.key} title={month.name}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(40px, 1fr))",
+                          gap: 6,
+                        }}
+                      >
+                        {month.days.map((day) => (
+                          <DayChip
+                            key={day.date}
+                            day={String(day.day).padStart(2, "0")}
+                            code={row[`day_${day.date}`] || "-"}
+                          />
+                        ))}
+                      </div>
+                    </DetailSection>
+                  ))}
+                </Flex>
+              ),
+            },
+          ]}
+          styles={{ header: { paddingInline: 0 }, body: { paddingInline: 0 } }}
+          style={{ borderTop: "1px solid #f1f5f9" }}
+        />
+      ) : null}
+    </RecordCard>
+  );
+
+  return (
+    <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
+      <Card style={surfaceCardStyle} styles={surfaceCardBody(isMobile)}>
+        <RecapSectionHeader
+          isMobile={isMobile}
+          title='Rekapitulasi Absensi'
+          description='Rekap absensi dalam satu semester berdasarkan periode aktif dan kelas.'
+          tags={
+            <>
+              <Tag color='blue' style={{ margin: 0 }}>
+                {subject?.name || recapMeta.subject_name || "Mata Pelajaran"}
+              </Tag>
+              <Tag color='processing' style={{ margin: 0 }}>
+                {activePeriode?.name || recapMeta.periode_name || "Periode"}
+              </Tag>
+            </>
+          }
+        />
+
+        <RecapToolbar
+          isMobile={isMobile}
+          filters={
+            <>
               <Select
-                value={teacherId}
-                onChange={(value) => setTeacherId(value || null)}
-                style={{ minWidth: 220 }}
-                placeholder='Semua guru'
-                allowClear
+                value={semester}
+                onChange={setSemester}
+                style={filterControlStyle(isMobile, 160)}
                 options={[
-                  { value: "", label: "Semua guru" },
-                  ...teachers.map((item) => ({
-                    value: item.id,
-                    label: item.full_name,
-                  })),
+                  { value: 1, label: "Semester 1" },
+                  { value: 2, label: "Semester 2" },
                 ]}
-                loading={teacherLoading}
+                suffixIcon={<Filter size={14} />}
+              />
+              {isAdminView && (teacherLoading || teachers.length > 0) && (
+                <Select
+                  value={teacherId}
+                  onChange={(value) => setTeacherId(value || null)}
+                  style={filterControlStyle(isMobile, 220)}
+                  placeholder='Semua guru'
+                  allowClear
+                  options={[
+                    { value: "", label: "Semua guru" },
+                    ...teachers.map((item) => ({
+                      value: item.id,
+                      label: item.full_name,
+                    })),
+                  ]}
+                  loading={teacherLoading}
+                  virtual={false}
+                />
+              )}
+              <Select
+                value={classId}
+                onChange={setClassId}
+                style={filterControlStyle(isMobile, 220)}
+                placeholder='Pilih kelas'
+                options={classes.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                loading={classLoading}
                 virtual={false}
               />
-            )}
-            <Select
-              value={classId}
-              onChange={setClassId}
-              style={{ minWidth: 220 }}
-              placeholder='Pilih kelas'
-              options={classes.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              loading={classLoading}
-              virtual={false}
-            />
-          </Space>
+            </>
+          }
+          actions={
+            <>
+              <Button
+                icon={<RefreshCcw size={14} />}
+                onClick={() => refetchAttendance()}
+                style={actionButtonStyle(isMobile)}
+              >
+                Refresh
+              </Button>
+              <Button
+                type='primary'
+                icon={<Download size={14} />}
+                disabled={!attendanceRows.length}
+                onClick={handleDownloadAttendanceExcel}
+                style={actionButtonStyle(isMobile)}
+              >
+                {isMobile ? "Excel" : "Download Excel"}
+              </Button>
+            </>
+          }
+        />
 
-          <Space wrap>
-            <Button
-              icon={<RefreshCcw size={14} />}
-              onClick={() => refetchAttendance()}
-            >
-              Refresh
-            </Button>
-            <Button
-              type='primary'
-              icon={<Download size={14} />}
-              disabled={!attendanceRows.length}
-              onClick={handleDownloadAttendanceExcel}
-            >
-              Download Excel
-            </Button>
-          </Space>
-        </Flex>
-
-        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
-          <Tag color='geekblue' icon={<Users size={12} />}>
-            Total Siswa: {recapMeta.total_students || 0}
-          </Tag>
-          <Tag color='cyan'>
-            Total Pertemuan: {recapMeta.total_meetings || 0}
-          </Tag>
-          <Tag color='purple'>Semester: {recapMeta.semester || semester}</Tag>
-        </Flex>
+        <RecapStatTags
+          isMobile={isMobile}
+          items={[
+            {
+              key: "students",
+              color: "geekblue",
+              icon: <Users size={12} />,
+              label: `Total Siswa: ${recapMeta.total_students || 0}`,
+            },
+            {
+              key: "meetings",
+              color: "cyan",
+              label: `Total Pertemuan: ${recapMeta.total_meetings || 0}`,
+            },
+            {
+              key: "semester",
+              color: "purple",
+              label: `Semester: ${recapMeta.semester || semester}`,
+            },
+          ]}
+        />
       </Card>
 
       {!classId ? (
@@ -393,8 +555,28 @@ const RecapAttendance = ({
           showIcon
           title='Pilih kelas untuk menampilkan rekap absensi.'
         />
+      ) : isMobile ? (
+        <Flex vertical gap={12} style={{ minWidth: 0 }}>
+          <Flex wrap='wrap' gap={6}>
+            {STATUS_LEGEND.map((item) => (
+              <Tag
+                key={item.code}
+                color={statusTagColor(item.code)}
+                style={{ margin: 0, fontSize: 11 }}
+              >
+                {item.code} · {item.label}
+              </Tag>
+            ))}
+          </Flex>
+          <RecapMobileList
+            dataSource={attendanceRows}
+            loading={isFetchingAttendance}
+            emptyText='Belum ada data absensi pada filter ini.'
+            renderItem={renderMobileCard}
+          />
+        </Flex>
       ) : (
-        <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
+        <Card style={tableCardStyle} styles={tableCardBody}>
           {!isFetchingAttendance && !attendanceRows.length ? (
             <div style={{ padding: 24 }}>
               <Empty description='Belum ada data absensi pada filter ini.' />
@@ -406,7 +588,7 @@ const RecapAttendance = ({
               columns={attendanceColumns}
               loading={isFetchingAttendance}
               pagination={false}
-              size={screens.xs ? "small" : "middle"}
+              size={activeScreens.lg ? "middle" : "small"}
               scroll={{ x: 1200 }}
               sticky
             />

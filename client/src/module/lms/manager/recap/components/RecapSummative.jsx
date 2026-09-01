@@ -7,7 +7,6 @@ import {
   Empty,
   Flex,
   Select,
-  Space,
   Table,
   Tag,
   Tooltip,
@@ -15,8 +14,26 @@ import {
 } from "antd";
 import { Download, Filter, RefreshCcw, Users } from "lucide-react";
 import { useGetScoreSummativeRecapQuery } from "../../../../../service/lms/ApiRecap";
+import {
+  DetailSection,
+  KeyValueRows,
+  RecapMobileList,
+  RecapSectionHeader,
+  RecapStatTags,
+  RecapToolbar,
+  RecordCard,
+} from "./recapShared";
+import {
+  actionButtonStyle,
+  filterControlStyle,
+  surfaceCardBody,
+  surfaceCardStyle,
+  tableCardBody,
+  tableCardStyle,
+  useRecapLayout,
+} from "./recapStyles";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
@@ -89,6 +106,8 @@ const RecapSummative = ({
   teacherLoading = false,
   screens,
 }) => {
+  const { screens: activeScreens, isMobile } = useRecapLayout(screens);
+
   const {
     data: recapRes,
     isFetching,
@@ -128,6 +147,32 @@ const RecapSummative = ({
     [students],
   );
 
+  /** Flattened month/slot layout reused by both the table and the mobile cards. */
+  const monthSlots = useMemo(
+    () =>
+      monthMatrix.map((monthMeta) => {
+        const monthKey = String(monthMeta.month);
+        const summativeCount = Math.max(
+          1,
+          Number(monthMeta.max_summative_entries || 0),
+        );
+        const monthEntries = monthMeta.entries || [];
+
+        return {
+          monthKey,
+          monthName: monthMeta.month_name,
+          slots: Array.from({ length: summativeCount }, (_, index) => ({
+            key: `${monthKey}-score-${index}`,
+            label: `Nilai ${index + 1}`,
+            chapterTitle: monthEntries[index]?.chapter_title || "Tanpa bab",
+            slotKey: monthEntries[index]?.slot_key,
+            index,
+          })),
+        };
+      }),
+    [monthMatrix],
+  );
+
   const columns = useMemo(() => {
     const staticColumns = [
       {
@@ -152,42 +197,29 @@ const RecapSummative = ({
       },
     ];
 
-    const monthColumns = monthMatrix.map((monthMeta) => {
-      const monthKey = String(monthMeta.month);
-      const summativeCount = Math.max(
-        1,
-        Number(monthMeta.max_summative_entries || 0),
-      );
-      const monthEntries = monthMeta.entries || [];
-      return {
-        title: monthMeta.month_name,
-        key: `month-${monthKey}`,
-        children: Array.from({ length: summativeCount }, (_, index) => {
-          const chapterTitle =
-            monthEntries[index]?.chapter_title || "Tanpa bab";
-          const slotKey = monthEntries[index]?.slot_key;
-          return {
-            title: (
-              <Tooltip title={chapterTitle}>
-                <span>{`Nilai ${index + 1}`}</span>
-              </Tooltip>
+    const monthColumns = monthSlots.map((month) => ({
+      title: month.monthName,
+      key: `month-${month.monthKey}`,
+      children: month.slots.map((slot) => ({
+        title: (
+          <Tooltip title={slot.chapterTitle}>
+            <span>{slot.label}</span>
+          </Tooltip>
+        ),
+        key: slot.key,
+        width: 110,
+        align: "center",
+        render: (_, record) =>
+          getSummativeDisplayScore(
+            getSummativeEntryBySlot(
+              record,
+              month.monthKey,
+              slot.slotKey,
+              slot.index,
             ),
-            key: `${monthKey}-score-${index}`,
-            width: 110,
-            align: "center",
-            render: (_, record) => {
-              const value = getSummativeEntryBySlot(
-                record,
-                monthKey,
-                slotKey,
-                index,
-              );
-              return getSummativeDisplayScore(value) ?? "-";
-            },
-          };
-        }),
-      };
-    });
+          ) ?? "-",
+      })),
+    }));
 
     const endColumns = [
       {
@@ -200,7 +232,7 @@ const RecapSummative = ({
     ];
 
     return [...staticColumns, ...monthColumns, ...endColumns];
-  }, [monthMatrix]);
+  }, [monthSlots]);
 
   const handleDownloadExcel = () => {
     if (!rows.length) return;
@@ -221,120 +253,179 @@ const RecapSummative = ({
     XLSX.writeFile(workbook, `${safeName}.xlsx`);
   };
 
-  return (
-    <Flex vertical gap={16}>
-      <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-          <Space vertical size={2}>
-            <Title level={5} style={{ margin: 0 }}>
-              Rekapitulasi Sumatif
-            </Title>
-            <Text type='secondary'>
-              Rekap nilai sumatif (1 nilai per entri) dalam satu semester
-            </Text>
-          </Space>
-          <Space wrap>
-            <Tag color='blue'>{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color='processing'>
-              {activePeriode?.name ||
-                recapData?.meta?.periode_name ||
-                "Periode"}
-            </Tag>
-          </Space>
-        </Flex>
-
-        <Flex
-          justify='space-between'
-          align='center'
-          wrap='wrap'
-          gap={12}
-          style={{ marginTop: 16 }}
-        >
-          <Space wrap>
-            <Select
-              value={semester}
-              onChange={setSemester}
-              style={{ minWidth: 160 }}
-              options={[
-                { value: 1, label: "Semester 1" },
-                { value: 2, label: "Semester 2" },
-              ]}
-              suffixIcon={<Filter size={14} />}
-              virtual={false}
-              allowClear
-              showSearch={{ optionFilterProp: "label" }}
-            />
-            {isAdminView && (
-              <Select
-                value={teacherId}
-                onChange={setTeacherId}
-                style={{ minWidth: 220 }}
-                placeholder='Pilih guru'
-                options={teachers.map((item) => ({
-                  value: item.id,
-                  label: item.full_name,
+  const renderMobileCard = (row) => (
+    <RecordCard
+      index={row.no}
+      title={row.full_name}
+      subtitle={`NIS ${row.nis}`}
+      extra={
+        <Tag color='blue' style={{ margin: 0 }}>
+          Sumatif {round2(row.final_average)}
+        </Tag>
+      }
+    >
+      {monthSlots.length ? (
+        <Flex vertical gap={12}>
+          {monthSlots.map((month) => (
+            <DetailSection key={month.monthKey} title={month.monthName}>
+              <KeyValueRows
+                items={month.slots.map((slot) => ({
+                  key: slot.key,
+                  label: `${slot.label} · ${slot.chapterTitle}`,
+                  tooltip: slot.chapterTitle,
+                  value:
+                    getSummativeDisplayScore(
+                      getSummativeEntryBySlot(
+                        row,
+                        month.monthKey,
+                        slot.slotKey,
+                        slot.index,
+                      ),
+                    ) ?? "-",
                 }))}
-                loading={teacherLoading}
+              />
+            </DetailSection>
+          ))}
+        </Flex>
+      ) : (
+        <Text type='secondary' style={{ fontSize: 12 }}>
+          Belum ada entri sumatif pada semester ini.
+        </Text>
+      )}
+    </RecordCard>
+  );
+
+  return (
+    <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
+      <Card style={surfaceCardStyle} styles={surfaceCardBody(isMobile)}>
+        <RecapSectionHeader
+          isMobile={isMobile}
+          title='Rekapitulasi Sumatif'
+          description='Rekap nilai sumatif (1 nilai per entri) dalam satu semester'
+          tags={
+            <>
+              <Tag color='blue' style={{ margin: 0 }}>
+                {subject?.name || "Mata Pelajaran"}
+              </Tag>
+              <Tag color='processing' style={{ margin: 0 }}>
+                {activePeriode?.name ||
+                  recapData?.meta?.periode_name ||
+                  "Periode"}
+              </Tag>
+            </>
+          }
+        />
+
+        <RecapToolbar
+          isMobile={isMobile}
+          filters={
+            <>
+              <Select
+                value={semester}
+                onChange={setSemester}
+                style={filterControlStyle(isMobile, 160)}
+                options={[
+                  { value: 1, label: "Semester 1" },
+                  { value: 2, label: "Semester 2" },
+                ]}
+                suffixIcon={<Filter size={14} />}
                 virtual={false}
                 allowClear
                 showSearch={{ optionFilterProp: "label" }}
               />
-            )}
-            <Select
-              value={classId}
-              onChange={setClassId}
-              style={{ minWidth: 220 }}
-              placeholder='Pilih kelas'
-              options={classes.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              loading={classLoading}
-              virtual={false}
-              allowClear
-              showSearch={{ optionFilterProp: "label" }}
-            />
-          </Space>
+              {isAdminView && (
+                <Select
+                  value={teacherId}
+                  onChange={setTeacherId}
+                  style={filterControlStyle(isMobile, 220)}
+                  placeholder='Pilih guru'
+                  options={teachers.map((item) => ({
+                    value: item.id,
+                    label: item.full_name,
+                  }))}
+                  loading={teacherLoading}
+                  virtual={false}
+                  allowClear
+                  showSearch={{ optionFilterProp: "label" }}
+                />
+              )}
+              <Select
+                value={classId}
+                onChange={setClassId}
+                style={filterControlStyle(isMobile, 220)}
+                placeholder='Pilih kelas'
+                options={classes.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                loading={classLoading}
+                virtual={false}
+                allowClear
+                showSearch={{ optionFilterProp: "label" }}
+              />
+            </>
+          }
+          actions={
+            <>
+              <Button
+                icon={<RefreshCcw size={14} />}
+                onClick={refetch}
+                style={actionButtonStyle(isMobile)}
+              >
+                Refresh
+              </Button>
+              <Button
+                type='primary'
+                icon={<Download size={14} />}
+                disabled={!rows.length}
+                onClick={handleDownloadExcel}
+                style={actionButtonStyle(isMobile)}
+              >
+                {isMobile ? "Excel" : "Download Excel"}
+              </Button>
+            </>
+          }
+        />
 
-          <Space wrap>
-            <Button icon={<RefreshCcw size={14} />} onClick={refetch}>
-              Refresh
-            </Button>
-            <Button
-              type='primary'
-              icon={<Download size={14} />}
-              disabled={!rows.length}
-              onClick={handleDownloadExcel}
-            >
-              Download Excel
-            </Button>
-          </Space>
-        </Flex>
-
-        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
-          <Tag color='geekblue' icon={<Users size={12} />}>
-            Total Siswa: {recapData?.meta?.total_students || 0}
-          </Tag>
-          <Tag color='cyan'>
-            Avg Nilai Sumatif: {round2(summary.final_average)}
-          </Tag>
-        </Flex>
+        <RecapStatTags
+          isMobile={isMobile}
+          items={[
+            {
+              key: "students",
+              color: "geekblue",
+              icon: <Users size={12} />,
+              label: `Total Siswa: ${recapData?.meta?.total_students || 0}`,
+            },
+            {
+              key: "summative",
+              color: "cyan",
+              label: `Avg Nilai Sumatif: ${round2(summary.final_average)}`,
+            },
+          ]}
+        />
       </Card>
 
       {!classId ? (
         <Alert
           type='info'
           showIcon
-          message='Pilih kelas untuk menampilkan rekap nilai.'
+          title='Pilih kelas untuk menampilkan rekap nilai.'
         />
       ) : isAdminView && !teacherId ? (
         <Alert
           type='info'
           showIcon
-          message='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
+          title='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
+        />
+      ) : isMobile ? (
+        <RecapMobileList
+          dataSource={rows}
+          loading={isFetching}
+          emptyText='Belum ada data nilai pada filter ini.'
+          renderItem={renderMobileCard}
         />
       ) : (
-        <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
+        <Card style={tableCardStyle} styles={tableCardBody}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
               <Empty description='Belum ada data nilai pada filter ini.' />
@@ -346,7 +437,7 @@ const RecapSummative = ({
               columns={columns}
               loading={isFetching}
               pagination={false}
-              size={screens.xs ? "small" : "middle"}
+              size={activeScreens.lg ? "middle" : "small"}
               scroll={{ x: 1400 }}
               sticky
             />

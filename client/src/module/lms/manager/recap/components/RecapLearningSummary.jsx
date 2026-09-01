@@ -17,8 +17,24 @@ import {
   useGetLearningSummaryRecapQuery,
   useGetRecapTeachersQuery,
 } from "../../../../../service/lms/ApiRecap";
+import {
+  DetailSection,
+  RecapMobileList,
+  RecapSectionHeader,
+  RecapStatTags,
+  RecapToolbar,
+  RecordCard,
+} from "./recapShared";
+import {
+  filterControlStyle,
+  surfaceCardBody,
+  surfaceCardStyle,
+  tableCardBody,
+  tableCardStyle,
+  useRecapLayout,
+} from "./recapStyles";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const extractClassLevel = (className) => {
   const normalized = String(className || "").trim();
@@ -46,6 +62,68 @@ const getPrimaryLevel = (classNames = []) => {
   return levels[0] || "Lainnya";
 };
 
+const TagCloud = ({ items, emptyText = "-", color }) => {
+  if (!items?.length) {
+    return (
+      <Text type='secondary' style={{ fontSize: 12 }}>
+        {emptyText}
+      </Text>
+    );
+  }
+
+  return (
+    <Space size={[4, 4]} wrap>
+      {items.map((item) => (
+        <Tag key={item.key} color={color} style={{ margin: 0 }}>
+          {item.label}
+        </Tag>
+      ))}
+    </Space>
+  );
+};
+
+const ClassLevelGroups = ({ classNames }) => {
+  if (!classNames?.length) {
+    return (
+      <Text type='secondary' style={{ fontSize: 12 }}>
+        -
+      </Text>
+    );
+  }
+
+  const groupedByLevel = classNames.reduce((acc, className) => {
+    const level = extractClassLevel(className);
+    if (!acc[level]) acc[level] = [];
+    acc[level].push(className);
+    return acc;
+  }, {});
+
+  const sortedEntries = Object.entries(groupedByLevel).sort(
+    ([levelA], [levelB]) => levelSorter(levelA, levelB),
+  );
+
+  return (
+    <Flex vertical gap={6} style={{ minWidth: 0 }}>
+      {sortedEntries.map(([level, levelClassNames]) => (
+        <Flex key={level} align='start' wrap='wrap' gap={8}>
+          <Text type='secondary' style={{ minWidth: 72, fontSize: 12 }}>
+            {level === "Lainnya" ? "Lainnya" : `Tingkat ${level}`}
+          </Text>
+          <Space size={[4, 4]} wrap>
+            {[...new Set(levelClassNames)]
+              .sort(classNameSorter)
+              .map((className) => (
+                <Tag key={`${level}-${className}`} style={{ margin: 0 }}>
+                  {className}
+                </Tag>
+              ))}
+          </Space>
+        </Flex>
+      ))}
+    </Flex>
+  );
+};
+
 const RecapLearningSummary = ({
   isActive,
   subjectId,
@@ -53,6 +131,7 @@ const RecapLearningSummary = ({
   activePeriode,
   screens,
 }) => {
+  const { screens: activeScreens, isMobile } = useRecapLayout(screens);
   const [selectedClassId, setSelectedClassId] = useState("all");
   const [teacherId, setTeacherId] = useState("all");
 
@@ -202,85 +281,54 @@ const RecapLearningSummary = ({
     }));
   }, [items]);
 
+  const toSubchapterTags = (subchapters) =>
+    (subchapters || []).map((item) => ({
+      key: String(item.id ?? item.title),
+      label: item.title,
+    }));
+
+  const toTeacherTags = (teacherList) =>
+    (teacherList || []).map((item) => ({
+      key: String(item.id ?? item.full_name),
+      label: item.full_name,
+    }));
+
   const columns = [
     {
       title: "No",
       dataIndex: "no",
-      width: 56,
+      width: 64,
       align: "center",
     },
     {
       title: "Bab",
       dataIndex: "chapter_title",
+      width: 220,
       render: (value) => <Text strong>{value}</Text>,
     },
     {
       title: "Subbab",
       dataIndex: "subchapters",
-      render: (value) => {
-        if (!value?.length)
-          return <Text type='secondary'>Belum ada subbab</Text>;
-        return (
-          <Space size={[4, 4]} wrap>
-            {value.map((item) => (
-              <Tag key={item.id} color='blue'>
-                {item.title}
-              </Tag>
-            ))}
-          </Space>
-        );
-      },
+      width: 280,
+      render: (value) => (
+        <TagCloud
+          items={toSubchapterTags(value)}
+          color='blue'
+          emptyText='Belum ada subbab'
+        />
+      ),
     },
     {
       title: "Guru",
       dataIndex: "teachers",
-      render: (value) => {
-        if (!value?.length) return "-";
-        return (
-          <Space size={[4, 4]} wrap>
-            {value.map((item) => (
-              <Tag key={item.id}>{item.full_name}</Tag>
-            ))}
-          </Space>
-        );
-      },
+      width: 220,
+      render: (value) => <TagCloud items={toTeacherTags(value)} />,
     },
     {
       title: "Kelas Peruntukan",
       dataIndex: "class_names",
-      render: (value) => {
-        if (!value?.length) return <Text type='secondary'>-</Text>;
-
-        const groupedByLevel = value.reduce((acc, className) => {
-          const level = extractClassLevel(className);
-          if (!acc[level]) acc[level] = [];
-          acc[level].push(className);
-          return acc;
-        }, {});
-
-        const sortedEntries = Object.entries(groupedByLevel).sort(
-          ([levelA], [levelB]) => levelSorter(levelA, levelB),
-        );
-
-        return (
-          <Space direction='vertical' size={4}>
-            {sortedEntries.map(([level, classNames]) => (
-              <Space key={level} align='start' wrap>
-                <Text type='secondary' style={{ minWidth: 72 }}>
-                  {level === "Lainnya" ? "Lainnya" : `Tingkat ${level}`}
-                </Text>
-                <Space size={[4, 4]} wrap>
-                  {[...new Set(classNames)]
-                    .sort(classNameSorter)
-                    .map((className) => (
-                      <Tag key={`${level}-${className}`}>{className}</Tag>
-                    ))}
-                </Space>
-              </Space>
-            ))}
-          </Space>
-        );
-      },
+      width: 280,
+      render: (value) => <ClassLevelGroups classNames={value} />,
     },
   ];
 
@@ -289,83 +337,118 @@ const RecapLearningSummary = ({
     setTeacherId("all");
   };
 
-  return (
-    <Flex vertical gap={16}>
-      <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-          <Space vertical size={2}>
-            <Title level={5} style={{ margin: 0 }}>
-              Ringkasan Pembelajaran
-            </Title>
-            <Text type='secondary'>
-              Bab dan subbab yang sudah dibuat guru pengampu sesuai peruntukan
-              kelas
-            </Text>
-          </Space>
-          <Space wrap>
-            <Tag color='blue'>{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color='processing'>
-              {activePeriode?.name ||
-                summaryData?.meta?.periode_name ||
-                "Periode"}
-            </Tag>
-          </Space>
-        </Flex>
+  const renderMobileCard = (row) => (
+    <RecordCard index={row.no} title={row.chapter_title}>
+      <DetailSection title='Subbab'>
+        <TagCloud
+          items={toSubchapterTags(row.subchapters)}
+          color='blue'
+          emptyText='Belum ada subbab'
+        />
+      </DetailSection>
+      <DetailSection title='Guru'>
+        <TagCloud items={toTeacherTags(row.teachers)} />
+      </DetailSection>
+      <DetailSection title='Kelas Peruntukan'>
+        <ClassLevelGroups classNames={row.class_names} />
+      </DetailSection>
+    </RecordCard>
+  );
 
-        <Flex
-          justify='space-between'
-          align='center'
-          wrap='wrap'
-          gap={12}
-          style={{ marginTop: 16 }}
-        >
-          <Space wrap>
-            <Select
-              value={validClassValue}
-              onChange={handleClassChange}
-              style={{ minWidth: 220 }}
-              options={classOptions}
-              loading={classLoading}
-              suffixIcon={<Filter size={14} />}
-              virtual={false}
-              allowClear
-              showSearch={{ optionFilterProp: "label" }}
-              placeholder='Filter kelas'
-            />
-            {teachers.length > 1 && (
+  return (
+    <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
+      <Card style={surfaceCardStyle} styles={surfaceCardBody(isMobile)}>
+        <RecapSectionHeader
+          isMobile={isMobile}
+          title='Ringkasan Pembelajaran'
+          description='Bab dan subbab yang sudah dibuat guru pengampu sesuai peruntukan kelas'
+          tags={
+            <>
+              <Tag color='blue' style={{ margin: 0 }}>
+                {subject?.name || "Mata Pelajaran"}
+              </Tag>
+              <Tag color='processing' style={{ margin: 0 }}>
+                {activePeriode?.name ||
+                  summaryData?.meta?.periode_name ||
+                  "Periode"}
+              </Tag>
+            </>
+          }
+        />
+
+        <RecapToolbar
+          isMobile={isMobile}
+          filters={
+            <>
               <Select
-                value={validTeacherValue}
-                onChange={setTeacherId}
-                style={{ minWidth: 240 }}
-                options={teacherOptions}
-                loading={teacherLoading}
+                value={validClassValue}
+                onChange={handleClassChange}
+                style={filterControlStyle(isMobile, 220)}
+                options={classOptions}
+                loading={classLoading}
                 suffixIcon={<Filter size={14} />}
                 virtual={false}
                 allowClear
                 showSearch={{ optionFilterProp: "label" }}
-                placeholder='Filter guru'
+                placeholder='Filter kelas'
               />
-            )}
-          </Space>
-          <Button icon={<RefreshCcw size={14} />} onClick={refetch}>
-            Refresh
-          </Button>
-        </Flex>
+              {teachers.length > 1 && (
+                <Select
+                  value={validTeacherValue}
+                  onChange={setTeacherId}
+                  style={filterControlStyle(isMobile, 240)}
+                  options={teacherOptions}
+                  loading={teacherLoading}
+                  suffixIcon={<Filter size={14} />}
+                  virtual={false}
+                  allowClear
+                  showSearch={{ optionFilterProp: "label" }}
+                  placeholder='Filter guru'
+                />
+              )}
+            </>
+          }
+          actions={
+            <Button
+              icon={<RefreshCcw size={14} />}
+              onClick={refetch}
+              block={isMobile}
+            >
+              Refresh
+            </Button>
+          }
+        />
 
-        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
-          <Tag color='geekblue' icon={<Users size={12} />}>
-            Total Bab: {summaryData?.meta?.total_chapters || 0}
-          </Tag>
-          <Tag color='cyan'>
-            Total Subbab: {summaryData?.meta?.total_subchapters || 0}
-          </Tag>
-        </Flex>
+        <RecapStatTags
+          isMobile={isMobile}
+          items={[
+            {
+              key: "chapters",
+              color: "geekblue",
+              icon: <Users size={12} />,
+              label: `Total Bab: ${summaryData?.meta?.total_chapters || 0}`,
+            },
+            {
+              key: "subchapters",
+              color: "cyan",
+              label: `Total Subbab: ${summaryData?.meta?.total_subchapters || 0}`,
+            },
+          ]}
+        />
       </Card>
 
       {!subjectId ? (
-        <Alert type='info' showIcon message='Mata pelajaran belum dipilih.' />
+        <Alert type='info' showIcon title='Mata pelajaran belum dipilih.' />
+      ) : isMobile ? (
+        <RecapMobileList
+          dataSource={rows}
+          loading={isFetching}
+          emptyText='Belum ada data bab/subbab pada filter ini.'
+          renderItem={renderMobileCard}
+          pageSize={6}
+        />
       ) : (
-        <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
+        <Card style={tableCardStyle} styles={tableCardBody}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
               <Empty description='Belum ada data bab/subbab pada filter ini.' />
@@ -377,7 +460,8 @@ const RecapLearningSummary = ({
               columns={columns}
               loading={isFetching}
               pagination={false}
-              size={screens?.xs ? "small" : "middle"}
+              size={activeScreens.lg ? "middle" : "small"}
+              scroll={{ x: 1060 }}
               sticky
             />
           )}

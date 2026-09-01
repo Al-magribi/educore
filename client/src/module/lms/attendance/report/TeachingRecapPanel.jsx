@@ -1,21 +1,18 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { Button, Card, DatePicker, Empty, Flex, Select, Table, Typography, message } from 'antd';
+import { Button, DatePicker, Flex, Select, Typography, message } from 'antd';
 import { Download, RefreshCw } from 'lucide-react';
 import { useGetTeacherTeachingRecapQuery } from '../../../../service/lms/ApiAttendance';
 import {
   FilterBar,
   StackedCell,
   buildPagination,
-  buildTableProps,
   filterControlStyle,
-  surfaceCardBodyStyles,
-  surfaceCardStyle,
-  tableShellStyle,
   toolbarButtonStyle,
   useResponsiveFlags,
 } from './reportShared';
+import { ReportDataView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
 const { Text } = Typography;
 
@@ -25,6 +22,13 @@ const sanitizeSheetName = (name) => {
     .trim()
     .slice(0, 31);
   return cleaned || 'Kelas';
+};
+
+const recapRateColor = (value) => {
+  const rate = Number(value || 0);
+  if (rate >= 90) return '#15803d';
+  if (rate >= 70) return '#a16207';
+  return '#b91c1c';
 };
 
 const TeachingRecapPanel = ({
@@ -111,9 +115,8 @@ const TeachingRecapPanel = ({
         align: 'center',
         render: (value) => {
           const rate = Number(value || 0);
-          const color = rate >= 90 ? '#15803d' : rate >= 70 ? '#a16207' : '#b91c1c';
           return (
-            <Text strong style={{ color, whiteSpace: 'nowrap' }}>
+            <Text strong style={{ color: recapRateColor(rate), whiteSpace: 'nowrap' }}>
               {rate.toFixed(2)}%
             </Text>
           );
@@ -211,22 +214,38 @@ const TeachingRecapPanel = ({
         multi-jam dihitung sesuai jumlah sesinya (mis. jam 6–7 = 2 sesi).
       </Text>
 
-      <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
-        {rows.length === 0 && !isLoading && !isFetching ? (
-          <Empty description="Belum ada data rekapitulasi mengajar pada bulan ini." />
-        ) : (
-          <div style={tableShellStyle}>
-            <Table
-              rowKey={(row) => `${row.class_id}-${row.teacher_id}-${row.subject_id || 'none'}`}
-              loading={isLoading || (isFetching && rows.length > 0)}
-              dataSource={rows}
-              columns={columns}
-              {...buildTableProps({ isMobile, minWidth: isMobile ? 720 : 930 })}
-              pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'baris' })}
-            />
-          </div>
-        )}
-      </Card>
+      <ReportDataView
+        isMobile={isMobile}
+        loading={isLoading || (isFetching && rows.length > 0)}
+        dataSource={rows}
+        columns={columns}
+        emptyText="Belum ada data rekapitulasi mengajar pada bulan ini."
+        minWidth={930}
+        pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'baris' })}
+        rowKey={(row) => `${row.class_id}-${row.teacher_id}-${row.subject_id || 'none'}`}
+        renderCard={(row) => {
+          const rate = Number(row.attendance_rate || 0);
+          return (
+            <ReportRecordCard
+              title={row.teacher_name}
+              subtitle={`${row.subject_name || '-'} · Kelas ${row.class_name || '-'}`}
+              extra={
+                <Text strong style={{ color: recapRateColor(rate), whiteSpace: 'nowrap' }}>
+                  {rate.toFixed(2)}%
+                </Text>
+              }>
+              <ReportMetricGrid
+                columns={3}
+                items={[
+                  { key: 'hadir', label: 'Hadir', value: Number(row.attended_tap || 0) },
+                  { key: 'should', label: 'Seharusnya', value: Number(row.should_attend || 0) },
+                  { key: 'pending', label: 'Belum tap', value: Number(row.belum_tap || 0) },
+                ]}
+              />
+            </ReportRecordCard>
+          );
+        }}
+      />
     </Flex>
   );
 };

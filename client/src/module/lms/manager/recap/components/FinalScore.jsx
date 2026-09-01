@@ -7,15 +7,30 @@ import {
   Empty,
   Flex,
   Select,
-  Space,
   Table,
   Tag,
   Typography,
 } from "antd";
 import { Download, Filter, RefreshCcw, Users } from "lucide-react";
 import { useGetFinalScoreRecapQuery } from "../../../../../service/lms/ApiRecap";
+import {
+  RecapMobileList,
+  RecapSectionHeader,
+  RecapStatTags,
+  RecapToolbar,
+  RecordCard,
+} from "./recapShared";
+import {
+  actionButtonStyle,
+  filterControlStyle,
+  surfaceCardBody,
+  surfaceCardStyle,
+  tableCardBody,
+  tableCardStyle,
+  useRecapLayout,
+} from "./recapStyles";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
@@ -45,6 +60,8 @@ const FinalScore = ({
   teacherLoading = false,
   screens,
 }) => {
+  const { screens: activeScreens, isMobile } = useRecapLayout(screens);
+
   const {
     data: recapRes,
     isFetching,
@@ -92,19 +109,16 @@ const FinalScore = ({
         dataIndex: "no",
         width: 64,
         align: "center",
-        fixed: "left",
       },
       {
         title: "NIS",
         dataIndex: "nis",
-        width: 120,
-        fixed: "left",
+        width: 130,
       },
       {
         title: "Nama Siswa",
         dataIndex: "full_name",
-        width: 240,
-        fixed: "left",
+        ellipsis: true,
         render: (value) => <Text strong>{value}</Text>,
       },
       {
@@ -142,121 +156,160 @@ const FinalScore = ({
     XLSX.writeFile(workbook, `${safeName}.xlsx`);
   };
 
-  return (
-    <Flex vertical gap={16}>
-      <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 20 } }}>
-        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-          <Space vertical size={2}>
-            <Title level={5} style={{ margin: 0 }}>
-              Rekapitulasi Nilai Akhir
-            </Title>
-            <Text type='secondary'>
-              Rekap nilai akhir siswa dalam satu semester
-            </Text>
-          </Space>
-          <Space wrap>
-            <Tag color='blue'>{subject?.name || "Mata Pelajaran"}</Tag>
-            <Tag color='processing'>
-              {activePeriode?.name ||
-                recapData?.meta?.periode_name ||
-                "Periode"}
-            </Tag>
-          </Space>
-        </Flex>
+  const renderMobileCard = (row) => (
+    <RecordCard
+      index={row.no}
+      title={row.full_name}
+      subtitle={`NIS ${row.nis}`}
+      extra={
+        row.final_grade === null ? (
+          <Tag style={{ margin: 0 }}>Belum dinilai</Tag>
+        ) : (
+          <Tag color='blue' style={{ margin: 0 }}>
+            {round2(row.final_grade)}
+          </Tag>
+        )
+      }
+    />
+  );
 
-        <Flex
-          justify='space-between'
-          align='center'
-          wrap='wrap'
-          gap={12}
-          style={{ marginTop: 16 }}
-        >
-          <Space wrap>
-            <Select
-              value={semester}
-              onChange={setSemester}
-              style={{ minWidth: 160 }}
-              options={[
-                { value: 1, label: "Semester 1" },
-                { value: 2, label: "Semester 2" },
-              ]}
-              suffixIcon={<Filter size={14} />}
-              virtual={false}
-              allowClear
-              showSearch={{ optionFilterProp: "label" }}
-            />
-            {isAdminView && (
+  return (
+    <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
+      <Card style={surfaceCardStyle} styles={surfaceCardBody(isMobile)}>
+        <RecapSectionHeader
+          isMobile={isMobile}
+          title='Rekapitulasi Nilai Akhir'
+          description='Rekap nilai akhir siswa dalam satu semester'
+          tags={
+            <>
+              <Tag color='blue' style={{ margin: 0 }}>
+                {subject?.name || "Mata Pelajaran"}
+              </Tag>
+              <Tag color='processing' style={{ margin: 0 }}>
+                {activePeriode?.name ||
+                  recapData?.meta?.periode_name ||
+                  "Periode"}
+              </Tag>
+            </>
+          }
+        />
+
+        <RecapToolbar
+          isMobile={isMobile}
+          filters={
+            <>
               <Select
-                value={teacherId}
-                onChange={setTeacherId}
-                style={{ minWidth: 220 }}
-                placeholder='Pilih guru'
-                options={teachers.map((item) => ({
-                  value: item.id,
-                  label: item.full_name,
-                }))}
-                loading={teacherLoading}
+                value={semester}
+                onChange={setSemester}
+                style={filterControlStyle(isMobile, 160)}
+                options={[
+                  { value: 1, label: "Semester 1" },
+                  { value: 2, label: "Semester 2" },
+                ]}
+                suffixIcon={<Filter size={14} />}
                 virtual={false}
                 allowClear
                 showSearch={{ optionFilterProp: "label" }}
               />
-            )}
-            <Select
-              value={classId}
-              onChange={setClassId}
-              style={{ minWidth: 220 }}
-              placeholder='Pilih kelas'
-              options={classes.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              loading={classLoading}
-              virtual={false}
-              allowClear
-              showSearch={{ optionFilterProp: "label" }}
-            />
-          </Space>
+              {isAdminView && (
+                <Select
+                  value={teacherId}
+                  onChange={setTeacherId}
+                  style={filterControlStyle(isMobile, 220)}
+                  placeholder='Pilih guru'
+                  options={teachers.map((item) => ({
+                    value: item.id,
+                    label: item.full_name,
+                  }))}
+                  loading={teacherLoading}
+                  virtual={false}
+                  allowClear
+                  showSearch={{ optionFilterProp: "label" }}
+                />
+              )}
+              <Select
+                value={classId}
+                onChange={setClassId}
+                style={filterControlStyle(isMobile, 220)}
+                placeholder='Pilih kelas'
+                options={classes.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                loading={classLoading}
+                virtual={false}
+                allowClear
+                showSearch={{ optionFilterProp: "label" }}
+              />
+            </>
+          }
+          actions={
+            <>
+              <Button
+                icon={<RefreshCcw size={14} />}
+                onClick={refetch}
+                style={actionButtonStyle(isMobile)}
+              >
+                Refresh
+              </Button>
+              <Button
+                type='primary'
+                icon={<Download size={14} />}
+                disabled={!rows.length}
+                onClick={handleDownloadExcel}
+                style={actionButtonStyle(isMobile)}
+              >
+                {isMobile ? "Excel" : "Download Excel"}
+              </Button>
+            </>
+          }
+        />
 
-          <Space wrap>
-            <Button icon={<RefreshCcw size={14} />} onClick={refetch}>
-              Refresh
-            </Button>
-            <Button
-              type='primary'
-              icon={<Download size={14} />}
-              disabled={!rows.length}
-              onClick={handleDownloadExcel}
-            >
-              Download Excel
-            </Button>
-          </Space>
-        </Flex>
-
-        <Flex wrap='wrap' gap={8} style={{ marginTop: 14 }}>
-          <Tag color='geekblue' icon={<Users size={12} />}>
-            Total Siswa: {recapData?.meta?.total_students || 0}
-          </Tag>
-          <Tag color='cyan'>
-            Avg Nilai Akhir: {round2(summary.final_average)}
-          </Tag>
-          <Tag color='purple'>Sudah Dinilai: {summary.total_graded || 0}</Tag>
-        </Flex>
+        <RecapStatTags
+          isMobile={isMobile}
+          items={[
+            {
+              key: "students",
+              color: "geekblue",
+              icon: <Users size={12} />,
+              label: `Total Siswa: ${recapData?.meta?.total_students || 0}`,
+            },
+            {
+              key: "average",
+              color: "cyan",
+              label: `Avg Nilai Akhir: ${round2(summary.final_average)}`,
+            },
+            {
+              key: "graded",
+              color: "purple",
+              label: `Sudah Dinilai: ${summary.total_graded || 0}`,
+            },
+          ]}
+        />
       </Card>
 
       {!classId ? (
         <Alert
           type='info'
           showIcon
-          message='Pilih kelas untuk menampilkan rekap nilai akhir.'
+          title='Pilih kelas untuk menampilkan rekap nilai akhir.'
         />
       ) : isAdminView && !teacherId ? (
         <Alert
           type='info'
           showIcon
-          message='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
+          title='Pilih guru pengampu untuk menampilkan data yang sesuai tampilan guru.'
+        />
+      ) : isMobile ? (
+        <RecapMobileList
+          dataSource={rows}
+          loading={isFetching}
+          emptyText='Belum ada data nilai akhir pada filter ini.'
+          renderItem={renderMobileCard}
+          pageSize={12}
         />
       ) : (
-        <Card style={{ borderRadius: 16 }} styles={{ body: { padding: 0 } }}>
+        <Card style={tableCardStyle} styles={tableCardBody}>
           {!isFetching && !rows.length ? (
             <div style={{ padding: 24 }}>
               <Empty description='Belum ada data nilai akhir pada filter ini.' />
@@ -268,8 +321,9 @@ const FinalScore = ({
               columns={columns}
               loading={isFetching}
               pagination={false}
-              size={screens.xs ? "small" : "middle"}
-              scroll={{ x: 1200 }}
+              size={activeScreens.lg ? "middle" : "small"}
+              tableLayout='fixed'
+              scroll={{ x: 680 }}
               sticky
             />
           )}
