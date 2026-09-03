@@ -1032,11 +1032,15 @@ const StudentAnswersPage = () => {
   );
 
   const handleBack = () => {
-    setSearchParams({
-      view: "report",
-      exam_id: examId,
-      exam_name: examName,
-      active_tab: returnTab,
+    setSearchParams((prev) => {
+      const next = new URLSearchParams();
+      next.set("view", "report");
+      if (examId) next.set("exam_id", examId);
+      if (examName) next.set("exam_name", examName);
+      next.set("active_tab", returnTab);
+      const examToken = prev.get("token");
+      if (examToken) next.set("token", examToken);
+      return next;
     });
   };
 
