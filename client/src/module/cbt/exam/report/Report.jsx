@@ -27,6 +27,26 @@ import {
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
+const slugifyExamName = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, "-");
+
+const withReportSearchParams = (
+  prev,
+  { examId, examName, activeTab, examToken },
+) => {
+  const next = new URLSearchParams(prev);
+  next.set("view", "report");
+  if (examId) next.set("exam_id", String(examId));
+  const slugName = slugifyExamName(examName);
+  if (slugName) next.set("exam_name", slugName);
+  if (activeTab) next.set("active_tab", activeTab);
+  const tokenValue = examToken || next.get("token") || "";
+  if (tokenValue) next.set("token", tokenValue);
+  return next;
+};
+
 const containerVariants = {
   hidden: { opacity: 0, y: 18 },
   show: {
@@ -103,6 +123,9 @@ const Report = ({ exam_id, exam_name, token }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("active_tab") || "attendance";
   const [includeEssayAnalysis, setIncludeEssayAnalysis] = useState(false);
+  const [examToken, setExamToken] = useState(
+    () => token || searchParams.get("token") || "",
+  );
 
   const { data: attendanceResponse, isLoading: attendanceLoading } =
     useGetExamAttendanceQuery({ exam_id }, { skip: !exam_id });
@@ -152,6 +175,13 @@ const Report = ({ exam_id, exam_name, token }) => {
       scoreEssay: item.score_essay ?? 0,
     }));
   }, [scoreResponse]);
+
+  const incomingToken =
+    token || searchParams.get("token") || attendanceResponse?.token || "";
+  if (incomingToken && incomingToken !== examToken) {
+    setExamToken(incomingToken);
+  }
+  const resolvedToken = incomingToken || examToken;
 
   const stats = useMemo(() => {
     const ongoing = attendanceData.filter(
@@ -340,7 +370,7 @@ const Report = ({ exam_id, exam_name, token }) => {
           examName={exam_name}
           stats={stats}
           isMobile={isMobile}
-          examToken={token}
+          examToken={resolvedToken}
         />
       </MotionDiv>
 
@@ -357,13 +387,16 @@ const Report = ({ exam_id, exam_name, token }) => {
           <Tabs
             className={`cbt-report-tabs${isMobile ? " is-mobile" : ""}`}
             activeKey={activeTab}
+            destroyOnHidden={false}
             onChange={(key) =>
-              setSearchParams({
-                view: "report",
-                exam_id: String(exam_id),
-                exam_name: exam_name,
-                active_tab: key,
-              })
+              setSearchParams((prev) =>
+                withReportSearchParams(prev, {
+                  examId: exam_id,
+                  examName: exam_name,
+                  activeTab: key,
+                  examToken: resolvedToken,
+                }),
+              )
             }
             size={isMobile ? "small" : "large"}
             tabBarGutter={isMobile ? 8 : 22}

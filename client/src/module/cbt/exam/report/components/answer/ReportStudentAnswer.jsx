@@ -253,15 +253,22 @@ const ReportStudentAnswer = ({ examId, examName, isMobile: forcedMobile = false 
   const handleOpenStudentAnswers = (student) => {
     if (!student?.id || !examId) return;
 
-    setSearchParams({
-      view: 'student_answers',
-      exam_id: String(examId),
-      exam_name: slugifyParam(examName),
-      student_id: String(student.id),
-      student_name: slugifyParam(student.name),
-      student_class: slugifyParam(student.class_name),
-      student_nis: String(student.nis || '-'),
-      return_tab: 'student-answer-report',
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('view', 'student_answers');
+      next.set('exam_id', String(examId));
+      next.set('exam_name', slugifyParam(examName));
+      next.set('student_id', String(student.id));
+      next.set('student_name', slugifyParam(student.name));
+      next.set('student_class', slugifyParam(student.class_name));
+      next.set('student_nis', String(student.nis || '-'));
+      next.set('return_tab', 'student-answer-report');
+      next.delete('manual_only');
+      next.delete('manual_status');
+      next.delete('active_tab');
+      const examToken = prev.get('token');
+      if (examToken) next.set('token', examToken);
+      return next;
     });
   };
 

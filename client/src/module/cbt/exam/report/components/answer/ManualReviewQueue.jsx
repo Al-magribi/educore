@@ -301,17 +301,22 @@ const ManualReviewQueue = ({
   );
 
   const openStudentReview = (student) => {
-    setSearchParams({
-      view: "student_answers",
-      exam_id: String(examId),
-      exam_name: slugifyParam(examName),
-      student_id: String(student.id),
-      student_name: slugifyParam(student.name),
-      student_class: slugifyParam(student.class_name),
-      student_nis: String(student.nis || "-"),
-      manual_only: "1",
-      manual_status: activeTab,
-      return_tab: "manual-review",
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("view", "student_answers");
+      next.set("exam_id", String(examId));
+      next.set("exam_name", slugifyParam(examName));
+      next.set("student_id", String(student.id));
+      next.set("student_name", slugifyParam(student.name));
+      next.set("student_class", slugifyParam(student.class_name));
+      next.set("student_nis", String(student.nis || "-"));
+      next.set("manual_only", "1");
+      next.set("manual_status", activeTab);
+      next.set("return_tab", "manual-review");
+      next.delete("active_tab");
+      const examToken = prev.get("token");
+      if (examToken) next.set("token", examToken);
+      return next;
     });
   };
 
