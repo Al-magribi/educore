@@ -819,6 +819,9 @@ const prepareRichHtml = async (value, imageCache, formulaCache) => {
   return root.innerHTML;
 };
 
+const DOCX_TABLE_ATTRS =
+  'border="1" cellpadding="6" cellspacing="0" style="width:100%;border-collapse:collapse;"';
+
 const buildMetaLine = (question) => {
   const typeMeta = QUESTION_TYPE_META[question.q_type] || { label: "Unknown" };
   const bloomMeta = BLOOM_LEVEL_META[question.bloom_level];
@@ -827,9 +830,11 @@ const buildMetaLine = (question) => {
     : "Belum Diatur";
 
   return `
-    <p>
-      <strong>Tipe:</strong> ${escapeHtml(typeMeta.label)}<br />
-      <strong>Bloom Level:</strong> ${escapeHtml(bloomText)}<br />
+    <p class="meta-line">
+      <strong>Tipe:</strong> ${escapeHtml(typeMeta.label)}
+      &nbsp;&nbsp;|&nbsp;&nbsp;
+      <strong>Bloom:</strong> ${escapeHtml(bloomText)}
+      &nbsp;&nbsp;|&nbsp;&nbsp;
       <strong>Poin:</strong> ${escapeHtml(question.score_point || 0)}
     </p>
   `;
@@ -860,20 +865,18 @@ const buildRubricHtml = (question) => {
     .join("");
 
   return `
-    <div class="rubric-section">
-      <p><strong>Rubric Penilaian:</strong></p>
-      <table class="plain-table rubric-table">
-        <thead>
-          <tr>
-            <th>No</th>
-            <th>Aspek</th>
-            <th>Deskripsi</th>
-            <th>Poin</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
+    <p><strong>Rubric Penilaian:</strong></p>
+    <table class="plain-table rubric-table" ${DOCX_TABLE_ATTRS}>
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>Aspek</th>
+          <th>Deskripsi</th>
+          <th>Poin</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
   `;
 };
 
@@ -897,7 +900,7 @@ const buildOptionsHtml = (question, preparedOptions) => {
 
     return `
       <p><strong>Opsi:</strong></p>
-      <table class="plain-table">
+      <table class="plain-table" ${DOCX_TABLE_ATTRS}>
         <thead>
           <tr>
             <th>No</th>
@@ -919,7 +922,7 @@ const buildOptionsHtml = (question, preparedOptions) => {
 
       return `
         <tr>
-          <td class="option-marker-cell">${marker}</td>
+          <td class="option-marker-cell"><strong>${marker}</strong></td>
           <td class="option-content-cell">${option.content || "-"}</td>
         </tr>
       `;
@@ -928,41 +931,51 @@ const buildOptionsHtml = (question, preparedOptions) => {
 
   return `
     <p><strong>Opsi:</strong></p>
-    <table class="plain-table options-table">
+    <table class="plain-table options-table" ${DOCX_TABLE_ATTRS}>
       <tbody>${items}</tbody>
     </table>
   `;
 };
 
+const buildInlineAnswerEntries = (entries) =>
+  entries
+    .map(({ marker, content }) => `<strong>${marker}</strong> ${content || "-"}`)
+    .join("&nbsp;&nbsp;&nbsp;");
+
 const buildAnswerKeyHtml = (question, preparedOptions) => {
   if (question.q_type === 3) {
-    return `<p class="answer-key">Kunci Jawaban: Penilaian manual</p>`;
+    return `<p class="answer-key"><strong>Kunci Jawaban:</strong> Penilaian manual</p>`;
   }
 
   if (question.q_type === 6) {
     if (!preparedOptions.length) {
-      return `<p class="answer-key">Kunci Jawaban: Tidak tersedia</p>`;
+      return `<p class="answer-key"><strong>Kunci Jawaban:</strong> Tidak tersedia</p>`;
     }
 
-    const items = preparedOptions
+    const rows = preparedOptions
       .map(
         (option, index) => `
-          <li>
-            <strong>${index + 1}.</strong>
-            <div class="matching-answer-row">
-              <div><strong>Premis:</strong> ${option.label || "-"}</div>
-              <div><strong>Pasangan:</strong> ${option.content || "-"}</div>
-            </div>
-          </li>
+          <tr>
+            <td>${index + 1}</td>
+            <td>${option.label || "-"}</td>
+            <td>${option.content || "-"}</td>
+          </tr>
         `,
       )
       .join("");
 
     return `
-      <div class="answer-key">
-        <strong>Kunci Jawaban:</strong>
-        <ol class="answer-list">${items}</ol>
-      </div>
+      <p><strong>Kunci Jawaban:</strong></p>
+      <table class="plain-table" ${DOCX_TABLE_ATTRS}>
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Premis</th>
+            <th>Pasangan Jawaban</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
     `;
   }
 
@@ -971,71 +984,67 @@ const buildAnswerKeyHtml = (question, preparedOptions) => {
   );
 
   if (!correctOptions.length) {
-    return `<p class="answer-key">Kunci Jawaban: Tidak tersedia</p>`;
+    return `<p class="answer-key"><strong>Kunci Jawaban:</strong> Tidak tersedia</p>`;
   }
 
   if (question.q_type === 5) {
-    const items = preparedOptions
+    const rows = preparedOptions
       .map((option, index) => {
-        const marker = String.fromCharCode(65 + index);
+        const marker = `${String.fromCharCode(65 + index)}.`;
         const status = question.options?.[index]?.is_correct ? "Benar" : "Salah";
 
         return `
-          <li>
-            <strong>${marker}.</strong>
-            <div class="answer-list-item">
-              <div>${option.content || "-"}</div>
-              <div><strong>Status:</strong> ${status}</div>
-            </div>
-          </li>
+          <tr>
+            <td class="option-marker-cell"><strong>${marker}</strong></td>
+            <td>${option.content || "-"}</td>
+            <td><strong>${status}</strong></td>
+          </tr>
         `;
       })
       .join("");
 
     return `
-      <div class="answer-key">
-        <strong>Kunci Jawaban:</strong>
-        <ol class="answer-list">${items}</ol>
-      </div>
+      <p><strong>Kunci Jawaban:</strong></p>
+      <table class="plain-table" ${DOCX_TABLE_ATTRS}>
+        <thead>
+          <tr>
+            <th>Opsi</th>
+            <th>Pernyataan</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
     `;
   }
 
   if (question.q_type === 4) {
-    const answers = correctOptions
-      .map(
-        (option, index) => `
-          <li>
-            <strong>${index + 1}.</strong>
-            <div class="answer-list-item">${option.content || "-"}</div>
-          </li>
-        `,
-      )
-      .join("");
+    const entries = correctOptions.map((option, index) => ({
+      marker: `${index + 1}.`,
+      content: option.content,
+    }));
+
     return `
-      <div class="answer-key">
+      <p class="answer-key">
         <strong>Kunci Jawaban:</strong>
-        <ol class="answer-list">${answers}</ol>
-      </div>
+        ${buildInlineAnswerEntries(entries)}
+      </p>
     `;
   }
 
-  const answers = correctOptions
-    .map((option) => {
-      const actualIndex = preparedOptions.indexOf(option);
-      return `
-        <li>
-          <strong>${String.fromCharCode(65 + actualIndex)}.</strong>
-          <div class="answer-list-item">${option.content || "-"}</div>
-        </li>
-      `;
-    })
-    .join("");
+  const entries = correctOptions.map((option) => {
+    const actualIndex = preparedOptions.indexOf(option);
+    return {
+      marker: `${String.fromCharCode(65 + actualIndex)}.`,
+      content: option.content,
+    };
+  });
 
   return `
-    <div class="answer-key">
+    <p class="answer-key">
       <strong>Kunci Jawaban:</strong>
-      <ol class="answer-list">${answers}</ol>
-    </div>
+      ${buildInlineAnswerEntries(entries)}
+    </p>
   `;
 };
 
@@ -1044,9 +1053,8 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
     .map(
       (question, index) => `
         <section class="question-section">
-          <p><strong>Soal ${index + 1}</strong></p>
+          <p class="question-title"><strong>Soal ${index + 1}</strong></p>
           ${buildMetaLine(question)}
-          <p><strong>Pertanyaan:</strong></p>
           <div class="question-content">${question.preparedContent || ""}</div>
           ${buildOptionsHtml(question, question.preparedOptions || [])}
           ${buildRubricHtml(question)}
@@ -1054,7 +1062,7 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
         </section>
       `,
     )
-    .join('<p class="question-separator"></p>');
+    .join('<hr class="question-separator" />');
 
   return `
     <!DOCTYPE html>
@@ -1066,16 +1074,14 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
           body {
             font-family: Arial, Helvetica, sans-serif;
             color: #0f172a;
-            font-size: 12px;
-            line-height: 1.6;
+            font-size: 12pt;
+            line-height: 1.5;
             margin: 0;
           }
           h1 {
-            margin: 0 0 10px;
+            margin: 0 0 8px;
             color: #0f172a;
-          }
-          h1 {
-            font-size: 18px;
+            font-size: 18pt;
           }
           p {
             margin: 0 0 8px;
@@ -1084,75 +1090,62 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
             vertical-align: middle;
           }
           .document-header {
-            margin-bottom: 18px;
+            margin-bottom: 20px;
           }
           .document-subtitle {
             color: #475569;
+            margin: 0 0 4px;
           }
           .question-section {
-            margin-bottom: 16px;
+            margin: 0 0 4px;
+          }
+          .question-title {
+            margin: 0 0 4px;
+            font-size: 13pt;
+          }
+          .meta-line {
+            color: #475569;
+            font-size: 10pt;
+            margin: 0 0 10px;
           }
           .question-content {
-            margin-bottom: 10px;
-          }
-          .options-list {
-            margin: 0 0 10px 20px;
-            padding-left: 0;
-          }
-          .options-list li {
-            margin-bottom: 6px;
+            margin: 0 0 12px;
           }
           .plain-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 0 0 10px;
+            margin: 0 0 12px;
           }
           .plain-table th,
           .plain-table td {
             padding: 6px 8px;
             vertical-align: top;
             text-align: left;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #94a3b8;
           }
           .plain-table th {
-            background: #f8fafc;
+            background: #f1f5f9;
+            font-weight: 700;
           }
           .plain-table td:first-child,
           .plain-table th:first-child {
-            width: 44px;
+            width: 48px;
           }
           .options-table .option-marker-cell {
-            width: 44px;
+            width: 48px;
             white-space: nowrap;
-            font-weight: 700;
-          }
-          .options-table .option-content-cell {
-            width: auto;
+            text-align: center;
           }
           .answer-key {
-            margin-top: 8px;
-          }
-          .answer-list,
-          .answer-key ol {
-            margin: 6px 0 0 18px;
-            padding: 0;
-          }
-          .answer-list li {
-            margin-bottom: 6px;
-          }
-          .answer-list-item,
-          .matching-answer-row {
-            display: inline-block;
-            vertical-align: top;
-          }
-          .rubric-section {
-            margin-top: 10px;
+            margin: 8px 0 0;
           }
           .muted {
             color: #64748b;
           }
           .question-separator {
-            margin: 0 0 10px;
+            border: none;
+            border-top: 1px solid #cbd5e1;
+            margin: 16px 0;
           }
         </style>
       </head>
