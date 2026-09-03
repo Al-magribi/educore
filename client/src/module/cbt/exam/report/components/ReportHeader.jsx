@@ -163,17 +163,21 @@ const ReportHeader = ({ examName, stats, isMobile = false, examToken }) => {
                   </Text>
                 </Flex>
                 <Text
-                  copyable={{
-                    text: examToken,
-                    icon: [
-                      <Copy
-                        key='copy'
-                        size={14}
-                        color='rgba(255,255,255,0.85)'
-                      />,
-                      <Copy key='copied' size={14} color='#86efac' />,
-                    ],
-                  }}
+                  copyable={
+                    examToken
+                      ? {
+                          text: examToken,
+                          icon: [
+                            <Copy
+                              key='copy'
+                              size={14}
+                              color='rgba(255,255,255,0.85)'
+                            />,
+                            <Copy key='copied' size={14} color='#86efac' />,
+                          ],
+                        }
+                      : false
+                  }
                   style={{
                     color: "#fff",
                     fontSize: isMobile ? 18 : 22,

@@ -1735,7 +1735,7 @@ router.get(
 
     const examCheck = await pool.query(
       `
-        SELECT e.id, e.duration_minutes, b.teacher_id, ut.homebase_id
+        SELECT e.id, e.duration_minutes, e.token, b.teacher_id, ut.homebase_id
         FROM cbt.c_exam e
         JOIN cbt.c_bank b ON e.bank_id = b.id
         LEFT JOIN u_teachers ut ON b.teacher_id = ut.user_id
@@ -1817,6 +1817,7 @@ router.get(
         status: normalizeAttendanceStatus(row.status),
       })),
       duration_minutes: examOwner.duration_minutes,
+      token: examOwner.token || "",
     });
   }),
 );
