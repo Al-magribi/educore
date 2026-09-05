@@ -584,6 +584,62 @@ Berikut laporan kehadiran anak Anda hari ini ({date_label}):
 
 Terima kasih.
 -{school_name}',
+    teacher_checkin_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {teacher_name},
+
+Absensi DATANG tercatat.
+Tanggal: {date_label}
+Jam: {time_label}{device_line}
+
+Terima kasih.',
+    teacher_checkout_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {teacher_name},
+
+Absensi PULANG tercatat.
+Tanggal: {date_label}
+Jam: {time_label}{device_line}
+
+Terima kasih.',
+    student_checkin_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {student_name},
+
+Presensi datang kamu sudah tercatat.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}',
+    student_checkout_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {student_name},
+
+Presensi pulang kamu sudah tercatat.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}',
+    parent_checkin_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {parent_name},
+
+Anak Anda, {student_name}, sudah datang di sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}',
+    parent_checkout_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {parent_name},
+
+Anak Anda, {student_name}, sudah pulang dari sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}',
     skip_on_holiday boolean NOT NULL DEFAULT true,
     last_run_date date,
     last_connected_at timestamp with time zone,

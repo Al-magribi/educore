@@ -27,7 +27,7 @@ import {
   ACTIVITY_GATE_ACTION,
   applyRfidScanToActivityAttendance,
 } from "../../services/attendance/rfidActivityAttendance.js";
-import { notifyTeacherGateTelegramTap } from "../../services/telegram/notifyTeacherGate.js";
+import { notifyGateTelegramTap } from "../../services/telegram/notifyTeacherGate.js";
 import pool from "../../config/connection.js";
 import {
   deleteDailyAttendanceCascade,
@@ -3043,13 +3043,15 @@ router.post(
       (resolvedScanAction === "daily_checkin" ||
         resolvedScanAction === "daily_checkout")
     ) {
-      void notifyTeacherGateTelegramTap(pool, {
+      void notifyGateTelegramTap(pool, {
         homebaseId: device.homebase_id,
         userId: card.user_id,
         userName: card.full_name,
         scanAction: resolvedScanAction,
         scannedAt,
         deviceName: device.name || device.device_code || null,
+        className: attendanceResult?.class_name || null,
+        attendanceStatus: attendanceResult?.attendance_status || null,
       });
     }
 

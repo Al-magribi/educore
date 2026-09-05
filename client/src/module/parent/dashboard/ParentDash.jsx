@@ -158,8 +158,8 @@ const ParentDash = () => {
               </Space>
               <Text type='secondary'>
                 {telegram?.is_bound
-                  ? "Akun Telegram Anda sudah terhubung. Laporan kehadiran anak akan dikirim ke chat bot sekolah."
-                  : "Hubungkan Telegram agar menerima laporan kehadiran anak otomatis setiap hari."}
+                  ? "Akun Telegram Anda sudah terhubung. Notifikasi datang/pulang anak dan laporan kehadiran harian akan dikirim ke chat bot sekolah."
+                  : "Hubungkan Telegram agar menerima notifikasi datang/pulang anak saat tap di mesin absensi, plus laporan kehadiran harian."}
               </Text>
               {telegram?.bind_link ? (
                 <Button

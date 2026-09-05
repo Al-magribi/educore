@@ -754,4 +754,49 @@ router.get(
   }),
 );
 
+router.get(
+  "/student/telegram",
+  authorize("student"),
+  withQuery(async (req, res, pool) => {
+    const studentUserId = Number(req.user.id);
+    const homebaseId = Number(req.user.homebase_id || 0);
+
+    if (!homebaseId) {
+      return res.json({
+        status: "success",
+        data: {
+          is_bound: false,
+          telegram_chat_id: null,
+          bot_username: null,
+          bind_link: null,
+          bot_ready: false,
+        },
+      });
+    }
+
+    const config = await getTelegramNotificationConfig(pool, homebaseId);
+    const studentResult = await pool.query(
+      `SELECT telegram_chat_id
+       FROM public.u_students
+       WHERE user_id = $1
+         AND homebase_id = $2
+       LIMIT 1`,
+      [studentUserId, homebaseId],
+    );
+
+    const chatId = studentResult.rows[0]?.telegram_chat_id || null;
+
+    return res.json({
+      status: "success",
+      data: {
+        is_bound: Boolean(String(chatId || "").trim()),
+        telegram_chat_id: chatId,
+        bot_username: config.bot_username || null,
+        bind_link: buildTelegramDeepLink(config.bot_username, studentUserId, "student"),
+        bot_ready: config.bot_status === "ready" && Boolean(config.bot_username),
+      },
+    });
+  }),
+);
+
 export default router;

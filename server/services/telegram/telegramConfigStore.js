@@ -1,4 +1,13 @@
 import { JAKARTA_TZ, toJakartaDateString } from "../attendance/rfidDailyAttendance.js";
+import {
+  DEFAULT_PARENT_CHECKIN_TEMPLATE,
+  DEFAULT_PARENT_CHECKOUT_TEMPLATE,
+  DEFAULT_PARENT_DAILY_TEMPLATE,
+  DEFAULT_STUDENT_CHECKIN_TEMPLATE,
+  DEFAULT_STUDENT_CHECKOUT_TEMPLATE,
+  DEFAULT_TEACHER_CHECKIN_TEMPLATE,
+  DEFAULT_TEACHER_CHECKOUT_TEMPLATE,
+} from "./messageBuilder.js";
 
 export const getJakartaHHmm = (date = new Date()) =>
   new Intl.DateTimeFormat("en-GB", {
@@ -14,14 +23,10 @@ export const getJakartaNowContext = (date = new Date()) => ({
   currentHHmm: getJakartaHHmm(date),
 });
 
-const DEFAULT_MESSAGE_TEMPLATE = `Assalamu'alaikum Bapak/Ibu {parent_name},
-
-Berikut laporan kehadiran anak Anda hari ini ({date_label}):
-
-{students_block}
-
-Terima kasih.
--{school_name}`;
+const normalizeTemplate = (value, fallback) => {
+  const text = String(value || "").trim();
+  return text || fallback;
+};
 
 export const getDefaultTelegramConfig = (homebaseId) => ({
   homebase_id: Number(homebaseId),
@@ -32,7 +37,13 @@ export const getDefaultTelegramConfig = (homebaseId) => ({
   last_update_id: null,
   last_error: null,
   send_time: "08:00:00",
-  message_template: DEFAULT_MESSAGE_TEMPLATE,
+  message_template: DEFAULT_PARENT_DAILY_TEMPLATE,
+  teacher_checkin_template: DEFAULT_TEACHER_CHECKIN_TEMPLATE,
+  teacher_checkout_template: DEFAULT_TEACHER_CHECKOUT_TEMPLATE,
+  student_checkin_template: DEFAULT_STUDENT_CHECKIN_TEMPLATE,
+  student_checkout_template: DEFAULT_STUDENT_CHECKOUT_TEMPLATE,
+  parent_checkin_template: DEFAULT_PARENT_CHECKIN_TEMPLATE,
+  parent_checkout_template: DEFAULT_PARENT_CHECKOUT_TEMPLATE,
   skip_on_holiday: true,
   last_run_date: null,
   last_connected_at: null,
@@ -132,6 +143,7 @@ export const getTelegramNotificationConfig = async (executor, homebaseId) => {
   }
 
   return {
+    ...getDefaultTelegramConfig(homebaseId),
     ...result.rows[0],
     is_default: false,
   };
@@ -168,6 +180,31 @@ export const upsertTelegramNotificationConfig = async (
     throw new Error("Bot token wajib diisi sebelum mengaktifkan notifikasi Telegram.");
   }
 
+  const teacherCheckinTemplate = normalizeTemplate(
+    payload.teacher_checkin_template ?? existing.teacher_checkin_template,
+    DEFAULT_TEACHER_CHECKIN_TEMPLATE,
+  );
+  const teacherCheckoutTemplate = normalizeTemplate(
+    payload.teacher_checkout_template ?? existing.teacher_checkout_template,
+    DEFAULT_TEACHER_CHECKOUT_TEMPLATE,
+  );
+  const studentCheckinTemplate = normalizeTemplate(
+    payload.student_checkin_template ?? existing.student_checkin_template,
+    DEFAULT_STUDENT_CHECKIN_TEMPLATE,
+  );
+  const studentCheckoutTemplate = normalizeTemplate(
+    payload.student_checkout_template ?? existing.student_checkout_template,
+    DEFAULT_STUDENT_CHECKOUT_TEMPLATE,
+  );
+  const parentCheckinTemplate = normalizeTemplate(
+    payload.parent_checkin_template ?? existing.parent_checkin_template,
+    DEFAULT_PARENT_CHECKIN_TEMPLATE,
+  );
+  const parentCheckoutTemplate = normalizeTemplate(
+    payload.parent_checkout_template ?? existing.parent_checkout_template,
+    DEFAULT_PARENT_CHECKOUT_TEMPLATE,
+  );
+
   const result = await executor.query(
     `INSERT INTO attendance.telegram_notification_config (
        homebase_id,
@@ -178,12 +215,18 @@ export const upsertTelegramNotificationConfig = async (
        last_error,
        send_time,
        message_template,
+       teacher_checkin_template,
+       teacher_checkout_template,
+       student_checkin_template,
+       student_checkout_template,
+       parent_checkin_template,
+       parent_checkout_template,
        skip_on_holiday,
        last_connected_at,
        created_by,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
      ON CONFLICT (homebase_id)
      DO UPDATE SET
        is_enabled = EXCLUDED.is_enabled,
@@ -193,6 +236,12 @@ export const upsertTelegramNotificationConfig = async (
        last_error = EXCLUDED.last_error,
        send_time = EXCLUDED.send_time,
        message_template = EXCLUDED.message_template,
+       teacher_checkin_template = EXCLUDED.teacher_checkin_template,
+       teacher_checkout_template = EXCLUDED.teacher_checkout_template,
+       student_checkin_template = EXCLUDED.student_checkin_template,
+       student_checkout_template = EXCLUDED.student_checkout_template,
+       parent_checkin_template = EXCLUDED.parent_checkin_template,
+       parent_checkout_template = EXCLUDED.parent_checkout_template,
        skip_on_holiday = EXCLUDED.skip_on_holiday,
        last_connected_at = EXCLUDED.last_connected_at,
        updated_at = NOW()
@@ -206,6 +255,12 @@ export const upsertTelegramNotificationConfig = async (
       payload.last_error === undefined ? existing.last_error || null : payload.last_error,
       sendTime,
       messageTemplate,
+      teacherCheckinTemplate,
+      teacherCheckoutTemplate,
+      studentCheckinTemplate,
+      studentCheckoutTemplate,
+      parentCheckinTemplate,
+      parentCheckoutTemplate,
       payload.skip_on_holiday !== false,
       payload.last_connected_at === undefined
         ? existing.last_connected_at || null

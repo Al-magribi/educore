@@ -17,6 +17,7 @@ import {
   TimePicker,
   Typography,
   message,
+  Collapse,
 } from 'antd';
 import { motion } from 'framer-motion';
 import { ExternalLink, MessageCircle, Play, RefreshCw, Save, Send, Trash2 } from 'lucide-react';
@@ -70,6 +71,65 @@ Berikut laporan kehadiran anak Anda hari ini ({date_label}):
 
 Terima kasih.
 -{school_name}`;
+
+const DEFAULT_TEACHER_CHECKIN = `Assalamu'alaikum {teacher_name},
+
+Absensi DATANG tercatat.
+Tanggal: {date_label}
+Jam: {time_label}{device_line}
+
+Terima kasih.`;
+
+const DEFAULT_TEACHER_CHECKOUT = `Assalamu'alaikum {teacher_name},
+
+Absensi PULANG tercatat.
+Tanggal: {date_label}
+Jam: {time_label}{device_line}
+
+Terima kasih.`;
+
+const DEFAULT_STUDENT_CHECKIN = `Assalamu'alaikum {student_name},
+
+Presensi datang kamu sudah tercatat.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}`;
+
+const DEFAULT_STUDENT_CHECKOUT = `Assalamu'alaikum {student_name},
+
+Presensi pulang kamu sudah tercatat.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}`;
+
+const DEFAULT_PARENT_CHECKIN = `Assalamu'alaikum {parent_name},
+
+Anak Anda, {student_name}, sudah datang di sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}`;
+
+const DEFAULT_PARENT_CHECKOUT = `Assalamu'alaikum {parent_name},
+
+Anak Anda, {student_name}, sudah pulang dari sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}`;
+
+const GATE_PLACEHOLDERS =
+  '{teacher_name}, {student_name}, {parent_name}, {date_label}, {time_label}, {action}, {school_name}, {device_name}, {device_line}, {class_name}, {nis}, {status_label}';
 
 const parseSendTime = (value) => {
   if (!value) return dayjs('08:00', 'HH:mm');
@@ -142,6 +202,12 @@ const TelegramFeatureTab = () => {
       send_time: parseSendTime(config?.send_time),
       skip_on_holiday: config?.skip_on_holiday !== false,
       message_template: config?.message_template || DEFAULT_TEMPLATE,
+      teacher_checkin_template: config?.teacher_checkin_template || DEFAULT_TEACHER_CHECKIN,
+      teacher_checkout_template: config?.teacher_checkout_template || DEFAULT_TEACHER_CHECKOUT,
+      student_checkin_template: config?.student_checkin_template || DEFAULT_STUDENT_CHECKIN,
+      student_checkout_template: config?.student_checkout_template || DEFAULT_STUDENT_CHECKOUT,
+      parent_checkin_template: config?.parent_checkin_template || DEFAULT_PARENT_CHECKIN,
+      parent_checkout_template: config?.parent_checkout_template || DEFAULT_PARENT_CHECKOUT,
     }),
     [config],
   );
@@ -172,6 +238,12 @@ const TelegramFeatureTab = () => {
         send_time: values.send_time?.format('HH:mm'),
         skip_on_holiday: values.skip_on_holiday !== false,
         message_template: values.message_template,
+        teacher_checkin_template: values.teacher_checkin_template,
+        teacher_checkout_template: values.teacher_checkout_template,
+        student_checkin_template: values.student_checkin_template,
+        student_checkout_template: values.student_checkout_template,
+        parent_checkin_template: values.parent_checkin_template,
+        parent_checkout_template: values.parent_checkout_template,
       };
 
       if (botTokenInput.trim()) {
@@ -414,7 +486,7 @@ const TelegramFeatureTab = () => {
 
               <Form.Item
                 name="message_template"
-                label="Template Pesan"
+                label="Template Laporan Harian Orang Tua"
                 rules={[{ required: true, message: 'Template pesan wajib diisi.' }]}
                 extra={
                   <Text type="secondary">
@@ -423,6 +495,76 @@ const TelegramFeatureTab = () => {
                 }>
                 <Input.TextArea rows={10} />
               </Form.Item>
+
+              <Collapse
+                size="small"
+                style={{ marginTop: 4 }}
+                items={[
+                  {
+                    key: 'teacher',
+                    label: 'Notifikasi Guru — datang & pulang',
+                    children: (
+                      <>
+                        <Form.Item
+                          name="teacher_checkin_template"
+                          label="Pesan Datang Guru"
+                          rules={[{ required: true, message: 'Template datang guru wajib diisi.' }]}>
+                          <Input.TextArea rows={7} />
+                        </Form.Item>
+                        <Form.Item
+                          name="teacher_checkout_template"
+                          label="Pesan Pulang Guru"
+                          rules={[{ required: true, message: 'Template pulang guru wajib diisi.' }]}
+                          extra={<Text type="secondary">Placeholder: {GATE_PLACEHOLDERS}</Text>}>
+                          <Input.TextArea rows={7} />
+                        </Form.Item>
+                      </>
+                    ),
+                  },
+                  {
+                    key: 'student',
+                    label: 'Notifikasi Siswa — datang & pulang',
+                    children: (
+                      <>
+                        <Form.Item
+                          name="student_checkin_template"
+                          label="Pesan Datang Siswa"
+                          rules={[{ required: true, message: 'Template datang siswa wajib diisi.' }]}>
+                          <Input.TextArea rows={8} />
+                        </Form.Item>
+                        <Form.Item
+                          name="student_checkout_template"
+                          label="Pesan Pulang Siswa"
+                          rules={[{ required: true, message: 'Template pulang siswa wajib diisi.' }]}
+                          extra={<Text type="secondary">Placeholder: {GATE_PLACEHOLDERS}</Text>}>
+                          <Input.TextArea rows={8} />
+                        </Form.Item>
+                      </>
+                    ),
+                  },
+                  {
+                    key: 'parent',
+                    label: 'Notifikasi Orang Tua — datang & pulang anak',
+                    children: (
+                      <>
+                        <Form.Item
+                          name="parent_checkin_template"
+                          label="Pesan Datang ke Orang Tua"
+                          rules={[{ required: true, message: 'Template datang orang tua wajib diisi.' }]}>
+                          <Input.TextArea rows={8} />
+                        </Form.Item>
+                        <Form.Item
+                          name="parent_checkout_template"
+                          label="Pesan Pulang ke Orang Tua"
+                          rules={[{ required: true, message: 'Template pulang orang tua wajib diisi.' }]}
+                          extra={<Text type="secondary">Placeholder: {GATE_PLACEHOLDERS}</Text>}>
+                          <Input.TextArea rows={8} />
+                        </Form.Item>
+                      </>
+                    ),
+                  },
+                ]}
+              />
             </Form>
           </Card>
         </MotionDiv>
@@ -471,7 +613,7 @@ const TelegramFeatureTab = () => {
                   type="success"
                   showIcon
                   message="Bot siap mengirim notifikasi."
-                  description="Orang tua menghubungkan Telegram lewat tombol di portal orang tua, lalu tekan Start."
+                  description="Orang tua, guru, dan siswa menghubungkan Telegram lewat tombol di portal masing-masing, lalu tekan Start."
                 />
               ) : (
                 <Alert

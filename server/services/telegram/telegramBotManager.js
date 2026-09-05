@@ -7,8 +7,14 @@ import {
   updateTelegramBotMeta,
 } from "./telegramConfigStore.js";
 
+const BIND_PREFIX = {
+  parent: "p",
+  teacher: "t",
+  student: "s",
+};
+
 export const buildTelegramBindPayload = (userId, role = "parent") => {
-  const prefix = role === "teacher" ? "t" : "p";
+  const prefix = BIND_PREFIX[role] || "p";
   return `${prefix}${Number(userId)}`;
 };
 
@@ -33,6 +39,14 @@ export const parseTelegramBindPayload = (text) => {
     return {
       type: "bind_teacher",
       teacher_user_id: Number(teacherMatch[1]),
+    };
+  }
+
+  const studentMatch = payload.match(/^s[_-]?(\d+)$/i);
+  if (studentMatch) {
+    return {
+      type: "bind_student",
+      student_user_id: Number(studentMatch[1]),
     };
   }
 
@@ -237,6 +251,51 @@ export const bindTeacherTelegramChat = async (
   };
 };
 
+export const bindStudentTelegramChat = async (
+  executor,
+  { homebaseId, studentUserId, chatId },
+) => {
+  const studentCheck = await executor.query(
+    `SELECT
+       u.id,
+       u.full_name,
+       s.telegram_chat_id
+     FROM public.u_users u
+     JOIN public.u_students s
+       ON s.user_id = u.id
+      AND s.homebase_id = $1
+     WHERE u.id = $2
+       AND u.role = 'student'
+       AND u.is_active = true
+     LIMIT 1`,
+    [homebaseId, studentUserId],
+  );
+
+  const student = studentCheck.rows[0];
+  if (!student) {
+    return {
+      ok: false,
+      message: "Akun siswa tidak ditemukan di sekolah ini.",
+    };
+  }
+
+  await executor.query(
+    `UPDATE public.u_students
+     SET telegram_chat_id = $2
+     WHERE user_id = $1
+       AND homebase_id = $3`,
+    [studentUserId, String(chatId), homebaseId],
+  );
+
+  return {
+    ok: true,
+    student_user_id: Number(student.id),
+    student_name: student.full_name,
+    chat_id: String(chatId),
+    message: `Berhasil terhubung sebagai ${student.full_name}.`,
+  };
+};
+
 export const unbindParentTelegramChat = async (executor, { homebaseId, parentUserId }) => {
   const result = await executor.query(
     `UPDATE public.u_parents p
@@ -275,7 +334,7 @@ export const handleTelegramUpdate = async (executor, homebaseId, update) => {
       homebaseId,
       chatId,
       message:
-        "Assalamu'alaikum. Bot notifikasi absensi siap.\n\nBuka tautan khusus dari portal orang tua atau dashboard guru, lalu tekan Start agar akun Anda terhubung.",
+        "Assalamu'alaikum. Bot notifikasi absensi siap.\n\nBuka tautan khusus dari portal orang tua, dashboard guru, atau dashboard siswa, lalu tekan Start agar akun Anda terhubung.",
     });
     return { handled: true, action: "start_help" };
   }
@@ -292,7 +351,7 @@ export const handleTelegramUpdate = async (executor, homebaseId, update) => {
       homebaseId,
       chatId,
       message: bindResult.ok
-        ? `${bindResult.message}\n\nAnda akan menerima laporan kehadiran anak melalui chat ini.`
+        ? `${bindResult.message}\n\nAnda akan menerima laporan kehadiran anak dan notifikasi datang/pulang melalui chat ini.`
         : bindResult.message,
     });
 
@@ -322,6 +381,29 @@ export const handleTelegramUpdate = async (executor, homebaseId, update) => {
     return {
       handled: true,
       action: "bind_teacher",
+      ...bindResult,
+    };
+  }
+
+  if (parsed?.type === "bind_student") {
+    const bindResult = await bindStudentTelegramChat(executor, {
+      homebaseId,
+      studentUserId: parsed.student_user_id,
+      chatId,
+    });
+
+    await sendTelegramMessage({
+      executor,
+      homebaseId,
+      chatId,
+      message: bindResult.ok
+        ? `${bindResult.message}\n\nAnda akan menerima notifikasi saat tap absensi datang/pulang di mesin RFID.`
+        : bindResult.message,
+    });
+
+    return {
+      handled: true,
+      action: "bind_student",
       ...bindResult,
     };
   }
