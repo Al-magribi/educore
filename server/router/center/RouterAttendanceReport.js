@@ -55,12 +55,6 @@ const resolveReportRange = (query = {}) => {
   return { startDate, endDate };
 };
 
-const appendPeriodeFilter = (where, params, periodeId, column = "da.periode_id") => {
-  if (!periodeId) return;
-  params.push(periodeId);
-  where.push(`${column} = $${params.length}`);
-};
-
 const emptyStudentPayload = (startDate, endDate) => ({
   summary: {
     total_records: 0,
@@ -84,6 +78,7 @@ const emptyTeacherPayload = (startDate, endDate) => ({
     late_count: 0,
     absent_count: 0,
     incomplete_count: 0,
+    pending_count: 0,
     present_teachers: 0,
     absent_teachers: 0,
   },
@@ -108,6 +103,189 @@ const hasGateScanTables = async (db) => {
   return Boolean(row.scan_log && row.device);
 };
 
+const hasRfidCardTable = async (db) => {
+  const result = await db.query(
+    `SELECT to_regclass('attendance.rfid_card') AS table_name`,
+  );
+  return Boolean(result.rows[0]?.table_name);
+};
+
+const buildHasGateSql = (hasGateTables) =>
+  hasGateTables ? GATE_LINKED_SCAN_EXISTS_SQL : `(da.checkin_at IS NOT NULL)`;
+
+/**
+ * Status tampilan laporan:
+ * - tap gerbang accepted → present / late / incomplete
+ * - excused sungguhan (bukan sisa auto-pending tanpa tap) → excused
+ * - absent → absent
+ * - selain itu (tanpa baris, pending, present/excused tanpa tap) → pending
+ */
+const buildEffectiveStatusSql = (hasGateSql) => `
+  CASE
+    WHEN COALESCE((${hasGateSql}), false) THEN
+      CASE
+        WHEN da.attendance_status IN ('present', 'late', 'incomplete') THEN da.attendance_status
+        ELSE 'present'
+      END
+    WHEN da.attendance_status = 'excused'
+      AND COALESCE(da.notes, '') NOT ILIKE 'Auto-pending%' THEN 'excused'
+    WHEN da.attendance_status = 'absent' THEN 'absent'
+    ELSE 'pending'
+  END
+`;
+
+const buildAttendanceJoinSql = (hasDailyTable, targetRole) => {
+  if (!hasDailyTable) return "";
+  return `
+    LEFT JOIN attendance.daily_attendance da
+      ON da.user_id = r.user_id
+     AND da.attendance_date = d.attendance_date
+     AND da.target_role = '${targetRole}'
+     AND da.homebase_id = $1`;
+};
+
+const appendOptionalFilters = (params, { status, userName }) => {
+  const where = [];
+  if (status) {
+    params.push(status);
+    where.push(`rep.attendance_status = $${params.length}`);
+  }
+  if (userName) {
+    params.push(`%${userName}%`);
+    where.push(`rep.full_name ILIKE $${params.length}`);
+  }
+  return where.length ? `WHERE ${where.join(" AND ")}` : "";
+};
+
+const attendanceSelectSql = (hasDailyTable, hasGateTables) => {
+  if (!hasDailyTable) {
+    return `
+      'pending'::text AS attendance_status,
+      NULL::text AS checkin_at,
+      NULL::text AS checkout_at,
+      NULL::int AS late_minutes,
+      NULL::int AS presence_minutes,
+      NULL::text AS notes`;
+  }
+
+  const hasGateSql = buildHasGateSql(hasGateTables);
+  const effectiveStatusSql = buildEffectiveStatusSql(hasGateSql);
+  return `
+      (${effectiveStatusSql}) AS attendance_status,
+      ${toJakartaTimestampSql("da.checkin_at")} AS checkin_at,
+      ${toJakartaTimestampSql("da.checkout_at")} AS checkout_at,
+      da.late_minutes,
+      da.presence_minutes,
+      da.notes`;
+};
+
+const buildStudentReportCte = ({
+  hasDailyTable,
+  hasGateTables,
+  periodeId,
+  params,
+}) => {
+  const attendanceJoin = buildAttendanceJoinSql(hasDailyTable, "student");
+  const attendanceSelect = attendanceSelectSql(hasDailyTable, hasGateTables);
+
+  let rosterPeriodeFilter = "";
+  if (periodeId) {
+    params.push(periodeId);
+    rosterPeriodeFilter = `AND s.current_periode_id = $${params.length}`;
+  }
+
+  return `
+    dates AS (
+      SELECT generate_series($2::date, $3::date, INTERVAL '1 day')::date AS attendance_date
+    ),
+    roster AS (
+      SELECT
+        s.user_id,
+        u.full_name,
+        s.nis,
+        c.id AS class_id,
+        c.name AS class_name,
+        g.id AS grade_id,
+        g.name AS grade_name
+      FROM u_students s
+      JOIN u_users u ON u.id = s.user_id
+      LEFT JOIN a_class c ON c.id = s.current_class_id
+      LEFT JOIN a_grade g ON g.id = c.grade_id
+      WHERE s.homebase_id = $1
+        AND u.is_active = true
+        ${rosterPeriodeFilter}
+    ),
+    report AS (
+      SELECT
+        COALESCE(
+          ${hasDailyTable ? "da.id::text" : "NULL::text"},
+          'roster-' || r.user_id::text || '-' || TO_CHAR(d.attendance_date, 'YYYY-MM-DD')
+        ) AS id,
+        TO_CHAR(d.attendance_date, 'YYYY-MM-DD') AS attendance_date,
+        ${attendanceSelect},
+        r.user_id,
+        r.full_name,
+        r.nis,
+        r.class_id,
+        r.class_name,
+        r.grade_id,
+        r.grade_name
+      FROM roster r
+      CROSS JOIN dates d
+      ${attendanceJoin}
+    )`;
+};
+
+const buildTeacherReportCte = ({
+  hasDailyTable,
+  hasGateTables,
+  hasRfidCard,
+}) => {
+  const attendanceJoin = buildAttendanceJoinSql(hasDailyTable, "teacher");
+  const attendanceSelect = attendanceSelectSql(hasDailyTable, hasGateTables);
+  const cardUidSelect = hasRfidCard
+    ? `(
+         SELECT rc.card_uid
+         FROM attendance.rfid_card rc
+         WHERE rc.user_id = r.user_id
+           AND rc.is_active = true
+         ORDER BY rc.is_primary DESC, rc.id DESC
+         LIMIT 1
+       ) AS card_uid`
+    : `NULL::text AS card_uid`;
+
+  return `
+    dates AS (
+      SELECT generate_series($2::date, $3::date, INTERVAL '1 day')::date AS attendance_date
+    ),
+    roster AS (
+      SELECT
+        t.user_id,
+        u.full_name,
+        t.nip
+      FROM u_teachers t
+      JOIN u_users u ON u.id = t.user_id
+      WHERE t.homebase_id = $1
+        AND u.is_active = true
+    ),
+    report AS (
+      SELECT
+        COALESCE(
+          ${hasDailyTable ? "da.id::text" : "NULL::text"},
+          'roster-' || r.user_id::text || '-' || TO_CHAR(d.attendance_date, 'YYYY-MM-DD')
+        ) AS id,
+        TO_CHAR(d.attendance_date, 'YYYY-MM-DD') AS attendance_date,
+        ${attendanceSelect},
+        r.user_id,
+        r.full_name,
+        r.nip,
+        ${cardUidSelect}
+      FROM roster r
+      CROSS JOIN dates d
+      ${attendanceJoin}
+    )`;
+};
+
 // GET /api/center/attendance/reports/students
 router.get(
   "/attendance/reports/students",
@@ -126,79 +304,48 @@ router.get(
       });
     }
 
-    if (!(await hasDailyAttendanceTable(db))) {
-      return res.json({
-        status: "success",
-        data: emptyStudentPayload(startDate, endDate),
-      });
-    }
+    const [hasDailyTable, hasGateTables] = await Promise.all([
+      hasDailyAttendanceTable(db),
+      hasGateScanTables(db),
+    ]);
 
-    const params = [homebaseId, startDate, endDate];
-    const where = [
-      "da.homebase_id = $1",
-      "da.target_role = 'student'",
-      "da.attendance_date BETWEEN $2::date AND $3::date",
-    ];
-    if (await hasGateScanTables(db)) {
-      where.push(STUDENT_REPORT_ROW_VISIBLE_SQL);
-    }
-    appendPeriodeFilter(where, params, periodeId);
+    const cteParams = [homebaseId, startDate, endDate];
+    const cte = buildStudentReportCte({
+      hasDailyTable,
+      hasGateTables,
+      periodeId,
+      params: cteParams,
+    });
 
-    if (status) {
-      params.push(status);
-      where.push(`da.attendance_status = $${params.length}`);
-    }
-    if (userName) {
-      params.push(`%${userName}%`);
-      where.push(`u.full_name ILIKE $${params.length}`);
-    }
+    const rowParams = [...cteParams];
+    const rowWhere = appendOptionalFilters(rowParams, { status, userName });
 
     const [rowsResult, summaryResult] = await Promise.all([
       db.query(
-        `SELECT
-           da.id,
-           TO_CHAR(da.attendance_date, 'YYYY-MM-DD') AS attendance_date,
-           da.attendance_status,
-           ${toJakartaTimestampSql("da.checkin_at")} AS checkin_at,
-           ${toJakartaTimestampSql("da.checkout_at")} AS checkout_at,
-           da.late_minutes,
-           da.presence_minutes,
-           da.notes,
-           u.id AS user_id,
-           u.full_name,
-           st.nis,
-           c.id AS class_id,
-           c.name AS class_name,
-           g.id AS grade_id,
-           g.name AS grade_name
-         FROM attendance.daily_attendance da
-         JOIN u_users u ON u.id = da.user_id
-         JOIN u_students st ON st.user_id = da.user_id
-         LEFT JOIN a_class c ON c.id = st.current_class_id
-         LEFT JOIN a_grade g ON g.id = c.grade_id
-         WHERE ${where.join(" AND ")}
+        `WITH ${cte}
+         SELECT *
+         FROM report rep
+         ${rowWhere}
          ORDER BY
-           GREATEST(da.checkout_at, da.checkin_at) DESC NULLS LAST,
-           da.attendance_date DESC,
-           u.full_name ASC`,
-        params,
+           GREATEST(rep.checkout_at, rep.checkin_at) DESC NULLS LAST,
+           rep.attendance_date DESC,
+           rep.class_name ASC NULLS LAST,
+           rep.full_name ASC`,
+        rowParams,
       ),
       db.query(
-        `SELECT
+        `WITH ${cte}
+         SELECT
            COUNT(*)::int AS total_records,
-           COUNT(DISTINCT da.user_id)::int AS total_students,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'present')::int AS present_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'late')::int AS late_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'absent')::int AS absent_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'excused')::int AS excused_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'pending')::int AS pending_count
-         FROM attendance.daily_attendance da
-         JOIN u_users u ON u.id = da.user_id
-         JOIN u_students st ON st.user_id = da.user_id
-         LEFT JOIN a_class c ON c.id = st.current_class_id
-         WHERE ${where.join(" AND ")}`,
-        params,
+           COUNT(DISTINCT rep.user_id)::int AS total_students,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'present')::int AS present_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'late')::int AS late_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'absent')::int AS absent_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'excused')::int AS excused_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'incomplete')::int AS incomplete_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'pending')::int AS pending_count
+         FROM report rep`,
+        cteParams,
       ),
     ]);
 
@@ -238,94 +385,52 @@ router.get(
       });
     }
 
-    if (!(await hasDailyAttendanceTable(db))) {
-      return res.json({
-        status: "success",
-        data: emptyTeacherPayload(startDate, endDate),
-      });
-    }
+    const [hasDailyTable, hasGateTables, hasRfidCard] = await Promise.all([
+      hasDailyAttendanceTable(db),
+      hasGateScanTables(db),
+      hasRfidCardTable(db),
+    ]);
 
-    const params = [homebaseId, startDate, endDate];
-    const where = [
-      "da.homebase_id = $1",
-      "da.target_role = 'teacher'",
-      "da.attendance_date BETWEEN $2::date AND $3::date",
-    ];
-    if (await hasGateScanTables(db)) {
-      where.push(TEACHER_REPORT_ROW_VISIBLE_SQL);
-    }
-    appendPeriodeFilter(where, params, periodeId);
+    const cteParams = [homebaseId, startDate, endDate];
+    const cte = buildTeacherReportCte({
+      hasDailyTable,
+      hasGateTables,
+      hasRfidCard,
+    });
 
-    if (status) {
-      params.push(status);
-      where.push(`da.attendance_status = $${params.length}`);
-    }
-    if (userName) {
-      params.push(`%${userName}%`);
-      where.push(`u.full_name ILIKE $${params.length}`);
-    }
-
-    const hasRfidCard = Boolean(
-      (
-        await db.query(`SELECT to_regclass('attendance.rfid_card') AS table_name`)
-      ).rows[0]?.table_name,
-    );
-
-    const cardUidSelect = hasRfidCard
-      ? `(
-           SELECT rc.card_uid
-           FROM attendance.rfid_card rc
-           WHERE rc.user_id = da.user_id
-             AND rc.is_active = true
-           ORDER BY rc.is_primary DESC, rc.id DESC
-           LIMIT 1
-         ) AS card_uid`
-      : `NULL::text AS card_uid`;
+    const rowParams = [...cteParams];
+    const rowWhere = appendOptionalFilters(rowParams, { status, userName });
 
     const [rowsResult, summaryResult] = await Promise.all([
       db.query(
-        `SELECT
-           da.id,
-           TO_CHAR(da.attendance_date, 'YYYY-MM-DD') AS attendance_date,
-           da.attendance_status,
-           ${toJakartaTimestampSql("da.checkin_at")} AS checkin_at,
-           ${toJakartaTimestampSql("da.checkout_at")} AS checkout_at,
-           da.late_minutes,
-           da.presence_minutes,
-           da.notes,
-           u.id AS user_id,
-           u.full_name,
-           t.nip,
-           ${cardUidSelect}
-         FROM attendance.daily_attendance da
-         JOIN u_users u ON u.id = da.user_id
-         JOIN u_teachers t ON t.user_id = da.user_id
-         WHERE ${where.join(" AND ")}
+        `WITH ${cte}
+         SELECT *
+         FROM report rep
+         ${rowWhere}
          ORDER BY
-           GREATEST(da.checkout_at, da.checkin_at) DESC NULLS LAST,
-           da.attendance_date DESC,
-           u.full_name ASC`,
-        params,
+           GREATEST(rep.checkout_at, rep.checkin_at) DESC NULLS LAST,
+           rep.attendance_date DESC,
+           rep.full_name ASC`,
+        rowParams,
       ),
       db.query(
-        `SELECT
+        `WITH ${cte}
+         SELECT
            COUNT(*)::int AS total_records,
-           COUNT(DISTINCT da.user_id)::int AS total_teachers,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'present')::int AS present_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'late')::int AS late_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'absent')::int AS absent_count,
-           COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count,
+           COUNT(DISTINCT rep.user_id)::int AS total_teachers,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'present')::int AS present_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'late')::int AS late_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'absent')::int AS absent_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'incomplete')::int AS incomplete_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'pending')::int AS pending_count,
            COUNT(DISTINCT CASE
-             WHEN da.attendance_status IN ('present', 'late') THEN da.user_id
+             WHEN rep.attendance_status IN ('present', 'late', 'incomplete') THEN rep.user_id
            END)::int AS present_teachers,
            COUNT(DISTINCT CASE
-             WHEN da.attendance_status = 'absent' THEN da.user_id
+             WHEN rep.attendance_status NOT IN ('present', 'late', 'incomplete') THEN rep.user_id
            END)::int AS absent_teachers
-         FROM attendance.daily_attendance da
-         JOIN u_users u ON u.id = da.user_id
-         JOIN u_teachers t ON t.user_id = da.user_id
-         WHERE ${where.join(" AND ")}`,
-        params,
+         FROM report rep`,
+        cteParams,
       ),
     ]);
 
