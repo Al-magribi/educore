@@ -48,6 +48,15 @@ const STATUS_COLORS = {
   pending: 'default',
 };
 
+const STATUS_LABELS = {
+  present: 'Hadir',
+  late: 'Telat',
+  absent: 'Absen',
+  excused: 'Sakit/Izin',
+  incomplete: 'Incomplete',
+  pending: 'Belum tap',
+};
+
 const STUDENT_STATUS_OPTIONS = [
   { value: 'present', label: 'Present (Hadir)' },
   { value: 'late', label: 'Late (Telat)' },
@@ -270,7 +279,10 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
     {
       key: 'present',
       title: 'Hadir/Telat',
-      value: Number(summary.present_count || 0) + Number(summary.late_count || 0),
+      value:
+        Number(summary.present_count || 0) +
+        Number(summary.late_count || 0) +
+        Number(summary.incomplete_count || 0),
       icon: <CalendarRange size={isMobile ? 14 : 18} />,
       color: '#166534',
       bg: '#f0fdf4',
@@ -335,7 +347,7 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       width: isMobile ? 96 : 110,
       render: (value) => (
         <Tag color={STATUS_COLORS[value] || 'default'} style={{ margin: 0, maxWidth: '100%' }}>
-          {value}
+          {STATUS_LABELS[value] || value}
         </Tag>
       ),
     },
@@ -357,7 +369,7 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
     <Flex vertical gap={isMobile ? 12 : 16} style={{ width: '100%', minWidth: 0 }}>
       <PanelHeader
         title="Laporan Presensi Siswa"
-        description="Rekap kehadiran harian siswa berdasarkan data daily_attendance."
+        description="Rekap seluruh siswa aktif pada satuan & periode. Hadir hanya dari tap gerbang; yang belum tap tetap dihitung."
         isMobile={isMobile}
         filter={
           <Select
@@ -392,7 +404,7 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       </Row>
 
       {rows.length === 0 && !isLoading && !isFetching ? (
-        <Empty description="Belum ada data presensi siswa pada rentang ini." />
+        <Empty description="Tidak ada siswa pada satuan & periode terpilih." />
       ) : (
         <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
           <Table
@@ -446,7 +458,7 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
     },
     {
       key: 'absent',
-      title: 'Absent',
+      title: 'Belum hadir',
       value: Number(summary.absent_teachers || 0),
       icon: <UserX size={isMobile ? 14 : 18} />,
       color: '#b91c1c',
@@ -488,7 +500,7 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       width: isMobile ? 96 : 110,
       render: (value) => (
         <Tag color={STATUS_COLORS[value] || 'default'} style={{ margin: 0, maxWidth: '100%' }}>
-          {value}
+          {STATUS_LABELS[value] || value}
         </Tag>
       ),
     },
@@ -510,7 +522,7 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
     <Flex vertical gap={isMobile ? 12 : 16} style={{ width: '100%', minWidth: 0 }}>
       <PanelHeader
         title="Laporan Presensi Guru"
-        description="Rekap kehadiran harian guru berdasarkan data daily_attendance."
+        description="Rekap seluruh guru aktif pada satuan. Hadir hanya dari tap gerbang; yang belum tap tetap dihitung."
         isMobile={isMobile}
         filter={
           <Select
@@ -545,7 +557,7 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       </Row>
 
       {rows.length === 0 && !isLoading && !isFetching ? (
-        <Empty description="Belum ada data presensi guru pada rentang ini." />
+        <Empty description="Tidak ada guru pada satuan terpilih." />
       ) : (
         <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
           <Table
@@ -606,8 +618,8 @@ const CenterAttendanceReports = ({
             </Text>
             <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13, display: 'block' }}>
               {isMobile
-                ? 'Presensi harian siswa & guru.'
-                : 'Presensi harian siswa & guru (RFID / daily_attendance).'}
+                ? 'Presensi harian seluruh siswa & guru.'
+                : 'Presensi harian seluruh siswa & guru aktif (tap gerbang RFID).'}
             </Text>
           </div>
           <Flex
