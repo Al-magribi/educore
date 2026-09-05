@@ -1,8 +1,8 @@
 import React from "react";
-import { useGetTeacherDashQuery } from "../../../service/main/ApiDash";
 import {
   Alert,
   Avatar,
+  Button,
   Card,
   Col,
   Flex,
@@ -22,7 +22,10 @@ import {
   ClipboardList,
   FileText,
   Layers,
+  MessageCircle,
 } from "lucide-react";
+import { useGetTeacherDashQuery } from "../../../service/main/ApiDash";
+import { useGetTeacherTelegramQuery } from "../../../service/lms/ApiAttendance";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -254,6 +257,8 @@ const renderPaginatedList = ({
 
 const TeacherDash = () => {
   const { data, isLoading, isError } = useGetTeacherDashQuery();
+  const { data: telegramRes } = useGetTeacherTelegramQuery();
+  const telegram = telegramRes?.data;
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const subjects = data?.subjects || [];
@@ -479,6 +484,60 @@ const TeacherDash = () => {
                   ? `Periode Aktif: ${data.activePeriode.name}`
                   : "Belum ada periode aktif"}
               </Tag>
+            </Space>
+          </Flex>
+        </Card>
+      </MotionDiv>
+
+      <MotionDiv variants={itemVariants}>
+        <Card style={cardStyle} bodyStyle={{ padding: isMobile ? 16 : 20 }}>
+          <Flex align='start' gap={14} wrap='wrap'>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #dbeafe, #ccfbf1)",
+                color: "#0f766e",
+                flexShrink: 0,
+              }}
+            >
+              <MessageCircle size={20} />
+            </div>
+            <Space direction='vertical' size={8} style={{ flex: 1, minWidth: 220 }}>
+              <Space wrap>
+                <Text strong style={{ fontSize: 16 }}>
+                  Notifikasi Absensi Telegram
+                </Text>
+                {telegram?.is_bound ? (
+                  <Tag color='success'>Terhubung</Tag>
+                ) : (
+                  <Tag>Belum terhubung</Tag>
+                )}
+              </Space>
+              <Text type='secondary'>
+                {telegram?.is_bound
+                  ? "Akun Telegram Anda sudah terhubung. Setiap tap datang/pulang di mesin RFID akan dikirim ke chat bot."
+                  : "Hubungkan Telegram agar menerima notifikasi jam datang dan pulang saat tap di mesin absensi."}
+              </Text>
+              {telegram?.bind_link ? (
+                <Button
+                  type={telegram?.is_bound ? "default" : "primary"}
+                  href={telegram.bind_link}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  {telegram?.is_bound ? "Buka Bot Lagi" : "Hubungkan Telegram"}
+                </Button>
+              ) : (
+                <Alert
+                  type='warning'
+                  showIcon
+                  message='Bot Telegram sekolah belum dikonfigurasi. Hubungi admin sekolah.'
+                />
+              )}
             </Space>
           </Flex>
         </Card>
