@@ -1,5 +1,9 @@
 import jwt from "jsonwebtoken";
 import pool from "../config/connection.js";
+import {
+  fetchTeacherAssignments,
+  parseAssignmentToken,
+} from "../utils/staffAssignment.js";
 
 export const authorize = (...allowedRolesOrLevels) => {
   return async (req, res, next) => {
@@ -46,6 +50,10 @@ export const authorize = (...allowedRolesOrLevels) => {
       }
 
       const user = foundUser.rows[0];
+      user.assignments =
+        user.role === "teacher"
+          ? await fetchTeacherAssignments(client, user.id, user.homebase_id)
+          : [];
 
       // 5. Cek Status Aktif
       if (user.is_active === false) {
@@ -54,30 +62,31 @@ export const authorize = (...allowedRolesOrLevels) => {
           .json({ message: "Akun Anda telah dinonaktifkan" });
       }
 
-      // 6. Cek Role DAN Level
-      // Logika: Jika parameter kosong, semua boleh masuk.
-      // Jika ada parameter, user harus punya Role yang sesuai ATAU Level yang sesuai.
+      // 6. Cek Role, Level, atau penugasan wewenang
       if (allowedRolesOrLevels.length > 0) {
-        // A. Cek apakah Role utama user (student, teacher, admin) ada di daftar izin
-        const isRoleAllowed = allowedRolesOrLevels.includes(user.role);
+        const allowedAssignments = allowedRolesOrLevels
+          .map(parseAssignmentToken)
+          .filter(Boolean);
+        const plainAllowed = allowedRolesOrLevels.filter(
+          (item) => !parseAssignmentToken(item),
+        );
 
-        // B. Cek apakah Level admin (center, dll) ada di daftar izin
-        // (Hanya berlaku jika user adalah admin dan punya level)
+        const isRoleAllowed = plainAllowed.includes(user.role);
         const isLevelAllowed =
           user.role === "admin" &&
           user.admin_level &&
-          allowedRolesOrLevels.includes(user.admin_level);
+          plainAllowed.includes(user.admin_level);
+        const isAssignmentAllowed =
+          user.role === "teacher" &&
+          allowedAssignments.some((type) => user.assignments.includes(type));
 
-        // Jika Role tidak cocok DAN Level juga tidak cocok, maka tolak
-        if (!isRoleAllowed && !isLevelAllowed) {
+        if (!isRoleAllowed && !isLevelAllowed && !isAssignmentAllowed) {
           return res.status(403).json({
             message: `Akses dilarang. Membutuhkan hak akses: ${allowedRolesOrLevels.join(", ")}`,
           });
         }
       }
 
-      // 7. Attach user ke request object
-      // req.user sekarang punya properti .role dan .admin_level
       req.user = user;
       next();
     } catch (error) {

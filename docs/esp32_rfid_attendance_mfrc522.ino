@@ -1,0 +1,1071 @@
+/*
+  ESP32 DevKit V1 + MFRC522 + LCD I2C + Buzzer + (opsional) Mini W5500 Ethernet
+  RFID Attendance Client — EduCore LMS
+
+  Wiring MFRC522 (SPI VSPI):
+    SDA(SS) -> D5    SCK  -> D18   MOSI -> D23
+    MISO    -> D19   RST  -> D22   3.3V -> 3V3
+    GND     -> GND
+
+  Wiring Mini W5500 Ethernet (SPI HSPI terpisah — jangan share bus dengan MFRC522):
+    MOSI -> D13   MISO -> D16   SCK -> D14
+    SCS  -> D15   RST  -> D17   INT -> D25 (disarankan)
+    3.3V -> 3V3   GND  -> GND
+    RJ45 -> switch/router LAN sekolah
+    Set ENABLE_W5500_ETHERNET 1 dan NETWORK_MODE = "ethernet".
+
+  Wiring LCD I2C:
+    SDA -> D21   SCL -> D27   VCC -> 5V/VIN   GND -> GND
+
+  Wiring Buzzer (active):
+    (+) -> D4    (-) -> GND
+    Jika tidak bunyi, ubah BUZZER_ON ke LOW dan BUZZER_OFF ke HIGH
+
+  Catatan device classroom (1 device banyak kelas):
+    - Device TIDAK perlu mengirim class_id.
+    - Mapping kelas diatur di LMS (Device RFID → pilih banyak kelas).
+    - Server mencocokkan guru + jadwal master aktif (non-archived) + kelas yang terikat device
+      untuk menentukan kelas, jam keberapa, dan check-in/check-out.
+    - Hanya guru yang boleh tap; siswa/lainnya → "Akses ditolak".
+    - Tidak ada debounce 5 menit di server (berbeda dari gate).
+    - Checkout sebelum jam selesai pelajaran → result_status too_early_checkout
+      ("Belum waktunya keluar").
+    - Setelah checkout, ganti kelas butuh jeda 2 menit (guru yang sama) → cooldown
+      + retry_after_seconds. Guru lain di device yang sama tidak kena cooldown.
+    - LCD sukses memakai message server: "Masuk 8A" / "Keluar 8B".
+
+  Catatan device extracurricular:
+    - Mapping policy kegiatan diatur di LMS.
+    - Hanya guru/siswa yang terdaftar di assignment policy device yang boleh tap;
+      lainnya → "Akses ditolak".
+
+  Catatan Ethernet (W5500):
+    - Set ENABLE_W5500_ETHERNET 1 dan NETWORK_MODE = "ethernet".
+    - Butuh board package esp32 by Espressif Systems v3.0.0+ (ETH_PHY_W5500).
+    - Bus SPI W5500 = HSPI terpisah dari MFRC522 agar tidak bentrok.
+    - HTTPClient & NTP tetap dipakai (stack lwIP via ETH.h).
+    - WiFi saja: biarkan ENABLE_W5500_ETHERNET 0 (kompatibel core 2.x).
+*/
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <time.h>
+
+// 1 = dukungan Mini W5500 (wajib esp32 core 3.0+)
+// 0 = WiFi saja (default; kompatibel core 2.x)
+#define ENABLE_W5500_ETHERNET 0
+
+#if ENABLE_W5500_ETHERNET
+#include <ETH.h>
+#if !defined(ETH_PHY_W5500)
+#error "ENABLE_W5500_ETHERNET=1 butuh esp32 board package v3.0.0+ (ETH_PHY_W5500). Update Board Manager, atau set ENABLE_W5500_ETHERNET 0 untuk WiFi saja."
+#endif
+#endif
+
+void appendDeviceIdentity(DynamicJsonDocument& doc);
+bool registerDevice();
+
+enum ScanOutcome {
+  SCAN_OUTCOME_ACCEPTED = 0,
+  SCAN_OUTCOME_DUPLICATE = 1,
+  SCAN_OUTCOME_ERROR = 2,
+  SCAN_OUTCOME_NETWORK = 3,
+  SCAN_OUTCOME_WAIT = 4, // classroom: cooldown / too_early_checkout
+};
+
+struct ScanResult {
+  bool ok;
+  int outcome;
+  int httpCode;
+  String resultStatus;
+  String message;
+  String userName;
+  String resolvedAction;
+  String attendanceStatus;
+  String sessionStatus;
+  String className;
+  String slotLabel;
+  String policyName;
+  int retryAfterSeconds;
+  bool hasAttendance;
+  bool hasSession;
+  bool hasActivity;
+};
+
+void resetScanResult(ScanResult& result) {
+  result.ok = false;
+  result.outcome = SCAN_OUTCOME_NETWORK;
+  result.httpCode = 0;
+  result.resultStatus = "";
+  result.message = "";
+  result.userName = "";
+  result.resolvedAction = "";
+  result.attendanceStatus = "";
+  result.sessionStatus = "";
+  result.className = "";
+  result.slotLabel = "";
+  result.policyName = "";
+  result.retryAfterSeconds = 0;
+  result.hasAttendance = false;
+  result.hasSession = false;
+  result.hasActivity = false;
+}
+
+// =============================
+// Network & API Config
+// =============================
+// "wifi"      -> koneksi via WiFi ESP32
+// "ethernet"  -> koneksi via Mini W5500 (LAN kabel)
+const char* NETWORK_MODE = "wifi";
+
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
+
+// Ethernet W5500 (hanya dipakai jika NETWORK_MODE = "ethernet")
+// true  = ambil IP dari DHCP router/switch
+// false = pakai IP statis di bawah
+const bool ETH_USE_DHCP = true;
+IPAddress ETH_STATIC_IP(192, 168, 1, 50);
+IPAddress ETH_GATEWAY(192, 168, 1, 1);
+IPAddress ETH_SUBNET(255, 255, 255, 0);
+IPAddress ETH_DNS(8, 8, 8, 8);
+
+// Timeout tunggu link + IP Ethernet (ms)
+const unsigned long ETH_CONNECT_TIMEOUT_MS = 30000;
+
+// Gunakan https jika server menggunakan SSL
+// Gunakan http jika server tidak menggunakan SSL
+const char* API_URL = "https://YOUR_SERVER_HOST:2310/api/lms/attendance/rfid/scan";
+
+// Samakan dengan Code Device di LMS (tab Device RFID)
+const char* DEVICE_CODE = "RFID-GATE-HB-0008";
+const char* DEVICE_TOKEN = "PUT_DEVICE_API_TOKEN_HERE";
+const char* FIRMWARE_VERSION = "1.2.0";
+
+// "gate"             -> absensi harian (datang/pulang)
+// "classroom"        -> absensi sesi guru (1 device boleh banyak kelas di LMS)
+// "extracurricular"  -> absensi kegiatan ekstra (policy Silat/dll di LMS)
+const char* DEVICE_TYPE = "gate";
+
+// gate: "daily_gate" (server auto datang/pulang)
+// classroom / extracurricular: biarkan kosong agar server auto
+//   tap 1 = check-in, tap 2 = check-out
+const char* SCAN_ACTION = "daily_gate";
+
+// =============================
+// MFRC522 Pins (SPI VSPI — sesuai hasil uji)
+// =============================
+#define SS_PIN   5
+#define RST_PIN 22
+#define SPI_SCK  18
+#define SPI_MISO 19
+#define SPI_MOSI 23
+MFRC522 mfrc522(SS_PIN, RST_PIN);
+
+// =============================
+// Mini W5500 Pins (SPI HSPI terpisah)
+// Aktif hanya jika ENABLE_W5500_ETHERNET 1
+// =============================
+#if ENABLE_W5500_ETHERNET
+#define W5500_CS    15
+#define W5500_IRQ   25
+#define W5500_RST   17
+#define W5500_SCK   14
+#define W5500_MISO  16
+#define W5500_MOSI  13
+#define W5500_PHY_ADDR 1
+
+SPIClass ethSPI(HSPI);
+volatile bool ethGotIp = false;
+volatile bool ethLinkUp = false;
+#endif
+
+// =============================
+// Buzzer
+// =============================
+#define BUZZER_PIN  4
+#define BUZZER_ON   HIGH
+#define BUZZER_OFF  LOW
+
+// =============================
+// LCD 16x2 I2C (ubah alamat jika layar kosong: coba 0x3F)
+// =============================
+#define LCD_I2C_ADDR 0x27
+#define LCD_COLS     16
+#define LCD_ROWS      2
+#define LCD_SDA      21
+#define LCD_SCL      27
+LiquidCrystal_I2C lcd(LCD_I2C_ADDR, LCD_COLS, LCD_ROWS);
+
+String lastUid = "";
+unsigned long lastScanMillis = 0;
+const unsigned long dedupeWindowMs = 2500;
+
+bool isClassroomDevice() {
+  return String(DEVICE_TYPE).equalsIgnoreCase("classroom");
+}
+
+bool isExtracurricularDevice() {
+  return String(DEVICE_TYPE).equalsIgnoreCase("extracurricular");
+}
+
+bool isAutoSessionDevice() {
+  return isClassroomDevice() || isExtracurricularDevice();
+}
+
+bool useEthernet() {
+#if ENABLE_W5500_ETHERNET
+  return String(NETWORK_MODE).equalsIgnoreCase("ethernet");
+#else
+  return false;
+#endif
+}
+
+bool isNetworkConnected() {
+#if ENABLE_W5500_ETHERNET
+  if (useEthernet()) {
+    return ethGotIp && ethLinkUp;
+  }
+#endif
+  return WiFi.status() == WL_CONNECTED;
+}
+
+String getDeviceMac() {
+#if ENABLE_W5500_ETHERNET
+  if (useEthernet()) {
+    return ETH.macAddress();
+  }
+#endif
+  return WiFi.macAddress();
+}
+
+String getDeviceIp() {
+#if ENABLE_W5500_ETHERNET
+  if (useEthernet()) {
+    return ETH.localIP().toString();
+  }
+#endif
+  return WiFi.localIP().toString();
+}
+
+bool mfrc522VersionOk(byte version) {
+  return (version == 0x91 || version == 0x92 ||
+          version == 0x82 || version == 0x88);
+}
+
+void buzzerOff() {
+  digitalWrite(BUZZER_PIN, BUZZER_OFF);
+}
+
+void buzzerBeep(uint16_t durationMs) {
+  digitalWrite(BUZZER_PIN, BUZZER_ON);
+  delay(durationMs);
+  buzzerOff();
+}
+
+void buzzerSuccess() {
+  buzzerBeep(150);
+}
+
+void buzzerError() {
+  buzzerBeep(100);
+  delay(80);
+  buzzerBeep(100);
+}
+
+void buzzerInit() {
+  pinMode(BUZZER_PIN, OUTPUT);
+  buzzerOff();
+}
+
+void lcdShow(const char* line1, const char* line2 = "") {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(line1);
+  lcd.setCursor(0, 1);
+  lcd.print(line2);
+}
+
+void lcdInit() {
+  Wire.begin(LCD_SDA, LCD_SCL);
+  lcd.init();
+  lcd.backlight();
+  lcdShow("EduCore RFID", "Memulai...");
+}
+
+bool initMfrc522() {
+  pinMode(RST_PIN, OUTPUT);
+  digitalWrite(RST_PIN, LOW);
+  delay(50);
+  digitalWrite(RST_PIN, HIGH);
+  delay(50);
+
+  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SS_PIN);
+  mfrc522.PCD_Init();
+  delay(50);
+
+  byte version = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
+  Serial.printf("[RFID] Version 0x%02X\n", version);
+  return mfrc522VersionOk(version);
+}
+
+String getIso8601NowUtc() {
+  struct tm timeInfo;
+  if (!getLocalTime(&timeInfo, 2000)) {
+    return "";
+  }
+  char buff[25];
+  strftime(buff, sizeof(buff), "%Y-%m-%dT%H:%M:%SZ", &timeInfo);
+  return String(buff);
+}
+
+String uidToHexString(MFRC522::Uid* uid) {
+  String hex = "";
+  for (byte i = 0; i < uid->size; i++) {
+    if (uid->uidByte[i] < 0x10) hex += "0";
+    hex += String(uid->uidByte[i], HEX);
+  }
+  hex.toUpperCase();
+  return hex;
+}
+
+String truncateLcdLine(const String& text) {
+  if (text.length() <= (size_t)LCD_COLS) {
+    return text;
+  }
+  return text.substring(0, LCD_COLS);
+}
+
+bool messageContains(const String& haystack, const char* needle) {
+  return haystack.indexOf(needle) >= 0;
+}
+
+String jsonStringOrEmpty(JsonObject obj, const char* key) {
+  if (obj.isNull() || !obj.containsKey(key) || obj[key].isNull()) {
+    return "";
+  }
+  return obj[key].as<String>();
+}
+
+void parseScanResponseBody(const String& body, ScanResult& result) {
+  // Response classroom bisa berisi class_name / slot_label / planned times /
+  // retry_after_seconds (cooldown).
+  DynamicJsonDocument resp(1536);
+  DeserializationError err = deserializeJson(resp, body);
+  if (err) {
+    return;
+  }
+
+  result.resultStatus = resp["result_status"].as<String>();
+  result.message = resp["message"].as<String>();
+  if (resp.containsKey("retry_after_seconds") && !resp["retry_after_seconds"].isNull()) {
+    result.retryAfterSeconds = resp["retry_after_seconds"].as<int>();
+  }
+
+  JsonObject data = resp["data"].as<JsonObject>();
+  if (!data.isNull()) {
+    result.userName = jsonStringOrEmpty(data, "user_name");
+    result.resolvedAction = jsonStringOrEmpty(data, "resolved_scan_action");
+    if (result.resolvedAction.length() == 0) {
+      result.resolvedAction = jsonStringOrEmpty(data, "scan_action");
+    }
+    result.attendanceStatus = jsonStringOrEmpty(data, "attendance_status");
+    result.sessionStatus = jsonStringOrEmpty(data, "session_status");
+    result.className = jsonStringOrEmpty(data, "class_name");
+    result.slotLabel = jsonStringOrEmpty(data, "slot_label");
+    result.policyName = jsonStringOrEmpty(data, "policy_name");
+    result.hasAttendance = !data["attendance_id"].isNull();
+    result.hasSession = !data["schedule_entry_id"].isNull();
+    result.hasActivity = !data["activity_attendance_id"].isNull();
+  }
+}
+
+String buildClassroomSuccessLine2(const ScanResult& result) {
+  // Prefer server LCD message ("Masuk 8A" / "Keluar 8B").
+  if (result.message.length() > 0 &&
+      (result.message.startsWith("Masuk ") || result.message.startsWith("Keluar "))) {
+    return truncateLcdLine(result.message);
+  }
+
+  if (!result.hasSession) {
+    return "Tdk ada jadwal";
+  }
+
+  if (result.sessionStatus == "late") {
+    if (result.className.length() > 0) {
+      return truncateLcdLine(String("Telat ") + result.className);
+    }
+    return "Sesi Terlambat";
+  }
+
+  if (result.resolvedAction == "teacher_session_checkout") {
+    if (result.className.length() > 0) {
+      return truncateLcdLine(String("Keluar ") + result.className);
+    }
+    return "Sesi Selesai";
+  }
+
+  if (result.resolvedAction == "teacher_session_checkin") {
+    if (result.className.length() > 0) {
+      return truncateLcdLine(String("Masuk ") + result.className);
+    }
+    if (result.slotLabel.length() > 0) {
+      return truncateLcdLine(result.slotLabel);
+    }
+    return "Sesi Masuk";
+  }
+
+  if (result.className.length() > 0) {
+    return truncateLcdLine(result.className);
+  }
+  return "Sesi OK";
+}
+
+String buildActivitySuccessLine2(const ScanResult& result) {
+  if (!result.hasActivity) {
+    return "Tdk tercatat";
+  }
+
+  if (result.attendanceStatus == "late") {
+    if (result.policyName.length() > 0) {
+      return truncateLcdLine(String("Telat ") + result.policyName);
+    }
+    return "Terlambat";
+  }
+
+  if (result.resolvedAction == "activity_checkout") {
+    if (result.policyName.length() > 0) {
+      return truncateLcdLine(String("Out ") + result.policyName);
+    }
+    return "Ekstra Selesai";
+  }
+
+  if (result.resolvedAction == "activity_checkin") {
+    if (result.policyName.length() > 0) {
+      return truncateLcdLine(String("In ") + result.policyName);
+    }
+    return "Ekstra Masuk";
+  }
+
+  if (result.policyName.length() > 0) {
+    return truncateLcdLine(result.policyName);
+  }
+  return "Ekstra OK";
+}
+
+void resolveLcdMessage(const ScanResult& result, String& line1, String& line2) {
+  if (result.ok) {
+    String name = result.userName.length() > 0 ? result.userName : "Pemegang Kartu";
+    line1 = truncateLcdLine(name);
+
+    if (isClassroomDevice()) {
+      line2 = buildClassroomSuccessLine2(result);
+      return;
+    }
+
+    if (isExtracurricularDevice()) {
+      line2 = buildActivitySuccessLine2(result);
+      return;
+    }
+
+    if (result.attendanceStatus == "not_scheduled") {
+      line2 = "Tdk ada jadwal";
+    } else if (result.attendanceStatus == "late") {
+      line2 = "Terlambat";
+    } else if (result.resolvedAction == "daily_checkout") {
+      line2 = "Pulang OK";
+    } else if (result.resolvedAction == "daily_checkin") {
+      line2 = "Datang OK";
+    } else if (result.resolvedAction == "teacher_session_checkout") {
+      line2 = "Sesi Selesai";
+    } else if (result.resolvedAction == "teacher_session_checkin") {
+      line2 = "Sesi Masuk";
+    } else if (result.resolvedAction == "activity_checkout") {
+      line2 = "Ekstra Selesai";
+    } else if (result.resolvedAction == "activity_checkin") {
+      line2 = "Ekstra Masuk";
+    } else {
+      line2 = "Berhasil";
+    }
+    return;
+  }
+
+  if (result.httpCode == 0) {
+    if (!isNetworkConnected()) {
+      line1 = useEthernet() ? "No Ethernet" : "No WiFi";
+      line2 = "Cek Koneksi";
+    } else {
+      line1 = "Server Error";
+      line2 = "Coba Lagi";
+    }
+    return;
+  }
+
+  if (result.httpCode == 404) {
+    line1 = "Device Salah";
+    line2 = "Cek Kode";
+    return;
+  }
+
+  const String& status = result.resultStatus;
+  const String& msg = result.message;
+
+  if (status == "too_early_checkout") {
+    line1 = "Belum waktunya";
+    line2 = "keluar";
+    return;
+  }
+
+  if (status == "cooldown") {
+    line1 = truncateLcdLine(msg.length() > 0 ? msg : "Tunggu 2 menit");
+    if (result.retryAfterSeconds > 0) {
+      line2 = truncateLcdLine(String("Sisa ") + String(result.retryAfterSeconds) + " dtk");
+    } else {
+      line2 = "Ganti kelas";
+    }
+    return;
+  }
+
+  if (status == "duplicate") {
+    if (messageContains(msg, "Checkin hari ini")) {
+      line1 = result.userName.length() > 0 ? truncateLcdLine(result.userName) : "Sudah Tap";
+      line2 = "Datang Tercatat";
+    } else if (messageContains(msg, "Checkout hari ini")) {
+      line1 = "Sudah Tap";
+      line2 = "Pulang Tercatat";
+    } else if (messageContains(msg, "duplikat dalam")) {
+      line1 = "Sudah Tap";
+      line2 = "Tunggu Sebentar";
+    } else if (messageContains(msg, "terlalu cepat")) {
+      line1 = "Terlalu Cepat";
+      line2 = "Tunggu 15 Menit";
+    } else if (messageContains(msg, "sudah lengkap")) {
+      line1 = "Sudah Lengkap";
+      line2 = isClassroomDevice() ? "Masuk+Keluar" : "Datang+Pulang";
+    } else {
+      line1 = "Sudah Tap";
+      line2 = truncateLcdLine(msg.length() > 0 ? msg : "Duplikat");
+    }
+    return;
+  }
+
+  if (status == "out_of_window") {
+    line1 = "Di Luar Jam";
+    if (messageContains(msg, "mulai")) {
+      line2 = "Blm Waktu Masuk";
+    } else if (messageContains(msg, "batas")) {
+      line2 = "Lewat Bts Waktu";
+    } else {
+      line2 = "Cek Jam Policy";
+    }
+    return;
+  }
+
+  if (status == "unregistered") {
+    line1 = "Kartu Gagal";
+    line2 = "Tdk Terdaftar";
+    return;
+  }
+
+  if (status == "rejected") {
+    if (messageContains(msg, "Token")) {
+      line1 = "Konfigurasi";
+      line2 = "Token Salah";
+    } else if (messageContains(msg, "tidak terdaftar")) {
+      line1 = "Kartu Gagal";
+      line2 = "Tdk Terdaftar";
+    } else if (messageContains(msg, "Akses ditolak")) {
+      // Classroom: non-teacher. Extracurricular: not in activity policy.
+      line1 = "Akses ditolak";
+      line2 = "";
+    } else {
+      line1 = "Kartu Gagal";
+      line2 = truncateLcdLine(msg.length() > 0 ? msg : "Ditolak");
+    }
+    return;
+  }
+
+  if (status == "device_inactive") {
+    line1 = "Device Off";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "card_inactive") {
+    line1 = "Kartu Off";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "user_inactive") {
+    line1 = "Akun Off";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "policy_missing") {
+    line1 = "Policy Kosong";
+    line2 = "Hubungi Admin";
+    return;
+  }
+
+  if (status == "not_scheduled") {
+    line1 = "Tdk ada jadwal";
+    line2 = "Tap Ditolak";
+    return;
+  }
+
+  line1 = "Gagal";
+  line2 = truncateLcdLine(msg.length() > 0 ? msg : "Tap Kartu");
+}
+
+bool sendScanToServer(const String& cardUid, ScanResult& resultOut) {
+  resetScanResult(resultOut);
+
+  if (!isNetworkConnected()) {
+    Serial.printf("[RFID] Jaringan tidak tersambung (%s).\n", useEthernet() ? "ethernet" : "wifi");
+    return false;
+  }
+
+  HTTPClient http;
+  http.begin(API_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  DynamicJsonDocument doc(768);
+  doc["device_code"] = DEVICE_CODE;
+  doc["device_token"] = DEVICE_TOKEN;
+  doc["card_uid"] = cardUid;
+  appendDeviceIdentity(doc);
+
+  // Gate: kirim daily_gate.
+  // Classroom / extracurricular: JANGAN kirim scan_action (atau kosong) agar server
+  // auto resolve check-in lalu check-out.
+  String scanAction = String(SCAN_ACTION);
+  scanAction.trim();
+  if (isAutoSessionDevice()) {
+    if (scanAction.length() > 0 &&
+        scanAction != "daily_gate" &&
+        !scanAction.startsWith("daily_")) {
+      doc["scan_action"] = scanAction;
+    }
+    // else: omit scan_action → server auto-resolve
+  } else if (scanAction.length() > 0) {
+    doc["scan_action"] = scanAction;
+  } else {
+    doc["scan_action"] = "daily_gate";
+  }
+
+  String scannedAt = getIso8601NowUtc();
+  if (scannedAt.length() > 0) {
+    doc["scanned_at"] = scannedAt;
+  }
+
+  String payload;
+  serializeJson(doc, payload);
+
+  int httpCode = http.POST(payload);
+  String body = http.getString();
+  http.end();
+
+  resultOut.httpCode = httpCode;
+  parseScanResponseBody(body, resultOut);
+
+  Serial.printf("[RFID] HTTP %d | UID=%s | type=%s\n", httpCode, cardUid.c_str(), DEVICE_TYPE);
+  Serial.println(body);
+
+  if (httpCode >= 200 && httpCode < 300) {
+    resultOut.ok = true;
+    resultOut.outcome = SCAN_OUTCOME_ACCEPTED;
+    if (resultOut.userName.length() == 0) {
+      resultOut.userName = "Pemegang Kartu";
+    }
+    return true;
+  }
+
+  if (resultOut.resultStatus == "duplicate") {
+    resultOut.outcome = SCAN_OUTCOME_DUPLICATE;
+  } else if (
+      resultOut.resultStatus == "cooldown" ||
+      resultOut.resultStatus == "too_early_checkout") {
+    resultOut.outcome = SCAN_OUTCOME_WAIT;
+  } else {
+    resultOut.outcome = SCAN_OUTCOME_ERROR;
+  }
+  return false;
+}
+
+String macWithoutColons(const String& mac) {
+  String compact = mac;
+  compact.replace(":", "");
+  compact.toUpperCase();
+  return compact;
+}
+
+void appendDeviceIdentity(DynamicJsonDocument& doc) {
+  String mac = getDeviceMac();
+  if (mac.length() > 0) {
+    doc["mac_address"] = mac;
+  }
+  if (isNetworkConnected()) {
+    doc["ip_address"] = getDeviceIp();
+  }
+  doc["firmware_version"] = FIRMWARE_VERSION;
+  doc["network_mode"] = useEthernet() ? "ethernet" : "wifi";
+}
+
+String getHeartbeatUrl() {
+  String url = String(API_URL);
+  url.replace("/attendance/rfid/scan", "/attendance/rfid/heartbeat");
+  return url;
+}
+
+bool registerDevice() {
+  if (!isNetworkConnected()) {
+    Serial.printf(
+      "[RFID] Heartbeat dilewati: jaringan tidak tersambung (%s).\n",
+      useEthernet() ? "ethernet" : "wifi");
+    return false;
+  }
+
+  String mac = getDeviceMac();
+  lcdShow("Simpan MAC", macWithoutColons(mac).c_str());
+
+  HTTPClient http;
+  String url = getHeartbeatUrl();
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+
+  DynamicJsonDocument doc(384);
+  doc["device_code"] = DEVICE_CODE;
+  doc["device_token"] = DEVICE_TOKEN;
+  appendDeviceIdentity(doc);
+
+  String payload;
+  serializeJson(doc, payload);
+
+  int httpCode = http.POST(payload);
+  String body = http.getString();
+  http.end();
+
+  Serial.printf("[RFID] Heartbeat HTTP %d | MAC=%s\n", httpCode, mac.c_str());
+  Serial.println(body);
+
+  bool ok = httpCode >= 200 && httpCode < 300;
+  if (ok) {
+    lcdShow("MAC Tersimpan", macWithoutColons(mac).c_str());
+  } else {
+    lcdShow("MAC Gagal", "Cek kode/token");
+  }
+  delay(2000);
+  return ok;
+}
+
+#if ENABLE_W5500_ETHERNET
+void onEthEvent(arduino_event_id_t event, arduino_event_info_t info) {
+  switch (event) {
+    case ARDUINO_EVENT_ETH_START:
+      Serial.println("[ETH] Started");
+      ETH.setHostname("educore-rfid");
+      break;
+    case ARDUINO_EVENT_ETH_CONNECTED:
+      Serial.println("[ETH] Link up (kabel tersambung)");
+      ethLinkUp = true;
+      break;
+    case ARDUINO_EVENT_ETH_GOT_IP:
+      Serial.printf("[ETH] Got IP: %s\n", ETH.localIP().toString().c_str());
+      Serial.println(ETH);
+      ethGotIp = true;
+      ethLinkUp = true;
+      break;
+    case ARDUINO_EVENT_ETH_LOST_IP:
+      Serial.println("[ETH] Lost IP");
+      ethGotIp = false;
+      break;
+    case ARDUINO_EVENT_ETH_DISCONNECTED:
+      Serial.println("[ETH] Disconnected");
+      ethGotIp = false;
+      ethLinkUp = false;
+      break;
+    case ARDUINO_EVENT_ETH_STOP:
+      Serial.println("[ETH] Stopped");
+      ethGotIp = false;
+      ethLinkUp = false;
+      break;
+    default:
+      break;
+  }
+  (void)info;
+}
+#endif
+
+void connectEthernet() {
+#if !ENABLE_W5500_ETHERNET
+  Serial.println("[ETH] ENABLE_W5500_ETHERNET=0. Set ke 1 dan pakai esp32 core 3.0+.");
+  lcdShow("ETH Disabled", "Cek firmware");
+  buzzerError();
+  while (true) {
+    delay(1000);
+  }
+#else
+  ethGotIp = false;
+  ethLinkUp = false;
+
+  WiFi.mode(WIFI_OFF);
+
+  lcdShow("Ethernet", "Init W5500");
+  Serial.println("[ETH] Init Mini W5500 (HSPI)...");
+  Serial.printf(
+    "[ETH] CS=%d IRQ=%d RST=%d SCK=%d MISO=%d MOSI=%d\n",
+    W5500_CS, W5500_IRQ, W5500_RST, W5500_SCK, W5500_MISO, W5500_MOSI);
+
+  Network.onEvent(onEthEvent);
+
+  ethSPI.begin(W5500_SCK, W5500_MISO, W5500_MOSI, W5500_CS);
+
+  if (!ETH_USE_DHCP) {
+    ETH.config(ETH_STATIC_IP, ETH_GATEWAY, ETH_SUBNET, ETH_DNS);
+    Serial.printf(
+      "[ETH] Static IP %s gw %s\n",
+      ETH_STATIC_IP.toString().c_str(),
+      ETH_GATEWAY.toString().c_str());
+  }
+
+  bool started = ETH.begin(
+    ETH_PHY_W5500,
+    W5500_PHY_ADDR,
+    W5500_CS,
+    W5500_IRQ,
+    W5500_RST,
+    ethSPI);
+
+  if (!started) {
+    Serial.println("[ETH] ETH.begin gagal. Cek kabel W5500 / power 3.3V.");
+    lcdShow("ETH ERROR", "Cek W5500");
+    buzzerError();
+    while (true) {
+      delay(1000);
+    }
+  }
+
+  String mac = getDeviceMac();
+  Serial.printf("[ETH] MAC: %s\n", mac.c_str());
+  lcdShow("MAC Device", macWithoutColons(mac).c_str());
+  delay(1500);
+
+  Serial.println("[ETH] Menunggu link + IP ....");
+  lcdShow("Menyambungkan", "Ethernet...");
+
+  unsigned long startMs = millis();
+  uint8_t dotCount = 0;
+  while (!isNetworkConnected()) {
+    if (millis() - startMs > ETH_CONNECT_TIMEOUT_MS) {
+      Serial.println();
+      Serial.println("[ETH] Timeout. Cek kabel RJ45, switch, DHCP, wiring SPI.");
+      lcdShow("ETH Timeout", "Cek kabel LAN");
+      buzzerError();
+      while (true) {
+        delay(1000);
+      }
+    }
+    delay(500);
+    Serial.print(".");
+    dotCount = (uint8_t)((dotCount + 1) % 4);
+    lcd.setCursor(9, 1);
+    for (uint8_t i = 0; i < dotCount; i++) {
+      lcd.print(".");
+    }
+    for (uint8_t i = dotCount; i < 3; i++) {
+      lcd.print(" ");
+    }
+  }
+
+  Serial.println();
+  Serial.println("[ETH] Terhubung");
+  Serial.printf("[ETH] IP: %s\n", getDeviceIp().c_str());
+  lcdShow("Eth Terhubung", getDeviceIp().c_str());
+  delay(1500);
+#endif
+}
+
+void connectWifi() {
+  WiFi.mode(WIFI_STA);
+  String mac = getDeviceMac();
+  Serial.printf("MAC: %s\n", mac.c_str());
+  lcdShow("MAC Device", macWithoutColons(mac).c_str());
+  delay(2000);
+
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  Serial.println("Menyambungkan Wifi ....");
+  lcdShow("Menyambungkan", "Wifi ....");
+
+  uint8_t dotCount = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+    dotCount = (uint8_t)((dotCount + 1) % 4);
+    lcd.setCursor(5, 1);
+    for (uint8_t i = 0; i < dotCount; i++) {
+      lcd.print(".");
+    }
+    for (uint8_t i = dotCount; i < 3; i++) {
+      lcd.print(" ");
+    }
+  }
+
+  Serial.println();
+  Serial.println("Wifi Terhubung");
+  Serial.printf("IP: %s\n", getDeviceIp().c_str());
+  Serial.printf("MAC: %s\n", mac.c_str());
+  lcdShow("Wifi Terhubung", getDeviceIp().c_str());
+  delay(1500);
+}
+
+void connectNetwork() {
+  if (useEthernet()) {
+    connectEthernet();
+  } else {
+    connectWifi();
+  }
+}
+
+void setupNtpUtc() {
+  configTzTime("UTC0", "pool.ntp.org", "time.nist.gov");
+
+  struct tm timeInfo;
+  Serial.print("Sync NTP");
+  int retry = 0;
+  while (!getLocalTime(&timeInfo) && retry < 20) {
+    Serial.print(".");
+    delay(500);
+    retry++;
+  }
+  Serial.println();
+  if (retry >= 20) {
+    Serial.println("NTP belum sinkron. Scan tetap berjalan tanpa scanned_at.");
+  } else {
+    Serial.println("NTP sinkron.");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  buzzerInit();
+  lcdInit();
+  connectNetwork();
+  setupNtpUtc();
+  registerDevice();
+
+  if (!initMfrc522()) {
+    Serial.println("[RFID] MFRC522 tidak terdeteksi. Cek kabel.");
+    lcdShow("MFRC522 ERROR", "Cek kabel");
+    buzzerError();
+    while (true) {
+      delay(1000);
+    }
+  }
+
+  Serial.printf(
+    "[RFID] Device ready | code=%s | type=%s | net=%s\n",
+    DEVICE_CODE,
+    DEVICE_TYPE,
+    useEthernet() ? "ethernet" : "wifi");
+  if (isClassroomDevice()) {
+    lcdShow("Tap Kartu", "Mode Kelas");
+    Serial.println("[RFID] Classroom mode: class_id tidak dikirim; server resolve dari jadwal.");
+  } else if (isExtracurricularDevice()) {
+    lcdShow("Tap Kartu", "Mode Ekstra");
+    Serial.println("[RFID] Extracurricular mode: policy peserta diatur di LMS.");
+  } else {
+    lcdShow("Tap Kartu", "Mode Gerbang");
+  }
+  delay(1200);
+  lcdShow("Tap Kartu", "");
+}
+
+void loop() {
+  if (!mfrc522.PICC_IsNewCardPresent()) {
+    delay(30);
+    return;
+  }
+  if (!mfrc522.PICC_ReadCardSerial()) {
+    delay(30);
+    return;
+  }
+
+  String uidHex = uidToHexString(&mfrc522.uid);
+  unsigned long now = millis();
+
+  if (uidHex == lastUid && (now - lastScanMillis) < dedupeWindowMs) {
+    Serial.printf("[RFID] Duplicate ignored: %s\n", uidHex.c_str());
+    lcdShow("Tunggu...", "");
+    delay(800);
+    lcdShow("Tap Kartu", "");
+  } else {
+    Serial.printf("[RFID] Card UID: %s\n", uidHex.c_str());
+    lcdShow("Memproses...", uidHex.c_str());
+    ScanResult result;
+    resetScanResult(result);
+    bool ok = sendScanToServer(uidHex, result);
+    String line1;
+    String line2;
+    resolveLcdMessage(result, line1, line2);
+
+    if (ok) {
+      Serial.printf(
+        "[RFID] Scan accepted action=%s class=%s slot=%s policy=%s session=%s\n",
+        result.resolvedAction.c_str(),
+        result.className.c_str(),
+        result.slotLabel.c_str(),
+        result.policyName.c_str(),
+        result.sessionStatus.c_str());
+      lcdShow(line1.c_str(), line2.c_str());
+      // Classroom tanpa jadwal / ekstra tanpa record: accepted di log, tapi nada error ringan.
+      if ((isClassroomDevice() && !result.hasSession) ||
+          (isExtracurricularDevice() && !result.hasActivity)) {
+        buzzerError();
+      } else {
+        buzzerSuccess();
+      }
+      delay(3000);
+    } else if (result.outcome == SCAN_OUTCOME_DUPLICATE) {
+      Serial.printf("[RFID] Scan duplicate: %s\n", result.message.c_str());
+      lcdShow(line1.c_str(), line2.c_str());
+      buzzerSuccess();
+      delay(2000);
+    } else if (result.outcome == SCAN_OUTCOME_WAIT) {
+      Serial.printf(
+        "[RFID] Scan wait (%s): %s retry_after=%d\n",
+        result.resultStatus.c_str(),
+        result.message.c_str(),
+        result.retryAfterSeconds);
+      lcdShow(line1.c_str(), line2.c_str());
+      buzzerError();
+      delay(result.retryAfterSeconds > 0 && result.retryAfterSeconds < 30
+              ? 2500
+              : 3000);
+    } else {
+      Serial.printf(
+        "[RFID] Scan failed: %s | %s\n",
+        result.resultStatus.c_str(),
+        result.message.c_str());
+      lcdShow(line1.c_str(), line2.c_str());
+      buzzerError();
+      delay(2000);
+    }
+    lastUid = uidHex;
+    lastScanMillis = now;
+    lcdShow("Tap Kartu", "");
+  }
+
+  mfrc522.PICC_HaltA();
+  mfrc522.PCD_StopCrypto1();
+  delay(200);
+}
