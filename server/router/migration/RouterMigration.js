@@ -975,7 +975,6 @@ router.post("/migrate/step-4-lms", async (req, res) => {
       const subjectId = subjectKey && validSubjectIds.has(subjectKey)
         ? r.subject
         : null;
-      const teacherId = oldTeacherIdToNewUserId.get(r.teacher) || null;
       if (!subjectId && r.subject) {
         skippedChapters++;
       }
