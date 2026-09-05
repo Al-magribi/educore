@@ -6,13 +6,19 @@ export const ApiPublic = createApi({
   tagTypes: ["Public"],
   endpoints: (builder) => ({
     getGrades: builder.query({
-      query: () => "/get-grades",
+      query: ({ homebaseId } = {}) => ({
+        url: "/get-grades",
+        params: homebaseId ? { homebase_id: homebaseId } : undefined,
+      }),
       providesTags: ["Public"],
     }),
     getClasses: builder.query({
-      query: ({ gradeId }) => ({
+      query: ({ gradeId, homebaseId } = {}) => ({
         url: "/get-classes",
-        params: { gradeId },
+        params: {
+          gradeId,
+          ...(homebaseId ? { homebase_id: homebaseId } : {}),
+        },
       }),
       providesTags: ["Public"],
     }),
