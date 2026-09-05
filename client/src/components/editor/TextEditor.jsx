@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import ReactQuill, { Quill } from "react-quill-new";
 import QuillResizeImage from "quill-resize-image";
 import { Input, Space, Typography } from "antd";
+import { motion } from "framer-motion";
 
 // Import CSS standar Quill dan KaTeX
 import "react-quill-new/dist/quill.snow.css";
@@ -59,7 +60,10 @@ class Editor extends Component {
     const wrapperHeight = height || (isShortAnswer ? "160px" : "350px");
 
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
         className={`border-editor ${classname}`}
         style={{
           minHeight: wrapperHeight,
@@ -122,7 +126,7 @@ class Editor extends Component {
             }}
           />
         )}
-      </div>
+      </motion.div>
     );
   }
 }

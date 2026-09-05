@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -35,7 +36,8 @@ const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const LayoutShellContext = createContext(null);
-const ROUTE_PRELOADERS = {
+
+const routePreloaders = {
   "/profile": () => import("../profile/Profile"),
   "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
   "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
@@ -47,37 +49,8 @@ const ROUTE_PRELOADERS = {
   "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
   "/admin-data-akademik": () =>
     import("../../module/admin/academic/AdminAcademinc"),
-  "/admin-database": () =>
-    import("../../module/database/manager/DatabaseManager"),
   "/finance-dashboard": () =>
     import("../../module/finance/dashboard/FinanceDash"),
-  "/finance/pembayaran-spp": () =>
-    import("../../module/finance/fee/monthly/Monthly"),
-  "/finance/pembayaran-spp/laporan": () =>
-    import("../../module/finance/fee/monthly/Report"),
-  "/finance/pembayaran-lainnya": () =>
-    import("../../module/finance/fee/others/Others"),
-  "/finance/beasiswa": () =>
-    import("../../module/finance/scholarship/Scholarship"),
-  "/finance/transaksi": () =>
-    import("../../module/finance/fee/transaction/Transaction"),
-  "/finance/pengeluaran": () =>
-    import("../../module/finance/expense/Expense"),
-  "/finance/rapbs": () => import("../../module/finance/rapbs/Rapbs"),
-  "/finance/laporan": () =>
-    import("../../module/finance/report/FinanceReport"),
-  "/finance/laporan-tabungan": () =>
-    import("../../module/finance/report/SavingReport"),
-  "/finance/laporan-kas-kelas": () =>
-    import("../../module/finance/report/CashReport"),
-  "/guru/keuangan-kelas": () =>
-    import("../../module/finance/teacher/contribution/Contribution"),
-  "/guru/tabungan": () =>
-    import("../../module/finance/teacher/saving/Saving"),
-  "/siswa/laporan-tabungan": () =>
-    import("../../module/finance/student/saving/StudentSaving"),
-  "/siswa/laporan-uang-kas": () =>
-    import("../../module/finance/student/contribution/StudentContribution"),
   "/computer-based-test/bank": () =>
     import("../../module/cbt/bank/view/BankList"),
   "/computer-based-test/jadwal-ujian": () =>
@@ -87,13 +60,10 @@ const ROUTE_PRELOADERS = {
     import("../../module/student/dashboard/StudentDash"),
   "/siswa/jadwal-ujian": () =>
     import("../../module/cbt/student/view/StudentExamList"),
-  "/siswa-database": () =>
-    import("../../module/database/view/StudentDatabase"),
-  "/orangtua-database-siswa": () =>
-    import("../../module/database/view/ParentStudentDatabase"),
   "/computer-based-test/start": () =>
     import("../../module/cbt/student/view/ExamInterface"),
-  "/guru-dashboard": () => import("../../module/teacher/dashboard/TeacherDash"),
+  "/guru-dashboard": () =>
+    import("../../module/teacher/dashboard/TeacherDash"),
 };
 
 const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
@@ -115,6 +85,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
+  const preloadedRoutes = useRef(new Set());
   const effectiveTitle = asShell ? shellTitle : title;
 
   const isCbtRoute = (path) =>
@@ -122,15 +93,27 @@ const AppLayout = ({ children, title, asShell = false }) => {
     path?.startsWith("/siswa/jadwal-ujian");
 
   const preloadRouteByKey = useCallback((key) => {
-    const preloader = ROUTE_PRELOADERS[key];
-    if (!preloader) return;
-    preloader().catch(() => {});
+    const preloader = routePreloaders[key];
+    if (!preloader || preloadedRoutes.current.has(key)) return;
+    preloadedRoutes.current.add(key);
+    preloader().catch(() => {
+      preloadedRoutes.current.delete(key);
+    });
   }, []);
 
-  const filterMenuItemsByUser = (items, currentUser) =>
-    items
+  const filterMenuItemsByUser = (items, currentUser) => {
+    return items
       .map((item) => {
         if (item.requiresHomeroom && !currentUser?.is_homeroom) {
+          return null;
+        }
+
+        if (
+          currentUser?.role === "teacher" &&
+          item.key === "/manajemen-piket" &&
+          !currentUser?.has_duty_today &&
+          !currentUser?.can_manage_kurikulum
+        ) {
           return null;
         }
 
@@ -148,6 +131,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
         return item;
       })
       .filter(Boolean);
+  };
 
   const enhanceMenuItems = (items) =>
     items.map((item) => {
@@ -348,11 +332,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
         <Menu
           theme='dark'
           mode='inline'
-          selectedKeys={[
-            location.pathname.startsWith("/keuangan/")
-              ? "/keuangan"
-              : location.pathname,
-          ]}
+          selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={handleMenuClick}
           style={{ borderRight: 0 }}
