@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import {
+  Alert,
   Card,
   Col,
   DatePicker,
@@ -46,6 +47,7 @@ const STATUS_COLORS = {
   excused: 'blue',
   incomplete: 'orange',
   pending: 'default',
+  not_scheduled: 'purple',
 };
 
 const STATUS_LABELS = {
@@ -55,6 +57,7 @@ const STATUS_LABELS = {
   excused: 'Sakit/Izin',
   incomplete: 'Incomplete',
   pending: 'Belum tap',
+  not_scheduled: 'Libur',
 };
 
 const STUDENT_STATUS_OPTIONS = [
@@ -64,6 +67,7 @@ const STUDENT_STATUS_OPTIONS = [
   { value: 'excused', label: 'Excused (Sakit/Izin)' },
   { value: 'incomplete', label: 'Incomplete' },
   { value: 'pending', label: 'Pending (Belum tap)' },
+  { value: 'not_scheduled', label: 'Libur' },
 ];
 
 const TEACHER_STATUS_OPTIONS = [
@@ -72,7 +76,20 @@ const TEACHER_STATUS_OPTIONS = [
   { value: 'absent', label: 'Absent (Absen)' },
   { value: 'incomplete', label: 'Incomplete' },
   { value: 'pending', label: 'Pending (Belum tap)' },
+  { value: 'not_scheduled', label: 'Libur' },
 ];
+
+const OffDayNotice = ({ count, subject }) => {
+  const n = Number(count || 0);
+  if (n <= 0) return null;
+  return (
+    <Alert
+      type="info"
+      showIcon
+      message={`${n} ${subject} tidak dihitung belum tap karena libur akhir pekan atau hari libur.`}
+    />
+  );
+};
 
 const surfaceCardStyle = {
   borderRadius: 24,
@@ -403,8 +420,16 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
         ))}
       </Row>
 
+      <OffDayNotice count={summary.not_scheduled_count} subject="siswa" />
+
       {rows.length === 0 && !isLoading && !isFetching ? (
-        <Empty description="Tidak ada siswa pada satuan & periode terpilih." />
+        <Empty
+          description={
+            Number(summary.not_scheduled_count || 0) > 0
+              ? 'Libur sesuai konfigurasi akhir pekan / hari libur. Tidak ada yang wajib tap.'
+              : 'Tidak ada siswa pada satuan & periode terpilih.'
+          }
+        />
       ) : (
         <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
           <Table
@@ -556,8 +581,16 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
         ))}
       </Row>
 
+      <OffDayNotice count={summary.not_scheduled_count} subject="guru" />
+
       {rows.length === 0 && !isLoading && !isFetching ? (
-        <Empty description="Tidak ada guru pada satuan terpilih." />
+        <Empty
+          description={
+            Number(summary.not_scheduled_count || 0) > 0
+              ? 'Libur sesuai konfigurasi akhir pekan / hari libur. Tidak ada yang wajib tap.'
+              : 'Tidak ada guru pada satuan terpilih.'
+          }
+        />
       ) : (
         <div style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
           <Table
