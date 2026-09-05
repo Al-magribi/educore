@@ -65,6 +65,7 @@ const emptyStudentPayload = (startDate, endDate) => ({
     excused_count: 0,
     incomplete_count: 0,
     pending_count: 0,
+    not_scheduled_count: 0,
   },
   rows: [],
   filters: { start_date: startDate, end_date: endDate },
@@ -79,6 +80,7 @@ const emptyTeacherPayload = (startDate, endDate) => ({
     absent_count: 0,
     incomplete_count: 0,
     pending_count: 0,
+    not_scheduled_count: 0,
     present_teachers: 0,
     absent_teachers: 0,
   },
@@ -110,17 +112,74 @@ const hasRfidCardTable = async (db) => {
   return Boolean(result.rows[0]?.table_name);
 };
 
+const hasCalendarConfigTable = async (db) => {
+  const result = await db.query(
+    `SELECT to_regclass('attendance.attendance_calendar_config') AS table_name`,
+  );
+  return Boolean(result.rows[0]?.table_name);
+};
+
+const hasHolidayConfigTable = async (db) => {
+  const result = await db.query(
+    `SELECT to_regclass('attendance.attendance_holiday') AS table_name`,
+  );
+  return Boolean(result.rows[0]?.table_name);
+};
+
 const buildHasGateSql = (hasGateTables) =>
   hasGateTables ? GATE_LINKED_SCAN_EXISTS_SQL : `(da.checkin_at IS NOT NULL)`;
+
+const buildCalendarCte = (hasCalendarTable) =>
+  hasCalendarTable
+    ? `calendar AS (
+         SELECT
+           COALESCE(
+             (SELECT skip_saturday
+              FROM attendance.attendance_calendar_config
+              WHERE homebase_id = $1
+              LIMIT 1),
+             false
+           ) AS skip_saturday,
+           COALESCE(
+             (SELECT skip_sunday
+              FROM attendance.attendance_calendar_config
+              WHERE homebase_id = $1
+              LIMIT 1),
+             true
+           ) AS skip_sunday
+       )`
+    : `calendar AS (
+         SELECT false AS skip_saturday, true AS skip_sunday
+       )`;
+
+const buildOffDaySql = (targetRole, hasHolidayTable) => {
+  const holidaySql = hasHolidayTable
+    ? `OR EXISTS (
+         SELECT 1
+         FROM attendance.attendance_holiday h
+         WHERE h.homebase_id = $1
+           AND h.is_active = true
+           AND h.holiday_date = d.attendance_date
+           AND h.applies_to_role IN ('all', '${targetRole}')
+       )`
+    : "";
+
+  return `(
+    (cal.skip_saturday AND EXTRACT(ISODOW FROM d.attendance_date) = 6)
+    OR (cal.skip_sunday AND EXTRACT(ISODOW FROM d.attendance_date) = 7)
+    ${holidaySql}
+  )`;
+};
 
 /**
  * Status tampilan laporan:
  * - tap gerbang accepted → present / late / incomplete
  * - excused sungguhan (bukan sisa auto-pending tanpa tap) → excused
  * - absent → absent
+ * - libur akhir pekan / hari libur tanpa tap → not_scheduled
  * - selain itu (tanpa baris, pending, present/excused tanpa tap) → pending
  */
-const buildEffectiveStatusSql = (hasGateSql) => `
+const buildEffectiveStatusSql = (hasGateSql, offDaySql) => `
   CASE
     WHEN COALESCE((${hasGateSql}), false) THEN
       CASE
@@ -130,6 +189,7 @@ const buildEffectiveStatusSql = (hasGateSql) => `
     WHEN da.attendance_status = 'excused'
       AND COALESCE(da.notes, '') NOT ILIKE 'Auto-pending%' THEN 'excused'
     WHEN da.attendance_status = 'absent' THEN 'absent'
+    WHEN ${offDaySql} THEN 'not_scheduled'
     ELSE 'pending'
   END
 `;
@@ -149,6 +209,8 @@ const appendOptionalFilters = (params, { status, userName }) => {
   if (status) {
     params.push(status);
     where.push(`rep.attendance_status = $${params.length}`);
+  } else {
+    where.push(`rep.attendance_status <> 'not_scheduled'`);
   }
   if (userName) {
     params.push(`%${userName}%`);
@@ -157,10 +219,16 @@ const appendOptionalFilters = (params, { status, userName }) => {
   return where.length ? `WHERE ${where.join(" AND ")}` : "";
 };
 
-const attendanceSelectSql = (hasDailyTable, hasGateTables) => {
+const attendanceSelectSql = ({
+  hasDailyTable,
+  hasGateTables,
+  targetRole,
+  hasHolidayTable,
+}) => {
+  const offDaySql = buildOffDaySql(targetRole, hasHolidayTable);
   if (!hasDailyTable) {
     return `
-      'pending'::text AS attendance_status,
+      CASE WHEN ${offDaySql} THEN 'not_scheduled'::text ELSE 'pending'::text END AS attendance_status,
       NULL::text AS checkin_at,
       NULL::text AS checkout_at,
       NULL::int AS late_minutes,
@@ -169,7 +237,7 @@ const attendanceSelectSql = (hasDailyTable, hasGateTables) => {
   }
 
   const hasGateSql = buildHasGateSql(hasGateTables);
-  const effectiveStatusSql = buildEffectiveStatusSql(hasGateSql);
+  const effectiveStatusSql = buildEffectiveStatusSql(hasGateSql, offDaySql);
   return `
       (${effectiveStatusSql}) AS attendance_status,
       ${toJakartaTimestampSql("da.checkin_at")} AS checkin_at,
@@ -182,11 +250,19 @@ const attendanceSelectSql = (hasDailyTable, hasGateTables) => {
 const buildStudentReportCte = ({
   hasDailyTable,
   hasGateTables,
+  hasCalendarTable,
+  hasHolidayTable,
   periodeId,
   params,
 }) => {
   const attendanceJoin = buildAttendanceJoinSql(hasDailyTable, "student");
-  const attendanceSelect = attendanceSelectSql(hasDailyTable, hasGateTables);
+  const attendanceSelect = attendanceSelectSql({
+    hasDailyTable,
+    hasGateTables,
+    targetRole: "student",
+    hasHolidayTable,
+  });
+  const calendarCte = buildCalendarCte(hasCalendarTable);
 
   let rosterPeriodeFilter = "";
   if (periodeId) {
@@ -198,6 +274,7 @@ const buildStudentReportCte = ({
     dates AS (
       SELECT generate_series($2::date, $3::date, INTERVAL '1 day')::date AS attendance_date
     ),
+    ${calendarCte},
     roster AS (
       SELECT
         s.user_id,
@@ -232,6 +309,7 @@ const buildStudentReportCte = ({
         r.grade_name
       FROM roster r
       CROSS JOIN dates d
+      CROSS JOIN calendar cal
       ${attendanceJoin}
     )`;
 };
@@ -240,9 +318,17 @@ const buildTeacherReportCte = ({
   hasDailyTable,
   hasGateTables,
   hasRfidCard,
+  hasCalendarTable,
+  hasHolidayTable,
 }) => {
   const attendanceJoin = buildAttendanceJoinSql(hasDailyTable, "teacher");
-  const attendanceSelect = attendanceSelectSql(hasDailyTable, hasGateTables);
+  const attendanceSelect = attendanceSelectSql({
+    hasDailyTable,
+    hasGateTables,
+    targetRole: "teacher",
+    hasHolidayTable,
+  });
+  const calendarCte = buildCalendarCte(hasCalendarTable);
   const cardUidSelect = hasRfidCard
     ? `(
          SELECT rc.card_uid
@@ -258,6 +344,7 @@ const buildTeacherReportCte = ({
     dates AS (
       SELECT generate_series($2::date, $3::date, INTERVAL '1 day')::date AS attendance_date
     ),
+    ${calendarCte},
     roster AS (
       SELECT
         t.user_id,
@@ -282,6 +369,7 @@ const buildTeacherReportCte = ({
         ${cardUidSelect}
       FROM roster r
       CROSS JOIN dates d
+      CROSS JOIN calendar cal
       ${attendanceJoin}
     )`;
 };
@@ -304,15 +392,19 @@ router.get(
       });
     }
 
-    const [hasDailyTable, hasGateTables] = await Promise.all([
+    const [hasDailyTable, hasGateTables, hasCalendarTable, hasHolidayTable] = await Promise.all([
       hasDailyAttendanceTable(db),
       hasGateScanTables(db),
+      hasCalendarConfigTable(db),
+      hasHolidayConfigTable(db),
     ]);
 
     const cteParams = [homebaseId, startDate, endDate];
     const cte = buildStudentReportCte({
       hasDailyTable,
       hasGateTables,
+      hasCalendarTable,
+      hasHolidayTable,
       periodeId,
       params: cteParams,
     });
@@ -343,7 +435,8 @@ router.get(
            COUNT(*) FILTER (WHERE rep.attendance_status = 'absent')::int AS absent_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'excused')::int AS excused_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'incomplete')::int AS incomplete_count,
-           COUNT(*) FILTER (WHERE rep.attendance_status = 'pending')::int AS pending_count
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'pending')::int AS pending_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'not_scheduled')::int AS not_scheduled_count
          FROM report rep`,
         cteParams,
       ),
@@ -385,17 +478,22 @@ router.get(
       });
     }
 
-    const [hasDailyTable, hasGateTables, hasRfidCard] = await Promise.all([
-      hasDailyAttendanceTable(db),
-      hasGateScanTables(db),
-      hasRfidCardTable(db),
-    ]);
+    const [hasDailyTable, hasGateTables, hasRfidCard, hasCalendarTable, hasHolidayTable] =
+      await Promise.all([
+        hasDailyAttendanceTable(db),
+        hasGateScanTables(db),
+        hasRfidCardTable(db),
+        hasCalendarConfigTable(db),
+        hasHolidayConfigTable(db),
+      ]);
 
     const cteParams = [homebaseId, startDate, endDate];
     const cte = buildTeacherReportCte({
       hasDailyTable,
       hasGateTables,
       hasRfidCard,
+      hasCalendarTable,
+      hasHolidayTable,
     });
 
     const rowParams = [...cteParams];
@@ -423,11 +521,12 @@ router.get(
            COUNT(*) FILTER (WHERE rep.attendance_status = 'absent')::int AS absent_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'incomplete')::int AS incomplete_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'pending')::int AS pending_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'not_scheduled')::int AS not_scheduled_count,
            COUNT(DISTINCT CASE
              WHEN rep.attendance_status IN ('present', 'late', 'incomplete') THEN rep.user_id
            END)::int AS present_teachers,
            COUNT(DISTINCT CASE
-             WHEN rep.attendance_status NOT IN ('present', 'late', 'incomplete') THEN rep.user_id
+             WHEN rep.attendance_status NOT IN ('present', 'late', 'incomplete', 'not_scheduled') THEN rep.user_id
            END)::int AS absent_teachers
          FROM report rep`,
         cteParams,
