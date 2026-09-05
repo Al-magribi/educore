@@ -25,8 +25,12 @@ app.use(userAgent());
 // Static Folder
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 const backupPath = path.join(process.cwd(), "temp_backup");
+const databaseDocumentPath = path.join(__dirname, "assets", "db");
 if (!fs.existsSync(backupPath)) {
   fs.mkdirSync(backupPath, { recursive: true });
+}
+if (!fs.existsSync(databaseDocumentPath)) {
+  fs.mkdirSync(databaseDocumentPath, { recursive: true });
 }
 
 if (hasClientBuild) {
