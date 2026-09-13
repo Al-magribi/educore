@@ -93,8 +93,9 @@ const PointAdminHero = ({ isMobile, activePeriode, pointConfig, onCreate }) => (
                 Kelola Poin Peraturan
               </Title>
               <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                Susun Poin Prestasi dan Pelanggaran untuk membentuk budaya
-                positif di lingkungan sekolah.
+                Susun rule poin, lalu berikan prestasi dan pelanggaran kepada
+                siswa. Hanya admin dan kesiswaan yang dapat menambah atau
+                mengubah poin.
               </Text>
             </div>
           </Flex>

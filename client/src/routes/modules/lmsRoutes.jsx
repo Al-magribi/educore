@@ -115,7 +115,7 @@ const renderAdminOnlyLmsRoutes = ({ LazyRoute }) => (
       <Route
         path='/manajemen-poin'
         element={createElement(LazyRoute, {
-          title: "Rule Poin",
+          title: "Manajemen Poin",
           Component: AdminPointView,
         })}
       />
@@ -148,7 +148,7 @@ const renderTeacherOnlyLmsRoutes = ({ LazyRoute }) => (
     <Route
       path='/manajemen-poin-guru'
       element={createElement(LazyRoute, {
-        title: "Kelola Poin Siswa",
+        title: "Poin Siswa",
         Component: TeacherPointView,
       })}
     />

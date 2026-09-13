@@ -12,13 +12,14 @@ import {
   message,
 } from "antd";
 import { motion } from "framer-motion";
-import { FileText, ListOrdered, SlidersHorizontal } from "lucide-react";
+import { FileText, ListOrdered, NotebookPen, SlidersHorizontal } from "lucide-react";
 import PointAdminHero from "../components/PointAdminHero";
 import PointRuleStats from "../components/PointRuleStats";
 import PointRuleToolbar from "../components/PointRuleToolbar";
 import PointRuleFormDrawer from "../components/PointRuleFormDrawer";
 import PointRuleTable from "../components/PointRuleTable";
 import PointStudentLeaderboard from "../components/PointStudentLeaderboard";
+import AdminPointEntryPanel from "../components/AdminPointEntryPanel";
 import {
   useCreateAdminPointRuleMutation,
   useDeleteAdminPointRuleMutation,
@@ -218,7 +219,12 @@ const AdminPointView = () => {
     rules: {
       title: "Peraturan Poin",
       description:
-        "Kelola daftar rule prestasi dan pelanggaran yang akan dipakai wali kelas saat mencatat poin siswa.",
+        "Kelola daftar rule prestasi dan pelanggaran yang dipakai admin dan kesiswaan saat mencatat poin siswa.",
+    },
+    entries: {
+      title: "Input Poin Siswa",
+      description:
+        "Berikan, ubah, atau hapus poin siswa. Hanya admin dan kesiswaan yang memiliki wewenang ini.",
     },
     summary: {
       title: "Rangkuman Poin Siswa",
@@ -286,6 +292,21 @@ const AdminPointView = () => {
             />
           )}
         </motion.div>
+      ),
+    },
+    {
+      key: "entries",
+      label: (
+        <Space size={8}>
+          <NotebookPen size={15} />
+          Input Poin
+        </Space>
+      ),
+      children: (
+        <AdminPointEntryPanel
+          isMobile={isMobile}
+          activePeriode={activePeriode}
+        />
       ),
     },
     {

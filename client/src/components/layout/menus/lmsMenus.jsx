@@ -107,12 +107,12 @@ const teacherLmsMenu = ({
             icon: <ShieldAlert size={14} />,
           }
         : null,
-      includeDuty || canKesiswaan
+      includeDuty
         ? {
-            label: "Manajemen Poin Guru",
+            label: "Poin Siswa",
             key: "/manajemen-poin-guru",
             icon: <ShieldAlert size={14} />,
-            requiresHomeroom: !canKesiswaan,
+            requiresHomeroom: true,
           }
         : null,
       canKurikulum

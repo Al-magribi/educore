@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Button,
   Card,
   Empty,
   Flex,
@@ -11,7 +10,6 @@ import {
   Tabs,
   Tag,
   Typography,
-  message,
 } from "antd";
 import { motion } from "framer-motion";
 import {
@@ -24,15 +22,11 @@ import {
   Users,
 } from "lucide-react";
 import TeacherPointHero from "../components/TeacherPointHero";
-import TeacherPointEntryDrawer from "../components/TeacherPointEntryDrawer";
 import TeacherPointEntryTable from "../components/TeacherPointEntryTable";
 import LoadApp from "../../../../components/loader/LoadApp";
 import {
-  useCreateTeacherPointEntryMutation,
-  useDeleteTeacherPointEntryMutation,
   useGetTeacherPointBootstrapQuery,
   useGetTeacherPointEntriesQuery,
-  useUpdateTeacherPointEntryMutation,
 } from "../../../../service/lms/ApiPoint";
 
 const { Text, Title } = Typography;
@@ -89,8 +83,6 @@ const TeacherPointView = () => {
   const [activeTab, setActiveTab] = useState("summary");
   const [searchStudent, setSearchStudent] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState(null);
   const [classId, setClassId] = useState(null);
 
   const {
@@ -106,7 +98,6 @@ const TeacherPointView = () => {
   const classOptions = bootstrapRes?.data?.classes || [];
   const canPickClass = Boolean(bootstrapRes?.data?.can_pick_class);
   const students = bootstrapRes?.data?.students || [];
-  const rules = bootstrapRes?.data?.rules || [];
 
   useEffect(() => {
     if (!classId && homeroomClass?.id) {
@@ -125,12 +116,6 @@ const TeacherPointView = () => {
     },
     { skip: !activePeriode?.id },
   );
-
-  const [createEntry, { isLoading: isCreating }] =
-    useCreateTeacherPointEntryMutation();
-  const [updateEntry, { isLoading: isUpdating }] =
-    useUpdateTeacherPointEntryMutation();
-  const [deleteEntry] = useDeleteTeacherPointEntryMutation();
 
   const filteredStudents = useMemo(() => {
     const keyword = searchStudent.trim().toLowerCase();
@@ -168,71 +153,6 @@ const TeacherPointView = () => {
       },
     );
   }, [students]);
-
-  const handleOpenCreate = () => {
-    setSelectedEntry(
-      selectedStudent
-        ? {
-            student_id: selectedStudent.student_id,
-          }
-        : null,
-    );
-    setDrawerOpen(true);
-  };
-
-  const handleOpenEdit = (entry) => {
-    setSelectedEntry(entry);
-    setDrawerOpen(true);
-  };
-
-  const handleCloseDrawer = () => {
-    setDrawerOpen(false);
-    setSelectedEntry(null);
-  };
-
-  const handleSubmit = async (values) => {
-    try {
-      if (values?.id) {
-        const res = await updateEntry({
-          id: values.id,
-          periode_id: activePeriode?.id,
-          class_id: classId || homeroomClass?.id,
-          student_id: values.student_id,
-          rule_id: values.rule_id,
-          entry_date: values.entry_date,
-          description: values.description,
-        }).unwrap();
-        message.success(res?.message || "Poin siswa berhasil diperbarui.");
-      } else {
-        const res = await createEntry({
-          periode_id: activePeriode?.id,
-          class_id: classId || homeroomClass?.id,
-          student_id: values.student_id,
-          rule_id: values.rule_id,
-          entry_date: values.entry_date,
-          description: values.description,
-        }).unwrap();
-        message.success(res?.message || "Poin siswa berhasil ditambahkan.");
-      }
-
-      handleCloseDrawer();
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan poin siswa.");
-    }
-  };
-
-  const handleDelete = async (entry) => {
-    try {
-      const res = await deleteEntry({
-        id: entry.id,
-        periodeId: activePeriode?.id,
-        classId: classId || homeroomClass?.id,
-      }).unwrap();
-      message.success(res?.message || "Poin siswa berhasil dihapus.");
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menghapus poin siswa.");
-    }
-  };
 
   const renderStudentCards = () => (
     <div
@@ -312,6 +232,20 @@ const TeacherPointView = () => {
                     Pelanggaran {student.total_punishment || 0}
                   </Tag>
                 </Flex>
+                {pointConfig?.show_balance ? (
+                  <Tag
+                    style={{
+                      margin: 0,
+                      borderRadius: 999,
+                      borderColor: "#bfdbfe",
+                      background: "#eff6ff",
+                      color: "#1d4ed8",
+                      width: "fit-content",
+                    }}
+                  >
+                    Poin bersih {student.balance || 0}
+                  </Tag>
+                ) : null}
               </Flex>
             </Card>
           </motion.div>
@@ -324,12 +258,12 @@ const TeacherPointView = () => {
     summary: {
       title: "Ringkasan Kelas",
       description:
-        "Pilih siswa, pantau akumulasi prestasi dan pelanggaran, lalu siapkan input poin dengan cepat.",
+        "Pilih siswa dan pantau akumulasi prestasi serta pelanggaran di kelas wali Anda.",
     },
     history: {
       title: "Riwayat Poin Siswa",
       description:
-        "Tinjau, ubah, atau hapus entri poin siswa di kelas wali sesuai kebutuhan tindak lanjut.",
+        "Lihat riwayat poin siswa. Penambahan dan perubahan poin hanya dapat dilakukan admin atau kesiswaan.",
     },
   };
 
@@ -365,24 +299,10 @@ const TeacherPointView = () => {
                     Ringkasan Kelas
                   </Title>
                   <Text style={{ color: "#64748b" }}>
-                    Gunakan panel ini untuk memilih siswa dan memfokuskan riwayat
-                    poin per anak di kelas wali Anda.
+                    Gunakan panel ini untuk melihat akumulasi poin per siswa di
+                    kelas wali Anda.
                   </Text>
                 </div>
-                <Button
-                  type='primary'
-                  icon={<Plus size={16} />}
-                  onClick={handleOpenCreate}
-                  style={{
-                    borderRadius: 12,
-                    background: "#0f172a",
-                    borderColor: "#0f172a",
-                    fontWeight: 700,
-                    width: isMobile ? "100%" : "auto",
-                  }}
-                >
-                  Tambah Poin
-                </Button>
               </Flex>
 
               <div
@@ -494,9 +414,7 @@ const TeacherPointView = () => {
             loading={isEntriesLoading || isEntriesFetching}
             isMobile={isMobile}
             selectedStudent={selectedStudent}
-            onCreate={handleOpenCreate}
-            onEdit={handleOpenEdit}
-            onDelete={handleDelete}
+            readOnly
           />
         </motion.div>
       ),
@@ -513,11 +431,11 @@ const TeacherPointView = () => {
       <Card style={emptyCardStyle} styles={{ body: { padding: 28 } }}>
         <Flex vertical align='center' gap={12}>
           <Title level={4} style={{ margin: 0 }}>
-            Akses kelola poin tidak tersedia
+            Akses poin tidak tersedia
           </Title>
           <Text style={{ color: "#64748b", textAlign: "center" }}>
             {bootstrapError?.data?.message ||
-              "Halaman ini hanya bisa diakses wali kelas yang diizinkan admin."}
+              "Halaman ini hanya bisa diakses wali kelas."}
           </Text>
         </Flex>
       </Card>
@@ -598,16 +516,6 @@ const TeacherPointView = () => {
           </Card>
         </motion.div>
       </motion.div>
-
-      <TeacherPointEntryDrawer
-        open={drawerOpen}
-        onClose={handleCloseDrawer}
-        onSubmit={handleSubmit}
-        students={students}
-        rules={rules}
-        initialValues={selectedEntry}
-        submitting={isCreating || isUpdating}
-      />
     </>
   );
 };

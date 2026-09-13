@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, Flex, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
-import { NotebookPen, ShieldCheck, Users } from "lucide-react";
+import { Eye, ShieldCheck, Users } from "lucide-react";
 
 const { Title, Text } = Typography;
 
@@ -85,18 +85,18 @@ const TeacherPointHero = ({
                 justifyContent: "center",
               }}
             >
-              <NotebookPen size={26} />
+              <Eye size={26} />
             </span>
             <div>
               <Title
                 level={isMobile ? 3 : 2}
                 style={{ margin: 0, color: "#fff", lineHeight: 1.15 }}
               >
-                Kelola Poin Siswa
+                Poin Siswa
               </Title>
               <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                Catat prestasi dan pelanggaran siswa kelas wali Anda dengan alur
-                yang cepat, rapi, dan mudah diaudit.
+                Pantau akumulasi prestasi dan pelanggaran siswa kelas wali Anda.
+                Pemberian dan perubahan poin dilakukan oleh admin atau kesiswaan.
               </Text>
             </div>
           </Space>

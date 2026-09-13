@@ -170,13 +170,14 @@ const getHomebaseClasses = async (executor, homebaseId) => {
   return result.rows;
 };
 
-const ensureTeacherPointAccess = async ({
+const resolvePointWorkspace = async ({
   executor,
   user,
   teacherId,
   homebaseId,
   requestedPeriodeId,
   requestedClassId,
+  requireManage = false,
 }) => {
   const periode = await resolvePeriode(executor, homebaseId, requestedPeriodeId);
   if (!periode) {
@@ -188,7 +189,18 @@ const ensureTeacherPointAccess = async ({
     };
   }
 
-  if (canManageKesiswaan(user)) {
+  const canManage = canManageKesiswaan(user);
+  if (requireManage && !canManage) {
+    return {
+      error: {
+        status: 403,
+        message:
+          "Hanya admin dan kesiswaan yang dapat menambah atau mengubah poin siswa.",
+      },
+    };
+  }
+
+  if (canManage) {
     const classes = await getHomebaseClasses(executor, homebaseId);
     if (!classes.length) {
       return {
@@ -210,10 +222,15 @@ const ensureTeacherPointAccess = async ({
       pointConfig,
       classes,
       can_pick_class: true,
+      can_manage: true,
     };
   }
 
-  const homeroomClass = await getTeacherHomeroomClass(executor, teacherId, homebaseId);
+  const homeroomClass = await getTeacherHomeroomClass(
+    executor,
+    teacherId,
+    homebaseId,
+  );
   if (!homeroomClass) {
     return {
       error: {
@@ -224,14 +241,6 @@ const ensureTeacherPointAccess = async ({
   }
 
   const pointConfig = await getPointConfig(executor, homebaseId, periode.id);
-  if (pointConfig.allow_homeroom_manage === false) {
-    return {
-      error: {
-        status: 403,
-        message: "Pengelolaan poin oleh wali kelas sedang dinonaktifkan admin.",
-      },
-    };
-  }
 
   return {
     periode,
@@ -239,6 +248,7 @@ const ensureTeacherPointAccess = async ({
     pointConfig,
     classes: [homeroomClass],
     can_pick_class: false,
+    can_manage: false,
   };
 };
 
@@ -517,12 +527,12 @@ router.put(
 
 router.get(
   "/points/teacher/bootstrap",
-  authorize("teacher"),
+  authorize("admin", "teacher"),
   withQuery(async (req, res, pool) => {
     const homebaseId = req.user.homebase_id;
     const teacherId = req.user.id;
 
-    const access = await ensureTeacherPointAccess({
+    const access = await resolvePointWorkspace({
       executor: pool,
       user: req.user,
       teacherId,
@@ -535,8 +545,14 @@ router.get(
       return res.status(access.error.status).json({ message: access.error.message });
     }
 
-    const { periode, homeroomClass, pointConfig, classes, can_pick_class } =
-      access;
+    const {
+      periode,
+      homeroomClass,
+      pointConfig,
+      classes,
+      can_pick_class,
+      can_manage,
+    } = access;
 
     const [studentsResult, rulesResult] = await Promise.all([
       pool.query(
@@ -601,6 +617,7 @@ router.get(
         homeroom_class: homeroomClass,
         classes: classes || [homeroomClass],
         can_pick_class: Boolean(can_pick_class),
+        can_manage: Boolean(can_manage),
         students: studentsResult.rows,
         rules: rulesResult.rows,
       },
@@ -610,13 +627,13 @@ router.get(
 
 router.get(
   "/points/teacher/entries",
-  authorize("teacher"),
+  authorize("admin", "teacher"),
   withQuery(async (req, res, pool) => {
     const homebaseId = req.user.homebase_id;
     const teacherId = req.user.id;
     const studentId = toInt(req.query.student_id, null);
 
-    const access = await ensureTeacherPointAccess({
+    const access = await resolvePointWorkspace({
       executor: pool,
       user: req.user,
       teacherId,
@@ -692,7 +709,7 @@ router.get(
 
 router.post(
   "/points/teacher/entries",
-  authorize("teacher"),
+  authorize("admin", "assignment:kesiswaan"),
   withTransaction(async (req, res, client) => {
     const homebaseId = req.user.homebase_id;
     const teacherId = req.user.id;
@@ -701,13 +718,14 @@ router.post(
     const entryDate = String(req.body?.entry_date || "").trim();
     const description = normalizeOptionalText(req.body?.description);
 
-    const access = await ensureTeacherPointAccess({
+    const access = await resolvePointWorkspace({
       executor: client,
       user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.body?.periode_id,
       requestedClassId: req.body?.class_id,
+      requireManage: true,
     });
 
     if (access.error) {
@@ -735,7 +753,7 @@ router.post(
 
     if (studentResult.rowCount === 0) {
       return res.status(404).json({
-        message: "Siswa tidak ditemukan pada kelas wali yang aktif.",
+        message: "Siswa tidak ditemukan pada kelas yang dipilih.",
       });
     }
 
@@ -796,7 +814,7 @@ router.post(
 
 router.put(
   "/points/teacher/entries/:id",
-  authorize("teacher"),
+  authorize("admin", "assignment:kesiswaan"),
   withTransaction(async (req, res, client) => {
     const homebaseId = req.user.homebase_id;
     const teacherId = req.user.id;
@@ -810,13 +828,14 @@ router.put(
       return res.status(400).json({ message: "ID entry tidak valid." });
     }
 
-    const access = await ensureTeacherPointAccess({
+    const access = await resolvePointWorkspace({
       executor: client,
       user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.body?.periode_id,
       requestedClassId: req.body?.class_id,
+      requireManage: true,
     });
 
     if (access.error) {
@@ -859,7 +878,7 @@ router.put(
 
     if (studentResult.rowCount === 0) {
       return res.status(404).json({
-        message: "Siswa tidak ditemukan pada kelas wali yang aktif.",
+        message: "Siswa tidak ditemukan pada kelas yang dipilih.",
       });
     }
 
@@ -917,7 +936,7 @@ router.put(
 
 router.delete(
   "/points/teacher/entries/:id",
-  authorize("teacher"),
+  authorize("admin", "assignment:kesiswaan"),
   withTransaction(async (req, res, client) => {
     const homebaseId = req.user.homebase_id;
     const teacherId = req.user.id;
@@ -927,13 +946,14 @@ router.delete(
       return res.status(400).json({ message: "ID entry tidak valid." });
     }
 
-    const access = await ensureTeacherPointAccess({
+    const access = await resolvePointWorkspace({
       executor: client,
       user: req.user,
       teacherId,
       homebaseId,
       requestedPeriodeId: req.query.periode_id,
       requestedClassId: req.query.class_id,
+      requireManage: true,
     });
 
     if (access.error) {

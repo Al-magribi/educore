@@ -76,6 +76,7 @@ const TeacherPointEntryTable = ({
   onCreate,
   onEdit,
   onDelete,
+  readOnly = false,
 }) => {
   const [nameFilter, setNameFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -150,6 +151,18 @@ const TeacherPointEntryTable = ({
       ),
     },
     {
+      title: "Diberikan oleh",
+      dataIndex: "given_by_name",
+      key: "given_by_name",
+      width: 180,
+      render: (value) => (
+        <Text style={{ color: "#64748b" }}>{value || "-"}</Text>
+      ),
+    },
+  ];
+
+  if (!readOnly) {
+    columns.push({
       title: "Aksi",
       key: "actions",
       width: 150,
@@ -174,8 +187,8 @@ const TeacherPointEntryTable = ({
           </Popconfirm>
         </Space>
       ),
-    },
-  ];
+    });
+  }
 
   const emptyNode = (
     <Empty
@@ -231,25 +244,31 @@ const TeacherPointEntryTable = ({
                 >
                   {item.point_value} poin
                 </Text>
-                <Space>
-                  <Button
-                    icon={<PencilLine size={15} />}
-                    onClick={() => onEdit(item)}
-                    style={{ borderRadius: 12 }}
-                  />
-                  <Popconfirm
-                    title='Hapus poin ini?'
-                    onConfirm={() => onDelete(item)}
-                    okText='Hapus'
-                    cancelText='Batal'
-                  >
+                {readOnly ? (
+                  <Text style={{ color: "#64748b" }}>
+                    {item.given_by_name || "-"}
+                  </Text>
+                ) : (
+                  <Space>
                     <Button
-                      danger
-                      icon={<Trash2 size={15} />}
+                      icon={<PencilLine size={15} />}
+                      onClick={() => onEdit(item)}
                       style={{ borderRadius: 12 }}
                     />
-                  </Popconfirm>
-                </Space>
+                    <Popconfirm
+                      title='Hapus poin ini?'
+                      onConfirm={() => onDelete(item)}
+                      okText='Hapus'
+                      cancelText='Batal'
+                    >
+                      <Button
+                        danger
+                        icon={<Trash2 size={15} />}
+                        style={{ borderRadius: 12 }}
+                      />
+                    </Popconfirm>
+                  </Space>
+                )}
               </Flex>
             </Flex>
           </Card>
@@ -284,24 +303,28 @@ const TeacherPointEntryTable = ({
               <Text style={{ color: "#64748b" }}>
                 {selectedStudent
                   ? `Siswa ${selectedStudent.student_name} sedang dipilih pada ringkasan kelas, tetapi tabel ini tetap menampilkan seluruh riwayat sesuai filter.`
-                  : "Tinjau seluruh riwayat poin siswa, lalu saring berdasarkan nama dan jenis rule."}
+                  : readOnly
+                    ? "Tinjau riwayat poin siswa, lalu saring berdasarkan nama dan jenis rule."
+                    : "Tinjau seluruh riwayat poin siswa, lalu saring berdasarkan nama dan jenis rule."}
               </Text>
             </div>
 
-            <Button
-              type='primary'
-              icon={<Plus size={16} />}
-              onClick={onCreate}
-              style={{
-                borderRadius: 12,
-                background: "#0f172a",
-                borderColor: "#0f172a",
-                fontWeight: 700,
-                width: isMobile ? "100%" : "auto",
-              }}
-            >
-              Tambah Poin
-            </Button>
+            {readOnly ? null : (
+              <Button
+                type='primary'
+                icon={<Plus size={16} />}
+                onClick={onCreate}
+                style={{
+                  borderRadius: 12,
+                  background: "#0f172a",
+                  borderColor: "#0f172a",
+                  fontWeight: 700,
+                  width: isMobile ? "100%" : "auto",
+                }}
+              >
+                Tambah Poin
+              </Button>
+            )}
           </Flex>
 
           <div
