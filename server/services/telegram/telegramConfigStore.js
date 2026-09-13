@@ -7,6 +7,8 @@ import {
   DEFAULT_STUDENT_CHECKOUT_TEMPLATE,
   DEFAULT_TEACHER_CHECKIN_TEMPLATE,
   DEFAULT_TEACHER_CHECKOUT_TEMPLATE,
+  DEFAULT_TEACHER_STUDENT_CHECKIN_TEMPLATE,
+  DEFAULT_TEACHER_STUDENT_CHECKOUT_TEMPLATE,
 } from "./messageBuilder.js";
 
 export const getJakartaHHmm = (date = new Date()) =>
@@ -40,6 +42,8 @@ export const getDefaultTelegramConfig = (homebaseId) => ({
   message_template: DEFAULT_PARENT_DAILY_TEMPLATE,
   teacher_checkin_template: DEFAULT_TEACHER_CHECKIN_TEMPLATE,
   teacher_checkout_template: DEFAULT_TEACHER_CHECKOUT_TEMPLATE,
+  teacher_student_checkin_template: DEFAULT_TEACHER_STUDENT_CHECKIN_TEMPLATE,
+  teacher_student_checkout_template: DEFAULT_TEACHER_STUDENT_CHECKOUT_TEMPLATE,
   student_checkin_template: DEFAULT_STUDENT_CHECKIN_TEMPLATE,
   student_checkout_template: DEFAULT_STUDENT_CHECKOUT_TEMPLATE,
   parent_checkin_template: DEFAULT_PARENT_CHECKIN_TEMPLATE,
@@ -188,6 +192,14 @@ export const upsertTelegramNotificationConfig = async (
     payload.teacher_checkout_template ?? existing.teacher_checkout_template,
     DEFAULT_TEACHER_CHECKOUT_TEMPLATE,
   );
+  const teacherStudentCheckinTemplate = normalizeTemplate(
+    payload.teacher_student_checkin_template ?? existing.teacher_student_checkin_template,
+    DEFAULT_TEACHER_STUDENT_CHECKIN_TEMPLATE,
+  );
+  const teacherStudentCheckoutTemplate = normalizeTemplate(
+    payload.teacher_student_checkout_template ?? existing.teacher_student_checkout_template,
+    DEFAULT_TEACHER_STUDENT_CHECKOUT_TEMPLATE,
+  );
   const studentCheckinTemplate = normalizeTemplate(
     payload.student_checkin_template ?? existing.student_checkin_template,
     DEFAULT_STUDENT_CHECKIN_TEMPLATE,
@@ -217,6 +229,8 @@ export const upsertTelegramNotificationConfig = async (
        message_template,
        teacher_checkin_template,
        teacher_checkout_template,
+       teacher_student_checkin_template,
+       teacher_student_checkout_template,
        student_checkin_template,
        student_checkout_template,
        parent_checkin_template,
@@ -226,7 +240,7 @@ export const upsertTelegramNotificationConfig = async (
        created_by,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
      ON CONFLICT (homebase_id)
      DO UPDATE SET
        is_enabled = EXCLUDED.is_enabled,
@@ -238,6 +252,8 @@ export const upsertTelegramNotificationConfig = async (
        message_template = EXCLUDED.message_template,
        teacher_checkin_template = EXCLUDED.teacher_checkin_template,
        teacher_checkout_template = EXCLUDED.teacher_checkout_template,
+       teacher_student_checkin_template = EXCLUDED.teacher_student_checkin_template,
+       teacher_student_checkout_template = EXCLUDED.teacher_student_checkout_template,
        student_checkin_template = EXCLUDED.student_checkin_template,
        student_checkout_template = EXCLUDED.student_checkout_template,
        parent_checkin_template = EXCLUDED.parent_checkin_template,
@@ -257,6 +273,8 @@ export const upsertTelegramNotificationConfig = async (
       messageTemplate,
       teacherCheckinTemplate,
       teacherCheckoutTemplate,
+      teacherStudentCheckinTemplate,
+      teacherStudentCheckoutTemplate,
       studentCheckinTemplate,
       studentCheckoutTemplate,
       parentCheckinTemplate,

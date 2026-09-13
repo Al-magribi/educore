@@ -640,6 +640,26 @@ Kelas: {class_name}{device_line}
 
 Terima kasih.
 -{school_name}',
+    teacher_student_checkin_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {teacher_name},
+
+Siswa {student_name} sudah datang di sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}',
+    teacher_student_checkout_template text NOT NULL DEFAULT
+        'Assalamu''alaikum {teacher_name},
+
+Siswa {student_name} sudah pulang dari sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}',
     skip_on_holiday boolean NOT NULL DEFAULT true,
     last_run_date date,
     last_connected_at timestamp with time zone,

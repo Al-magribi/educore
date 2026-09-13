@@ -374,7 +374,7 @@ export const handleTelegramUpdate = async (executor, homebaseId, update) => {
       homebaseId,
       chatId,
       message: bindResult.ok
-        ? `${bindResult.message}\n\nAnda akan menerima notifikasi saat tap absensi datang/pulang di mesin RFID.`
+        ? `${bindResult.message}\n\nAnda akan menerima notifikasi saat tap absensi datang/pulang di mesin RFID. Jika chat Telegram ini sama dengan akun orang tua, notifikasi datang/pulang anak juga masuk ke sini.`
         : bindResult.message,
     });
 

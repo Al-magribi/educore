@@ -519,8 +519,8 @@ const TeacherDash = () => {
               </Space>
               <Text type='secondary'>
                 {telegram?.is_bound
-                  ? "Akun Telegram Anda sudah terhubung. Setiap tap datang/pulang di mesin RFID akan dikirim ke chat bot."
-                  : "Hubungkan Telegram agar menerima notifikasi jam datang dan pulang saat tap di mesin absensi."}
+                  ? "Akun Telegram Anda sudah terhubung. Tap datang/pulang Anda sendiri akan dikirim ke chat bot. Jika chat Telegram ini sama dengan akun orang tua, notifikasi datang/pulang anak juga masuk ke sini."
+                  : "Hubungkan Telegram agar menerima notifikasi jam datang dan pulang saat tap di mesin absensi. Pakai Telegram yang sama dengan akun orang tua jika Anda juga orang tua siswa."}
               </Text>
               {telegram?.bind_link ? (
                 <Button

@@ -113,6 +113,26 @@ Kelas: {class_name}{device_line}
 Terima kasih.
 -{school_name}`;
 
+export const DEFAULT_TEACHER_STUDENT_CHECKIN_TEMPLATE = `Assalamu'alaikum {teacher_name},
+
+Siswa {student_name} sudah datang di sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}`;
+
+export const DEFAULT_TEACHER_STUDENT_CHECKOUT_TEMPLATE = `Assalamu'alaikum {teacher_name},
+
+Siswa {student_name} sudah pulang dari sekolah.
+Tanggal: {date_label}
+Jam: {time_label}
+Kelas: {class_name}{device_line}
+
+Terima kasih.
+-{school_name}`;
+
 export const renderTelegramMessage = ({
   template,
   parentName,

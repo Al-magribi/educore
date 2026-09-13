@@ -11,6 +11,7 @@ import {
 } from "./messageBuilder.js";
 import { sendTelegramMessage } from "./telegramBotManager.js";
 import { getTelegramNotificationConfig } from "./telegramConfigStore.js";
+import { listStudentGuardianTelegramChats } from "./recipientResolver.js";
 
 const formatJakartaTime = (value) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -120,6 +121,24 @@ export const notifyGateTelegramTap = async (
     const config = await getTelegramNotificationConfig(executor, homebaseId);
     const isCheckin = scanAction === "daily_checkin";
     const results = [];
+    const sentChatIds = new Set();
+
+    const queueSend = async ({ chatId, message, label }) => {
+      const normalizedChatId = String(chatId || "").trim();
+      if (!normalizedChatId || sentChatIds.has(normalizedChatId)) {
+        return;
+      }
+      sentChatIds.add(normalizedChatId);
+      results.push(
+        await sendQuietly({
+          executor,
+          homebaseId,
+          chatId: normalizedChatId,
+          message,
+          label,
+        }),
+      );
+    };
 
     const studentResult = await executor.query(
       `SELECT
@@ -159,72 +178,50 @@ export const notifyGateTelegramTap = async (
         DEFAULT_PARENT_CHECKOUT_TEMPLATE,
       );
 
-      if (String(student.telegram_chat_id || "").trim()) {
-        results.push(
-          await sendQuietly({
-            executor,
-            homebaseId,
-            chatId: student.telegram_chat_id,
-            message: renderGateTelegramMessage(
-              studentTemplate,
-              buildGateVars({
-                name: studentName,
-                studentName,
-                scannedAt,
-                deviceName,
-                schoolName: config.school_name,
-                className: resolvedClassName,
-                nis: student.nis,
-                attendanceStatus,
-                isCheckin,
-              }),
-            ),
-            label: `siswa user=${userId}`,
+      await queueSend({
+        chatId: student.telegram_chat_id,
+        message: renderGateTelegramMessage(
+          studentTemplate,
+          buildGateVars({
+            name: studentName,
+            studentName,
+            scannedAt,
+            deviceName,
+            schoolName: config.school_name,
+            className: resolvedClassName,
+            nis: student.nis,
+            attendanceStatus,
+            isCheckin,
           }),
-        );
-      }
+        ),
+        label: `siswa user=${userId}`,
+      });
 
-      const parentsResult = await executor.query(
-        `SELECT
-           pu.id AS parent_user_id,
-           pu.full_name AS parent_name,
-           p.telegram_chat_id
-         FROM public.u_parent_students ps
-         JOIN public.u_users pu
-           ON pu.id = ps.parent_user_id
-          AND pu.is_active = true
-          AND pu.role = 'parent'
-         JOIN public.u_parents p ON p.user_id = ps.parent_user_id
-         WHERE ps.student_id = $1
-           AND ps.homebase_id = $2
-           AND NULLIF(TRIM(p.telegram_chat_id), '') IS NOT NULL`,
-        [userId, homebaseId],
-      );
+      const guardians = await listStudentGuardianTelegramChats(executor, {
+        homebaseId,
+        studentId: userId,
+      });
 
-      for (const parent of parentsResult.rows) {
-        results.push(
-          await sendQuietly({
-            executor,
-            homebaseId,
-            chatId: parent.telegram_chat_id,
-            message: renderGateTelegramMessage(
-              parentTemplate,
-              buildGateVars({
-                name: parent.parent_name,
-                studentName,
-                parentName: parent.parent_name,
-                scannedAt,
-                deviceName,
-                schoolName: config.school_name,
-                className: resolvedClassName,
-                nis: student.nis,
-                attendanceStatus,
-                isCheckin,
-              }),
-            ),
-            label: `ortu user=${parent.parent_user_id} siswa=${userId}`,
-          }),
-        );
+      for (const guardian of guardians) {
+        await queueSend({
+          chatId: guardian.chat_id,
+          message: renderGateTelegramMessage(
+            parentTemplate,
+            buildGateVars({
+              name: guardian.recipient_name,
+              studentName,
+              parentName: guardian.recipient_name,
+              scannedAt,
+              deviceName,
+              schoolName: config.school_name,
+              className: resolvedClassName,
+              nis: student.nis,
+              attendanceStatus,
+              isCheckin,
+            }),
+          ),
+          label: `ortu/guru chat=${guardian.chat_id} siswa=${userId}`,
+        });
       }
 
       return {
