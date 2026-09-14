@@ -37,9 +37,9 @@ export const withTransaction = (handler) => {
 
       // Pastikan response belum terkirim sebelum mengirim status 500
       if (!res.headersSent) {
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
           status: "error",
-          message: "Transaction failed",
+          message: error.message || "Transaction failed",
           error: process.env.MODE === "development" ? error.message : undefined,
         });
       }
@@ -65,9 +65,9 @@ export const withQuery = (handler) => {
       logError(error, `Query Error on ${req.originalUrl}`);
 
       if (!res.headersSent) {
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
           status: "error",
-          message: "Internal Server Error",
+          message: error.message || "Internal Server Error",
           error: process.env.MODE === "development" ? error.message : undefined,
         });
       }
