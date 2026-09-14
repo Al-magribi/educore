@@ -1102,6 +1102,7 @@ router.get(
           unpaid_count: 0,
           partial_count: 0,
           paid_count: 0,
+          students: [],
         });
       }
       const bucket = otherByTypeMap.get(key);
@@ -1114,6 +1115,22 @@ router.get(
       if (row.status === "paid") bucket.paid_count += 1;
       else if (row.status === "partial") bucket.partial_count += 1;
       else bucket.unpaid_count += 1;
+      bucket.students.push({
+        key: `${row.student_id}-${row.type_id || row.type_name}`,
+        student_id: row.student_id,
+        student_name: row.student_name,
+        nis: row.nis,
+        class_id: row.class_id,
+        class_name: row.class_name,
+        grade_name: row.grade_name,
+        type_id: row.type_id,
+        type_name: row.type_name,
+        amount: row.amount,
+        paid_amount: row.paid_amount,
+        remaining_amount: row.remaining_amount,
+        scholarship_cover: row.scholarship_cover,
+        status: row.status,
+      });
     }
 
     const other_by_type = [...otherByTypeMap.values()]
@@ -1136,6 +1153,7 @@ router.get(
           unpaid_count: item.unpaid_count,
           partial_count: item.partial_count,
           paid_count: item.paid_count,
+          students: item.students,
         };
       })
       .sort((a, b) =>

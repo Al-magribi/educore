@@ -3,8 +3,10 @@ import {
   Button,
   Card,
   DatePicker,
+  Empty,
   Flex,
   Input,
+  Modal,
   Progress,
   Select,
   Space,
@@ -12,6 +14,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -25,7 +28,10 @@ import {
   useGetTransactionsQuery,
   useLazyGetTransactionsQuery,
 } from "../../../../service/finance/ApiTransaction";
-import { useGetExpensesQuery, useGetExpenseOptionsQuery } from "../../../../service/finance/ApiExpense";
+import {
+  useGetExpensesQuery,
+  useGetExpenseOptionsQuery,
+} from "../../../../service/finance/ApiExpense";
 import {
   cardStyle,
   currencyFormatter,
@@ -59,6 +65,32 @@ const paymentStatusColor = (status) => {
 };
 
 const todayString = () => dayjs().format("YYYY-MM-DD");
+
+const slugifyFileName = (value, fallback = "laporan") =>
+  String(value || fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || fallback;
+
+const compareOtherStudents = (left, right) => {
+  const classCompare = String(left.class_name || "").localeCompare(
+    String(right.class_name || ""),
+    "id",
+    { sensitivity: "base" },
+  );
+  if (classCompare !== 0) return classCompare;
+  return String(left.student_name || "").localeCompare(
+    String(right.student_name || ""),
+    "id",
+    { sensitivity: "base" },
+  );
+};
+
+const OTHER_STATUS_META = {
+  paid: { color: "green", shortLabel: "lunas", title: "Lunas" },
+  partial: { color: "blue", shortLabel: "cicilan", title: "Cicilan" },
+  unpaid: { color: "gold", shortLabel: "belum", title: "Belum Bayar" },
+};
 
 const UnpaidTab = ({ rows = [] }) => {
   const [category, setCategory] = useState("all");
@@ -319,10 +351,7 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Pendapatan Harian");
-      XLSX.writeFile(
-        workbook,
-        `pendapatan-harian-${dateFrom}_${dateTo}.xlsx`,
-      );
+      XLSX.writeFile(workbook, `pendapatan-harian-${dateFrom}_${dateTo}.xlsx`);
       message.success("Excel berhasil diunduh");
     } catch (error) {
       message.error(error?.data?.message || "Gagal mengunduh Excel");
@@ -405,9 +434,7 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
         <Space wrap>
           <DatePicker.RangePicker
             allowClear={false}
-            value={
-              dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : null
-            }
+            value={dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : null}
             format='DD MMM YYYY'
             onChange={(values) => {
               setDateRange([
@@ -560,14 +587,7 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
         paymentMethodLabelMap[item.payment_method] || item.payment_method,
         currencyFormatter.format(Number(item.amount || 0)),
       ]),
-      [
-        "Grand Total",
-        "",
-        "",
-        "",
-        "",
-        currencyFormatter.format(totalAmount),
-      ],
+      ["Grand Total", "", "", "", "", currencyFormatter.format(totalAmount)],
     ];
 
     const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
@@ -595,8 +615,7 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
       dataIndex: "expense_date",
       key: "expense_date",
       width: 120,
-      render: (value) =>
-        value ? dayjs(value).format("DD MMM YYYY") : "-",
+      render: (value) => (value ? dayjs(value).format("DD MMM YYYY") : "-"),
     },
     {
       title: "Kategori",
@@ -672,9 +691,7 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
         <Space wrap>
           <DatePicker.RangePicker
             allowClear={false}
-            value={
-              dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : null
-            }
+            value={dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : null}
             format='DD MMM YYYY'
             onChange={(values) => {
               setDateRange([
@@ -745,6 +762,290 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
           emptyText: "Tidak ada pengeluaran pada filter ini.",
         }}
       />
+    </>
+  );
+};
+
+const OtherByTypeTab = ({ rows = [] }) => {
+  const [statusModal, setStatusModal] = useState(null);
+
+  const modalRows = useMemo(() => {
+    if (!statusModal) return [];
+    return (statusModal.row.students || [])
+      .filter((item) => item.status === statusModal.status)
+      .sort(compareOtherStudents);
+  }, [statusModal]);
+
+  const modalMeta = statusModal
+    ? OTHER_STATUS_META[statusModal.status] || OTHER_STATUS_META.unpaid
+    : null;
+
+  const handleExportExcel = () => {
+    if (!statusModal || !modalRows.length) {
+      message.info("Tidak ada data untuk diekspor");
+      return;
+    }
+
+    const typeName = statusModal.row.type_name || "Lainnya";
+    const statusTitle = modalMeta?.title || statusModal.status;
+    const sheetRows = [
+      [
+        "Siswa",
+        "NIS",
+        "Kelas",
+        "Jenis Biaya",
+        "Tagihan",
+        "Terbayar",
+        "Sisa",
+        "Status",
+      ],
+      ...modalRows.map((item) => [
+        item.student_name || "-",
+        item.nis || "-",
+        item.class_name || "-",
+        item.type_name || typeName,
+        Number(item.amount || 0),
+        Number(item.paid_amount || 0),
+        Number(item.remaining_amount || 0),
+        statusLabelMap[item.status] || item.status,
+      ]),
+      [
+        "Grand Total",
+        "",
+        "",
+        "",
+        modalRows.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+        modalRows.reduce((sum, item) => sum + Number(item.paid_amount || 0), 0),
+        modalRows.reduce(
+          (sum, item) => sum + Number(item.remaining_amount || 0),
+          0,
+        ),
+        "",
+      ],
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 28 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, statusTitle.slice(0, 31));
+    XLSX.writeFile(
+      workbook,
+      `lainnya-${slugifyFileName(typeName)}-${slugifyFileName(statusTitle)}.xlsx`,
+    );
+    message.success("Excel berhasil diunduh");
+  };
+
+  const columns = [
+    {
+      title: "Jenis Biaya",
+      dataIndex: "type_name",
+      key: "type_name",
+      render: (value) => <span style={{ fontWeight: 600 }}>{value}</span>,
+    },
+    {
+      title: "Siswa",
+      dataIndex: "student_count",
+      key: "student_count",
+      width: 90,
+      align: "right",
+    },
+    {
+      title: "Target",
+      dataIndex: "target",
+      key: "target",
+      align: "right",
+      render: (value) => currencyFormatter.format(value || 0),
+    },
+    {
+      title: "Tertagih / Sisa",
+      key: "paid_remaining",
+      align: "right",
+      render: (_, row) => (
+        <div>
+          <Tooltip title='Tertagih (kewajiban yang sudah dibayar)'>
+            <div style={{ fontWeight: 600, cursor: "help" }}>
+              {currencyFormatter.format(row.paid_obligation || 0)}
+            </div>
+          </Tooltip>
+          <Tooltip title='Sisa tagihan yang belum tertagih'>
+            <div style={{ color: "#64748b", fontSize: 12, cursor: "help" }}>
+              Sisa {currencyFormatter.format(row.remaining || 0)}
+            </div>
+          </Tooltip>
+        </div>
+      ),
+    },
+    {
+      title: "Pencapaian",
+      dataIndex: "achievement",
+      key: "achievement",
+      width: 160,
+      render: (value) => (
+        <Progress
+          percent={Number(value || 0)}
+          size='small'
+          strokeColor={percentColor(Number(value || 0))}
+          format={(percent) => `${percent}%`}
+        />
+      ),
+    },
+    {
+      title: "Status",
+      key: "status_counts",
+      render: (_, row) => (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {["paid", "partial", "unpaid"].map((status) => {
+            const meta = OTHER_STATUS_META[status];
+            const count =
+              status === "paid"
+                ? row.paid_count
+                : status === "partial"
+                  ? row.partial_count
+                  : row.unpaid_count;
+            return (
+              <Tag
+                key={status}
+                color={meta.color}
+                style={{
+                  cursor: count > 0 ? "pointer" : "default",
+                  marginInlineEnd: 0,
+                }}
+                onClick={() => {
+                  if (count > 0) {
+                    setStatusModal({ row, status });
+                  }
+                }}
+              >
+                {count} {meta.shortLabel}
+              </Tag>
+            );
+          })}
+        </div>
+      ),
+    },
+  ];
+
+  const modalColumns = [
+    {
+      title: "Siswa",
+      dataIndex: "student_name",
+      key: "student_name",
+      render: (value, row) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{value}</div>
+          <div style={{ color: "#64748b", fontSize: 12 }}>
+            {row.nis || "-"} · {row.class_name || "-"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Tagihan",
+      dataIndex: "amount",
+      key: "amount",
+      align: "right",
+      render: (value) => currencyFormatter.format(value || 0),
+    },
+    {
+      title: "Terbayar",
+      dataIndex: "paid_amount",
+      key: "paid_amount",
+      align: "right",
+      render: (value) => currencyFormatter.format(value || 0),
+    },
+    {
+      title: "Sisa",
+      dataIndex: "remaining_amount",
+      key: "remaining_amount",
+      align: "right",
+      render: (value) => (
+        <span style={{ fontWeight: 600, color: "#b45309" }}>
+          {currencyFormatter.format(value || 0)}
+        </span>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 120,
+      render: (value) => (
+        <Tag color={statusColorMap[value] || "default"}>
+          {statusLabelMap[value] || value}
+        </Tag>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <Table
+        rowKey={(row) => row.type_id || row.type_name}
+        columns={columns}
+        dataSource={rows}
+        pagination={{ pageSize: 10, showSizeChanger: true }}
+        scroll={{ x: 820 }}
+        size='middle'
+      />
+
+      <Modal
+        open={Boolean(statusModal)}
+        onCancel={() => setStatusModal(null)}
+        title={
+          statusModal
+            ? `${statusModal.row.type_name || "Lainnya"} · ${modalMeta?.title || ""}`
+            : "Daftar siswa"
+        }
+        width={820}
+        destroyOnHidden
+        centered
+        footer={[
+          <Button
+            key='excel'
+            type='primary'
+            icon={<Download size={16} />}
+            disabled={!modalRows.length}
+            onClick={handleExportExcel}
+          >
+            Download Excel
+          </Button>,
+          <Button key='close' onClick={() => setStatusModal(null)}>
+            Tutup
+          </Button>,
+        ]}
+      >
+        <Text type='secondary' style={{ display: "block", marginBottom: 12 }}>
+          {modalRows.length} siswa dengan status {modalMeta?.title || "-"}
+        </Text>
+        <Table
+          rowKey={(row) =>
+            row.key || `${row.student_id}-${row.type_id || row.type_name}`
+          }
+          columns={modalColumns}
+          dataSource={modalRows}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
+          scroll={{ x: 640 }}
+          size='small'
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description='Tidak ada siswa pada status ini.'
+              />
+            ),
+          }}
+        />
+      </Modal>
     </>
   );
 };
@@ -833,68 +1134,6 @@ const ReportBreakdown = ({
     },
   ];
 
-  const otherColumns = [
-    {
-      title: "Jenis Biaya",
-      dataIndex: "type_name",
-      key: "type_name",
-      render: (value) => <span style={{ fontWeight: 600 }}>{value}</span>,
-    },
-    {
-      title: "Siswa",
-      dataIndex: "student_count",
-      key: "student_count",
-      width: 90,
-      align: "right",
-    },
-    {
-      title: "Target",
-      dataIndex: "target",
-      key: "target",
-      align: "right",
-      render: (value) => currencyFormatter.format(value || 0),
-    },
-    {
-      title: "Tertagih (kewajiban)",
-      dataIndex: "paid_obligation",
-      key: "paid_obligation",
-      align: "right",
-      render: (value) => currencyFormatter.format(value || 0),
-    },
-    {
-      title: "Sisa",
-      dataIndex: "remaining",
-      key: "remaining",
-      align: "right",
-      render: (value) => currencyFormatter.format(value || 0),
-    },
-    {
-      title: "Pencapaian",
-      dataIndex: "achievement",
-      key: "achievement",
-      width: 160,
-      render: (value) => (
-        <Progress
-          percent={Number(value || 0)}
-          size='small'
-          strokeColor={percentColor(Number(value || 0))}
-          format={(percent) => `${percent}%`}
-        />
-      ),
-    },
-    {
-      title: "Status",
-      key: "status_counts",
-      render: (_, row) => (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <Tag color='green'>{row.paid_count} lunas</Tag>
-          <Tag color='blue'>{row.partial_count} cicilan</Tag>
-          <Tag color='gold'>{row.unpaid_count} belum</Tag>
-        </div>
-      ),
-    },
-  ];
-
   return (
     <Card style={cardStyle} styles={{ body: { paddingTop: 8 } }}>
       <Tabs
@@ -918,16 +1157,7 @@ const ReportBreakdown = ({
           {
             key: "other",
             label: `Lainnya per Tipe (${otherByType.length})`,
-            children: (
-              <Table
-                rowKey={(row) => row.type_id || row.type_name}
-                columns={otherColumns}
-                dataSource={otherByType}
-                pagination={{ pageSize: 10, showSizeChanger: true }}
-                scroll={{ x: 900 }}
-                size='middle'
-              />
-            ),
+            children: <OtherByTypeTab rows={otherByType} />,
           },
           {
             key: "unpaid",
@@ -959,7 +1189,12 @@ const ReportBreakdown = ({
             label: "RAPBS (Anggaran)",
             children: (
               <Space direction='vertical' size={12} style={{ width: "100%" }}>
-                <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
+                <Flex
+                  justify='space-between'
+                  align='center'
+                  gap={12}
+                  wrap='wrap'
+                >
                   <Text type='secondary'>
                     Ringkasan realisasi vs anggaran. Pengelolaan nominal RAPBS
                     dipindah ke menu khusus.
@@ -992,9 +1227,7 @@ const ReportBreakdown = ({
           {
             key: "closing",
             label: "Tutup Buku Bulanan",
-            children: (
-              <ReportClosingsPanel homebaseId={homebaseId} embedded />
-            ),
+            children: <ReportClosingsPanel homebaseId={homebaseId} embedded />,
           },
         ]}
       />
