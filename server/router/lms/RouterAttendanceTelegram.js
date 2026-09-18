@@ -687,10 +687,9 @@ router.get(
 
     const config = await getTelegramNotificationConfig(pool, homebaseId);
     const parentResult = await pool.query(
-      `SELECT telegram_chat_id
+      `SELECT MAX(NULLIF(TRIM(telegram_chat_id), '')) AS telegram_chat_id
        FROM public.u_parents
-       WHERE user_id = $1
-       LIMIT 1`,
+       WHERE user_id = $1`,
       [parentUserId],
     );
 

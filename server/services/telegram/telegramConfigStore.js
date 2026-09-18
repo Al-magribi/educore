@@ -368,9 +368,9 @@ export const listTelegramParentBindings = async (executor, homebaseId, { limit =
     `SELECT
        u.id AS parent_user_id,
        u.full_name AS parent_name,
-       p.phone,
-       p.telegram_chat_id,
-       COUNT(ps.student_id)::int AS student_count
+       MAX(p.phone) AS phone,
+       MAX(NULLIF(TRIM(p.telegram_chat_id), '')) AS telegram_chat_id,
+       COUNT(DISTINCT ps.student_id)::int AS student_count
      FROM public.u_parent_students ps
      JOIN public.u_users u
        ON u.id = ps.parent_user_id
@@ -378,9 +378,9 @@ export const listTelegramParentBindings = async (executor, homebaseId, { limit =
       AND u.role = 'parent'
      LEFT JOIN public.u_parents p ON p.user_id = ps.parent_user_id
      WHERE ps.homebase_id = $1
-     GROUP BY u.id, u.full_name, p.phone, p.telegram_chat_id
+     GROUP BY u.id, u.full_name
      ORDER BY
-       CASE WHEN NULLIF(TRIM(p.telegram_chat_id), '') IS NULL THEN 0 ELSE 1 END ASC,
+       CASE WHEN MAX(NULLIF(TRIM(p.telegram_chat_id), '')) IS NULL THEN 0 ELSE 1 END ASC,
        u.full_name ASC
      LIMIT $2`,
     [homebaseId, safeLimit],

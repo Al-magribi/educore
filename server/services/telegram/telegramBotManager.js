@@ -189,19 +189,56 @@ export const bindParentTelegramChat = async (
     };
   }
 
-  await executor.query(
-    `INSERT INTO public.u_parents (user_id, telegram_chat_id)
-     VALUES ($1, $2)
-     ON CONFLICT (user_id)
-     DO UPDATE SET telegram_chat_id = EXCLUDED.telegram_chat_id`,
-    [parentUserId, String(chatId)],
+  const chat = String(chatId);
+  const taken = await executor.query(
+    `SELECT user_id
+     FROM public.u_parents
+     WHERE NULLIF(TRIM(telegram_chat_id), '') = $1
+       AND user_id <> $2
+     LIMIT 1`,
+    [chat, parentUserId],
   );
+
+  if (taken.rowCount > 0) {
+    return {
+      ok: false,
+      message:
+        "Chat Telegram ini sudah terhubung ke akun orang tua lain. Lepas ikatan lama dulu, atau gunakan akun Telegram yang berbeda.",
+    };
+  }
+
+  // u_parents di database produksi unik di (user_id, student_id), bukan user_id.
+  // Satu orang tua bisa punya beberapa baris, jadi ON CONFLICT (user_id) gagal diam-diam.
+  const updated = await executor.query(
+    `UPDATE public.u_parents p
+     SET telegram_chat_id = $2
+     FROM (
+       SELECT ctid
+       FROM public.u_parents
+       WHERE user_id = $1
+       ORDER BY
+         CASE WHEN NULLIF(TRIM(telegram_chat_id), '') IS NOT NULL THEN 0 ELSE 1 END,
+         student_id NULLS LAST
+       LIMIT 1
+     ) pick
+     WHERE p.ctid = pick.ctid
+     RETURNING p.user_id`,
+    [parentUserId, chat],
+  );
+
+  if (updated.rowCount === 0) {
+    await executor.query(
+      `INSERT INTO public.u_parents (user_id, telegram_chat_id)
+       VALUES ($1, $2)`,
+      [parentUserId, chat],
+    );
+  }
 
   return {
     ok: true,
     parent_user_id: Number(parent.id),
     parent_name: parent.full_name,
-    chat_id: String(chatId),
+    chat_id: chat,
     message: `Berhasil terhubung sebagai ${parent.full_name}.`,
   };
 };
@@ -340,11 +377,24 @@ export const handleTelegramUpdate = async (executor, homebaseId, update) => {
   }
 
   if (parsed?.type === "bind_parent") {
-    const bindResult = await bindParentTelegramChat(executor, {
-      homebaseId,
-      parentUserId: parsed.parent_user_id,
-      chatId,
-    });
+    let bindResult;
+    try {
+      bindResult = await bindParentTelegramChat(executor, {
+        homebaseId,
+        parentUserId: parsed.parent_user_id,
+        chatId,
+      });
+    } catch (error) {
+      console.error(
+        `[telegram] gagal bind parent user=${parsed.parent_user_id} homebase=${homebaseId}`,
+        error,
+      );
+      bindResult = {
+        ok: false,
+        message:
+          "Gagal menghubungkan akun orang tua. Silakan buka tautan dari dashboard sekali lagi.",
+      };
+    }
 
     await sendTelegramMessage({
       executor,
