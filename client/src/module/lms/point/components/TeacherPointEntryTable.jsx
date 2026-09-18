@@ -50,7 +50,7 @@ const TypeTag = ({ value }) => {
       }}
     >
       <Icon size={13} />
-      {isReward ? "Prestasi" : "Pelanggaran"}
+      {isReward ? "Penghargaan" : "Pelanggaran"}
     </Tag>
   );
 };
@@ -122,6 +122,9 @@ const TeacherPointEntryTable = ({
             {record.title_snapshot}
           </Text>
           <TypeTag value={record.point_type} />
+          {record.category_name ? (
+            <Text style={{ color: "#64748b" }}>{record.category_name}</Text>
+          ) : null}
         </Flex>
       ),
     },
@@ -344,12 +347,13 @@ const TeacherPointEntryTable = ({
             />
             <Select
               allowClear
+              virtual={false}
               value={typeFilter || undefined}
               onChange={(value) => setTypeFilter(value || "")}
               placeholder='Semua jenis rule'
               style={{ width: "100%" }}
               options={[
-                { label: "Prestasi", value: "reward" },
+                { label: "Penghargaan", value: "reward" },
                 { label: "Pelanggaran", value: "punishment" },
               ]}
             />

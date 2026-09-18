@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Card, Flex, Input, Segmented, Space, Typography } from "antd";
+import { Button, Card, Flex, Input, Segmented, Select, Space, Typography } from "antd";
 import { Plus, Search, SlidersHorizontal } from "lucide-react";
 
 const { Text } = Typography;
@@ -13,7 +13,7 @@ const toolbarCardStyle = {
 
 const typeOptions = [
   { label: "Semua Tipe", value: "" },
-  { label: "Prestasi", value: "reward" },
+  { label: "Penghargaan", value: "reward" },
   { label: "Pelanggaran", value: "punishment" },
 ];
 
@@ -27,9 +27,12 @@ const PointRuleToolbar = ({
   search,
   pointType,
   isActive,
+  categoryId,
+  categories = [],
   onSearchChange,
   onPointTypeChange,
   onStatusChange,
+  onCategoryChange,
   onCreate,
   isMobile,
 }) => (
@@ -64,7 +67,7 @@ const PointRuleToolbar = ({
               Filter Rule Poin
             </Text>
             <Text style={{ color: "#64748b" }}>
-              Cari rule, batasi berdasarkan tipe poin, dan status aktif.
+              Cari rule, batasi berdasarkan tipe, kategori, dan status aktif.
             </Text>
           </div>
         </Space>
@@ -91,7 +94,7 @@ const PointRuleToolbar = ({
           display: "grid",
           gridTemplateColumns: isMobile
             ? "1fr"
-            : "minmax(240px, 1.2fr) auto auto",
+            : "minmax(240px, 1.2fr) auto auto minmax(180px, 0.8fr)",
           gap: 12,
         }}
       >
@@ -114,6 +117,22 @@ const PointRuleToolbar = ({
           options={statusOptions}
           value={isActive}
           onChange={onStatusChange}
+        />
+        <Select
+          allowClear
+          virtual={false}
+          value={categoryId || undefined}
+          placeholder='Semua kategori'
+          onChange={(value) => onCategoryChange(value || "")}
+          options={[
+            { value: "uncategorized", label: "Tanpa kategori" },
+            ...categories
+              .filter((item) => !pointType || item.point_type === pointType)
+              .map((item) => ({
+                value: String(item.id),
+                label: `${item.point_type === "reward" ? "Penghargaan" : "Pelanggaran"} · ${item.name}`,
+              })),
+          ]}
         />
       </div>
     </Flex>

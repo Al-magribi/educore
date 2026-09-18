@@ -16,6 +16,7 @@ import {
   FileClock,
   LayoutGrid,
   Plus,
+  Scale,
   Search,
   ShieldAlert,
   Trophy,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import TeacherPointHero from "../components/TeacherPointHero";
 import TeacherPointEntryTable from "../components/TeacherPointEntryTable";
+import PointCatalogPanel from "../components/PointCatalogPanel";
 import LoadApp from "../../../../components/loader/LoadApp";
 import {
   useGetTeacherPointBootstrapQuery,
@@ -98,6 +100,7 @@ const TeacherPointView = () => {
   const classOptions = bootstrapRes?.data?.classes || [];
   const canPickClass = Boolean(bootstrapRes?.data?.can_pick_class);
   const students = bootstrapRes?.data?.students || [];
+  const catalog = bootstrapRes?.data?.catalog || { reward: [], punishment: [] };
 
   useEffect(() => {
     if (!classId && homeroomClass?.id) {
@@ -218,7 +221,7 @@ const TeacherPointView = () => {
                       color: "#a16207",
                     }}
                   >
-                    Prestasi {student.total_reward || 0}
+                    Penghargaan {student.total_reward || 0}
                   </Tag>
                   <Tag
                     style={{
@@ -258,12 +261,17 @@ const TeacherPointView = () => {
     summary: {
       title: "Ringkasan Kelas",
       description:
-        "Pilih siswa dan pantau akumulasi prestasi serta pelanggaran di kelas wali Anda.",
+        "Pilih siswa dan pantau akumulasi penghargaan serta pelanggaran di kelas wali Anda.",
     },
     history: {
       title: "Riwayat Poin Siswa",
       description:
         "Lihat riwayat poin siswa. Penambahan dan perubahan poin hanya dapat dilakukan admin atau kesiswaan.",
+    },
+    catalog: {
+      title: "Bobot Penghargaan dan Pelanggaran",
+      description:
+        "Daftar jenis dan bobot poin yang berlaku pada periode aktif.",
     },
   };
 
@@ -330,7 +338,7 @@ const TeacherPointView = () => {
                     <Trophy size={18} color='#a16207' />
                     <div>
                       <Text style={{ color: "#64748b", fontSize: 12 }}>
-                        Prestasi
+                        Penghargaan
                       </Text>
                       <Title level={4} style={{ margin: "2px 0 0", color: "#a16207" }}>
                         {summaryStats.totalReward}
@@ -416,6 +424,25 @@ const TeacherPointView = () => {
             selectedStudent={selectedStudent}
             readOnly
           />
+        </motion.div>
+      ),
+    },
+    {
+      key: "catalog",
+      label: (
+        <Space size={8}>
+          <Scale size={15} />
+          Bobot Poin
+        </Space>
+      ),
+      children: (
+        <motion.div
+          key='teacher-point-catalog'
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28 }}
+        >
+          <PointCatalogPanel catalog={catalog} isMobile={isMobile} />
         </motion.div>
       ),
     },

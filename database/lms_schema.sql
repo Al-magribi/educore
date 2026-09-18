@@ -607,6 +607,126 @@ CREATE TABLE l_score_final(
     PRIMARY KEY(id)
 );
 
+CREATE TABLE l_point_config(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    show_balance boolean NOT NULL DEFAULT false,
+    allow_homeroom_manage boolean NOT NULL DEFAULT true,
+    created_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_point_config_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_point_config_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_point_config_created_by_fkey FOREIGN KEY(created_by) REFERENCES public.u_users(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX uq_point_config_homebase_periode ON lms.l_point_config USING btree (homebase_id, periode_id);
+CREATE INDEX idx_point_config_lookup ON lms.l_point_config USING btree (homebase_id, periode_id, show_balance);
+
+CREATE TABLE l_point_category(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    point_type character varying(20) NOT NULL,
+    name text NOT NULL,
+    sort_order integer NOT NULL DEFAULT 1,
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_point_category_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_point_category_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_point_category_created_by_fkey FOREIGN KEY(created_by) REFERENCES public.u_users(id) ON DELETE SET NULL,
+    CONSTRAINT l_point_category_name_check CHECK (length(btrim(name)) > 0),
+    CONSTRAINT l_point_category_sort_order_check CHECK (sort_order > 0),
+    CONSTRAINT l_point_category_type_check CHECK ((point_type)::text = ANY ((ARRAY['reward'::character varying, 'punishment'::character varying])::text[]))
+);
+CREATE UNIQUE INDEX uq_point_category_name_periode ON lms.l_point_category USING btree (homebase_id, periode_id, point_type, lower(btrim(name)));
+CREATE INDEX idx_point_category_lookup ON lms.l_point_category USING btree (homebase_id, periode_id, point_type, sort_order, id);
+
+CREATE TABLE l_point_rule(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    category_id integer,
+    name text NOT NULL,
+    point_type character varying(20) NOT NULL,
+    point_value integer NOT NULL,
+    description text,
+    is_active boolean NOT NULL DEFAULT true,
+    created_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_point_rule_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_point_rule_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_point_rule_category_id_fkey FOREIGN KEY(category_id) REFERENCES lms.l_point_category(id) ON DELETE SET NULL,
+    CONSTRAINT l_point_rule_created_by_fkey FOREIGN KEY(created_by) REFERENCES public.u_users(id) ON DELETE SET NULL,
+    CONSTRAINT l_point_rule_name_check CHECK (length(btrim(name)) > 0),
+    CONSTRAINT l_point_rule_type_check CHECK ((point_type)::text = ANY ((ARRAY['reward'::character varying, 'punishment'::character varying])::text[])),
+    CONSTRAINT l_point_rule_value_check CHECK ((point_value >= 1) AND (point_value <= 100))
+);
+CREATE UNIQUE INDEX uq_point_rule_name_periode ON lms.l_point_rule USING btree (homebase_id, periode_id, lower(btrim(name)));
+CREATE INDEX idx_point_rule_lookup ON lms.l_point_rule USING btree (homebase_id, periode_id, point_type, is_active, created_at DESC);
+CREATE INDEX idx_point_rule_category ON lms.l_point_rule USING btree (category_id);
+
+CREATE TABLE l_point_entry(
+    id SERIAL NOT NULL,
+    homebase_id integer NOT NULL,
+    periode_id integer NOT NULL,
+    student_id integer NOT NULL,
+    class_id integer NOT NULL,
+    rule_id integer NOT NULL,
+    point_type character varying(20) NOT NULL,
+    point_value integer NOT NULL,
+    title_snapshot text NOT NULL,
+    description text,
+    entry_date date NOT NULL DEFAULT CURRENT_DATE,
+    given_by integer,
+    updated_by integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id),
+    CONSTRAINT l_point_entry_homebase_id_fkey FOREIGN KEY(homebase_id) REFERENCES public.a_homebase(id),
+    CONSTRAINT l_point_entry_periode_id_fkey FOREIGN KEY(periode_id) REFERENCES public.a_periode(id),
+    CONSTRAINT l_point_entry_student_id_fkey FOREIGN KEY(student_id) REFERENCES public.u_students(user_id),
+    CONSTRAINT l_point_entry_class_id_fkey FOREIGN KEY(class_id) REFERENCES public.a_class(id),
+    CONSTRAINT l_point_entry_rule_id_fkey FOREIGN KEY(rule_id) REFERENCES lms.l_point_rule(id),
+    CONSTRAINT l_point_entry_given_by_fkey FOREIGN KEY(given_by) REFERENCES public.u_users(id) ON DELETE SET NULL,
+    CONSTRAINT l_point_entry_updated_by_fkey FOREIGN KEY(updated_by) REFERENCES public.u_users(id) ON DELETE SET NULL,
+    CONSTRAINT l_point_entry_title_snapshot_check CHECK (length(btrim(title_snapshot)) > 0),
+    CONSTRAINT l_point_entry_type_check CHECK ((point_type)::text = ANY ((ARRAY['reward'::character varying, 'punishment'::character varying])::text[])),
+    CONSTRAINT l_point_entry_value_check CHECK ((point_value >= 1) AND (point_value <= 100))
+);
+CREATE INDEX idx_point_entry_homebase_period ON lms.l_point_entry USING btree (homebase_id, periode_id, class_id, student_id);
+CREATE INDEX idx_point_entry_student_period ON lms.l_point_entry USING btree (student_id, periode_id, entry_date DESC, created_at DESC);
+CREATE INDEX idx_point_entry_class_period ON lms.l_point_entry USING btree (class_id, periode_id, entry_date DESC, created_at DESC);
+CREATE INDEX idx_point_entry_given_by ON lms.l_point_entry USING btree (given_by, periode_id, entry_date DESC);
+CREATE INDEX idx_point_entry_rule_lookup ON lms.l_point_entry USING btree (rule_id, point_type, entry_date DESC);
+
+CREATE VIEW v_point_student_summary AS
+SELECT
+    homebase_id,
+    periode_id,
+    class_id,
+    student_id,
+    count(*) AS total_entries,
+    count(*) FILTER (WHERE point_type::text = 'reward') AS reward_entries,
+    count(*) FILTER (WHERE point_type::text = 'punishment') AS punishment_entries,
+    COALESCE(sum(point_value) FILTER (WHERE point_type::text = 'reward'), 0)::bigint AS total_reward,
+    COALESCE(sum(point_value) FILTER (WHERE point_type::text = 'punishment'), 0)::bigint AS total_punishment,
+    COALESCE(sum(
+        CASE
+            WHEN point_type::text = 'reward' THEN point_value
+            WHEN point_type::text = 'punishment' THEN -point_value
+            ELSE 0
+        END
+    ), 0)::bigint AS balance
+FROM lms.l_point_entry pe
+GROUP BY homebase_id, periode_id, class_id, student_id;
+
 SET search_path TO public;
 COMMIT;
 

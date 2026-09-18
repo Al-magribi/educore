@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   Button,
   DatePicker,
@@ -13,21 +13,31 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import { Save, UserRoundPen } from "lucide-react";
+import { buildRuleSelectOptions } from "../utils/pointCatalog";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
 
-const TeacherPointEntryDrawer = ({
+const AdminPointEntryDrawer = ({
   open,
   onClose,
   onSubmit,
   students = [],
   rules = [],
+  catalog,
   initialValues,
   submitting,
 }) => {
   const [form] = Form.useForm();
   const isEdit = Boolean(initialValues?.id);
+  const ruleOptions = useMemo(() => {
+    const grouped = buildRuleSelectOptions(catalog);
+    if (grouped.length) return grouped;
+    return rules.map((item) => ({
+      value: item.id,
+      label: `${item.name} • ${item.point_value} poin`,
+    }));
+  }, [catalog, rules]);
 
   useEffect(() => {
     if (!open) return;
@@ -96,8 +106,8 @@ const TeacherPointEntryDrawer = ({
                 {isEdit ? "Perbarui Poin Siswa" : "Tambah Poin Siswa"}
               </Title>
               <Text style={{ color: "#64748b" }}>
-                Pilih siswa dan rule poin yang relevan, lalu simpan catatan bila
-                diperlukan untuk kebutuhan tindak lanjut.
+                Pilih siswa dan rule poin sesuai kategori penghargaan atau
+                pelanggaran.
               </Text>
             </div>
           </Space>
@@ -134,10 +144,7 @@ const TeacherPointEntryDrawer = ({
               showSearch={{ optionFilterProp: "label" }}
               virtual={false}
               placeholder='Pilih rule poin'
-              options={rules.map((item) => ({
-                value: item.id,
-                label: `${item.name} • ${item.point_type} • ${item.point_value} poin`,
-              }))}
+              options={ruleOptions}
             />
           </Form.Item>
 
@@ -195,4 +202,4 @@ const TeacherPointEntryDrawer = ({
   );
 };
 
-export default TeacherPointEntryDrawer;
+export default AdminPointEntryDrawer;

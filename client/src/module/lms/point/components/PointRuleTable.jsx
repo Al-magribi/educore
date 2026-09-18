@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Button,
   Card,
@@ -19,8 +19,9 @@ import {
   Trash2,
   Trophy,
 } from "lucide-react";
+import { POINT_TYPE_LABELS } from "../utils/pointCatalog";
 
-const { Paragraph, Text } = Typography;
+const { Paragraph, Text, Title } = Typography;
 
 const tableCardStyle = {
   borderRadius: 24,
@@ -48,7 +49,7 @@ const TypeTag = ({ value }) => {
       }}
     >
       <Icon size={13} />
-      {isReward ? "Reward" : "Punishment"}
+      {POINT_TYPE_LABELS[value] || value}
     </Tag>
   );
 };
@@ -68,120 +69,92 @@ const StatusTag = ({ active }) => (
   </Tag>
 );
 
-const RuleCard = ({ item, onEdit, onDelete }) => (
-  <Card
-    key={item.id}
-    style={{
-      borderRadius: 20,
-      border: "1px solid #e5edf6",
-      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-    }}
-    styles={{ body: { padding: 18 } }}
-  >
-    <Flex vertical gap={12}>
-      <Flex justify='space-between' align='start' gap={12}>
-        <div>
-          <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
-            {item.name}
-          </Text>
-          <div style={{ marginTop: 6 }}>
-            <Space wrap size={[8, 8]}>
-              <TypeTag value={item.point_type} />
-              <StatusTag active={item.is_active} />
-            </Space>
-          </div>
-        </div>
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: 800,
-            color: item.point_type === "reward" ? "#a16207" : "#b91c1c",
-          }}
-        >
-          {item.point_value}
-        </Text>
-      </Flex>
-
-      <Paragraph style={{ margin: 0, color: "#64748b" }} ellipsis={{ rows: 2 }}>
-        {item.description || "Tidak ada deskripsi tambahan."}
-      </Paragraph>
-
-      <Flex justify='space-between' align='center' gap={12}>
-        <Space size={8}>
-          <BadgeInfo size={15} color='#64748b' />
-          <Text style={{ color: "#64748b" }}>
-            Dipakai {item.usage_count || 0} transaksi
-          </Text>
-        </Space>
-
-        <Space>
-          <Button
-            icon={<PencilLine size={15} />}
-            onClick={() => onEdit(item)}
-            style={{ borderRadius: 12 }}
-          >
-            Edit
-          </Button>
-          <Popconfirm
-            title='Hapus rule ini?'
-            description='Rule yang sudah dipakai transaksi tidak dapat dihapus.'
-            onConfirm={() => onDelete(item)}
-            okText='Hapus'
-            cancelText='Batal'
-          >
-            <Button
-              danger
-              icon={<Trash2 size={15} />}
-              style={{ borderRadius: 12 }}
-              disabled={Number(item.usage_count || 0) > 0}
-            >
-              Hapus
-            </Button>
-          </Popconfirm>
-        </Space>
-      </Flex>
-    </Flex>
-  </Card>
+const RuleActions = ({ item, onEdit, onDelete }) => (
+  <Space>
+    <Tooltip title='Edit rule'>
+      <Button
+        icon={<PencilLine size={15} />}
+        onClick={() => onEdit(item)}
+        style={{ borderRadius: 12 }}
+      />
+    </Tooltip>
+    <Popconfirm
+      title='Hapus rule ini?'
+      description='Rule yang sudah dipakai transaksi tidak dapat dihapus.'
+      onConfirm={() => onDelete(item)}
+      okText='Hapus'
+      cancelText='Batal'
+    >
+      <Tooltip
+        title={
+          Number(item.usage_count || 0) > 0
+            ? "Rule sudah dipakai dan tidak bisa dihapus."
+            : "Hapus rule"
+        }
+      >
+        <Button
+          danger
+          icon={<Trash2 size={15} />}
+          style={{ borderRadius: 12 }}
+          disabled={Number(item.usage_count || 0) > 0}
+        />
+      </Tooltip>
+    </Popconfirm>
+  </Space>
 );
 
-const PointRuleTable = ({
-  dataSource,
-  loading,
-  isMobile,
-  onEdit,
-  onDelete,
-}) => {
-  if (isMobile) {
+const groupRules = (dataSource = []) => {
+  const buckets = new Map();
+
+  dataSource.forEach((item) => {
+    const type = item.point_type || "punishment";
+    const categoryKey = item.category_id
+      ? `${type}-${item.category_id}`
+      : `${type}-none`;
+    if (!buckets.has(categoryKey)) {
+      buckets.set(categoryKey, {
+        key: categoryKey,
+        point_type: type,
+        category_id: item.category_id || null,
+        category_name: item.category_name || "Tanpa Kategori",
+        category_sort_order: item.category_id
+          ? Number(item.category_sort_order || 0)
+          : 9999,
+        rules: [],
+      });
+    }
+    buckets.get(categoryKey).rules.push(item);
+  });
+
+  return Array.from(buckets.values()).sort((a, b) => {
+    if (a.point_type !== b.point_type) {
+      return a.point_type === "reward" ? -1 : 1;
+    }
+    if (a.category_sort_order !== b.category_sort_order) {
+      return a.category_sort_order - b.category_sort_order;
+    }
+    return a.category_name.localeCompare(b.category_name);
+  });
+};
+
+const PointRuleTable = ({ dataSource, loading, isMobile, onEdit, onDelete }) => {
+  const grouped = useMemo(() => groupRules(dataSource), [dataSource]);
+
+  if (!dataSource?.length && !loading) {
     return (
-      <Card style={tableCardStyle} styles={{ body: { padding: 16 } }}>
-        <Flex vertical gap={14}>
-          {dataSource?.length ? (
-            dataSource.map((item) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.22 }}
-              >
-                <RuleCard item={item} onEdit={onEdit} onDelete={onDelete} />
-              </motion.div>
-            ))
-          ) : (
-            <Empty
-              description='Belum ada rule poin untuk filter yang dipilih.'
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
-          )}
-        </Flex>
+      <Card style={tableCardStyle} styles={{ body: { padding: 28 } }}>
+        <Empty
+          description='Belum ada rule poin untuk filter yang dipilih.'
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
       </Card>
     );
   }
 
   const columns = [
     {
-      title: "Rule",
+      title: "Jenis",
       dataIndex: "name",
-      key: "name",
       render: (_, record) => (
         <Flex vertical gap={4}>
           <Text strong style={{ color: "#0f172a" }}>
@@ -196,15 +169,13 @@ const PointRuleTable = ({
     {
       title: "Tipe",
       dataIndex: "point_type",
-      key: "point_type",
-      width: 140,
+      width: 150,
       render: (value) => <TypeTag value={value} />,
     },
     {
-      title: "Poin",
+      title: "Bobot",
       dataIndex: "point_value",
-      key: "point_value",
-      width: 110,
+      width: 90,
       align: "center",
       render: (value, record) => (
         <Text
@@ -221,76 +192,125 @@ const PointRuleTable = ({
     {
       title: "Status",
       dataIndex: "is_active",
-      key: "is_active",
-      width: 120,
+      width: 110,
       render: (value) => <StatusTag active={value} />,
     },
     {
       title: "Dipakai",
       dataIndex: "usage_count",
-      key: "usage_count",
-      width: 110,
+      width: 90,
       align: "center",
       render: (value) => `${Number(value || 0)}x`,
     },
     {
       title: "Aksi",
       key: "actions",
-      width: 150,
+      width: 120,
       render: (_, record) => (
-        <Space size={8}>
-          <Tooltip title='Edit rule'>
-            <Button
-              icon={<PencilLine size={15} />}
-              onClick={() => onEdit(record)}
-              style={{ borderRadius: 12 }}
-            />
-          </Tooltip>
-          <Popconfirm
-            title='Hapus rule ini?'
-            description='Rule yang sudah dipakai transaksi tidak dapat dihapus.'
-            onConfirm={() => onDelete(record)}
-            okText='Hapus'
-            cancelText='Batal'
-          >
-            <Tooltip
-              title={
-                Number(record.usage_count || 0) > 0
-                  ? "Rule sudah dipakai dan tidak bisa dihapus."
-                  : "Hapus rule"
-              }
-            >
-              <Button
-                danger
-                icon={<Trash2 size={15} />}
-                style={{ borderRadius: 12 }}
-                disabled={Number(record.usage_count || 0) > 0}
-              />
-            </Tooltip>
-          </Popconfirm>
-        </Space>
+        <RuleActions item={record} onEdit={onEdit} onDelete={onDelete} />
       ),
     },
   ];
 
   return (
-    <Card style={tableCardStyle} styles={{ body: { padding: 12 } }}>
-      <Table
-        rowKey='id'
-        loading={loading}
-        dataSource={dataSource}
-        columns={columns}
-        pagination={{ pageSize: 10, showSizeChanger: false }}
-        locale={{
-          emptyText: (
-            <Empty
-              description='Belum ada rule poin untuk filter yang dipilih.'
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
-          ),
-        }}
-      />
-    </Card>
+    <Flex vertical gap={16}>
+      {grouped.map((group, index) => (
+        <motion.div
+          key={group.key}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22 }}
+        >
+          <Card style={tableCardStyle} styles={{ body: { padding: 16 } }}>
+            <Flex vertical gap={12}>
+              <Flex justify='space-between' align='center' gap={10} wrap>
+                <Space>
+                  <Tag
+                    style={{
+                      margin: 0,
+                      borderRadius: 999,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {String.fromCharCode(65 + index)}. {group.category_name}
+                  </Tag>
+                  <TypeTag value={group.point_type} />
+                </Space>
+                <Text style={{ color: "#64748b" }}>
+                  {group.rules.length} rule
+                </Text>
+              </Flex>
+
+              {isMobile ? (
+                <Flex vertical gap={10}>
+                  {group.rules.map((item) => (
+                    <Card
+                      key={item.id}
+                      style={{
+                        borderRadius: 16,
+                        border: "1px solid #e5edf6",
+                        boxShadow: "none",
+                      }}
+                      styles={{ body: { padding: 14 } }}
+                    >
+                      <Flex vertical gap={10}>
+                        <Flex justify='space-between' gap={10}>
+                          <div>
+                            <Text strong>{item.name}</Text>
+                            <div style={{ marginTop: 6 }}>
+                              <StatusTag active={item.is_active} />
+                            </div>
+                          </div>
+                          <Title
+                            level={4}
+                            style={{
+                              margin: 0,
+                              color:
+                                item.point_type === "reward"
+                                  ? "#a16207"
+                                  : "#b91c1c",
+                            }}
+                          >
+                            {item.point_value}
+                          </Title>
+                        </Flex>
+                        <Paragraph
+                          style={{ margin: 0, color: "#64748b" }}
+                          ellipsis={{ rows: 2 }}
+                        >
+                          {item.description || "Tidak ada deskripsi tambahan."}
+                        </Paragraph>
+                        <Flex justify='space-between' align='center'>
+                          <Space size={8}>
+                            <BadgeInfo size={15} color='#64748b' />
+                            <Text style={{ color: "#64748b" }}>
+                              Dipakai {item.usage_count || 0} transaksi
+                            </Text>
+                          </Space>
+                          <RuleActions
+                            item={item}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                          />
+                        </Flex>
+                      </Flex>
+                    </Card>
+                  ))}
+                </Flex>
+              ) : (
+                <Table
+                  rowKey='id'
+                  loading={loading}
+                  dataSource={group.rules}
+                  columns={columns}
+                  pagination={false}
+                />
+              )}
+            </Flex>
+          </Card>
+        </motion.div>
+      ))}
+    </Flex>
   );
 };
 

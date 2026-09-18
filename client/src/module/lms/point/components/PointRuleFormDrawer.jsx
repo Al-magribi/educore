@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   Button,
   Divider,
@@ -8,6 +8,7 @@ import {
   Input,
   InputNumber,
   Segmented,
+  Select,
   Space,
   Switch,
   Typography,
@@ -18,8 +19,8 @@ const { Text, Title } = Typography;
 const { TextArea } = Input;
 
 const typeOptions = [
-  { label: "Reward", value: "reward" },
-  { label: "Punishment", value: "punishment" },
+  { label: "Penghargaan", value: "reward" },
+  { label: "Pelanggaran", value: "punishment" },
 ];
 
 const PointRuleFormDrawer = ({
@@ -28,15 +29,29 @@ const PointRuleFormDrawer = ({
   onSubmit,
   initialValues,
   submitting,
+  categories = [],
 }) => {
   const [form] = Form.useForm();
   const isEdit = Boolean(initialValues?.id);
+  const watchedType = Form.useWatch("point_type", form) || "reward";
+
+  const categoryOptions = useMemo(
+    () =>
+      categories
+        .filter((item) => item.point_type === watchedType && item.is_active)
+        .map((item) => ({
+          value: item.id,
+          label: item.name,
+        })),
+    [categories, watchedType],
+  );
 
   useEffect(() => {
     if (!open) return;
     form.setFieldsValue({
       name: initialValues?.name || "",
       point_type: initialValues?.point_type || "reward",
+      category_id: initialValues?.category_id || null,
       point_value: initialValues?.point_value || 5,
       description: initialValues?.description || "",
       is_active: initialValues?.is_active ?? true,
@@ -52,6 +67,7 @@ const PointRuleFormDrawer = ({
     await onSubmit({
       ...initialValues,
       ...values,
+      category_id: values.category_id || null,
       point_value: Number(values.point_value),
     });
     form.resetFields();
@@ -96,8 +112,7 @@ const PointRuleFormDrawer = ({
                 {isEdit ? "Perbarui Rule Poin" : "Tambah Rule Poin"}
               </Title>
               <Text style={{ color: "#64748b" }}>
-                Susun rule yang ringkas, jelas, dan mudah dipakai ulang oleh
-                wali kelas saat mencatat poin siswa.
+                Tentukan jenis, bobot, dan kategori penghargaan atau pelanggaran.
               </Text>
             </div>
           </Space>
@@ -129,7 +144,24 @@ const PointRuleFormDrawer = ({
             name='point_type'
             rules={[{ required: true, message: "Tipe poin wajib dipilih." }]}
           >
-            <Segmented block options={typeOptions} />
+            <Segmented
+              block
+              options={typeOptions}
+              onChange={() => form.setFieldValue("category_id", null)}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label='Kategori'
+            name='category_id'
+            extra='Opsional. Rule lama boleh tanpa kategori sampai dikelompokkan.'
+          >
+            <Select
+              allowClear
+              virtual={false}
+              placeholder='Pilih kategori'
+              options={categoryOptions}
+            />
           </Form.Item>
 
           <Form.Item

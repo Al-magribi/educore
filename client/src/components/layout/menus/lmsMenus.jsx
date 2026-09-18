@@ -139,17 +139,31 @@ const teacherLmsMenu = ({
   return [lmsNode];
 };
 
-const studentLmsMenu = () => ({
-  label: "Mata Pelajaran",
-  key: "/mata-pelajaran",
-  icon: <BookOpenText size={14} />,
-});
+const studentLmsMenu = () => [
+  {
+    label: "Mata Pelajaran",
+    key: "/mata-pelajaran",
+    icon: <BookOpenText size={14} />,
+  },
+  {
+    label: "Poin Siswa",
+    key: "/poin-siswa",
+    icon: <ShieldAlert size={14} />,
+  },
+];
 
-const parentLmsMenu = () => ({
-  label: "Laporan Akademik",
-  key: "/laporan-akademik",
-  icon: <BranchesOutlined />,
-});
+const parentLmsMenu = () => [
+  {
+    label: "Laporan Akademik",
+    key: "/laporan-akademik",
+    icon: <BranchesOutlined />,
+  },
+  {
+    label: "Poin Siswa",
+    key: "/poin-anak",
+    icon: <ShieldAlert size={14} />,
+  },
+];
 
 const buildLmsMenus = (user = {}) => ({
   center: centerLmsMenu(),
@@ -159,8 +173,8 @@ const buildLmsMenus = (user = {}) => ({
     canKurikulum: canManageKurikulum(user),
     canKesiswaan: canManageKesiswaan(user),
   }),
-  student: [studentLmsMenu()],
-  parent: [parentLmsMenu()],
+  student: studentLmsMenu(),
+  parent: parentLmsMenu(),
   tahfiz: [],
 });
 

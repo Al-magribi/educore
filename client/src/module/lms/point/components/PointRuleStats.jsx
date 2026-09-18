@@ -23,7 +23,7 @@ const statConfig = [
   },
   {
     key: "reward_points",
-    label: "Total Poin Prestasi",
+    label: "Total Poin Penghargaan",
     icon: Zap,
     color: "#ca8a04",
     background: "#fef3c7",

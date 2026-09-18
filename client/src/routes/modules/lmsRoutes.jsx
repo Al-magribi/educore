@@ -20,6 +20,12 @@ const StaffAssignment = lazy(
 const TeacherPointView = lazy(
   () => import("../../module/lms/point/view/TeacherPointView"),
 );
+const StudentPointView = lazy(
+  () => import("../../module/lms/point/view/StudentPointView"),
+);
+const ParentPointView = lazy(
+  () => import("../../module/lms/point/view/ParentPointView"),
+);
 const SubjectList = lazy(() => import("../../module/lms/student/SubjectList"));
 
 const ParentDash = lazy(
@@ -164,6 +170,13 @@ const renderStudentLmsRoutes = ({ LazyRoute }) => (
         Component: SubjectList,
       })}
     />
+    <Route
+      path='/poin-siswa'
+      element={createElement(LazyRoute, {
+        title: "Poin Siswa",
+        Component: StudentPointView,
+      })}
+    />
   </Route>
 );
 
@@ -182,6 +195,14 @@ const renderParentLmsRoutes = ({ LazyRoute }) => (
       element={createElement(LazyRoute, {
         title: "Laporan Akademik",
         Component: AcademicReport,
+      })}
+    />
+
+    <Route
+      path='/poin-anak'
+      element={createElement(LazyRoute, {
+        title: "Poin Siswa",
+        Component: ParentPointView,
       })}
     />
   </Route>

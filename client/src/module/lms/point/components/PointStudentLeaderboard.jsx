@@ -135,7 +135,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
           }}
         >
           <MetricCard
-            label='Total Poin Prestasi'
+            label='Total Poin Penghargaan'
             value={student.total_reward}
             percent={100}
             color='#a16207'
@@ -187,7 +187,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
               </span>
               <div>
                 <Text style={{ color: "#64748b", fontSize: 12 }}>
-                  Entri Prestasi
+                  Entri Penghargaan
                 </Text>
                 <Title level={4} style={{ margin: "2px 0 0", color: "#a16207" }}>
                   {student.reward_entries || 0}
@@ -329,7 +329,7 @@ const StudentCard = ({
         }}
       >
         <MetricCard
-          label='Prestasi'
+          label='Penghargaan'
           value={item.total_reward}
           percent={rewardPercent}
           color='#a16207'
@@ -424,7 +424,7 @@ const PointStudentLeaderboard = ({
       ),
     },
     {
-      title: "Prestasi",
+      title: "Penghargaan",
       dataIndex: "total_reward",
       key: "total_reward",
       width: 180,

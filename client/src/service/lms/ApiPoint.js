@@ -3,7 +3,12 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 export const ApiPoint = createApi({
   reducerPath: "ApiPoint",
   baseQuery: fetchBaseQuery({ baseUrl: "/api/lms" }),
-  tagTypes: ["PointAdminRule", "PointAdminMeta"],
+  tagTypes: [
+    "PointAdminRule",
+    "PointAdminMeta",
+    "PointAdminCategory",
+    "PointViewer",
+  ],
   endpoints: (builder) => ({
     getAdminPointMeta: builder.query({
       query: ({ periodeId } = {}) => {
@@ -15,13 +20,24 @@ export const ApiPoint = createApi({
       providesTags: ["PointAdminMeta"],
     }),
     getAdminPointRules: builder.query({
-      query: ({ periodeId, search = "", pointType = "", isActive = "" } = {}) => {
+      query: ({
+        periodeId,
+        search = "",
+        pointType = "",
+        isActive = "",
+        categoryId = "",
+      } = {}) => {
         const params = new URLSearchParams();
         if (periodeId) params.set("periode_id", String(periodeId));
         if (search) params.set("search", String(search));
         if (pointType) params.set("point_type", String(pointType));
         if (isActive !== "" && isActive !== null && isActive !== undefined) {
           params.set("is_active", String(isActive));
+        }
+        if (categoryId === "uncategorized") {
+          params.set("uncategorized", "1");
+        } else if (categoryId) {
+          params.set("category_id", String(categoryId));
         }
         const qs = params.toString();
         return qs ? `/points/admin/rules?${qs}` : "/points/admin/rules";
@@ -45,7 +61,57 @@ export const ApiPoint = createApi({
         method: "PUT",
         body,
       }),
-      invalidatesTags: ["PointAdminMeta"],
+      invalidatesTags: ["PointAdminMeta", "PointViewer"],
+    }),
+    getAdminPointCategories: builder.query({
+      query: ({ periodeId, pointType = "" } = {}) => {
+        const params = new URLSearchParams();
+        if (periodeId) params.set("periode_id", String(periodeId));
+        if (pointType) params.set("point_type", String(pointType));
+        const qs = params.toString();
+        return qs
+          ? `/points/admin/categories?${qs}`
+          : "/points/admin/categories";
+      },
+      providesTags: [{ type: "PointAdminCategory", id: "LIST" }],
+    }),
+    createAdminPointCategory: builder.mutation({
+      query: (body) => ({
+        url: "/points/admin/categories",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminCategory", id: "LIST" },
+        { type: "PointAdminRule", id: "LIST" },
+        "PointViewer",
+      ],
+    }),
+    updateAdminPointCategory: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/points/admin/categories/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminCategory", id: "LIST" },
+        { type: "PointAdminRule", id: "LIST" },
+        "PointViewer",
+      ],
+    }),
+    deleteAdminPointCategory: builder.mutation({
+      query: (id) => ({
+        url: `/points/admin/categories/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminCategory", id: "LIST" },
+        { type: "PointAdminRule", id: "LIST" },
+        "PointViewer",
+      ],
     }),
     createAdminPointRule: builder.mutation({
       query: (body) => ({
@@ -53,7 +119,11 @@ export const ApiPoint = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "LIST" }],
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminRule", id: "LIST" },
+        "PointViewer",
+      ],
     }),
     updateAdminPointRule: builder.mutation({
       query: ({ id, ...body }) => ({
@@ -61,14 +131,22 @@ export const ApiPoint = createApi({
         method: "PUT",
         body,
       }),
-      invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "LIST" }],
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminRule", id: "LIST" },
+        "PointViewer",
+      ],
     }),
     deleteAdminPointRule: builder.mutation({
       query: (id) => ({
         url: `/points/admin/rules/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "LIST" }],
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminRule", id: "LIST" },
+        "PointViewer",
+      ],
     }),
     getTeacherPointBootstrap: builder.query({
       query: ({ periodeId, classId } = {}) => {
@@ -76,9 +154,11 @@ export const ApiPoint = createApi({
         if (periodeId) params.set("periode_id", String(periodeId));
         if (classId) params.set("class_id", String(classId));
         const qs = params.toString();
-        return qs ? `/points/teacher/bootstrap?${qs}` : "/points/teacher/bootstrap";
+        return qs
+          ? `/points/teacher/bootstrap?${qs}`
+          : "/points/teacher/bootstrap";
       },
-      providesTags: ["PointAdminMeta"],
+      providesTags: ["PointAdminMeta", "PointViewer"],
     }),
     getTeacherPointEntries: builder.query({
       query: ({ periodeId, studentId, classId } = {}) => {
@@ -91,23 +171,31 @@ export const ApiPoint = createApi({
       },
       providesTags: [{ type: "PointAdminRule", id: "TEACHER_ENTRIES" }],
     }),
-    createTeacherPointEntry: builder.mutation({
+    createAdminPointEntry: builder.mutation({
       query: (body) => ({
-        url: "/points/teacher/entries",
+        url: "/points/admin/entries",
         method: "POST",
         body,
       }),
-      invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "TEACHER_ENTRIES" }],
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminRule", id: "TEACHER_ENTRIES" },
+        "PointViewer",
+      ],
     }),
-    updateTeacherPointEntry: builder.mutation({
+    updateAdminPointEntry: builder.mutation({
       query: ({ id, ...body }) => ({
-        url: `/points/teacher/entries/${id}`,
+        url: `/points/admin/entries/${id}`,
         method: "PUT",
         body,
       }),
-      invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "TEACHER_ENTRIES" }],
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminRule", id: "TEACHER_ENTRIES" },
+        "PointViewer",
+      ],
     }),
-    deleteTeacherPointEntry: builder.mutation({
+    deleteAdminPointEntry: builder.mutation({
       query: ({ id, periodeId, classId }) => {
         const params = new URLSearchParams();
         if (periodeId) params.set("periode_id", String(periodeId));
@@ -115,27 +203,60 @@ export const ApiPoint = createApi({
         const qs = params.toString();
         return {
           url: qs
-            ? `/points/teacher/entries/${id}?${qs}`
-            : `/points/teacher/entries/${id}`,
+            ? `/points/admin/entries/${id}?${qs}`
+            : `/points/admin/entries/${id}`,
           method: "DELETE",
         };
       },
-      invalidatesTags: ["PointAdminMeta", { type: "PointAdminRule", id: "TEACHER_ENTRIES" }],
+      invalidatesTags: [
+        "PointAdminMeta",
+        { type: "PointAdminRule", id: "TEACHER_ENTRIES" },
+        "PointViewer",
+      ],
+    }),
+    getStudentPointOverview: builder.query({
+      query: ({ periodeId } = {}) => {
+        const params = new URLSearchParams();
+        if (periodeId) params.set("periode_id", String(periodeId));
+        const qs = params.toString();
+        return qs
+          ? `/points/student/overview?${qs}`
+          : "/points/student/overview";
+      },
+      providesTags: ["PointViewer"],
+    }),
+    getParentPointOverview: builder.query({
+      query: ({ periodeId, studentId } = {}) => {
+        const params = new URLSearchParams();
+        if (periodeId) params.set("periode_id", String(periodeId));
+        if (studentId) params.set("student_id", String(studentId));
+        const qs = params.toString();
+        return qs
+          ? `/points/parent/overview?${qs}`
+          : "/points/parent/overview";
+      },
+      providesTags: ["PointViewer"],
     }),
   }),
 });
 
 export const {
+  useCreateAdminPointCategoryMutation,
+  useCreateAdminPointEntryMutation,
   useCreateAdminPointRuleMutation,
-  useCreateTeacherPointEntryMutation,
+  useDeleteAdminPointCategoryMutation,
+  useDeleteAdminPointEntryMutation,
   useDeleteAdminPointRuleMutation,
-  useDeleteTeacherPointEntryMutation,
+  useGetAdminPointCategoriesQuery,
   useGetAdminPointMetaQuery,
   useGetAdminPointRulesQuery,
   useGetAdminPointStudentsSummaryQuery,
+  useGetParentPointOverviewQuery,
+  useGetStudentPointOverviewQuery,
   useGetTeacherPointBootstrapQuery,
   useGetTeacherPointEntriesQuery,
+  useUpdateAdminPointCategoryMutation,
   useUpdateAdminPointConfigMutation,
+  useUpdateAdminPointEntryMutation,
   useUpdateAdminPointRuleMutation,
-  useUpdateTeacherPointEntryMutation,
 } = ApiPoint;

@@ -12,7 +12,13 @@ import {
   message,
 } from "antd";
 import { motion } from "framer-motion";
-import { FileText, ListOrdered, NotebookPen, SlidersHorizontal } from "lucide-react";
+import {
+  FileText,
+  FolderTree,
+  ListOrdered,
+  NotebookPen,
+  SlidersHorizontal,
+} from "lucide-react";
 import PointAdminHero from "../components/PointAdminHero";
 import PointRuleStats from "../components/PointRuleStats";
 import PointRuleToolbar from "../components/PointRuleToolbar";
@@ -20,9 +26,11 @@ import PointRuleFormDrawer from "../components/PointRuleFormDrawer";
 import PointRuleTable from "../components/PointRuleTable";
 import PointStudentLeaderboard from "../components/PointStudentLeaderboard";
 import AdminPointEntryPanel from "../components/AdminPointEntryPanel";
+import PointCategoryPanel from "../components/PointCategoryPanel";
 import {
   useCreateAdminPointRuleMutation,
   useDeleteAdminPointRuleMutation,
+  useGetAdminPointCategoriesQuery,
   useGetAdminPointMetaQuery,
   useGetAdminPointRulesQuery,
   useGetAdminPointStudentsSummaryQuery,
@@ -81,10 +89,11 @@ const AdminPointView = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const [activeTab, setActiveTab] = useState("rules");
+  const [activeTab, setActiveTab] = useState("categories");
   const [search, setSearch] = useState("");
   const [pointType, setPointType] = useState("");
   const [isActive, setIsActive] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState(null);
 
@@ -102,7 +111,12 @@ const AdminPointView = () => {
     search,
     pointType,
     isActive,
+    categoryId,
   });
+  const { data: categoriesRes } = useGetAdminPointCategoriesQuery(
+    { periodeId: activePeriode?.id },
+    { skip: !activePeriode?.id },
+  );
   const {
     data: studentSummaryRes,
     isLoading: isStudentsLoading,
@@ -128,6 +142,10 @@ const AdminPointView = () => {
   );
 
   const rules = useMemo(() => rulesRes?.data || [], [rulesRes?.data]);
+  const categories = useMemo(
+    () => categoriesRes?.data || rulesRes?.meta?.categories || [],
+    [categoriesRes?.data, rulesRes?.meta?.categories],
+  );
   const studentSummary = useMemo(
     () => studentSummaryRes?.data || [],
     [studentSummaryRes?.data],
@@ -163,6 +181,7 @@ const AdminPointView = () => {
           id: values.id,
           name: values.name,
           point_type: values.point_type,
+          category_id: values.category_id,
           point_value: values.point_value,
           description: values.description,
           is_active: values.is_active,
@@ -173,6 +192,7 @@ const AdminPointView = () => {
           periode_id: activePeriode?.id,
           name: values.name,
           point_type: values.point_type,
+          category_id: values.category_id,
           point_value: values.point_value,
           description: values.description,
           is_active: values.is_active,
@@ -219,7 +239,12 @@ const AdminPointView = () => {
     rules: {
       title: "Peraturan Poin",
       description:
-        "Kelola daftar rule prestasi dan pelanggaran yang dipakai admin dan kesiswaan saat mencatat poin siswa.",
+        "Kelola daftar rule penghargaan dan pelanggaran yang dipakai admin dan kesiswaan saat mencatat poin siswa.",
+    },
+    categories: {
+      title: "Kategori Poin",
+      description:
+        "Kelompokkan rule seperti Kehadiran atau Kepribadian untuk penghargaan dan pelanggaran.",
     },
     entries: {
       title: "Input Poin Siswa",
@@ -234,6 +259,38 @@ const AdminPointView = () => {
   };
 
   const tabItems = [
+    {
+      key: "categories",
+      label: (
+        <Space size={8}>
+          <FolderTree size={15} />
+          Kategori
+        </Space>
+      ),
+      children: (
+        <motion.div
+          key='admin-point-categories'
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28 }}
+        >
+          {!activePeriode && !isBusy ? (
+            <Card style={emptyCardStyle} styles={{ body: { padding: 28 } }}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description='Aktifkan periode sekolah terlebih dahulu sebelum membuat kategori poin.'
+              />
+            </Card>
+          ) : (
+            <PointCategoryPanel
+              categories={categories}
+              periodeId={activePeriode?.id}
+              isMobile={isMobile}
+            />
+          )}
+        </motion.div>
+      ),
+    },
     {
       key: "rules",
       label: (
@@ -262,9 +319,12 @@ const AdminPointView = () => {
             search={search}
             pointType={pointType}
             isActive={isActive}
+            categoryId={categoryId}
+            categories={categories}
             onSearchChange={setSearch}
             onPointTypeChange={setPointType}
             onStatusChange={setIsActive}
+            onCategoryChange={setCategoryId}
             onCreate={handleCreate}
             isMobile={isMobile}
           />
@@ -277,7 +337,7 @@ const AdminPointView = () => {
                 </Title>
                 <Text style={{ color: "#64748b", textAlign: "center" }}>
                   Aktifkan periode sekolah terlebih dahulu sebelum membuat rule
-                  poin reward dan punishment.
+                  poin penghargaan dan pelanggaran.
                 </Text>
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
               </Flex>
@@ -294,6 +354,7 @@ const AdminPointView = () => {
         </motion.div>
       ),
     },
+
     {
       key: "entries",
       label: (
@@ -449,6 +510,7 @@ const AdminPointView = () => {
         onSubmit={handleSubmit}
         initialValues={selectedRule}
         submitting={submitting}
+        categories={categories}
       />
     </>
   );

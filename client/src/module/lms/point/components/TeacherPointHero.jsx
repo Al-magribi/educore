@@ -95,7 +95,7 @@ const TeacherPointHero = ({
                 Poin Siswa
               </Title>
               <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-                Pantau akumulasi prestasi dan pelanggaran siswa kelas wali Anda.
+                Pantau akumulasi penghargaan dan pelanggaran siswa kelas wali Anda.
                 Pemberian dan perubahan poin dilakukan oleh admin atau kesiswaan.
               </Text>
             </div>

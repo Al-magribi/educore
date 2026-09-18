@@ -19,14 +19,14 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import TeacherPointEntryDrawer from "./TeacherPointEntryDrawer";
+import AdminPointEntryDrawer from "./AdminPointEntryDrawer";
 import TeacherPointEntryTable from "./TeacherPointEntryTable";
 import {
-  useCreateTeacherPointEntryMutation,
-  useDeleteTeacherPointEntryMutation,
+  useCreateAdminPointEntryMutation,
+  useDeleteAdminPointEntryMutation,
   useGetTeacherPointBootstrapQuery,
   useGetTeacherPointEntriesQuery,
-  useUpdateTeacherPointEntryMutation,
+  useUpdateAdminPointEntryMutation,
 } from "../../../../service/lms/ApiPoint";
 
 const { Text, Title } = Typography;
@@ -60,6 +60,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
   const classOptions = bootstrapRes?.data?.classes || [];
   const students = bootstrapRes?.data?.students || [];
   const rules = bootstrapRes?.data?.rules || [];
+  const catalog = bootstrapRes?.data?.catalog || null;
   const periode = bootstrapRes?.data?.active_periode || activePeriode || null;
   const showBalance = Boolean(bootstrapRes?.data?.point_config?.show_balance);
 
@@ -82,10 +83,10 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
   );
 
   const [createEntry, { isLoading: isCreating }] =
-    useCreateTeacherPointEntryMutation();
+    useCreateAdminPointEntryMutation();
   const [updateEntry, { isLoading: isUpdating }] =
-    useUpdateTeacherPointEntryMutation();
-  const [deleteEntry] = useDeleteTeacherPointEntryMutation();
+    useUpdateAdminPointEntryMutation();
+  const [deleteEntry] = useDeleteAdminPointEntryMutation();
 
   const filteredStudents = useMemo(() => {
     const keyword = searchStudent.trim().toLowerCase();
@@ -232,6 +233,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
             >
               <Text strong>Kelas</Text>
               <Select
+                virtual={false}
                 value={classId || homeroomClass?.id}
                 options={classOptions.map((item) => ({
                   value: item.id,
@@ -265,7 +267,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                   Input Poin Siswa
                 </Title>
                 <Text style={{ color: "#64748b" }}>
-                  Pilih kelas dan siswa, lalu tambahkan prestasi atau
+                  Pilih kelas dan siswa, lalu tambahkan penghargaan atau
                   pelanggaran sesuai rule yang aktif.
                 </Text>
               </div>
@@ -323,7 +325,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                   <Trophy size={18} color='#a16207' />
                   <div>
                     <Text style={{ color: "#64748b", fontSize: 12 }}>
-                      Prestasi
+                      Penghargaan
                     </Text>
                     <Title
                       level={4}
@@ -450,7 +452,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                               color: "#a16207",
                             }}
                           >
-                            Prestasi {student.total_reward || 0}
+                            Penghargaan {student.total_reward || 0}
                           </Tag>
                           <Tag
                             style={{
@@ -507,12 +509,13 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
         />
       </motion.div>
 
-      <TeacherPointEntryDrawer
+      <AdminPointEntryDrawer
         open={drawerOpen}
         onClose={handleCloseDrawer}
         onSubmit={handleSubmit}
         students={students}
         rules={rules}
+        catalog={catalog}
         initialValues={selectedEntry}
         submitting={isCreating || isUpdating}
       />
