@@ -1,0 +1,1 @@
+import{b as e}from"./vendor-BvAjwmK_.js";const o=e=>e&&"object"==typeof e?e:"boolean"==typeof e?{enabled:e,blur:e}:{},r=(r,b,s)=>e.useMemo(()=>{const e=o(r),t={...o(b),...e},a=!1!==t.blur?`${s}-mask-blur`:void 0;return[!1!==t.enabled,{mask:a}]},[r,b,s]);export{r as u};
