@@ -84,7 +84,7 @@ const RouteProtection = ({
   }
 
   if (requireMusyrif && !user.is_musyrif) {
-    return <Navigate to="/" replace />;
+    return <Navigate to='/' replace />;
   }
 
   return <Outlet />;
