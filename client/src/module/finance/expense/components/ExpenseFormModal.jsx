@@ -121,6 +121,7 @@ const ExpenseFormModal = ({
                 value: item.id,
                 label: item.name,
               }))}
+              virtual={false}
             />
           </Form.Item>
         ) : null}
@@ -148,6 +149,7 @@ const ExpenseFormModal = ({
                   value: item.value || item.code,
                   label: item.label,
                 }))}
+                virtual={false}
               />
             </Form.Item>
           </Col>
@@ -187,6 +189,7 @@ const ExpenseFormModal = ({
                   value: item.value,
                   label: item.label,
                 }))}
+                virtual={false}
               />
             </Form.Item>
           </Col>
@@ -203,6 +206,7 @@ const ExpenseFormModal = ({
               value: item.id,
               label: item.name,
             }))}
+            virtual={false}
           />
         </Form.Item>
 

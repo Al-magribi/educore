@@ -30,6 +30,7 @@ import {
   useGetHonorAssignmentsQuery,
   useGetHonorPeopleQuery,
   useGetHonorPositionsQuery,
+  useGetHonorRatesQuery,
   useGetHonorStaffQuery,
   useGetHonorUnitsQuery,
   useUpdateHonorAssignmentMutation,
@@ -68,6 +69,13 @@ const HonorariumPersonnelPanel = ({
   const positionsQuery = useGetHonorPositionsQuery(
     { homebase_id: homebaseId, active_only: 1 },
     { skip: !homebaseId },
+  );
+  const ratesQuery = useGetHonorRatesQuery(
+    { homebase_id: homebaseId },
+    { skip: !homebaseId },
+  );
+  const dutyOptions = (ratesQuery.data?.data || []).filter(
+    (item) => item.item_kind === "extra_duty" && item.is_active,
   );
   const peopleQuery = useGetHonorPeopleQuery(
     { homebase_id: homebaseId },
@@ -208,6 +216,7 @@ const HonorariumPersonnelPanel = ({
       teacher_id: undefined,
       staff_id: undefined,
       position_id: undefined,
+      duty_ids: [],
       valid_range: null,
       notes: "",
       is_active: true,
@@ -222,6 +231,7 @@ const HonorariumPersonnelPanel = ({
       teacher_id: record.teacher_id || undefined,
       staff_id: record.staff_id || undefined,
       position_id: record.position_id,
+      duty_ids: (record.duties || []).map((item) => item.id),
       valid_range:
         record.valid_from || record.valid_to
           ? [
@@ -244,6 +254,7 @@ const HonorariumPersonnelPanel = ({
         teacher_id: values.person_type === "teacher" ? values.teacher_id : null,
         staff_id: values.person_type === "staff" ? values.staff_id : null,
         position_id: values.position_id,
+        duty_ids: values.person_type === "teacher" ? values.duty_ids || [] : [],
         valid_from: fromDate ? fromDate.format("YYYY-MM-DD") : null,
         valid_to: toDate ? toDate.format("YYYY-MM-DD") : null,
         notes: values.notes || null,
@@ -378,6 +389,11 @@ const HonorariumPersonnelPanel = ({
               {record.unit_name || "-"}
             </Tag>
             <Text>{record.position_name}</Text>
+            {(record.duties || []).length > 0 ? (
+              <Text type='secondary' style={{ fontSize: 12 }}>
+                Tugas: {record.duties.map((item) => item.name).join(", ")}
+              </Text>
+            ) : null}
             <Text type='secondary' style={{ fontSize: 12 }}>
               Tunjangan {currencyFormatter.format(record.allowance_amount || 0)}
               {" · "}
@@ -491,6 +507,7 @@ const HonorariumPersonnelPanel = ({
                 value: item.id,
                 label: item.name,
               }))}
+              virtual={false}
             />
           ) : null}
         </Flex>
@@ -523,6 +540,7 @@ const HonorariumPersonnelPanel = ({
                             label: item.name,
                           })),
                         ]}
+                        virtual={false}
                       />
                       <Select
                         value={personTypeFilter}
@@ -533,6 +551,7 @@ const HonorariumPersonnelPanel = ({
                           { value: "teacher", label: "Guru" },
                           { value: "staff", label: "Tendik" },
                         ]}
+                        virtual={false}
                       />
                     </Space>
 
@@ -701,6 +720,7 @@ const HonorariumPersonnelPanel = ({
                   staff_id: undefined,
                 });
               }}
+              virtual={false}
             />
           </Form.Item>
 
@@ -762,6 +782,32 @@ const HonorariumPersonnelPanel = ({
               virtual={false}
             />
           </Form.Item>
+
+          {personTypeWatch !== "staff" ? (
+            <Form.Item
+              name='duty_ids'
+              label='Tugas tambahan'
+              extra='Opsional. Insentif mengikuti master tugas tambahan.'
+            >
+              <Select
+                mode='multiple'
+                virtual={false}
+                allowClear
+                showSearch
+                optionFilterProp='label'
+                placeholder='Pilih tugas tambahan'
+                options={dutyOptions.map((item) => ({
+                  value: item.id,
+                  label: `${item.name} · ${currencyFormatter.format(Number(item.amount || 0))}`,
+                }))}
+                notFoundContent={
+                  <Text type='secondary'>
+                    Belum ada tugas. Buat dulu di tab Tugas Tambahan.
+                  </Text>
+                }
+              />
+            </Form.Item>
+          ) : null}
 
           <Form.Item
             name='valid_range'

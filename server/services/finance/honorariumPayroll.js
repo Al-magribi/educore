@@ -37,6 +37,8 @@ export const calcPayrollLineTotals = ({
   tunjanganWaliKelas = 0,
   tunjanganJabatan = 0,
   gapok = 0,
+  extraIncome = 0,
+  extraDuty = 0,
 }) => {
   const honorMengajar = toNumber(jamFinal) * toNumber(rpPerJam);
   const jumlahTransport = toNumber(hadirFinal) * toNumber(transportRate);
@@ -45,7 +47,9 @@ export const calcPayrollLineTotals = ({
     jumlahTransport +
     toNumber(tunjanganWaliKelas) +
     toNumber(tunjanganJabatan) +
-    toNumber(gapok);
+    toNumber(gapok) +
+    toNumber(extraIncome) +
+    toNumber(extraDuty);
 
   return {
     honor_mengajar: honorMengajar,
@@ -100,6 +104,8 @@ export const normalizePayrollLine = (row = {}) => ({
   tunjangan_wali_kelas: toNumber(row.tunjangan_wali_kelas),
   tunjangan_jabatan: toNumber(row.tunjangan_jabatan),
   gapok: toNumber(row.gapok),
+  extra_income: toNumber(row.extra_income),
+  extra_duty: toNumber(row.extra_duty),
   total_penerimaan: toNumber(row.total_penerimaan),
   sort_order: Number(row.sort_order || 0),
 });
@@ -174,12 +180,14 @@ const insertPayrollLines = async (db, payrollId, homebaseId, previewLines, jamMo
           gapok,
           total_penerimaan,
           notes,
-          sort_order
+          sort_order,
+          extra_income,
+          extra_duty
         )
         VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
           $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-          false,$21,$22,false,$23,$24,$25,$26,$27,$28,$29,$30,$31,NULL,$32
+          false,$21,$22,false,$23,$24,$25,$26,$27,$28,$29,$30,$31,NULL,$32,$33,$34
         )
       `,
       [
@@ -215,6 +223,8 @@ const insertPayrollLines = async (db, payrollId, homebaseId, previewLines, jamMo
         line.gapok || 0,
         line.total_penerimaan || 0,
         sortOrder,
+        line.extra_income || 0,
+        line.extra_duty || 0,
       ],
     );
   }
@@ -475,6 +485,8 @@ export const recalcHonorPayroll = async ({
       tunjanganWaliKelas,
       tunjanganJabatan,
       gapok,
+      extraIncome: toNumber(line.extra_income),
+      extraDuty: toNumber(line.extra_duty),
     });
 
     await db.query(
@@ -486,12 +498,13 @@ export const recalcHonorPayroll = async ({
           jam_mode, jam_mati, jam_hidup, jam_auto, jam_final, jam_overridden,
           hadir_auto, hadir_final, hadir_overridden, rp_per_jam, transport_rate,
           is_homeroom, honor_mengajar, jumlah_transport, tunjangan_wali_kelas,
-          tunjangan_jabatan, gapok, total_penerimaan, notes, sort_order
+          tunjangan_jabatan, gapok, total_penerimaan, notes, sort_order,
+          extra_income, extra_duty
         )
         VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
           $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-          $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35
+          $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37
         )
       `,
       [
@@ -530,6 +543,8 @@ export const recalcHonorPayroll = async ({
         totals.total_penerimaan,
         notes,
         sortOrder,
+        toNumber(line.extra_income),
+        toNumber(line.extra_duty),
       ],
     );
   }

@@ -449,6 +449,8 @@ const buildLineTotals = ({
   homeroomAmount,
   allowanceAmount,
   baseSalary,
+  extraIncome = 0,
+  extraDuty = 0,
 }) => {
   const honorMengajar = jamFinal * teachingRate;
   const jumlahTransport = hadirFinal * transportRate;
@@ -457,7 +459,9 @@ const buildLineTotals = ({
     jumlahTransport +
     homeroomAmount +
     allowanceAmount +
-    baseSalary;
+    baseSalary +
+    extraIncome +
+    extraDuty;
 
   return {
     honor_mengajar: honorMengajar,
@@ -465,8 +469,96 @@ const buildLineTotals = ({
     tunjangan_wali_kelas: homeroomAmount,
     tunjangan_jabatan: allowanceAmount,
     gapok: baseSalary,
+    extra_income: extraIncome,
+    extra_duty: extraDuty,
     total_penerimaan: total,
   };
+};
+
+const loadExtraPayByTeacher = async (db, homebaseId, asOfDate) => {
+  const map = new Map();
+
+  try {
+    const result = await db.query(
+      `
+        SELECT
+          a.teacher_id,
+          r.name AS item_name,
+          r.item_kind,
+          r.amount,
+          a.quantity,
+          u.full_name AS teacher_name,
+          t.nip AS teacher_nip
+        FROM finance.honor_extra_assignment a
+        INNER JOIN finance.honor_rate_item r ON r.id = a.rate_item_id
+        INNER JOIN public.u_teachers t ON t.user_id = a.teacher_id
+        INNER JOIN public.u_users u ON u.id = t.user_id
+        WHERE a.homebase_id = $1
+          AND a.is_active = true
+          AND r.is_active = true
+          AND r.item_kind = 'extra_income'
+          AND (r.valid_from IS NULL OR r.valid_from <= $2::date)
+          AND (r.valid_to IS NULL OR r.valid_to >= $2::date)
+        UNION ALL
+        SELECT
+          ha.teacher_id,
+          r.name AS item_name,
+          r.item_kind,
+          r.amount,
+          0 AS quantity,
+          u.full_name AS teacher_name,
+          t.nip AS teacher_nip
+        FROM finance.honor_assignment_duty d
+        INNER JOIN finance.honor_assignment ha ON ha.id = d.assignment_id
+        INNER JOIN finance.honor_rate_item r ON r.id = d.rate_item_id
+        INNER JOIN public.u_teachers t ON t.user_id = ha.teacher_id
+        INNER JOIN public.u_users u ON u.id = t.user_id
+        WHERE ha.homebase_id = $1
+          AND ha.is_active = true
+          AND ha.person_type = 'teacher'
+          AND r.is_active = true
+          AND r.item_kind = 'extra_duty'
+          AND (r.valid_from IS NULL OR r.valid_from <= $2::date)
+          AND (r.valid_to IS NULL OR r.valid_to >= $2::date)
+      `,
+      [homebaseId, asOfDate],
+    );
+
+    for (const row of result.rows) {
+      const teacherId = Number(row.teacher_id);
+      if (!map.has(teacherId)) {
+        map.set(teacherId, {
+          teacher_id: teacherId,
+          teacher_name: row.teacher_name,
+          teacher_nip: row.teacher_nip,
+          extra_income: 0,
+          extra_duty: 0,
+          detail: [],
+        });
+      }
+      const bucket = map.get(teacherId);
+      const amount = toNumber(row.amount);
+      const quantity = toNumber(row.quantity);
+      const payable =
+        row.item_kind === "extra_income" ? amount * quantity : amount;
+      if (row.item_kind === "extra_income") {
+        bucket.extra_income += payable;
+      } else {
+        bucket.extra_duty += payable;
+      }
+      bucket.detail.push({
+        name: row.item_name,
+        kind: row.item_kind,
+        quantity,
+        amount,
+        payable,
+      });
+    }
+  } catch {
+    // tabel penugasan tambahan belum ada
+  }
+
+  return map;
 };
 
 /**
@@ -506,9 +598,10 @@ export const buildHonorariumPreview = async ({
       .map((item) => item.teacher_id),
   );
 
-  const [{ rates, byCode }, teaching, attendance, homeroomIds] =
+  const [{ rates, byCode }, extraByTeacher, teaching, attendance, homeroomIds] =
     await Promise.all([
       loadActiveRates(db, homebaseId, asOfDate),
+      loadExtraPayByTeacher(db, homebaseId, asOfDate),
       loadTeachingMetrics({
         db,
         homebaseId,
@@ -545,6 +638,8 @@ export const buildHonorariumPreview = async ({
     );
   }
 
+  const appliedExtraTeachers = new Set();
+
   const lines = assignments.map((assignment, index) => {
     const isTeacher = assignment.person_type === "teacher";
     const teacherMetric = isTeacher
@@ -570,6 +665,22 @@ export const buildHonorariumPreview = async ({
     const isHomeroom =
       isTeacher && homeroomIds.has(assignment.teacher_id);
     const waliKelasAmount = isHomeroom ? homeroomRate : 0;
+    let extraIncome = 0;
+    let extraDuty = 0;
+    let extraDetail = [];
+    if (
+      isTeacher &&
+      assignment.teacher_id &&
+      !appliedExtraTeachers.has(assignment.teacher_id)
+    ) {
+      appliedExtraTeachers.add(assignment.teacher_id);
+      const extra = extraByTeacher.get(assignment.teacher_id);
+      if (extra) {
+        extraIncome = extra.extra_income;
+        extraDuty = extra.extra_duty;
+        extraDetail = extra.detail;
+      }
+    }
 
     const totals = buildLineTotals({
       jamFinal: jamAuto,
@@ -579,6 +690,8 @@ export const buildHonorariumPreview = async ({
       homeroomAmount: waliKelasAmount,
       allowanceAmount: assignment.allowance_amount,
       baseSalary: assignment.base_salary,
+      extraIncome,
+      extraDuty,
     });
 
     const lineWarnings = [];
@@ -623,6 +736,7 @@ export const buildHonorariumPreview = async ({
       rp_per_jam: isTeacher ? teachingRate : 0,
       transport_rate: isTeacher ? transportRate : 0,
       is_homeroom: isHomeroom,
+      extra_detail: extraDetail,
       jam_suspicious: isTeacher && jamAuto > jamLimit,
       ...totals,
       source: {
@@ -632,6 +746,55 @@ export const buildHonorariumPreview = async ({
       warnings: lineWarnings,
     };
   });
+
+  for (const extra of extraByTeacher.values()) {
+    if (appliedExtraTeachers.has(extra.teacher_id)) {
+      continue;
+    }
+    const totals = buildLineTotals({
+      jamFinal: 0,
+      hadirFinal: 0,
+      teachingRate: 0,
+      transportRate: 0,
+      homeroomAmount: 0,
+      allowanceAmount: 0,
+      baseSalary: 0,
+      extraIncome: extra.extra_income,
+      extraDuty: extra.extra_duty,
+    });
+    lines.push({
+      no: lines.length + 1,
+      assignment_id: null,
+      person_type: "teacher",
+      teacher_id: extra.teacher_id,
+      staff_id: null,
+      person_name: extra.teacher_name,
+      person_nip: extra.teacher_nip,
+      unit_id: null,
+      unit_name: "Pendapatan Tambahan",
+      unit_code: "TAMBAHAN",
+      unit_sort_order: 900,
+      position_id: null,
+      position_name: extra.detail.map((item) => item.name).join(", "),
+      subjects_text: "",
+      subjects: [],
+      jam_mode: mode,
+      jam_mati: 0,
+      jam_hidup: 0,
+      jam_auto: 0,
+      jam_final: 0,
+      hadir_auto: 0,
+      hadir_final: 0,
+      rp_per_jam: 0,
+      transport_rate: 0,
+      is_homeroom: false,
+      extra_detail: extra.detail,
+      jam_suspicious: false,
+      ...totals,
+      source: { jam: "auto", hadir: "auto" },
+      warnings: [],
+    });
+  }
 
   const suspiciousJamLines = lines.filter((line) => line.jam_suspicious);
   if (suspiciousJamLines.length > 0) {

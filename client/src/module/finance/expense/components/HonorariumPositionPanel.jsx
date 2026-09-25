@@ -266,6 +266,7 @@ const HonorariumPositionPanel = ({
                   value: item.id,
                   label: item.name,
                 }))}
+                virtual={false}
               />
             ) : null}
             <Select
@@ -277,6 +278,7 @@ const HonorariumPositionPanel = ({
                 { value: "all", label: "Semua unit" },
                 ...unitOptions,
               ]}
+              virtual={false}
             />
             <Button
               type='primary'
@@ -348,6 +350,7 @@ const HonorariumPositionPanel = ({
               options={unitOptions}
               showSearch
               optionFilterProp='label'
+              virtual={false}
             />
           </Form.Item>
           <Form.Item

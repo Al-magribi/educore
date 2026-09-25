@@ -365,6 +365,7 @@ const ExpenseCategoryTab = () => {
                   </Space>
                 ),
               }))}
+              virtual={false}
             />
           </Form.Item>
 

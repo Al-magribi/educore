@@ -40,6 +40,19 @@ const normalizeRate = (item = {}) => ({
   homebase_id: Number(item.homebase_id || 0) || null,
   amount: Number(item.amount || 0),
   sort_order: Number(item.sort_order || 0),
+  item_kind: item.item_kind || "standard",
+  is_active: Boolean(item.is_active),
+});
+
+const normalizeExtraAssignment = (item = {}) => ({
+  ...item,
+  id: Number(item.id || 0) || null,
+  homebase_id: Number(item.homebase_id || 0) || null,
+  rate_item_id: Number(item.rate_item_id || 0) || null,
+  teacher_id: item.teacher_id ? Number(item.teacher_id) : null,
+  quantity: Number(item.quantity || 0),
+  amount: Number(item.amount || 0),
+  payable: Number(item.payable || 0),
   is_active: Boolean(item.is_active),
 });
 
@@ -62,6 +75,13 @@ const normalizeAssignment = (item = {}) => ({
   allowance_amount: Number(item.allowance_amount || 0),
   base_salary: Number(item.base_salary || 0),
   is_active: Boolean(item.is_active),
+  duties: Array.isArray(item.duties)
+    ? item.duties.map((duty) => ({
+        id: Number(duty.id),
+        name: duty.name || "",
+        amount: Number(duty.amount || 0),
+      }))
+    : [],
 });
 
 const normalizeTeacherOption = (item = {}) => ({
@@ -79,6 +99,7 @@ export const ApiHonorarium = createApi({
     "HonorUnit",
     "HonorPosition",
     "HonorRate",
+    "HonorExtra",
     "HonorStaff",
     "HonorAssignment",
     "HonorPeople",
@@ -318,7 +339,49 @@ export const ApiHonorarium = createApi({
         { type: "HonorRate", id: "LIST" },
         { type: "HonorRate", id: "ACTIVE" },
         "HonorOption",
+        { type: "HonorExtra", id: "LIST" },
       ],
+    }),
+
+    getHonorExtraAssignments: builder.query({
+      query: (params) =>
+        `/honorarium/extra-assignments?${buildQueryString(params)}`,
+      transformResponse: (response) => {
+        if (!response?.data) {
+          return response;
+        }
+        return {
+          ...response,
+          data: response.data.map(normalizeExtraAssignment),
+        };
+      },
+      providesTags: [{ type: "HonorExtra", id: "LIST" }],
+    }),
+
+    addHonorExtraAssignment: builder.mutation({
+      query: (body) => ({
+        url: "/honorarium/extra-assignments",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "HonorExtra", id: "LIST" }],
+    }),
+
+    updateHonorExtraAssignment: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/honorarium/extra-assignments/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: [{ type: "HonorExtra", id: "LIST" }],
+    }),
+
+    deleteHonorExtraAssignment: builder.mutation({
+      query: ({ id, homebase_id }) => ({
+        url: `/honorarium/extra-assignments/${id}?${buildQueryString({ homebase_id })}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "HonorExtra", id: "LIST" }],
     }),
 
     getHonorPeople: builder.query({
@@ -580,6 +643,10 @@ export const {
   useAddHonorRateMutation,
   useUpdateHonorRateMutation,
   useDeleteHonorRateMutation,
+  useGetHonorExtraAssignmentsQuery,
+  useAddHonorExtraAssignmentMutation,
+  useUpdateHonorExtraAssignmentMutation,
+  useDeleteHonorExtraAssignmentMutation,
   useGetHonorPeopleQuery,
   useGetHonorStaffQuery,
   useAddHonorStaffMutation,

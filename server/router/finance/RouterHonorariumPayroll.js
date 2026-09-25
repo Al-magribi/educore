@@ -428,6 +428,8 @@ router.put(
       tunjanganWaliKelas,
       tunjanganJabatan,
       gapok,
+      extraIncome: Number(current.extra_income || 0),
+      extraDuty: Number(current.extra_duty || 0),
     });
 
     await client.query(

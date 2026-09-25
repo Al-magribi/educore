@@ -29,6 +29,8 @@ const HEADERS = [
   "Jumlah Transport",
   "Tunj. Wali Kelas",
   "Tunj. Jabatan",
+  "Pendapatan Tambahan",
+  "Tugas Tambahan",
   "Total Penerimaan",
   "Catatan",
 ];
@@ -113,6 +115,8 @@ export const exportHonorPayrollExcel = (detail, options = {}) => {
         money(line.jumlah_transport),
         money(line.tunjangan_wali_kelas),
         money(line.tunjangan_jabatan),
+        money(line.extra_income),
+        money(line.extra_duty),
         money(line.total_penerimaan),
         line.notes || "",
       ]);
@@ -120,14 +124,14 @@ export const exportHonorPayrollExcel = (detail, options = {}) => {
 
     const subtotalRow = emptyRow();
     subtotalRow[0] = `Subtotal ${unit.unit_name || ""}`;
-    subtotalRow[13] = money(unit.subtotal);
+    subtotalRow[15] = money(unit.subtotal);
     sheetRows.push(subtotalRow);
     sheetRows.push(emptyRow());
   }
 
   const totalRow = emptyRow();
   totalRow[0] = "TOTAL";
-  totalRow[13] = money(detail.summary?.grand_total ?? detail.grand_total);
+  totalRow[15] = money(detail.summary?.grand_total ?? detail.grand_total);
   sheetRows.push(totalRow);
 
   sheetRows.push(emptyRow());

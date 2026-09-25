@@ -42,7 +42,7 @@ const DEFAULT_RATES = [
   },
 ];
 
-const HONOR_SCHEMA_VERSION = 4;
+const HONOR_SCHEMA_VERSION = 6;
 let honorSchemaVersion = 0;
 let honorSchemaReadyPromise = null;
 
@@ -348,6 +348,68 @@ const ensureHonorTables = async (db) => {
         CREATE INDEX IF NOT EXISTS idx_honor_payroll_line_assignment
         ON finance.honor_payroll_line (assignment_id)
       `);
+
+      await db.query(`
+        ALTER TABLE finance.honor_rate_item
+        ADD COLUMN IF NOT EXISTS item_kind VARCHAR(20) NOT NULL DEFAULT 'standard'
+      `);
+
+      await db.query(`
+        ALTER TABLE finance.honor_rate_item
+        DROP CONSTRAINT IF EXISTS honor_rate_item_kind_check
+      `);
+
+      await db.query(`
+        ALTER TABLE finance.honor_rate_item
+        ADD CONSTRAINT honor_rate_item_kind_check
+        CHECK (item_kind IN ('standard', 'extra_income', 'extra_duty'))
+      `);
+
+      await db.query(`
+        ALTER TABLE finance.honor_payroll_line
+        ADD COLUMN IF NOT EXISTS extra_income NUMERIC(14, 2) NOT NULL DEFAULT 0
+      `);
+
+      await db.query(`
+        ALTER TABLE finance.honor_payroll_line
+        ADD COLUMN IF NOT EXISTS extra_duty NUMERIC(14, 2) NOT NULL DEFAULT 0
+      `);
+
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS finance.honor_extra_assignment (
+          id BIGSERIAL PRIMARY KEY,
+          homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+          rate_item_id BIGINT NOT NULL REFERENCES finance.honor_rate_item(id) ON DELETE CASCADE,
+          teacher_id INT NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
+          quantity NUMERIC(12, 2) NOT NULL DEFAULT 0
+            CHECK (quantity >= 0),
+          notes TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+          updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      await db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_extra_assignment_active
+        ON finance.honor_extra_assignment (rate_item_id, teacher_id)
+        WHERE is_active = true
+      `);
+
+      await db.query(`
+        CREATE INDEX IF NOT EXISTS idx_honor_extra_assignment_homebase
+        ON finance.honor_extra_assignment (homebase_id, rate_item_id, is_active)
+      `);
+
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS finance.honor_assignment_duty (
+          assignment_id BIGINT NOT NULL REFERENCES finance.honor_assignment(id) ON DELETE CASCADE,
+          rate_item_id BIGINT NOT NULL REFERENCES finance.honor_rate_item(id) ON DELETE CASCADE,
+          PRIMARY KEY (assignment_id, rate_item_id)
+        )
+      `);
     })()
       .then(() => {
         honorSchemaVersion = HONOR_SCHEMA_VERSION;
@@ -421,6 +483,7 @@ const normalizeRate = (row = {}) => ({
   homebase_id: Number(row.homebase_id || 0) || null,
   amount: Number(row.amount || 0),
   sort_order: Number(row.sort_order || 0),
+  item_kind: row.item_kind || "standard",
   is_active: Boolean(row.is_active),
   created_by: row.created_by ? Number(row.created_by) : null,
   updated_by: row.updated_by ? Number(row.updated_by) : null,
@@ -447,6 +510,13 @@ const normalizeAssignment = (row = {}) => ({
   allowance_amount: Number(row.allowance_amount || 0),
   base_salary: Number(row.base_salary || 0),
   is_active: Boolean(row.is_active),
+  duties: Array.isArray(row.duties)
+    ? row.duties.map((duty) => ({
+        id: Number(duty.id),
+        name: duty.name,
+        amount: Number(duty.amount || 0),
+      }))
+    : [],
   created_by: row.created_by ? Number(row.created_by) : null,
   updated_by: row.updated_by ? Number(row.updated_by) : null,
 });
@@ -652,6 +722,15 @@ const validateRatePayload = (body = {}) => {
   const sortOrder = sortOrderRaw === null ? 0 : sortOrderRaw;
   const isActive =
     body.is_active === undefined ? true : Boolean(body.is_active);
+  const allowedKinds = new Set(["standard", "extra_income", "extra_duty"]);
+  const systemRate = ["TEACHING_RATE", "TRANSPORT_DAILY", "HOMEROOM_ALLOWANCE"].includes(
+    code,
+  );
+  const itemKind = systemRate
+    ? "standard"
+    : allowedKinds.has(body.item_kind)
+      ? body.item_kind
+      : "standard";
 
   if (!code) {
     return { error: "Kode item honor wajib diisi" };
@@ -691,6 +770,7 @@ const validateRatePayload = (body = {}) => {
       valid_to: validTo,
       sort_order: sortOrder,
       is_active: isActive,
+      item_kind: itemKind,
     },
   };
 };
@@ -740,6 +820,10 @@ const validateAssignmentPayload = (body = {}) => {
   const notes = String(body.notes || "").trim() || null;
   const isActive =
     body.is_active === undefined ? true : Boolean(body.is_active);
+  const dutyIds =
+    personType === "teacher" && Array.isArray(body.duty_ids)
+      ? [...new Set(body.duty_ids.map((value) => parseOptionalInt(value)).filter(Boolean))]
+      : [];
 
   if (!positionId) {
     return { error: "Jabatan wajib dipilih" };
@@ -779,8 +863,32 @@ const validateAssignmentPayload = (body = {}) => {
       valid_to: validTo,
       notes,
       is_active: isActive,
+      duty_ids: dutyIds,
     },
   };
+};
+
+const saveAssignmentDuties = async (client, assignmentId, homebaseId, dutyIds) => {
+  await client.query(
+    `DELETE FROM finance.honor_assignment_duty WHERE assignment_id = $1`,
+    [assignmentId],
+  );
+
+  if (!dutyIds.length) {
+    return;
+  }
+
+  await client.query(
+    `
+      INSERT INTO finance.honor_assignment_duty (assignment_id, rate_item_id)
+      SELECT $1, r.id
+      FROM finance.honor_rate_item r
+      WHERE r.homebase_id = $2
+        AND r.item_kind = 'extra_duty'
+        AND r.id = ANY($3::bigint[])
+    `,
+    [assignmentId, homebaseId, dutyIds],
+  );
 };
 
 const isUniqueViolation = (error) =>
@@ -1533,10 +1641,11 @@ router.post(
             valid_to,
             sort_order,
             is_active,
+            item_kind,
             created_by,
             updated_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
           RETURNING id
         `,
         [
@@ -1549,6 +1658,7 @@ router.post(
           validated.data.valid_to,
           validated.data.sort_order,
           validated.data.is_active,
+          validated.data.item_kind,
           req.user.id,
         ],
       );
@@ -1605,10 +1715,11 @@ router.put(
             valid_to = $6,
             sort_order = $7,
             is_active = $8,
-            updated_by = $9,
+            item_kind = $9,
+            updated_by = $10,
             updated_at = CURRENT_TIMESTAMP
-          WHERE id = $10
-            AND homebase_id = $11
+          WHERE id = $11
+            AND homebase_id = $12
           RETURNING id
         `,
         [
@@ -1620,6 +1731,7 @@ router.put(
           validated.data.valid_to,
           validated.data.sort_order,
           validated.data.is_active,
+          validated.data.item_kind,
           req.user.id,
           rateId,
           homebaseId,
@@ -1681,6 +1793,289 @@ router.delete(
     res.json({
       status: "success",
       message: "Item honor berhasil dihapus",
+      data: { id: Number(result.rows[0].id) },
+    });
+  }),
+);
+
+const normalizeExtraAssignment = (row = {}) => ({
+  ...row,
+  id: Number(row.id || 0) || null,
+  homebase_id: Number(row.homebase_id || 0) || null,
+  rate_item_id: Number(row.rate_item_id || 0) || null,
+  teacher_id: row.teacher_id ? Number(row.teacher_id) : null,
+  quantity: Number(row.quantity || 0),
+  amount: Number(row.amount || 0),
+  payable: Number(row.payable || 0),
+  is_active: Boolean(row.is_active),
+});
+
+const EXTRA_ASSIGNMENT_SELECT = `
+  SELECT
+    a.*,
+    r.name AS item_name,
+    r.code AS item_code,
+    r.item_kind,
+    r.amount,
+    CASE
+      WHEN r.item_kind = 'extra_income' THEN r.amount * a.quantity
+      ELSE r.amount
+    END AS payable,
+    u.full_name AS teacher_name,
+    t.nip AS teacher_nip
+  FROM finance.honor_extra_assignment a
+  INNER JOIN finance.honor_rate_item r ON r.id = a.rate_item_id
+  INNER JOIN public.u_teachers t ON t.user_id = a.teacher_id
+  INNER JOIN public.u_users u ON u.id = t.user_id
+`;
+
+router.get(
+  "/honorarium/extra-assignments",
+  authorize(...HONOR_ROLES),
+  withQuery(async (req, res, db) => {
+    await ensureHonorTables(db);
+
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      db,
+      req.user,
+      requestedHomebaseId,
+    );
+    const rateItemId = parseOptionalInt(req.query.rate_item_id);
+
+    if (!homebaseId) {
+      return res.status(400).json({
+        message: "Satuan belum dipilih atau tidak valid",
+      });
+    }
+
+    const params = [homebaseId];
+    let where = `WHERE a.homebase_id = $1 AND a.is_active = true`;
+    if (rateItemId) {
+      params.push(rateItemId);
+      where += ` AND a.rate_item_id = $2`;
+    }
+
+    const result = await db.query(
+      `
+        ${EXTRA_ASSIGNMENT_SELECT}
+        ${where}
+        ORDER BY r.sort_order ASC, u.full_name ASC, a.id ASC
+      `,
+      params,
+    );
+
+    res.json({
+      status: "success",
+      data: result.rows.map(normalizeExtraAssignment),
+    });
+  }),
+);
+
+router.post(
+  "/honorarium/extra-assignments",
+  authorize(...HONOR_ROLES),
+  withTransaction(async (req, res, client) => {
+    await ensureHonorTables(client);
+
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const rateItemId = parseOptionalInt(req.body.rate_item_id);
+    const teacherId = parseOptionalInt(req.body.teacher_id);
+    const quantity = parseAmount(
+      req.body.quantity === undefined || req.body.quantity === ""
+        ? 0
+        : req.body.quantity,
+    );
+
+    if (!homebaseId || !rateItemId || !teacherId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    if (quantity === null || quantity < 0) {
+      return res.status(400).json({ message: "Kehadiran tidak valid" });
+    }
+
+    const itemResult = await client.query(
+      `
+        SELECT id, item_kind
+        FROM finance.honor_rate_item
+        WHERE id = $1
+          AND homebase_id = $2
+          AND is_active = true
+        LIMIT 1
+      `,
+      [rateItemId, homebaseId],
+    );
+
+    if (itemResult.rowCount === 0) {
+      return res.status(404).json({ message: "Item honor tidak ditemukan" });
+    }
+
+    const itemKind = itemResult.rows[0].item_kind;
+    if (itemKind !== "extra_income" && itemKind !== "extra_duty") {
+      return res.status(400).json({
+        message: "Item ini bukan pendapatan tambahan atau tugas tambahan",
+      });
+    }
+
+    const teacherResult = await client.query(
+      `
+        SELECT t.user_id
+        FROM public.u_teachers t
+        INNER JOIN public.u_users u ON u.id = t.user_id
+        WHERE t.user_id = $1
+          AND t.homebase_id = $2
+          AND u.is_active = true
+        LIMIT 1
+      `,
+      [teacherId, homebaseId],
+    );
+
+    if (teacherResult.rowCount === 0) {
+      return res.status(400).json({ message: "Guru tidak ditemukan di satuan ini" });
+    }
+
+    const storedQuantity = itemKind === "extra_income" ? quantity : 0;
+
+    try {
+      const result = await client.query(
+        `
+          INSERT INTO finance.honor_extra_assignment (
+            homebase_id,
+            rate_item_id,
+            teacher_id,
+            quantity,
+            is_active,
+            created_by,
+            updated_by
+          )
+          VALUES ($1, $2, $3, $4, true, $5, $5)
+          RETURNING id
+        `,
+        [homebaseId, rateItemId, teacherId, storedQuantity, req.user.id],
+      );
+
+      res.status(201).json({
+        status: "success",
+        message: "Penugasan berhasil ditambahkan",
+        data: { id: Number(result.rows[0].id) },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return res.status(400).json({
+          message: "Guru ini sudah ditugaskan pada item tersebut",
+        });
+      }
+      throw error;
+    }
+  }),
+);
+
+router.put(
+  "/honorarium/extra-assignments/:id",
+  authorize(...HONOR_ROLES),
+  withTransaction(async (req, res, client) => {
+    await ensureHonorTables(client);
+
+    const assignmentId = parseOptionalInt(req.params.id);
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+    const quantity = parseAmount(
+      req.body.quantity === undefined || req.body.quantity === ""
+        ? 0
+        : req.body.quantity,
+    );
+
+    if (!assignmentId || !homebaseId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    if (quantity === null || quantity < 0) {
+      return res.status(400).json({ message: "Kehadiran tidak valid" });
+    }
+
+    const result = await client.query(
+      `
+        UPDATE finance.honor_extra_assignment a
+        SET
+          quantity = CASE
+            WHEN r.item_kind = 'extra_income' THEN $1
+            ELSE 0
+          END,
+          updated_by = $2,
+          updated_at = CURRENT_TIMESTAMP
+        FROM finance.honor_rate_item r
+        WHERE a.id = $3
+          AND a.homebase_id = $4
+          AND a.is_active = true
+          AND r.id = a.rate_item_id
+          AND r.homebase_id = a.homebase_id
+        RETURNING a.id
+      `,
+      [quantity, req.user.id, assignmentId, homebaseId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Penugasan tidak ditemukan" });
+    }
+
+    res.json({
+      status: "success",
+      message: "Kehadiran berhasil diperbarui",
+      data: { id: Number(result.rows[0].id) },
+    });
+  }),
+);
+
+router.delete(
+  "/honorarium/extra-assignments/:id",
+  authorize(...HONOR_ROLES),
+  withTransaction(async (req, res, client) => {
+    await ensureHonorTables(client);
+
+    const assignmentId = parseOptionalInt(req.params.id);
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(
+      client,
+      req.user,
+      requestedHomebaseId,
+    );
+
+    if (!assignmentId || !homebaseId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+
+    const result = await client.query(
+      `
+        UPDATE finance.honor_extra_assignment
+        SET
+          is_active = false,
+          updated_by = $1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+          AND homebase_id = $3
+          AND is_active = true
+        RETURNING id
+      `,
+      [req.user.id, assignmentId, homebaseId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Penugasan tidak ditemukan" });
+    }
+
+    res.json({
+      status: "success",
+      message: "Penugasan berhasil dihapus",
       data: { id: Number(result.rows[0].id) },
     });
   }),
@@ -2081,7 +2476,16 @@ router.get(
           CASE
             WHEN a.person_type = 'teacher' THEN t.nip
             ELSE st.nip
-          END AS person_nip
+          END AS person_nip,
+          COALESCE((
+            SELECT json_agg(
+              json_build_object('id', r.id, 'name', r.name, 'amount', r.amount)
+              ORDER BY r.name
+            )
+            FROM finance.honor_assignment_duty d
+            INNER JOIN finance.honor_rate_item r ON r.id = d.rate_item_id
+            WHERE d.assignment_id = a.id
+          ), '[]'::json) AS duties
         FROM finance.honor_assignment a
         INNER JOIN finance.honor_position p ON p.id = a.position_id
         INNER JOIN finance.honor_unit u ON u.id = p.unit_id
@@ -2210,6 +2614,13 @@ router.post(
           validated.data.is_active,
           req.user.id,
         ],
+      );
+
+      await saveAssignmentDuties(
+        client,
+        Number(result.rows[0].id),
+        homebaseId,
+        validated.data.duty_ids,
       );
 
       res.status(201).json({
@@ -2342,6 +2753,13 @@ router.put(
       if (result.rowCount === 0) {
         return res.status(404).json({ message: "Assignment tidak ditemukan" });
       }
+
+      await saveAssignmentDuties(
+        client,
+        assignmentId,
+        homebaseId,
+        validated.data.duty_ids,
+      );
 
       res.json({
         status: "success",

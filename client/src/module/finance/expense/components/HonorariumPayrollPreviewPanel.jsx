@@ -571,6 +571,20 @@ const HonorariumPayrollPreviewPanel = ({
         },
       },
       {
+        title: "Tambahan",
+        key: "extra",
+        width: 120,
+        align: "right",
+        render: (_, record) => {
+          if (record.row_type !== "line") {
+            return null;
+          }
+          const total =
+            Number(record.extra_income || 0) + Number(record.extra_duty || 0);
+          return currencyFormatter.format(total);
+        },
+      },
+      {
         title: "Total",
         dataIndex: "total_penerimaan",
         width: 130,
@@ -696,6 +710,7 @@ const HonorariumPayrollPreviewPanel = ({
                   value: item.id,
                   label: item.name,
                 }))}
+                virtual={false}
               />
             ) : null}
             <Select
@@ -707,18 +722,21 @@ const HonorariumPayrollPreviewPanel = ({
                 value: item.id,
                 label: item.name,
               }))}
+              virtual={false}
             />
             <Select
               value={month}
               onChange={setMonth}
               style={{ minWidth: isMobile ? "48%" : 140 }}
               options={MONTH_OPTIONS}
+              virtual={false}
             />
             <Select
               value={year}
               onChange={setYear}
               style={{ minWidth: isMobile ? "48%" : 110 }}
               options={yearOptions}
+              virtual={false}
             />
             <Select
               value={jamMode}
@@ -728,6 +746,7 @@ const HonorariumPayrollPreviewPanel = ({
                 { value: "mati", label: "Jam mati (sesi/minggu jadwal)" },
                 { value: "hidup", label: "Jam hidup (sesi/bulan jadwal)" },
               ]}
+              virtual={false}
             />
           </Flex>
         </Flex>

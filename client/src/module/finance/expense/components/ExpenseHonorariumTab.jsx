@@ -13,6 +13,7 @@ import {
 import { motion } from "framer-motion";
 import {
   BriefcaseBusiness,
+  ClipboardList,
   Coins,
   Layers3,
   UsersRound,
@@ -23,6 +24,7 @@ import { LoadApp } from "../../../../components";
 import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import { useGetHonorariumOptionsQuery } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle } from "../constants";
+import HonorariumDutyPanel from "./HonorariumDutyPanel";
 import HonorariumPersonnelPanel from "./HonorariumPersonnelPanel";
 import HonorariumPayrollPreviewPanel from "./HonorariumPayrollPreviewPanel";
 import HonorariumPositionPanel from "./HonorariumPositionPanel";
@@ -191,6 +193,7 @@ const ExpenseHonorariumTab = () => {
                   value: item.id,
                   label: item.name,
                 }))}
+                virtual={false}
               />
             ) : null}
           </Flex>
@@ -247,6 +250,22 @@ const ExpenseHonorariumTab = () => {
                 ),
                 children: (
                   <HonorariumPositionPanel
+                    homebaseId={effectiveHomebaseId}
+                    homebases={homebases}
+                    lockHomebase={lockHomebase}
+                    onHomebaseChange={handleHomebaseChange}
+                  />
+                ),
+              },
+              {
+                key: "tugas",
+                label: createSetupLabel(
+                  "Tugas Tambahan",
+                  <ClipboardList size={isMobile ? 14 : 16} />,
+                  "Insentif di luar jabatan",
+                ),
+                children: (
+                  <HonorariumDutyPanel
                     homebaseId={effectiveHomebaseId}
                     homebases={homebases}
                     lockHomebase={lockHomebase}

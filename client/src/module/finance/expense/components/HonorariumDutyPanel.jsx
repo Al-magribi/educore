@@ -21,17 +21,28 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { LoadApp } from "../../../../components";
 import {
-  useAddHonorUnitMutation,
-  useDeleteHonorUnitMutation,
-  useGetHonorUnitsQuery,
-  useUpdateHonorUnitMutation,
+  useAddHonorRateMutation,
+  useDeleteHonorRateMutation,
+  useGetHonorRatesQuery,
+  useUpdateHonorRateMutation,
 } from "../../../../service/finance/ApiHonorarium";
-import { cardStyle } from "../constants";
+import { cardStyle, currencyFormatter, rupiahInputProps } from "../constants";
 
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
-const HonorariumUnitPanel = ({
+const toDutyCode = (name) => {
+  const slug = String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 40);
+  return `TUGAS_${slug || "ITEM"}`;
+};
+
+const HonorariumDutyPanel = ({
   homebaseId,
   homebases = [],
   lockHomebase = false,
@@ -43,23 +54,24 @@ const HonorariumUnitPanel = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  const listQuery = useGetHonorUnitsQuery(
+  const listQuery = useGetHonorRatesQuery(
     { homebase_id: homebaseId },
     { skip: !homebaseId },
   );
-  const units = listQuery.data?.data || [];
+  const duties = (listQuery.data?.data || []).filter(
+    (item) => item.item_kind === "extra_duty",
+  );
 
-  const [addUnit, addState] = useAddHonorUnitMutation();
-  const [updateUnit, updateState] = useUpdateHonorUnitMutation();
-  const [deleteUnit, deleteState] = useDeleteHonorUnitMutation();
+  const [addRate, addState] = useAddHonorRateMutation();
+  const [updateRate, updateState] = useUpdateHonorRateMutation();
+  const [deleteRate, deleteState] = useDeleteHonorRateMutation();
   const saving = addState.isLoading || updateState.isLoading;
 
   const openCreate = () => {
     setEditing(null);
     form.setFieldsValue({
       name: "",
-      code: "",
-      sort_order: (units.length || 0) + 1,
+      amount: 0,
       is_active: true,
     });
     setModalOpen(true);
@@ -68,9 +80,8 @@ const HonorariumUnitPanel = ({
   const openEdit = (record) => {
     setEditing(record);
     form.setFieldsValue({
-      name: record.name,
-      code: record.code || "",
-      sort_order: record.sort_order ?? 0,
+      name: record.name || "",
+      amount: record.amount || 0,
       is_active: record.is_active !== false,
     });
     setModalOpen(true);
@@ -80,55 +91,48 @@ const HonorariumUnitPanel = ({
     try {
       const payload = {
         homebase_id: homebaseId,
+        code: editing?.code || toDutyCode(values.name),
         name: values.name,
-        code: values.code || null,
-        sort_order: values.sort_order ?? 0,
+        item_kind: "extra_duty",
+        amount: values.amount || 0,
+        description: null,
+        valid_from: null,
+        valid_to: null,
+        sort_order: editing?.sort_order ?? duties.length + 1,
         is_active: values.is_active !== false,
       };
 
       if (editing?.id) {
-        await updateUnit({ id: editing.id, ...payload }).unwrap();
-        message.success("Unit berhasil diperbarui");
+        await updateRate({ id: editing.id, ...payload }).unwrap();
+        message.success("Tugas tambahan berhasil diperbarui");
       } else {
-        await addUnit(payload).unwrap();
-        message.success("Unit berhasil ditambahkan");
+        await addRate(payload).unwrap();
+        message.success("Tugas tambahan berhasil ditambahkan");
       }
 
       setModalOpen(false);
       setEditing(null);
       form.resetFields();
     } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan unit");
+      message.error(error?.data?.message || "Gagal menyimpan tugas tambahan");
     }
   };
 
   const handleDelete = (record) => {
     Modal.confirm({
-      title: `Hapus unit "${record.name}"?`,
-      content:
-        record.position_count > 0
-          ? "Unit masih memiliki jabatan. Hapus jabatan terlebih dahulu."
-          : "Data yang dihapus tidak dapat dikembalikan.",
+      title: `Hapus tugas "${record.name}"?`,
       okText: "Hapus",
-      okButtonProps: {
-        danger: true,
-        disabled: record.position_count > 0,
-        loading: deleteState.isLoading,
-      },
+      okButtonProps: { danger: true, loading: deleteState.isLoading },
       cancelText: "Batal",
       onOk: async () => {
-        if (record.position_count > 0) {
-          return;
-        }
-
         try {
-          await deleteUnit({
+          await deleteRate({
             id: record.id,
             homebase_id: homebaseId,
           }).unwrap();
-          message.success("Unit berhasil dihapus");
+          message.success("Tugas tambahan berhasil dihapus");
         } catch (error) {
-          message.error(error?.data?.message || "Gagal menghapus unit");
+          message.error(error?.data?.message || "Gagal menghapus tugas tambahan");
         }
       },
     });
@@ -137,30 +141,17 @@ const HonorariumUnitPanel = ({
   const columns = useMemo(
     () => [
       {
-        title: "Urutan",
-        dataIndex: "sort_order",
-        width: 90,
-        align: "center",
+        title: "Tugas",
+        dataIndex: "name",
+        render: (value) => <Text strong>{value}</Text>,
       },
       {
-        title: "Unit",
-        key: "name",
-        render: (_, record) => (
-          <Space direction='vertical' size={0}>
-            <Text strong>{record.name}</Text>
-            <Text type='secondary' style={{ fontSize: 12 }}>
-              {record.code || "Tanpa kode"}
-            </Text>
-          </Space>
-        ),
-      },
-      {
-        title: "Jabatan",
-        dataIndex: "position_count",
-        width: 100,
-        align: "center",
+        title: "Insentif",
+        dataIndex: "amount",
+        width: 160,
+        align: "right",
         render: (value) => (
-          <Tag style={{ borderRadius: 999 }}>{Number(value || 0)}</Tag>
+          <Text strong>{currencyFormatter.format(Number(value || 0))}</Text>
         ),
       },
       {
@@ -174,9 +165,9 @@ const HonorariumUnitPanel = ({
         ),
       },
       {
-        title: "Aksi",
+        title: "",
         key: "action",
-        width: 120,
+        width: 96,
         render: (_, record) => (
           <Space>
             <Button
@@ -212,22 +203,16 @@ const HonorariumUnitPanel = ({
   return (
     <Flex vertical gap={isMobile ? 12 : 16}>
       <Card style={cardStyle} styles={{ body: { padding: isMobile ? 14 : 18 } }}>
-        <Flex
-          justify='space-between'
-          align={isMobile ? "stretch" : "center"}
-          vertical={isMobile}
-          gap={12}
-          wrap='wrap'
-        >
-          <Flex vertical gap={4} style={{ minWidth: 0, flex: 1 }}>
+        <Flex justify='space-between' align={isMobile ? "stretch" : "center"} vertical={isMobile} gap={12}>
+          <Flex vertical gap={4}>
             <Text strong style={{ fontSize: 16 }}>
-              Unit Honorarium
+              Tugas Tambahan
             </Text>
             <Text type='secondary' style={{ fontSize: 13 }}>
-              Section slip gaji: Yayasan, Guru, Tata Usaha, atau unit custom.
+              Contoh kesiswaan. Insentif tetap, lalu ditugaskan saat guru dipilih untuk jabatan.
             </Text>
           </Flex>
-          <Flex gap={8} wrap='wrap' style={{ width: isMobile ? "100%" : "auto" }}>
+          <Flex gap={8} wrap='wrap'>
             {!lockHomebase ? (
               <Select
                 placeholder='Pilih satuan'
@@ -245,34 +230,30 @@ const HonorariumUnitPanel = ({
               type='primary'
               icon={<Plus size={16} />}
               onClick={openCreate}
-              block={isMobile}
               style={{ borderRadius: 12 }}
             >
-              Tambah Unit
+              Tambah Tugas
             </Button>
           </Flex>
         </Flex>
       </Card>
 
       <MotionDiv initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <Card
-          style={cardStyle}
-          styles={{ body: { padding: isMobile ? 8 : 12 } }}
-        >
+        <Card style={cardStyle} styles={{ body: { padding: isMobile ? 8 : 12 } }}>
           <Table
             rowKey='id'
             size={isMobile ? "small" : "middle"}
             columns={columns}
-            dataSource={units}
+            dataSource={duties}
             loading={listQuery.isFetching}
             pagination={false}
-            scroll={{ x: 640 }}
+            locale={{ emptyText: "Belum ada tugas tambahan." }}
           />
         </Card>
       </MotionDiv>
 
       <Modal
-        title={editing ? "Edit Unit" : "Tambah Unit"}
+        title={editing ? "Edit Tugas Tambahan" : "Tambah Tugas Tambahan"}
         open={modalOpen}
         onCancel={() => {
           setModalOpen(false);
@@ -286,30 +267,22 @@ const HonorariumUnitPanel = ({
         destroyOnClose
         centered
       >
-        <Form
-          form={form}
-          layout='vertical'
-          onFinish={handleSubmit}
-          style={{ marginTop: 12 }}
-        >
+        <Form form={form} layout='vertical' onFinish={handleSubmit} style={{ marginTop: 12 }}>
           <Form.Item
             name='name'
-            label='Nama Unit'
-            rules={[{ required: true, message: "Nama unit wajib diisi" }]}
+            label='Nama tugas'
+            rules={[{ required: true, message: "Nama tugas wajib diisi" }]}
           >
-            <Input placeholder='Contoh: Yayasan, Guru, Tata Usaha' />
-          </Form.Item>
-          <Form.Item name='code' label='Kode (opsional)'>
-            <Input placeholder='Contoh: YAYASAN' />
-          </Form.Item>
-          <Form.Item name='sort_order' label='Urutan tampil'>
-            <InputNumber min={0} style={{ width: "100%" }} />
+            <Input placeholder='Kesiswaan' />
           </Form.Item>
           <Form.Item
-            name='is_active'
-            label='Aktif'
-            valuePropName='checked'
+            name='amount'
+            label='Insentif'
+            rules={[{ required: true, message: "Insentif wajib diisi" }]}
           >
+            <InputNumber {...rupiahInputProps} placeholder='Rp 0' />
+          </Form.Item>
+          <Form.Item name='is_active' label='Aktif' valuePropName='checked'>
             <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
           </Form.Item>
         </Form>
@@ -318,4 +291,4 @@ const HonorariumUnitPanel = ({
   );
 };
 
-export default HonorariumUnitPanel;
+export default HonorariumDutyPanel;
