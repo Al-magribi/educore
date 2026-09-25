@@ -584,7 +584,7 @@ const loadEskulPay = async (db, homebaseId, asOfDate) => {
           a.person_type,
           a.teacher_id,
           a.staff_id,
-          a.quantity,
+          a.rate_item_id,
           r.name AS item_name,
           r.amount,
           CASE
@@ -624,14 +624,13 @@ const loadEskulPay = async (db, homebaseId, asOfDate) => {
         }));
       }
       const bucket = map.get(key);
-      const payable = toNumber(row.amount) * toNumber(row.quantity);
-      bucket.extra_income += payable;
       bucket.detail.push({
+        rate_item_id: Number(row.rate_item_id),
         name: row.item_name,
         kind: "eskul",
-        quantity: toNumber(row.quantity),
+        quantity: 0,
         amount: toNumber(row.amount),
-        payable,
+        payable: 0,
       });
     }
   } catch {
@@ -755,7 +754,7 @@ export const buildHonorariumPreview = async ({
       : 0;
     const isHomeroom =
       isTeacher && homeroomIds.has(assignment.teacher_id);
-    const waliKelasAmount = isHomeroom ? homeroomRate : 0;
+    const waliKelasAmount = 0;
     let extraIncome = 0;
     let extraDuty = 0;
     let extraDetail = [];

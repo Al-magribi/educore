@@ -42,7 +42,7 @@ const DEFAULT_RATES = [
   },
 ];
 
-const HONOR_SCHEMA_VERSION = 7;
+const HONOR_SCHEMA_VERSION = 8;
 let honorSchemaVersion = 0;
 let honorSchemaReadyPromise = null;
 
@@ -373,6 +373,11 @@ const ensureHonorTables = async (db) => {
       await db.query(`
         ALTER TABLE finance.honor_payroll_line
         ADD COLUMN IF NOT EXISTS extra_duty NUMERIC(14, 2) NOT NULL DEFAULT 0
+      `);
+
+      await db.query(`
+        ALTER TABLE finance.honor_payroll_line
+        ADD COLUMN IF NOT EXISTS extra_detail JSONB NOT NULL DEFAULT '[]'::jsonb
       `);
 
       await db.query(`
@@ -863,11 +868,9 @@ const validateAssignmentPayload = (body = {}) => {
     ? body.eskul_items
         .map((item) => ({
           rate_item_id: parseOptionalInt(item?.rate_item_id),
-          quantity: parseAmount(
-            item?.quantity === undefined || item?.quantity === "" ? 0 : item.quantity,
-          ),
+          quantity: 0,
         }))
-        .filter((item) => item.rate_item_id && item.quantity !== null && item.quantity >= 0)
+        .filter((item) => item.rate_item_id)
     : [];
 
   if (!positionId) {

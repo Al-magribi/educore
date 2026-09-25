@@ -7,7 +7,6 @@ import {
   Form,
   Grid,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
@@ -229,7 +228,6 @@ const HonorariumPersonnelPanel = ({
       )
       .map((item) => ({
         rate_item_id: item.rate_item_id,
-        quantity: item.quantity || 0,
       }));
 
   const openCreateAssignment = (person) => {
@@ -592,14 +590,7 @@ const HonorariumPersonnelPanel = ({
           return (
             <Space direction='vertical' size={2}>
               {items.map((item) => (
-                <Flex key={item.id} justify='space-between' gap={8}>
-                  <Text>
-                    {item.item_name} · {Number(item.quantity || 0)}x
-                  </Text>
-                  <Text strong>
-                    {currencyFormatter.format(Number(item.payable || 0))}
-                  </Text>
-                </Flex>
+                <Text key={item.id}>{item.item_name}</Text>
               ))}
             </Space>
           );
@@ -1062,7 +1053,7 @@ const HonorariumPersonnelPanel = ({
               <Flex vertical gap={8}>
                 <Flex justify='space-between' align='center'>
                   <Text strong>Eskul</Text>
-                  <Button type='link' onClick={() => add({ quantity: 0 })} disabled={eskulOptions.length === 0}>
+                  <Button type='link' onClick={() => add({})} disabled={eskulOptions.length === 0}>
                     Tambah eskul
                   </Button>
                 </Flex>
@@ -1080,16 +1071,9 @@ const HonorariumPersonnelPanel = ({
                         placeholder='Pilih eskul'
                         options={eskulOptions.map((item) => ({
                           value: item.id,
-                          label: `${item.name} · ${currencyFormatter.format(Number(item.amount || 0))}`,
+                          label: `${item.name} · ${currencyFormatter.format(Number(item.amount || 0))}/hadir`,
                         }))}
                       />
-                    </Form.Item>
-                    <Form.Item
-                      name={[field.name, "quantity"]}
-                      rules={[{ required: true, message: "Kehadiran wajib diisi" }]}
-                      style={{ width: 110, marginBottom: 0 }}
-                    >
-                      <InputNumber min={0} placeholder='Hadir' style={{ width: "100%" }} />
                     </Form.Item>
                     <Button type='text' danger onClick={() => remove(field.name)}>
                       Hapus

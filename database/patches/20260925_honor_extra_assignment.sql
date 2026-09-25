@@ -16,6 +16,9 @@ ALTER TABLE finance.honor_payroll_line
 ALTER TABLE finance.honor_payroll_line
     ADD COLUMN IF NOT EXISTS extra_duty NUMERIC(14, 2) NOT NULL DEFAULT 0;
 
+ALTER TABLE finance.honor_payroll_line
+    ADD COLUMN IF NOT EXISTS extra_detail JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 CREATE TABLE IF NOT EXISTS finance.honor_extra_assignment (
     id BIGSERIAL PRIMARY KEY,
     homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,

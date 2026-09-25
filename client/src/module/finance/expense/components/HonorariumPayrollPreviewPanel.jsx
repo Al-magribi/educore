@@ -296,6 +296,14 @@ const HonorariumPayrollPreviewPanel = ({
       tunjangan_jabatan: record.tunjangan_jabatan,
       gapok: record.gapok,
       notes: record.notes || "",
+      eskul_attendance: (record.extra_detail || [])
+        .filter((item) => item.kind === "eskul")
+        .map((item) => ({
+          rate_item_id: item.rate_item_id,
+          name: item.name,
+          amount: item.amount,
+          quantity: item.quantity || 0,
+        })),
     });
     setEditOpen(true);
   };
@@ -323,7 +331,18 @@ const HonorariumPayrollPreviewPanel = ({
         id: selectedPayrollId,
         lineId: editingLine.id,
         homebase_id: homebaseId,
-        ...values,
+        jam_final: values.jam_final,
+        hadir_final: values.hadir_final,
+        rp_per_jam: values.rp_per_jam,
+        transport_rate: values.transport_rate,
+        tunjangan_wali_kelas: values.tunjangan_wali_kelas,
+        tunjangan_jabatan: values.tunjangan_jabatan,
+        gapok: values.gapok,
+        notes: values.notes,
+        eskul_attendance: (values.eskul_attendance || []).map((item) => ({
+          rate_item_id: item.rate_item_id,
+          quantity: item.quantity,
+        })),
       }).unwrap();
       message.success("Baris diperbarui");
       setEditOpen(false);
@@ -443,19 +462,28 @@ const HonorariumPayrollPreviewPanel = ({
     }
   };
 
-  const columns = useMemo(
-    () => [
+  const columns = useMemo(() => {
+    const money = (value) => currencyFormatter.format(Number(value || 0));
+    const lineMoney = (value, record) =>
+      record.row_type === "line" ? money(value) : null;
+    const extraLines = (record, kinds) =>
+      (record.extra_detail || []).filter((item) => kinds.includes(item.kind));
+
+    return [
       {
         title: "No",
         dataIndex: "no",
         width: 48,
         align: "center",
+        fixed: "left",
         render: (value, record) => (record.row_type === "line" ? value : null),
       },
       {
-        title: "Nama / Jabatan",
-        key: "person",
-        render: (_, record) => {
+        title: "Nama",
+        dataIndex: "person_name",
+        width: 200,
+        fixed: "left",
+        render: (value, record) => {
           if (record.row_type === "unit") {
             return (
               <Text strong style={{ color: "#9a3412" }}>
@@ -472,23 +500,24 @@ const HonorariumPayrollPreviewPanel = ({
           }
           return (
             <Space direction='vertical' size={0}>
-              <Flex gap={6} wrap='wrap' align='center'>
-                <Text strong>{record.person_name}</Text>
+              <Text strong>{value}</Text>
+              <Flex gap={4} wrap='wrap'>
                 {record.jam_overridden ? (
-                  <Tag style={{ borderRadius: 999 }}>Jam edit</Tag>
+                  <Tag style={{ borderRadius: 999, marginInlineEnd: 0 }}>Jam edit</Tag>
                 ) : null}
                 {record.hadir_overridden ? (
-                  <Tag style={{ borderRadius: 999 }}>Hadir edit</Tag>
+                  <Tag style={{ borderRadius: 999, marginInlineEnd: 0 }}>Hadir edit</Tag>
                 ) : null}
               </Flex>
-              <Text type='secondary' style={{ fontSize: 12 }}>
-                {record.position_name}
-                {" · "}
-                {record.person_type === "teacher" ? "Guru" : "Tendik"}
-              </Text>
             </Space>
           );
         },
+      },
+      {
+        title: "Jabatan",
+        dataIndex: "position_name",
+        width: 140,
+        render: (value, record) => (record.row_type === "line" ? value || "-" : null),
       },
       {
         title: "Mapel",
@@ -500,31 +529,45 @@ const HonorariumPayrollPreviewPanel = ({
       {
         title: "Jam",
         dataIndex: "jam_final",
-        width: 72,
+        width: 64,
         align: "center",
         render: (value, record) => {
           if (record.row_type !== "line") {
             return null;
           }
-          const suspicious = isSuspiciousJam(
-            value,
-            detail?.jam_mode || jamMode,
-          );
+          const suspicious = isSuspiciousJam(value, detail?.jam_mode || jamMode);
           return (
             <Text
               strong={suspicious}
               style={{ color: suspicious ? "#b91c1c" : undefined }}
-              title={
-                suspicious
-                  ? `Di atas ambang ${getJamThreshold(detail?.jam_mode || jamMode)} · mati ${record.jam_mati} / hidup ${record.jam_hidup}`
-                  : `mati ${record.jam_mati} / hidup ${record.jam_hidup}`
-              }
+              title={`mati ${record.jam_mati} / hidup ${record.jam_hidup}`}
             >
               {Number(value || 0)}
               {suspicious ? " !" : ""}
             </Text>
           );
         },
+      },
+      {
+        title: "Rp/Jam",
+        dataIndex: "rp_per_jam",
+        width: 110,
+        align: "right",
+        render: lineMoney,
+      },
+      {
+        title: "Transport",
+        dataIndex: "transport_rate",
+        width: 110,
+        align: "right",
+        render: lineMoney,
+      },
+      {
+        title: "Gapok",
+        dataIndex: "gapok",
+        width: 110,
+        align: "right",
+        render: lineMoney,
       },
       {
         title: "Hadir",
@@ -535,60 +578,104 @@ const HonorariumPayrollPreviewPanel = ({
           record.row_type === "line" ? Number(value || 0) : null,
       },
       {
-        title: "Honor",
+        title: "Honor Mengajar",
         dataIndex: "honor_mengajar",
-        width: 120,
+        width: 130,
         align: "right",
         render: (value, record) =>
-          record.row_type === "line"
-            ? currencyFormatter.format(Number(value || 0))
-            : null,
+          record.row_type === "line" ? (
+            <Text title={`${Number(record.jam_final || 0)} × ${money(record.rp_per_jam)}`}>
+              {money(value)}
+            </Text>
+          ) : null,
       },
       {
-        title: "Transport",
+        title: "Jumlah Transport",
         dataIndex: "jumlah_transport",
-        width: 110,
+        width: 140,
         align: "right",
         render: (value, record) =>
-          record.row_type === "line"
-            ? currencyFormatter.format(Number(value || 0))
-            : null,
+          record.row_type === "line" ? (
+            <Text title={`${Number(record.hadir_final || 0)} × ${money(record.transport_rate)}`}>
+              {money(value)}
+            </Text>
+          ) : null,
       },
       {
-        title: "Gapok+Tunj",
-        key: "fixed",
-        width: 120,
+        title: "Tunj. Wali Kelas",
+        dataIndex: "tunjangan_wali_kelas",
+        width: 130,
+        align: "right",
+        render: lineMoney,
+      },
+      {
+        title: "Tunj. Jabatan",
+        dataIndex: "tunjangan_jabatan",
+        width: 130,
+        align: "right",
+        render: lineMoney,
+      },
+      {
+        title: "Pendapatan Tambahan",
+        key: "extra_income",
+        width: 180,
         align: "right",
         render: (_, record) => {
           if (record.row_type !== "line") {
             return null;
           }
-          const total =
-            Number(record.gapok || 0) +
-            Number(record.tunjangan_jabatan || 0) +
-            Number(record.tunjangan_wali_kelas || 0);
-          return currencyFormatter.format(total);
+          const items = extraLines(record, ["extra_income", "eskul"]);
+          return (
+            <Space direction='vertical' size={0} style={{ width: "100%", alignItems: "flex-end" }}>
+              <Text>{money(record.extra_income)}</Text>
+              {items.map((item) => (
+                <Text
+                  key={`${item.kind}-${item.rate_item_id || item.name}`}
+                  type='secondary'
+                  style={{ fontSize: 11 }}
+                >
+                  {item.name}
+                  {item.kind === "eskul" ? ` · ${Number(item.quantity || 0)} hadir` : ""}
+                  {" · "}
+                  {money(item.payable)}
+                </Text>
+              ))}
+            </Space>
+          );
         },
       },
       {
-        title: "Tambahan",
-        key: "extra",
-        width: 120,
+        title: "Tugas Tambahan",
+        key: "extra_duty",
+        width: 160,
         align: "right",
         render: (_, record) => {
           if (record.row_type !== "line") {
             return null;
           }
-          const total =
-            Number(record.extra_income || 0) + Number(record.extra_duty || 0);
-          return currencyFormatter.format(total);
+          const items = extraLines(record, ["extra_duty"]);
+          return (
+            <Space direction='vertical' size={0} style={{ width: "100%", alignItems: "flex-end" }}>
+              <Text>{money(record.extra_duty)}</Text>
+              {items.map((item) => (
+                <Text
+                  key={item.rate_item_id || item.name}
+                  type='secondary'
+                  style={{ fontSize: 11 }}
+                >
+                  {item.name} · {money(item.payable)}
+                </Text>
+              ))}
+            </Space>
+          );
         },
       },
       {
         title: "Total",
         dataIndex: "total_penerimaan",
-        width: 130,
+        width: 140,
         align: "right",
+        fixed: "right",
         render: (value, record) => {
           if (record.row_type === "unit") {
             return null;
@@ -600,15 +687,23 @@ const HonorariumPayrollPreviewPanel = ({
                 color: record.row_type === "subtotal" ? "#9a3412" : undefined,
               }}
             >
-              {currencyFormatter.format(Number(value || 0))}
+              {money(value)}
             </Text>
           );
         },
       },
       {
+        title: "Catatan",
+        dataIndex: "notes",
+        width: 160,
+        render: (value, record) =>
+          record.row_type === "line" ? value || "-" : null,
+      },
+      {
         title: "",
         key: "action",
-        width: 64,
+        width: 48,
+        fixed: "right",
         render: (_, record) =>
           record.row_type === "line" && !isLocked ? (
             <Button
@@ -618,9 +713,8 @@ const HonorariumPayrollPreviewPanel = ({
             />
           ) : null,
       },
-    ],
-    [isLocked, detail?.jam_mode, jamMode],
-  );
+    ];
+  }, [isLocked, detail?.jam_mode, jamMode]);
 
   if (!homebaseId) {
     return (
@@ -850,7 +944,7 @@ const HonorariumPayrollPreviewPanel = ({
                 dataSource={flatRows}
                 loading={detailQuery.isFetching}
                 pagination={false}
-                scroll={{ x: 1020 }}
+                scroll={{ x: 2100 }}
               />
             )}
           </Card>
@@ -917,6 +1011,43 @@ const HonorariumPayrollPreviewPanel = ({
           <Form.Item name='gapok' label='Gapok'>
             <InputNumber {...rupiahInputProps} placeholder='Rp 0' />
           </Form.Item>
+          <Form.List name='eskul_attendance'>
+            {(fields) => {
+              const eskulItems = (editingLine?.extra_detail || []).filter(
+                (item) => item.kind === "eskul",
+              );
+              if (!fields.length) {
+                return null;
+              }
+              return (
+                <Flex vertical gap={8} style={{ marginBottom: 16 }}>
+                  <Text strong>Kehadiran eskul</Text>
+                  {fields.map((field) => {
+                    const item = eskulItems[field.name] || {};
+                    return (
+                      <Flex key={field.key} gap={8} align='center'>
+                        <Form.Item name={[field.name, "rate_item_id"]} hidden>
+                          <Input />
+                        </Form.Item>
+                        <Text style={{ flex: 1 }}>
+                          {item.name || "Eskul"}
+                          {" · "}
+                          {currencyFormatter.format(Number(item.amount || 0))}/hadir
+                        </Text>
+                        <Form.Item
+                          name={[field.name, "quantity"]}
+                          rules={[{ required: true, message: "Hadir wajib diisi" }]}
+                          style={{ width: 110, marginBottom: 0 }}
+                        >
+                          <InputNumber min={0} placeholder='Hadir' style={{ width: "100%" }} />
+                        </Form.Item>
+                      </Flex>
+                    );
+                  })}
+                </Flex>
+              );
+            }}
+          </Form.List>
           <Form.Item name='notes' label='Catatan'>
             <TextArea rows={2} placeholder='Opsional' />
           </Form.Item>

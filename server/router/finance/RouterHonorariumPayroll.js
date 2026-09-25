@@ -9,11 +9,13 @@ import {
 } from "./financeHelpers.js";
 import { prepareHonorHomebase } from "./RouterHonorarium.js";
 import {
+  applyEskulAttendance,
   calcPayrollLineTotals,
   generateHonorPayroll,
   getPayrollDetail,
   normalizePayrollPeriod,
   recalcHonorPayroll,
+  sumExtraFromDetail,
   refreshPayrollGrandTotal,
 } from "../../services/finance/honorariumPayroll.js";
 
@@ -420,6 +422,30 @@ router.put(
         ? String(body.notes || "").trim() || null
         : current.notes;
 
+    const hasStoredDetail =
+      Array.isArray(current.extra_detail) && current.extra_detail.length > 0;
+    const extraDetail =
+      Array.isArray(body.eskul_attendance) && hasStoredDetail
+        ? applyEskulAttendance(current.extra_detail, body.eskul_attendance)
+        : current.extra_detail;
+    const extras =
+      Array.isArray(body.eskul_attendance) && hasStoredDetail
+        ? sumExtraFromDetail(extraDetail)
+        : {
+            extraIncome: Number(current.extra_income || 0),
+            extraDuty: Number(current.extra_duty || 0),
+          };
+
+    if (
+      Array.isArray(body.eskul_attendance) &&
+      body.eskul_attendance.some((item) => {
+        const quantity = parseAmount(item?.quantity);
+        return quantity === null || quantity < 0;
+      })
+    ) {
+      return res.status(400).json({ message: "Kehadiran eskul tidak valid" });
+    }
+
     const totals = calcPayrollLineTotals({
       jamFinal,
       hadirFinal,
@@ -428,8 +454,8 @@ router.put(
       tunjanganWaliKelas,
       tunjanganJabatan,
       gapok,
-      extraIncome: Number(current.extra_income || 0),
-      extraDuty: Number(current.extra_duty || 0),
+      extraIncome: extras.extraIncome,
+      extraDuty: extras.extraDuty,
     });
 
     await client.query(
@@ -449,8 +475,11 @@ router.put(
           jumlah_transport = $11,
           total_penerimaan = $12,
           notes = $13,
+          extra_income = $14,
+          extra_duty = $15,
+          extra_detail = $16::jsonb,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $14
+        WHERE id = $17
       `,
       [
         jamFinal,
@@ -466,6 +495,9 @@ router.put(
         totals.jumlah_transport,
         totals.total_penerimaan,
         notes,
+        extras.extraIncome,
+        extras.extraDuty,
+        JSON.stringify(extraDetail || []),
         lineId,
       ],
     );

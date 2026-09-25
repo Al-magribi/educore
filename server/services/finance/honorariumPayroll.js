@@ -5,6 +5,95 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+export const normalizeExtraDetail = (value) => {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? (() => {
+          try {
+            return JSON.parse(value);
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+  return raw
+    .filter((item) => item && typeof item === "object")
+    .map((item) => {
+      const quantity = toNumber(item.quantity);
+      const amount = toNumber(item.amount);
+      const kind = String(item.kind || "");
+      const payable =
+        kind === "eskul" || kind === "extra_income" ? amount * quantity : amount;
+      return {
+        rate_item_id: item.rate_item_id ? Number(item.rate_item_id) : null,
+        name: String(item.name || ""),
+        kind,
+        quantity,
+        amount,
+        payable,
+      };
+    });
+};
+
+export const applyEskulAttendance = (detail, attendance = []) => {
+  const quantities = new Map();
+  for (const item of attendance) {
+    const rateItemId = Number(item?.rate_item_id);
+    const quantity = toNumber(item?.quantity, NaN);
+    if (!rateItemId || !Number.isFinite(quantity) || quantity < 0) {
+      continue;
+    }
+    quantities.set(rateItemId, quantity);
+  }
+
+  return normalizeExtraDetail(detail).map((item) => {
+    if (item.kind !== "eskul" || !quantities.has(item.rate_item_id)) {
+      return item;
+    }
+    const quantity = quantities.get(item.rate_item_id);
+    return {
+      ...item,
+      quantity,
+      payable: item.amount * quantity,
+    };
+  });
+};
+
+export const sumExtraFromDetail = (detail = []) => {
+  let extraIncome = 0;
+  let extraDuty = 0;
+  for (const item of detail) {
+    if (item.kind === "extra_duty") {
+      extraDuty += toNumber(item.payable);
+    } else if (item.kind === "eskul" || item.kind === "extra_income") {
+      extraIncome += toNumber(item.payable);
+    }
+  }
+  return { extraIncome, extraDuty };
+};
+
+export const mergePreservedEskulAttendance = (nextDetail, previousDetail) => {
+  const previous = new Map(
+    normalizeExtraDetail(previousDetail)
+      .filter((item) => item.kind === "eskul" && item.rate_item_id)
+      .map((item) => [item.rate_item_id, item.quantity]),
+  );
+
+  return normalizeExtraDetail(nextDetail).map((item) => {
+    if (item.kind !== "eskul" || !previous.has(item.rate_item_id)) {
+      return item;
+    }
+    const quantity = previous.get(item.rate_item_id);
+    return {
+      ...item,
+      quantity,
+      payable: item.amount * quantity,
+    };
+  });
+};
+
 /** Normalize DATE / Date / ISO to YYYY-MM-DD (local calendar). */
 export const toDateOnly = (value) => {
   if (!value) {
@@ -106,6 +195,7 @@ export const normalizePayrollLine = (row = {}) => ({
   gapok: toNumber(row.gapok),
   extra_income: toNumber(row.extra_income),
   extra_duty: toNumber(row.extra_duty),
+  extra_detail: normalizeExtraDetail(row.extra_detail),
   total_penerimaan: toNumber(row.total_penerimaan),
   sort_order: Number(row.sort_order || 0),
 });
@@ -182,12 +272,13 @@ const insertPayrollLines = async (db, payrollId, homebaseId, previewLines, jamMo
           notes,
           sort_order,
           extra_income,
-          extra_duty
+          extra_duty,
+          extra_detail
         )
         VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
           $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-          false,$21,$22,false,$23,$24,$25,$26,$27,$28,$29,$30,$31,NULL,$32,$33,$34
+          false,$21,$22,false,$23,$24,$25,$26,$27,$28,$29,$30,$31,NULL,$32,$33,$34,$35::jsonb
         )
       `,
       [
@@ -225,6 +316,7 @@ const insertPayrollLines = async (db, payrollId, homebaseId, previewLines, jamMo
         sortOrder,
         line.extra_income || 0,
         line.extra_duty || 0,
+        JSON.stringify(normalizeExtraDetail(line.extra_detail)),
       ],
     );
   }
@@ -436,9 +528,16 @@ export const recalcHonorPayroll = async ({
     [payroll.id],
   );
 
-  const existingByAssignment = new Map(
-    existingLines.rows.map((row) => [Number(row.assignment_id), row]),
-  );
+  const existingByAssignment = new Map();
+  for (const row of existingLines.rows) {
+    if (row.assignment_id) {
+      existingByAssignment.set(`a:${Number(row.assignment_id)}`, row);
+    } else if (row.teacher_id) {
+      existingByAssignment.set(`t:${Number(row.teacher_id)}`, row);
+    } else if (row.staff_id) {
+      existingByAssignment.set(`s:${Number(row.staff_id)}`, row);
+    }
+  }
 
   await db.query(`DELETE FROM finance.honor_payroll_line WHERE payroll_id = $1`, [
     payroll.id,
@@ -449,7 +548,14 @@ export const recalcHonorPayroll = async ({
 
   for (const line of preview.data.lines || []) {
     sortOrder += 1;
-    const prev = existingByAssignment.get(Number(line.assignment_id));
+    const prevKey = line.assignment_id
+      ? `a:${Number(line.assignment_id)}`
+      : line.teacher_id
+        ? `t:${Number(line.teacher_id)}`
+        : line.staff_id
+          ? `s:${Number(line.staff_id)}`
+          : null;
+    const prev = prevKey ? existingByAssignment.get(prevKey) : undefined;
     const jamOverridden = Boolean(prev?.jam_overridden);
     const hadirOverridden = Boolean(prev?.hadir_overridden);
 
@@ -466,9 +572,7 @@ export const recalcHonorPayroll = async ({
     const transportRate = keepManualMoney && prev
       ? toNumber(prev.transport_rate, line.transport_rate)
       : toNumber(line.transport_rate);
-    const tunjanganWaliKelas = keepManualMoney && prev
-      ? toNumber(prev.tunjangan_wali_kelas, line.tunjangan_wali_kelas)
-      : toNumber(line.tunjangan_wali_kelas);
+    const tunjanganWaliKelas = toNumber(line.tunjangan_wali_kelas);
     const tunjanganJabatan = keepManualMoney && prev
       ? toNumber(prev.tunjangan_jabatan, line.tunjangan_jabatan)
       : toNumber(line.tunjangan_jabatan);
@@ -476,6 +580,11 @@ export const recalcHonorPayroll = async ({
       ? toNumber(prev.gapok, line.gapok)
       : toNumber(line.gapok);
     const notes = prev?.notes || null;
+    const extraDetail = mergePreservedEskulAttendance(
+      line.extra_detail,
+      prev?.extra_detail,
+    );
+    const extras = sumExtraFromDetail(extraDetail);
 
     const totals = calcPayrollLineTotals({
       jamFinal,
@@ -485,8 +594,8 @@ export const recalcHonorPayroll = async ({
       tunjanganWaliKelas,
       tunjanganJabatan,
       gapok,
-      extraIncome: toNumber(line.extra_income),
-      extraDuty: toNumber(line.extra_duty),
+      extraIncome: extras.extraIncome,
+      extraDuty: extras.extraDuty || toNumber(line.extra_duty),
     });
 
     await db.query(
@@ -499,12 +608,12 @@ export const recalcHonorPayroll = async ({
           hadir_auto, hadir_final, hadir_overridden, rp_per_jam, transport_rate,
           is_homeroom, honor_mengajar, jumlah_transport, tunjangan_wali_kelas,
           tunjangan_jabatan, gapok, total_penerimaan, notes, sort_order,
-          extra_income, extra_duty
+          extra_income, extra_duty, extra_detail
         )
         VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
           $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-          $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37
+          $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38::jsonb
         )
       `,
       [
@@ -543,8 +652,9 @@ export const recalcHonorPayroll = async ({
         totals.total_penerimaan,
         notes,
         sortOrder,
-        toNumber(line.extra_income),
-        toNumber(line.extra_duty),
+        extras.extraIncome,
+        extras.extraDuty || toNumber(line.extra_duty),
+        JSON.stringify(extraDetail),
       ],
     );
   }
