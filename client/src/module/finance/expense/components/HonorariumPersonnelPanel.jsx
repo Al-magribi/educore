@@ -7,6 +7,7 @@ import {
   Form,
   Grid,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
@@ -28,6 +29,7 @@ import {
   useDeleteHonorAssignmentMutation,
   useDeleteHonorStaffMutation,
   useGetHonorAssignmentsQuery,
+  useGetHonorEskulAssignmentsQuery,
   useGetHonorPeopleQuery,
   useGetHonorPositionsQuery,
   useGetHonorRatesQuery,
@@ -60,6 +62,7 @@ const HonorariumPersonnelPanel = ({
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [unitFilter, setUnitFilter] = useState("all");
   const [personTypeFilter, setPersonTypeFilter] = useState("all");
+  const [nameSearch, setNameSearch] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
 
   const unitsQuery = useGetHonorUnitsQuery(
@@ -77,8 +80,16 @@ const HonorariumPersonnelPanel = ({
   const dutyOptions = (ratesQuery.data?.data || []).filter(
     (item) => item.item_kind === "extra_duty" && item.is_active,
   );
-  const peopleQuery = useGetHonorPeopleQuery(
+  const eskulOptions = (ratesQuery.data?.data || []).filter(
+    (item) => item.item_kind === "eskul" && item.is_active,
+  );
+  const eskulAssignQuery = useGetHonorEskulAssignmentsQuery(
     { homebase_id: homebaseId },
+    { skip: !homebaseId },
+  );
+  const eskulAssignments = eskulAssignQuery.data?.data || [];
+  const peopleQuery = useGetHonorPeopleQuery(
+    { homebase_id: homebaseId, active_only: 0 },
     { skip: !homebaseId },
   );
   const staffQuery = useGetHonorStaffQuery(
@@ -209,14 +220,33 @@ const HonorariumPersonnelPanel = ({
     });
   };
 
-  const openCreateAssignment = () => {
+  const eskulItemsForPerson = (personType, teacherId, staffId) =>
+    eskulAssignments
+      .filter((item) =>
+        personType === "staff"
+          ? Number(item.staff_id) === Number(staffId)
+          : Number(item.teacher_id) === Number(teacherId),
+      )
+      .map((item) => ({
+        rate_item_id: item.rate_item_id,
+        quantity: item.quantity || 0,
+      }));
+
+  const openCreateAssignment = (person) => {
     setEditingAssignment(null);
+    const personType = person?.person_type === "staff" ? "staff" : "teacher";
     assignmentForm.setFieldsValue({
-      person_type: "teacher",
-      teacher_id: undefined,
-      staff_id: undefined,
+      person_type: personType,
+      teacher_id:
+        personType === "teacher" ? person?.teacher_id || undefined : undefined,
+      staff_id: personType === "staff" ? person?.staff_id || undefined : undefined,
       position_id: undefined,
       duty_ids: [],
+      eskul_items: eskulItemsForPerson(
+        personType,
+        person?.teacher_id,
+        person?.staff_id,
+      ),
       valid_range: null,
       notes: "",
       is_active: true,
@@ -232,6 +262,11 @@ const HonorariumPersonnelPanel = ({
       staff_id: record.staff_id || undefined,
       position_id: record.position_id,
       duty_ids: (record.duties || []).map((item) => item.id),
+      eskul_items: eskulItemsForPerson(
+        record.person_type,
+        record.teacher_id,
+        record.staff_id,
+      ),
       valid_range:
         record.valid_from || record.valid_to
           ? [
@@ -255,6 +290,7 @@ const HonorariumPersonnelPanel = ({
         staff_id: values.person_type === "staff" ? values.staff_id : null,
         position_id: values.position_id,
         duty_ids: values.person_type === "teacher" ? values.duty_ids || [] : [],
+        eskul_items: (values.eskul_items || []).filter((item) => item?.rate_item_id),
         valid_from: fromDate ? fromDate.format("YYYY-MM-DD") : null,
         valid_to: toDate ? toDate.format("YYYY-MM-DD") : null,
         notes: values.notes || null,
@@ -362,6 +398,125 @@ const HonorariumPersonnelPanel = ({
     [deleteStaffState.isLoading, homebaseId],
   );
 
+  const personnelRows = useMemo(() => {
+    const byPerson = new Map();
+    const personKey = (type, id) => `${type}:${id}`;
+
+    for (const teacher of teachers) {
+      byPerson.set(personKey("teacher", teacher.id), {
+        person_type: "teacher",
+        person_name: teacher.full_name || "",
+        person_nip: teacher.nip || null,
+        teacher_id: teacher.id,
+        staff_id: null,
+        person_active: teacher.is_active !== false,
+        assignments: [],
+      });
+    }
+
+    for (const staff of peopleStaff) {
+      byPerson.set(personKey("staff", staff.id), {
+        person_type: "staff",
+        person_name: staff.full_name || "",
+        person_nip: staff.nip || null,
+        teacher_id: null,
+        staff_id: staff.id,
+        person_active: staff.is_active !== false,
+        assignments: [],
+      });
+    }
+
+    for (const assignment of assignments) {
+      const id =
+        assignment.person_type === "teacher"
+          ? assignment.teacher_id
+          : assignment.staff_id;
+      if (!id) {
+        continue;
+      }
+      const key = personKey(assignment.person_type, id);
+      if (!byPerson.has(key)) {
+        byPerson.set(key, {
+          person_type: assignment.person_type,
+          person_name: assignment.person_name || "",
+          person_nip: assignment.person_nip || null,
+          teacher_id: assignment.teacher_id,
+          staff_id: assignment.staff_id,
+          person_active: true,
+          assignments: [],
+        });
+      }
+      byPerson.get(key).assignments.push(assignment);
+    }
+
+    const keyword = nameSearch.trim().toLocaleLowerCase("id");
+    const rows = [];
+
+    for (const person of byPerson.values()) {
+      if (
+        personTypeFilter !== "all" &&
+        person.person_type !== personTypeFilter
+      ) {
+        continue;
+      }
+      if (
+        keyword &&
+        !String(person.person_name || "")
+          .toLocaleLowerCase("id")
+          .includes(keyword)
+      ) {
+        continue;
+      }
+
+      const matchedAssignments = person.assignments.filter((assignment) => {
+        if (unitFilter === "all") {
+          return true;
+        }
+        return Number(assignment.unit_id) === Number(unitFilter);
+      });
+
+      if (matchedAssignments.length === 0) {
+        if (unitFilter !== "all") {
+          continue;
+        }
+        rows.push({
+          id: `unassigned-${person.person_type}-${person.teacher_id || person.staff_id}`,
+          unassigned: true,
+          person_type: person.person_type,
+          person_name: person.person_name,
+          person_nip: person.person_nip,
+          teacher_id: person.teacher_id,
+          staff_id: person.staff_id,
+          is_active: person.person_active,
+          duties: [],
+        });
+        continue;
+      }
+
+      for (const assignment of matchedAssignments) {
+        rows.push({ ...assignment, unassigned: false });
+      }
+    }
+
+    rows.sort((left, right) => {
+      const byName = String(left.person_name || "").localeCompare(
+        String(right.person_name || ""),
+        "id",
+        { sensitivity: "base" },
+      );
+      if (byName !== 0) {
+        return byName;
+      }
+      return String(left.position_name || "").localeCompare(
+        String(right.position_name || ""),
+        "id",
+        { sensitivity: "base" },
+      );
+    });
+
+    return rows;
+  }, [teachers, peopleStaff, assignments, nameSearch, personTypeFilter, unitFilter]);
+
   const assignmentColumns = useMemo(
     () => [
       {
@@ -380,7 +535,11 @@ const HonorariumPersonnelPanel = ({
       {
         title: "Unit / Jabatan",
         key: "position",
-        render: (_, record) => (
+        render: (_, record) => {
+          if (record.unassigned) {
+            return <Tag style={{ borderRadius: 999 }}>Belum ditugaskan</Tag>;
+          }
+          return (
           <Space direction='vertical' size={0}>
             <Tag
               color='blue'
@@ -389,24 +548,93 @@ const HonorariumPersonnelPanel = ({
               {record.unit_name || "-"}
             </Tag>
             <Text>{record.position_name}</Text>
-            {(record.duties || []).length > 0 ? (
-              <Text type='secondary' style={{ fontSize: 12 }}>
-                Tugas: {record.duties.map((item) => item.name).join(", ")}
-              </Text>
-            ) : null}
-            <Text type='secondary' style={{ fontSize: 12 }}>
-              Tunjangan {currencyFormatter.format(record.allowance_amount || 0)}
-              {" · "}
-              Gapok {currencyFormatter.format(record.base_salary || 0)}
-            </Text>
           </Space>
-        ),
+          );
+        },
+      },
+      {
+        title: "Tunjangan",
+        dataIndex: "allowance_amount",
+        width: 140,
+        align: "right",
+        render: (value, record) =>
+          record.unassigned ? (
+            <Text type='secondary'>—</Text>
+          ) : (
+            <Text strong>{currencyFormatter.format(Number(value || 0))}</Text>
+          ),
+      },
+      {
+        title: "Gapok",
+        dataIndex: "base_salary",
+        width: 140,
+        align: "right",
+        render: (value, record) =>
+          record.unassigned ? (
+            <Text type='secondary'>—</Text>
+          ) : (
+            <Text strong>{currencyFormatter.format(Number(value || 0))}</Text>
+          ),
+      },
+      {
+        title: "Eskul",
+        key: "eskul",
+        width: 220,
+        render: (_, record) => {
+          const items = eskulAssignments.filter((item) =>
+            record.person_type === "staff"
+              ? Number(item.staff_id) === Number(record.staff_id)
+              : Number(item.teacher_id) === Number(record.teacher_id),
+          );
+          if (!items.length) {
+            return <Text type='secondary'>—</Text>;
+          }
+          return (
+            <Space direction='vertical' size={2}>
+              {items.map((item) => (
+                <Flex key={item.id} justify='space-between' gap={8}>
+                  <Text>
+                    {item.item_name} · {Number(item.quantity || 0)}x
+                  </Text>
+                  <Text strong>
+                    {currencyFormatter.format(Number(item.payable || 0))}
+                  </Text>
+                </Flex>
+              ))}
+            </Space>
+          );
+        },
+      },
+      {
+        title: "Tugas tambahan",
+        key: "duties",
+        width: 220,
+        render: (_, record) => {
+          if (record.unassigned || !(record.duties || []).length) {
+            return <Text type='secondary'>—</Text>;
+          }
+          return (
+            <Space direction='vertical' size={2}>
+              {record.duties.map((item) => (
+                <Flex key={item.id} justify='space-between' gap={8}>
+                  <Text>{item.name}</Text>
+                  <Text strong>
+                    {currencyFormatter.format(Number(item.amount || 0))}
+                  </Text>
+                </Flex>
+              ))}
+            </Space>
+          );
+        },
       },
       {
         title: "Masa berlaku",
         key: "valid",
         width: 170,
         render: (_, record) => {
+          if (record.unassigned) {
+            return <Text type='secondary'>—</Text>;
+          }
           if (!record.valid_from && !record.valid_to) {
             return <Text type='secondary'>Selamanya</Text>;
           }
@@ -426,13 +654,13 @@ const HonorariumPersonnelPanel = ({
       {
         title: "Status",
         dataIndex: "is_active",
-        width: 100,
-        render: (value) => (
+        width: 140,
+        render: (value, record) => (
           <Tag
-            color={value ? "green" : "default"}
+            color={record.unassigned ? "orange" : value ? "green" : "default"}
             style={{ borderRadius: 999 }}
           >
-            {value ? "Aktif" : "Nonaktif"}
+            {record.unassigned ? "Belum ditugaskan" : value ? "Aktif" : "Nonaktif"}
           </Tag>
         ),
       },
@@ -440,7 +668,16 @@ const HonorariumPersonnelPanel = ({
         title: "Aksi",
         key: "action",
         width: 120,
-        render: (_, record) => (
+        render: (_, record) =>
+          record.unassigned ? (
+            <Button
+              type='link'
+              disabled={positions.length === 0}
+              onClick={() => openCreateAssignment(record)}
+            >
+              Tugaskan
+            </Button>
+          ) : (
           <Space>
             <Button
               type='text'
@@ -454,10 +691,10 @@ const HonorariumPersonnelPanel = ({
               onClick={() => handleDeleteAssignment(record)}
             />
           </Space>
-        ),
+          ),
       },
     ],
-    [deleteAssignmentState.isLoading, homebaseId],
+    [deleteAssignmentState.isLoading, homebaseId, positions.length],
   );
 
   if (!homebaseId) {
@@ -528,7 +765,14 @@ const HonorariumPersonnelPanel = ({
               children: (
                 <Flex vertical gap={12}>
                   <Flex gap={8} wrap='wrap' justify='space-between'>
-                    <Space>
+                    <Space wrap>
+                      <Input.Search
+                        allowClear
+                        placeholder='Cari nama'
+                        value={nameSearch}
+                        onChange={(event) => setNameSearch(event.target.value)}
+                        style={{ minWidth: isMobile ? "100%" : 220 }}
+                      />
                       <Select
                         value={unitFilter}
                         onChange={setUnitFilter}
@@ -558,7 +802,7 @@ const HonorariumPersonnelPanel = ({
                     <Button
                       type='primary'
                       icon={<Plus size={16} />}
-                      onClick={openCreateAssignment}
+                      onClick={() => openCreateAssignment()}
                       disabled={positions.length === 0}
                       style={{ borderRadius: 12 }}
                       block={isMobile}
@@ -572,22 +816,26 @@ const HonorariumPersonnelPanel = ({
                       Belum ada jabatan. Buat jabatan di tab Jabatan terlebih
                       dahulu.
                     </Text>
-                  ) : (
-                    <MotionDiv
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                    >
-                      <Table
-                        rowKey='id'
-                        size={isMobile ? "small" : "middle"}
-                        columns={assignmentColumns}
-                        dataSource={assignments}
-                        loading={assignmentQuery.isFetching}
-                        pagination={false}
-                        scroll={{ x: 860 }}
-                      />
-                    </MotionDiv>
-                  )}
+                  ) : null}
+                  <MotionDiv
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <Table
+                      rowKey='id'
+                      size={isMobile ? "small" : "middle"}
+                      columns={assignmentColumns}
+                      dataSource={personnelRows}
+                      loading={assignmentQuery.isFetching || peopleQuery.isFetching}
+                      pagination={false}
+                      locale={{
+                        emptyText: nameSearch.trim()
+                          ? "Tidak ada personel dengan nama itu."
+                          : "Belum ada guru atau tendik.",
+                      }}
+                      scroll={{ x: 1180 }}
+                    />
+                  </MotionDiv>
                 </Flex>
               ),
             },
@@ -808,6 +1056,52 @@ const HonorariumPersonnelPanel = ({
               />
             </Form.Item>
           ) : null}
+
+          <Form.List name='eskul_items'>
+            {(fields, { add, remove }) => (
+              <Flex vertical gap={8}>
+                <Flex justify='space-between' align='center'>
+                  <Text strong>Eskul</Text>
+                  <Button type='link' onClick={() => add({ quantity: 0 })} disabled={eskulOptions.length === 0}>
+                    Tambah eskul
+                  </Button>
+                </Flex>
+                {fields.map((field) => (
+                  <Flex key={field.key} gap={8} align='start'>
+                    <Form.Item
+                      name={[field.name, "rate_item_id"]}
+                      rules={[{ required: true, message: "Eskul wajib dipilih" }]}
+                      style={{ flex: 1, marginBottom: 0 }}
+                    >
+                      <Select
+                        virtual={false}
+                        showSearch
+                        optionFilterProp='label'
+                        placeholder='Pilih eskul'
+                        options={eskulOptions.map((item) => ({
+                          value: item.id,
+                          label: `${item.name} · ${currencyFormatter.format(Number(item.amount || 0))}`,
+                        }))}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name={[field.name, "quantity"]}
+                      rules={[{ required: true, message: "Kehadiran wajib diisi" }]}
+                      style={{ width: 110, marginBottom: 0 }}
+                    >
+                      <InputNumber min={0} placeholder='Hadir' style={{ width: "100%" }} />
+                    </Form.Item>
+                    <Button type='text' danger onClick={() => remove(field.name)}>
+                      Hapus
+                    </Button>
+                  </Flex>
+                ))}
+                {eskulOptions.length === 0 ? (
+                  <Text type='secondary'>Belum ada eskul. Buat dulu di tab Eskul.</Text>
+                ) : null}
+              </Flex>
+            )}
+          </Form.List>
 
           <Form.Item
             name='valid_range'

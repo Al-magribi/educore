@@ -561,6 +561,85 @@ const loadExtraPayByTeacher = async (db, homebaseId, asOfDate) => {
   return map;
 };
 
+const emptyExtraBucket = (person) => ({
+  teacher_id: person.teacher_id || null,
+  staff_id: person.staff_id || null,
+  teacher_name: person.person_name,
+  teacher_nip: person.person_nip,
+  person_name: person.person_name,
+  person_nip: person.person_nip,
+  person_type: person.person_type,
+  extra_income: 0,
+  extra_duty: 0,
+  detail: [],
+});
+
+const loadEskulPay = async (db, homebaseId, asOfDate) => {
+  const teachers = new Map();
+  const staff = new Map();
+  try {
+    const result = await db.query(
+      `
+        SELECT
+          a.person_type,
+          a.teacher_id,
+          a.staff_id,
+          a.quantity,
+          r.name AS item_name,
+          r.amount,
+          CASE
+            WHEN a.person_type = 'teacher' THEN tu.full_name
+            ELSE st.full_name
+          END AS person_name,
+          CASE
+            WHEN a.person_type = 'teacher' THEN t.nip
+            ELSE st.nip
+          END AS person_nip
+        FROM finance.honor_eskul_assignment a
+        INNER JOIN finance.honor_rate_item r ON r.id = a.rate_item_id
+        LEFT JOIN public.u_teachers t ON t.user_id = a.teacher_id
+        LEFT JOIN public.u_users tu ON tu.id = t.user_id
+        LEFT JOIN finance.honor_staff st ON st.id = a.staff_id
+        WHERE a.homebase_id = $1
+          AND a.is_active = true
+          AND r.is_active = true
+          AND r.item_kind = 'eskul'
+          AND (r.valid_from IS NULL OR r.valid_from <= $2::date)
+          AND (r.valid_to IS NULL OR r.valid_to >= $2::date)
+      `,
+      [homebaseId, asOfDate],
+    );
+    for (const row of result.rows) {
+      const isTeacher = row.person_type === "teacher";
+      const key = Number(isTeacher ? row.teacher_id : row.staff_id);
+      if (!key) continue;
+      const map = isTeacher ? teachers : staff;
+      if (!map.has(key)) {
+        map.set(key, emptyExtraBucket({
+          teacher_id: isTeacher ? key : null,
+          staff_id: isTeacher ? null : key,
+          person_name: row.person_name,
+          person_nip: row.person_nip,
+          person_type: row.person_type,
+        }));
+      }
+      const bucket = map.get(key);
+      const payable = toNumber(row.amount) * toNumber(row.quantity);
+      bucket.extra_income += payable;
+      bucket.detail.push({
+        name: row.item_name,
+        kind: "eskul",
+        quantity: toNumber(row.quantity),
+        amount: toNumber(row.amount),
+        payable,
+      });
+    }
+  } catch {
+    // tabel eskul belum ada
+  }
+  return { teachers, staff };
+};
+
 /**
  * @param {object} params
  * @param {import('pg').Pool|import('pg').PoolClient} params.db
@@ -598,10 +677,11 @@ export const buildHonorariumPreview = async ({
       .map((item) => item.teacher_id),
   );
 
-  const [{ rates, byCode }, extraByTeacher, teaching, attendance, homeroomIds] =
+  const [{ rates, byCode }, extraByTeacher, eskulPay, teaching, attendance, homeroomIds] =
     await Promise.all([
       loadActiveRates(db, homebaseId, asOfDate),
       loadExtraPayByTeacher(db, homebaseId, asOfDate),
+      loadEskulPay(db, homebaseId, asOfDate),
       loadTeachingMetrics({
         db,
         homebaseId,
@@ -638,7 +718,18 @@ export const buildHonorariumPreview = async ({
     );
   }
 
+  for (const [teacherId, eskul] of eskulPay.teachers) {
+    if (!extraByTeacher.has(teacherId)) {
+      extraByTeacher.set(teacherId, eskul);
+    } else {
+      const bucket = extraByTeacher.get(teacherId);
+      bucket.extra_income += eskul.extra_income;
+      bucket.detail.push(...eskul.detail);
+    }
+  }
+
   const appliedExtraTeachers = new Set();
+  const appliedExtraStaff = new Set();
 
   const lines = assignments.map((assignment, index) => {
     const isTeacher = assignment.person_type === "teacher";
@@ -678,6 +769,18 @@ export const buildHonorariumPreview = async ({
       if (extra) {
         extraIncome = extra.extra_income;
         extraDuty = extra.extra_duty;
+        extraDetail = extra.detail;
+      }
+    }
+    if (
+      !isTeacher &&
+      assignment.staff_id &&
+      !appliedExtraStaff.has(assignment.staff_id)
+    ) {
+      appliedExtraStaff.add(assignment.staff_id);
+      const extra = eskulPay.staff.get(assignment.staff_id);
+      if (extra) {
+        extraIncome = extra.extra_income;
         extraDetail = extra.detail;
       }
     }
@@ -746,6 +849,55 @@ export const buildHonorariumPreview = async ({
       warnings: lineWarnings,
     };
   });
+
+  for (const extra of eskulPay.staff.values()) {
+    if (appliedExtraStaff.has(extra.staff_id)) {
+      continue;
+    }
+    const totals = buildLineTotals({
+      jamFinal: 0,
+      hadirFinal: 0,
+      teachingRate: 0,
+      transportRate: 0,
+      homeroomAmount: 0,
+      allowanceAmount: 0,
+      baseSalary: 0,
+      extraIncome: extra.extra_income,
+      extraDuty: 0,
+    });
+    lines.push({
+      no: lines.length + 1,
+      assignment_id: null,
+      person_type: "staff",
+      teacher_id: null,
+      staff_id: extra.staff_id,
+      person_name: extra.person_name,
+      person_nip: extra.person_nip,
+      unit_id: null,
+      unit_name: "Eskul",
+      unit_code: "ESKUL",
+      unit_sort_order: 910,
+      position_id: null,
+      position_name: extra.detail.map((item) => item.name).join(", "),
+      subjects_text: "",
+      subjects: [],
+      jam_mode: mode,
+      jam_mati: 0,
+      jam_hidup: 0,
+      jam_auto: 0,
+      jam_final: 0,
+      hadir_auto: 0,
+      hadir_final: 0,
+      rp_per_jam: 0,
+      transport_rate: 0,
+      is_homeroom: false,
+      extra_detail: extra.detail,
+      jam_suspicious: false,
+      ...totals,
+      source: { jam: "auto", hadir: "auto" },
+      warnings: [],
+    });
+  }
 
   for (const extra of extraByTeacher.values()) {
     if (appliedExtraTeachers.has(extra.teacher_id)) {

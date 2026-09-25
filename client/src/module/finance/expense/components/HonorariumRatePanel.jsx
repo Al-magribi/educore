@@ -23,14 +23,9 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { LoadApp } from "../../../../components";
 import {
-  useAddHonorExtraAssignmentMutation,
   useAddHonorRateMutation,
-  useDeleteHonorExtraAssignmentMutation,
   useDeleteHonorRateMutation,
-  useGetHonorExtraAssignmentsQuery,
-  useGetHonorPeopleQuery,
   useGetHonorRatesQuery,
-  useUpdateHonorExtraAssignmentMutation,
   useUpdateHonorRateMutation,
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle, currencyFormatter, rupiahInputProps } from "../constants";
@@ -48,7 +43,6 @@ const SYSTEM_CODES = new Set([
 const KIND_LABEL = {
   standard: "Rate global",
   extra_income: "Pendapatan tambahan",
-  extra_duty: "Tugas tambahan",
 };
 
 const HonorariumRatePanel = ({
@@ -60,37 +54,21 @@ const HonorariumRatePanel = ({
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const [form] = Form.useForm();
-  const [assignForm] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [assignOpen, setAssignOpen] = useState(false);
   const itemKindWatch = Form.useWatch("item_kind", form);
 
   const listQuery = useGetHonorRatesQuery(
     { homebase_id: homebaseId },
     { skip: !homebaseId },
   );
-  const rates = listQuery.data?.data || [];
-  const extraItems = rates.filter((item) => item.item_kind === "extra_income");
-
-  const peopleQuery = useGetHonorPeopleQuery(
-    { homebase_id: homebaseId },
-    { skip: !homebaseId },
+  const rates = (listQuery.data?.data || []).filter(
+    (item) => item.item_kind !== "extra_duty" && item.item_kind !== "eskul",
   );
-  const teachers = peopleQuery.data?.data?.teachers || [];
-
-  const extraQuery = useGetHonorExtraAssignmentsQuery(
-    { homebase_id: homebaseId },
-    { skip: !homebaseId },
-  );
-  const extraAssignments = extraQuery.data?.data || [];
 
   const [addRate, addState] = useAddHonorRateMutation();
   const [updateRate, updateState] = useUpdateHonorRateMutation();
   const [deleteRate, deleteState] = useDeleteHonorRateMutation();
-  const [addExtra, addExtraState] = useAddHonorExtraAssignmentMutation();
-  const [updateExtra] = useUpdateHonorExtraAssignmentMutation();
-  const [deleteExtra, deleteExtraState] = useDeleteHonorExtraAssignmentMutation();
   const saving = addState.isLoading || updateState.isLoading;
 
   const openCreate = () => {
@@ -179,63 +157,6 @@ const HonorariumRatePanel = ({
           message.success("Item honor berhasil dihapus");
         } catch (error) {
           message.error(error?.data?.message || "Gagal menghapus item honor");
-        }
-      },
-    });
-  };
-
-  const openAssign = (record) => {
-    assignForm.setFieldsValue({
-      rate_item_id: record?.id,
-      teacher_id: undefined,
-      quantity: record?.item_kind === "extra_income" ? 1 : 0,
-    });
-    setAssignOpen(true);
-  };
-
-  const handleAssign = async (values) => {
-    try {
-      await addExtra({
-        homebase_id: homebaseId,
-        rate_item_id: values.rate_item_id,
-        teacher_id: values.teacher_id,
-        quantity: values.quantity || 0,
-      }).unwrap();
-      message.success("Guru berhasil ditugaskan");
-      setAssignOpen(false);
-      assignForm.resetFields();
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menugaskan guru");
-    }
-  };
-
-  const handleQuantityChange = async (record, quantity) => {
-    try {
-      await updateExtra({
-        id: record.id,
-        homebase_id: homebaseId,
-        quantity,
-      }).unwrap();
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan kehadiran");
-    }
-  };
-
-  const handleRemoveExtra = (record) => {
-    Modal.confirm({
-      title: `Lepas ${record.teacher_name} dari ${record.item_name}?`,
-      okText: "Lepas",
-      okButtonProps: { danger: true, loading: deleteExtraState.isLoading },
-      cancelText: "Batal",
-      onOk: async () => {
-        try {
-          await deleteExtra({
-            id: record.id,
-            homebase_id: homebaseId,
-          }).unwrap();
-          message.success("Penugasan dihapus");
-        } catch (error) {
-          message.error(error?.data?.message || "Gagal menghapus penugasan");
         }
       },
     });
@@ -368,7 +289,7 @@ const HonorariumRatePanel = ({
               Item Honor
             </Text>
             <Text type='secondary' style={{ fontSize: 13 }}>
-              Rate global atau pendapatan tambahan (insentif × kehadiran), misalnya eskul.
+              Rate per jam, transport, wali kelas, atau pendapatan tambahan. Tugas tambahan ada di tab sendiri.
             </Text>
           </Flex>
           <Flex gap={8} wrap='wrap' style={{ width: isMobile ? "100%" : "auto" }}>
@@ -414,180 +335,6 @@ const HonorariumRatePanel = ({
           />
         </Card>
       </MotionDiv>
-
-      <Card style={cardStyle} styles={{ body: { padding: isMobile ? 14 : 18 } }}>
-        <Flex justify='space-between' align='center' wrap='wrap' gap={12}>
-          <Flex vertical gap={4}>
-            <Text strong style={{ fontSize: 16 }}>
-              Penugasan guru
-            </Text>
-            <Text type='secondary' style={{ fontSize: 13 }}>
-              Pendapatan tambahan dibayar insentif × kehadiran. Tugas tambahan diisi lewat jabatan. Masuk slip setelah payroll dihitung ulang.
-            </Text>
-          </Flex>
-          <Button
-            type='primary'
-            icon={<Plus size={16} />}
-            disabled={extraItems.length === 0}
-            onClick={() => openAssign(extraItems[0])}
-            style={{ borderRadius: 12 }}
-          >
-            Tugaskan Guru
-          </Button>
-        </Flex>
-        <Table
-          style={{ marginTop: 12 }}
-          rowKey='id'
-          size={isMobile ? "small" : "middle"}
-          loading={extraQuery.isFetching}
-          dataSource={extraAssignments}
-          pagination={false}
-          scroll={{ x: 760 }}
-          locale={{
-            emptyText: "Belum ada guru yang ditugaskan pada pendapatan atau tugas tambahan.",
-          }}
-          columns={[
-            {
-              title: "Item",
-              key: "item",
-              render: (_, record) => (
-                <Space direction='vertical' size={0}>
-                  <Text strong>{record.item_name}</Text>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    {KIND_LABEL[record.item_kind] || record.item_kind}
-                  </Text>
-                </Space>
-              ),
-            },
-            {
-              title: "Guru",
-              dataIndex: "teacher_name",
-              render: (value, record) =>
-                record.teacher_nip ? `${value} (${record.teacher_nip})` : value,
-            },
-            {
-              title: "Kehadiran",
-              dataIndex: "quantity",
-              width: 120,
-              render: (value, record) =>
-                record.item_kind === "extra_income" ? (
-                  <InputNumber
-                    min={0}
-                    defaultValue={Number(value || 0)}
-                    key={`${record.id}-${value}`}
-                    onBlur={(event) => {
-                      const next = Number(String(event.target.value || "0").replace(",", "."));
-                      if (Number.isFinite(next) && next !== Number(value || 0)) {
-                        handleQuantityChange(record, next);
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text type='secondary'>—</Text>
-                ),
-            },
-            {
-              title: "Dibayar",
-              dataIndex: "payable",
-              width: 140,
-              align: "right",
-              render: (value) => (
-                <Text strong>{currencyFormatter.format(Number(value || 0))}</Text>
-              ),
-            },
-            {
-              title: "",
-              key: "action",
-              width: 64,
-              render: (_, record) => (
-                <Button
-                  type='text'
-                  danger
-                  icon={<Trash2 size={16} />}
-                  onClick={() => handleRemoveExtra(record)}
-                />
-              ),
-            },
-          ]}
-        />
-      </Card>
-
-      <Modal
-        title='Tugaskan Guru'
-        open={assignOpen}
-        onCancel={() => {
-          setAssignOpen(false);
-          assignForm.resetFields();
-        }}
-        onOk={assignForm.submit}
-        okText='Tugaskan'
-        cancelText='Batal'
-        confirmLoading={addExtraState.isLoading}
-        destroyOnClose
-        centered
-      >
-        <Form
-          form={assignForm}
-          layout='vertical'
-          onFinish={handleAssign}
-          style={{ marginTop: 12 }}
-        >
-          <Form.Item
-            name='rate_item_id'
-            label='Item'
-            rules={[{ required: true, message: "Item wajib dipilih" }]}
-          >
-            <Select
-              virtual={false}
-              placeholder='Pilih pendapatan atau tugas tambahan'
-              options={extraItems.map((item) => ({
-                value: item.id,
-                label: `${item.name} · ${KIND_LABEL[item.item_kind]} · ${currencyFormatter.format(Number(item.amount || 0))}`,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name='teacher_id'
-            label='Guru'
-            rules={[{ required: true, message: "Guru wajib dipilih" }]}
-          >
-            <Select
-              virtual={false}
-              showSearch
-              optionFilterProp='label'
-              placeholder='Pilih guru'
-              options={teachers.map((item) => ({
-                value: item.id,
-                label: item.nip
-                  ? `${item.full_name} (${item.nip})`
-                  : item.full_name,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item
-            noStyle
-            shouldUpdate={(prev, next) => prev.rate_item_id !== next.rate_item_id}
-          >
-            {() => {
-              const selected = extraItems.find(
-                (item) => item.id === assignForm.getFieldValue("rate_item_id"),
-              );
-              if (selected?.item_kind !== "extra_income") {
-                return null;
-              }
-              return (
-                <Form.Item
-                  name='quantity'
-                  label='Kehadiran yang dibayar'
-                  rules={[{ required: true, message: "Kehadiran wajib diisi" }]}
-                >
-                  <InputNumber min={0} style={{ width: "100%" }} />
-                </Form.Item>
-              );
-            }}
-          </Form.Item>
-        </Form>
-      </Modal>
 
       <Modal
         title={editing ? "Edit Item Honor" : "Tambah Item Honor"}
@@ -654,9 +401,7 @@ const HonorariumRatePanel = ({
               placeholder={
                 itemKindWatch === "extra_income"
                   ? "Eskul Robotik"
-                  : itemKindWatch === "extra_duty"
-                    ? "Kesiswaan"
-                    : "Rate per Jam Mengajar"
+                  : "Rate per Jam Mengajar"
               }
             />
           </Form.Item>
@@ -665,9 +410,7 @@ const HonorariumRatePanel = ({
             label={
               itemKindWatch === "extra_income"
                 ? "Insentif per kehadiran"
-                : itemKindWatch === "extra_duty"
-                  ? "Insentif"
-                  : "Nominal"
+                : "Nominal"
             }
             rules={[{ required: true, message: "Nominal wajib diisi" }]}
           >

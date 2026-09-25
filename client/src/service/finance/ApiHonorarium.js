@@ -100,6 +100,7 @@ export const ApiHonorarium = createApi({
     "HonorPosition",
     "HonorRate",
     "HonorExtra",
+    "HonorEskul",
     "HonorStaff",
     "HonorAssignment",
     "HonorPeople",
@@ -384,6 +385,54 @@ export const ApiHonorarium = createApi({
       invalidatesTags: [{ type: "HonorExtra", id: "LIST" }],
     }),
 
+    getHonorEskulAssignments: builder.query({
+      query: (params) =>
+        `/honorarium/eskul-assignments?${buildQueryString(params)}`,
+      transformResponse: (response) => {
+        if (!response?.data) return response;
+        return {
+          ...response,
+          data: response.data.map((item) => ({
+            ...item,
+            id: Number(item.id || 0) || null,
+            rate_item_id: Number(item.rate_item_id || 0) || null,
+            teacher_id: item.teacher_id ? Number(item.teacher_id) : null,
+            staff_id: item.staff_id ? Number(item.staff_id) : null,
+            quantity: Number(item.quantity || 0),
+            amount: Number(item.amount || 0),
+            payable: Number(item.payable || 0),
+          })),
+        };
+      },
+      providesTags: [{ type: "HonorEskul", id: "LIST" }],
+    }),
+
+    addHonorEskulAssignment: builder.mutation({
+      query: (body) => ({
+        url: "/honorarium/eskul-assignments",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "HonorEskul", id: "LIST" }],
+    }),
+
+    updateHonorEskulAssignment: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/honorarium/eskul-assignments/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: [{ type: "HonorEskul", id: "LIST" }],
+    }),
+
+    deleteHonorEskulAssignment: builder.mutation({
+      query: ({ id, homebase_id }) => ({
+        url: `/honorarium/eskul-assignments/${id}?${buildQueryString({ homebase_id })}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "HonorEskul", id: "LIST" }],
+    }),
+
     getHonorPeople: builder.query({
       query: (params) => `/honorarium/people?${buildQueryString(params)}`,
       transformResponse: (response) => {
@@ -504,6 +553,7 @@ export const ApiHonorarium = createApi({
       invalidatesTags: [
         { type: "HonorAssignment", id: "LIST" },
         { type: "HonorStaff", id: "LIST" },
+        { type: "HonorEskul", id: "LIST" },
       ],
     }),
 
@@ -517,6 +567,7 @@ export const ApiHonorarium = createApi({
         { type: "HonorAssignment", id: "LIST" },
         { type: "HonorAssignment", id: arg?.id },
         { type: "HonorStaff", id: "LIST" },
+        { type: "HonorEskul", id: "LIST" },
       ],
     }),
 
@@ -647,6 +698,10 @@ export const {
   useAddHonorExtraAssignmentMutation,
   useUpdateHonorExtraAssignmentMutation,
   useDeleteHonorExtraAssignmentMutation,
+  useGetHonorEskulAssignmentsQuery,
+  useAddHonorEskulAssignmentMutation,
+  useUpdateHonorEskulAssignmentMutation,
+  useDeleteHonorEskulAssignmentMutation,
   useGetHonorPeopleQuery,
   useGetHonorStaffQuery,
   useAddHonorStaffMutation,

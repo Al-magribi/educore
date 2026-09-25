@@ -15,6 +15,7 @@ import {
   BriefcaseBusiness,
   ClipboardList,
   Coins,
+  Medal,
   Layers3,
   UsersRound,
   WalletCards,
@@ -25,6 +26,7 @@ import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import { useGetHonorariumOptionsQuery } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle } from "../constants";
 import HonorariumDutyPanel from "./HonorariumDutyPanel";
+import HonorariumEskulPanel from "./HonorariumEskulPanel";
 import HonorariumPersonnelPanel from "./HonorariumPersonnelPanel";
 import HonorariumPayrollPreviewPanel from "./HonorariumPayrollPreviewPanel";
 import HonorariumPositionPanel from "./HonorariumPositionPanel";
@@ -266,6 +268,22 @@ const ExpenseHonorariumTab = () => {
                 ),
                 children: (
                   <HonorariumDutyPanel
+                    homebaseId={effectiveHomebaseId}
+                    homebases={homebases}
+                    lockHomebase={lockHomebase}
+                    onHomebaseChange={handleHomebaseChange}
+                  />
+                ),
+              },
+              {
+                key: "eskul",
+                label: createSetupLabel(
+                  "Eskul",
+                  <Medal size={isMobile ? 14 : 16} />,
+                  "Rate & penugasan",
+                ),
+                children: (
+                  <HonorariumEskulPanel
                     homebaseId={effectiveHomebaseId}
                     homebases={homebases}
                     lockHomebase={lockHomebase}

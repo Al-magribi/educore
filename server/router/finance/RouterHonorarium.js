@@ -42,7 +42,7 @@ const DEFAULT_RATES = [
   },
 ];
 
-const HONOR_SCHEMA_VERSION = 6;
+const HONOR_SCHEMA_VERSION = 7;
 let honorSchemaVersion = 0;
 let honorSchemaReadyPromise = null;
 
@@ -362,7 +362,7 @@ const ensureHonorTables = async (db) => {
       await db.query(`
         ALTER TABLE finance.honor_rate_item
         ADD CONSTRAINT honor_rate_item_kind_check
-        CHECK (item_kind IN ('standard', 'extra_income', 'extra_duty'))
+        CHECK (item_kind IN ('standard', 'extra_income', 'extra_duty', 'eskul'))
       `);
 
       await db.query(`
@@ -409,6 +409,41 @@ const ensureHonorTables = async (db) => {
           rate_item_id BIGINT NOT NULL REFERENCES finance.honor_rate_item(id) ON DELETE CASCADE,
           PRIMARY KEY (assignment_id, rate_item_id)
         )
+      `);
+
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS finance.honor_eskul_assignment (
+          id BIGSERIAL PRIMARY KEY,
+          homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+          rate_item_id BIGINT NOT NULL REFERENCES finance.honor_rate_item(id) ON DELETE CASCADE,
+          person_type VARCHAR(20) NOT NULL
+            CHECK (person_type IN ('teacher', 'staff')),
+          teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
+          staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE CASCADE,
+          quantity NUMERIC(12, 2) NOT NULL DEFAULT 0
+            CHECK (quantity >= 0),
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+          updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          CONSTRAINT honor_eskul_assignment_person_check CHECK (
+            (person_type = 'teacher' AND teacher_id IS NOT NULL AND staff_id IS NULL)
+            OR (person_type = 'staff' AND staff_id IS NOT NULL AND teacher_id IS NULL)
+          )
+        )
+      `);
+
+      await db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_eskul_assignment_teacher
+        ON finance.honor_eskul_assignment (rate_item_id, teacher_id)
+        WHERE person_type = 'teacher' AND teacher_id IS NOT NULL AND is_active = true
+      `);
+
+      await db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_honor_eskul_assignment_staff
+        ON finance.honor_eskul_assignment (rate_item_id, staff_id)
+        WHERE person_type = 'staff' AND staff_id IS NOT NULL AND is_active = true
       `);
     })()
       .then(() => {
@@ -722,7 +757,7 @@ const validateRatePayload = (body = {}) => {
   const sortOrder = sortOrderRaw === null ? 0 : sortOrderRaw;
   const isActive =
     body.is_active === undefined ? true : Boolean(body.is_active);
-  const allowedKinds = new Set(["standard", "extra_income", "extra_duty"]);
+  const allowedKinds = new Set(["standard", "extra_income", "extra_duty", "eskul"]);
   const systemRate = ["TEACHING_RATE", "TRANSPORT_DAILY", "HOMEROOM_ALLOWANCE"].includes(
     code,
   );
@@ -824,6 +859,16 @@ const validateAssignmentPayload = (body = {}) => {
     personType === "teacher" && Array.isArray(body.duty_ids)
       ? [...new Set(body.duty_ids.map((value) => parseOptionalInt(value)).filter(Boolean))]
       : [];
+  const eskulItems = Array.isArray(body.eskul_items)
+    ? body.eskul_items
+        .map((item) => ({
+          rate_item_id: parseOptionalInt(item?.rate_item_id),
+          quantity: parseAmount(
+            item?.quantity === undefined || item?.quantity === "" ? 0 : item.quantity,
+          ),
+        }))
+        .filter((item) => item.rate_item_id && item.quantity !== null && item.quantity >= 0)
+    : [];
 
   if (!positionId) {
     return { error: "Jabatan wajib dipilih" };
@@ -864,8 +909,64 @@ const validateAssignmentPayload = (body = {}) => {
       notes,
       is_active: isActive,
       duty_ids: dutyIds,
+      eskul_items: eskulItems,
     },
   };
+};
+
+const savePersonEskul = async (client, homebaseId, personType, teacherId, staffId, items, userId) => {
+  await client.query(
+    `
+      UPDATE finance.honor_eskul_assignment
+      SET is_active = false, updated_by = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE homebase_id = $2
+        AND is_active = true
+        AND (
+          ($3 = 'teacher' AND teacher_id = $4)
+          OR ($3 = 'staff' AND staff_id = $5)
+        )
+    `,
+    [userId, homebaseId, personType, teacherId, staffId],
+  );
+
+  const unique = new Map();
+  for (const item of items) {
+    unique.set(item.rate_item_id, item.quantity);
+  }
+  if (unique.size === 0) {
+    return;
+  }
+
+  const ids = [...unique.keys()];
+  const valid = await client.query(
+    `
+      SELECT id
+      FROM finance.honor_rate_item
+      WHERE homebase_id = $1
+        AND item_kind = 'eskul'
+        AND id = ANY($2::bigint[])
+    `,
+    [homebaseId, ids],
+  );
+  for (const row of valid.rows) {
+    await client.query(
+      `
+        INSERT INTO finance.honor_eskul_assignment (
+          homebase_id, rate_item_id, person_type, teacher_id, staff_id, quantity, created_by, updated_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+      `,
+      [
+        homebaseId,
+        row.id,
+        personType,
+        personType === "teacher" ? teacherId : null,
+        personType === "staff" ? staffId : null,
+        unique.get(Number(row.id)) ?? unique.get(row.id) ?? 0,
+        userId,
+      ],
+    );
+  }
 };
 
 const saveAssignmentDuties = async (client, assignmentId, homebaseId, dutyIds) => {
@@ -2081,6 +2182,209 @@ router.delete(
   }),
 );
 
+const normalizeEskulAssignment = (row = {}) => ({
+  ...row,
+  id: Number(row.id || 0) || null,
+  homebase_id: Number(row.homebase_id || 0) || null,
+  rate_item_id: Number(row.rate_item_id || 0) || null,
+  teacher_id: row.teacher_id ? Number(row.teacher_id) : null,
+  staff_id: row.staff_id ? Number(row.staff_id) : null,
+  quantity: Number(row.quantity || 0),
+  amount: Number(row.amount || 0),
+  payable: Number(row.payable || 0),
+  is_active: Boolean(row.is_active),
+});
+
+router.get(
+  "/honorarium/eskul-assignments",
+  authorize(...HONOR_ROLES),
+  withQuery(async (req, res, db) => {
+    await ensureHonorTables(db);
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(db, req.user, requestedHomebaseId);
+    if (!homebaseId) {
+      return res.status(400).json({ message: "Satuan belum dipilih atau tidak valid" });
+    }
+    const result = await db.query(
+      `
+        SELECT
+          a.*,
+          r.name AS item_name,
+          r.amount,
+          r.amount * a.quantity AS payable,
+          CASE
+            WHEN a.person_type = 'teacher' THEN tu.full_name
+            ELSE st.full_name
+          END AS person_name,
+          CASE
+            WHEN a.person_type = 'teacher' THEN t.nip
+            ELSE st.nip
+          END AS person_nip
+        FROM finance.honor_eskul_assignment a
+        INNER JOIN finance.honor_rate_item r ON r.id = a.rate_item_id
+        LEFT JOIN public.u_teachers t ON t.user_id = a.teacher_id
+        LEFT JOIN public.u_users tu ON tu.id = t.user_id
+        LEFT JOIN finance.honor_staff st ON st.id = a.staff_id
+        WHERE a.homebase_id = $1
+          AND a.is_active = true
+        ORDER BY r.name ASC, person_name ASC, a.id ASC
+      `,
+      [homebaseId],
+    );
+    res.json({
+      status: "success",
+      data: result.rows.map(normalizeEskulAssignment),
+    });
+  }),
+);
+
+router.post(
+  "/honorarium/eskul-assignments",
+  authorize(...HONOR_ROLES),
+  withTransaction(async (req, res, client) => {
+    await ensureHonorTables(client);
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(client, req.user, requestedHomebaseId);
+    const rateItemId = parseOptionalInt(req.body.rate_item_id);
+    const personType = String(req.body.person_type || "").trim().toLowerCase();
+    const teacherId = parseOptionalInt(req.body.teacher_id);
+    const staffId = parseOptionalInt(req.body.staff_id);
+    const quantity = parseAmount(
+      req.body.quantity === undefined || req.body.quantity === "" ? 0 : req.body.quantity,
+    );
+    if (!homebaseId || !rateItemId || !["teacher", "staff"].includes(personType)) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+    if (quantity === null || quantity < 0) {
+      return res.status(400).json({ message: "Kehadiran tidak valid" });
+    }
+    const item = await client.query(
+      `SELECT id FROM finance.honor_rate_item WHERE id = $1 AND homebase_id = $2 AND item_kind = 'eskul' AND is_active = true LIMIT 1`,
+      [rateItemId, homebaseId],
+    );
+    if (item.rowCount === 0) {
+      return res.status(404).json({ message: "Eskul tidak ditemukan" });
+    }
+    if (personType === "teacher") {
+      if (!teacherId) return res.status(400).json({ message: "Guru wajib dipilih" });
+      const teacher = await client.query(
+        `SELECT t.user_id FROM public.u_teachers t INNER JOIN public.u_users u ON u.id = t.user_id WHERE t.user_id = $1 AND t.homebase_id = $2 LIMIT 1`,
+        [teacherId, homebaseId],
+      );
+      if (teacher.rowCount === 0) {
+        return res.status(400).json({ message: "Guru tidak ditemukan di satuan ini" });
+      }
+    } else {
+      if (!staffId) return res.status(400).json({ message: "Tendik wajib dipilih" });
+      const staff = await client.query(
+        `SELECT id FROM finance.honor_staff WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
+        [staffId, homebaseId],
+      );
+      if (staff.rowCount === 0) {
+        return res.status(400).json({ message: "Tendik tidak ditemukan di satuan ini" });
+      }
+    }
+    try {
+      const result = await client.query(
+        `
+          INSERT INTO finance.honor_eskul_assignment (
+            homebase_id, rate_item_id, person_type, teacher_id, staff_id, quantity, created_by, updated_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+          RETURNING id
+        `,
+        [
+          homebaseId,
+          rateItemId,
+          personType,
+          personType === "teacher" ? teacherId : null,
+          personType === "staff" ? staffId : null,
+          quantity,
+          req.user.id,
+        ],
+      );
+      res.status(201).json({
+        status: "success",
+        message: "Penugasan eskul berhasil ditambahkan",
+        data: { id: Number(result.rows[0].id) },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return res.status(400).json({ message: "Personel ini sudah ditugaskan pada eskul tersebut" });
+      }
+      throw error;
+    }
+  }),
+);
+
+router.put(
+  "/honorarium/eskul-assignments/:id",
+  authorize(...HONOR_ROLES),
+  withTransaction(async (req, res, client) => {
+    await ensureHonorTables(client);
+    const assignmentId = parseOptionalInt(req.params.id);
+    const requestedHomebaseId = parseOptionalInt(req.body.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(client, req.user, requestedHomebaseId);
+    const quantity = parseAmount(
+      req.body.quantity === undefined || req.body.quantity === "" ? 0 : req.body.quantity,
+    );
+    if (!assignmentId || !homebaseId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+    if (quantity === null || quantity < 0) {
+      return res.status(400).json({ message: "Kehadiran tidak valid" });
+    }
+    const result = await client.query(
+      `
+        UPDATE finance.honor_eskul_assignment
+        SET quantity = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3 AND homebase_id = $4 AND is_active = true
+        RETURNING id
+      `,
+      [quantity, req.user.id, assignmentId, homebaseId],
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Penugasan eskul tidak ditemukan" });
+    }
+    res.json({
+      status: "success",
+      message: "Kehadiran eskul berhasil diperbarui",
+      data: { id: Number(result.rows[0].id) },
+    });
+  }),
+);
+
+router.delete(
+  "/honorarium/eskul-assignments/:id",
+  authorize(...HONOR_ROLES),
+  withTransaction(async (req, res, client) => {
+    await ensureHonorTables(client);
+    const assignmentId = parseOptionalInt(req.params.id);
+    const requestedHomebaseId = parseOptionalInt(req.query.homebase_id);
+    const homebaseId = await resolveScopedHomebaseId(client, req.user, requestedHomebaseId);
+    if (!assignmentId || !homebaseId) {
+      return res.status(400).json({ message: "Parameter tidak valid" });
+    }
+    const result = await client.query(
+      `
+        UPDATE finance.honor_eskul_assignment
+        SET is_active = false, updated_by = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND homebase_id = $3 AND is_active = true
+        RETURNING id
+      `,
+      [req.user.id, assignmentId, homebaseId],
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Penugasan eskul tidak ditemukan" });
+    }
+    res.json({
+      status: "success",
+      message: "Penugasan eskul berhasil dihapus",
+      data: { id: Number(result.rows[0].id) },
+    });
+  }),
+);
+
 router.get(
   "/honorarium/people",
   authorize(...HONOR_ROLES),
@@ -2622,6 +2926,15 @@ router.post(
         homebaseId,
         validated.data.duty_ids,
       );
+      await savePersonEskul(
+        client,
+        homebaseId,
+        validated.data.person_type,
+        validated.data.teacher_id,
+        validated.data.staff_id,
+        validated.data.eskul_items,
+        req.user.id,
+      );
 
       res.status(201).json({
         status: "success",
@@ -2759,6 +3072,15 @@ router.put(
         assignmentId,
         homebaseId,
         validated.data.duty_ids,
+      );
+      await savePersonEskul(
+        client,
+        homebaseId,
+        validated.data.person_type,
+        validated.data.teacher_id,
+        validated.data.staff_id,
+        validated.data.eskul_items,
+        req.user.id,
       );
 
       res.json({
