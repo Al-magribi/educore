@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, createElement } from "react";
 import { useSelector } from "react-redux";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -15,7 +15,14 @@ import {
   renderCbtShellRoutes,
   renderCbtStandaloneRoutes,
 } from "./routes/modules/cbtRoutes";
-import renderLmsRoutes from "./routes/modules/lmsRoutes";
+import {
+  renderAdminOnlyLmsRoutes,
+  renderAttendanceReportRoutes,
+  renderLmsRoutes,
+  renderTeacherOnlyLmsRoutes,
+  renderStudentLmsRoutes,
+  renderParentLmsRoutes,
+} from "./routes/modules/lmsRoutes";
 import renderDbRoutes from "./routes/modules/dbRoutes";
 import renderFinanceRoutes from "./routes/modules/financeRoutes";
 import renderTahfizRoutes from "./routes/modules/tahfizRoutes";
@@ -47,19 +54,21 @@ const NotFoundRedirect = () => {
   return <Navigate to='/' replace />;
 };
 
-const LazyRoute = ({ Component }) => {
-  const RouteComponent = Component;
-
-  return (
+const LazyRoute = ({ title, Component: RouteComponent }) => {
+  const content = (
     <Suspense fallback={<LoadApp />}>
-      <RouteComponent />
+      {RouteComponent ? createElement(RouteComponent) : null}
     </Suspense>
   );
+
+  if (!title) return content;
+
+  return <AppLayout title={title}>{content}</AppLayout>;
 };
 
-const LazyPage = ({ title, Component }) => (
+const LazyPage = ({ title, Component: PageComponent }) => (
   <AppLayout title={title}>
-    <LazyRoute Component={Component} />
+    <LazyRoute Component={PageComponent} />
   </AppLayout>
 );
 
@@ -76,7 +85,13 @@ const App = () => {
           element={
             <RouteProtection
               allowedRoles={["admin", "teacher", "student", "parent"]}
-              allowedLevels={["pusat", "satuan", "tahfiz", "finance", "keuangan"]}
+              allowedLevels={[
+                "pusat",
+                "satuan",
+                "tahfiz",
+                "finance",
+                "keuangan",
+              ]}
             />
           }
         >
@@ -98,8 +113,32 @@ const App = () => {
 
             {isLmsEnabled &&
               renderLmsRoutes({
-                LazyPage,
-                NotFoundRedirect,
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderAdminOnlyLmsRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderAttendanceReportRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderTeacherOnlyLmsRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderStudentLmsRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderParentLmsRoutes({
+                LazyRoute,
               })}
 
             {isDbEnabled &&
