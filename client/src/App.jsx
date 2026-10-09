@@ -22,6 +22,7 @@ import {
   renderTeacherOnlyLmsRoutes,
   renderStudentLmsRoutes,
   renderParentLmsRoutes,
+  renderTuRoutes,
 } from "./routes/modules/lmsRoutes";
 import renderDbRoutes from "./routes/modules/dbRoutes";
 import renderFinanceRoutes from "./routes/modules/financeRoutes";
@@ -118,6 +119,11 @@ const App = () => {
 
             {isLmsEnabled &&
               renderAdminOnlyLmsRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderTuRoutes({
                 LazyRoute,
               })}
 

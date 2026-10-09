@@ -1,18 +1,64 @@
 import { BranchesOutlined } from "@ant-design/icons";
 import {
+  Award,
   BookOpenText,
   CalendarCheck2,
   ClipboardClock,
   ClipboardList,
   FileText,
+  GraduationCap,
+  Landmark,
+  LibraryBig,
   ListCheck,
+  Mail,
   NotebookText,
+  ArrowLeftRight,
   ShieldAlert,
+  Warehouse,
 } from "lucide-react";
 import {
   canManageKesiswaan,
   canManageKurikulum,
+  canManageTu,
 } from "../../../utils/staffAssignment";
+
+const tuMenu = () => ({
+  label: "Tata Usaha",
+  key: "/tata-usaha",
+  icon: <Landmark size={14} />,
+  children: [
+    {
+      label: "Buku Induk",
+      key: "/tata-usaha/buku-induk",
+      icon: <LibraryBig size={14} />,
+    },
+    {
+      label: "Mutasi Siswa",
+      key: "/tata-usaha/mutasi",
+      icon: <ArrowLeftRight size={14} />,
+    },
+    {
+      label: "Data Alumni",
+      key: "/tata-usaha/alumni",
+      icon: <GraduationCap size={14} />,
+    },
+    {
+      label: "Ijazah",
+      key: "/tata-usaha/ijazah",
+      icon: <Award size={14} />,
+    },
+    {
+      label: "Surat",
+      key: "/tata-usaha/surat",
+      icon: <Mail size={14} />,
+    },
+    {
+      label: "Sarana Prasarana",
+      key: "/tata-usaha/sarana",
+      icon: <Warehouse size={14} />,
+    },
+  ],
+});
 
 const centerLmsMenu = () => [
   {
@@ -28,6 +74,7 @@ const adminLmsMenu = () => [
     key: "/manajemen-penugasan",
     icon: <FileText size={14} />,
   },
+  tuMenu(),
   {
     label: "LMS",
     key: "/manajemen-lms",
@@ -76,6 +123,7 @@ const teacherLmsMenu = ({
   includeDuty = false,
   canKurikulum = false,
   canKesiswaan = false,
+  canTu = false,
 } = {}) => {
   const lmsNode = {
     label: "LMS",
@@ -138,18 +186,17 @@ const teacherLmsMenu = ({
     ].filter(Boolean),
   };
 
+  const nodes = [lmsNode];
+  if (canTu) nodes.unshift(tuMenu());
   if (canKurikulum) {
-    return [
-      lmsNode,
-      {
-        label: "Laporan Presensi",
-        key: "/laporan-presensi",
-        icon: <ClipboardList size={14} />,
-      },
-    ];
+    nodes.push({
+      label: "Laporan Presensi",
+      key: "/laporan-presensi",
+      icon: <ClipboardList size={14} />,
+    });
   }
 
-  return [lmsNode];
+  return nodes;
 };
 
 const studentLmsMenu = () => [
@@ -185,6 +232,7 @@ const buildLmsMenus = (user = {}) => ({
     includeDuty: true,
     canKurikulum: canManageKurikulum(user),
     canKesiswaan: canManageKesiswaan(user),
+    canTu: canManageTu(user),
   }),
   student: studentLmsMenu(),
   parent: parentLmsMenu(),

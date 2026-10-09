@@ -1,4 +1,4 @@
-const ASSIGNMENT_TYPES = ["cbt", "kurikulum", "kesiswaan"];
+const ASSIGNMENT_TYPES = ["cbt", "kurikulum", "kesiswaan", "tu"];
 
 export const getAssignmentTypes = () => [...ASSIGNMENT_TYPES];
 
@@ -29,6 +29,9 @@ export const canManageKurikulum = (user) =>
 
 export const canManageKesiswaan = (user) =>
   isSatuanAdmin(user) || hasStaffAssignment(user, "kesiswaan");
+
+export const canManageTu = (user) =>
+  isSatuanAdmin(user) || hasStaffAssignment(user, "tu");
 
 export const teacherOwnsSubject = (user, subjectId) => {
   if (!subjectId) return false;

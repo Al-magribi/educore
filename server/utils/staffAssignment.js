@@ -1,6 +1,6 @@
 import pool from "../config/connection.js";
 
-const ASSIGNMENT_TYPES = ["cbt", "kurikulum", "kesiswaan"];
+const ASSIGNMENT_TYPES = ["cbt", "kurikulum", "kesiswaan", "tu"];
 const ASSIGNMENT_PREFIX = "assignment:";
 
 let ensureTablePromise = null;
@@ -53,6 +53,9 @@ export const canManageKurikulum = (user) =>
 export const canManageKesiswaan = (user) =>
   isSatuanAdmin(user) || hasStaffAssignment(user, "kesiswaan");
 
+export const canManageTu = (user) =>
+  isSatuanAdmin(user) || hasStaffAssignment(user, "tu");
+
 export const isTeacherDataScoped = (user, requestedTeacherId) => {
   if (user?.role !== "teacher") return false;
   if (!canManageKurikulum(user)) return true;
@@ -77,7 +80,7 @@ export const ensureStaffAssignmentTable = async () => {
             homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
             teacher_id integer NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
             assignment_type varchar(20) NOT NULL
-              CHECK (assignment_type IN ('cbt', 'kurikulum', 'kesiswaan')),
+              CHECK (assignment_type IN ('cbt', 'kurikulum', 'kesiswaan', 'tu')),
             assigned_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
             is_active boolean NOT NULL DEFAULT true,
             created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -101,6 +104,34 @@ export const ensureStaffAssignmentTable = async () => {
             ON public.u_staff_assignment (homebase_id, assignment_type, is_active)
           `),
         ]),
+      )
+      .then(() =>
+        pool.query(`
+          DO $$
+          DECLARE
+            constraint_name text;
+          BEGIN
+            FOR constraint_name IN
+              SELECT con.conname
+              FROM pg_constraint con
+              JOIN pg_class rel ON rel.oid = con.conrelid
+              JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+              WHERE nsp.nspname = 'public'
+                AND rel.relname = 'u_staff_assignment'
+                AND con.contype = 'c'
+                AND pg_get_constraintdef(con.oid) ILIKE '%assignment_type%'
+            LOOP
+              EXECUTE format(
+                'ALTER TABLE public.u_staff_assignment DROP CONSTRAINT %I',
+                constraint_name
+              );
+            END LOOP;
+
+            ALTER TABLE public.u_staff_assignment
+              ADD CONSTRAINT u_staff_assignment_assignment_type_check
+              CHECK (assignment_type IN ('cbt', 'kurikulum', 'kesiswaan', 'tu'));
+          END $$;
+        `),
       )
       .catch((error) => {
         ensureTablePromise = null;
@@ -142,5 +173,6 @@ export const attachAssignmentFlags = (user, assignments = []) => {
     can_manage_cbt: normalized.includes("cbt"),
     can_manage_kurikulum: normalized.includes("kurikulum"),
     can_manage_kesiswaan: normalized.includes("kesiswaan"),
+    can_manage_tu: normalized.includes("tu"),
   };
 };

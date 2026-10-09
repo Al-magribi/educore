@@ -13,6 +13,7 @@ const ASSIGNMENT_LABELS = {
   cbt: "CBT",
   kurikulum: "Kurikulum",
   kesiswaan: "Kesiswaan",
+  tu: "Tata Usaha",
 };
 
 router.get(

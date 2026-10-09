@@ -74,6 +74,7 @@ const StaffAssignment = () => {
     { value: "cbt", label: "CBT" },
     { value: "kurikulum", label: "Kurikulum" },
     { value: "kesiswaan", label: "Kesiswaan" },
+    { value: "tu", label: "Tata Usaha" },
   ];
 
   const filteredTeachers = useMemo(() => {

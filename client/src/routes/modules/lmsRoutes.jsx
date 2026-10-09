@@ -17,6 +17,15 @@ const AdminPointView = lazy(
 const StaffAssignment = lazy(
   () => import("../../module/lms/assignment/StaffAssignment"),
 );
+const BukuIndukList = lazy(() => import("../../module/lms/tu/BukuIndukList"));
+const BukuIndukDetail = lazy(
+  () => import("../../module/lms/tu/BukuIndukDetail"),
+);
+const MutasiSiswa = lazy(() => import("../../module/lms/tu/MutasiSiswa"));
+const AlumniPage = lazy(() => import("../../module/lms/tu/AlumniPage"));
+const IjazahPage = lazy(() => import("../../module/lms/tu/IjazahPage"));
+const SuratPage = lazy(() => import("../../module/lms/tu/SuratPage"));
+const SaranaPage = lazy(() => import("../../module/lms/tu/SaranaPage"));
 const TeacherPointView = lazy(
   () => import("../../module/lms/point/view/TeacherPointView"),
 );
@@ -229,10 +238,73 @@ const renderParentLmsRoutes = ({ LazyRoute }) => (
   </Route>
 );
 
+const renderTuRoutes = ({ LazyRoute }) => (
+  <Route
+    element={
+      <RouteProtection
+        allowedRoles={["admin", "teacher"]}
+        allowedLevels={["satuan"]}
+        allowedAssignments={["tu"]}
+      />
+    }
+  >
+    <Route
+      path="/tata-usaha/buku-induk"
+      element={createElement(LazyRoute, {
+        title: "Buku Induk",
+        Component: BukuIndukList,
+      })}
+    />
+    <Route
+      path="/tata-usaha/buku-induk/:id"
+      element={createElement(LazyRoute, {
+        title: "Buku Induk",
+        Component: BukuIndukDetail,
+      })}
+    />
+    <Route
+      path="/tata-usaha/mutasi"
+      element={createElement(LazyRoute, {
+        title: "Mutasi Siswa",
+        Component: MutasiSiswa,
+      })}
+    />
+    <Route
+      path="/tata-usaha/alumni"
+      element={createElement(LazyRoute, {
+        title: "Data Alumni",
+        Component: AlumniPage,
+      })}
+    />
+    <Route
+      path="/tata-usaha/ijazah"
+      element={createElement(LazyRoute, {
+        title: "Ijazah",
+        Component: IjazahPage,
+      })}
+    />
+    <Route
+      path="/tata-usaha/surat"
+      element={createElement(LazyRoute, {
+        title: "Arsip Surat",
+        Component: SuratPage,
+      })}
+    />
+    <Route
+      path="/tata-usaha/sarana"
+      element={createElement(LazyRoute, {
+        title: "Sarana dan Prasarana",
+        Component: SaranaPage,
+      })}
+    />
+  </Route>
+);
+
 export {
   renderAdminOnlyLmsRoutes,
   renderAttendanceReportRoutes,
   renderLmsRoutes,
+  renderTuRoutes,
   renderTeacherOnlyLmsRoutes,
   renderStudentLmsRoutes,
   renderParentLmsRoutes,

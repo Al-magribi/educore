@@ -13,6 +13,7 @@ import duty from "./RouterDuty.js";
 import journal from "./RouterJournal.js";
 import staffAssignment from "./RouterStaffAssignment.js";
 import teachingModule from "./RouterTeachingModule.js";
+import tu from "./RouterTu.js";
 
 const RouterLms = Router();
 
@@ -30,5 +31,6 @@ RouterLms.use(duty);
 RouterLms.use(journal);
 RouterLms.use(staffAssignment);
 RouterLms.use(teachingModule);
+RouterLms.use(tu);
 
 export default RouterLms;
