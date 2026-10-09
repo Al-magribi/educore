@@ -19,7 +19,7 @@ const { Text } = Typography;
 const GroupBankForm = ({ onClose, onSuccess }) => {
   const [form] = Form.useForm();
   const { user } = useSelector((state) => state.auth);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.can_manage_cbt === true;
   const titleValue = Form.useWatch("title", form);
 
   const [selectedTeacherId, setSelectedTeacherId] = useState(
