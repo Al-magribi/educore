@@ -27,6 +27,10 @@ const ParentPointView = lazy(
   () => import("../../module/lms/point/view/ParentPointView"),
 );
 const SubjectList = lazy(() => import("../../module/lms/student/SubjectList"));
+const TeachingModuleMonitoring = lazy(
+  () =>
+    import("../../module/lms/teachingModule/monitoring/TeachingModuleMonitoring"),
+);
 
 const ParentDash = lazy(
   () => import("../../module/parent/dashboard/ParentDash"),
@@ -123,6 +127,23 @@ const renderAdminOnlyLmsRoutes = ({ LazyRoute }) => (
         element={createElement(LazyRoute, {
           title: "Manajemen Poin",
           Component: AdminPointView,
+        })}
+      />
+    </Route>
+    <Route
+      element={
+        <RouteProtection
+          allowedRoles={["admin", "teacher"]}
+          allowedLevels={["satuan"]}
+          allowedAssignments={["kurikulum"]}
+        />
+      }
+    >
+      <Route
+        path='/monitoring-modul-ajar'
+        element={createElement(LazyRoute, {
+          title: "Monitoring Modul Ajar",
+          Component: TeachingModuleMonitoring,
         })}
       />
     </Route>

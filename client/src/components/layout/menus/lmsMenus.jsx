@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   ListCheck,
+  NotebookText,
   ShieldAlert,
 } from "lucide-react";
 import {
@@ -36,6 +37,11 @@ const adminLmsMenu = () => [
         label: "Mata Pelajaran",
         key: "/manajemen-mata-pelajaran",
         icon: <BookOpenText size={14} />,
+      },
+      {
+        label: "Monitoring Modul Ajar",
+        key: "/monitoring-modul-ajar",
+        icon: <NotebookText size={14} />,
       },
       {
         label: "Manajemen Jadwal",
@@ -81,6 +87,13 @@ const teacherLmsMenu = ({
         key: "/manajemen-mata-pelajaran",
         icon: <BookOpenText size={14} />,
       },
+      canKurikulum
+        ? {
+            label: "Monitoring Modul Ajar",
+            key: "/monitoring-modul-ajar",
+            icon: <NotebookText size={14} />,
+          }
+        : null,
       canKurikulum
         ? {
             label: "Manajemen Jadwal",

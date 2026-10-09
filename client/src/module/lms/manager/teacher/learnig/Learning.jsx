@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import { Card, Flex, Form, Skeleton, message } from "antd";
 import {
   useAddChapterMutation,
@@ -16,6 +17,9 @@ const LearningHeader = lazy(() => import("./components/LearningHeader"));
 const LearningFilters = lazy(() => import("./components/LearningFilters"));
 const ChapterList = lazy(() => import("./components/ChapterList"));
 const ChapterModals = lazy(() => import("./components/ChapterModals"));
+const TeachingModuleTab = lazy(
+  () => import("../../../teachingModule/TeachingModuleTab"),
+);
 const EMPTY_LIST = [];
 
 const toStringArray = (value) => {
@@ -27,6 +31,8 @@ const toStringArray = (value) => {
 
 const Learning = ({ subjectId, subject }) => {
   const { user } = useSelector((state) => state.auth);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section = searchParams.get("learning") === "modul" ? "modul" : "materi";
   const [filterGradeId, setFilterGradeId] = useState(null);
   const [filterClassId, setFilterClassId] = useState(null);
   const teacherId = Number(user?.id || 0) || null;
@@ -260,6 +266,41 @@ const Learning = ({ subjectId, subject }) => {
     }
   };
 
+  const handleSectionChange = (value) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === "modul") next.set("learning", "modul");
+      else next.delete("learning");
+      return next;
+    });
+  };
+
+  const header = (
+    <LearningHeader
+      subject={subject}
+      onAddChapter={openChapterModal}
+      section={section}
+      onSectionChange={handleSectionChange}
+    />
+  );
+
+  if (section === "modul") {
+    return (
+      <Suspense
+        fallback={
+          <Card style={{ borderRadius: 12 }}>
+            <Skeleton active paragraph={{ rows: 4 }} />
+          </Card>
+        }
+      >
+        <Flex vertical gap={16}>
+          {header}
+          <TeachingModuleTab subjectId={subjectId} gradeOptions={gradeOptions} />
+        </Flex>
+      </Suspense>
+    );
+  }
+
   return (
     <Suspense
       fallback={
@@ -269,7 +310,7 @@ const Learning = ({ subjectId, subject }) => {
       }
     >
       <Flex vertical gap={16}>
-        <LearningHeader subject={subject} onAddChapter={openChapterModal} />
+        {header}
         <LearningFilters
           gradeOptions={gradeOptions}
           classOptions={classOptions}
