@@ -1,4 +1,4 @@
-import { createElement, lazy } from "react";
+import { lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
