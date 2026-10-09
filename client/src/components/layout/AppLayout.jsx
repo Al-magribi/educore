@@ -119,7 +119,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
         if (
           currentUser?.role === "teacher" &&
           item.key === "/manajemen-piket" &&
-          !currentUser?.has_duty_today
+          !currentUser?.has_duty_today &&
+          !currentUser?.can_manage_kurikulum
         ) {
           return null;
         }
@@ -162,7 +163,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
       return nextItem;
     });
-
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
