@@ -3,11 +3,13 @@ import { Alert, Col, Grid, Row } from "antd";
 import { motion } from "framer-motion";
 import { BookOpen, ClipboardList, School } from "lucide-react";
 import { useGetStudentDashQuery } from "../../../service/main/ApiDash";
+import { useGetStudentTelegramQuery } from "../../../service/lms/ApiAttendance";
 import StudentDashHero from "./components/StudentDashHero";
 import StudentDashSkeleton from "./components/StudentDashSkeleton";
 import StudentDashStats from "./components/StudentDashStats";
 import StudentExamsCard from "./components/StudentExamsCard";
 import StudentSubjectsCard from "./components/StudentSubjectsCard";
+import StudentTelegramCard from "./components/StudentTelegramCard";
 import {
   SUBJECTS_PER_PAGE_DESKTOP,
   SUBJECTS_PER_PAGE_MOBILE,
@@ -21,6 +23,8 @@ const MotionDiv = motion.div;
 
 const StudentDash = () => {
   const { data, isLoading, isError } = useGetStudentDashQuery();
+  const { data: telegramRes } = useGetStudentTelegramQuery();
+  const telegram = telegramRes?.data;
   const [subjectPage, setSubjectPage] = useState(0);
   const screens = useBreakpoint();
   const isXs = !screens.sm;
@@ -122,6 +126,14 @@ const StudentDash = () => {
           isMobile={isMobile}
           isXs={isXs}
           isCompact={isCompact}
+        />
+      </MotionDiv>
+
+      <MotionDiv variants={itemVariants} style={sectionWrapStyle}>
+        <StudentTelegramCard
+          telegram={telegram}
+          isMobile={isMobile}
+          isXs={isXs}
         />
       </MotionDiv>
 

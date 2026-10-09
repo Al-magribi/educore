@@ -8,6 +8,7 @@ import { express as userAgent } from "express-useragent";
 
 import pool from "./config/connection.js";
 import registerApiRoutes from "./router/registerApiRoutes.js";
+import { protectTeachingModuleAssets } from "./middleware/protectTeachingModuleAssets.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,11 +19,14 @@ const hasClientBuild = fs.existsSync(clientIndexPath);
 const app = express();
 
 app.use(cookieParser());
+// Isi modul ajar (rich text multi-bagian) bisa jauh melebihi batas default 100kb.
+app.use("/api/lms/teaching-modules", express.json({ limit: "5mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(userAgent());
 
 // Static Folder
+app.use("/assets/lms/:teacherId/modul", protectTeachingModuleAssets);
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 const backupPath = path.join(process.cwd(), "temp_backup");
 const databaseDocumentPath = path.join(__dirname, "assets", "db");
@@ -36,7 +40,6 @@ if (!fs.existsSync(databaseDocumentPath)) {
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
 }
-
 app.use("/temp_backup", express.static(path.join(backupPath)));
 
 registerApiRoutes(app);
