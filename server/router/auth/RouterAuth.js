@@ -8,6 +8,22 @@ import {
   fetchTeacherAssignments,
 } from "../../utils/staffAssignment.js";
 
+const attachOptionalFinanceStaff = async (db, user) => {
+  if (!user || user.role !== "teacher") return user;
+
+  try {
+    const mod = await import("../finance/financeStaffAccess.js");
+    return await mod.attachFinanceStaffFlag(db, user);
+  } catch (error) {
+    const code = error?.code || error?.cause?.code;
+    if (code !== "ERR_MODULE_NOT_FOUND") {
+      console.error("[finance-staff] gagal memuat penugasan", error);
+    }
+    user.can_manage_finance = false;
+    return user;
+  }
+};
+
 const router = Router();
 
 // ============================================================================
@@ -260,6 +276,7 @@ router.post(
         payload.homebase_id,
       );
       Object.assign(payload, attachAssignmentFlags(payload, assignments));
+      await attachOptionalFinanceStaff(client, payload);
     }
 
     // 7. Kirim Response
@@ -406,9 +423,9 @@ router.get(
         userData.id,
         userData.homebase_id,
       );
-      return res
-        .status(200)
-        .json(attachAssignmentFlags(userData, assignments));
+      const withAssignments = attachAssignmentFlags(userData, assignments);
+      await attachOptionalFinanceStaff(pool, withAssignments);
+      return res.status(200).json(withAssignments);
     }
 
     return res.status(200).json(userData);

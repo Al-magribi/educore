@@ -20,6 +20,7 @@ import {
   useGetStaffAssignmentsQuery,
   useSaveStaffAssignmentMutation,
 } from "../../../service/lms/ApiStaffAssignment";
+import FinanceStaffSlot from "../../finance/assignment/FinanceStaffSlot";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -321,6 +322,7 @@ const StaffAssignment = () => {
           />
         )}
       </Card>
+      <FinanceStaffSlot />
     </Flex>
   );
 };
