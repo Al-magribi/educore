@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
-import { authorize } from "../../middleware/authorize.js";
+import { authorize } from "./authorizeFinance.js";
 import {
   MONTH_NAMES,
   parseOptionalInt,

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { withQuery } from "../../utils/wrapper.js";
-import { authorize } from "../../middleware/authorize.js";
+import { authorize } from "./authorizeFinance.js";
 import { ensureFinalFinanceTables, parseOptionalInt } from "./financeHelpers.js";
 
 const router = Router();

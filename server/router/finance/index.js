@@ -12,6 +12,7 @@ import expense from "./RouterExpense.js";
 import honorarium from "./RouterHonorarium.js";
 import honorariumPayroll from "./RouterHonorariumPayroll.js";
 import report from "./RouterReport.js";
+import financeStaff from "./RouterFinanceStaff.js";
 
 const RouterFinance = Router();
 
@@ -28,5 +29,6 @@ RouterFinance.use(expense);
 RouterFinance.use(honorarium);
 RouterFinance.use(honorariumPayroll);
 RouterFinance.use(report);
+RouterFinance.use(financeStaff);
 
 export default RouterFinance;

@@ -9,7 +9,7 @@ import {
   SettingFilled,
   WalletOutlined,
 } from "@ant-design/icons";
-import { HandCoins, Landmark, BanknoteArrowDown } from "lucide-react";
+import { HandCoins, Landmark, BanknoteArrowDown, ShieldCheck } from "lucide-react";
 
 const centerFinanceMenus = {
   label: "Keuangan",
@@ -124,9 +124,18 @@ const buildFinanceMenus = (user = {}) => {
 
   return {
     center: [centerFinanceMenus],
-    admin: [],
+    admin: [
+      {
+        label: "Penugasan Keuangan",
+        key: "/manajemen-penugasan",
+        icon: <ShieldCheck size={14} />,
+      },
+    ],
     finance: financeMenus,
-    teacher: user?.is_homeroom ? [teacherFinanceNode] : [],
+    teacher: [
+      ...(user?.is_homeroom ? [teacherFinanceNode] : []),
+      ...(user?.can_manage_finance ? financeMenus : []),
+    ],
     student: [studentFinanceNode],
     parent: [parentFinanceNode],
     tahfiz: [],

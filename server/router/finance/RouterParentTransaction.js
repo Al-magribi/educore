@@ -3,7 +3,7 @@ import fs from "fs";
 import multer from "multer";
 import path from "path";
 import { Router } from "express";
-import { authorize } from "../../middleware/authorize.js";
+import { authorize } from "./authorizeFinance.js";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import {
   MONTH_NAMES,

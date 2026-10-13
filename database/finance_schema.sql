@@ -759,3 +759,22 @@ CREATE INDEX IF NOT EXISTS idx_honor_payroll_line_payroll
 
 CREATE INDEX IF NOT EXISTS idx_honor_payroll_line_assignment
     ON finance.honor_payroll_line (assignment_id);
+
+-- Admin keuangan per homebase. Terpisah dari u_staff_assignment milik LMS.
+CREATE TABLE IF NOT EXISTS finance.homebase_finance_admin (
+    id SERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    teacher_id INT NOT NULL REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
+    assigned_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_homebase_finance_admin_active
+    ON finance.homebase_finance_admin (homebase_id, teacher_id)
+    WHERE is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_homebase_finance_admin_teacher
+    ON finance.homebase_finance_admin (teacher_id, homebase_id)
+    WHERE is_active = true;

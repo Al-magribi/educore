@@ -2,6 +2,8 @@ import { lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
+import FinanceDeskAccess from "../../module/finance/access/FinanceDeskAccess";
+import FinanceStaffSlot from "../../module/finance/assignment/FinanceStaffSlot";
 
 const FinanceDash = lazy(
   () => import("../../module/finance/dashboard/FinanceDash"),
@@ -49,8 +51,23 @@ const renderFinanceRoutes = ({ LazyPage }) => {
     <>
       <Route
         element={
-          <RouteProtection
-            allowedRoles={["admin"]}
+          <FinanceDeskAccess
+            allowedLevels={["satuan"]}
+            allowFinanceStaff={false}
+          />
+        }
+      >
+        <Route
+          path='/manajemen-penugasan'
+          element={
+            <Page title='Penugasan Keuangan' Component={FinanceStaffSlot} />
+          }
+        />
+      </Route>
+
+      <Route
+        element={
+          <FinanceDeskAccess
             allowedLevels={["finance", "keuangan", "satuan", "pusat"]}
           />
         }
@@ -103,10 +120,7 @@ const renderFinanceRoutes = ({ LazyPage }) => {
 
       <Route
         element={
-          <RouteProtection
-            allowedRoles={["admin"]}
-            allowedLevels={["finance", "keuangan", "pusat"]}
-          />
+          <FinanceDeskAccess allowedLevels={["finance", "keuangan", "pusat"]} />
         }
       >
         <Route

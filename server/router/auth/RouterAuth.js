@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { withTransaction, withQuery } from "../../utils/wrapper.js"; // Sesuaikan path wrapper
 import { authorize } from "../../middleware/authorize.js";
+import { attachFinanceStaffFlag } from "../finance/financeStaffAccess.js";
 
 const router = Router();
 
@@ -410,13 +411,19 @@ router.post(
 
     delete user.password;
 
+    const payload = {
+      ...user,
+      ...roleData,
+    };
+
+    if (payload.role === "teacher") {
+      await attachFinanceStaffFlag(client, payload);
+    }
+
     // 7. Kirim Response
     return res.status(200).json({
       message: "Login berhasil",
-      user: {
-        ...user, // id, role, username...
-        ...roleData, // level (jika admin), nis (jika siswa), dll
-      },
+      user: payload,
     });
   }),
 );
@@ -589,6 +596,10 @@ router.get(
 
     if (!userData) {
       return res.status(404).json({ message: "Data user tidak ditemukan" });
+    }
+
+    if (role === "teacher") {
+      await attachFinanceStaffFlag(pool, userData);
     }
 
     return res.status(200).json(userData);
