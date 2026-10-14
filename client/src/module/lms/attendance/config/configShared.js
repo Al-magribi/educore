@@ -49,13 +49,41 @@ export const POLICY_TYPE_OPTIONS = [
     value: "activity_fixed",
     role: "all",
   },
+  {
+    label: "Tendik - Fixed Daily",
+    value: "staff_fixed_daily",
+    role: "staff",
+  },
 ];
 
 export const POLICY_TARGET_ROLE_OPTIONS = [
   { label: "Siswa", value: "student" },
   { label: "Guru", value: "teacher" },
   { label: "Guru & Siswa", value: "all" },
+  { label: "Tendik", value: "staff" },
 ];
+
+export const POLICY_ROLE_META = {
+  student: { label: "Siswa", color: "green" },
+  teacher: { label: "Guru", color: "blue" },
+  all: { label: "Guru & Siswa", color: "purple" },
+  staff: { label: "Tendik", color: "orange" },
+};
+
+export const getPolicyTypeLabel = (value) =>
+  POLICY_TYPE_OPTIONS.find((item) => item.value === value)?.label || value || "-";
+
+export const getRoleOptionsForPolicyType = (policyType) => {
+  if (policyType === "staff_fixed_daily") {
+    return POLICY_TARGET_ROLE_OPTIONS.filter((item) => item.value === "staff");
+  }
+  if (policyType === "activity_fixed") {
+    return POLICY_TARGET_ROLE_OPTIONS.filter((item) => item.value !== "staff");
+  }
+  return POLICY_TARGET_ROLE_OPTIONS.filter(
+    (item) => item.value === "student" || item.value === "teacher",
+  );
+};
 
 export const containerVariants = {
   hidden: { opacity: 0 },

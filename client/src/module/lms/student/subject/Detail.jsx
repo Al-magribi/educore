@@ -23,6 +23,7 @@ import {
   School,
 } from "lucide-react";
 import LearningTab from "./components/LearningTab";
+import PageHeader from "../../../../components/ui/PageHeader";
 import ReportTab from "./components/ReportTab";
 import StudentTaskView from "../task/StudentTaskView";
 
@@ -122,162 +123,34 @@ const Detail = ({ subject, classId, onBack }) => {
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: 28,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
-            boxShadow: "0 24px 52px rgba(15, 23, 42, 0.18)",
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}
-        >
-          <Row gutter={[20, 20]} align='middle'>
-            <Col xs={24} xl={16}>
-              <Flex
-                vertical
-                gap={16}
-                style={{ alignItems: isMobile ? "stretch" : "flex-start" }}
-              >
-                <Button
-                  icon={<ArrowLeft size={16} />}
-                  onClick={onBack}
-                  size={isMobile ? "middle" : "large"}
-                  style={{
-                    width: isMobile ? "100%" : "fit-content",
-                    borderRadius: 14,
-                    background: "rgba(255,255,255,0.12)",
-                    borderColor: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    boxShadow: "none",
-                  }}
-                >
-                  Kembali ke daftar
-                </Button>
-
-                <Space align='start' size={16} style={{ width: "100%" }}>
-                  <div
-                    style={{
-                      width: isMobile ? 58 : 68,
-                      height: isMobile ? 58 : 68,
-                      borderRadius: 22,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "rgba(255,255,255,0.14)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,0.16)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <BookOpen size={isMobile ? 28 : 32} />
-                  </div>
-
-                  <Space direction='vertical' size={6} style={{ minWidth: 0 }}>
-                    <Text style={{ color: "rgba(255,255,255,0.74)" }}>
-                      Detail Mata Pelajaran
-                    </Text>
-                    <Title
-                      level={isMobile ? 4 : 2}
-                      style={{ color: "#fff", margin: 0, lineHeight: 1.15 }}
-                    >
-                      {subject?.name || "Mata Pelajaran"}
-                    </Title>
-                    <Text
-                      style={{ color: "rgba(255,255,255,0.82)", maxWidth: 720 }}
-                    >
-                      Materi pembelajaran dan laporan belajar disajikan dalam
-                      satu workspace yang rapi agar siswa lebih mudah menelusuri
-                      progres belajarnya.
-                    </Text>
-                    <Space size={[8, 8]} wrap>
-                      <Tag
-                        icon={<Hash size={12} />}
-                        style={{
-                          marginRight: 0,
-                          borderRadius: 999,
-                          background: "rgba(255,255,255,0.12)",
-                          color: "#fff",
-                          borderColor: "rgba(255,255,255,0.18)",
-                        }}
-                      >
-                        {subject?.code || "Tanpa Kode"}
-                      </Tag>
-                      <Tag
-                        icon={<Layers3 size={12} />}
-                        style={{
-                          marginRight: 0,
-                          borderRadius: 999,
-                          background: "rgba(255,255,255,0.12)",
-                          color: "#fff",
-                          borderColor: "rgba(255,255,255,0.18)",
-                        }}
-                      >
-                        {subject?.category_name || "Umum"}
-                      </Tag>
-                      {subject?.branch_name ? (
-                        <Tag
-                          icon={<Building2 size={12} />}
-                          style={{
-                            marginRight: 0,
-                            borderRadius: 999,
-                            background: "rgba(255,255,255,0.12)",
-                            color: "#fff",
-                            borderColor: "rgba(255,255,255,0.18)",
-                          }}
-                        >
-                          {subject.branch_name}
-                        </Tag>
-                      ) : null}
-                    </Space>
-                  </Space>
-                </Space>
+        <Flex vertical gap={8}>
+          <Button
+            type='link'
+            icon={<ArrowLeft size={16} />}
+            onClick={onBack}
+            style={{ width: "fit-content", paddingInline: 0 }}
+          >
+            Kembali ke daftar
+          </Button>
+          <PageHeader
+            title={subject?.name || "Mata Pelajaran"}
+            description='Materi pembelajaran dan laporan belajar disajikan dalam satu workspace.'
+            meta={
+              <Flex gap={8} wrap='wrap'>
+                <Tag>{subject?.code || "Tanpa Kode"}</Tag>
+                <Tag>{subject?.category_name || "Umum"}</Tag>
+                {subject?.branch_name ? <Tag>{subject.branch_name}</Tag> : null}
+                <Tag>
+                  {subject?.class_name
+                    ? `Kelas ${subject.class_name}`
+                    : classId
+                      ? "Kelas aktif"
+                      : "Kelas belum tersedia"}
+                </Tag>
               </Flex>
-            </Col>
-
-            <Col xs={24} xl={8}>
-              <MotionDiv
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Card
-                  bordered={false}
-                  style={{
-                    borderRadius: 24,
-                    background: "rgba(255,255,255,0.12)",
-                    backdropFilter: "blur(10px)",
-                  }}
-                  styles={{ body: { padding: isMobile ? 16 : 18 } }}
-                >
-                  <Space
-                    direction='vertical'
-                    size={10}
-                    style={{ width: "100%" }}
-                  >
-                    <Text style={{ color: "rgba(255,255,255,0.74)" }}>
-                      Ringkasan akses
-                    </Text>
-                    <Title
-                      level={isMobile ? 5 : 4}
-                      style={{ color: "#fff", margin: 0 }}
-                    >
-                      {subject?.name || "Mapel Aktif"}
-                    </Title>
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                      {subject?.class_name
-                        ? `Terkait dengan kelas ${subject.class_name}.`
-                        : classId
-                          ? "Terhubung dengan kelas aktif yang sedang Anda buka."
-                          : "Detail kelas belum tersedia pada data ini."}
-                    </Text>
-                  </Space>
-                </Card>
-              </MotionDiv>
-            </Col>
-          </Row>
-        </Card>
+            }
+          />
+        </Flex>
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>

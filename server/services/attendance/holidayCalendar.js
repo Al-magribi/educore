@@ -233,7 +233,7 @@ export const isWeekendHoliday = (attendanceDate, calendarConfig) => {
 /**
  * Cek libur operasional untuk role tertentu.
  * - Akhir pekan dari attendance_calendar_config (skip_saturday / skip_sunday)
- * - Libur khusus dari attendance_holiday sesuai applies_to_role (all | student | teacher)
+ * - Libur khusus dari attendance_holiday sesuai applies_to_role (all | student | teacher); tendik hanya ikut libur "all"
  */
 export const isAttendanceHoliday = async (
   executor,
@@ -251,7 +251,9 @@ export const isAttendanceHoliday = async (
   const roleFilter =
     normalizedRole === "student" || normalizedRole === "teacher"
       ? ["all", normalizedRole]
-      : ["all", "student", "teacher"];
+      : normalizedRole === "staff"
+        ? ["all"]
+        : ["all", "student", "teacher"];
 
   const result = await executor.query(
     `SELECT 1

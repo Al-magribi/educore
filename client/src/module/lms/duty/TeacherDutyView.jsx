@@ -20,6 +20,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useGetTeacherDutyBootstrapQuery } from "../../../service/lms/ApiDuty";
+import PageHeader from "../../../components/ui/PageHeader";
 import TeacherDutyWorkspace from "./TeacherDutyWorkspace";
 
 const { Text, Title } = Typography;
@@ -46,15 +47,6 @@ const itemVariants = {
       ease: [0.22, 1, 0.36, 1],
     },
   },
-};
-
-const heroStyle = {
-  borderRadius: 28,
-  overflow: "hidden",
-  border: "1px solid rgba(186, 230, 253, 0.8)",
-  background:
-    "radial-gradient(circle at top right, rgba(103, 232, 249, 0.3), transparent 30%), linear-gradient(135deg, #082f49 0%, #0f766e 46%, #22c55e 100%)",
-  boxShadow: "0 24px 60px rgba(8, 47, 73, 0.16)",
 };
 
 const statCardStyle = {
@@ -214,52 +206,11 @@ const TeacherDutyView = () => {
       }}
     >
       <motion.div variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            ...heroStyle,
-            borderRadius: isMobile ? 22 : 28,
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}
-        >
-          <Flex vertical gap={14} style={{ maxWidth: 720 }}>
-            <Space size={[10, 10]} wrap>
-              <Tag
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                }}
-              >
-                Duty Workspace
-              </Tag>
-              <Tag
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "#dcfce7",
-                }}
-              >
-                {selectedDateLabel}
-              </Tag>
-            </Space>
-
-            <div>
-              <Title
-                level={isMobile ? 3 : 2}
-                style={{ margin: 0, color: "#fff", lineHeight: 1.15 }}
-              >
-                Halaman Piket Guru.
-              </Title>
-            </div>
-          </Flex>
-        </Card>
+        <PageHeader
+          title='Piket Guru'
+          description='Catat kehadiran dan catatan harian sesuai jadwal piket Anda.'
+          meta={<Tag>{selectedDateLabel}</Tag>}
+        />
       </motion.div>
 
       <motion.div variants={itemVariants}>

@@ -5,7 +5,7 @@ import { MoreVertical } from 'lucide-react';
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
-export const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
+export const PAGE_SIZE_OPTIONS = ['12', '24', '48', '96'];
 
 export const surfaceCardStyle = {
   borderRadius: 22,
@@ -25,13 +25,10 @@ export const statCardStyle = {
   minWidth: 0,
 };
 
-/** Tighter card padding on phones so tables keep more usable width. */
+/** Tighter card padding on phones so cards keep more usable width. */
 export const surfaceCardBodyStyles = (isMobile) => ({
   body: { padding: isMobile ? 14 : 24 },
 });
-
-/** Clips the table's horizontal scroll to the card instead of the page. */
-export const tableShellStyle = { width: '100%', minWidth: 0, overflow: 'hidden' };
 
 export const useResponsiveFlags = () => {
   const screens = useBreakpoint();
@@ -98,20 +95,6 @@ export const buildPagination = ({ pageSize, setPageSize, isMobile, unit = 'data'
   pageSizeOptions: PAGE_SIZE_OPTIONS,
   showTotal: isMobile ? undefined : (total, range) => `${range[0]}-${range[1]} dari ${total} ${unit}`,
   onChange: (_page, size) => setPageSize(size),
-});
-
-export const buildRowSelection = ({ selectedRowKeys, onChange, isMobile }) => ({
-  selectedRowKeys,
-  onChange,
-  fixed: true,
-  columnWidth: isMobile ? 36 : 44,
-});
-
-/** Shared table props so every report scrolls instead of squeezing columns. */
-export const buildTableProps = ({ isMobile, minWidth }) => ({
-  size: isMobile ? 'small' : 'middle',
-  scroll: { x: minWidth },
-  tableLayout: 'fixed',
 });
 
 export const filterControlStyle = (isMobile, basis = 200) => ({
@@ -213,23 +196,6 @@ export const StatCardGrid = ({ items, isMobile }) => {
   );
 };
 
-/** Two-line table cell; both lines expose the full value on hover when clipped. */
-export const StackedCell = ({ primary, secondary }) => (
-  <Flex vertical gap={2} style={{ minWidth: 0, maxWidth: '100%' }}>
-    <Text strong ellipsis={{ tooltip: primary || '-' }} style={{ maxWidth: '100%' }}>
-      {primary || '-'}
-    </Text>
-    {secondary ? (
-      <Text
-        type="secondary"
-        ellipsis={{ tooltip: secondary }}
-        style={{ fontSize: 12, maxWidth: '100%' }}>
-        {secondary}
-      </Text>
-    ) : null}
-  </Flex>
-);
-
 export const StatusTag = ({ value, colorMap = {} }) => {
   if (!value) return <Text type="secondary">-</Text>;
   return (
@@ -249,8 +215,6 @@ export const StatusTag = ({ value, colorMap = {} }) => {
   );
 };
 
-export const ROW_ACTION_WIDTH = 56;
-
 export const DETAIL_ACTIONS = [
   { key: 'detail', label: 'Detail' },
   { type: 'divider' },
@@ -264,7 +228,7 @@ export const FULL_ROW_ACTIONS = [
   { key: 'delete', label: 'Hapus', danger: true },
 ];
 
-/** Compact row menu so the action column costs 56px instead of a 110px select. */
+/** Compact action menu for record cards. */
 export const RowActionMenu = ({ actions, onSelect }) => (
   <Dropdown
     trigger={['click']}
@@ -274,15 +238,6 @@ export const RowActionMenu = ({ actions, onSelect }) => (
   </Dropdown>
 );
 
-export const buildActionColumn = (onSelect, actions = FULL_ROW_ACTIONS) => ({
-  title: 'Aksi',
-  key: 'action',
-  width: ROW_ACTION_WIDTH,
-  fixed: 'right',
-  align: 'center',
-  render: (_, row) => <RowActionMenu actions={actions} onSelect={(key) => onSelect(key, row)} />,
-});
-
 export const BulkDeleteBar = ({ selectedCount, loading, onDelete, label, isMobile, icon }) => (
   <Flex
     justify="space-between"
@@ -291,7 +246,7 @@ export const BulkDeleteBar = ({ selectedCount, loading, onDelete, label, isMobil
     gap={10}
     style={{ marginBottom: 14, width: '100%', minWidth: 0 }}>
     <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
-      {selectedCount > 0 ? `${selectedCount} ${label} terpilih` : 'Centang baris untuk hapus bulk'}
+      {selectedCount > 0 ? `${selectedCount} ${label} terpilih` : 'Centang kartu untuk hapus bulk'}
     </Text>
     <Button
       danger
@@ -306,5 +261,3 @@ export const BulkDeleteBar = ({ selectedCount, loading, onDelete, label, isMobil
 );
 
 export const modalWidth = (isMobile, desktopWidth = 720) => (isMobile ? '95vw' : desktopWidth);
-
-export const detailColumnConfig = { xs: 1, sm: 1, md: 2 };

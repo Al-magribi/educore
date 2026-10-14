@@ -8,6 +8,7 @@ import {
   toJakartaDateString,
 } from "./rfidDailyAttendance.js";
 import { isAttendanceHoliday } from "./holidayCalendar.js";
+import { resolveStaffPolicy, STAFF_TARGET_ROLE } from "./rfidStaffAttendance.js";
 
 const FINAL_STATUSES = new Set([
   "present",
@@ -775,6 +776,115 @@ const processAutoCheckout = async (
   return filled;
 };
 
+/**
+ * Tendik (u_staff aktif dengan No RFID) memakai satu policy staff_fixed_daily per satuan:
+ * auto-absent setelah batas checkin, auto-checkout tepat Jam Pulang.
+ */
+const processStaffDailyAttendance = async (
+  client,
+  { homebaseId, periodeId, attendanceDate, now },
+) => {
+  const result = { marked: 0, filled: 0 };
+
+  const tableRes = await client.query(
+    `SELECT to_regclass('attendance.staff_daily_attendance') AS rel`,
+  );
+  if (!tableRes.rows[0]?.rel) return result;
+
+  const policy = await resolveStaffPolicy(client, homebaseId);
+  if (!policy) return result;
+
+  if (
+    await isAttendanceHoliday(client, homebaseId, attendanceDate, STAFF_TARGET_ROLE)
+  ) {
+    return result;
+  }
+
+  const dayOfWeek = getJakartaIsoDow(new Date(`${attendanceDate}T12:00:00+07:00`));
+  const dayRule = await getDayRule(client, policy.id, dayOfWeek);
+  if (!dayRule) return result;
+
+  const absentCutoff =
+    resolveCheckinCutoff(dayRule, now) ||
+    resolveCheckoutFillAt(dayRule, attendanceDate);
+  if (hasPassedCutoff(now, absentCutoff)) {
+    const absentRes = await client.query(
+      `INSERT INTO attendance.staff_daily_attendance (
+         homebase_id, periode_id, staff_id, policy_id, attendance_date,
+         attendance_status, notes
+       )
+       SELECT s.homebase_id, $2, s.id, $3, $4::date, 'absent', $5
+       FROM public.u_staff s
+       WHERE s.homebase_id = $1
+         AND s.is_active = true
+         AND NULLIF(trim(s.rfid_no), '') IS NOT NULL
+       ON CONFLICT (staff_id, attendance_date) DO UPDATE
+       SET
+         attendance_status = 'absent',
+         policy_id = COALESCE(attendance.staff_daily_attendance.policy_id, EXCLUDED.policy_id),
+         notes = COALESCE(attendance.staff_daily_attendance.notes, EXCLUDED.notes),
+         updated_at = NOW()
+       WHERE attendance.staff_daily_attendance.checkin_at IS NULL
+         AND attendance.staff_daily_attendance.attendance_status IN ('pending', 'incomplete')`,
+      [
+        homebaseId,
+        periodeId,
+        policy.id,
+        attendanceDate,
+        "Auto-absent: tidak ada scan masuk hingga batas kehadiran policy.",
+      ],
+    );
+    result.marked = absentRes.rowCount;
+  }
+
+  if (dayRule.checkout_is_optional === true) return result;
+  const fillAt = resolveCheckoutFillAt(dayRule, attendanceDate);
+  if (!hasPassedCutoff(now, fillAt)) return result;
+
+  const openRes = await client.query(
+    `SELECT id, checkin_at, attendance_status, late_minutes
+     FROM attendance.staff_daily_attendance
+     WHERE homebase_id = $1
+       AND attendance_date = $2::date
+       AND checkin_at IS NOT NULL
+       AND checkin_at <= $3::timestamptz
+       AND checkout_at IS NULL
+       AND attendance_status NOT IN ('absent', 'excused')`,
+    [homebaseId, attendanceDate, fillAt.toISOString()],
+  );
+
+  for (const row of openRes.rows) {
+    const { attendanceStatus, presenceMinutes } = resolveAutoCheckoutStatus({
+      checkinAt: row.checkin_at,
+      checkoutAt: fillAt,
+      currentStatus: row.attendance_status,
+      lateMinutes: row.late_minutes,
+      minPresenceMinutes: dayRule.min_presence_minutes,
+    });
+    const updated = await client.query(
+      `UPDATE attendance.staff_daily_attendance
+       SET
+         checkout_at = $2::timestamptz,
+         presence_minutes = $3,
+         attendance_status = $4,
+         notes = COALESCE(notes, $5),
+         updated_at = NOW()
+       WHERE id = $1
+         AND checkout_at IS NULL`,
+      [
+        row.id,
+        fillAt.toISOString(),
+        presenceMinutes,
+        attendanceStatus,
+        "Auto-checkout: tidak ada scan pulang hingga jam pulang policy.",
+      ],
+    );
+    result.filled += updated.rowCount;
+  }
+
+  return result;
+};
+
 const markMissedTeacherSessions = async (
   client,
   { homebaseId, attendanceDate, now },
@@ -840,6 +950,8 @@ export const runAutoAbsentForHomebase = async (
       teachers_marked: 0,
       students_checkout_filled: 0,
       teachers_checkout_filled: 0,
+      staff_marked: 0,
+      staff_checkout_filled: 0,
       sessions_marked_missed: 0,
     };
   }
@@ -907,6 +1019,14 @@ export const runAutoAbsentForHomebase = async (
       targetRole: "teacher",
     }),
   );
+  const staffResult = await runStep("staff_daily", () =>
+    processStaffDailyAttendance(client, {
+      homebaseId,
+      periodeId,
+      attendanceDate: evaluationDate,
+      now,
+    }),
+  );
   const sessionsMarkedMissed = await runStep("session_missed", () =>
     markMissedTeacherSessions(client, {
       homebaseId,
@@ -924,6 +1044,8 @@ export const runAutoAbsentForHomebase = async (
     teachers_marked: teachersMarked,
     students_checkout_filled: studentsCheckoutFilled,
     teachers_checkout_filled: teachersCheckoutFilled,
+    staff_marked: staffResult?.marked || 0,
+    staff_checkout_filled: staffResult?.filled || 0,
     sessions_marked_missed: sessionsMarkedMissed,
   };
 };

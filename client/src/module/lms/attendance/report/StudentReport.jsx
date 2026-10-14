@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   DatePicker,
-  Descriptions,
   Flex,
   Input,
   Modal,
@@ -26,13 +25,9 @@ import {
   FULL_ROW_ACTIONS,
   ReportHeader,
   RowActionMenu,
-  StackedCell,
   StatCardGrid,
   StatusTag,
-  buildActionColumn,
   buildPagination,
-  buildRowSelection,
-  detailColumnConfig,
   filterControlStyle,
   formatDateCell,
   formatDateTimeCell,
@@ -46,7 +41,7 @@ import {
   toolbarButtonStyle,
   useResponsiveFlags,
 } from './reportShared';
-import { ReportDataView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
+import { CardGridView, ReportDetailGrid, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
 const { RangePicker } = DatePicker;
 
@@ -82,7 +77,7 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const [editStatus, setEditStatus] = useState();
   const [editNotes, setEditNotes] = useState('');
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(12);
 
   const { data: gradesRes } = useGetGradesQuery({ homebaseId });
   const { data: classesRes } = useGetClassesQuery({ gradeId, homebaseId });
@@ -252,54 +247,6 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     },
   ];
 
-  const columns = [
-    {
-      title: 'Siswa',
-      key: 'student',
-      width: isMobile ? 170 : 250,
-      fixed: 'left',
-      ellipsis: true,
-      render: (_, row) => (
-        <StackedCell
-          primary={row.full_name}
-          secondary={
-            isMobile
-              ? `${row.class_name || '-'} · NIS ${row.nis || '-'}`
-              : `NIS ${row.nis || '-'} · ${row.grade_name || '-'} / ${row.class_name || '-'}`
-          }
-        />
-      ),
-    },
-    {
-      title: 'Tanggal',
-      dataIndex: 'attendance_date',
-      width: isMobile ? 96 : 130,
-      ellipsis: true,
-      render: (value) => formatDateCell(value, isMobile),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'attendance_status',
-      width: isMobile ? 108 : 125,
-      render: (value) => <StatusTag value={value} colorMap={STATUS_COLORS} />,
-    },
-    {
-      title: 'Datang',
-      dataIndex: 'checkin_at',
-      width: isMobile ? 108 : 140,
-      ellipsis: true,
-      render: (value) => formatDateTimeCell(value, isMobile),
-    },
-    {
-      title: 'Pulang',
-      dataIndex: 'checkout_at',
-      width: isMobile ? 108 : 140,
-      ellipsis: true,
-      render: (value) => formatDateTimeCell(value, isMobile),
-    },
-    buildActionColumn(handleRowAction),
-  ];
-
   return (
     <Flex vertical gap={isMobile ? 12 : 18} style={{ width: '100%', minWidth: 0 }}>
       <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
@@ -389,19 +336,12 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             icon={<Trash2 size={16} />}
           />
         )}
-        <ReportDataView
-          isMobile={isMobile}
+        <CardGridView
           loading={isLoading || (isFetching && rows.length > 0)}
           dataSource={rows}
-          columns={columns}
           emptyText="Belum ada data presensi siswa pada rentang ini."
-          minWidth={900}
           pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'catatan' })}
-          rowSelection={buildRowSelection({
-            selectedRowKeys,
-            onChange: setSelectedRowKeys,
-            isMobile,
-          })}
+          rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           renderCard={(row, selectProps) => (
             <ReportRecordCard
               {...selectProps}
@@ -452,14 +392,7 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         width={modalWidth(isMobile)}
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
         {detailRow && (
-          <Descriptions
-            bordered
-            column={detailColumnConfig}
-            size="small"
-            styles={{
-              label: { width: isMobile ? 130 : 170, whiteSpace: 'nowrap' },
-              content: { wordBreak: 'break-word' },
-            }}
+          <ReportDetailGrid
             items={[
               { key: 'id', label: 'ID', children: formatDetailValue(detailRow.id) },
               {

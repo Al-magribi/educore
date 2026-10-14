@@ -34,6 +34,7 @@ import {
   teacherOwnsSubject,
 } from "../../../utils/staffAssignment";
 import { useSearchParams } from "react-router-dom";
+import PageHeader from "../../../components/ui/PageHeader";
 const TeacherView = lazy(() => import("./teacher/TeacherView"));
 const AdminView = lazy(() => import("./admin/AdminView"));
 
@@ -61,15 +62,6 @@ const itemVariants = {
       ease: [0.22, 1, 0.36, 1],
     },
   },
-};
-
-const heroCardStyle = {
-  borderRadius: 28,
-  overflow: "hidden",
-  border: "1px solid rgba(191, 219, 254, 0.82)",
-  background:
-    "radial-gradient(circle at top right, rgba(125, 211, 252, 0.35), transparent 34%), linear-gradient(135deg, #0f172a 0%, #0f3d8f 45%, #0ea5e9 100%)",
-  boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
 };
 
 const statCardStyle = {
@@ -219,124 +211,41 @@ const LmsManagement = () => {
     >
       <title>Daftar Pelajaran</title>
       <motion.div variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            ...heroCardStyle,
-            borderRadius: isMobile ? 22 : 28,
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}
-        >
-          <Row gutter={isMobile ? [18, 18] : [24, 24]} align='middle'>
-            <Col xs={24} lg={15}>
-              <Flex vertical gap={16}>
-                <Space size={14} wrap align='start'>
-                  <Avatar
-                    size={isMobile ? 54 : 62}
-                    style={{
-                      background:
-                        "linear-gradient(135deg, rgba(255,255,255,0.22), rgba(255,255,255,0.08))",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,0.22)",
-                      boxShadow: "0 12px 24px rgba(15, 23, 42, 0.16)",
-                    }}
-                    icon={<GraduationCap size={26} />}
-                  />
-                  <Flex vertical>
-                    <Space size={[8, 8]} wrap>
-                      <Tag
-                        style={{
-                          marginRight: 0,
-                          borderRadius: 999,
-                          paddingInline: 12,
-                          border: "1px solid rgba(255,255,255,0.18)",
-                          background: "rgba(255,255,255,0.12)",
-                          color: "#fff",
-                        }}
-                      >
-                        Akses {roleLabel}
-                      </Tag>
-                      <Tag
-                        style={{
-                          marginRight: 0,
-                          borderRadius: 999,
-                          paddingInline: 12,
-                          border: "1px solid rgba(255,255,255,0.18)",
-                          background: "rgba(255,255,255,0.08)",
-                          color: "#e0f2fe",
-                        }}
-                      >
-                        {view && subject_id
-                          ? activeSubject?.name || "Detail Pelajaran"
-                          : `${subjects.length} pelajaran tersedia`}
-                      </Tag>
-                    </Space>
-
-                    <Title
-                      level={isMobile ? 4 : 2}
-                      style={{
-                        margin: 0,
-                        color: "#fff",
-                        lineHeight: 1.15,
-                        maxWidth: 640,
-                      }}
-                    >
-                      {view && subject_id
-                        ? activeSubject?.name || "Detail Pelajaran"
-                        : "Kelola Mata Pelajaran"}
-                    </Title>
-                  </Flex>
-                </Space>
-              </Flex>
-            </Col>
-
-            <Col xs={24} lg={9}>
-              <Flex
-                vertical
-                gap={12}
-                style={{
-                  padding: isMobile ? 16 : 18,
-                  borderRadius: isMobile ? 18 : 22,
-                  background: "rgba(255,255,255,0.1)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  backdropFilter: "blur(10px)",
-                }}
-              >
-                {view && subject_id ? (
-                  <Button
-                    size='large'
-                    icon={<ArrowLeft size={16} />}
-                    onClick={handleReset}
-                    style={{
-                      width: "100%",
-                      height: 46,
-                      borderRadius: 14,
-                      borderColor: "rgba(255,255,255,0.2)",
-                      background: "rgba(255,255,255,0.16)",
-                      color: "#fff",
-                    }}
-                  >
-                    Kembali ke daftar pelajaran
-                  </Button>
-                ) : null}
-
-                <Input
-                  allowClear
-                  size='large'
-                  value={searchText}
-                  placeholder='Cari pelajaran, kategori, atau cabang...'
-                  prefix={<Search size={16} style={{ color: "#64748b" }} />}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  style={{
-                    width: "100%",
-                    borderRadius: 14,
-                    background: "rgba(255,255,255,0.96)",
-                  }}
-                />
-              </Flex>
-            </Col>
-          </Row>
-        </Card>
+        <PageHeader
+          title={
+            view && subject_id
+              ? activeSubject?.name || "Detail Pelajaran"
+              : "Kelola Mata Pelajaran"
+          }
+          description={roleHint}
+          meta={
+            <Flex gap={8} wrap='wrap'>
+              <Tag>Akses {roleLabel}</Tag>
+              <Tag>
+                {view && subject_id
+                  ? "Detail pelajaran"
+                  : `${subjects.length} pelajaran tersedia`}
+              </Tag>
+            </Flex>
+          }
+          extra={
+            <>
+              {view && subject_id ? (
+                <Button icon={<ArrowLeft size={16} />} onClick={handleReset}>
+                  Kembali
+                </Button>
+              ) : null}
+              <Input
+                allowClear
+                value={searchText}
+                placeholder='Cari pelajaran, kategori, atau cabang...'
+                prefix={<Search size={16} />}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ width: isMobile ? "100%" : 320 }}
+              />
+            </>
+          }
+        />
       </motion.div>
 
       {view && subject_id ? (

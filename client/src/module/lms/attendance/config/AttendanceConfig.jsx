@@ -15,6 +15,7 @@ import DeviceSettingsTab from "./tabs/DeviceSettingsTab";
 import AssignmentPolicyTab from "./tabs/AssignmentPolicyTab";
 import AttendanceGuideModal from "./AttendanceGuideModal";
 import { containerVariants, itemVariants } from "./configShared";
+import PageHeader from "../../../../components/ui/PageHeader";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -134,98 +135,18 @@ const AttendanceConfig = () => {
       }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: token.borderRadiusXL,
-            overflow: "hidden",
-            position: "relative",
-            background:
-              "radial-gradient(circle at top left, rgba(125,211,252,0.24), transparent 26%), linear-gradient(135deg, #0f172a 0%, #0f766e 48%, #22c55e 100%)",
-            boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 26 } }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
-            vertical={isMobile}
-            gap={16}
-            style={{ position: "relative" }}
-          >
-            <Flex vertical gap={10} style={{ maxWidth: 740, flex: 1 }}>
-              <Flex align='center' gap={10} wrap='wrap'>
-                <Flex
-                  align='center'
-                  gap={8}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: 999,
-                    background: "rgba(255,255,255,0.12)",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    color: "#ecfeff",
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  <CalendarClock size={16} />
-                  <span>PRESENSI RFID</span>
-                </Flex>
-              </Flex>
-
-              <Title
-                level={isMobile ? 3 : 2}
-                style={{
-                  margin: 0,
-                  color: "#f8fafc",
-                  lineHeight: 1.15,
-                }}
-              >
-                Konfigurasi Presensi RFID
-              </Title>
-
-              <Text
-                style={{
-                  maxWidth: 680,
-                  color: "rgba(240,249,255,0.88)",
-                  fontSize: isMobile ? 14 : 15,
-                }}
-              >
-                Kelola fitur, policy absensi harian, dan perangkat RFID dalam
-                satu workspace terintegrasi.
-              </Text>
-            </Flex>
-
+        <PageHeader
+          title='Konfigurasi Presensi RFID'
+          description='Kelola fitur, policy absensi harian, dan perangkat RFID dalam satu workspace.'
+          extra={
             <Button
-              type='default'
-              size='large'
               icon={<BookOpenCheck size={16} />}
               onClick={() => setGuideOpen(true)}
-              style={{
-                alignSelf: isMobile ? "stretch" : "center",
-                height: 48,
-                borderRadius: 14,
-                fontWeight: 600,
-                background: "rgba(255,255,255,0.95)",
-                border: "1px solid rgba(255,255,255,0.3)",
-                color: "#0f766e",
-                boxShadow: "0 8px 20px rgba(15, 23, 42, 0.12)",
-              }}
             >
               Panduan Presensi
             </Button>
-          </Flex>
-        </Card>
+          }
+        />
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>

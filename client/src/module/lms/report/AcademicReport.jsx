@@ -15,6 +15,7 @@ import {
   Typography,
 } from "antd";
 import { AnimatePresence, motion } from "framer-motion";
+import PageHeader from "../../../components/ui/PageHeader";
 import {
   BarChart3,
   BookOpenText,
@@ -348,145 +349,25 @@ const AcademicReport = () => {
       style={{ display: "flex", flexDirection: "column", gap: 18 }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: 28,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #22c55e 100%)",
-            boxShadow: "0 26px 56px rgba(15, 23, 42, 0.18)",
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}
-        >
-          <Row gutter={[24, 24]} align='middle'>
-            <Col xs={24} xl={15}>
-              <Space align='start' size={14}>
-                <div
-                  style={{
-                    width: isMobile ? 54 : 64,
-                    height: isMobile ? 54 : 64,
-                    borderRadius: 20,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    boxShadow: "0 14px 30px rgba(8, 15, 35, 0.18)",
-                    flexShrink: 0,
-                  }}
-                >
-                  <BarChart3 size={isMobile ? 28 : 32} />
-                </div>
-
-                <Space vertical size={6} style={{ minWidth: 0 }}>
-                  <Text style={{ color: "rgba(255,255,255,0.74)" }}>
-                    Laporan Akademik Orang Tua
-                  </Text>
-                  <Title
-                    level={isMobile ? 4 : 2}
-                    style={{ color: "#fff", margin: 0, lineHeight: 1.12 }}
-                  >
-                    Pantau progres Pembelajaran Anak
-                  </Title>
-                  <Text
-                    style={{ color: "rgba(255,255,255,0.82)", maxWidth: 760 }}
-                  >
-                    Tampilkan hanya mata pelajaran yang memang sudah memiliki
-                    laporan pada periode aktif.
-                  </Text>
-                </Space>
-              </Space>
-            </Col>
-
-            <Col xs={24} xl={9}>
-              <Card
-                variant='borderless'
-                style={{
-                  borderRadius: 24,
-                  background: "rgba(255,255,255,0.12)",
-                  backdropFilter: "blur(10px)",
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12)",
-                }}
-                styles={{ body: { padding: isMobile ? 16 : 18 } }}
-              >
-                <Space vertical size={8} style={{ width: "100%" }}>
-                  <Flex
-                    justify='space-between'
-                    align='center'
-                    gap={12}
-                    wrap='wrap'
-                  >
-                    <Text style={{ color: "rgba(255,255,255,0.74)" }}>
-                      Ringkasan siswa aktif
-                    </Text>
-                    <Tag
-                      style={{
-                        marginRight: 0,
-                        borderRadius: 999,
-                        paddingInline: 12,
-                        background: "rgba(255,255,255,0.12)",
-                        color: "#fff",
-                        borderColor: "rgba(255,255,255,0.18)",
-                      }}
-                      icon={<CalendarRange size={12} />}
-                    >
-                      Semester {selectedSemester} -{" "}
-                      {monthOptions.find(
-                        (item) =>
-                          Number(item.value) === Number(safeSelectedMonth),
-                      )?.label || "-"}
-                    </Tag>
-                  </Flex>
-
-                  <div>
-                    <Text
-                      style={{ color: "rgba(255,255,255,0.72)", fontSize: 12 }}
-                    >
-                      Nama Siswa
-                    </Text>
-                    <Title
-                      level={isMobile ? 5 : 4}
-                      style={{ color: "#fff", margin: 0 }}
-                    >
-                      {selectedStudent?.student_name ||
-                        "Belum ada siswa terhubung"}
-                    </Title>
-                  </div>
-
-                  <Flex gap={12} wrap='wrap'>
-                    <Tag
-                      style={{
-                        marginRight: 0,
-                        borderRadius: 999,
-                        paddingInline: 12,
-                        background: "rgba(255,255,255,0.12)",
-                        color: "#fff",
-                        borderColor: "rgba(255,255,255,0.18)",
-                      }}
-                      icon={<UserRound size={12} />}
-                    >
-                      NIS {selectedStudent?.nis || "-"}
-                    </Tag>
-                    <Tag
-                      style={{
-                        marginRight: 0,
-                        borderRadius: 999,
-                        paddingInline: 12,
-                        background: "rgba(255,255,255,0.12)",
-                        color: "#fff",
-                        borderColor: "rgba(255,255,255,0.18)",
-                      }}
-                    >
-                      {selectedStudent?.class_name || "Kelas belum tersedia"}
-                    </Tag>
-                  </Flex>
-                </Space>
-              </Card>
-            </Col>
-          </Row>
-        </Card>
+        <PageHeader
+          title='Pantau progres Pembelajaran Anak'
+          description='Tampilkan hanya mata pelajaran yang memang sudah memiliki laporan pada periode aktif.'
+          meta={
+            <Flex gap={8} wrap='wrap'>
+              <Tag>
+                {selectedStudent?.student_name || "Belum ada siswa terhubung"}
+              </Tag>
+              <Tag>NIS {selectedStudent?.nis || "-"}</Tag>
+              <Tag>{selectedStudent?.class_name || "Kelas belum tersedia"}</Tag>
+              <Tag>
+                Semester {selectedSemester} -{" "}
+                {monthOptions.find(
+                  (item) => Number(item.value) === Number(safeSelectedMonth),
+                )?.label || "-"}
+              </Tag>
+            </Flex>
+          }
+        />
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>

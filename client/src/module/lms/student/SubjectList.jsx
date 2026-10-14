@@ -15,6 +15,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, GraduationCap, Search, Users } from "lucide-react";
 import { useGetSubjectsQuery } from "../../../service/lms/ApiLms";
+import PageHeader from "../../../components/ui/PageHeader";
 import Detail from "./subject/Detail";
 import Subject from "./subject/Subject";
 
@@ -157,109 +158,31 @@ const SubjectList = () => {
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: 28,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #1e3a8a 48%, #0ea5e9 100%)",
-            boxShadow: "0 26px 56px rgba(15, 23, 42, 0.18)",
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}
-        >
-          <Row gutter={[24, 24]} align='middle'>
-            <Col xs={24} lg={14}>
-              <Space align='start'>
-                <div
-                  style={{
-                    width: isMobile ? 54 : 64,
-                    height: isMobile ? 54 : 64,
-                    borderRadius: 20,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(255,255,255,0.14)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    boxShadow: "0 14px 30px rgba(8, 15, 35, 0.18)",
-                    flexShrink: 0,
-                  }}
-                >
-                  <GraduationCap size={isMobile ? 28 : 32} />
-                </div>
-
-                <Space vertical size={6} style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ color: "rgba(255,255,255,0.74)" }}>
-                    Daftar Pembelajaran
-                  </Text>
-                  <Title
-                    level={isMobile ? 4 : 3}
-                    style={{
-                      color: "#fff",
-                      margin: 0,
-                      lineHeight: 1.15,
-                    }}
-                  >
-                    Mata Pelajaran
-                  </Title>
-                  <Text
-                    style={{
-                      color: "rgba(255,255,255,0.82)",
-                      fontSize: 14,
-                      maxWidth: 720,
-                    }}
-                  >
-                    {user?.class_name
-                      ? `Kelas ${user.class_name}`
-                      : "Kelas Anda belum terdata, tetapi daftar mata pelajaran tetap bisa ditelusuri dari data yang tersedia."}
-                  </Text>
-                </Space>
-              </Space>
-            </Col>
-
-            <Col xs={24} lg={10}>
-              <MotionDiv
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.32 }}
-              >
-                <Card
-                  variant='borderless'
-                  style={{
-                    borderRadius: 24,
-                    background: "rgba(255,255,255,0.12)",
-                    backdropFilter: "blur(10px)",
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12)",
-                  }}
-                  styles={{ body: { padding: isMobile ? 16 : 18 } }}
-                >
-                  <Space vertical size={12} style={{ width: "100%" }}>
-                    <Text style={{ color: "rgba(255,255,255,0.78)" }}>
-                      Temukan mapel dengan cepat
-                    </Text>
-                    <Input
-                      allowClear
-                      value={keyword}
-                      onChange={(event) => setKeyword(event.target.value)}
-                      placeholder='Cari mata pelajaran, kode, guru...'
-                      prefix={<Search size={16} style={{ color: "#64748b" }} />}
-                      size='large'
-                      style={{ width: searchWidth }}
-                    />
-                    <Text
-                      style={{ color: "rgba(255,255,255,0.76)", fontSize: 12 }}
-                    >
-                      {trimmedKeyword
-                        ? `${filteredSubjects.length} hasil ditemukan untuk "${trimmedKeyword}".`
-                        : "Gunakan pencarian untuk menyaring mata pelajaran berdasarkan nama, kode, kategori, jurusan, atau guru."}
-                    </Text>
-                  </Space>
-                </Card>
-              </MotionDiv>
-            </Col>
-          </Row>
-        </Card>
+        <PageHeader
+          title='Mata Pelajaran'
+          description={
+            user?.class_name
+              ? `Kelas ${user.class_name}`
+              : "Kelas Anda belum terdata, tetapi daftar mata pelajaran tetap bisa ditelusuri."
+          }
+          meta={
+            <Text type='secondary'>
+              {trimmedKeyword
+                ? `${filteredSubjects.length} hasil ditemukan untuk "${trimmedKeyword}".`
+                : "Cari berdasarkan nama, kode, kategori, jurusan, atau guru."}
+            </Text>
+          }
+          extra={
+            <Input
+              allowClear
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder='Cari mata pelajaran, kode, guru...'
+              prefix={<Search size={16} />}
+              style={{ width: searchWidth }}
+            />
+          }
+        />
       </MotionDiv>
 
       {!isMobile && (

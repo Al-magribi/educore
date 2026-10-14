@@ -13,6 +13,7 @@ import {
 } from "antd";
 import { motion } from "framer-motion";
 import dayjs from "dayjs";
+import PageHeader from "../../../../../components/ui/PageHeader";
 import {
   CalendarRange,
   FolderKanban,
@@ -258,83 +259,17 @@ const TaskView = ({ subjectId }) => {
       animate={{ opacity: 1, y: 0 }}
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
-      <Card
-        variant='borderless'
-        style={{
-          borderRadius: 24,
-          boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-        }}
-        styles={{ body: { padding: isMobile ? 18 : 22 } }}
-      >
-        <Flex
-          justify='space-between'
-          align={isMobile ? "flex-start" : "center"}
-          gap={16}
-          wrap='wrap'
-        >
-          <Space align='start' size={14}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-                color: "#1d4ed8",
-                flexShrink: 0,
-              }}
-            >
-              <ListTodo size={22} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <Text type='secondary'>Penugasan Guru</Text>
-              <Title level={isMobile ? 5 : 4} style={{ margin: "2px 0 6px" }}>
-                Kelola Penugasan
-              </Title>
-              <Text type='secondary'>
-                Tugas ditampilkan berdasarkan chapter, kelas tujuan, dan
-                deadline.
-              </Text>
-            </div>
-          </Space>
-
-          <Flex
-            align={isMobile ? "stretch" : "center"}
-            gap={12}
-            wrap='wrap'
-            style={{ width: isMobile ? "100%" : "auto" }}
-          >
-            <Tag
-              color='blue'
-              style={{
-                marginRight: 0,
-                borderRadius: 999,
-                paddingInline: 12,
-                height: 34,
-                lineHeight: "32px",
-              }}
-            >
-              Total Tugas: {tasks.length}
-            </Tag>
-            <Button
-              type='primary'
-              icon={<Plus size={16} />}
-              onClick={openCreateModal}
-              size='large'
-              style={{
-                borderRadius: 14,
-                minWidth: isMobile ? "100%" : 190,
-                boxShadow: "0 14px 28px rgba(37, 99, 235, 0.18)",
-              }}
-            >
-              Tambah Penugasan
-            </Button>
-          </Flex>
-        </Flex>
-      </Card>
+      <PageHeader
+        size='section'
+        title='Kelola Penugasan'
+        description='Tugas ditampilkan berdasarkan chapter, kelas tujuan, dan deadline.'
+        meta={<Tag color='blue'>Total Tugas: {tasks.length}</Tag>}
+        extra={
+          <Button type='primary' icon={<Plus size={16} />} onClick={openCreateModal}>
+            Tambah Penugasan
+          </Button>
+        }
+      />
 
       <TaskStats items={statItems} isMobile={isMobile} />
 

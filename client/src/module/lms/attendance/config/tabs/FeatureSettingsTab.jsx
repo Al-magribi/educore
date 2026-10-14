@@ -66,7 +66,7 @@ const FeatureSettingsTab = ({ featureRows = [] }) => {
               </Text>
             </Flex>
             <Text type="secondary">
-              Kelola toggle absensi, notifikasi Telegram ke orang tua, dan kalender libur sekolah.
+              Kelola toggle absensi, notifikasi Telegram per tap kartu, dan kalender libur sekolah.
             </Text>
           </div>
         </Flex>
@@ -91,7 +91,7 @@ const FeatureSettingsTab = ({ featureRows = [] }) => {
               label: createTabLabel(
                 "Fitur Telegram",
                 <MessageCircle size={16} />,
-                "Notifikasi ke orang tua",
+                "Notifikasi per tap",
               ),
               children: <TelegramFeatureTab />,
             },

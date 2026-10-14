@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   DatePicker,
-  Descriptions,
   Flex,
   Input,
   Modal,
@@ -27,13 +26,9 @@ import {
   FilterBar,
   ReportHeader,
   RowActionMenu,
-  StackedCell,
   StatCardGrid,
   StatusTag,
-  buildActionColumn,
   buildPagination,
-  buildRowSelection,
-  detailColumnConfig,
   filterControlStyle,
   formatDateTimeCell,
   formatDetailValue,
@@ -43,7 +38,7 @@ import {
   toolbarButtonStyle,
   useResponsiveFlags,
 } from './reportShared';
-import { ReportDataView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
+import { CardGridView, ReportDetailGrid, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
@@ -293,7 +288,7 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const [detailRow, setDetailRow] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [guideOpen, setGuideOpen] = useState(false);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(12);
 
   const { data: devicesRes } = useGetRfidDevicesQuery({ homebaseId });
   const { data, isLoading, isFetching, refetch } = useGetAttendanceScanLogReportQuery(
@@ -434,45 +429,6 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     },
   ];
 
-  const columns = [
-    {
-      title: 'Waktu Scan',
-      dataIndex: 'scanned_at',
-      width: isMobile ? 118 : 150,
-      fixed: 'left',
-      ellipsis: true,
-      render: (value) => formatDateTimeCell(value, isMobile),
-    },
-    {
-      title: 'Device',
-      key: 'device',
-      width: isMobile ? 150 : 200,
-      ellipsis: true,
-      render: (_, row) => <StackedCell primary={row.device_name} secondary={row.device_code} />,
-    },
-    {
-      title: 'User',
-      key: 'user',
-      width: isMobile ? 160 : 230,
-      ellipsis: true,
-      render: (_, row) => (
-        <StackedCell
-          primary={isUnregisteredScan(row) ? '-' : row.user_name}
-          secondary={`UID ${row.card_uid || '-'}`}
-        />
-      ),
-    },
-    {
-      title: 'Result',
-      dataIndex: 'result_status',
-      width: isMobile ? 140 : 165,
-      render: (_, row) => (
-        <StatusTag value={resolveResultStatus(row)} colorMap={RESULT_STATUS_COLORS} />
-      ),
-    },
-    buildActionColumn(handleRowAction, DETAIL_ACTIONS),
-  ];
-
   return (
     <Flex vertical gap={isMobile ? 12 : 18} style={{ width: '100%', minWidth: 0 }}>
       <Card variant="borderless" style={surfaceCardStyle} styles={surfaceCardBodyStyles(isMobile)}>
@@ -575,24 +531,28 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             icon={<Trash2 size={16} />}
           />
         )}
-        <ReportDataView
-          isMobile={isMobile}
+        <CardGridView
           loading={isLoading || (isFetching && rows.length > 0)}
           dataSource={rows}
-          columns={columns}
           emptyText="Belum ada log scan pada rentang ini."
-          minWidth={860}
           pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'log' })}
-          rowSelection={buildRowSelection({
-            selectedRowKeys,
-            onChange: setSelectedRowKeys,
-            isMobile,
-          })}
+          rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           renderCard={(row, selectProps) => (
             <ReportRecordCard
               {...selectProps}
               title={isUnregisteredScan(row) ? 'Kartu tidak terdaftar' : row.user_name || '-'}
-              subtitle={formatDateTimeCell(row.scanned_at)}
+              subtitle={
+                row.person_type === 'staff' ? (
+                  <>
+                    <Tag color="orange" style={{ marginInlineEnd: 6 }}>
+                      Tendik
+                    </Tag>
+                    {formatDateTimeCell(row.scanned_at)}
+                  </>
+                ) : (
+                  formatDateTimeCell(row.scanned_at)
+                )
+              }
               extra={<StatusTag value={resolveResultStatus(row)} colorMap={RESULT_STATUS_COLORS} />}
               actions={
                 <RowActionMenu
@@ -626,11 +586,7 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         width={modalWidth(isMobile)}
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
         {detailRow && (
-          <Descriptions
-            bordered
-            column={detailColumnConfig}
-            size="small"
-            styles={{ label: { width: isMobile ? 130 : 160, whiteSpace: 'nowrap' }, content: { wordBreak: 'break-word' } }}
+          <ReportDetailGrid
             items={[
               { key: 'id', label: 'ID Log', children: formatDetailValue(detailRow.id) },
               {
@@ -670,14 +626,16 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               { key: 'device_id', label: 'Device ID', children: formatDetailValue(detailRow.device_id) },
               {
                 key: 'user',
-                label: 'User',
+                label: detailRow.person_type === 'staff' ? 'Tendik' : 'User',
                 children: isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_name),
               },
-              {
-                key: 'user_id',
-                label: 'User ID',
-                children: isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_id),
-              },
+              detailRow.person_type === 'staff'
+                ? { key: 'staff_id', label: 'Tendik ID', children: formatDetailValue(detailRow.staff_id) }
+                : {
+                    key: 'user_id',
+                    label: 'User ID',
+                    children: isUnregisteredScan(detailRow) ? '-' : formatDetailValue(detailRow.user_id),
+                  },
               {
                 key: 'card_uid',
                 label: 'UID Kartu',

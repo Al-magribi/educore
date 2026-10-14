@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ClipboardList, FileText } from "lucide-react";
 import AdminDutyAssignmentTab from "./AdminDutyAssignmentTab";
 import AdminDutyReportTab from "./AdminDutyReportTab";
+import PageHeader from "../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -30,15 +31,6 @@ const itemVariants = {
       ease: [0.22, 1, 0.36, 1],
     },
   },
-};
-
-const heroStyle = {
-  borderRadius: 28,
-  overflow: "hidden",
-  border: "1px solid rgba(191, 219, 254, 0.7)",
-  background:
-    "radial-gradient(circle at top right, rgba(125, 211, 252, 0.35), transparent 30%), linear-gradient(135deg, #0f172a 0%, #0f3d8f 52%, #38bdf8 100%)",
-  boxShadow: "0 24px 60px rgba(15, 23, 42, 0.16)",
 };
 
 const statCardStyle = {
@@ -151,57 +143,11 @@ const AdminDutyView = () => {
       }}
     >
       <motion.div variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            ...heroStyle,
-            borderRadius: isMobile ? 22 : 28,
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 28 } }}
-        >
-          <Flex
-            vertical={isMobile}
-            justify='space-between'
-            align={isMobile ? "flex-start" : "center"}
-            gap={18}
-          >
-            <Flex vertical gap={14} style={{ maxWidth: 720 }}>
-              <Space size={[10, 10]} wrap>
-                <Tag
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.12)",
-                    color: "#fff",
-                  }}
-                >
-                  Duty Management
-                </Tag>
-                <Tag
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "#dbeafe",
-                  }}
-                >
-                  {selectedDateLabel}
-                </Tag>
-              </Space>
-
-              <Title
-                level={isMobile ? 3 : 2}
-                style={{ margin: 0, color: "#fff", lineHeight: 1.15 }}
-              >
-                Kelola Piket Guru
-              </Title>
-            </Flex>
-          </Flex>
-        </Card>
+        <PageHeader
+          title='Kelola Piket Guru'
+          description='Atur penugasan piket dan lihat laporan harian guru.'
+          meta={<Tag>{selectedDateLabel}</Tag>}
+        />
       </motion.div>
 
       <motion.div variants={itemVariants}>

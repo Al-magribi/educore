@@ -16,6 +16,7 @@ import ReportHeader from "./report/ReportHeader";
 import ReportSummaryCards from "./report/ReportSummaryCards";
 import ScoreSectionCard from "./report/ScoreSectionCard";
 import { formatDateDisplay } from "./report/utils";
+import PageHeader from "../../../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -249,74 +250,14 @@ const ReportTab = ({ subject, classId }) => {
       style={{ display: "flex", flexDirection: "column", gap: 18 }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: 26,
-            overflow: "hidden",
-            background: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #38bdf8 100%)",
-            boxShadow: "0 24px 52px rgba(15, 23, 42, 0.16)",
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={isMobile ? "flex-start" : "center"}
-            gap={18}
-            wrap='wrap'
-          >
-            <Space align='start' size={14}>
-              <div
-                style={{
-                  width: isMobile ? 52 : 60,
-                  height: isMobile ? 52 : 60,
-                  borderRadius: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "rgba(255,255,255,0.14)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  flexShrink: 0,
-                }}
-              >
-                <BarChart3 size={isMobile ? 26 : 30} />
-              </div>
-
-              <Space direction='vertical' size={5} style={{ minWidth: 0 }}>
-                <Text style={{ color: "rgba(255,255,255,0.74)" }}>
-                  Workspace Laporan
-                </Text>
-                <Title
-                  level={isMobile ? 4 : 3}
-                  style={{ color: "#fff", margin: 0, lineHeight: 1.15 }}
-                >
-                  Ringkasan Belajar {subject?.name || meta.subject_name || "Mata Pelajaran"}
-                </Title>
-                <Text style={{ color: "rgba(255,255,255,0.82)", maxWidth: 760 }}>
-                  Pantau kehadiran, sikap, dan capaian penilaian dalam satu tampilan yang
-                  ringkas agar progres belajar lebih mudah dibaca.
-                </Text>
-              </Space>
-            </Space>
-
-            <Tag
-              style={{
-                marginRight: 0,
-                borderRadius: 999,
-                paddingInline: 14,
-                height: 34,
-                lineHeight: "32px",
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.18)",
-              }}
-              icon={<BookOpenText size={12} />}
-            >
-              {meta.class_name || subject?.class_name || "Kelas aktif"}
-            </Tag>
-          </Flex>
-        </Card>
+        <PageHeader
+          size='section'
+          title={`Ringkasan Belajar ${subject?.name || meta.subject_name || "Mata Pelajaran"}`}
+          description='Pantau kehadiran, sikap, dan capaian penilaian dalam satu tampilan.'
+          meta={
+            <Tag>{meta.class_name || subject?.class_name || "Kelas aktif"}</Tag>
+          }
+        />
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>

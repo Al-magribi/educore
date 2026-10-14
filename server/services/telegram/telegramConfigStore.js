@@ -1,8 +1,6 @@
-import { JAKARTA_TZ, toJakartaDateString } from "../attendance/rfidDailyAttendance.js";
 import {
   DEFAULT_PARENT_CHECKIN_TEMPLATE,
   DEFAULT_PARENT_CHECKOUT_TEMPLATE,
-  DEFAULT_PARENT_DAILY_TEMPLATE,
   DEFAULT_STUDENT_CHECKIN_TEMPLATE,
   DEFAULT_STUDENT_CHECKOUT_TEMPLATE,
   DEFAULT_TEACHER_CHECKIN_TEMPLATE,
@@ -10,20 +8,6 @@ import {
   DEFAULT_TEACHER_STUDENT_CHECKIN_TEMPLATE,
   DEFAULT_TEACHER_STUDENT_CHECKOUT_TEMPLATE,
 } from "./messageBuilder.js";
-
-export const getJakartaHHmm = (date = new Date()) =>
-  new Intl.DateTimeFormat("en-GB", {
-    timeZone: JAKARTA_TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-
-export const getJakartaNowContext = (date = new Date()) => ({
-  now: date,
-  attendanceDate: toJakartaDateString(date),
-  currentHHmm: getJakartaHHmm(date),
-});
 
 const normalizeTemplate = (value, fallback) => {
   const text = String(value || "").trim();
@@ -38,8 +22,6 @@ export const getDefaultTelegramConfig = (homebaseId) => ({
   bot_status: "disconnected",
   last_update_id: null,
   last_error: null,
-  send_time: "08:00:00",
-  message_template: DEFAULT_PARENT_DAILY_TEMPLATE,
   teacher_checkin_template: DEFAULT_TEACHER_CHECKIN_TEMPLATE,
   teacher_checkout_template: DEFAULT_TEACHER_CHECKOUT_TEMPLATE,
   teacher_student_checkin_template: DEFAULT_TEACHER_STUDENT_CHECKIN_TEMPLATE,
@@ -48,77 +30,14 @@ export const getDefaultTelegramConfig = (homebaseId) => ({
   student_checkout_template: DEFAULT_STUDENT_CHECKOUT_TEMPLATE,
   parent_checkin_template: DEFAULT_PARENT_CHECKIN_TEMPLATE,
   parent_checkout_template: DEFAULT_PARENT_CHECKOUT_TEMPLATE,
-  skip_on_holiday: true,
-  last_run_date: null,
   last_connected_at: null,
 });
-
-export const formatTelegramTime = (value) => {
-  if (!value) return "08:00";
-  const text = String(value);
-  return text.length >= 5 ? text.slice(0, 5) : text;
-};
-
-export const normalizeTelegramTimeInput = (value) => {
-  const text = String(value || "").trim();
-  if (!text) return "08:00:00";
-  if (/^\d{2}:\d{2}$/.test(text)) return `${text}:00`;
-  if (/^\d{2}:\d{2}:\d{2}$/.test(text)) return text;
-  return null;
-};
 
 export const maskBotToken = (token) => {
   const value = String(token || "").trim();
   if (!value) return null;
   if (value.length <= 10) return "••••••••";
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
-};
-
-export const getDueTelegramConfigs = async (executor, currentHHmm, attendanceDate) => {
-  const result = await executor.query(
-    `SELECT
-       c.*,
-       h.name AS school_name
-     FROM attendance.telegram_notification_config c
-     JOIN public.a_homebase h ON h.id = c.homebase_id
-     WHERE c.is_enabled = true
-       AND NULLIF(TRIM(c.bot_token), '') IS NOT NULL
-       AND c.bot_status = 'ready'
-       AND (c.last_run_date IS NULL OR c.last_run_date < $1::date)
-     ORDER BY c.homebase_id`,
-    [attendanceDate],
-  );
-
-  return result.rows.filter((config) => {
-    const sendTime = String(config.send_time || "").slice(0, 5);
-    return sendTime === currentHHmm || sendTime < currentHHmm;
-  });
-};
-
-export const claimTelegramRunDate = async (executor, homebaseId, attendanceDate) => {
-  const result = await executor.query(
-    `UPDATE attendance.telegram_notification_config
-     SET last_run_date = $2,
-         updated_at = NOW()
-     WHERE homebase_id = $1
-       AND is_enabled = true
-       AND (last_run_date IS NULL OR last_run_date < $2::date)
-     RETURNING *`,
-    [homebaseId, attendanceDate],
-  );
-
-  return result.rows[0] || null;
-};
-
-export const releaseTelegramRunDate = async (executor, homebaseId, attendanceDate) => {
-  await executor.query(
-    `UPDATE attendance.telegram_notification_config
-     SET last_run_date = NULL,
-         updated_at = NOW()
-     WHERE homebase_id = $1
-       AND last_run_date = $2::date`,
-    [homebaseId, attendanceDate],
-  );
 };
 
 export const getTelegramNotificationConfig = async (executor, homebaseId) => {
@@ -159,28 +78,20 @@ export const upsertTelegramNotificationConfig = async (
   payload,
   userId,
 ) => {
-  const sendTime = normalizeTelegramTimeInput(payload.send_time);
-  if (!sendTime) {
-    throw new Error("Format send_time tidak valid. Gunakan HH:mm.");
-  }
-
-  const messageTemplate = String(payload.message_template || "").trim();
   const incomingToken =
     payload.bot_token === undefined || payload.bot_token === null
       ? undefined
       : String(payload.bot_token).trim();
-
-  if (!messageTemplate) {
-    throw new Error("message_template wajib diisi.");
-  }
 
   const existing = await getTelegramNotificationConfig(executor, homebaseId);
   const nextToken =
     incomingToken === undefined
       ? existing.bot_token || null
       : incomingToken || null;
+  const isEnabled =
+    payload.is_enabled === undefined ? existing.is_enabled === true : payload.is_enabled === true;
 
-  if (payload.is_enabled === true && !nextToken) {
+  if (isEnabled && !nextToken) {
     throw new Error("Bot token wajib diisi sebelum mengaktifkan notifikasi Telegram.");
   }
 
@@ -225,8 +136,6 @@ export const upsertTelegramNotificationConfig = async (
        bot_username,
        bot_status,
        last_error,
-       send_time,
-       message_template,
        teacher_checkin_template,
        teacher_checkout_template,
        teacher_student_checkin_template,
@@ -235,12 +144,11 @@ export const upsertTelegramNotificationConfig = async (
        student_checkout_template,
        parent_checkin_template,
        parent_checkout_template,
-       skip_on_holiday,
        last_connected_at,
        created_by,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
      ON CONFLICT (homebase_id)
      DO UPDATE SET
        is_enabled = EXCLUDED.is_enabled,
@@ -248,8 +156,6 @@ export const upsertTelegramNotificationConfig = async (
        bot_username = EXCLUDED.bot_username,
        bot_status = EXCLUDED.bot_status,
        last_error = EXCLUDED.last_error,
-       send_time = EXCLUDED.send_time,
-       message_template = EXCLUDED.message_template,
        teacher_checkin_template = EXCLUDED.teacher_checkin_template,
        teacher_checkout_template = EXCLUDED.teacher_checkout_template,
        teacher_student_checkin_template = EXCLUDED.teacher_student_checkin_template,
@@ -258,19 +164,16 @@ export const upsertTelegramNotificationConfig = async (
        student_checkout_template = EXCLUDED.student_checkout_template,
        parent_checkin_template = EXCLUDED.parent_checkin_template,
        parent_checkout_template = EXCLUDED.parent_checkout_template,
-       skip_on_holiday = EXCLUDED.skip_on_holiday,
        last_connected_at = EXCLUDED.last_connected_at,
        updated_at = NOW()
      RETURNING *`,
     [
       homebaseId,
-      payload.is_enabled === true,
+      isEnabled,
       nextToken,
       payload.bot_username ?? existing.bot_username ?? null,
       payload.bot_status || existing.bot_status || "disconnected",
       payload.last_error === undefined ? existing.last_error || null : payload.last_error,
-      sendTime,
-      messageTemplate,
       teacherCheckinTemplate,
       teacherCheckoutTemplate,
       teacherStudentCheckinTemplate,
@@ -279,7 +182,6 @@ export const upsertTelegramNotificationConfig = async (
       studentCheckoutTemplate,
       parentCheckinTemplate,
       parentCheckoutTemplate,
-      payload.skip_on_holiday !== false,
       payload.last_connected_at === undefined
         ? existing.last_connected_at || null
         : payload.last_connected_at,

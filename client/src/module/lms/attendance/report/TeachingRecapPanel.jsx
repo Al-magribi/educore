@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { Button, DatePicker, Flex, Select, Typography, message } from 'antd';
@@ -6,13 +6,12 @@ import { Download, RefreshCw } from 'lucide-react';
 import { useGetTeacherTeachingRecapQuery } from '../../../../service/lms/ApiAttendance';
 import {
   FilterBar,
-  StackedCell,
   buildPagination,
   filterControlStyle,
   toolbarButtonStyle,
   useResponsiveFlags,
 } from './reportShared';
-import { ReportDataView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
+import { CardGridView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
 const { Text } = Typography;
 
@@ -40,7 +39,7 @@ const TeachingRecapPanel = ({
   const { isMobile } = useResponsiveFlags();
   const [month, setMonth] = useState(dayjs());
   const [classId, setClassId] = useState();
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(24);
 
   const monthValue = month?.format('YYYY-MM');
   const { data, isLoading, isFetching, refetch } = useGetTeacherTeachingRecapQuery(
@@ -58,73 +57,6 @@ const TeachingRecapPanel = ({
 
   const rows = data?.data?.rows || [];
   const byClass = data?.data?.by_class || [];
-
-  const columns = useMemo(
-    () => [
-      {
-        title: 'Guru',
-        key: 'teacher',
-        width: isMobile ? 170 : 240,
-        fixed: 'left',
-        ellipsis: true,
-        render: (_, row) => (
-          <StackedCell
-            primary={row.teacher_name}
-            secondary={
-              isMobile
-                ? `NIP ${row.nip || '-'}`
-                : `RFID ${row.card_uid || '-'} · NIP ${row.nip || '-'}`
-            }
-          />
-        ),
-      },
-      {
-        title: 'Mengajar',
-        key: 'subject',
-        width: isMobile ? 150 : 210,
-        ellipsis: true,
-        render: (_, row) => (
-          <StackedCell primary={row.subject_name} secondary={`Kelas ${row.class_name || '-'}`} />
-        ),
-      },
-      {
-        title: isMobile ? 'Hadir' : 'Hadir (sesi)',
-        dataIndex: 'attended_tap',
-        width: isMobile ? 84 : 105,
-        align: 'center',
-        render: (value) => Number(value || 0),
-      },
-      {
-        title: isMobile ? 'Seharusnya' : 'Seharusnya (sesi)',
-        dataIndex: 'should_attend',
-        width: isMobile ? 104 : 130,
-        align: 'center',
-        render: (value) => Number(value || 0),
-      },
-      {
-        title: isMobile ? 'Belum Tap' : 'Belum tap (sesi)',
-        dataIndex: 'belum_tap',
-        width: isMobile ? 100 : 125,
-        align: 'center',
-        render: (value) => Number(value || 0),
-      },
-      {
-        title: 'Persentase',
-        dataIndex: 'attendance_rate',
-        width: isMobile ? 100 : 120,
-        align: 'center',
-        render: (value) => {
-          const rate = Number(value || 0);
-          return (
-            <Text strong style={{ color: recapRateColor(rate), whiteSpace: 'nowrap' }}>
-              {rate.toFixed(2)}%
-            </Text>
-          );
-        },
-      },
-    ],
-    [isMobile],
-  );
 
   const handleDownload = () => {
     if (!byClass.length) {
@@ -214,14 +146,9 @@ const TeachingRecapPanel = ({
         multi-jam dihitung sesuai jumlah sesinya (mis. jam 6–7 = 2 sesi).
       </Text>
 
-      <ReportDataView
-        isMobile={isMobile}
+      <CardGridView
         loading={isLoading || (isFetching && rows.length > 0)}
-        dataSource={rows}
-        columns={columns}
-        emptyText="Belum ada data rekapitulasi mengajar pada bulan ini."
-        minWidth={930}
-        pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'baris' })}
+        dataSource={rows}        emptyText="Belum ada data rekapitulasi mengajar pada bulan ini."        pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'baris' })}
         rowKey={(row) => `${row.class_id}-${row.teacher_id}-${row.subject_id || 'none'}`}
         renderCard={(row) => {
           const rate = Number(row.attendance_rate || 0);

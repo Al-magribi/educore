@@ -2,11 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Alert, Card, Flex, Select, Tabs, Typography, theme } from 'antd';
 import { motion } from 'framer-motion';
-import { Building2, CalendarRange, GraduationCap, ScanLine, ScanSearch, TimerReset, UsersRound } from 'lucide-react';
+import {
+  Briefcase,
+  Building2,
+  CalendarRange,
+  GraduationCap,
+  ScanLine,
+  ScanSearch,
+  TimerReset,
+  UsersRound,
+} from 'lucide-react';
 import { useGetHomebaseQuery } from '../../../../service/center/ApiHomebase';
 import { useGetPeriodesQuery } from '../../../../service/main/ApiPeriode';
 import StudentReport from './StudentReport';
 import TeacherReport from './TeacherReport';
+import StaffReport from './StaffReport';
 import ScanLogReport from './ScanLogReport';
 import { itemVariants } from '../config/configShared';
 import { useResponsiveFlags } from './reportShared';
@@ -139,7 +149,7 @@ const AttendanceReport = () => {
               </Text>
             </Flex>
             <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
-              Pantau log scan RFID mentah, rekap harian siswa, dan presensi guru.
+              Pantau log scan RFID mentah, rekap harian siswa, presensi guru, dan presensi tendik.
             </Text>
           </Flex>
 
@@ -265,6 +275,22 @@ const AttendanceReport = () => {
                 ),
                 children: (
                   <TeacherReport
+                    key={reportKey}
+                    homebaseId={scopedHomebaseId}
+                    periodeId={isPusat ? periodeId : undefined}
+                    pollingInterval={autoRefreshMs}
+                  />
+                ),
+              },
+              {
+                key: 'staff',
+                label: createTabLabel(
+                  isMobile ? 'Tendik' : 'Presensi Tendik',
+                  <Briefcase size={16} />,
+                  'Harian tendik',
+                ),
+                children: (
+                  <StaffReport
                     key={reportKey}
                     homebaseId={scopedHomebaseId}
                     periodeId={isPusat ? periodeId : undefined}

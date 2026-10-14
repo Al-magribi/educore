@@ -11,13 +11,12 @@ import {
   Modal,
   Select,
   Switch,
-  Table,
   Tag,
   Typography,
   message,
 } from 'antd';
 import { motion } from 'framer-motion';
-import { CalendarDays, Plus, Save, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import {
   useBulkDeleteAttendanceHolidaysMutation,
   useDeleteAttendanceHolidayMutation,
@@ -27,20 +26,21 @@ import {
   useUpdateAttendanceCalendarConfigMutation,
 } from '../../../../../service/lms/ApiAttendance';
 import { innerCardStyle, itemVariants } from '../configShared';
+import { CardGridView, ReportRecordCard } from '../../report/reportMobile';
 
 const { Text, Paragraph } = Typography;
 const MotionDiv = motion.div;
 
 const ROLE_OPTIONS = [
-  { value: 'all', label: 'Semua (siswa & guru)' },
+  { value: 'all', label: 'Semua (siswa, guru & tendik)' },
   { value: 'student', label: 'Siswa saja' },
   { value: 'teacher', label: 'Guru saja' },
 ];
 
-const ROLE_TAG_COLORS = {
-  all: 'blue',
-  student: 'green',
-  teacher: 'purple',
+const ROLE_TAGS = {
+  all: { color: 'blue', label: 'Semua' },
+  student: { color: 'green', label: 'Siswa' },
+  teacher: { color: 'purple', label: 'Guru' },
 };
 
 const HolidayCalendarTab = () => {
@@ -223,82 +223,67 @@ const HolidayCalendarTab = () => {
       </MotionDiv>
 
       <MotionDiv variants={itemVariants} initial="hidden" animate="show">
-        <Card
-          title="Daftar Libur Khusus"
-          style={innerCardStyle}
-          extra={
+        <Card title="Daftar Libur Khusus" style={innerCardStyle}>
+          <Flex gap={8} wrap="wrap" justify="space-between" align="center" style={{ marginBottom: 12 }}>
+            <Select value={filterYear} onChange={setFilterYear} options={yearOptions} style={{ width: 110 }} />
             <Flex gap={8} wrap="wrap">
-              <Select value={filterYear} onChange={setFilterYear} options={yearOptions} style={{ width: 110 }} />
+              {selectedRowKeys.length > 0 && (
+                <Button danger icon={<Trash2 size={14} />} loading={bulkDeleting} onClick={handleBulkDelete}>
+                  Hapus {selectedRowKeys.length} terpilih
+                </Button>
+              )}
               <Button type="primary" icon={<Plus size={14} />} onClick={openCreateHolidayModal}>
                 Tambah Libur
               </Button>
             </Flex>
-          }>
-          {selectedRowKeys.length > 0 && (
-            <Flex justify="space-between" align="center" style={{ marginBottom: 12 }}>
-              <Text type="secondary">{selectedRowKeys.length} libur terpilih</Text>
-              <Button danger icon={<Trash2 size={14} />} loading={bulkDeleting} onClick={handleBulkDelete}>
-                Hapus Terpilih
-              </Button>
-            </Flex>
-          )}
+          </Flex>
 
-          <Table
-            rowKey="id"
-            size="small"
+          <CardGridView
             loading={fetchingHolidays}
             dataSource={holidays}
-            pagination={{ pageSize: 10, showSizeChanger: true }}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
-            locale={{ emptyText: 'Belum ada libur khusus pada tahun ini.' }}
-            columns={[
-              {
-                title: 'Tanggal',
-                dataIndex: 'holiday_date',
-                width: 130,
-                render: (value) => dayjs(value).format('DD MMM YYYY'),
-              },
-              {
-                title: 'Nama',
-                dataIndex: 'name',
-                ellipsis: true,
-              },
-              {
-                title: 'Berlaku',
-                dataIndex: 'applies_to_role',
-                width: 120,
-                render: (value) => <Tag color={ROLE_TAG_COLORS[value] || 'default'}>{value}</Tag>,
-              },
-              {
-                title: 'Status',
-                dataIndex: 'is_active',
-                width: 90,
-                render: (value) => (value !== false ? <Tag color="success">Aktif</Tag> : <Tag>Nonaktif</Tag>),
-              },
-              {
-                title: 'Keterangan',
-                dataIndex: 'description',
-                ellipsis: true,
-                render: (value) => value || '-',
-              },
-              {
-                title: 'Aksi',
-                width: 150,
-                render: (_, record) => (
-                  <Flex gap={8}>
-                    <Button size="small" onClick={() => openEditHolidayModal(record)}>
+            pagination={{ pageSize: 9 }}
+            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+            emptyText="Belum ada libur khusus pada tahun ini."
+            renderCard={(record, selection) => {
+              const roleTag = ROLE_TAGS[record.applies_to_role] || {
+                color: 'default',
+                label: record.applies_to_role,
+              };
+              return (
+                <ReportRecordCard
+                  {...selection}
+                  title={record.name}
+                  subtitle={dayjs(record.holiday_date).format('dddd, DD MMM YYYY')}
+                  extra={
+                    record.is_active !== false ? (
+                      <Tag color="success" style={{ marginInlineEnd: 0 }}>
+                        Aktif
+                      </Tag>
+                    ) : (
+                      <Tag style={{ marginInlineEnd: 0 }}>Nonaktif</Tag>
+                    )
+                  }>
+                  <Flex gap={6} wrap="wrap" align="center">
+                    <Tag color={roleTag.color} style={{ marginInlineEnd: 0 }}>
+                      Berlaku: {roleTag.label}
+                    </Tag>
+                  </Flex>
+                  {record.description ? (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {record.description}
+                    </Text>
+                  ) : null}
+                  <Flex gap={8} justify="flex-end">
+                    <Button size="small" icon={<Pencil size={13} />} onClick={() => openEditHolidayModal(record)}>
                       Edit
                     </Button>
-                    <Button size="small" danger onClick={() => handleDeleteHoliday(record)}>
+                    <Button size="small" danger icon={<Trash2 size={13} />} onClick={() => handleDeleteHoliday(record)}>
                       Hapus
                     </Button>
                   </Flex>
-                ),
-              },
-            ]}
+                </ReportRecordCard>
+              );
+            }}
           />
         </Card>
       </MotionDiv>

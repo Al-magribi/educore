@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   Button,
   Card,
   Divider,
@@ -11,16 +12,16 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   TimePicker,
+  Tooltip,
   Typography,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { motion } from 'framer-motion';
-import { CalendarRange, Copy, FileText, Plus } from 'lucide-react';
+import { CalendarRange, Copy, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   useDeleteAttendancePolicyMutation,
   useGetAttendancePoliciesQuery,
@@ -28,13 +29,16 @@ import {
 } from '../../../../../service/lms/ApiAttendance';
 import {
   DAY_OPTIONS,
-  POLICY_TARGET_ROLE_OPTIONS,
+  POLICY_ROLE_META,
   POLICY_TYPE_OPTIONS,
+  getPolicyTypeLabel,
+  getRoleOptionsForPolicyType,
   innerCardStyle,
   itemVariants,
   mapRuleRows,
   toTimeHm,
 } from '../configShared';
+import { CardGridView, ReportMetricGrid, ReportRecordCard } from '../../report/reportMobile';
 
 dayjs.extend(customParseFormat);
 
@@ -114,10 +118,23 @@ const rulesToFormValues = (rules = []) =>
     reference_checkout_time: toDayjsTime(rule.reference_checkout_time),
   }));
 
+const summarizeActiveRules = (rules = []) => {
+  const active = mapRuleRows(rules).filter((rule) => rule.is_active !== false && rule.checkin_start);
+  const first = active[0];
+  return {
+    count: (rules || []).filter((item) => item.is_active !== false).length,
+    checkin: first?.reference_checkin_time || first?.checkin_start || null,
+    checkout: first?.reference_checkout_time || null,
+  };
+};
+
 const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) => {
   const [policyForm] = Form.useForm();
   const [templateForm] = Form.useForm();
   const selectedPolicyType = Form.useWatch('policy_type', policyForm);
+  const isFixedDailyType =
+    selectedPolicyType === 'teacher_fixed_daily' || selectedPolicyType === 'staff_fixed_daily';
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 9 });
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
   const [applyDayTargets, setApplyDayTargets] = useState(ALL_DAY_VALUES);
@@ -375,56 +392,64 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
           </Button>
         }>
         <MotionDiv variants={itemVariants} initial="hidden" animate="show">
-          <Table
-            rowKey="id"
+          <CardGridView
             loading={fetchingPolicies || loadingFallback}
             dataSource={policyRows}
-            pagination={{ pageSize: 8 }}
-            scroll={{ x: 920 }}
-            columns={[
-              { title: 'Nama', dataIndex: 'name', width: 220 },
-              { title: 'Code', dataIndex: 'code', width: 180 },
-              {
-                title: 'Role',
-                dataIndex: 'target_role',
-                width: 120,
-                render: (value) => (
-                  <Tag color={value === 'teacher' ? 'blue' : value === 'all' ? 'purple' : 'green'}>
-                    {value === 'all' ? 'guru & siswa' : value}
-                  </Tag>
-                ),
-              },
-              { title: 'Tipe', dataIndex: 'policy_type', width: 220 },
-              {
-                title: 'Rule Hari Aktif',
-                width: 140,
-                render: (_, record) => (record.day_rules || []).filter((item) => item.is_active !== false).length,
-              },
-              {
-                title: 'Status',
-                dataIndex: 'is_active',
-                width: 120,
-                render: (value) => <Tag color={value ? 'success' : 'default'}>{value ? 'Aktif' : 'Nonaktif'}</Tag>,
-              },
-              {
-                title: 'Aksi',
-                width: 130,
-                render: (_, record) => (
-                  <Select
-                    placeholder="Aksi"
-                    value={null}
-                    virtual={false}
-                    style={{ width: '100%', maxWidth: 130 }}
-                    options={[
-                      { value: 'edit', label: 'Edit' },
-                      { value: 'duplicate', label: 'Duplikat' },
-                      { value: 'delete', label: 'Hapus' },
+            emptyText="Belum ada policy absensi."
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: policyRows.length,
+              onChange: (page, pageSize) => setPagination({ current: page, pageSize }),
+            }}
+            renderCard={(record) => {
+              const roleMeta = POLICY_ROLE_META[record.target_role] || {
+                label: record.target_role,
+                color: 'default',
+              };
+              const ruleSummary = summarizeActiveRules(record.day_rules);
+              return (
+                <ReportRecordCard
+                  title={record.name}
+                  subtitle={record.code}
+                  extra={
+                    <Tag color={record.is_active ? 'success' : 'default'} style={{ marginInlineEnd: 0 }}>
+                      {record.is_active ? 'Aktif' : 'Nonaktif'}
+                    </Tag>
+                  }>
+                  <Flex gap={6} wrap="wrap">
+                    <Tag color={roleMeta.color} style={{ marginInlineEnd: 0 }}>
+                      {roleMeta.label}
+                    </Tag>
+                    <Tag style={{ marginInlineEnd: 0 }}>{getPolicyTypeLabel(record.policy_type)}</Tag>
+                  </Flex>
+                  <ReportMetricGrid
+                    columns={3}
+                    items={[
+                      { key: 'days', label: 'Hari aktif', value: ruleSummary.count },
+                      { key: 'in', label: 'Masuk', value: ruleSummary.checkin || '-' },
+                      { key: 'out', label: 'Pulang', value: ruleSummary.checkout || '-' },
                     ]}
-                    onChange={(value) => handleRowAction(value, record)}
                   />
-                ),
-              },
-            ]}
+                  <Flex gap={8} justify="flex-end" wrap="wrap">
+                    <Button size="small" icon={<Pencil size={13} />} onClick={() => handleRowAction('edit', record)}>
+                      Edit
+                    </Button>
+                    <Tooltip title="Duplikat policy">
+                      <Button size="small" icon={<Copy size={13} />} onClick={() => handleRowAction('duplicate', record)} />
+                    </Tooltip>
+                    <Tooltip title="Hapus policy">
+                      <Button
+                        size="small"
+                        danger
+                        icon={<Trash2 size={13} />}
+                        onClick={() => handleRowAction('delete', record)}
+                      />
+                    </Tooltip>
+                  </Flex>
+                </ReportRecordCard>
+              );
+            }}
           />
         </MotionDiv>
       </Card>
@@ -466,13 +491,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
               label="Target Role"
               rules={[{ required: true, message: 'Target role wajib diisi.' }]}
               extra="Boleh ada banyak policy aktif untuk role dan tipe yang sama">
-              <Select
-                options={
-                  selectedPolicyType === 'activity_fixed'
-                    ? POLICY_TARGET_ROLE_OPTIONS
-                    : POLICY_TARGET_ROLE_OPTIONS.filter((item) => item.value !== 'all')
-                }
-              />
+              <Select options={getRoleOptionsForPolicyType(selectedPolicyType)} />
             </Form.Item>
             <Form.Item
               style={{ minWidth: 260 }}
@@ -497,6 +516,15 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
           <Form.Item name="description" label="Deskripsi">
             <Input.TextArea rows={2} placeholder="Catatan atau konteks policy" />
           </Form.Item>
+          {selectedPolicyType === 'staff_fixed_daily' && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Policy tendik berlaku otomatis untuk semua tendik"
+              description="Tidak perlu assignment. Tendik cukup punya No RFID di menu Tendik dan tap di device gerbang. Jika ada lebih dari satu policy tendik aktif, yang terakhir disimpan yang dipakai."
+            />
+          )}
 
           <Divider orientation="left">
             <Space>
@@ -568,7 +596,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
                     placeholder="15:00"
                   />
                 </Form.Item>
-                {selectedPolicyType === 'teacher_fixed_daily' && (
+                {isFixedDailyType && (
                   <Form.Item
                     name="min_presence_minutes"
                     label="Minimal Hadir (menit)"
@@ -576,7 +604,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
                     <InputNumber min={0} />
                   </Form.Item>
                 )}
-                {selectedPolicyType === 'teacher_fixed_daily' && (
+                {isFixedDailyType && (
                   <Form.Item
                     name="checkout_is_optional"
                     valuePropName="checked"
@@ -736,7 +764,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
                           placeholder="15:00"
                         />
                       </Form.Item>
-                      {selectedPolicyType === 'teacher_fixed_daily' && (
+                      {isFixedDailyType && (
                         <Form.Item
                           name={[field.name, 'min_presence_minutes']}
                           label="Minimal Hadir (menit)"
@@ -744,7 +772,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
                           <InputNumber min={0} />
                         </Form.Item>
                       )}
-                      {selectedPolicyType === 'teacher_fixed_daily' && (
+                      {isFixedDailyType && (
                         <Form.Item
                           name={[field.name, 'checkout_is_optional']}
                           valuePropName="checked"

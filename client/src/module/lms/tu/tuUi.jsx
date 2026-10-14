@@ -1,41 +1,12 @@
 import { useEffect, useState } from "react";
-import { Button, Card, Flex, Grid, Select, Typography, message } from "antd";
+import { Flex, Select, message } from "antd";
 import { useGetTuStudentsQuery } from "../../../service/lms/ApiTu";
-
-const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
+import PageHeader from "../../../components/ui/PageHeader";
 
 export const TuPage = ({ title, description, extra, children }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
-
   return (
     <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
-      <Card
-        variant="borderless"
-        style={{
-          borderRadius: isMobile ? 18 : 24,
-          border: "1px solid #dbe7f5",
-          background:
-            "linear-gradient(135deg, #f8fbff 0%, #ffffff 55%, #eef6ff 100%)",
-        }}
-        styles={{ body: { padding: isMobile ? 16 : 22 } }}
-      >
-        <Flex
-          justify="space-between"
-          align={isMobile ? "stretch" : "flex-start"}
-          vertical={isMobile}
-          gap={12}
-        >
-          <Flex vertical gap={4} style={{ minWidth: 0 }}>
-            <Title level={isMobile ? 4 : 3} style={{ margin: 0 }}>
-              {title}
-            </Title>
-            <Text type="secondary">{description}</Text>
-          </Flex>
-          {extra}
-        </Flex>
-      </Card>
+      <PageHeader title={title} description={description} extra={extra} />
       {children}
     </Flex>
   );

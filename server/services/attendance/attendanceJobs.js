@@ -61,6 +61,14 @@ const registerWorker = async () => {
       (sum, item) => sum + Number(item.teachers_checkout_filled || 0),
       0,
     );
+    const totalStaff = results.reduce(
+      (sum, item) => sum + Number(item.staff_marked || 0),
+      0,
+    );
+    const totalStaffCheckouts = results.reduce(
+      (sum, item) => sum + Number(item.staff_checkout_filled || 0),
+      0,
+    );
     const totalSessions = results.reduce(
       (sum, item) => sum + Number(item.sessions_marked_missed || 0),
       0,
@@ -73,7 +81,7 @@ const registerWorker = async () => {
       0,
     );
     console.log(
-      `[attendance] Auto-absent selesai: siswa_absent=${totalStudents}, guru_absent=${totalTeachers}, siswa_checkout=${totalStudentCheckouts}, guru_checkout=${totalTeacherCheckouts}, sesi_missed=${totalSessions}, purge_no_rfid=${totalPurged}`,
+      `[attendance] Auto-absent selesai: siswa_absent=${totalStudents}, guru_absent=${totalTeachers}, siswa_checkout=${totalStudentCheckouts}, guru_checkout=${totalTeacherCheckouts}, tendik_absent=${totalStaff}, tendik_checkout=${totalStaffCheckouts}, sesi_missed=${totalSessions}, purge_no_rfid=${totalPurged}`,
     );
     return results;
   });

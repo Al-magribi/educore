@@ -21,6 +21,7 @@ const AttendanceGuideModal = ({ open, onClose }) => {
       okText='Saya Mengerti'
       width={920}
       centered
+      styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
     >
       <Card
         size='small'
@@ -101,6 +102,11 @@ const AttendanceGuideModal = ({ open, onClose }) => {
                   <Tag>Guru - Schedule Based</Tag> sesuai kebijakan sekolah.
                 </Text>
                 <Text>
+                  Untuk tendik: pilih <Tag>Tendik - Fixed Daily</Tag>. Policy
+                  ini otomatis berlaku untuk semua tendik di satuan, tanpa
+                  assignment.
+                </Text>
+                <Text>
                   Pastikan policy berstatus aktif sebelum digunakan di
                   assignment.
                 </Text>
@@ -132,6 +138,10 @@ const AttendanceGuideModal = ({ open, onClose }) => {
                   datang/pulang — semua unit gate bisa memakai aksi yang sama.
                 </Text>
                 <Text>
+                  Tendik hanya bisa tap di device <Tag>gate</Tag>. Isi{" "}
+                  <Tag>No RFID</Tag> tendik di menu Akademik → Tendik.
+                </Text>
+                <Text>
                   Rotasi token jika perangkat diganti; pastikan status device{" "}
                   <Tag>aktif</Tag>.
                 </Text>
@@ -156,8 +166,8 @@ const AttendanceGuideModal = ({ open, onClose }) => {
                   sementara.
                 </Text>
                 <Text>
-                  Tanpa assignment, scan RFID tidak akan dievaluasi sesuai
-                  aturan yang diinginkan.
+                  Tanpa assignment, scan RFID siswa/guru tidak akan dievaluasi
+                  sesuai aturan yang diinginkan. Tendik tidak perlu assignment.
                 </Text>
               </Space>
             ),
@@ -182,6 +192,14 @@ const AttendanceGuideModal = ({ open, onClose }) => {
                   <Tag>Presensi Guru</Tag> — rekap kehadiran harian dan sesi
                   kelas guru.
                 </Text>
+                <Text>
+                  <Tag>Presensi Tendik</Tag> — rekap kehadiran harian tendik
+                  dari tap gerbang.
+                </Text>
+                <Text>
+                  Notifikasi Telegram dikirim setiap kali kartu di-tap (tidak
+                  ada lagi laporan harian ke orang tua).
+                </Text>
               </Space>
             ),
           },
@@ -199,7 +217,8 @@ const AttendanceGuideModal = ({ open, onClose }) => {
           2. Cek Log Scan — jika kosong, periksa koneksi device dan API Token.
         </Text>
         <Text>
-          3. Pastikan siswa/guru sudah punya assignment policy yang aktif.
+          3. Pastikan siswa/guru sudah punya assignment policy yang aktif. Untuk
+          tendik, pastikan ada policy Tendik aktif dan No RFID sudah diisi.
         </Text>
         <Text>
           4. Verifikasi jam check-in di policy sesuai waktu operasional

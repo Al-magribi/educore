@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Flex, Form, Input, Modal, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, Flex, Form, Input, Modal, Select, Space, Switch, Tag, Tooltip, Typography, message } from 'antd';
 import { motion } from 'framer-motion';
-import { Copy, Plus, Search, Trash2 } from 'lucide-react';
+import { Copy, KeyRound, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import {
   useBulkDeleteRfidDevicesMutation,
   useGetAttendancePoliciesQuery,
@@ -10,12 +10,19 @@ import {
   useSaveRfidDeviceMutation,
 } from '../../../../../service/lms/ApiAttendance';
 import { innerCardStyle, itemVariants } from '../configShared';
+import { CardGridView, ReportMetricGrid, ReportRecordCard } from '../../report/reportMobile';
 
 const { Text } = Typography;
 
 const MotionDiv = motion.div;
 
-const PAGE_SIZE_OPTIONS = ['8', '10', '20', '50'];
+const PAGE_SIZE_OPTIONS = ['9', '18', '36', '60'];
+
+const DEVICE_TYPE_META = {
+  gate: { color: 'cyan', label: 'Gerbang' },
+  classroom: { color: 'purple', label: 'Kelas' },
+  extracurricular: { color: 'magenta', label: 'Ekstrakurikuler' },
+};
 
 const copyText = async (value, successMessage = 'Disalin ke clipboard.') => {
   const text = String(value || '').trim();
@@ -51,52 +58,55 @@ const DeviceApiTokenCell = ({ token }) => {
   );
 };
 
-const DeviceInfoCell = ({ record }) => (
-  <Flex vertical gap={4} style={{ minWidth: 0 }}>
-    <Text strong style={{ wordBreak: 'break-word' }}>
-      {record.name || '-'}
-    </Text>
-    <Flex align="center" gap={8} wrap="wrap">
-      <Text code style={{ fontSize: 12, margin: 0 }}>
-        {record.code || '-'}
-      </Text>
-      <Tag
-        color={
-          record.device_type === 'classroom'
-            ? 'purple'
-            : record.device_type === 'extracurricular'
-              ? 'magenta'
-              : 'cyan'
-        }
-        style={{ marginInlineEnd: 0 }}>
-        {record.device_type || '-'}
-      </Tag>
-    </Flex>
-    {record.class_name ? (
-      <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-word' }}>
-        Kelas: {record.class_name}
-      </Text>
-    ) : record.device_type === 'classroom' ? (
-      <Text type="secondary" style={{ fontSize: 12 }}>
-        Kelas: -
-      </Text>
-    ) : null}
-    {record.policy_name ? (
-      <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-word' }}>
-        Policy: {record.policy_name}
-      </Text>
-    ) : record.device_type === 'extracurricular' ? (
-      <Text type="secondary" style={{ fontSize: 12 }}>
-        Policy: -
-      </Text>
-    ) : null}
-    {record.location_group ? (
-      <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-word' }}>
-        {record.location_group}
-      </Text>
-    ) : null}
-  </Flex>
-);
+const DeviceCard = ({ record, selection, onAction }) => {
+  const typeMeta = DEVICE_TYPE_META[record.device_type] || {
+    color: 'default',
+    label: record.device_type || '-',
+  };
+  const scopeItem =
+    record.device_type === 'classroom'
+      ? { key: 'scope', label: 'Kelas', value: record.class_name || '-' }
+      : record.device_type === 'extracurricular'
+        ? { key: 'scope', label: 'Policy', value: record.policy_name || '-' }
+        : { key: 'scope', label: 'Pengguna', value: 'Siswa, guru & tendik' };
+
+  return (
+    <ReportRecordCard
+      {...selection}
+      title={record.name}
+      subtitle={
+        <Text code style={{ fontSize: 12, margin: 0 }}>
+          {record.code || '-'}
+        </Text>
+      }
+      extra={
+        <Tag color={record.is_active ? 'success' : 'default'} style={{ marginInlineEnd: 0 }}>
+          {record.is_active ? 'Aktif' : 'Nonaktif'}
+        </Tag>
+      }>
+      <Flex gap={6} wrap="wrap">
+        <Tag color={typeMeta.color} style={{ marginInlineEnd: 0 }}>
+          {typeMeta.label}
+        </Tag>
+      </Flex>
+      <ReportMetricGrid
+        items={[scopeItem, { key: 'location', label: 'Lokasi', value: record.location_group || '-' }]}
+      />
+      <DeviceApiTokenCell token={record.api_token} />
+      <Flex gap={8} justify="flex-end" wrap="wrap">
+        <Button size="small" icon={<Pencil size={13} />} onClick={() => onAction('edit', record)}>
+          Edit
+        </Button>
+        <Tooltip title="Lihat token">
+          <Button size="small" icon={<KeyRound size={13} />} onClick={() => onAction('view_token', record)} />
+        </Tooltip>
+        <Tooltip title="Rotasi token">
+          <Button size="small" icon={<RefreshCw size={13} />} onClick={() => onAction('rotate_token', record)} />
+        </Tooltip>
+      </Flex>
+    </ReportRecordCard>
+  );
+};
 
 const DeviceSettingsTab = ({
   fallbackDevices = [],
@@ -109,7 +119,7 @@ const DeviceSettingsTab = ({
   const [editingDevice, setEditingDevice] = useState(null);
   const [tokenModal, setTokenModal] = useState({ open: false, record: null });
   const [nameFilter, setNameFilter] = useState('');
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 8 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 9 });
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   const { data: devicesRes, isFetching: fetchingDevices } = useGetRfidDevicesQuery();
@@ -297,7 +307,7 @@ const DeviceSettingsTab = ({
           </Button>
         }>
         <MotionDiv variants={itemVariants} initial="hidden" animate="show">
-          <Flex gap={12} wrap="wrap" style={{ marginBottom: 16 }}>
+          <Flex gap={12} wrap="wrap" justify="space-between" align="center" style={{ marginBottom: 16 }}>
             <Input
               allowClear
               value={nameFilter}
@@ -309,33 +319,17 @@ const DeviceSettingsTab = ({
               placeholder="Filter nama device"
               style={{ width: 280, maxWidth: '100%' }}
             />
-          </Flex>
-          {filteredDeviceRows.length > 0 && (
-            <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
-              <Text type="secondary">
-                {selectedRowKeys.length > 0
-                  ? `${selectedRowKeys.length} device terpilih`
-                  : 'Centang baris untuk hapus bulk'}
-              </Text>
-              <Button
-                danger
-                icon={<Trash2 size={16} />}
-                disabled={selectedRowKeys.length === 0}
-                loading={bulkDeleting}
-                onClick={handleBulkDelete}>
-                Hapus Terpilih
+            {selectedRowKeys.length > 0 && (
+              <Button danger icon={<Trash2 size={16} />} loading={bulkDeleting} onClick={handleBulkDelete}>
+                Hapus {selectedRowKeys.length} terpilih
               </Button>
-            </Flex>
-          )}
-          <Table
-            rowKey="id"
+            )}
+          </Flex>
+          <CardGridView
             loading={fetchingDevices || loadingFallback}
             dataSource={filteredDeviceRows}
-            tableLayout="fixed"
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
+            emptyText="Belum ada device RFID."
+            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,
@@ -346,46 +340,9 @@ const DeviceSettingsTab = ({
                 setPagination({ current: page, pageSize });
               },
             }}
-            columns={[
-              {
-                title: 'Device',
-                key: 'device',
-                render: (_, record) => <DeviceInfoCell record={record} />,
-              },
-              {
-                title: 'API Token',
-                dataIndex: 'api_token',
-                responsive: ['md'],
-                render: (value) => <DeviceApiTokenCell token={value} />,
-              },
-              {
-                title: 'Status',
-                dataIndex: 'is_active',
-                width: 96,
-                align: 'center',
-                render: (value) => (
-                  <Tag color={value ? 'success' : 'default'}>{value ? 'Aktif' : 'Nonaktif'}</Tag>
-                ),
-              },
-              {
-                title: 'Aksi',
-                width: 132,
-                render: (_, record) => (
-                  <Select
-                    placeholder="Aksi"
-                    value={null}
-                    virtual={false}
-                    style={{ width: '100%' }}
-                    options={[
-                      { value: 'edit', label: 'Edit' },
-                      { value: 'view_token', label: 'Lihat Token' },
-                      { value: 'rotate_token', label: 'Rotate Token' },
-                    ]}
-                    onChange={(value) => handleRowAction(value, record)}
-                  />
-                ),
-              },
-            ]}
+            renderCard={(record, selection) => (
+              <DeviceCard record={record} selection={selection} onAction={handleRowAction} />
+            )}
           />
         </MotionDiv>
       </Card>
@@ -441,7 +398,7 @@ const DeviceSettingsTab = ({
               />
             </Form.Item>
             <Form.Item
-              style={{ minWidth: 320, flex: 1 }}
+              style={{ minWidth: 220, flex: 1 }}
               name="class_ids"
               label="Kelas"
               rules={[
@@ -547,7 +504,7 @@ const DeviceSettingsTab = ({
                 />
               </Space.Compact>
               <Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
-                Gunakan aksi Rotate Token di tabel jika ingin mengganti token.
+                Gunakan tombol rotasi token di kartu device jika ingin mengganti token.
               </Text>
             </Form.Item>
           ) : (

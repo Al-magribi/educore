@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useGetTeacherDashQuery } from "../../../service/main/ApiDash";
 import { useGetTeacherTelegramQuery } from "../../../service/lms/ApiAttendance";
+import PageHeader from "../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -65,9 +66,8 @@ const cardStyle = {
 
 const heroStyle = {
   ...cardStyle,
-  background: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
-  color: "#fff",
-  boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
+  background: "transparent",
+  boxShadow: "none",
 };
 
 const statCardStyle = {
@@ -392,101 +392,20 @@ const TeacherDash = () => {
       }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card style={heroStyle} bodyStyle={{ padding: isMobile ? 20 : 28 }}>
-          <Flex
-            vertical={isMobile ? true : false}
-            justify={isMobile ? "center" : "space-between"}
-          >
-            <Flex gap={"middle"} align='center'>
-              <MotionDiv
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.35 }}
-                style={{ flexShrink: 0 }}
-              >
-                <Avatar
-                  size={isMobile ? 60 : 72}
-                  src={data?.teacher?.img_url || undefined}
-                  style={{
-                    background: "rgba(255,255,255,0.18)",
-                    fontWeight: 700,
-                    fontSize: isMobile ? 24 : 28,
-                    border: "1px solid rgba(255,255,255,0.22)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {teacherInitial}
-                </Avatar>
-              </MotionDiv>
-
-              <Space vertical>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.75)",
-                    fontSize: isMobile ? 12 : 14,
-                  }}
-                >
-                  Dashboard Guru
-                </Text>
-                <Title
-                  level={isMobile ? 4 : 3}
-                  style={{
-                    margin: 0,
-                    color: "#fff",
-                    lineHeight: 1.15,
-                    fontSize: isMobile ? 24 : undefined,
-                  }}
-                >
-                  {teacherName}
-                </Title>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.85)",
-                    fontSize: isMobile ? 12 : 14,
-                  }}
-                >
-                  {homebaseSummary}
-                </Text>
-              </Space>
-            </Flex>
-
-            <Space wrap size={[8, 8]} style={{ marginTop: isMobile ? 8 : 6 }}>
-              <Tag
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  paddingBlock: 2,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  marginInlineEnd: 0,
-                  fontSize: 12,
-                }}
-              >
-                NIP: {data?.teacher?.nip || "-"}
-              </Tag>
-              <Tag
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: data?.activePeriode
-                    ? "rgba(34,197,94,0.18)"
-                    : "rgba(248,113,113,0.18)",
-                  color: "#fff",
-                  marginInlineEnd: 0,
-                  whiteSpace: "normal",
-                  fontSize: 12,
-                  lineHeight: 1.4,
-                }}
-              >
+        <PageHeader
+          title={teacherName}
+          description={homebaseSummary}
+          meta={
+            <Space wrap size={[8, 8]}>
+              <Tag>NIP: {data?.teacher?.nip || "-"}</Tag>
+              <Tag color={data?.activePeriode ? "green" : "default"}>
                 {data?.activePeriode
                   ? `Periode Aktif: ${data.activePeriode.name}`
                   : "Belum ada periode aktif"}
               </Tag>
             </Space>
-          </Flex>
-        </Card>
+          }
+        />
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>

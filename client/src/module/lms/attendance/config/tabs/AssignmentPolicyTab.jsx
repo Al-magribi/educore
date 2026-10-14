@@ -10,14 +10,13 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Typography,
   message,
 } from "antd";
 import dayjs from "dayjs";
 import { motion } from "framer-motion";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   useBulkDeletePolicyAssignmentsMutation,
   useDeletePolicyAssignmentMutation,
@@ -25,12 +24,20 @@ import {
   useGetPolicyAssignmentsQuery,
   useSavePolicyAssignmentMutation,
 } from "../../../../../service/lms/ApiAttendance";
-import { innerCardStyle, itemVariants } from "../configShared";
+import { POLICY_ROLE_META, innerCardStyle, itemVariants } from "../configShared";
+import { CardGridView, ReportMetricGrid, ReportRecordCard } from "../../report/reportMobile";
 
 const { Text } = Typography;
 
 const MotionDiv = motion.div;
-const PAGE_SIZE_OPTIONS = ["8", "10", "20", "50"];
+const PAGE_SIZE_OPTIONS = ["9", "18", "36", "60"];
+
+const SCOPE_LABELS = {
+  user: "Per user",
+  class: "Per kelas",
+  grade: "Per grade",
+  homebase: "Semua satuan",
+};
 
 const parseDbDateToDayjs = (value) => {
   if (!value) return null;
@@ -85,7 +92,7 @@ const AssignmentPolicyTab = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
   const [nameFilter, setNameFilter] = useState("");
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 8 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 9 });
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const selectedRole = Form.useWatch("target_role", form);
   const selectedScope = Form.useWatch("assignment_scope", form);
@@ -357,7 +364,13 @@ const AssignmentPolicyTab = () => {
         }
       >
         <MotionDiv variants={itemVariants} initial='hidden' animate='show'>
-          <Flex gap={12} wrap='wrap' style={{ marginBottom: 16 }}>
+          <Flex
+            gap={12}
+            wrap='wrap'
+            justify='space-between'
+            align='center'
+            style={{ marginBottom: 16 }}
+          >
             <Input
               allowClear
               value={nameFilter}
@@ -369,40 +382,23 @@ const AssignmentPolicyTab = () => {
               placeholder='Filter nama policy / target'
               style={{ width: 300, maxWidth: "100%" }}
             />
-          </Flex>
-          {filteredAssignments.length > 0 && (
-            <Flex
-              justify='space-between'
-              align='center'
-              wrap='wrap'
-              gap={12}
-              style={{ marginBottom: 16 }}
-            >
-              <Text type='secondary'>
-                {selectedRowKeys.length > 0
-                  ? `${selectedRowKeys.length} assignment terpilih`
-                  : "Centang baris untuk hapus bulk"}
-              </Text>
+            {selectedRowKeys.length > 0 && (
               <Button
                 danger
                 icon={<Trash2 size={16} />}
-                disabled={selectedRowKeys.length === 0}
                 loading={bulkDeleting}
                 onClick={handleBulkDelete}
               >
-                Hapus Terpilih
+                Hapus {selectedRowKeys.length} terpilih
               </Button>
-            </Flex>
-          )}
-          <Table
+            )}
+          </Flex>
+          <CardGridView
             rowKey={(row) => row.group_key || String(row.id)}
             loading={loadingBootstrap || loadingList}
             dataSource={filteredAssignments}
-            tableLayout='fixed'
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
+            emptyText='Belum ada assignment policy.'
+            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,
@@ -414,91 +410,74 @@ const AssignmentPolicyTab = () => {
                 setPagination({ current: page, pageSize });
               },
             }}
-            columns={[
-              {
-                title: "Policy",
-                key: "policy",
-                render: (_, row) => (
-                  <Flex vertical gap={2} style={{ minWidth: 0 }}>
-                    <Text strong style={{ wordBreak: "break-word" }}>
-                      {row.policy_name}
-                    </Text>
-                    <Text type='secondary' style={{ fontSize: 12 }}>
-                      {row.policy_code || "-"}
-                    </Text>
+            renderCard={(row, selection) => {
+              const roleMeta = POLICY_ROLE_META[row.target_role] || {
+                label: row.target_role,
+                color: "default",
+              };
+              return (
+                <ReportRecordCard
+                  {...selection}
+                  title={row.policy_name}
+                  subtitle={row.policy_code || "-"}
+                  extra={
+                    <Tag
+                      color={row.is_active ? "success" : "default"}
+                      style={{ marginInlineEnd: 0 }}
+                    >
+                      {row.is_active ? "Aktif" : "Nonaktif"}
+                    </Tag>
+                  }
+                >
+                  <Flex gap={6} wrap='wrap'>
+                    <Tag color={roleMeta.color} style={{ marginInlineEnd: 0 }}>
+                      {roleMeta.label}
+                    </Tag>
+                    <Tag style={{ marginInlineEnd: 0 }}>
+                      {SCOPE_LABELS[row.assignment_scope] ||
+                        row.assignment_scope}
+                    </Tag>
                   </Flex>
-                ),
-              },
-              {
-                title: "Role",
-                dataIndex: "target_role",
-                width: 110,
-                render: (value) => (
-                  <Tag
-                    color={
-                      value === "teacher"
-                        ? "blue"
-                        : value === "all"
-                          ? "purple"
-                          : "green"
-                    }
-                  >
-                    {value === "all" ? "guru & siswa" : value}
-                  </Tag>
-                ),
-              },
-              {
-                title: "Scope",
-                dataIndex: "assignment_scope",
-                width: 110,
-              },
-              {
-                title: "Target",
-                key: "targets",
-                render: (_, row) => (
                   <Flex vertical gap={4} style={{ minWidth: 0 }}>
-                    <TargetTags row={row} />
                     <Text type='secondary' style={{ fontSize: 12 }}>
                       {row.target_count || 0} target
                     </Text>
+                    <TargetTags row={row} />
                   </Flex>
-                ),
-              },
-              {
-                title: "Periode",
-                width: 170,
-                responsive: ["md"],
-                render: (_, row) =>
-                  `${formatDateLabel(row.effective_start_date)} s/d ${formatDateLabel(row.effective_end_date)}`,
-              },
-              {
-                title: "Status",
-                dataIndex: "is_active",
-                width: 96,
-                render: (value) => (
-                  <Tag color={value ? "success" : "default"}>
-                    {value ? "Aktif" : "Nonaktif"}
-                  </Tag>
-                ),
-              },
-              {
-                title: "Aksi",
-                width: 110,
-                render: (_, row) => (
-                  <Select
-                    placeholder='Aksi'
-                    value={null}
-                    virtual={false}
-                    style={{ width: "100%" }}
-                    options={[
-                      { value: "edit", label: "Edit" },
-                      { value: "delete", label: "Hapus" },
+                  <ReportMetricGrid
+                    items={[
+                      {
+                        key: "start",
+                        label: "Mulai",
+                        value: formatDateLabel(row.effective_start_date),
+                      },
+                      {
+                        key: "end",
+                        label: "Selesai",
+                        value: formatDateLabel(row.effective_end_date),
+                      },
                     ]}
-                    onChange={(value) => handleRowAction(value, row)}
                   />
-                ),
-              },
-            ]}
+                  <Flex gap={8} justify='flex-end'>
+                    <Button
+                      size='small'
+                      icon={<Pencil size={13} />}
+                      onClick={() => handleRowAction("edit", row)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size='small'
+                      danger
+                      icon={<Trash2 size={13} />}
+                      onClick={() => handleRowAction("delete", row)}
+                    >
+                      Hapus
+                    </Button>
+                  </Flex>
+                </ReportRecordCard>
+              );
+            }}
           />
         </MotionDiv>
       </Card>
@@ -545,7 +524,7 @@ const AssignmentPolicyTab = () => {
             <Form.Item
               name='policy_ids'
               label='Policy'
-              style={{ minWidth: 320, flex: 1 }}
+              style={{ minWidth: 220, flex: 1 }}
               rules={[
                 {
                   validator: (_, value) => {
@@ -609,7 +588,7 @@ const AssignmentPolicyTab = () => {
               <Form.Item
                 name='user_ids'
                 label='User'
-                style={{ minWidth: 320, flex: 1 }}
+                style={{ minWidth: 220, flex: 1 }}
                 rules={[
                   {
                     validator: (_, value) => {
@@ -638,7 +617,7 @@ const AssignmentPolicyTab = () => {
               <Form.Item
                 name='class_ids'
                 label='Kelas'
-                style={{ minWidth: 320, flex: 1 }}
+                style={{ minWidth: 220, flex: 1 }}
                 rules={[
                   {
                     validator: (_, value) => {
@@ -670,7 +649,7 @@ const AssignmentPolicyTab = () => {
               <Form.Item
                 name='grade_ids'
                 label='Grade'
-                style={{ minWidth: 320, flex: 1 }}
+                style={{ minWidth: 220, flex: 1 }}
                 rules={[
                   {
                     validator: (_, value) => {

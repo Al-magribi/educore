@@ -27,6 +27,15 @@ import {
   ACTIVITY_GATE_ACTION,
   applyRfidScanToActivityAttendance,
 } from "../../services/attendance/rfidActivityAttendance.js";
+import {
+  applyRfidScanToStaffAttendance,
+  findStaffByCardUid,
+  resolveStaffGateScanAction,
+  resolveStaffPolicyDayRule,
+  STAFF_POLICY_TYPE,
+  STAFF_TARGET_ROLE,
+} from "../../services/attendance/rfidStaffAttendance.js";
+import { ensureStaffAttendanceSchema } from "../../services/attendance/staffAttendanceSchema.js";
 import { notifyGateTelegramTap } from "../../services/telegram/notifyTeacherGate.js";
 import pool from "../../config/connection.js";
 import {
@@ -39,6 +48,10 @@ import "../../services/telegram/telegramJobs.js";
 import "../../services/telegram/telegramPoller.js";
 
 const router = Router();
+
+ensureStaffAttendanceSchema().catch((error) => {
+  console.error("[attendance] gagal menyiapkan skema presensi tendik", error);
+});
 
 const DAILY_ATTENDANCE_STATUSES = new Set([
   "pending",
@@ -89,12 +102,13 @@ const ATTENDANCE_FEATURE_CODES = [
   "activity_attendance",
 ];
 
-const POLICY_TARGET_ROLES = new Set(["student", "teacher", "all"]);
+const POLICY_TARGET_ROLES = new Set(["student", "teacher", "all", STAFF_TARGET_ROLE]);
 const POLICY_TYPES = new Set([
   "student_fixed",
   "teacher_schedule_based",
   "teacher_fixed_daily",
   "activity_fixed",
+  STAFF_POLICY_TYPE,
 ]);
 const DEVICE_TYPES = new Set(["gate", "classroom", "extracurricular"]);
 const ASSIGNMENT_SCOPES = new Set(["user", "class", "grade", "homebase"]);
@@ -822,6 +836,7 @@ const getAssignmentBootstrapData = async (pool, homebaseId) => {
         `SELECT id, name, code, target_role, policy_type, is_active
          FROM attendance.attendance_policy
          WHERE homebase_id = $1
+           AND target_role <> 'staff'
          ORDER BY target_role ASC, name ASC`,
         [homebaseId],
       ),
@@ -1359,6 +1374,15 @@ const upsertPolicyHandler = async (req, res, client, policyIdFromParam = null) =
   }
   if (!POLICY_TYPES.has(policyType)) {
     return res.status(400).json({ status: "error", message: "policy_type tidak valid." });
+  }
+  if ((targetRole === STAFF_TARGET_ROLE) !== (policyType === STAFF_POLICY_TYPE)) {
+    return res.status(400).json({
+      status: "error",
+      message: "Policy tendik harus memakai target role Tendik dan tipe Tendik - Fixed Daily.",
+    });
+  }
+  if (targetRole === STAFF_TARGET_ROLE) {
+    await ensureStaffAttendanceSchema();
   }
 
   const duplicateCode = await client.query(
@@ -2164,6 +2188,12 @@ const upsertAssignmentHandler = async (
     });
   }
   const policyTargetRole = policyTargetRoles[0];
+  if (policyTargetRole === STAFF_TARGET_ROLE) {
+    return res.status(400).json({
+      status: "error",
+      message: "Policy tendik otomatis berlaku untuk semua tendik satuan, tidak perlu assignment.",
+    });
+  }
 
   const targetUserIds =
     assignmentScope === "user"
@@ -2596,6 +2626,7 @@ router.post(
     // Diisi setelah kartu teridentifikasi agar reject (duplicate, out_of_window, dll.)
     // tetap menyimpan user_id/card_id di audit log.
     let resolvedCard = null;
+    let resolvedStaff = null;
 
     const rejectAndLog = async (resultStatus, reason, extra = {}) => {
       // Audit log harus tetap tersimpan meski response ke device adalah HTTP 4xx.
@@ -2640,6 +2671,13 @@ router.post(
         ],
       );
 
+      if (resolvedStaff) {
+        await client.query(
+          `UPDATE attendance.rfid_scan_log SET staff_id = $2 WHERE id = $1`,
+          [inserted.rows[0].id, resolvedStaff.id],
+        );
+      }
+
       res.locals.commitTransaction = true;
 
       return res.status(400).json(
@@ -2678,7 +2716,117 @@ router.post(
       [cardUid],
     );
     if (cardRes.rowCount === 0) {
-      return rejectAndLog("unregistered", "Kartu RFID tidak terdaftar.");
+      const staff = await findStaffByCardUid(client, cardUid);
+      if (!staff) {
+        return rejectAndLog("unregistered", "Kartu RFID tidak terdaftar.");
+      }
+      if (Number(staff.homebase_id) !== Number(device.homebase_id)) {
+        return rejectAndLog("unregistered", "Kartu tendik terdaftar di satuan lain.");
+      }
+
+      await ensureStaffAttendanceSchema();
+      resolvedStaff = staff;
+
+      if (staff.is_active !== true) {
+        return rejectAndLog("user_inactive", "Tendik pemilik kartu tidak aktif.");
+      }
+      if (device.device_type !== "gate") {
+        return rejectAndLog("rejected", "Kartu tendik hanya bisa dipakai di device gerbang.");
+      }
+
+      let staffScanAction = scanAction;
+      if (!staffScanAction || isDailyGateAction(staffScanAction)) {
+        const staffGate = await resolveStaffGateScanAction(client, {
+          staffId: staff.id,
+          scannedAt,
+        });
+        if (!staffGate.resolvedAction) {
+          return rejectAndLog("duplicate", staffGate.error);
+        }
+        staffScanAction = staffGate.resolvedAction;
+      }
+      if (staffScanAction !== "daily_checkin" && staffScanAction !== "daily_checkout") {
+        return rejectAndLog("rejected", "Aksi scan tidak valid untuk tendik.");
+      }
+
+      const staffDuplicate = await checkDuplicateScan(client, {
+        homebaseId: device.homebase_id,
+        cardUid,
+        scanAction: staffScanAction,
+        scannedAt,
+      });
+      if (staffDuplicate.isDuplicate) {
+        return rejectAndLog("duplicate", staffDuplicate.reason);
+      }
+
+      const { policy: staffPolicy, dayRule: staffDayRule } =
+        await resolveStaffPolicyDayRule(client, {
+          homebaseId: device.homebase_id,
+          scannedAt,
+        });
+      const staffWindow = validateScanTimeWindow(scannedAt, staffDayRule, staffScanAction);
+      if (!staffWindow.valid) {
+        return rejectAndLog("out_of_window", staffWindow.reason);
+      }
+
+      const staffAccepted = await client.query(
+        `INSERT INTO attendance.rfid_scan_log (
+           homebase_id, periode_id, device_id, staff_id, scan_source, scan_action,
+           card_uid, scanned_at, device_time_at, result_status, raw_payload
+         )
+         VALUES ($1, $2, $3, $4, 'gate', $5, $6, $7::timestamptz, $7::timestamptz, 'accepted', $8::jsonb)
+         RETURNING id`,
+        [
+          device.homebase_id,
+          activePeriodeId,
+          device.id,
+          staff.id,
+          staffScanAction,
+          cardUid,
+          scannedAt.toISOString(),
+          JSON.stringify({
+            ...payload,
+            requested_scan_action: scanAction || DAILY_GATE_ACTION,
+            resolved_scan_action: staffScanAction,
+            target_role: STAFF_TARGET_ROLE,
+          }),
+        ],
+      );
+      const staffScanLogId = staffAccepted.rows[0].id;
+
+      const staffResult = await applyRfidScanToStaffAttendance(client, {
+        homebaseId: device.homebase_id,
+        periodeId: activePeriodeId,
+        staffId: staff.id,
+        policy: staffPolicy,
+        dayRule: staffDayRule,
+        scanAction: staffScanAction,
+        scannedAt,
+        scanLogId: staffScanLogId,
+      });
+
+      const staffLabel = staffScanAction === "daily_checkout" ? "Tap pulang" : "Tap datang";
+      return res.json({
+        status: "success",
+        result_status: "accepted",
+        message: `${staffLabel} diterima untuk ${staff.full_name}.`,
+        data: {
+          scan_log_id: staffScanLogId,
+          user_id: null,
+          staff_id: Number(staff.id),
+          user_name: staff.full_name,
+          target_role: STAFF_TARGET_ROLE,
+          scan_action: staffScanAction,
+          requested_scan_action: scanAction || DAILY_GATE_ACTION,
+          resolved_scan_action: staffScanAction,
+          scan_source: device.device_type,
+          attendance_id: staffResult?.attendance_id || null,
+          attendance_status: staffResult?.attendance_status || null,
+          attendance_date: staffResult?.attendance_date || null,
+          policy_id: staffPolicy?.id || null,
+          policy_name: staffPolicy?.name || null,
+        },
+      });
     }
     const card = cardRes.rows[0];
     resolvedCard = card;
@@ -3067,6 +3215,96 @@ router.post(
 // ==========================================
 // Attendance Reports
 // ==========================================
+router.get(
+  "/attendance/reports/staff",
+  authorize("satuan", "pusat", "assignment:kurikulum"),
+  withQuery(async (req, res, pool) => {
+    const scoped = resolveScopedHomebaseId(req);
+    if (scoped.errorStatus) {
+      return res.status(scoped.errorStatus).json({
+        status: "error",
+        message: scoped.errorMessage,
+      });
+    }
+    const homebase_id = scoped.homebaseId;
+    const { startDate, endDate } = resolveReportRange(req.query);
+    const periodeId = normalizeNumberOrNull(req.query?.periode_id);
+    const status = String(req.query?.status || "").trim() || null;
+    const userName = String(req.query?.user_name || "").trim() || null;
+
+    await ensureStaffAttendanceSchema();
+
+    const params = [homebase_id, startDate, endDate];
+    const where = [
+      "sa.homebase_id = $1",
+      "sa.attendance_date BETWEEN $2::date AND $3::date",
+    ];
+    appendPeriodeFilter(where, params, periodeId, "sa.periode_id");
+
+    if (status) {
+      params.push(status);
+      where.push(`sa.attendance_status = $${params.length}`);
+    }
+    if (userName) {
+      params.push(`%${userName}%`);
+      where.push(`s.full_name ILIKE $${params.length}`);
+    }
+
+    const rowsResult = await pool.query(
+      `SELECT
+         sa.id,
+         TO_CHAR(sa.attendance_date, 'YYYY-MM-DD') AS attendance_date,
+         sa.attendance_status,
+         ${toJakartaTimestampSql("sa.checkin_at")} AS checkin_at,
+         ${toJakartaTimestampSql("sa.checkout_at")} AS checkout_at,
+         sa.late_minutes,
+         sa.presence_minutes,
+         sa.notes,
+         s.id AS staff_id,
+         s.full_name,
+         s.nip,
+         p.name AS policy_name
+       FROM attendance.staff_daily_attendance sa
+       JOIN public.u_staff s ON s.id = sa.staff_id
+       LEFT JOIN attendance.attendance_policy p ON p.id = sa.policy_id
+       WHERE ${where.join(" AND ")}
+       ORDER BY
+         GREATEST(sa.checkout_at, sa.checkin_at) DESC NULLS LAST,
+         sa.attendance_date DESC,
+         s.full_name ASC`,
+      params,
+    );
+
+    const summaryResult = await pool.query(
+      `SELECT
+         COUNT(*)::int AS total_records,
+         COUNT(DISTINCT sa.staff_id)::int AS total_staff,
+         COUNT(*) FILTER (WHERE sa.attendance_status = 'present')::int AS present_count,
+         COUNT(*) FILTER (WHERE sa.attendance_status = 'late')::int AS late_count,
+         COUNT(*) FILTER (WHERE sa.attendance_status = 'incomplete')::int AS incomplete_count,
+         COUNT(*) FILTER (WHERE sa.attendance_status = 'insufficient_hours')::int AS insufficient_hours_count
+       FROM attendance.staff_daily_attendance sa
+       JOIN public.u_staff s ON s.id = sa.staff_id
+       WHERE ${where.join(" AND ")}`,
+      params,
+    );
+
+    return res.json({
+      status: "success",
+      data: {
+        summary: summaryResult.rows[0] || {},
+        rows: rowsResult.rows,
+        filters: {
+          start_date: startDate,
+          end_date: endDate,
+          status,
+          user_name: userName,
+        },
+      },
+    });
+  }),
+);
+
 router.get(
   "/attendance/reports/students",
   authorize("satuan", "pusat", "assignment:kurikulum"),
@@ -3785,8 +4023,10 @@ router.get(
     }
     if (userName) {
       params.push(`%${userName}%`);
-      where.push(`u.full_name ILIKE $${params.length}`);
+      where.push(`(u.full_name ILIKE $${params.length} OR st.full_name ILIKE $${params.length})`);
     }
+
+    await ensureStaffAttendanceSchema();
 
     // Fallback ke rfid_card via card_uid untuk log lama (reject) yang belum menyimpan user_id.
     // Unregistered tetap tanpa user — jangan resolve dari kartu yang baru didaftarkan belakangan.
@@ -3805,11 +4045,12 @@ router.get(
                   rc.id DESC
          LIMIT 1
        ) resolved_card ON true
-       ${userName ? "JOIN" : "LEFT JOIN"} u_users u
+       LEFT JOIN u_users u
          ON u.id = CASE
            WHEN ${unregisteredScanSql} THEN NULL
            ELSE COALESCE(sl.user_id, resolved_card.user_id)
-         END`;
+         END
+       LEFT JOIN public.u_staff st ON st.id = sl.staff_id`;
 
     const rowsResult = await pool.query(
       `SELECT
@@ -3832,7 +4073,10 @@ router.get(
          sl.raw_payload,
          d.code AS device_code,
          d.name AS device_name,
+         sl.staff_id,
+         CASE WHEN sl.staff_id IS NOT NULL THEN 'staff' END AS person_type,
          CASE
+           WHEN sl.staff_id IS NOT NULL THEN st.full_name
            WHEN ${unregisteredScanSql} THEN NULL
            ELSE u.full_name
          END AS user_name

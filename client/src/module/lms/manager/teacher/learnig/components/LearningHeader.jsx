@@ -1,8 +1,8 @@
 import React from "react";
-import { Button, Card, Flex, Grid, Segmented, Typography } from "antd";
+import { Button, Flex, Grid, Segmented } from "antd";
 import { BookOpen, NotebookText, Plus } from "lucide-react";
+import PageHeader from "../../../../../../components/ui/PageHeader";
 
-const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
 const SECTION_OPTIONS = [
@@ -32,50 +32,30 @@ const LearningHeader = ({ subject, onAddChapter, section, onSectionChange }) => 
   const isModuleSection = section === "modul";
 
   return (
-    <Card
-      style={{ borderRadius: 12 }}
-      styles={{ body: { padding: isMobile ? 14 : 20 } }}
-    >
-      <Flex
-        justify='space-between'
-        align={isMobile ? "stretch" : "center"}
-        wrap='wrap'
-        gap={12}
-        vertical={isMobile}
-      >
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <Title
-            level={isMobile ? 5 : 4}
-            style={{ margin: 0, overflowWrap: "anywhere" }}
-          >
-            {subject?.name || "Detail Pelajaran"}
-          </Title>
-          <Text type='secondary'>
-            {isModuleSection
-              ? "Buat, upload, dan unduh modul ajar mata pelajaran ini."
-              : "Kelola bab, subbab, file, dan Youtube."}
-          </Text>
-        </div>
-        {isModuleSection ? null : (
-          <Button
-            type='primary'
-            icon={<Plus size={16} />}
-            onClick={onAddChapter}
-            block={isMobile}
-            style={isMobile ? undefined : { flexShrink: 0 }}
-          >
-            Tambah Bab
-          </Button>
-        )}
-      </Flex>
+    <Flex vertical gap={14}>
+      <PageHeader
+        size='section'
+        title={subject?.name || "Detail Pelajaran"}
+        description={
+          isModuleSection
+            ? "Buat, upload, dan unduh modul ajar mata pelajaran ini."
+            : "Kelola bab, subbab, file, dan Youtube."
+        }
+        extra={
+          isModuleSection ? null : (
+            <Button type='primary' icon={<Plus size={16} />} onClick={onAddChapter}>
+              Tambah Bab
+            </Button>
+          )
+        }
+      />
       <Segmented
         options={SECTION_OPTIONS}
         value={section}
         onChange={onSectionChange}
         block={isMobile}
-        style={{ marginTop: 14 }}
       />
-    </Card>
+    </Flex>
   );
 };
 

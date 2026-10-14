@@ -23,6 +23,7 @@ import {
   useGetParentDashboardQuery,
   useGetParentTelegramQuery,
 } from "../../../service/lms/ApiParent";
+import PageHeader from "../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 
@@ -158,8 +159,8 @@ const ParentDash = () => {
               </Space>
               <Text type='secondary'>
                 {telegram?.is_bound
-                  ? "Akun Telegram Anda sudah terhubung. Notifikasi datang/pulang anak dan laporan kehadiran harian akan dikirim ke chat bot sekolah."
-                  : "Hubungkan Telegram agar menerima notifikasi datang/pulang anak saat tap di mesin absensi, plus laporan kehadiran harian."}
+                  ? "Akun Telegram Anda sudah terhubung. Notifikasi datang/pulang anak akan dikirim ke chat bot sekolah setiap kali anak tap kartu."
+                  : "Hubungkan Telegram agar menerima notifikasi datang/pulang anak setiap kali anak tap kartu di mesin absensi."}
               </Text>
               {telegram?.bind_link ? (
                 <Button
@@ -183,102 +184,21 @@ const ParentDash = () => {
       </motion.div>
 
       <motion.div {...fadeUp}>
-        <Card
-          bodyStyle={{ padding: 0 }}
-          style={{
-            ...cardSurface,
-            background:
-              "radial-gradient(circle at top left, rgba(125, 211, 252, 0.38), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f766e 100%)",
-          }}
-        >
-          <div
-            style={{
-              padding: 28,
-              color: "#f8fafc",
-            }}
-          >
-            <Row gutter={[24, 24]} align='middle'>
-              <Col xs={24} lg={16}>
-                <Space direction='vertical' size={14} style={{ width: "100%" }}>
-                  <Tag
-                    color='cyan'
-                    style={{
-                      borderRadius: 999,
-                      width: "fit-content",
-                      paddingInline: 12,
-                      paddingBlock: 6,
-                      border: "none",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Space size={6}>
-                      <Sparkles size={14} />
-                      <span>Portal Orang Tua</span>
-                    </Space>
-                  </Tag>
-
-                  <div>
-                    <Title level={2} style={{ color: "#f8fafc", margin: 0 }}>
-                      Dashboard Orang Tua
-                    </Title>
-                    <Text
-                      style={{
-                        color: "rgba(248, 250, 252, 0.82)",
-                        fontSize: 15,
-                      }}
-                    >
-                      Pantau ringkasan akademik dan keuangan siswa.
-                    </Text>
-                  </div>
-
-                  <Space size={[8, 8]} wrap>
-                    <Tag
-                      style={{
-                        borderRadius: 999,
-                        paddingInline: 12,
-                        paddingBlock: 6,
-                        background: "rgba(255,255,255,0.12)",
-                        color: "#fff",
-                        borderColor: "rgba(255,255,255,0.14)",
-                      }}
-                    >
-                      <Space size={6}>
-                        <UserRound size={13} />
-                        <span>{payload?.parent?.full_name || "Orang tua"}</span>
-                      </Space>
-                    </Tag>
-                    <Tag
-                      style={{
-                        borderRadius: 999,
-                        paddingInline: 12,
-                        paddingBlock: 6,
-                        background: "rgba(255,255,255,0.12)",
-                        color: "#fff",
-                        borderColor: "rgba(255,255,255,0.14)",
-                      }}
-                    >
-                      {payload?.active_periode?.name || "Periode belum aktif"}
-                    </Tag>
-                    <Tag
-                      style={{
-                        borderRadius: 999,
-                        paddingInline: 12,
-                        paddingBlock: 6,
-                        background: "rgba(16,185,129,0.16)",
-                        color: "#d1fae5",
-                        borderColor: "rgba(209,250,229,0.18)",
-                      }}
-                    >
-                      {selectedStudent
-                        ? `Fokus: ${selectedStudent.student_name}`
-                        : studentTitle}
-                    </Tag>
-                  </Space>
-                </Space>
-              </Col>
-            </Row>
-          </div>
-        </Card>
+        <PageHeader
+          title='Dashboard Orang Tua'
+          description='Pantau ringkasan akademik dan keuangan siswa.'
+          meta={
+            <Space size={[8, 8]} wrap>
+              <Tag>{payload?.parent?.full_name || "Orang tua"}</Tag>
+              <Tag>{payload?.active_periode?.name || "Periode belum aktif"}</Tag>
+              <Tag>
+                {selectedStudent
+                  ? `Fokus: ${selectedStudent.student_name}`
+                  : studentTitle}
+              </Tag>
+            </Space>
+          }
+        />
       </motion.div>
 
       <motion.div

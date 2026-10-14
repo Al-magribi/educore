@@ -6,15 +6,6 @@ import { FileText, Save } from "lucide-react";
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 
-const heroCardStyle = {
-  borderRadius: 22,
-  overflow: "hidden",
-  border: "1px solid rgba(191, 219, 254, 0.7)",
-  background:
-    "radial-gradient(circle at top right, rgba(125, 211, 252, 0.32), transparent 34%), linear-gradient(135deg, #0f172a 0%, #0f3d8f 52%, #38bdf8 100%)",
-  boxShadow: "0 18px 44px rgba(15, 23, 42, 0.14)",
-};
-
 const panelCardStyle = {
   borderRadius: 22,
   border: "1px solid #e7eef6",

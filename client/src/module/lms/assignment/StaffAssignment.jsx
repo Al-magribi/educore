@@ -21,18 +21,10 @@ import {
   useSaveStaffAssignmentMutation,
 } from "../../../service/lms/ApiStaffAssignment";
 import FinanceStaffSlot from "../../finance/assignment/FinanceStaffSlot";
+import PageHeader from "../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
-
-const heroStyle = {
-  borderRadius: 28,
-  overflow: "hidden",
-  border: "1px solid rgba(191, 219, 254, 0.76)",
-  background:
-    "radial-gradient(circle at top right, rgba(125, 211, 252, 0.35), transparent 34%), linear-gradient(135deg, #0f172a 0%, #0f3d8f 45%, #0ea5e9 100%)",
-  boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
-};
 
 const tableCardStyle = {
   borderRadius: 24,
@@ -211,53 +203,10 @@ const StaffAssignment = () => {
 
   return (
     <Flex vertical gap={isMobile ? 14 : 18} style={{ width: "100%", minWidth: 0 }}>
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.36 }}
-      >
-        <Card
-          variant="borderless"
-          style={{ ...heroStyle, borderRadius: isMobile ? 22 : 28 }}
-          styles={{ body: { padding: isMobile ? 18 : 28 } }}
-        >
-          <Flex vertical gap={isMobile ? 10 : 12}>
-            <Space size={[10, 10]} wrap>
-              <Tag
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                }}
-                icon={<ShieldCheck size={13} />}
-              >
-                Penugasan Wewenang
-              </Tag>
-            </Space>
-            <Title
-              level={isMobile ? 4 : 2}
-              style={{ margin: 0, color: "#fff", lineHeight: 1.2 }}
-            >
-              Tugaskan guru untuk modul tertentu
-            </Title>
-            <Text
-              style={{
-                color: "rgba(255,255,255,0.82)",
-                maxWidth: 720,
-                fontSize: isMobile ? 13 : 14,
-                lineHeight: 1.5,
-              }}
-            >
-              Guru yang ditugaskan mendapat otoritas setara admin satuan pada
-              modul itu, sampai penugasan dicabut. Hanya admin satuan yang dapat
-              menugaskan.
-            </Text>
-          </Flex>
-        </Card>
-      </motion.div>
+      <PageHeader
+        title="Penugasan Wewenang"
+        description="Guru yang ditugaskan mendapat otoritas setara admin satuan pada modul itu, sampai penugasan dicabut. Hanya admin satuan yang dapat menugaskan."
+      />
 
       <Card
         style={tableCardStyle}

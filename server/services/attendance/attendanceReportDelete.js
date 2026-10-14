@@ -1,3 +1,5 @@
+import { deleteStaffAttendanceForScanLogs } from "./rfidStaffAttendance.js";
+
 const collectRelatedScanLogIds = async (client, attendanceId) => {
   const result = await client.query(
     `SELECT DISTINCT scan_id AS id
@@ -144,12 +146,17 @@ export const deleteScanLogsCascade = async (
     attendanceIds,
   });
 
+  const staffRelatedScanIds = await deleteStaffAttendanceForScanLogs(client, {
+    homebaseId,
+    scanLogIds: uniqueScanIds,
+  });
+
   const deletedScans = await client.query(
     `DELETE FROM attendance.rfid_scan_log
      WHERE homebase_id = $1
        AND id = ANY($2::bigint[])
      RETURNING id`,
-    [homebaseId, uniqueScanIds],
+    [homebaseId, [...new Set([...uniqueScanIds, ...staffRelatedScanIds])]],
   );
 
   const deletedScanLogIds = [

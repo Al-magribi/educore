@@ -30,7 +30,7 @@ export const jakartaLocalToDate = (dateStr, timeText) => {
   return new Date(`${dateStr}T${time}+07:00`);
 };
 
-const evaluateCheckinStatus = (scannedAt, dayRule) => {
+export const evaluateCheckinStatus = (scannedAt, dayRule) => {
   if (!dayRule?.reference_checkin_time) {
     return { status: "present", lateMinutes: 0 };
   }
@@ -225,7 +225,7 @@ export const getDayRule = async (client, policyId, dayOfWeek) => {
 
 /** Gate / extracurricular only. Classroom devices skip this debounce in the scan router. */
 const DUPLICATE_DEBOUNCE_MINUTES = 5;
-const MIN_CHECKIN_TO_CHECKOUT_MINUTES = 15;
+export const MIN_CHECKIN_TO_CHECKOUT_MINUTES = 15;
 
 const DAILY_SCAN_ACTIONS = new Set(["daily_checkin", "daily_checkout"]);
 export const DAILY_GATE_ACTION = "daily_gate";

@@ -34,6 +34,7 @@ import ScheduleMasterList from './ScheduleMasterList';
 import ScheduleReviewCard from './ScheduleReviewCard';
 import ScheduleTimetableCard from './ScheduleTimetableCard';
 import { SCHEDULE_TAG_STYLE } from './scheduleAdminStyles';
+import PageHeader from '../../../../components/ui/PageHeader';
 
 const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
@@ -638,83 +639,24 @@ const Schedule = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}>
       <Flex vertical gap={isMobile ? 12 : 'middle'} style={{ width: '100%' }}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: isMobile ? 18 : 28,
-            overflow: 'hidden',
-            border: '1px solid rgba(191, 219, 254, 0.82)',
-            background:
-              'radial-gradient(circle at top right, rgba(125, 211, 252, 0.28), transparent 34%), linear-gradient(135deg, #0f172a 0%, #0f3d8f 45%, #0891b2 100%)',
-            boxShadow: '0 24px 60px rgba(15, 23, 42, 0.18)',
-            width: '100%',
-            maxWidth: '100%',
-          }}
-          styles={{ body: { padding: isMobile ? 16 : 28 } }}>
-          <Flex justify="space-between" align="start" wrap="wrap" gap={16} style={{ width: '100%', maxWidth: '100%' }}>
-            <Space direction="vertical" size={12} style={{ maxWidth: 760, minWidth: 0, flex: '1 1 240px' }}>
-              <Tag
-                icon={<BookOpenCheck size={14} />}
-                style={{
-                  ...SCHEDULE_TAG_STYLE,
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  background: 'rgba(255,255,255,0.12)',
-                  color: '#f8fafc',
-                }}>
-                Workspace Jadwal
-              </Tag>
-              <div>
-                <Title level={isMobile ? 4 : 2} style={{ margin: 0, color: '#f8fafc', lineHeight: 1.15 }}>
-                  {isNarrow
-                    ? 'Kelola versi jadwal per periode.'
-                    : 'Kelola versi jadwal per periode dengan alur penyusunan bertahap.'}
-                </Title>
-                {!isNarrow ? (
-                  <Text
-                    style={{
-                      display: 'block',
-                      marginTop: 8,
-                      color: 'rgba(226, 232, 240, 0.92)',
-                      maxWidth: 760,
-                      lineHeight: 1.7,
-                    }}>
-                    Buat versi jadwal (misal Jadwal Reguler atau Jadwal Ramadhan), susun shift, struktur waktu,
-                    kegiatan, dan jadwal final langkah demi langkah, lalu aktifkan versi yang siap dipakai operasional.
-                  </Text>
-                ) : null}
-              </div>
-              <Space size={[8, 8]} wrap>
-                {summaryItems.map((item) => (
-                  <Tag
-                    key={item.key}
-                    color={item.color}
-                    style={{
-                      ...SCHEDULE_TAG_STYLE,
-                      background: 'rgba(255,255,255,0.12)',
-                      borderColor: 'rgba(255,255,255,0.16)',
-                      color: '#f8fafc',
-                    }}>
-                    {item.label}: {item.value}
-                  </Tag>
-                ))}
-              </Space>
-            </Space>
-
-            <Button
-              size={isMobile ? 'middle' : 'large'}
-              icon={<CircleHelp size={16} />}
-              onClick={() => setGuideOpen(true)}
-              style={{
-                borderRadius: 14,
-                borderColor: 'rgba(255,255,255,0.2)',
-                background: 'rgba(255,255,255,0.14)',
-                color: '#fff',
-                width: isNarrow ? '100%' : undefined,
-              }}>
+        <PageHeader
+          title="Manajemen Jadwal"
+          description="Buat versi jadwal, susun shift dan kegiatan, lalu aktifkan versi yang siap dipakai."
+          meta={
+            <Flex gap={8} wrap="wrap">
+              {summaryItems.map((item) => (
+                <Tag key={item.key} style={SCHEDULE_TAG_STYLE}>
+                  {item.label}: {item.value}
+                </Tag>
+              ))}
+            </Flex>
+          }
+          extra={
+            <Button icon={<CircleHelp size={16} />} onClick={() => setGuideOpen(true)}>
               Panduan Jadwal
             </Button>
-          </Flex>
-        </Card>
+          }
+        />
 
         {!workspaceOpen ? (
           <ScheduleMasterList

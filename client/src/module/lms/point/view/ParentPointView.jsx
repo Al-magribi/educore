@@ -7,6 +7,7 @@ import {
   Select,
   Space,
   Tabs,
+  Tag,
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
@@ -15,6 +16,7 @@ import LoadApp from "../../../../components/loader/LoadApp";
 import PointCatalogPanel from "../components/PointCatalogPanel";
 import PointRecordPanel from "../components/PointRecordPanel";
 import { useGetParentPointOverviewQuery } from "../../../../service/lms/ApiPoint";
+import PageHeader from "../../../../components/ui/PageHeader";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -73,27 +75,11 @@ const ParentPointView = () => {
       animate={{ opacity: 1, y: 0 }}
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
-      <Card
-        styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        style={{
-          borderRadius: 24,
-          border: "1px solid #e5edf6",
-          background:
-            "linear-gradient(135deg, #0f172a 0%, #0f766e 55%, #14b8a6 100%)",
-        }}
-      >
-        <Flex vertical gap={8}>
-          <Text style={{ color: "rgba(255,255,255,0.75)" }}>
-            {payload?.active_periode?.name || "Periode aktif"}
-          </Text>
-          <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: "#fff" }}>
-            Poin Siswa
-          </Title>
-          <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-            Pantau poin anak beserta bobot penghargaan dan pelanggaran sekolah.
-          </Text>
-        </Flex>
-      </Card>
+      <PageHeader
+        title='Poin Siswa'
+        description='Pantau poin anak beserta bobot penghargaan dan pelanggaran sekolah.'
+        meta={<Tag>{payload?.active_periode?.name || "Periode aktif"}</Tag>}
+      />
 
       {studentOptions.length > 1 ? (
         <Card styles={{ body: { padding: 16 } }} style={{ borderRadius: 20 }}>

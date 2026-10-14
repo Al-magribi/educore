@@ -287,6 +287,20 @@ export const ApiAttendance = createApi({
       }),
       providesTags: [{ type: "Attendance", id: "TEACHER_REPORT" }],
     }),
+    getStaffAttendanceReport: builder.query({
+      query: ({ startDate, endDate, status, userName, homebaseId, periodeId } = {}) => ({
+        url: "/attendance/reports/staff",
+        params: {
+          start_date: startDate,
+          end_date: endDate,
+          status,
+          user_name: userName,
+          homebase_id: homebaseId,
+          periode_id: periodeId,
+        },
+      }),
+      providesTags: [{ type: "Attendance", id: "STAFF_REPORT" }],
+    }),
     getTeacherTeachingRecap: builder.query({
       query: ({ month, classId, homebaseId, periodeId } = {}) => ({
         url: "/attendance/reports/teachers/teaching-recap",
@@ -332,6 +346,7 @@ export const ApiAttendance = createApi({
         { type: "Attendance", id: "SCAN_LOG_REPORT" },
         { type: "Attendance", id: "STUDENT_REPORT" },
         { type: "Attendance", id: "TEACHER_REPORT" },
+        { type: "Attendance", id: "STAFF_REPORT" },
       ],
     }),
     bulkDeleteAttendanceScanLogs: builder.mutation({
@@ -344,6 +359,7 @@ export const ApiAttendance = createApi({
         { type: "Attendance", id: "SCAN_LOG_REPORT" },
         { type: "Attendance", id: "STUDENT_REPORT" },
         { type: "Attendance", id: "TEACHER_REPORT" },
+        { type: "Attendance", id: "STAFF_REPORT" },
       ],
     }),
     updateDailyAttendanceRecord: builder.mutation({
@@ -458,81 +474,6 @@ export const ApiAttendance = createApi({
         body,
       }),
     }),
-    getTelegramNotificationBatches: builder.query({
-      query: ({ startDate, endDate, limit } = {}) => ({
-        url: "/attendance/telegram/batches",
-        params: {
-          start_date: startDate,
-          end_date: endDate,
-          limit,
-        },
-      }),
-      providesTags: [{ type: "TelegramNotification", id: "BATCHES" }],
-    }),
-    getTelegramNotificationLogs: builder.query({
-      query: ({ batchId, attendanceDate, deliveryStatus, limit } = {}) => ({
-        url: "/attendance/telegram/logs",
-        params: {
-          batch_id: batchId,
-          attendance_date: attendanceDate,
-          delivery_status: deliveryStatus,
-          limit,
-        },
-      }),
-      providesTags: [{ type: "TelegramNotification", id: "LOGS" }],
-    }),
-    retryFailedTelegramBatch: builder.mutation({
-      query: (batchId) => ({
-        url: `/attendance/telegram/batches/${batchId}/retry-failed`,
-        method: "POST",
-      }),
-      invalidatesTags: [
-        { type: "TelegramNotification", id: "BATCHES" },
-        { type: "TelegramNotification", id: "LOGS" },
-      ],
-    }),
-    deleteTelegramNotificationBatch: builder.mutation({
-      query: (batchId) => ({
-        url: `/attendance/telegram/batches/${batchId}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: [
-        { type: "TelegramNotification", id: "BATCHES" },
-        { type: "TelegramNotification", id: "LOGS" },
-      ],
-    }),
-    deleteTelegramNotificationBatchLogs: builder.mutation({
-      query: (batchId) => ({
-        url: `/attendance/telegram/batches/${batchId}/logs`,
-        method: "DELETE",
-      }),
-      invalidatesTags: [
-        { type: "TelegramNotification", id: "BATCHES" },
-        { type: "TelegramNotification", id: "LOGS" },
-      ],
-    }),
-    deleteTelegramNotificationLog: builder.mutation({
-      query: (logId) => ({
-        url: `/attendance/telegram/logs/${logId}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: [
-        { type: "TelegramNotification", id: "BATCHES" },
-        { type: "TelegramNotification", id: "LOGS" },
-      ],
-    }),
-    runTelegramNotificationNow: builder.mutation({
-      query: (body) => ({
-        url: "/attendance/telegram/run-now",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [
-        { type: "TelegramNotification", id: "BATCHES" },
-        { type: "TelegramNotification", id: "LOGS" },
-        { type: "TelegramNotification", id: "CONFIG" },
-      ],
-    }),
     getTeacherTelegram: builder.query({
       query: () => "/teacher/telegram",
       providesTags: [{ type: "TelegramNotification", id: "TEACHER_BIND" }],
@@ -613,6 +554,7 @@ export const {
   useBulkDeletePolicyAssignmentsMutation,
   useGetStudentAttendanceReportQuery,
   useGetTeacherAttendanceReportQuery,
+  useGetStaffAttendanceReportQuery,
   useGetTeacherTeachingRecapQuery,
   useGetAttendanceScanLogReportQuery,
   useDeleteAttendanceScanLogMutation,
@@ -630,13 +572,6 @@ export const {
   useGetTelegramParentsQuery,
   useUnbindTelegramParentMutation,
   useSendTelegramTestMessageMutation,
-  useGetTelegramNotificationBatchesQuery,
-  useGetTelegramNotificationLogsQuery,
-  useRetryFailedTelegramBatchMutation,
-  useDeleteTelegramNotificationBatchMutation,
-  useDeleteTelegramNotificationBatchLogsMutation,
-  useDeleteTelegramNotificationLogMutation,
-  useRunTelegramNotificationNowMutation,
   useGetTeacherTelegramQuery,
   useGetStudentTelegramQuery,
   useGetAttendanceCalendarConfigQuery,
