@@ -1,26 +1,15 @@
 import { motion } from "framer-motion";
-import {
-  Card,
-  Button,
-  Flex,
-  Typography,
-  Grid,
-  Tag,
-  Statistic,
-} from "antd";
+import { Button, Flex, Tag } from "antd";
 import {
   ArrowLeft,
   Download,
   FileUp,
   Plus,
   Trash2,
-  AlertCircle,
-  Sparkles,
   Wand2,
 } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 
-const { Text, Title } = Typography;
-const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
 const QuestionHeader = ({
@@ -35,9 +24,6 @@ const QuestionHeader = ({
   onDeleteAll,
   onGenerateAi,
 }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
-  const isCompact = !screens.sm;
   const isOverScore = totalScore > 100;
 
   return (
@@ -46,273 +32,60 @@ const QuestionHeader = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.24, ease: "easeOut" }}
     >
-      <Card
-        variant="borderless"
-        style={{
-          borderRadius: isMobile ? 18 : 24,
-          overflow: "hidden",
-          position: "relative",
-          background:
-            "radial-gradient(circle at top left, rgba(56,189,248,0.24), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
-          boxShadow: "0 22px 46px rgba(15, 23, 42, 0.16)",
-        }}
-        styles={{ body: { padding: isMobile ? 14 : 22 } }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <Flex
-          justify="space-between"
-          align={isMobile ? "stretch" : "center"}
-          vertical={isMobile}
-          gap={18}
-          style={{ position: "relative" }}
+      <Flex vertical gap={12}>
+        <Button
+          type='link'
+          icon={<ArrowLeft size={16} />}
+          onClick={onBack}
+          style={{ width: "fit-content", paddingInline: 0 }}
         >
-          <Flex gap={14} align="flex-start" style={{ flex: 1 }}>
-            <Button
-              icon={<ArrowLeft size={18} />}
-              type="text"
-              shape="circle"
-              onClick={onBack}
-              style={{
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.18)",
-                flexShrink: 0,
-              }}
-            />
-
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 8 }}>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.82)",
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  WORKSPACE SOAL
-                </Text>
-                <Flex
-                  align="center"
-                  gap={6}
-                  style={{
-                    padding: isCompact ? "4px 10px" : "6px 12px",
-                    borderRadius: 999,
-                    background: "rgba(255,255,255,0.12)",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    color: "#e0f2fe",
-                    fontWeight: 600,
-                    fontSize: isCompact ? 12 : 14,
-                  }}
-                >
-                  <Sparkles size={14} />
-                  <span>{isCompact ? "Kelola bank" : "Kelola isi bank soal"}</span>
-                </Flex>
-              </Flex>
-
-              <Title
-                level={isMobile ? 4 : 3}
-                style={{
-                  margin: 0,
-                  color: "#fff",
-                  fontSize: "clamp(18px, 4vw, 24px)",
-                  lineHeight: 1.2,
-                }}
-              >
-                {bankName?.replaceAll("-", " ")}
-              </Title>
-
-              <Text
-                style={{
-                  display: isCompact ? "none" : "block",
-                  marginTop: 6,
-                  color: "rgba(241,245,249,0.84)",
-                  maxWidth: 640,
-                  fontSize: 14,
-                  lineHeight: 1.5,
-                }}
-              >
-                Susun, review, dan optimalkan pertanyaan dalam bank soal ini
-                dari panel yang lebih fokus dan siap digunakan untuk operasional CBT.
-              </Text>
-            </div>
-          </Flex>
-
-          <Flex
-            gap={isMobile ? 10 : 12}
-            wrap="wrap"
-            style={{ minWidth: isMobile ? "100%" : 280 }}
-          >
-            <Card
-              size="small"
-              style={{
-                flex: "1 1 calc(50% - 6px)",
-                minWidth: isMobile ? "calc(50% - 6px)" : 120,
-                borderRadius: isMobile ? 14 : 18,
-                background: "rgba(255,255,255,0.12)",
-                border: "1px solid rgba(255,255,255,0.16)",
-              }}
-              styles={{ body: { padding: isMobile ? "10px 12px" : "12px 14px" } }}
-            >
-              <Statistic
-                title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Jumlah Soal</span>}
-                value={totalCount}
-                styles={{ content: { color: "#fff" } }}
-              />
-            </Card>
-
-            <Card
-              size="small"
-              style={{
-                flex: "1 1 calc(50% - 6px)",
-                minWidth: isMobile ? "calc(50% - 6px)" : 120,
-                borderRadius: isMobile ? 14 : 18,
-                background: "rgba(255,255,255,0.12)",
-                border: "1px solid rgba(255,255,255,0.16)",
-              }}
-              styles={{ body: { padding: isMobile ? "10px 12px" : "12px 14px" } }}
-            >
-              <Statistic
-                title={<span style={{ color: "rgba(255,255,255,0.72)" }}>Bobot Total</span>}
-                value={totalScore}
-                suffix="/100"
-                styles={{
-                  content: { color: isOverScore ? "#fecaca" : "#fff" },
-                }}
-              />
-            </Card>
-          </Flex>
-        </Flex>
-
-        <Flex
-          gap={10}
-          wrap="wrap"
-          justify={isMobile ? "stretch" : "flex-end"}
-          className="qh-actions"
-          style={{ position: "relative", marginTop: isMobile ? 14 : 18 }}
-        >
-          {isOverScore && (
-            <Tag
-              bordered={false}
-              style={{
-                marginInlineEnd: 0,
-                borderRadius: 999,
-                padding: "8px 12px",
-                background: "rgba(239, 68, 68, 0.14)",
-                color: "#fee2e2",
-                fontWeight: 600,
-              }}
-            >
-              <Flex align="center" gap={8}>
-                <AlertCircle size={14} />
-                <span>Total bobot melebihi 100 poin</span>
-              </Flex>
-            </Tag>
-          )}
-
-          <Button
-            icon={<Download size={16} />}
-            onClick={onDownload}
-            loading={isDownloading}
-            disabled={totalCount === 0}
-            className="res-btn-full"
-            style={{
-              borderRadius: 14,
-              minHeight: 42,
-              background: "rgba(255,255,255,0.12)",
-              color: "#fff",
-              borderColor: "rgba(255,255,255,0.24)",
-            }}
-          >
-            Download Soal
-          </Button>
-          <Button
-            danger
-            icon={<Trash2 size={16} />}
-            onClick={onDeleteAll}
-            disabled={totalCount === 0}
-            className="res-btn-full"
-            style={{
-              borderRadius: 14,
-              minHeight: 42,
-            }}
-          >
-            Kosongkan
-          </Button>
-          <Button
-            icon={<Wand2 size={16} />}
-            onClick={onGenerateAi}
-            className="res-btn-full"
-            style={{
-              borderRadius: 14,
-              minHeight: 42,
-              background: "rgba(255,255,255,0.12)",
-              color: "#fff",
-              borderColor: "rgba(255,255,255,0.24)",
-            }}
-          >
-            Generate AI
-          </Button>
-          <Button
-            icon={<FileUp size={16} />}
-            onClick={onImport}
-            className="res-btn-full"
-            style={{
-              borderRadius: 14,
-              minHeight: 42,
-              background: "rgba(255,255,255,0.12)",
-              color: "#fff",
-              borderColor: "rgba(255,255,255,0.24)",
-            }}
-          >
-            Import
-          </Button>
-          <Button
-            type="primary"
-            icon={<Plus size={16} />}
-            onClick={onAdd}
-            className="res-btn-full qh-btn-primary"
-            style={{
-              borderRadius: 14,
-              minHeight: 42,
-              background: "#fff",
-              color: "#0f172a",
-              border: "none",
-              fontWeight: 600,
-              boxShadow: "0 12px 24px rgba(255,255,255,0.18)",
-            }}
-          >
-            Tambah Soal
-          </Button>
-        </Flex>
-
-        <style>{`
-          @media (max-width: 767px) {
-            .qh-actions {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              width: 100%;
-            }
-
-            .qh-actions .qh-btn-primary {
-              grid-column: 1 / -1;
-            }
-
-            .res-btn-full {
-              width: 100%;
-              justify-content: center;
-            }
+          Kembali
+        </Button>
+        <PageHeader
+          title={bankName?.replaceAll("-", " ")}
+          description='Susun, review, dan optimalkan pertanyaan dalam bank soal ini.'
+          meta={
+            <Flex gap={8} wrap='wrap' align='center'>
+              <Tag>Jumlah soal: {totalCount}</Tag>
+              <Tag color={isOverScore ? "red" : "blue"}>
+                Bobot: {totalScore}/100
+              </Tag>
+              {isOverScore ? (
+                <Tag color='red'>Total bobot melebihi 100 poin</Tag>
+              ) : null}
+            </Flex>
           }
-        `}</style>
-      </Card>
+          extra={
+            <>
+              <Button
+                icon={<Download size={16} />}
+                onClick={onDownload}
+                loading={isDownloading}
+                disabled={totalCount === 0}
+              >
+                Download Soal
+              </Button>
+              <Button
+                danger
+                icon={<Trash2 size={16} />}
+                onClick={onDeleteAll}
+                disabled={totalCount === 0}
+              >
+                Kosongkan
+              </Button>
+              <Button icon={<Wand2 size={16} />} onClick={onGenerateAi}>
+                Generate AI
+              </Button>
+              <Button icon={<FileUp size={16} />} onClick={onImport}>
+                Import
+              </Button>
+              <Button type='primary' icon={<Plus size={16} />} onClick={onAdd}>
+                Tambah Soal
+              </Button>
+            </>
+          }
+        />
+      </Flex>
     </MotionDiv>
   );
 };

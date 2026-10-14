@@ -14,6 +14,7 @@ import {
   Input,
 } from "antd";
 import { Plus, Trash2, Layers, Loader2, CheckCircle, Edit2 } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   useGetSubjectCategoriesQuery,
   useAddSubjectCategoryMutation,
@@ -95,41 +96,20 @@ const CategoryPanel = ({ screens }) => {
       transition={{ duration: 0.22, ease: "easeOut" }}
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      <Card
-        bordered={false}
-        style={{
-          borderRadius: 22,
-          background:
-            "linear-gradient(135deg, rgba(255,251,235,0.98), rgba(255,247,237,0.98))",
-          boxShadow: "0 16px 32px rgba(15, 23, 42, 0.05)",
-        }}
-        styles={{ body: { padding: isMobile ? 16 : 18 } }}
-      >
-        <Flex
-          justify="space-between"
-          align={activeScreens.md ? "center" : "stretch"}
-          vertical={!activeScreens.md}
-          gap={16}
-        >
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              Kategori Mata Pelajaran
-            </Title>
-            <Text type="secondary">
-              Kelompokkan mapel ke dalam kategori utama agar struktur kurikulum
-              lebih mudah dikelola.
-            </Text>
-          </div>
+      <PageHeader
+        size="section"
+        title="Kategori Mata Pelajaran"
+        description="Kelompokkan mapel ke dalam kategori utama agar struktur kurikulum lebih mudah dikelola."
+        extra={
           <Button
             type="primary"
-            icon={<Plus size={18} />}
+            icon={<Plus size={16} />}
             onClick={handleOpenAdd}
-            size="large"
           >
             Tambah Kategori
           </Button>
-        </Flex>
-      </Card>
+        }
+      />
 
       <InfiniteScrollList
         data={data?.data || []}

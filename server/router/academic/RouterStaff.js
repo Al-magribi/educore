@@ -14,6 +14,7 @@ const ensureStaffTable = async (db) => {
       phone VARCHAR(30),
       email VARCHAR(120),
       notes TEXT,
+      rfid_no VARCHAR(100),
       is_active BOOLEAN NOT NULL DEFAULT true,
       created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
       updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
@@ -30,6 +31,15 @@ const ensureStaffTable = async (db) => {
     CREATE INDEX IF NOT EXISTS idx_u_staff_homebase_active
     ON public.u_staff (homebase_id, is_active)
   `);
+  await db.query(`
+    ALTER TABLE public.u_staff
+    ADD COLUMN IF NOT EXISTS rfid_no VARCHAR(100)
+  `);
+  await db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_u_staff_rfid
+    ON public.u_staff (lower(trim(rfid_no)))
+    WHERE rfid_no IS NOT NULL AND length(trim(rfid_no)) > 0
+  `);
 };
 
 const validateStaffPayload = (body = {}) => {
@@ -38,6 +48,7 @@ const validateStaffPayload = (body = {}) => {
   const phone = String(body.phone || "").trim() || null;
   const email = String(body.email || "").trim() || null;
   const notes = String(body.notes || "").trim() || null;
+  const rfidNo = String(body.rfid_no || "").trim() || null;
   const isActive = body.is_active === undefined ? true : Boolean(body.is_active);
 
   if (!fullName) return { error: "Nama tendik wajib diisi" };
@@ -45,6 +56,7 @@ const validateStaffPayload = (body = {}) => {
   if (nip && nip.length > 50) return { error: "NIP maksimal 50 karakter" };
   if (phone && phone.length > 30) return { error: "Telepon maksimal 30 karakter" };
   if (email && email.length > 120) return { error: "Email maksimal 120 karakter" };
+  if (rfidNo && rfidNo.length > 100) return { error: "No RFID maksimal 100 karakter" };
 
   return {
     data: {
@@ -53,9 +65,53 @@ const validateStaffPayload = (body = {}) => {
       phone,
       email,
       notes,
+      rfid_no: rfidNo,
       is_active: isActive,
     },
   };
+};
+
+const assertRfidAvailable = async (db, rfidNo, staffId) => {
+  if (!rfidNo) return null;
+
+  const cardTable = await db.query(`SELECT to_regclass('attendance.rfid_card') AS rel`);
+  if (cardTable.rows[0]?.rel) {
+    const takenByUser = await db.query(
+      `
+        SELECT 1
+        FROM attendance.rfid_card
+        WHERE lower(trim(card_uid)) = lower($1)
+        LIMIT 1
+      `,
+      [rfidNo],
+    );
+    if (takenByUser.rowCount > 0) {
+      return "No RFID sudah dipakai user lain.";
+    }
+  }
+
+  const params = [rfidNo];
+  let excludeSql = "";
+  if (staffId) {
+    params.push(staffId);
+    excludeSql = " AND id <> $2";
+  }
+  const takenByStaff = await db.query(
+    `
+      SELECT 1
+      FROM public.u_staff
+      WHERE rfid_no IS NOT NULL
+        AND lower(trim(rfid_no)) = lower($1)
+        ${excludeSql}
+      LIMIT 1
+    `,
+    params,
+  );
+  if (takenByStaff.rowCount > 0) {
+    return "No RFID sudah dipakai tendik lain.";
+  }
+
+  return null;
 };
 
 const referenceChecks = [
@@ -103,13 +159,14 @@ router.get(
           OR COALESCE(s.nip, '') ILIKE $${params.length}
           OR COALESCE(s.phone, '') ILIKE $${params.length}
           OR COALESCE(s.email, '') ILIKE $${params.length}
+          OR COALESCE(s.rfid_no, '') ILIKE $${params.length}
         )
       `;
     }
 
     const result = await db.query(
       `
-        SELECT s.id, s.full_name, s.nip, s.phone, s.email, s.notes, s.is_active
+        SELECT s.id, s.full_name, s.nip, s.phone, s.email, s.notes, s.rfid_no, s.is_active
         FROM public.u_staff s
         WHERE ${whereClause}
         ORDER BY s.full_name ASC, s.id ASC
@@ -147,13 +204,18 @@ router.post(
       return res.status(400).json({ message: validated.error });
     }
 
+    const rfidError = await assertRfidAvailable(client, validated.data.rfid_no);
+    if (rfidError) {
+      return res.status(400).json({ message: rfidError });
+    }
+
     const result = await client.query(
       `
         INSERT INTO public.u_staff (
-          homebase_id, full_name, nip, phone, email, notes, is_active, created_by, updated_by
+          homebase_id, full_name, nip, phone, email, notes, rfid_no, is_active, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-        RETURNING id, full_name, nip, phone, email, notes, is_active
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+        RETURNING id, full_name, nip, phone, email, notes, rfid_no, is_active
       `,
       [
         homebaseId,
@@ -162,6 +224,7 @@ router.post(
         validated.data.phone,
         validated.data.email,
         validated.data.notes,
+        validated.data.rfid_no,
         validated.data.is_active,
         req.user.id,
       ],
@@ -191,6 +254,11 @@ router.put(
       return res.status(400).json({ message: validated.error });
     }
 
+    const rfidError = await assertRfidAvailable(client, validated.data.rfid_no, staffId);
+    if (rfidError) {
+      return res.status(400).json({ message: rfidError });
+    }
+
     const result = await client.query(
       `
         UPDATE public.u_staff
@@ -200,11 +268,12 @@ router.put(
           phone = $3,
           email = $4,
           notes = $5,
-          is_active = $6,
-          updated_by = $7,
+          rfid_no = $6,
+          is_active = $7,
+          updated_by = $8,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $8 AND homebase_id = $9
-        RETURNING id, full_name, nip, phone, email, notes, is_active
+        WHERE id = $9 AND homebase_id = $10
+        RETURNING id, full_name, nip, phone, email, notes, rfid_no, is_active
       `,
       [
         validated.data.full_name,
@@ -212,6 +281,7 @@ router.put(
         validated.data.phone,
         validated.data.email,
         validated.data.notes,
+        validated.data.rfid_no,
         validated.data.is_active,
         req.user.id,
         staffId,

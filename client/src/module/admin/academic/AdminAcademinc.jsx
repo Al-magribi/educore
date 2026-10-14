@@ -5,10 +5,9 @@ import {
   Briefcase,
   SquareUser,
   Users,
-  GraduationCap,
-  Sparkles,
 } from "lucide-react";
-import { Card, Flex, Grid, Tabs, Typography, theme } from "antd";
+import { Card, Flex, Grid, Tabs, theme } from "antd";
+import PageHeader from "../../../components/ui/PageHeader";
 import { LoadApp } from "../../../components";
 
 const Subject = lazy(() => import("./subject/Subject"));
@@ -17,7 +16,6 @@ const Staff = lazy(() => import("./staff/Staff"));
 const StudentPage = lazy(() => import("./student/StudentPage"));
 
 const { useBreakpoint } = Grid;
-const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
 const containerVariants = {
@@ -125,137 +123,10 @@ const AdminAcademinc = () => {
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
         <MotionDiv variants={itemVariants}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: token.borderRadiusXL,
-              overflow: "hidden",
-              position: "relative",
-              background:
-                "radial-gradient(circle at top left, rgba(125,211,252,0.24), transparent 26%), linear-gradient(135deg, #0f172a 0%, #0f766e 48%, #22c55e 100%)",
-              boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
-            }}
-            styles={{ body: { padding: isMobile ? 20 : 26 } }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
-                pointerEvents: "none",
-              }}
-            />
-
-            <Flex
-              justify='space-between'
-              align={isMobile ? "stretch" : "center"}
-              vertical={isMobile}
-              gap={16}
-              style={{ position: "relative" }}
-            >
-              <Flex vertical gap={10} style={{ maxWidth: 740, flex: 1 }}>
-                <Flex align='center' gap={10} wrap='wrap'>
-                  <Flex
-                    align='center'
-                    gap={8}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.12)",
-                      border: "1px solid rgba(255,255,255,0.16)",
-                      color: "#ecfeff",
-                      fontWeight: 700,
-                      letterSpacing: 0.4,
-                    }}
-                  >
-                    <GraduationCap size={16} />
-                    <span>AKADEMIK</span>
-                  </Flex>
-
-                  <Flex
-                    align='center'
-                    gap={6}
-                    style={{
-                      padding: "7px 12px",
-                      borderRadius: 999,
-                      background: "rgba(15,23,42,0.18)",
-                      color: "#dcfce7",
-                    }}
-                  >
-                    <Sparkles size={14} />
-                    <span>Guru, tendik, siswa, dan mapel</span>
-                  </Flex>
-                </Flex>
-
-                <Title
-                  level={isMobile ? 3 : 2}
-                  style={{
-                    margin: 0,
-                    color: "#f8fafc",
-                    lineHeight: 1.15,
-                  }}
-                >
-                  Kelola Ekosistem Akademik
-                </Title>
-
-                <Text
-                  style={{
-                    maxWidth: 680,
-                    color: "rgba(240,249,255,0.88)",
-                    fontSize: isMobile ? 14 : 15,
-                  }}
-                >
-                  Atur mata pelajaran, data guru, data tendik, dan data siswa.
-                </Text>
-              </Flex>
-
-              {!isMobile && (
-                <Card
-                  bordered={false}
-                  style={{
-                    minWidth: 250,
-                    borderRadius: 22,
-                    background: "rgba(15, 23, 42, 0.18)",
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    backdropFilter: "blur(8px)",
-                  }}
-                  styles={{ body: { padding: 16 } }}
-                >
-                  <Flex vertical gap={10}>
-                    <Text
-                      style={{
-                        color: "#d1fae5",
-                        fontWeight: 700,
-                        letterSpacing: 0.3,
-                      }}
-                    >
-                      Modul Aktif
-                    </Text>
-                    {[
-                      "Mata pelajaran & struktur ajar",
-                      "Guru & distribusi pengajar",
-                      "Tendik & data kependidikan",
-                      "Siswa & administrasi akademik",
-                    ].map((item) => (
-                      <div
-                        key={item}
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 14,
-                          background: "rgba(255,255,255,0.10)",
-                          color: "#f8fafc",
-                          fontSize: 14,
-                        }}
-                      >
-                        {item}
-                      </div>
-                    ))}
-                  </Flex>
-                </Card>
-              )}
-            </Flex>
-          </Card>
+          <PageHeader
+            title='Manajemen Pendidikan'
+            description='Atur mata pelajaran, data guru, data tendik, dan data siswa.'
+          />
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>

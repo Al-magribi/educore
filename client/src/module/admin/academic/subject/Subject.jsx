@@ -1,13 +1,12 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Typography, Tabs, Card, Flex, Grid, Statistic } from "antd";
+import { Tabs, Card, Flex, Grid, Statistic } from "antd";
 import {
   BookOpen,
   GitBranch,
   Layers,
-  LibraryBig,
-  Sparkles,
 } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 import CategoryPanel from "./CategoryPanel";
 import BranchPanel from "./BranchPanel";
 import SubjectTable from "./SubjectTable";
@@ -17,7 +16,6 @@ import {
   useGetSubjectsQuery,
 } from "../../../../service/academic/ApiSubject";
 
-const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -146,80 +144,11 @@ const Subject = ({ screens }) => {
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: 24,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, rgba(236,253,245,0.98), rgba(239,246,255,0.98))",
-            boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={activeScreens.md ? "center" : "stretch"}
-            vertical={!activeScreens.md}
-            gap={16}
-          >
-            <div>
-              <Flex
-                align='center'
-                gap={10}
-                wrap='wrap'
-                style={{ marginBottom: 8 }}
-              >
-                <Text
-                  style={{
-                    color: "#047857",
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  DIREKTORI KURIKULUM
-                </Text>
-                <Flex
-                  align='center'
-                  gap={6}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    background: "rgba(16, 185, 129, 0.10)",
-                    color: "#047857",
-                    fontWeight: 600,
-                  }}
-                >
-                  <Sparkles size={14} />
-                  <span>Akademik terstruktur</span>
-                </Flex>
-              </Flex>
-              <Title level={4} style={{ margin: "0 0 4px" }}>
-                Kelola kategori, cabang, dan mapel
-              </Title>
-              <Text type='secondary' style={{ maxWidth: 760 }}>
-                Gunakan tab untuk berpindah antar modul kurikulum.
-              </Text>
-            </div>
-
-            {!isMobile && (
-              <div
-                style={{
-                  width: 58,
-                  height: 58,
-                  borderRadius: 20,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "linear-gradient(135deg, #10b981, #0ea5e9)",
-                  color: "#fff",
-                  boxShadow: "0 18px 32px rgba(14, 165, 233, 0.24)",
-                }}
-              >
-                <LibraryBig size={24} />
-              </div>
-            )}
-          </Flex>
-        </Card>
+        <PageHeader
+          size='section'
+          title='Kelola kategori, cabang, dan mapel'
+          description='Gunakan tab untuk berpindah antar modul kurikulum.'
+        />
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>
