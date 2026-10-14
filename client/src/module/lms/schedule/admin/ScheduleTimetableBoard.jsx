@@ -1,5 +1,16 @@
-import React, { useMemo } from "react";
-import { Button, Grid, Table, Tooltip } from "antd";
+import React, { useMemo, useState } from "react";
+import {
+  Button,
+  Card,
+  Empty,
+  Flex,
+  Grid,
+  Select,
+  Spin,
+  Table,
+  Tooltip,
+  Typography,
+} from "antd";
 import {
   BORDER_COLOR,
   HEADER_BG,
@@ -11,6 +22,103 @@ import {
 } from "./scheduleTimetableUtils";
 
 const { useBreakpoint } = Grid;
+const { Text } = Typography;
+
+const MobileSlotRow = ({ row, cell, canManage, onEditEntry }) => {
+  if (row.is_break) {
+    return (
+      <Flex
+        justify="space-between"
+        align="center"
+        gap={8}
+        style={{
+          padding: "8px 10px",
+          borderRadius: 10,
+          background: "#fff1bf",
+          border: "1px solid #f5d76e",
+        }}
+      >
+        <Text strong style={{ color: "#8a4b08", textTransform: "uppercase", fontSize: 12 }}>
+          {row.break_label || "Istirahat"}
+        </Text>
+        <Text style={{ color: "#8a4b08", fontSize: 12 }}>{row.time_label || "-"}</Text>
+      </Flex>
+    );
+  }
+
+  const entry = cell?.entry || null;
+  const activityLabel = Array.from(
+    new Set((cell?.activities || []).map((item) => item?.name).filter(Boolean)),
+  ).join(" / ");
+  const color = entry ? getSubjectColor(entry.subject_code || entry.subject_name || "-") : null;
+  const editable = Boolean(entry && canManage);
+
+  return (
+    <Flex
+      gap={10}
+      align="flex-start"
+      onClick={editable ? () => onEditEntry(entry) : undefined}
+      style={{
+        padding: "8px 10px",
+        borderRadius: 10,
+        border: "1px solid #eef2f7",
+        background: SURFACE_BG,
+        cursor: editable ? "pointer" : undefined,
+        minWidth: 0,
+      }}
+    >
+      <Flex vertical align="center" style={{ width: 64, flexShrink: 0 }}>
+        <Text strong style={{ fontSize: 12 }}>
+          Jam {row.slot_no ?? "-"}
+        </Text>
+        <Text type="secondary" style={{ fontSize: 11, textAlign: "center" }}>
+          {row.time_label || "-"}
+        </Text>
+      </Flex>
+      <Flex vertical gap={4} style={{ minWidth: 0, flex: 1 }}>
+        {activityLabel ? (
+          <span
+            style={{
+              alignSelf: "flex-start",
+              padding: "2px 6px",
+              borderRadius: 6,
+              background: "#fff2a8",
+              border: "1px solid #eab308",
+              color: "#8a4b08",
+              fontWeight: 700,
+              fontSize: 11,
+            }}
+          >
+            {activityLabel}
+          </span>
+        ) : null}
+        {entry ? (
+          <>
+            <span
+              style={{
+                alignSelf: "flex-start",
+                padding: "2px 8px",
+                borderRadius: 999,
+                border: `1px solid ${color.border}`,
+                background: color.bg,
+                color: color.text,
+                fontWeight: 700,
+                fontSize: 12,
+                wordBreak: "break-word",
+              }}
+            >
+              {entry.subject_name || entry.subject_code || "-"}
+            </span>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {entry.teacher_name || "-"}
+            </Text>
+          </>
+        ) : null}
+        {!entry && !activityLabel ? <Text type="secondary">-</Text> : null}
+      </Flex>
+    </Flex>
+  );
+};
 
 const ScheduleTimetableBoard = ({
   canManage,
@@ -22,6 +130,20 @@ const ScheduleTimetableBoard = ({
 }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const [mobileClassId, setMobileClassId] = useState(null);
+  const mobileDays = useMemo(() => {
+    const days = [];
+    (rows || []).forEach((row) => {
+      const dayKey = String(row.day_of_week ?? row.day_name ?? "");
+      let day = days[days.length - 1];
+      if (!day || day.key !== dayKey) {
+        day = { key: dayKey, label: row.day_name || "-", rows: [] };
+        days.push(day);
+      }
+      day.rows.push(row);
+    });
+    return days;
+  }, [rows]);
   const mergedRows = useMemo(() => {
     const nextRows = (rows || []).map((row) => ({
       ...row,
@@ -529,6 +651,65 @@ const ScheduleTimetableBoard = ({
 
     return [...fixedColumns, ...classColumns];
   }, [canManage, flatClasses, gradeGroups, onEditEntry]);
+
+  if (isMobile) {
+    const activeClassId = flatClasses.some(
+      (item) => String(item.id) === String(mobileClassId),
+    )
+      ? mobileClassId
+      : flatClasses[0]?.id;
+
+    return (
+      <Flex vertical gap={12} style={{ width: "100%", minWidth: 0 }}>
+        <Select
+          value={activeClassId}
+          onChange={setMobileClassId}
+          placeholder="Pilih kelas"
+          style={{ width: "100%" }}
+          showSearch={{ optionFilterProp: "label" }}
+          options={gradeGroups.map((group) => ({
+            label: `Kelas ${group.grade_name}`,
+            options: group.classes.map((item) => ({
+              value: item.id,
+              label: item.name,
+            })),
+          }))}
+        />
+        <Spin spinning={Boolean(loading)}>
+          {mobileDays.length && activeClassId != null ? (
+            <Flex vertical gap={12}>
+              {mobileDays.map((day) => (
+                <Card
+                  key={day.key}
+                  size="small"
+                  title={day.label}
+                  style={{ borderRadius: 14, border: "1px solid #e8eef6" }}
+                  styles={{ body: { padding: 10 } }}
+                >
+                  <Flex vertical gap={8}>
+                    {day.rows.map((row) => (
+                      <MobileSlotRow
+                        key={row.key}
+                        row={row}
+                        cell={row.cells?.[String(activeClassId)] || row.cells?.[activeClassId]}
+                        canManage={canManage}
+                        onEditEntry={onEditEntry}
+                      />
+                    ))}
+                  </Flex>
+                </Card>
+              ))}
+            </Flex>
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Belum ada data jadwal."
+            />
+          )}
+        </Spin>
+      </Flex>
+    );
+  }
 
   return (
     <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>

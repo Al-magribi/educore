@@ -8,7 +8,6 @@ import {
   Popconfirm,
   Segmented,
   Space,
-  Table,
   Tag,
   Upload,
   message,
@@ -19,6 +18,7 @@ import {
   useGetDiplomasQuery,
   useSaveDiplomaMutation,
 } from "../../../service/lms/ApiTu";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 import { StudentPicker, TuPage, notifyError } from "./tuUi";
 
 const IjazahPage = () => {
@@ -86,7 +86,7 @@ const IjazahPage = () => {
         ]}
         style={{ marginBottom: 16 }}
       />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={isFetching}
         dataSource={data?.data || []}
@@ -102,7 +102,7 @@ const IjazahPage = () => {
               </Tag>
             ),
           },
-          { title: "Siswa", dataIndex: "full_name" },
+          { title: "Siswa", dataIndex: "full_name", mobile: "title" },
           { title: "NIS", dataIndex: "nis", width: 110 },
           { title: "Nomor", dataIndex: "diploma_no" },
           { title: "Tanggal", dataIndex: "diploma_date", width: 120 },

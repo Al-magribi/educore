@@ -1,6 +1,7 @@
 import React from "react";
-import { Card, Space, Table, Tag, Typography } from "antd";
+import { Card, Space, Tag, Typography } from "antd";
 import { BadgeCheck } from "lucide-react";
+import ResponsiveTable from "../../../../../../components/ui/ResponsiveTable";
 import { statusTagColor } from "./utils";
 
 const { Title } = Typography;
@@ -25,7 +26,7 @@ const columns = [
 const AttendanceSection = ({ dataSource, attendance, loading, tableSize }) => {
   return (
     <Card style={{ borderRadius: 14 }} styles={{ body: { padding: 16 } }}>
-      <Space align="center" size={10} style={{ marginBottom: 12 }}>
+      <Space align="center" size={10} wrap style={{ marginBottom: 12 }}>
         <BadgeCheck size={16} color="#52c41a" />
         <Title level={5} style={{ margin: 0 }}>
           Absen
@@ -42,7 +43,7 @@ const AttendanceSection = ({ dataSource, attendance, loading, tableSize }) => {
         <Tag color="red">Alpa: {attendance?.summary?.alpa || 0}</Tag>
       </Space>
 
-      <Table
+      <ResponsiveTable
         rowKey="key"
         columns={columns}
         dataSource={dataSource}

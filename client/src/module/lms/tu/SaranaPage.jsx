@@ -12,7 +12,6 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Tag,
   message,
 } from "antd";
@@ -22,6 +21,7 @@ import {
   useGetFacilityReportQuery,
   useSaveFacilityMutation,
 } from "../../../service/lms/ApiTu";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 import { TuPage, notifyError, useTuDownload } from "./tuUi";
 
 const CONDITIONS = [
@@ -111,14 +111,14 @@ const SaranaPage = () => {
           onChange={(event) => setSearch(event.target.value)}
           style={{ maxWidth: 360, marginBottom: 16 }}
         />
-        <Table
+        <ResponsiveTable
           rowKey="id"
           loading={isFetching}
           dataSource={data?.data || []}
           scroll={{ x: 980 }}
           columns={[
-            { title: "Kode", dataIndex: "code", width: 110 },
-            { title: "Nama", dataIndex: "name" },
+            { title: "Kode", dataIndex: "code", width: 110, mobile: "subtitle" },
+            { title: "Nama", dataIndex: "name", mobile: "title" },
             { title: "Kategori", dataIndex: "category" },
             { title: "Lokasi", dataIndex: "location" },
             { title: "Jumlah", dataIndex: "quantity", width: 90 },
@@ -165,7 +165,7 @@ const SaranaPage = () => {
         />
       </Card>
       <Card title="Rekap per kategori">
-        <Table
+        <ResponsiveTable
           rowKey={(row) => `${row.category}-${row.condition}`}
           pagination={false}
           dataSource={report?.data?.categories || []}

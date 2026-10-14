@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { Space, Table, Tag, Typography } from "antd";
+import { Space, Tag, Typography } from "antd";
+import ResponsiveTable from "../../../../components/ui/ResponsiveTable";
 import {
   BORDER_COLOR,
   HEADER_BG,
@@ -117,7 +118,7 @@ const ScheduleTeacherMapelTable = ({ loading, rows, sourceLabel }) => {
 
   return (
     <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
-      <Table
+      <ResponsiveTable
         rowKey="key"
         bordered
         size="small"

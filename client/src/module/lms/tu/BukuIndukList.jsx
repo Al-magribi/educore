@@ -11,7 +11,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tag,
   message,
 } from "antd";
@@ -23,6 +22,7 @@ import {
   useOpenBukuIndukMutation,
   useSaveInspectionMutation,
 } from "../../../service/lms/ApiTu";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 import { STATUS_OPTIONS, errorMessage, statusColor } from "./profileDefaults";
 import { TuPage, useTuDownload } from "./tuUi";
 
@@ -104,7 +104,7 @@ const BukuIndukList = () => {
             placeholder="Cari nama, NIS, atau NISN"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            style={{ width: 260 }}
+            style={{ flex: "1 1 220px", maxWidth: 320 }}
           />
           <Select
             allowClear
@@ -123,16 +123,22 @@ const BukuIndukList = () => {
             style={{ width: 140 }}
           />
         </Flex>
-        <Table
+        <ResponsiveTable
           rowKey="student_id"
           loading={isLoading || isFetching || isOpening}
           dataSource={data?.data || []}
           scroll={{ x: 860 }}
           columns={[
-            { title: "No", dataIndex: "register_no", width: 70 },
+            {
+              title: "No",
+              dataIndex: "register_no",
+              width: 70,
+              mobile: "field",
+              mobileLabel: "No. register",
+            },
             { title: "Angkatan", dataIndex: "entry_year", width: 100 },
             { title: "NIS", dataIndex: "nis", width: 120 },
-            { title: "Nama", dataIndex: "full_name" },
+            { title: "Nama", dataIndex: "full_name", mobile: "title" },
             {
               title: "Kelas",
               render: (_, row) =>
@@ -175,14 +181,14 @@ const BukuIndukList = () => {
           </Button>
         }
       >
-        <Table
+        <ResponsiveTable
           rowKey="id"
           loading={inspectionLoading}
           dataSource={inspections?.data || []}
           pagination={false}
           columns={[
             { title: "Tanggal", dataIndex: "inspected_on", width: 120 },
-            { title: "Petugas", dataIndex: "officer_name" },
+            { title: "Petugas", dataIndex: "officer_name", mobile: "title" },
             { title: "Jabatan", dataIndex: "position" },
             { title: "Catatan", dataIndex: "note" },
             {

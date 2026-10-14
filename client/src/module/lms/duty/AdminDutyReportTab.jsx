@@ -10,7 +10,6 @@ import {
   Popconfirm,
   Skeleton,
   Space,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -30,6 +29,7 @@ import {
   useDeleteDutyDailyNoteMutation,
   useGetDutyReportsQuery,
 } from "../../../service/lms/ApiDuty";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -347,21 +347,23 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       >
         <Text type='secondary'>{description}</Text>
       </div>
-      <Table
-        rowKey={(record) => record.id || record.assignment_id}
-        columns={columns}
-        dataSource={dataSource}
-        pagination={false}
-        scroll={{ x: xScroll }}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description='Belum ada data laporan pada bagian ini.'
-            />
-          ),
-        }}
-      />
+      <div style={{ padding: isMobile ? 12 : 0 }}>
+        <ResponsiveTable
+          rowKey={(record) => record.id || record.assignment_id}
+          columns={columns}
+          dataSource={dataSource}
+          pagination={false}
+          scroll={{ x: xScroll }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description='Belum ada data laporan pada bagian ini.'
+              />
+            ),
+          }}
+        />
+      </div>
     </Card>
   );
 

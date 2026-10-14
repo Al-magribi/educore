@@ -8,7 +8,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tag,
   message,
 } from "antd";
@@ -18,6 +17,7 @@ import {
   useGetMutationsQuery,
   useSaveMutationMutation,
 } from "../../../service/lms/ApiTu";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 import { errorMessage } from "./profileDefaults";
 import { StudentPicker, TuPage, notifyError } from "./tuUi";
 
@@ -69,14 +69,14 @@ const MutasiSiswa = () => {
         </Button>
       }
     >
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={isLoading}
         dataSource={data?.data || []}
         scroll={{ x: 860 }}
         columns={[
           { title: "Tanggal", dataIndex: "mutation_date", width: 120 },
-          { title: "Siswa", dataIndex: "full_name" },
+          { title: "Siswa", dataIndex: "full_name", mobile: "title" },
           { title: "NIS", dataIndex: "nis", width: 120 },
           {
             title: "Arah",

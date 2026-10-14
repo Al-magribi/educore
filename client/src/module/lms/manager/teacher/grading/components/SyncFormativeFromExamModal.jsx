@@ -7,7 +7,6 @@ import {
   Input,
   Modal,
   Space,
-  Table,
   Tag,
   Typography,
   message,
@@ -23,6 +22,7 @@ import {
   useSyncGradingSummativeFromExamMutation,
   useSyncGradingFinalFromExamMutation,
 } from "../../../../../../service/lms/ApiGrading";
+import ResponsiveTable from "../../../../../../components/ui/ResponsiveTable";
 
 const { Text } = Typography;
 
@@ -270,12 +270,14 @@ const SyncFormativeFromExamModal = ({
       dataIndex: "nis",
       key: "nis",
       width: 120,
+      mobile: "subtitle",
       render: (value) => value || "-",
     },
     {
       title: "Nama",
       dataIndex: "full_name",
       key: "full_name",
+      mobile: "title",
       render: (value) => <Text strong>{value || "-"}</Text>,
     },
     {
@@ -317,7 +319,7 @@ const SyncFormativeFromExamModal = ({
         step === "preview" ? (
           <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
             <Button onClick={() => setStep("pick")}>Kembali</Button>
-            <Space>
+            <Space wrap>
               <Button onClick={onClose}>Batal</Button>
               <Button
                 type="primary"
@@ -358,7 +360,7 @@ const SyncFormativeFromExamModal = ({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <Table
+          <ResponsiveTable
             rowKey={(record) => record.id}
             size="small"
             loading={isExamsLoading || isExamsFetching}
@@ -386,7 +388,7 @@ const SyncFormativeFromExamModal = ({
             }
             description={previewDescription}
           />
-          <Table
+          <ResponsiveTable
             rowKey={(record) => record.student_id}
             size="small"
             loading={isPreviewLoading}

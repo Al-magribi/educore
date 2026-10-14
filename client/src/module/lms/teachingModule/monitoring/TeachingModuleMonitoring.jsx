@@ -13,7 +13,6 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -34,6 +33,7 @@ import {
 import { useGetTeachingModuleMonitoringQuery } from "../../../../service/lms/ApiTeachingModule";
 import useTeachingModuleActions from "../useTeachingModuleActions";
 import { SOURCE_META } from "../sourceMeta";
+import ResponsiveTable from "../../../../components/ui/ResponsiveTable";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -436,7 +436,7 @@ const TeachingModuleMonitoring = () => {
             onChange={setStatus}
             block={isMobile}
           />
-          <Table
+          <ResponsiveTable
             rowKey='key'
             columns={columns}
             dataSource={filteredTeachers}

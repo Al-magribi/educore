@@ -8,10 +8,10 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Typography,
   message,
 } from "antd";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 import { shownValue, errorMessage } from "./profileDefaults";
 import {
   useAddBukuScoreMutation,
@@ -207,7 +207,7 @@ const BukuNilaiPanel = ({ bukuId, detail, meta }) => {
             label: `${group.title}${group.className ? ` · ${group.className}` : ""}${group.homeroom ? ` · ${group.homeroom}` : ""}`,
             children: (
               <Flex vertical gap={12}>
-                <Table
+                <ResponsiveTable
                   size="small"
                   rowKey="id"
                   pagination={false}
@@ -254,7 +254,7 @@ const BukuNilaiPanel = ({ bukuId, detail, meta }) => {
 
       <Flex vertical gap={8}>
         <Text strong>Ekstrakurikuler dan ujian akhir</Text>
-        <Table
+        <ResponsiveTable
           size="small"
           rowKey="id"
           pagination={false}

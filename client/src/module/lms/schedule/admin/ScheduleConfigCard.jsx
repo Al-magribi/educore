@@ -14,12 +14,12 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tag,
   TimePicker,
   Typography,
 } from "antd";
 import { CalendarClock, Pencil, Plus, Trash2, UsersRound } from "lucide-react";
+import ResponsiveTable from "../../../../components/ui/ResponsiveTable";
 import {
   SCHEDULE_CARD_HEADER_STYLE,
   SCHEDULE_CARD_STYLE,
@@ -593,7 +593,7 @@ const ScheduleConfigCard = ({
                 pun.
               </Text>
               <div style={{ width: "100%", overflowX: "auto" }}>
-                <Table
+                <ResponsiveTable
                   rowKey={(record) => String(record.id)}
                   size="small"
                   columns={groupColumns}
@@ -736,7 +736,7 @@ const ScheduleConfigCard = ({
           {selectedGroup ? (
             dayRows.length > 0 ? (
               <div style={{ width: "100%", overflowX: "auto" }}>
-                <Table
+                <ResponsiveTable
                   rowKey={(record) => String(record.day_of_week)}
                   size="small"
                   columns={columns}

@@ -11,11 +11,11 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
 import { CalendarRange, Pencil, Plus, Trash2 } from "lucide-react";
+import ResponsiveTable from "../../../../components/ui/ResponsiveTable";
 import {
   SCHEDULE_CARD_HEADER_STYLE,
   SCHEDULE_CARD_STYLE,
@@ -397,7 +397,7 @@ const ScheduleActivity = ({
       </Card>
 
       <div style={{ width: "100%", overflowX: "auto" }}>
-        <Table
+        <ResponsiveTable
           rowKey="key"
           size="small"
           loading={loading}

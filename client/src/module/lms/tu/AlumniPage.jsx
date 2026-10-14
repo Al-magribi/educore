@@ -7,7 +7,6 @@ import {
   Modal,
   Popconfirm,
   Space,
-  Table,
   message,
 } from "antd";
 import {
@@ -15,6 +14,7 @@ import {
   useGetAlumniQuery,
   useSaveAlumniMutation,
 } from "../../../service/lms/ApiTu";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 import { StudentPicker, TuPage, notifyError } from "./tuUi";
 
 const AlumniPage = () => {
@@ -62,14 +62,14 @@ const AlumniPage = () => {
         onChange={(event) => setSearch(event.target.value)}
         style={{ maxWidth: 320, marginBottom: 16 }}
       />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={isFetching}
         dataSource={data?.data || []}
         scroll={{ x: 980 }}
         columns={[
           { title: "Tahun", dataIndex: "graduation_year", width: 90 },
-          { title: "Nama", dataIndex: "full_name" },
+          { title: "Nama", dataIndex: "full_name", mobile: "title" },
           { title: "NIS", dataIndex: "nis", width: 120 },
           { title: "Melanjutkan ke", dataIndex: "continue_to" },
           { title: "Jurusan", dataIndex: "major_name" },

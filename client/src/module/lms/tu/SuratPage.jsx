@@ -9,7 +9,6 @@ import {
   Popconfirm,
   Segmented,
   Space,
-  Table,
   Upload,
   message,
 } from "antd";
@@ -20,6 +19,7 @@ import {
   useNextLetterNumberMutation,
   useSaveLetterMutation,
 } from "../../../service/lms/ApiTu";
+import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 import { TuPage, notifyError, useTuDownload } from "./tuUi";
 
 const SuratPage = () => {
@@ -118,18 +118,18 @@ const SuratPage = () => {
           placeholder="Cari nomor, perihal, atau pihak"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          style={{ maxWidth: 320 }}
+          style={{ flex: "1 1 220px", maxWidth: 320 }}
         />
       </Flex>
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={isFetching}
         dataSource={data?.data || []}
         scroll={{ x: 860 }}
         columns={[
-          { title: "Nomor", dataIndex: "letter_no", width: 170 },
+          { title: "Nomor", dataIndex: "letter_no", width: 170, mobile: "subtitle" },
           { title: "Tanggal", dataIndex: "letter_date", width: 120 },
-          { title: "Perihal", dataIndex: "subject" },
+          { title: "Perihal", dataIndex: "subject", mobile: "title" },
           {
             title: direction === "masuk" ? "Asal" : "Tujuan",
             dataIndex: "party",

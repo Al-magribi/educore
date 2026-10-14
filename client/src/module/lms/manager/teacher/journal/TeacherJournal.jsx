@@ -14,7 +14,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
   message,
@@ -36,6 +35,7 @@ import {
   useUpdateTeacherJournalMutation,
 } from "../../../../../service/lms/ApiJournal";
 import JournalFormDrawer from "./components/JournalFormDrawer";
+import ResponsiveTable from "../../../../../components/ui/ResponsiveTable";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -239,12 +239,14 @@ const TeacherJournal = ({ subjectId, subject }) => {
       title: "Tanggal",
       dataIndex: "journal_date",
       width: 130,
+      mobile: "subtitle",
       render: (value) => dayjs(value).format("DD MMM YYYY"),
     },
     {
       title: "Kelas",
       dataIndex: "class_name",
       width: 120,
+      mobile: "title",
       render: (value) => <Text strong>{value || "-"}</Text>,
     },
     {
@@ -486,8 +488,8 @@ const TeacherJournal = ({ subjectId, subject }) => {
           style={{ borderRadius: 18 }}
         />
       ) : (
-        <Card style={{ borderRadius: 20 }} styles={{ body: { padding: 0 } }}>
-          <Table
+        <Card style={{ borderRadius: 20 }} styles={{ body: { padding: isMobile ? 12 : 0 } }}>
+          <ResponsiveTable
             rowKey='id'
             columns={columns}
             dataSource={journals}

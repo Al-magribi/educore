@@ -10,12 +10,12 @@ import {
   Modal,
   Popconfirm,
   Space,
-  Table,
   Tag,
   Tooltip,
   Typography,
 } from 'antd';
 import { CheckCircle2, Copy, FolderOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import ResponsiveTable from '../../../../components/ui/ResponsiveTable';
 import {
   SCHEDULE_CARD_HEADER_STYLE,
   SCHEDULE_CARD_STYLE,
@@ -265,7 +265,7 @@ const ScheduleMasterList = ({
               />
 
               <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
-                <Table
+                <ResponsiveTable
                   rowKey={(record) => String(record.id)}
                   size="small"
                   columns={columns}

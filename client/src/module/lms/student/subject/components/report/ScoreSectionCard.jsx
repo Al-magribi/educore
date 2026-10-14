@@ -1,6 +1,7 @@
 import React from "react";
-import { Card, Space, Table, Tag, Typography } from "antd";
+import { Card, Space, Tag, Typography } from "antd";
 import { ClipboardCheck } from "lucide-react";
+import ResponsiveTable from "../../../../../../components/ui/ResponsiveTable";
 import { round2 } from "./utils";
 
 const { Title } = Typography;
@@ -17,7 +18,7 @@ const ScoreSectionCard = ({
 }) => {
   return (
     <Card style={{ borderRadius: 14 }} styles={{ body: { padding: 16 } }}>
-      <Space align="center" size={10} style={{ marginBottom: 12 }}>
+      <Space align="center" size={10} wrap style={{ marginBottom: 12 }}>
         <ClipboardCheck size={16} color={color} />
         <Title level={5} style={{ margin: 0 }}>
           {title}
@@ -27,7 +28,7 @@ const ScoreSectionCard = ({
         </Tag>
       </Space>
 
-      <Table
+      <ResponsiveTable
         rowKey="key"
         columns={columns}
         dataSource={dataSource}
