@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { createSearchParams, useLocation, useSearchParams } from "react-router-dom";
 import { InfiniteScrollList, LoadApp } from "../../../../components";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   useGetExamsQuery,
   useDeleteExamMutation,
@@ -446,67 +447,19 @@ const ExamList = () => {
         style={{ width: "100%" }}
       >
         <MotionDiv variants={itemVariants}>
-          <Card
-            style={{
-              marginBottom: 20,
-              borderRadius: 28,
-              overflow: "hidden",
-              border: "none",
-              background:
-                "linear-gradient(135deg, #0f172a 0%, #1d4ed8 48%, #38bdf8 100%)",
-              boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
-            }}
-            styles={{ body: { padding: isMobile ? 18 : 24 } }}
-          >
-            <Flex
-              vertical={isMobile}
-              justify='space-between'
-              align={isMobile ? "stretch" : "center"}
-              gap={18}
-            >
-              <div style={{ color: "#fff", maxWidth: 640 }}>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.78)",
-                    display: "block",
-                    marginBottom: 8,
-                  }}
-                >
-                  Manajemen ujian
-                </Text>
-                <Title
-                  level={isMobile ? 4 : 3}
-                  style={{ color: "#fff", margin: 0 }}
-                >
-                  Kelola Jadwal Ujian
-                </Title>
-              </div>
-
-              <Flex
-                vertical={isMobile}
-                gap={12}
-                style={{ width: isMobile ? "100%" : "auto" }}
+          <PageHeader
+            title='Manajemen Jadwal Ujian'
+            description='Kelola jadwal, status, dan pelaksanaan ujian.'
+            extra={
+              <Button
+                icon={<Plus size={16} />}
+                type='primary'
+                onClick={() => openForm(null)}
               >
-                <Button
-                  icon={<Plus size={18} />}
-                  type='primary'
-                  onClick={() => openForm(null)}
-                  size='large'
-                  style={{
-                    width: isMobile ? "100%" : 180,
-                    borderRadius: 14,
-                    height: 46,
-                    background: "#fff",
-                    color: "#0f172a",
-                    border: "none",
-                    fontWeight: 600,
-                  }}
-                >
-                  Jadwal Ujian
-                </Button>
-              </Flex>
-            </Flex>
-          </Card>
+                Jadwal Ujian
+              </Button>
+            }
+          />
         </MotionDiv>
 
         <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>

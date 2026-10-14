@@ -23,6 +23,7 @@ import {
   Loader2,
   CheckCircle,
 } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   useGetSubjectBranchesQuery,
   useAddSubjectBranchMutation,
@@ -84,54 +85,29 @@ const BranchPanel = ({ screens }) => {
       transition={{ duration: 0.22, ease: "easeOut" }}
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      <Card
-        bordered={false}
-        style={{
-          borderRadius: 22,
-          background:
-            "linear-gradient(135deg, rgba(236,254,255,0.98), rgba(239,246,255,0.98))",
-          boxShadow: "0 16px 32px rgba(15, 23, 42, 0.05)",
-        }}
-        styles={{ body: { padding: isMobile ? 16 : 18 } }}
-      >
-        <Flex
-          justify="space-between"
-          align={activeScreens.md ? "center" : "stretch"}
-          vertical={!activeScreens.md}
-          gap={16}
-        >
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              Cabang Mata Pelajaran
-            </Title>
-            <Text type="secondary">
-              Atur cabang mapel berdasarkan kategori agar struktur kurikulum lebih detail.
-            </Text>
-          </div>
-          <Flex
-            gap={10}
-            vertical={!activeScreens.md}
-            style={{ width: !activeScreens.md ? "100%" : "auto" }}
-          >
+      <PageHeader
+        size="section"
+        title="Cabang Mata Pelajaran"
+        description="Atur cabang mapel berdasarkan kategori agar struktur kurikulum lebih detail."
+        extra={
+          <>
             <Input
               prefix={<Search size={16} color="#94a3b8" />}
               placeholder="Cari cabang atau kategori..."
               style={{ width: !activeScreens.md ? "100%" : 280 }}
               allowClear
-              size="large"
               onChange={(e) => setSearchText(e.target.value)}
             />
             <Button
               type="primary"
-              icon={<Plus size={18} />}
+              icon={<Plus size={16} />}
               onClick={() => setIsModalOpen(true)}
-              size="large"
             >
               Tambah Cabang
             </Button>
-          </Flex>
-        </Flex>
-      </Card>
+          </>
+        }
+      />
 
       <InfiniteScrollList
         data={filteredData}

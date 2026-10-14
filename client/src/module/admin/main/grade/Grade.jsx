@@ -26,6 +26,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { InfiniteScrollList } from "../../../../components";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   useGetGradesQuery,
   useAddGradeMutation,
@@ -242,52 +243,20 @@ const Grade = ({ screens }) => {
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
         <MotionDiv variants={itemVariants}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: token.borderRadiusXL,
-              overflow: "hidden",
-              background:
-                "linear-gradient(135deg, rgba(255,251,235,0.98), rgba(255,247,237,0.98))",
-              boxShadow: token.boxShadowTertiary,
-            }}
-            styles={{ body: { padding: isMobile ? 18 : 24 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={activeScreens.md ? "center" : "stretch"}
-              vertical={!activeScreens.md}
-              gap={16}
-            >
-              <div>
-                <Text
-                  style={{
-                    color: "#b45309",
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  MANAJEMEN TINGKAT
-                </Text>
-                <Title level={4} style={{ margin: "6px 0 4px" }}>
-                  Struktur tingkat tampil lebih rapi untuk proses administrasi.
-                </Title>
-                <Text type='secondary'>
-                  Cari tingkat kelas yang ada atau tambahkan level baru tanpa
-                  mengubah alur kerja saat ini.
-                </Text>
-              </div>
-
+          <PageHeader
+            size='section'
+            title='Manajemen Tingkat'
+            description='Cari tingkat kelas yang ada atau tambahkan level baru tanpa mengubah alur kerja saat ini.'
+            extra={
               <Button
                 type='primary'
                 icon={<Plus size={16} />}
                 onClick={() => openModal(null)}
-                size='large'
               >
                 Tambah Tingkat
               </Button>
-            </Flex>
-          </Card>
+            }
+          />
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
