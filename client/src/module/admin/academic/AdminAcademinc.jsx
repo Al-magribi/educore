@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import { motion } from "framer-motion";
 import {
   BookOpen,
+  Briefcase,
   SquareUser,
   Users,
   GraduationCap,
@@ -12,6 +13,7 @@ import { LoadApp } from "../../../components";
 
 const Subject = lazy(() => import("./subject/Subject"));
 const Teacher = lazy(() => import("./teacher/Teacher"));
+const Staff = lazy(() => import("./staff/Staff"));
 const StudentPage = lazy(() => import("./student/StudentPage"));
 
 const { useBreakpoint } = Grid;
@@ -99,6 +101,15 @@ const AdminAcademinc = () => {
       children: <Teacher screens={screens} />,
     },
     {
+      label: createTabLabel(
+        "Tendik",
+        <Briefcase size={16} />,
+        "Tenaga kependidikan",
+      ),
+      key: "staff",
+      children: <Staff />,
+    },
+    {
       label: createTabLabel("Siswa", <Users size={16} />, "Peserta didik"),
       key: "student",
       children: <StudentPage screens={screens} />,
@@ -173,7 +184,7 @@ const AdminAcademinc = () => {
                     }}
                   >
                     <Sparkles size={14} />
-                    <span>Guru, siswa, dan mapel</span>
+                    <span>Guru, tendik, siswa, dan mapel</span>
                   </Flex>
                 </Flex>
 
@@ -195,7 +206,7 @@ const AdminAcademinc = () => {
                     fontSize: isMobile ? 14 : 15,
                   }}
                 >
-                  Atur mata pelajaran, data guru, dan data siswa.
+                  Atur mata pelajaran, data guru, data tendik, dan data siswa.
                 </Text>
               </Flex>
 
@@ -224,6 +235,7 @@ const AdminAcademinc = () => {
                     {[
                       "Mata pelajaran & struktur ajar",
                       "Guru & distribusi pengajar",
+                      "Tendik & data kependidikan",
                       "Siswa & administrasi akademik",
                     ].map((item) => (
                       <div
