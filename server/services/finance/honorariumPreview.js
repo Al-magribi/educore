@@ -143,7 +143,7 @@ const loadActiveAssignments = async (db, homebaseId, asOfDate) => {
       INNER JOIN finance.honor_unit u ON u.id = p.unit_id
       LEFT JOIN u_teachers t ON t.user_id = a.teacher_id
       LEFT JOIN u_users tu ON tu.id = t.user_id
-      LEFT JOIN finance.honor_staff st ON st.id = a.staff_id
+      LEFT JOIN public.u_staff st ON st.id = a.staff_id
       WHERE a.homebase_id = $1
         AND a.is_active = true
         AND p.is_active = true
@@ -599,7 +599,7 @@ const loadEskulPay = async (db, homebaseId, asOfDate) => {
         INNER JOIN finance.honor_rate_item r ON r.id = a.rate_item_id
         LEFT JOIN public.u_teachers t ON t.user_id = a.teacher_id
         LEFT JOIN public.u_users tu ON tu.id = t.user_id
-        LEFT JOIN finance.honor_staff st ON st.id = a.staff_id
+        LEFT JOIN public.u_staff st ON st.id = a.staff_id
         WHERE a.homebase_id = $1
           AND a.is_active = true
           AND r.is_active = true

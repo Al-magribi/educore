@@ -24,9 +24,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { LoadApp } from "../../../../components";
 import {
   useAddHonorAssignmentMutation,
-  useAddHonorStaffMutation,
   useDeleteHonorAssignmentMutation,
-  useDeleteHonorStaffMutation,
   useGetHonorAssignmentsQuery,
   useGetHonorEskulAssignmentsQuery,
   useGetHonorPeopleQuery,
@@ -35,7 +33,6 @@ import {
   useGetHonorStaffQuery,
   useGetHonorUnitsQuery,
   useUpdateHonorAssignmentMutation,
-  useUpdateHonorStaffMutation,
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle, currencyFormatter } from "../constants";
 
@@ -53,11 +50,8 @@ const HonorariumPersonnelPanel = ({
   const isMobile = !screens.md;
   const [innerTab, setInnerTab] = useState("assignment");
 
-  const [staffForm] = Form.useForm();
   const [assignmentForm] = Form.useForm();
-  const [staffModalOpen, setStaffModalOpen] = useState(false);
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
-  const [editingStaff, setEditingStaff] = useState(null);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [unitFilter, setUnitFilter] = useState("all");
   const [personTypeFilter, setPersonTypeFilter] = useState("all");
@@ -114,9 +108,6 @@ const HonorariumPersonnelPanel = ({
   const staffList = staffQuery.data?.data || [];
   const assignments = assignmentQuery.data?.data || [];
 
-  const [addStaff, addStaffState] = useAddHonorStaffMutation();
-  const [updateStaff, updateStaffState] = useUpdateHonorStaffMutation();
-  const [deleteStaff, deleteStaffState] = useDeleteHonorStaffMutation();
   const [addAssignment, addAssignmentState] = useAddHonorAssignmentMutation();
   const [updateAssignment, updateAssignmentState] =
     useUpdateHonorAssignmentMutation();
@@ -133,91 +124,6 @@ const HonorariumPersonnelPanel = ({
       })),
     [positions],
   );
-
-  const openCreateStaff = () => {
-    setEditingStaff(null);
-    staffForm.setFieldsValue({
-      full_name: "",
-      nip: "",
-      phone: "",
-      email: "",
-      notes: "",
-      is_active: true,
-    });
-    setStaffModalOpen(true);
-  };
-
-  const openEditStaff = (record) => {
-    setEditingStaff(record);
-    staffForm.setFieldsValue({
-      full_name: record.full_name,
-      nip: record.nip || "",
-      phone: record.phone || "",
-      email: record.email || "",
-      notes: record.notes || "",
-      is_active: record.is_active !== false,
-    });
-    setStaffModalOpen(true);
-  };
-
-  const handleSubmitStaff = async (values) => {
-    try {
-      const payload = {
-        homebase_id: homebaseId,
-        full_name: values.full_name,
-        nip: values.nip || null,
-        phone: values.phone || null,
-        email: values.email || null,
-        notes: values.notes || null,
-        is_active: values.is_active !== false,
-      };
-
-      if (editingStaff?.id) {
-        await updateStaff({ id: editingStaff.id, ...payload }).unwrap();
-        message.success("Tendik berhasil diperbarui");
-      } else {
-        await addStaff(payload).unwrap();
-        message.success("Tendik berhasil ditambahkan");
-      }
-
-      setStaffModalOpen(false);
-      setEditingStaff(null);
-      staffForm.resetFields();
-    } catch (error) {
-      message.error(error?.data?.message || "Gagal menyimpan tendik");
-    }
-  };
-
-  const handleDeleteStaff = (record) => {
-    Modal.confirm({
-      title: `Hapus tendik "${record.full_name}"?`,
-      content:
-        record.assignment_count > 0
-          ? "Tendik masih punya assignment. Hapus assignment terlebih dahulu."
-          : "Data yang dihapus tidak dapat dikembalikan.",
-      okText: "Hapus",
-      okButtonProps: {
-        danger: true,
-        disabled: record.assignment_count > 0,
-        loading: deleteStaffState.isLoading,
-      },
-      cancelText: "Batal",
-      onOk: async () => {
-        if (record.assignment_count > 0) {
-          return;
-        }
-        try {
-          await deleteStaff({
-            id: record.id,
-            homebase_id: homebaseId,
-          }).unwrap();
-          message.success("Tendik berhasil dihapus");
-        } catch (error) {
-          message.error(error?.data?.message || "Gagal menghapus tendik");
-        }
-      },
-    });
-  };
 
   const eskulItemsForPerson = (personType, teacherId, staffId) =>
     eskulAssignments
@@ -372,28 +278,8 @@ const HonorariumPersonnelPanel = ({
           </Tag>
         ),
       },
-      {
-        title: "Aksi",
-        key: "action",
-        width: 120,
-        render: (_, record) => (
-          <Space>
-            <Button
-              type='text'
-              icon={<Pencil size={16} />}
-              onClick={() => openEditStaff(record)}
-            />
-            <Button
-              type='text'
-              danger
-              icon={<Trash2 size={16} />}
-              onClick={() => handleDeleteStaff(record)}
-            />
-          </Space>
-        ),
-      },
     ],
-    [deleteStaffState.isLoading, homebaseId],
+    [],
   );
 
   const personnelRows = useMemo(() => {
@@ -722,7 +608,7 @@ const HonorariumPersonnelPanel = ({
               Personel & Assignment
             </Text>
             <Text type='secondary' style={{ fontSize: 13 }}>
-              CRUD tendik non-guru dan assign multi-jabatan untuk guru/tendik.
+              Assign jabatan untuk guru dan tendik. Data tendik dibaca dari menu Akademik.
             </Text>
           </Flex>
           {!lockHomebase ? (
@@ -842,16 +728,11 @@ const HonorariumPersonnelPanel = ({
                       onSearch={setStaffSearch}
                       style={{ minWidth: isMobile ? "100%" : 260, flex: 1 }}
                     />
-                    <Button
-                      type='primary'
-                      icon={<Plus size={16} />}
-                      onClick={openCreateStaff}
-                      style={{ borderRadius: 12 }}
-                      block={isMobile}
-                    >
-                      Tambah Tendik
-                    </Button>
                   </Flex>
+                  <Text type='secondary'>
+                    Daftar ini hanya dibaca. Tambah atau ubah tendik dari menu
+                    Akademik.
+                  </Text>
                   <MotionDiv
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -872,52 +753,6 @@ const HonorariumPersonnelPanel = ({
           ]}
         />
       </Card>
-
-      <Modal
-        title={editingStaff ? "Edit Tendik" : "Tambah Tendik"}
-        open={staffModalOpen}
-        onCancel={() => {
-          setStaffModalOpen(false);
-          setEditingStaff(null);
-          staffForm.resetFields();
-        }}
-        onOk={staffForm.submit}
-        okText={editingStaff ? "Simpan" : "Tambah"}
-        cancelText='Batal'
-        confirmLoading={addStaffState.isLoading || updateStaffState.isLoading}
-        destroyOnClose
-        centered
-      >
-        <Form
-          form={staffForm}
-          layout='vertical'
-          onFinish={handleSubmitStaff}
-          style={{ marginTop: 12 }}
-        >
-          <Form.Item
-            name='full_name'
-            label='Nama Lengkap'
-            rules={[{ required: true, message: "Nama wajib diisi" }]}
-          >
-            <Input placeholder='Nama tendik' />
-          </Form.Item>
-          <Form.Item name='nip' label='NIP / NIK'>
-            <Input placeholder='Opsional' />
-          </Form.Item>
-          <Form.Item name='phone' label='Telepon'>
-            <Input placeholder='Opsional' />
-          </Form.Item>
-          <Form.Item name='email' label='Email'>
-            <Input placeholder='Opsional' />
-          </Form.Item>
-          <Form.Item name='notes' label='Catatan'>
-            <TextArea rows={2} placeholder='Opsional' />
-          </Form.Item>
-          <Form.Item name='is_active' label='Aktif' valuePropName='checked'>
-            <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
-          </Form.Item>
-        </Form>
-      </Modal>
 
       <Modal
         title={editingAssignment ? "Edit Assignment" : "Tambah Assignment"}

@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "./authorizeFinance.js";
@@ -42,7 +45,11 @@ const DEFAULT_RATES = [
   },
 ];
 
-const HONOR_SCHEMA_VERSION = 8;
+const HONOR_SCHEMA_VERSION = 9;
+const staffDirectoryPatchPath = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../database/patches/20261014_public_u_staff.sql",
+);
 let honorSchemaVersion = 0;
 let honorSchemaReadyPromise = null;
 
@@ -61,6 +68,7 @@ const ensureHonorTables = async (db) => {
   if (!honorSchemaReadyPromise) {
     honorSchemaReadyPromise = (async () => {
       await db.query(`CREATE SCHEMA IF NOT EXISTS finance`);
+      await db.query(readFileSync(staffDirectoryPatchPath, "utf8"));
 
       await db.query(`
         CREATE TABLE IF NOT EXISTS finance.honor_unit (
@@ -204,7 +212,7 @@ const ensureHonorTables = async (db) => {
           person_type VARCHAR(20) NOT NULL
             CHECK (person_type IN ('teacher', 'staff')),
           teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
-          staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE CASCADE,
+          staff_id BIGINT REFERENCES public.u_staff(id) ON DELETE CASCADE,
           valid_from DATE,
           valid_to DATE,
           notes TEXT,
@@ -305,7 +313,7 @@ const ensureHonorTables = async (db) => {
           person_type VARCHAR(20) NOT NULL
             CHECK (person_type IN ('teacher', 'staff')),
           teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE SET NULL,
-          staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE SET NULL,
+          staff_id BIGINT REFERENCES public.u_staff(id) ON DELETE SET NULL,
           person_name VARCHAR(150) NOT NULL,
           person_nip VARCHAR(50),
           unit_name VARCHAR(100),
@@ -424,7 +432,7 @@ const ensureHonorTables = async (db) => {
           person_type VARCHAR(20) NOT NULL
             CHECK (person_type IN ('teacher', 'staff')),
           teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
-          staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE CASCADE,
+          staff_id BIGINT REFERENCES public.u_staff(id) ON DELETE CASCADE,
           quantity NUMERIC(12, 2) NOT NULL DEFAULT 0
             CHECK (quantity >= 0),
           is_active BOOLEAN NOT NULL DEFAULT true,
@@ -2227,7 +2235,7 @@ router.get(
         INNER JOIN finance.honor_rate_item r ON r.id = a.rate_item_id
         LEFT JOIN public.u_teachers t ON t.user_id = a.teacher_id
         LEFT JOIN public.u_users tu ON tu.id = t.user_id
-        LEFT JOIN finance.honor_staff st ON st.id = a.staff_id
+        LEFT JOIN public.u_staff st ON st.id = a.staff_id
         WHERE a.homebase_id = $1
           AND a.is_active = true
         ORDER BY r.name ASC, person_name ASC, a.id ASC
@@ -2280,7 +2288,7 @@ router.post(
     } else {
       if (!staffId) return res.status(400).json({ message: "Tendik wajib dipilih" });
       const staff = await client.query(
-        `SELECT id FROM finance.honor_staff WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
+        `SELECT id FROM public.u_staff WHERE id = $1 AND homebase_id = $2 LIMIT 1`,
         [staffId, homebaseId],
       );
       if (staff.rowCount === 0) {
@@ -2442,7 +2450,7 @@ router.get(
             s.full_name,
             s.nip,
             s.is_active
-          FROM finance.honor_staff s
+          FROM public.u_staff s
           ${staffWhere}
           ORDER BY s.full_name ASC
         `,
@@ -2508,7 +2516,7 @@ router.get(
         SELECT
           s.*,
           COUNT(a.id)::int AS assignment_count
-        FROM finance.honor_staff s
+        FROM public.u_staff s
         LEFT JOIN finance.honor_assignment a
           ON a.staff_id = s.id
          AND a.person_type = 'staff'
@@ -2552,7 +2560,7 @@ router.post(
 
     const result = await client.query(
       `
-        INSERT INTO finance.honor_staff (
+        INSERT INTO public.u_staff (
           homebase_id,
           full_name,
           nip,
@@ -2611,7 +2619,7 @@ router.put(
 
     const result = await client.query(
       `
-        UPDATE finance.honor_staff
+        UPDATE public.u_staff
         SET
           full_name = $1,
           nip = $2,
@@ -2687,7 +2695,7 @@ router.delete(
 
     const result = await client.query(
       `
-        DELETE FROM finance.honor_staff
+        DELETE FROM public.u_staff
         WHERE id = $1
           AND homebase_id = $2
         RETURNING id
@@ -2798,7 +2806,7 @@ router.get(
         INNER JOIN finance.honor_unit u ON u.id = p.unit_id
         LEFT JOIN u_teachers t ON t.user_id = a.teacher_id
         LEFT JOIN u_users tu ON tu.id = t.user_id
-        LEFT JOIN finance.honor_staff st ON st.id = a.staff_id
+        LEFT JOIN public.u_staff st ON st.id = a.staff_id
         ${whereClause}
         ORDER BY u.sort_order ASC, p.sort_order ASC, person_name ASC, a.id ASC
       `,
@@ -2875,7 +2883,7 @@ router.post(
       const staffCheck = await client.query(
         `
           SELECT id
-          FROM finance.honor_staff
+          FROM public.u_staff
           WHERE id = $1
             AND homebase_id = $2
           LIMIT 1
@@ -3017,7 +3025,7 @@ router.put(
       const staffCheck = await client.query(
         `
           SELECT id
-          FROM finance.honor_staff
+          FROM public.u_staff
           WHERE id = $1
             AND homebase_id = $2
           LIMIT 1

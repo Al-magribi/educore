@@ -600,7 +600,30 @@ CREATE INDEX IF NOT EXISTS idx_honor_rate_item_active_window
 
 -- =================================================================================
 -- Fitur: Honorarium — Tendik + Assignment multi-jabatan
+-- Induk tendik ada di public.u_staff. finance.honor_staff tetap sebagai salinan.
 -- =================================================================================
+
+CREATE TABLE IF NOT EXISTS public.u_staff (
+    id BIGSERIAL PRIMARY KEY,
+    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    full_name VARCHAR(150) NOT NULL,
+    nip VARCHAR(50),
+    phone VARCHAR(30),
+    email VARCHAR(120),
+    notes TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    updated_by INT REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT u_staff_name_not_blank CHECK (length(trim(full_name)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_u_staff_homebase_name
+    ON public.u_staff (homebase_id, lower(trim(full_name)));
+
+CREATE INDEX IF NOT EXISTS idx_u_staff_homebase_active
+    ON public.u_staff (homebase_id, is_active);
 
 CREATE TABLE IF NOT EXISTS finance.honor_staff (
     id BIGSERIAL PRIMARY KEY,
@@ -631,7 +654,7 @@ CREATE TABLE IF NOT EXISTS finance.honor_assignment (
     person_type VARCHAR(20) NOT NULL
         CHECK (person_type IN ('teacher', 'staff')),
     teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE CASCADE,
-    staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE CASCADE,
+    staff_id BIGINT REFERENCES public.u_staff(id) ON DELETE CASCADE,
     valid_from DATE,
     valid_to DATE,
     notes TEXT,
@@ -718,7 +741,7 @@ CREATE TABLE IF NOT EXISTS finance.honor_payroll_line (
     person_type VARCHAR(20) NOT NULL
         CHECK (person_type IN ('teacher', 'staff')),
     teacher_id INT REFERENCES public.u_teachers(user_id) ON DELETE SET NULL,
-    staff_id BIGINT REFERENCES finance.honor_staff(id) ON DELETE SET NULL,
+    staff_id BIGINT REFERENCES public.u_staff(id) ON DELETE SET NULL,
     person_name VARCHAR(150) NOT NULL,
     person_nip VARCHAR(50),
     unit_name VARCHAR(100),
