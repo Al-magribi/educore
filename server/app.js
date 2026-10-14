@@ -28,6 +28,9 @@ app.use(userAgent());
 // Static Folder
 app.use("/assets/lms/:teacherId/modul", protectTeachingModuleAssets);
 app.use("/assets", express.static(path.join(__dirname, "assets")));
+app.use("/assets", (_req, res) => {
+  res.status(404).json({ message: "File tidak ditemukan." });
+});
 const backupPath = path.join(process.cwd(), "temp_backup");
 if (!fs.existsSync(backupPath)) {
   fs.mkdirSync(backupPath, { recursive: true });

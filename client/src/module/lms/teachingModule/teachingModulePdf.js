@@ -8,6 +8,18 @@ import {
   normalizeContent,
 } from "./moduleSchema";
 
+// pdfmake mengubah array daftar langsung (items[i] = ...). Data modul dari RTK Query
+// dibekukan Immer, di lokal maupun production, jadi penugasan itu melempar
+// "Cannot assign to read only property" dan PDF tidak pernah selesai.
+const clonePlainData = (value) => {
+  if (value == null || typeof value !== "object") return value;
+  try {
+    return structuredClone(value);
+  } catch {
+    return JSON.parse(JSON.stringify(value));
+  }
+};
+
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const PAGE_MARGINS = [72, 60, 64, 60];
@@ -73,8 +85,25 @@ const loadImageElement = (url) =>
     const image = new Image();
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error(`Gambar gagal dimuat: ${url}`));
-    image.src = toAbsoluteUrl(url);
+    image.src = url;
   });
+
+// File modul dilindungi cookie. Respons HTML (halaman aplikasi) berarti file
+// gambar tidak ada, jadi tidak boleh dipakai sebagai cover.
+const fetchImageElement = async (url) => {
+  const response = await fetch(toAbsoluteUrl(url), { credentials: "include" });
+  const type = response.headers.get("content-type") || "";
+  if (!response.ok || !type.startsWith("image/")) {
+    throw new Error("File gambar cover tidak ditemukan. Upload ulang cover modul.");
+  }
+  const objectUrl = URL.createObjectURL(await response.blob());
+  try {
+    return await loadImageElement(objectUrl);
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    throw error;
+  }
+};
 
 // pdfmake (pdfkit) hanya mengenali PNG & JPEG, jadi format lain dikonversi lewat canvas.
 const imageToDataUrl = (image, { type = "image/png", maxWidth } = {}) => {
@@ -96,8 +125,8 @@ const imageToDataUrl = (image, { type = "image/png", maxWidth } = {}) => {
 
 const loadCoverImage = async (coverUrl) => {
   if (!coverUrl) return null;
+  const image = await fetchImageElement(coverUrl);
   try {
-    const image = await loadImageElement(coverUrl);
     return {
       dataUrl: imageToDataUrl(image, {
         type: "image/jpeg",
@@ -106,9 +135,8 @@ const loadCoverImage = async (coverUrl) => {
       width: image.naturalWidth,
       height: image.naturalHeight,
     };
-  } catch (error) {
-    console.warn("[Modul Ajar] Cover dilewati:", error);
-    return null;
+  } finally {
+    if (image.src.startsWith("blob:")) URL.revokeObjectURL(image.src);
   }
 };
 
@@ -121,17 +149,19 @@ const convertUnsupportedImages = async (images) => {
   );
 };
 
-const buildCoverBackground = (cover) => {
-  const scale = Math.min(PAGE_WIDTH / cover.width, PAGE_HEIGHT / cover.height);
+const buildCoverBackground = (cover, pageSize) => {
+  const pageWidth = pageSize?.width || PAGE_WIDTH;
+  const pageHeight = pageSize?.height || PAGE_HEIGHT;
+  const scale = Math.min(pageWidth / cover.width, pageHeight / cover.height);
   const width = cover.width * scale;
   const height = cover.height * scale;
   return {
-    image: "cover",
+    image: cover.dataUrl,
     width,
     height,
     absolutePosition: {
-      x: (PAGE_WIDTH - width) / 2,
-      y: (PAGE_HEIGHT - height) / 2,
+      x: (pageWidth - width) / 2,
+      y: (pageHeight - height) / 2,
     },
   };
 };
@@ -275,7 +305,7 @@ export const buildTeachingModuleDoc = (
   htmlToPdfmake,
   { cover = null } = {},
 ) => {
-  const content = normalizeContent(module?.content);
+  const content = normalizeContent(clonePlainData(module?.content));
   const { convert, images } = createHtmlConverter(htmlToPdfmake);
   const { general, core, appendix } = content;
 
@@ -325,7 +355,8 @@ export const buildTeachingModuleDoc = (
       subject: content.identity.subject || "",
     },
     background: cover
-      ? (currentPage) => (currentPage === 1 ? buildCoverBackground(cover) : null)
+      ? (currentPage, pageSize) =>
+          currentPage === 1 ? buildCoverBackground(cover, pageSize) : null
       : undefined,
     content: [
       ...(cover ? [{ text: "", pageBreak: "after" }] : []),
@@ -343,7 +374,7 @@ export const buildTeachingModuleDoc = (
       ...appendixBody,
       buildSignature(content.signature),
     ],
-    images: cover ? { ...images, cover: cover.dataUrl } : images,
+    images,
     footer: (currentPage, pageCount) =>
       currentPage <= pageOffset
         ? null
@@ -396,18 +427,37 @@ const createPdfBlob = async (module) => {
   });
   await convertUnsupportedImages(docDefinition.images);
   return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(
-      () => reject(new Error("Pembuatan PDF melebihi batas waktu.")),
+    let settled = false;
+    let timer;
+    const finish = (handler, value) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("unhandledrejection", onUnhandled);
+      handler(value);
+    };
+    // Kesalahan di dalam pdfmake terjadi setelah callback async dan tidak
+    // sampai ke getBlob, sehingga tombol sebelumnya berputar sampai timeout.
+    const onUnhandled = (event) => {
+      const reason = event.reason;
+      const text = `${reason?.message || ""}\n${reason?.stack || reason || ""}`;
+      if (!/pdfmake|DocPreprocessor|pdfkit|fontkit|Failed to fetch|read only property/i.test(text)) {
+        return;
+      }
+      event.preventDefault();
+      finish(reject, reason instanceof Error ? reason : new Error(text));
+    };
+    timer = window.setTimeout(
+      () => finish(reject, new Error("Pembuatan PDF melebihi batas waktu.")),
       PDF_TIMEOUT_MS,
     );
+    window.addEventListener("unhandledrejection", onUnhandled);
     try {
       pdfMake.createPdf(docDefinition).getBlob((blob) => {
-        window.clearTimeout(timer);
-        resolve(blob);
+        finish(resolve, blob);
       });
     } catch (error) {
-      window.clearTimeout(timer);
-      reject(error);
+      finish(reject, error);
     }
   });
 };
