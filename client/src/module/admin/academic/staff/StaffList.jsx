@@ -36,7 +36,9 @@ const StaffList = ({ data, loading, onEdit, onDelete, onPageChange, pagination }
           <Avatar icon={<UserOutlined />} />
           <Flex vertical>
             <Text strong>{text}</Text>
-            <Text type="secondary">NIP: {record.nip || "-"}</Text>
+            <Text type="secondary">
+              NIP: {record.nip || "-"} | RFID: {record.rfid_no || "-"}
+            </Text>
           </Flex>
         </Flex>
       ),
@@ -94,7 +96,9 @@ const StaffList = ({ data, loading, onEdit, onDelete, onPageChange, pagination }
               <Flex justify="space-between" align="start" style={{ width: "100%" }} gap={8}>
                 <Flex vertical>
                   <Text strong>{record.full_name}</Text>
-                  <Text type="secondary">NIP: {record.nip || "-"}</Text>
+                  <Text type="secondary">
+                    NIP: {record.nip || "-"} | RFID: {record.rfid_no || "-"}
+                  </Text>
                   <Text>{record.phone || "-"}</Text>
                   {record.is_active ? <Tag color="success">Aktif</Tag> : <Tag>Nonaktif</Tag>}
                 </Flex>

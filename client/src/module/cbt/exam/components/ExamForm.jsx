@@ -13,12 +13,12 @@ import {
   Select,
   Space,
   Switch,
-  Tag,
   Typography,
   message,
 } from "antd";
 import { motion } from "framer-motion";
-import { BookOpen, Clock3, Sparkles, User, Users } from "lucide-react";
+import { BookOpen, Clock3, User, Users } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 import { useSelector } from "react-redux";
 import {
   useGetBanksForExamQuery,
@@ -209,55 +209,10 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
       style={{ display: "flex", flexDirection: "column", gap: 18 }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: 26,
-            overflow: "hidden",
-            background:
-              "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)",
-            boxShadow: "0 24px 52px rgba(15, 23, 42, 0.16)",
-          }}
-          styles={{ body: { padding: screens.xs ? 18 : 24 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={screens.xs ? "stretch" : "center"}
-            gap={18}
-            wrap='wrap'
-            style={{ flexDirection: screens.xs ? "column" : "row" }}
-          >
-            <Space orientation='vertical' size={10} style={{ maxWidth: 720 }}>
-              <Space wrap size={8}>
-                <Text style={{ color: "rgba(255,255,255,0.74)" }}>
-                  Form Jadwal Ujian
-                </Text>
-                <Tag
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    background: "rgba(255,255,255,0.12)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.16)",
-                  }}
-                  icon={<Sparkles size={12} />}
-                >
-                  {isEdit ? "Edit Jadwal" : "Buat Jadwal Baru"}
-                </Tag>
-              </Space>
-              <Title
-                level={screens.xs ? 4 : 3}
-                style={{ margin: 0, color: "#fff", lineHeight: 1.12 }}
-              >
-                Susun jadwal ujian dengan rapi dan terarah
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.82)", maxWidth: 760 }}>
-                Atur pengampu, bank soal, durasi, grade, serta cakupan kelas.
-              </Text>
-            </Space>
-          </Flex>
-        </Card>
+        <PageHeader
+          title={isEdit ? "Edit Jadwal Ujian" : "Buat Jadwal Ujian"}
+          description='Atur pengampu, bank soal, durasi, grade, serta cakupan kelas.'
+        />
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>

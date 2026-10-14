@@ -15,9 +15,8 @@ import {
   Users,
   BookOpen,
   School,
-  Sparkles,
-  GraduationCap,
 } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   DownloadOutlined,
   SearchOutlined,
@@ -225,80 +224,11 @@ const Teacher = () => {
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
         <MotionDiv variants={itemVariants}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: 24,
-              overflow: "hidden",
-              background:
-                "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(236,253,245,0.98))",
-              boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-            }}
-            styles={{ body: { padding: screens.md ? 24 : 18 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={screens.md ? "center" : "stretch"}
-              vertical={!screens.md}
-              gap={16}
-            >
-              <div>
-                <Flex
-                  align='center'
-                  gap={10}
-                  wrap='wrap'
-                  style={{ marginBottom: 8 }}
-                >
-                  <Text
-                    style={{
-                      color: "#1d4ed8",
-                      fontWeight: 700,
-                      letterSpacing: 0.4,
-                    }}
-                  >
-                    DIREKTORI GURU
-                  </Text>
-                  <Flex
-                    align='center'
-                    gap={6}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 999,
-                      background: "rgba(29, 78, 216, 0.10)",
-                      color: "#1d4ed8",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Sparkles size={14} />
-                    <span>Manajemen pengajar</span>
-                  </Flex>
-                </Flex>
-                <Title level={4} style={{ margin: "0 0 4px" }}>
-                  Kelola data guru, wali kelas, dan alokasi mengajar
-                </Title>
-                <Text type='secondary' style={{ maxWidth: 760 }}>
-                  Cari data guru, impor template, dan atur pengampu mapel
-                </Text>
-              </div>
-
-              {!screens.xs && (
-                <div
-                  style={{
-                    width: 58,
-                    height: 58,
-                    borderRadius: 20,
-                    display: "grid",
-                    placeItems: "center",
-                    background: "linear-gradient(135deg, #2563eb, #14b8a6)",
-                    color: "#fff",
-                    boxShadow: "0 18px 32px rgba(37, 99, 235, 0.24)",
-                  }}
-                >
-                  <GraduationCap size={24} />
-                </div>
-              )}
-            </Flex>
-          </Card>
+          <PageHeader
+            size='section'
+            title='Kelola data guru, wali kelas, dan alokasi mengajar'
+            description='Cari data guru, impor template, dan atur pengampu mapel.'
+          />
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>

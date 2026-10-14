@@ -1,9 +1,10 @@
 import React from "react";
-import { Card, Empty, Grid, Space, Tag, Typography } from "antd";
+import { Card, Empty, Grid, Space, Typography } from "antd";
 import { motion } from "framer-motion";
 import { Settings2, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -14,41 +15,10 @@ const ExamSetting = () => {
   return (
     <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
       <Space direction='vertical' size={16} style={{ width: "100%" }}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: 26,
-            overflow: "hidden",
-            background:
-              "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)",
-            boxShadow: "0 24px 52px rgba(15, 23, 42, 0.16)",
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Space orientation='vertical' size={10}>
-            <Tag
-              style={{
-                margin: 0,
-                width: "fit-content",
-                borderRadius: 999,
-                paddingInline: 12,
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.16)",
-              }}
-              icon={<Settings2 size={12} />}
-            >
-              Pengaturan Ujian
-            </Tag>
-            <Title level={isMobile ? 4 : 3} style={{ margin: 0, color: "#fff" }}>
-              Panel konfigurasi yang lebih terstruktur
-            </Title>
-            <Paragraph style={{ marginBottom: 0, color: "rgba(255,255,255,0.82)" }}>
-              Area ini disiapkan untuk menampung pengaturan lanjutan seperti
-              keamanan ujian, perilaku peserta, dan aturan pelaksanaan CBT.
-            </Paragraph>
-          </Space>
-        </Card>
+        <PageHeader
+          title='Pengaturan Ujian'
+          description='Area ini disiapkan untuk menampung pengaturan lanjutan seperti keamanan ujian, perilaku peserta, dan aturan pelaksanaan CBT.'
+        />
 
         <div
           style={{
