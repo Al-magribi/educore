@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { InfiniteScrollList } from "../../../../components";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   useGetMajorsQuery,
   useAddMajorMutation,
@@ -262,51 +263,20 @@ const Major = ({ screens }) => {
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: token.borderRadiusXL,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(248,250,252,0.98))",
-            boxShadow: token.boxShadowTertiary,
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={activeScreens.md ? "center" : "stretch"}
-            vertical={!activeScreens.md}
-            gap={16}
-          >
-            <div>
-              <Text
-                style={{
-                  color: "#1890ff",
-                  fontWeight: 700,
-                  letterSpacing: 0.4,
-                }}
-              >
-                MANAJEMEN JURUSAN
-              </Text>
-              <Title level={4} style={{ margin: "6px 0 4px" }}>
-                Daftar Jurusan
-              </Title>
-              <Text type='secondary'>
-                Kelola jurusan untuk menjaga struktur akademik.
-              </Text>
-            </div>
-
+        <PageHeader
+          size='section'
+          title='Daftar Jurusan'
+          description='Kelola jurusan untuk menjaga struktur akademik.'
+          extra={
             <Button
               type='primary'
-              icon={<Plus size={18} />}
+              icon={<Plus size={16} />}
               onClick={() => handleOpenModal(null)}
-              size='large'
             >
               Tambah Jurusan
             </Button>
-          </Flex>
-        </Card>
+          }
+        />
       </MotionDiv>
 
       <MotionDiv variants={itemVariants}>

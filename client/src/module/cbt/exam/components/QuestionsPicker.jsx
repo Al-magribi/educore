@@ -1,9 +1,10 @@
 import React from "react";
-import { Card, Empty, Grid, Space, Tag, Typography } from "antd";
+import { Card, Empty, Grid, Space, Typography } from "antd";
 import { motion } from "framer-motion";
-import { BookOpenCheck, FolderSearch, ListChecks, Sparkles } from "lucide-react";
+import { BookOpenCheck, FolderSearch, ListChecks } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -14,41 +15,10 @@ const QuestionsPicker = () => {
   return (
     <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
       <Space direction='vertical' size={16} style={{ width: "100%" }}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: 26,
-            overflow: "hidden",
-            background:
-              "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)",
-            boxShadow: "0 24px 52px rgba(15, 23, 42, 0.16)",
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Space orientation='vertical' size={10}>
-            <Tag
-              style={{
-                margin: 0,
-                width: "fit-content",
-                borderRadius: 999,
-                paddingInline: 12,
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff",
-                borderColor: "rgba(255,255,255,0.16)",
-              }}
-              icon={<Sparkles size={12} />}
-            >
-              Picker Soal
-            </Tag>
-            <Title level={isMobile ? 4 : 3} style={{ margin: 0, color: "#fff" }}>
-              Workspace seleksi soal yang lebih siap dikembangkan
-            </Title>
-            <Paragraph style={{ marginBottom: 0, color: "rgba(255,255,255,0.82)" }}>
-              Komponen ini disiapkan untuk pemilihan soal dari bank soal, preview jumlah,
-              dan pengelompokan tipe soal dalam antarmuka yang lebih jelas.
-            </Paragraph>
-          </Space>
-        </Card>
+        <PageHeader
+          title='Picker Soal'
+          description='Komponen ini disiapkan untuk pemilihan soal dari bank soal, preview jumlah, dan pengelompokan tipe soal.'
+        />
 
         <div
           style={{
