@@ -32,6 +32,7 @@ import {
   CheckCircle,
   Upload,
 } from "lucide-react";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   useGetSubjectsQuery,
   useAddSubjectMutation,
@@ -217,31 +218,11 @@ const SubjectTable = ({ screens }) => {
       transition={{ duration: 0.22, ease: "easeOut" }}
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      <Card
-        bordered={false}
-        style={{
-          borderRadius: 22,
-          background:
-            "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(250,245,255,0.98))",
-          boxShadow: "0 16px 32px rgba(15, 23, 42, 0.05)",
-        }}
-        styles={{ body: { padding: isMobile ? 16 : 18 } }}
-      >
-        <Flex
-          justify='space-between'
-          align={activeScreens.md ? "center" : "stretch"}
-          vertical={!activeScreens.md}
-          gap={16}
-        >
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              Direktori Mata Pelajaran
-            </Title>
-            <Text type='secondary'>
-              Cari, filter, dan kelola data mapel dari panel yang lebih ringkas.
-            </Text>
-          </div>
-
+      <PageHeader
+        size='section'
+        title='Direktori Mata Pelajaran'
+        description='Cari, filter, dan kelola data mapel dari panel yang lebih ringkas.'
+        extra={
           <Flex
             gap={10}
             wrap='wrap'
@@ -310,8 +291,8 @@ const SubjectTable = ({ screens }) => {
               Mapel
             </Button>
           </Flex>
-        </Flex>
-      </Card>
+        }
+      />
 
       <InfiniteScrollList
         data={allSubjects}

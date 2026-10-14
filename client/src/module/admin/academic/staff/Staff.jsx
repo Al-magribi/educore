@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Card, Flex, Grid, Input, Statistic, Typography, message } from "antd";
+import { Button, Card, Flex, Grid, Input, Statistic, message } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { UserPlus } from "lucide-react";
 import StaffList from "./StaffList";
@@ -10,9 +10,9 @@ import {
   useGetStaffQuery,
   useUpdateStaffMutation,
 } from "../../../../service/academic/ApiStaff";
+import PageHeader from "../../../../components/ui/PageHeader";
 import useDebounced from "../../../../utils/useDebounced";
 
-const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const Staff = () => {
@@ -74,25 +74,15 @@ const Staff = () => {
         </Card>
       </Flex>
 
-      <Card style={{ borderRadius: 18 }} styles={{ body: { padding: screens.md ? 20 : 16 } }}>
-        <Flex
-          justify="space-between"
-          align={screens.md ? "center" : "stretch"}
-          vertical={!screens.md}
-          gap={12}
-        >
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              Tenaga kependidikan
-            </Title>
-            <Text type="secondary">
-              Data induk tendik satuan ini. Keuangan hanya membaca daftar ini.
-            </Text>
-          </div>
-          <Flex gap={8} wrap="wrap" vertical={!screens.md}>
+      <PageHeader
+        size="section"
+        title="Tenaga kependidikan"
+        description="Data induk tendik satuan ini. Keuangan hanya membaca daftar ini."
+        extra={
+          <>
             <Input
               allowClear
-              placeholder="Cari nama / NIP / kontak"
+              placeholder="Cari nama / NIP / RFID"
               prefix={<SearchOutlined />}
               style={{ width: screens.md ? 260 : "100%" }}
               onChange={(event) => {
@@ -110,9 +100,9 @@ const Staff = () => {
             >
               Tendik
             </Button>
-          </Flex>
-        </Flex>
-      </Card>
+          </>
+        }
+      />
 
       <StaffList
         data={items}

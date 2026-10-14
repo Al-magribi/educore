@@ -9,6 +9,7 @@ const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
     form.setFieldsValue({
       full_name: initialValues?.full_name || "",
       nip: initialValues?.nip || "",
+      rfid_no: initialValues?.rfid_no || "",
       phone: initialValues?.phone || "",
       email: initialValues?.email || "",
       notes: initialValues?.notes || "",
@@ -43,6 +44,9 @@ const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
         </Form.Item>
         <Form.Item name="nip" label="NIP">
           <Input placeholder="Opsional" maxLength={50} />
+        </Form.Item>
+        <Form.Item name="rfid_no" label="No RFID (Opsional)">
+          <Input placeholder="Nomor RFID kartu tendik" maxLength={100} />
         </Form.Item>
         <Form.Item name="phone" label="Telepon">
           <Input placeholder="Opsional" maxLength={30} />

@@ -33,6 +33,7 @@ import {
   Users,
 } from "lucide-react";
 import { InfiniteScrollList, LoadApp } from "../../../../components";
+import PageHeader from "../../../../components/ui/PageHeader";
 import { BankForm } from "../components";
 import GroupBankForm from "../components/bank/Grouped/GroupBankForm";
 import {
@@ -400,127 +401,27 @@ const BankList = () => {
           style={{ width: "100%" }}
         >
           <MotionDiv variants={itemVariants}>
-            <Card
-              style={{
-                marginBottom: 20,
-                borderRadius: 28,
-                overflow: "hidden",
-                border: "none",
-                position: "relative",
-                background:
-                  "radial-gradient(circle at top left, rgba(56,189,248,0.28), transparent 28%), radial-gradient(circle at right center, rgba(255,255,255,0.16), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
-                boxShadow: "0 26px 54px rgba(15, 23, 42, 0.20)",
-              }}
-              styles={{ body: { padding: isMobile ? 18 : 24 } }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
-                  pointerEvents: "none",
-                }}
-              />
-              <Flex
-                vertical={isMobile}
-                justify='space-between'
-                align={isMobile ? "stretch" : "center"}
-                gap={18}
-                style={{ position: "relative" }}
-              >
-                <div style={{ color: "#fff", maxWidth: 720, flex: 1 }}>
-                  <Flex
-                    align='center'
-                    gap={10}
-                    wrap='wrap'
-                    style={{ marginBottom: 10 }}
-                  >
-                    <Text
-                      style={{
-                        color: "rgba(255,255,255,0.86)",
-                        fontWeight: 700,
-                        letterSpacing: 0.4,
-                      }}
-                    >
-                      MANAJEMEN BANK SOAL
-                    </Text>
-                    <Flex
-                      align='center'
-                      gap={6}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        background: "rgba(255,255,255,0.12)",
-                        border: "1px solid rgba(255,255,255,0.16)",
-                        color: "#e0f2fe",
-                        fontWeight: 600,
-                      }}
-                    >
-                      <LibraryBig size={14} />
-                      <span>CBT Workspace</span>
-                    </Flex>
-                  </Flex>
-                  <Title
-                    level={isMobile ? 4 : 3}
-                    style={{ color: "#fff", margin: "0 0 6px" }}
-                  >
-                    Kelola Bank Soal.
-                  </Title>
-                  <Text
-                    style={{
-                      color: "rgba(241,245,249,0.84)",
-                      display: "block",
-                      maxWidth: 620,
-                    }}
-                  >
-                    Atur bank soal per guru, mata pelajaran, dan tipe ujian dari
-                    satu panel yang lebih fokus untuk kebutuhan operasional CBT.
-                  </Text>
-                </div>
-
-                <Flex
-                  vertical={isMobile}
-                  gap={12}
-                  style={{ width: isMobile ? "100%" : "auto" }}
-                >
+            <PageHeader
+              title='Manajemen Bank Soal'
+              description='Atur bank soal per guru, mata pelajaran, dan tipe ujian dari satu panel yang lebih fokus untuk kebutuhan operasional CBT.'
+              extra={
+                <>
                   <Button
-                    icon={<Plus size={18} />}
+                    icon={<Plus size={16} />}
                     type='primary'
                     onClick={() => openForm(null)}
-                    size='large'
-                    style={{
-                      width: isMobile ? "100%" : 180,
-                      borderRadius: 14,
-                      height: 46,
-                      background: "#fff",
-                      color: "#0f172a",
-                      border: "none",
-                      fontWeight: 600,
-                      boxShadow: "0 12px 24px rgba(255,255,255,0.18)",
-                    }}
                   >
                     Bank Soal
                   </Button>
                   <Button
-                    icon={<Folder size={18} />}
+                    icon={<Folder size={16} />}
                     onClick={() => setIsGroupModalOpen(true)}
-                    size='large'
-                    style={{
-                      width: isMobile ? "100%" : 180,
-                      borderRadius: 14,
-                      height: 46,
-                      background: "rgba(255,255,255,0.12)",
-                      color: "#fff",
-                      borderColor: "rgba(255,255,255,0.24)",
-                      fontWeight: 600,
-                    }}
                   >
                     Gabung Bank
                   </Button>
-                </Flex>
-              </Flex>
-            </Card>
+                </>
+              }
+            />
           </MotionDiv>
 
           <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>

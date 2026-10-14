@@ -12,6 +12,7 @@ import {
 import { useGetClassesQuery } from "../../../../service/main/ApiClass";
 
 import { InfiniteScrollList } from "../../../../components";
+import PageHeader from "../../../../components/ui/PageHeader";
 import ClassItem from "./ClassItem";
 import ClassModal from "./ClassModal";
 import StudentDrawer from "./StudentDrawer";
@@ -177,46 +178,15 @@ const Classes = ({ screens }) => {
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
         <MotionDiv variants={itemVariants}>
-          <Card
-            variant='borderless'
-            style={{
-              borderRadius: 24,
-              overflow: "hidden",
-              background:
-                "linear-gradient(135deg, rgba(240,253,244,0.98), rgba(239,246,255,0.98))",
-              boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-            }}
-            styles={{ body: { padding: isMobile ? 18 : 24 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={activeScreens.md ? "center" : "stretch"}
-              vertical={!activeScreens.md}
-              gap={16}
-            >
-              <div>
-                <Text
-                  style={{
-                    color: "#0369a1",
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  MANAJEMEN KELAS
-                </Text>
-                <Title level={4} style={{ margin: "6px 0 4px" }}>
-                  Direktori Kelas
-                </Title>
-                <Text type='secondary'>
-                  Kelola daftar kelas, tambah data baru, dan upload siswa.
-                </Text>
-              </div>
-
-              <Flex gap={10} wrap='wrap'>
+          <PageHeader
+            size='section'
+            title='Direktori Kelas'
+            description='Kelola daftar kelas, tambah data baru, dan upload siswa.'
+            extra={
+              <>
                 <Button
                   icon={<UploadIcon size={16} />}
                   onClick={() => setIsUploadDrawerOpen(true)}
-                  size='large'
                 >
                   Upload Siswa
                 </Button>
@@ -224,13 +194,12 @@ const Classes = ({ screens }) => {
                   type='primary'
                   icon={<Plus size={16} />}
                   onClick={handleAddClass}
-                  size='large'
                 >
                   Tambah Kelas
                 </Button>
-              </Flex>
-            </Flex>
-          </Card>
+              </>
+            }
+          />
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>

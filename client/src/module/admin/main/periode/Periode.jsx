@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import { InfiniteScrollList } from "../../../../components";
+import PageHeader from "../../../../components/ui/PageHeader";
 import {
   useGetPeriodesQuery,
   useAddPeriodeMutation,
@@ -319,50 +320,20 @@ const Periode = ({ screens }) => {
         style={{ display: "flex", flexDirection: "column", gap: 20 }}
       >
         <MotionDiv variants={itemVariants}>
-          <Card
-            variant='borderless'
-            style={{
-              borderRadius: 24,
-              overflow: "hidden",
-              background:
-                "linear-gradient(135deg, rgba(245,243,255,0.98), rgba(238,242,255,0.98))",
-              boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-            }}
-            styles={{ body: { padding: isMobile ? 18 : 24 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={activeScreens.md ? "center" : "stretch"}
-              vertical={!activeScreens.md}
-              gap={16}
-            >
-              <div>
-                <Text
-                  style={{
-                    color: "#7c3aed",
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  MANAJEMEN PERIODE
-                </Text>
-                <Title level={4} style={{ margin: "6px 0 4px" }}>
-                  Pengelolaan Periode Akademik
-                </Title>
-                <Text type='secondary'>
-                  Cari periode, aktifkan, edit, atau tambahkan data baru.
-                </Text>
-              </div>
+          <PageHeader
+            size='section'
+            title='Pengelolaan Periode Akademik'
+            description='Cari periode, aktifkan, edit, atau tambahkan data baru.'
+            extra={
               <Button
                 type='primary'
-                icon={<Plus size={18} />}
+                icon={<Plus size={16} />}
                 onClick={() => handleOpenModal(null)}
-                size='large'
               >
                 Tambah Periode
               </Button>
-            </Flex>
-          </Card>
+            }
+          />
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>

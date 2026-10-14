@@ -27,6 +27,7 @@ import {
   BookMarked,
   Activity,
 } from "lucide-react";
+import PageHeader from "../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -182,65 +183,21 @@ const AdminDash = () => {
 
   return (
     <div>
-      <div>
-        <Card
-        variant='borderless'
-        style={{
-          marginBottom: 20,
-          borderRadius: 24,
-          overflow: "hidden",
-          background:
-            "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #14b8a6 100%)",
-        }}
-        styles={{ body: { padding: screens.md ? 28 : 20 } }}
-      >
-        <Flex
-          justify='space-between'
-          align={screens.md ? "center" : "start"}
-          vertical={!screens.md}
-          gap={20}
-        >
-          <div>
-            <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-              Dashboard / Admin
-            </Text>
-            <Title
-              level={2}
-              style={{ color: "#fff", margin: "8px 0 6px", fontSize: 34 }}
-            >
-              {data?.homebase?.name || "Dashboard Satuan"}
-            </Title>
-            <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 15 }}>
-              Ringkasan operasional homebase, statistik inti, dan aktivitas
-              sistem terbaru.
-            </Text>
-          </div>
-          <div
-            style={{
-              width: 68,
-              height: 68,
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 20,
-              background: "rgba(255,255,255,0.14)",
-              color: "#fff",
-            }}
-          >
-            <School size={28} />
-          </div>
-        </Flex>
-
-        <Flex gap={10} wrap='wrap' style={{ marginTop: 20 }}>
-          <Tag color='blue'>Level: {data?.homebase?.level || "Satuan"}</Tag>
-          <Tag color={data?.activePeriode ? "green" : "volcano"}>
-            {data?.activePeriode
-              ? `Periode Aktif: ${data.activePeriode.name}`
-              : "Belum ada periode aktif"}
-          </Tag>
-          <Tag color='geekblue'>Homebase ID: {data?.homebase?.id}</Tag>
-        </Flex>
-        </Card>
-      </div>
+      <PageHeader
+        title={data?.homebase?.name || "Dashboard Satuan"}
+        description='Ringkasan operasional homebase, statistik inti, dan aktivitas sistem terbaru.'
+        meta={
+          <Flex gap={8} wrap='wrap'>
+            <Tag>Level: {data?.homebase?.level || "Satuan"}</Tag>
+            <Tag color={data?.activePeriode ? "green" : "volcano"}>
+              {data?.activePeriode
+                ? `Periode Aktif: ${data.activePeriode.name}`
+                : "Belum ada periode aktif"}
+            </Tag>
+            <Tag>Homebase ID: {data?.homebase?.id}</Tag>
+          </Flex>
+        }
+      />
 
       <div>
         <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
