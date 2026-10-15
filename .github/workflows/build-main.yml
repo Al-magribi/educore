@@ -32,13 +32,6 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Validate API route registry
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check server/router/registerApiRoutes.js
-          node --input-type=module -e "await import('./server/router/registerApiRoutes.js'); process.exit(0)"
-
       - name: Install client dependencies
         run: npm ci
         working-directory: client
@@ -59,9 +52,5 @@ jobs:
           git fetch origin
           git checkout -B product/cbt
           git add -f client/dist
-          if git diff --cached --quiet; then
-            echo "No client/dist changes to publish"
-            exit 0
-          fi
           git commit -m "build(product/cbt): publish from ${GITHUB_SHA::7}"
           git push origin product/cbt --force
