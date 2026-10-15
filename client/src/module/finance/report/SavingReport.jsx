@@ -168,18 +168,8 @@ const SavingReport = () => {
 
     headerExtra =
       children.length > 1 ? (
-        <Space
-          wrap
-          size={10}
-          style={{
-            marginTop: 14,
-            padding: "10px 12px",
-            borderRadius: 16,
-            background: "rgba(255,255,255,0.12)",
-            border: "1px solid rgba(255,255,255,0.14)",
-          }}
-        >
-          <Text style={{ color: "rgba(255,255,255,0.84)" }}>Anak aktif</Text>
+        <Space wrap size={8}>
+          <Text type='secondary'>Anak aktif</Text>
           <Select
             value={resolvedStudentId}
             onChange={setSelectedStudentId}

@@ -32,6 +32,7 @@ import HonorariumPayrollPreviewPanel from "./HonorariumPayrollPreviewPanel";
 import HonorariumPositionPanel from "./HonorariumPositionPanel";
 import HonorariumRatePanel from "./HonorariumRatePanel";
 import HonorariumUnitPanel from "./HonorariumUnitPanel";
+import PageHeader from "../../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
@@ -112,94 +113,25 @@ const ExpenseHonorariumTab = () => {
   return (
     <Flex vertical gap={isMobile ? 12 : 16}>
       <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
-        <Card
-          style={{
-            ...cardStyle,
-            overflow: "hidden",
-            position: "relative",
-            background:
-              "radial-gradient(circle at top left, rgba(251,146,60,0.28), transparent 28%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #9a3412 55%, #fb923c 100%)",
-            border: "none",
-            boxShadow: "0 24px 54px rgba(15, 23, 42, 0.18)",
-          }}
-          styles={{ body: { padding: isMobile ? 16 : 24 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
-            vertical={isMobile}
-            gap={16}
-          >
-            <Flex align='flex-start' gap={12} style={{ minWidth: 0, flex: 1 }}>
-              <div
-                style={{
-                  width: isMobile ? 40 : 54,
-                  height: isMobile ? 40 : 54,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: isMobile ? 14 : 18,
-                  background: "rgba(255,255,255,0.14)",
-                  color: "#fff",
-                  flexShrink: 0,
-                }}
-              >
-                <WalletCards size={isMobile ? 18 : 24} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <Tag
-                  color='orange'
-                  style={{
-                    width: "fit-content",
-                    marginBottom: 8,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    fontWeight: 600,
-                  }}
-                >
-                  Finance / Honorarium
-                </Tag>
-                <Title
-                  level={isMobile ? 4 : 3}
-                  style={{
-                    color: "#fff",
-                    margin: 0,
-                    lineHeight: 1.25,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  Pengelolaan Honorarium
-                </Title>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.78)",
-                    fontSize: isMobile ? 13 : undefined,
-                    display: "block",
-                  }}
-                >
-                  Setup unit section (Yayasan, Guru, Tata Usaha) dan jabatan
-                  per unit. Payroll bulanan menyusul di tahap berikutnya.
-                </Text>
-              </div>
-            </Flex>
-
-            {!lockHomebase && homebases.length > 0 ? (
+        <PageHeader
+          title='Pengelolaan Honorarium'
+          description='Setup unit section (Yayasan, Guru, Tata Usaha) dan jabatan per unit. Payroll bulanan menyusul di tahap berikutnya.'
+          extra={
+            !lockHomebase && homebases.length > 0 ? (
               <Select
                 placeholder='Pilih satuan'
                 value={effectiveHomebaseId}
                 onChange={handleHomebaseChange}
-                style={{
-                  minWidth: isMobile ? "100%" : 240,
-                  width: isMobile ? "100%" : 240,
-                }}
+                style={{ width: isMobile ? "100%" : 240 }}
                 options={homebases.map((item) => ({
                   value: item.id,
                   label: item.name,
                 }))}
                 virtual={false}
               />
-            ) : null}
-          </Flex>
-        </Card>
+            ) : null
+          }
+        />
       </MotionDiv>
 
       {optionsQuery.isLoading ? (

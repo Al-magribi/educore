@@ -27,8 +27,8 @@ import {
   ShieldX,
   Trash2,
   Wallet,
-  Sparkles,
 } from "lucide-react";
+import PageHeader from "../../../../../components/ui/PageHeader";
 import { getPeriodeTagColor } from "./transactionFormShared.jsx";
 
 const { Text, Title } = Typography;
@@ -482,105 +482,22 @@ const TransactionList = ({
     <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
       <Flex vertical gap='middle'>
         <Flex vertical gap={isMobile ? 14 : 18}>
-          <Card
-            variant='borderless'
-            style={{
-              borderRadius: isMobile ? 20 : 24,
-              overflow: "hidden",
-              position: "relative",
-              background:
-                "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 54%, #0f766e 100%)",
-              boxShadow: "0 22px 48px rgba(15, 23, 42, 0.16)",
-            }}
-            styles={{ body: { padding: isMobile ? 16 : 22 } }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
-                pointerEvents: "none",
-              }}
-            />
-            <Flex
-              justify='space-between'
-              align={isMobile ? "stretch" : "center"}
-              vertical={isMobile}
-              wrap='wrap'
-              gap={16}
-              style={{ position: "relative" }}
-            >
-              <Space vertical size={8} style={{ minWidth: 0, flex: 1 }}>
-                <Flex align='center' gap={10} wrap='wrap'>
-                  <Tag
-                    color='cyan'
-                    style={{
-                      borderRadius: 999,
-                      paddingInline: 12,
-                      fontWeight: 600,
-                      margin: 0,
-                      fontSize: isMobile ? 12 : 14,
-                    }}
-                  >
-                    Finance / Transaksi
-                  </Tag>
-                  <Flex
-                    align='center'
-                    gap={6}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.12)",
-                      border: "1px solid rgba(255,255,255,0.16)",
-                      color: "#e0f2fe",
-                      fontWeight: 600,
-                      fontSize: isMobile ? 12 : 14,
-                    }}
-                  >
-                    <Sparkles size={14} />
-                    <span>Payment transaction workspace</span>
-                  </Flex>
-                </Flex>
-                <div style={{ minWidth: 0 }}>
-                  <Title
-                    level={isMobile ? 4 : 3}
-                    style={{ margin: 0, color: "#fff", lineHeight: 1.25 }}
-                  >
-                    Input Transaksi Admin
-                  </Title>
-                  {!isMobile ? (
-                    <Text style={{ color: "rgba(255,255,255,0.82)" }}>
-                      Kelola input transaksi, review pembayaran, dan tindak lanjut
-                      status pembayaran dari satu layar.
-                    </Text>
-                  ) : null}
-                </div>
-                <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>
-                  Satuan aktif: {activeHomebaseName}
-                </Text>
-              </Space>
-
+          <PageHeader
+            title='Input Transaksi Admin'
+            description='Kelola input transaksi, review pembayaran, dan tindak lanjut status pembayaran dari satu layar.'
+            meta={
+              <Tag style={{ margin: 0 }}>Satuan aktif: {activeHomebaseName}</Tag>
+            }
+            extra={
               <Button
                 type='primary'
                 onClick={onCreate}
                 icon={<ArrowUpRight size={16} />}
-                size='large'
-                block={isMobile}
-                style={{
-                  borderRadius: 14,
-                  height: 46,
-                  background: "#fff",
-                  color: "#0f172a",
-                  border: "none",
-                  fontWeight: 600,
-                  boxShadow: "0 12px 24px rgba(255,255,255,0.18)",
-                }}
               >
                 Transaksi Baru
               </Button>
-            </Flex>
-          </Card>
+            }
+          />
 
           <div
             style={{

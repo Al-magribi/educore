@@ -20,10 +20,12 @@ import {
   Typography,
 } from "antd";
 import { motion } from "framer-motion";
-import { BarChart3, Info, Sparkles } from "lucide-react";
+import { Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const { Title, Paragraph, Text } = Typography;
+import PageHeader from "../../../components/ui/PageHeader";
+
+const { Text } = Typography;
 const MotionDiv = motion.div;
 
 const containerStyle = {
@@ -90,77 +92,12 @@ const FinanceFeaturePage = ({
     >
       <Space vertical size={24} style={{ width: "100%", display: "flex" }}>
         <MotionDiv variants={itemVariants}>
-          <Card
-            style={{
-              ...cardStyle,
-              overflow: "hidden",
-              position: "relative",
-              border: "none",
-              background:
-                "radial-gradient(circle at top left, rgba(56,189,248,0.24), transparent 28%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0f766e 100%)",
-              boxShadow: "0 26px 54px rgba(15, 23, 42, 0.18)",
-            }}
-            bodyStyle={{ padding: 28 }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
-                pointerEvents: "none",
-              }}
-            />
-
-            <Row
-              gutter={[24, 24]}
-              align='middle'
-              style={{ position: "relative" }}
-            >
-              <Col xs={24} xl={16}>
-                <Space vertical size={12}>
-                  <Flex align='center' gap={10} wrap='wrap'>
-                    <Tag
-                      color='cyan'
-                      style={{
-                        width: "fit-content",
-                        paddingInline: 12,
-                        borderRadius: 999,
-                        fontWeight: 600,
-                        margin: 0,
-                      }}
-                    >
-                      {badge}
-                    </Tag>
-                    <Flex
-                      align='center'
-                      gap={6}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        background: "rgba(255,255,255,0.12)",
-                        border: "1px solid rgba(255,255,255,0.16)",
-                        color: "#e0f2fe",
-                        fontWeight: 600,
-                      }}
-                    >
-                      <Sparkles size={14} />
-                      <span>Finance insight report</span>
-                    </Flex>
-                  </Flex>
-                  <Title
-                    level={2}
-                    style={{ margin: 0, color: "#fff", lineHeight: 1.12 }}
-                  >
-                    {title}
-                  </Title>
-                </Space>
-              </Col>
-              <Col xs={24} xl={8}>
-                {headerExtra ? <div>{headerExtra}</div> : null}
-              </Col>
-            </Row>
-          </Card>
+          <PageHeader
+            title={title}
+            description={description}
+            meta={badge ? <Tag style={{ margin: 0 }}>{badge}</Tag> : null}
+            extra={headerExtra}
+          />
         </MotionDiv>
 
         <Row gutter={[16, 16]}>

@@ -455,22 +455,9 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
     [transactionSummary.total_transactions],
   );
   const adminHeaderExtra = (
-    <Flex justify={isMobile ? "stretch" : "flex-end"} align='center'>
-      <Button
-        icon={<BookOpen size={16} />}
-        onClick={() => setGuideOpen(true)}
-        block={isMobile}
-        style={{
-          borderRadius: 999,
-          fontWeight: 600,
-          background: "rgba(255,255,255,0.92)",
-          borderColor: "transparent",
-          color: "#0f172a",
-        }}
-      >
-        Panduan
-      </Button>
-    </Flex>
+    <Button icon={<BookOpen size={16} />} onClick={() => setGuideOpen(true)}>
+      Panduan
+    </Button>
   );
 
   const isBootstrapping = isLoadingOptions;
