@@ -39,6 +39,9 @@ const StaffList = ({ data, loading, onEdit, onDelete, onPageChange, pagination }
             <Text type="secondary">
               NIP: {record.nip || "-"} | RFID: {record.rfid_no || "-"}
             </Text>
+            {record.account_username ? (
+              <Text type="secondary">Akun: {record.account_username}</Text>
+            ) : null}
           </Flex>
         </Flex>
       ),
@@ -99,6 +102,9 @@ const StaffList = ({ data, loading, onEdit, onDelete, onPageChange, pagination }
                   <Text type="secondary">
                     NIP: {record.nip || "-"} | RFID: {record.rfid_no || "-"}
                   </Text>
+                  {record.account_username ? (
+                    <Text type="secondary">Akun: {record.account_username}</Text>
+                  ) : null}
                   <Text>{record.phone || "-"}</Text>
                   {record.is_active ? <Tag color="success">Aktif</Tag> : <Tag>Nonaktif</Tag>}
                 </Flex>
