@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { canManageCbt } from "../../utils/staffAssignment.js";
 
 const router = Router();
 
@@ -32,16 +33,13 @@ router.get(
     }
 
     // Logika Filter
-    if (role === "teacher") {
-      // Guru: Hanya melihat bank soal miliknya
-      conditions.push(`b.teacher_id = $${paramIndex}`);
-      params.push(userId);
-      paramIndex++;
-    } else if (role === "admin" && homebase_id) {
-      // Admin Satuan: Melihat bank soal milik guru di homebase yg sama
-      // Join ke u_teachers (ut) diperlukan untuk cek homebase guru pembuat soal
+    if (canManageCbt(req.user) && homebase_id) {
       conditions.push(`ut.homebase_id = $${paramIndex}`);
       params.push(homebase_id);
+      paramIndex++;
+    } else if (role === "teacher") {
+      conditions.push(`b.teacher_id = $${paramIndex}`);
+      params.push(userId);
       paramIndex++;
     }
 
@@ -124,7 +122,7 @@ router.post(
     // LOGIKA PENENTUAN GURU
     let finalTeacherId = userId; // Default: Diri sendiri (untuk guru)
 
-    if (role === "admin") {
+    if (canManageCbt(req.user)) {
       if (!teacher_id) {
         return res.status(400).json({ message: "Admin wajib memilih guru" });
       }
@@ -160,7 +158,7 @@ router.put(
 
     let sql, params;
 
-    if (role === "admin") {
+    if (canManageCbt(req.user)) {
       // Admin bisa ganti teacher_id
       sql = `
             UPDATE cbt.c_bank
@@ -241,7 +239,7 @@ router.delete(
 
 router.get(
   "/get-teachers",
-  authorize("satuan", "admin"),
+  authorize("satuan", "assignment:cbt"),
   withQuery(async (req, res, pool) => {
     const { homebase_id } = req.user;
 
@@ -283,7 +281,7 @@ router.get(
 
     let finalTeacherId = userId;
 
-    if (role === "admin") {
+    if (canManageCbt(req.user)) {
       if (!teacher_id) {
         return res
           .status(400)
@@ -354,7 +352,7 @@ router.post(
 
     let finalTeacherId = userId;
 
-    if (role === "admin") {
+    if (canManageCbt(req.user)) {
       if (!teacher_id) {
         return res
           .status(400)
@@ -563,7 +561,7 @@ router.get(
 
     let teacherId = userId;
 
-    if (role === "admin") {
+    if (canManageCbt(req.user)) {
       const bankCheck = await pool.query(
         `
           SELECT b.id
@@ -581,7 +579,7 @@ router.get(
       }
     }
 
-    if (role === "teacher") {
+    if (!canManageCbt(req.user)) {
       const bankCheck = await pool.query(
         `SELECT id FROM cbt.c_bank WHERE id = ANY($1::int[]) AND teacher_id = $2`,
         [bankIds, teacherId],
