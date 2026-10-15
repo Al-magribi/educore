@@ -86,7 +86,6 @@ jobs:
               server/middleware/authorize.js \
               server/router/auth/RouterAuth.js \
               server/router/lms \
-              server/services/telegram \
               server/utils/staffAssignment.js
             git add -A
           }
