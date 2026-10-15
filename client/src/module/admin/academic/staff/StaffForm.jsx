@@ -1,8 +1,12 @@
 import React, { useEffect } from "react";
-import { Form, Input, Modal, Switch } from "antd";
+import { Divider, Form, Input, Modal, Switch, Typography } from "antd";
+import { hasFinanceStaffDesk } from "../../../finance/assignment/FinanceStaffSlot";
+
+const { Text } = Typography;
 
 const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
   const [form] = Form.useForm();
+  const hasAccount = Boolean(initialValues?.user_id);
 
   useEffect(() => {
     if (!open) return;
@@ -14,6 +18,8 @@ const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
       email: initialValues?.email || "",
       notes: initialValues?.notes || "",
       is_active: initialValues?.is_active !== false,
+      account_username: initialValues?.account_username || "",
+      account_password: "",
     });
   }, [form, initialValues, open]);
 
@@ -60,6 +66,57 @@ const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
         <Form.Item name="is_active" label="Status" valuePropName="checked">
           <Switch checkedChildren="Aktif" unCheckedChildren="Nonaktif" />
         </Form.Item>
+
+        {hasFinanceStaffDesk ? (
+          <>
+            <Divider style={{ margin: "8px 0 12px" }}>Akun Login</Divider>
+            <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+              Opsional. Akun hanya bisa dipakai login setelah tendik dicentang
+              Keuangan di Penugasan Wewenang.
+            </Text>
+            <Form.Item
+              name="account_username"
+              label="Username"
+              rules={[
+                {
+                  pattern: /^\S*$/,
+                  message: "Username tidak boleh mengandung spasi",
+                },
+              ]}
+            >
+              <Input
+                placeholder={hasAccount ? "Username akun" : "Kosongkan jika tanpa akun"}
+                maxLength={100}
+                autoComplete="off"
+              />
+            </Form.Item>
+            <Form.Item
+              name="account_password"
+              label="Password"
+              dependencies={["account_username"]}
+              rules={[
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    const username = String(getFieldValue("account_username") || "").trim();
+                    const password = String(value || "").trim();
+                    if (username && !hasAccount && !password) {
+                      return Promise.reject(new Error("Password akun baru wajib diisi"));
+                    }
+                    if (password && password.length < 6) {
+                      return Promise.reject(new Error("Password minimal 6 karakter"));
+                    }
+                    return Promise.resolve();
+                  },
+                }),
+              ]}
+            >
+              <Input.Password
+                placeholder={hasAccount ? "Kosongkan jika tidak diubah" : "Minimal 6 karakter"}
+                autoComplete="new-password"
+              />
+            </Form.Item>
+          </>
+        ) : null}
       </Form>
     </Modal>
   );
