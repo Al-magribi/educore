@@ -35,7 +35,7 @@ const FinanceDeskAccess = ({
     );
   };
 
-  if (user.role === "teacher") {
+  if (user.role === "teacher" || user.role === "staff") {
     if (allowFinanceStaff && user.can_manage_finance === true) {
       return <Outlet />;
     }

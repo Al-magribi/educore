@@ -8,6 +8,7 @@ import {
   ReadOutlined,
   SettingFilled,
   WalletOutlined,
+  WindowsOutlined,
 } from "@ant-design/icons";
 import { HandCoins, Landmark, BanknoteArrowDown, ShieldCheck } from "lucide-react";
 
@@ -65,6 +66,22 @@ const buildFinanceMenus = (user = {}) => {
       icon: <SettingFilled />,
     },
   ];
+
+  const financeDeskMenus = [
+    {
+      label: "Dashboard Keuangan",
+      key: "/finance-dashboard",
+      icon: <WindowsOutlined />,
+    },
+    ...financeMenus,
+  ];
+
+  const teacherFinanceDeskNode = {
+    label: "Keuangan Satuan",
+    key: "/keuangan-satuan",
+    icon: <HandCoins size={14} />,
+    children: financeDeskMenus,
+  };
 
   const teacherFinanceNode = {
     label: "Keuangan Kelas",
@@ -134,8 +151,9 @@ const buildFinanceMenus = (user = {}) => {
     finance: financeMenus,
     teacher: [
       ...(user?.is_homeroom ? [teacherFinanceNode] : []),
-      ...(user?.can_manage_finance ? financeMenus : []),
+      ...(user?.can_manage_finance ? [teacherFinanceDeskNode] : []),
     ],
+    staff: user?.can_manage_finance ? financeDeskMenus : [],
     student: [studentFinanceNode],
     parent: [parentFinanceNode],
     tahfiz: [],

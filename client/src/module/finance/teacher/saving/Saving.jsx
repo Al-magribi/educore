@@ -80,16 +80,19 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
       ? filters.periode_id
       : undefined;
 
+  // Halaman keuangan meminta scope admin untuk guru/tendik yang ditugaskan keuangan.
+  const desk = pageVariant === "admin" ? 1 : undefined;
   const { data: optionsResponse, isLoading: isLoadingOptions } =
     useGetSavingOptionsQuery({
       class_id: filters.class_id,
       homebase_id: filters.homebase_id,
       periode_id: enrollmentPeriodeId,
+      desk,
     });
   const options = optionsResponse?.data || {};
   const access = options.access || {};
   const isTeacherScope =
-    user?.role === "teacher" || access?.role_scope === "teacher";
+    access?.role_scope === "teacher" || (!desk && user?.role === "teacher");
   const effectiveClassId = access?.homeroom_class?.id || filters.class_id;
   const baseListParams =
     isTeacherScope && !effectiveClassId
@@ -99,6 +102,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
           class_id: effectiveClassId,
           search: filters.search,
           periode_id: enrollmentPeriodeId,
+          desk,
         };
   const { data: studentsResponse, isFetching: isFetchingStudents } =
     useGetSavingStudentsQuery(baseListParams);
@@ -111,6 +115,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
           homebase_id: filters.homebase_id,
           class_id: effectiveClassId,
           search: debouncedStudentSearch,
+          desk,
           // Modal setoran/penarikan selalu memakai enrollment periode aktif.
         }
       : skipToken;
@@ -354,6 +359,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
         transaction_type: values.transaction_type,
         amount: Number(values.amount || 0),
         description: String(values.description || "").trim() || null,
+        desk,
       };
 
       try {
@@ -377,6 +383,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
     },
     [
       addSavingTransaction,
+      desk,
       editingTransaction,
       handleCloseModal,
       updateSavingTransaction,
@@ -387,7 +394,10 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
     async (record) => {
       setDeletingId(record.transaction_id);
       try {
-        await deleteSavingTransaction(record.transaction_id).unwrap();
+        await deleteSavingTransaction({
+          id: record.transaction_id,
+          desk,
+        }).unwrap();
         message.success("Transaksi tabungan berhasil dihapus");
       } catch (error) {
         message.error(
@@ -397,7 +407,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
         setDeletingId(null);
       }
     },
-    [deleteSavingTransaction],
+    [deleteSavingTransaction, desk],
   );
 
   const resolvedSelectedStudent = useMemo(() => {

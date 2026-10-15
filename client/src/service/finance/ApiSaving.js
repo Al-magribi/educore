@@ -83,10 +83,15 @@ export const ApiSaving = createApi({
     }),
 
     deleteSavingTransaction: builder.mutation({
-      query: (id) => ({
-        url: `/saving/transactions/${id}`,
-        method: "DELETE",
-      }),
+      query: (arg) => {
+        const { id, ...params } =
+          arg && typeof arg === "object" ? arg : { id: arg };
+        const queryString = buildQueryString(params);
+        return {
+          url: `/saving/transactions/${id}${queryString ? `?${queryString}` : ""}`,
+          method: "DELETE",
+        };
+      },
       invalidatesTags: [
         "SavingOption",
         { type: "SavingStudent", id: "LIST" },

@@ -200,10 +200,23 @@ const getTeacherHomeroomClass = async (db, homebaseId, teacherId) => {
   return result.rows[0] || null;
 };
 
-const getSavingsAccessContext = async (db, user, requestedHomebaseId = null) => {
+const isFinanceDeskRequest = (req) =>
+  ["1", "true"].includes(String(req.query?.desk ?? req.body?.desk ?? ""));
+
+const getSavingsAccessContext = async (
+  db,
+  user,
+  requestedHomebaseId = null,
+  desk = false,
+) => {
+  // Guru wali kelas yang juga admin keuangan memakai scope admin hanya dari halaman keuangan.
+  const isDeskStaff =
+    user.can_manage_finance === true &&
+    (user.role === "staff" || (user.role === "teacher" && desk));
   const isFinanceAdminUser =
-    user.role === "admin" &&
-    ["finance", "keuangan", "satuan"].includes(user.admin_level);
+    isDeskStaff ||
+    (user.role === "admin" &&
+      ["finance", "keuangan", "satuan"].includes(user.admin_level));
   // Admin keuangan tanpa homebase tetap boleh memilih satuan lewat filter.
   const homebaseId =
     user.homebase_id || (isFinanceAdminUser ? requestedHomebaseId : null);
@@ -211,14 +224,18 @@ const getSavingsAccessContext = async (db, user, requestedHomebaseId = null) => 
     ? await getActivePeriode(db, homebaseId)
     : null;
 
-  if (user.role === "teacher" && (!activePeriode || !activePeriode.is_active)) {
+  if (
+    user.role === "teacher" &&
+    !isDeskStaff &&
+    (!activePeriode || !activePeriode.is_active)
+  ) {
     return {
       error:
         "Periode aktif untuk satuan ini belum tersedia. Aktifkan periode terlebih dahulu.",
     };
   }
 
-  if (user.role === "teacher") {
+  if (user.role === "teacher" && !isDeskStaff) {
     const homeroomClass = await getTeacherHomeroomClass(
       db,
       homebaseId,
@@ -721,6 +738,7 @@ router.get(
       db,
       req.user,
       parseOptionalInt(req.query.homebase_id),
+      isFinanceDeskRequest(req),
     );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
@@ -840,6 +858,7 @@ router.get(
       db,
       req.user,
       parseOptionalInt(req.query.homebase_id),
+      isFinanceDeskRequest(req),
     );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
@@ -959,6 +978,7 @@ router.get(
       db,
       req.user,
       parseOptionalInt(req.query.homebase_id),
+      isFinanceDeskRequest(req),
     );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
@@ -1078,7 +1098,12 @@ router.post(
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
-    const accessContext = await getSavingsAccessContext(client, req.user);
+    const accessContext = await getSavingsAccessContext(
+      client,
+      req.user,
+      null,
+      isFinanceDeskRequest(req),
+    );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
     }
@@ -1176,7 +1201,12 @@ router.put(
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
-    const accessContext = await getSavingsAccessContext(client, req.user);
+    const accessContext = await getSavingsAccessContext(
+      client,
+      req.user,
+      null,
+      isFinanceDeskRequest(req),
+    );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
     }
@@ -1290,7 +1320,12 @@ router.delete(
   withTransaction(async (req, res, client) => {
     await ensureSavingsFinanceTables(client);
 
-    const accessContext = await getSavingsAccessContext(client, req.user);
+    const accessContext = await getSavingsAccessContext(
+      client,
+      req.user,
+      null,
+      isFinanceDeskRequest(req),
+    );
     if (accessContext.error) {
       return res.status(403).json({ message: accessContext.error });
     }

@@ -1,5 +1,7 @@
 import pool from "../../config/connection.js";
 
+export const FINANCE_DESK_ROLES = ["teacher", "staff"];
+
 const STAFF_TABLE_SQL = `
   CREATE SCHEMA IF NOT EXISTS finance;
 
@@ -20,6 +22,51 @@ const STAFF_TABLE_SQL = `
   CREATE INDEX IF NOT EXISTS idx_homebase_finance_admin_teacher
     ON finance.homebase_finance_admin (teacher_id, homebase_id)
     WHERE is_active = true;
+
+  DO $$
+  BEGIN
+    IF to_regclass('public.u_staff') IS NULL THEN
+      RETURN;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'finance'
+        AND table_name = 'homebase_finance_admin'
+        AND column_name = 'staff_id'
+    ) THEN
+      ALTER TABLE finance.homebase_finance_admin
+        ADD COLUMN staff_id BIGINT REFERENCES public.u_staff(id) ON DELETE CASCADE;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'finance'
+        AND table_name = 'homebase_finance_admin'
+        AND column_name = 'teacher_id'
+        AND is_nullable = 'NO'
+    ) THEN
+      ALTER TABLE finance.homebase_finance_admin
+        ALTER COLUMN teacher_id DROP NOT NULL;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'homebase_finance_admin_person_check'
+    ) THEN
+      ALTER TABLE finance.homebase_finance_admin
+        ADD CONSTRAINT homebase_finance_admin_person_check
+        CHECK (num_nonnulls(teacher_id, staff_id) = 1);
+    END IF;
+
+    IF to_regclass('finance.uq_homebase_finance_admin_staff_active') IS NULL THEN
+      CREATE UNIQUE INDEX uq_homebase_finance_admin_staff_active
+        ON finance.homebase_finance_admin (homebase_id, staff_id)
+        WHERE is_active = true AND staff_id IS NOT NULL;
+    END IF;
+  END $$;
 `;
 
 let ensureTablePromise = null;
@@ -35,51 +82,56 @@ export const ensureFinanceStaffTable = async () => {
   await ensureTablePromise;
 };
 
-export const teacherHasFinanceDesk = async (user) => {
-  const teacherId = Number(user?.id);
-  const homebaseId = Number(user?.homebase_id);
+const TEACHER_DESK_SQL = `
+  SELECT 1
+  FROM finance.homebase_finance_admin a
+  JOIN public.u_teachers t ON t.user_id = a.teacher_id
+  WHERE a.teacher_id = $1
+    AND a.homebase_id = t.homebase_id
+    AND t.homebase_id IS NOT NULL
+    AND a.is_active = true
+  LIMIT 1
+`;
 
-  if (!Number.isInteger(teacherId) || teacherId <= 0) return false;
-  if (!Number.isInteger(homebaseId) || homebaseId <= 0) return false;
+const STAFF_DESK_SQL = `
+  SELECT 1
+  FROM finance.homebase_finance_admin a
+  JOIN public.u_staff s ON s.id = a.staff_id
+  WHERE s.user_id = $1
+    AND a.homebase_id = s.homebase_id
+    AND s.is_active = true
+    AND a.is_active = true
+  LIMIT 1
+`;
+
+const queryFinanceDesk = async (db, user) => {
+  const userId = Number(user?.id);
+  if (!Number.isInteger(userId) || userId <= 0) return false;
+  if (!FINANCE_DESK_ROLES.includes(user?.role)) return false;
 
   await ensureFinanceStaffTable();
-
-  const result = await pool.query(
-    `
-      SELECT 1
-      FROM finance.homebase_finance_admin
-      WHERE teacher_id = $1
-        AND homebase_id = $2
-        AND is_active = true
-      LIMIT 1
-    `,
-    [teacherId, homebaseId],
+  const result = await db.query(
+    user.role === "staff" ? STAFF_DESK_SQL : TEACHER_DESK_SQL,
+    [userId],
   );
-
   return result.rowCount > 0;
 };
 
+export const userHasFinanceDesk = async (user) => {
+  const homebaseId = Number(user?.homebase_id);
+  if (!Number.isInteger(homebaseId) || homebaseId <= 0) return false;
+  return queryFinanceDesk(pool, user);
+};
+
+export const teacherHasFinanceDesk = userHasFinanceDesk;
+
 export const attachFinanceStaffFlag = async (db, user) => {
-  if (!user || user.role !== "teacher" || !user.id) {
+  if (!user || !FINANCE_DESK_ROLES.includes(user.role) || !user.id) {
     return user;
   }
 
   try {
-    await ensureFinanceStaffTable();
-    const result = await db.query(
-      `
-        SELECT 1
-        FROM finance.homebase_finance_admin a
-        JOIN public.u_teachers t ON t.user_id = a.teacher_id
-        WHERE a.teacher_id = $1
-          AND a.homebase_id = t.homebase_id
-          AND t.homebase_id IS NOT NULL
-          AND a.is_active = true
-        LIMIT 1
-      `,
-      [user.id],
-    );
-    user.can_manage_finance = result.rowCount > 0;
+    user.can_manage_finance = await queryFinanceDesk(db, user);
   } catch (error) {
     console.error("[finance-staff] gagal memuat penugasan", error);
     user.can_manage_finance = false;

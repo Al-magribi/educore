@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Card,
   Checkbox,
@@ -20,6 +20,7 @@ import { Search, ShieldCheck } from "lucide-react";
 import {
   useGetFinanceStaffAssignmentsQuery,
   useSaveFinanceStaffAssignmentMutation,
+  useSaveFinanceTendikAssignmentMutation,
 } from "../../../service/finance/ApiFinanceStaff";
 
 const { Title, Text } = Typography;
@@ -32,61 +33,142 @@ const cardStyle = {
   boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
 };
 
+export const hasFinanceStaffDesk = true;
+
+// Kontrak slot ini juga dipakai stub di feature/lms; nama export harus tetap sama.
+export const useFinanceAssignmentColumn = () => {
+  const { data, isLoading, isError, error } =
+    useGetFinanceStaffAssignmentsQuery();
+  const [saveTeacher] = useSaveFinanceStaffAssignmentMutation();
+  const [saveTendik] = useSaveFinanceTendikAssignmentMutation();
+  const [pendingKey, setPendingKey] = useState(null);
+
+  const teacherFlags = useMemo(
+    () =>
+      new Map(
+        (data?.data || []).map((teacher) => [
+          Number(teacher.id),
+          teacher.is_finance_admin === true,
+        ]),
+      ),
+    [data],
+  );
+
+  const staffRows = useMemo(
+    () =>
+      (data?.staff || []).map((staff) => ({
+        ...staff,
+        person_type: "staff",
+        row_key: `staff-${staff.id}`,
+      })),
+    [data],
+  );
+
+  const isChecked = useCallback(
+    (record) =>
+      record.person_type === "staff"
+        ? record.is_finance_admin === true
+        : teacherFlags.get(Number(record.id)) === true,
+    [teacherFlags],
+  );
+
+  const isDisabled = useCallback(
+    (record) =>
+      pendingKey === record.row_key ||
+      (record.is_active === false && !isChecked(record)),
+    [isChecked, pendingKey],
+  );
+
+  const toggle = useCallback(
+    async (record, active) => {
+      setPendingKey(record.row_key);
+      try {
+        const result =
+          record.person_type === "staff"
+            ? await saveTendik({ staffId: record.id, active }).unwrap()
+            : await saveTeacher({ teacherId: record.id, active }).unwrap();
+        message.success(result?.message || "Penugasan keuangan disimpan.");
+      } catch (saveError) {
+        message.error(
+          saveError?.data?.message || "Gagal menyimpan penugasan keuangan.",
+        );
+      } finally {
+        setPendingKey(null);
+      }
+    },
+    [saveTeacher, saveTendik],
+  );
+
+  return useMemo(
+    () => ({
+      value: "keuangan",
+      label: "Keuangan",
+      loading: isLoading,
+      isError,
+      error,
+      homebaseName: data?.meta?.homebase_name || "",
+      teacherRows: (data?.data || []).map((teacher) => ({
+        ...teacher,
+        person_type: "teacher",
+        row_key: `teacher-${teacher.id}`,
+      })),
+      staffRows,
+      isChecked,
+      isDisabled,
+      toggle,
+    }),
+    [data, error, isChecked, isDisabled, isError, isLoading, staffRows, toggle],
+  );
+};
+
 const FinanceStaffSlot = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [searchText, setSearchText] = useState("");
-  const [pendingTeacherId, setPendingTeacherId] = useState(null);
-  const { data, isLoading, isError, error } = useGetFinanceStaffAssignmentsQuery();
-  const [saveAssignment] = useSaveFinanceStaffAssignmentMutation();
+  const column = useFinanceAssignmentColumn();
 
-  const teachers = data?.data || [];
-  const homebaseName = data?.meta?.homebase_name || "satuan ini";
-  const filteredTeachers = useMemo(() => {
+  const people = useMemo(
+    () => [...column.teacherRows, ...column.staffRows],
+    [column.staffRows, column.teacherRows],
+  );
+  const filteredPeople = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
-    if (!keyword) return teachers;
-    return teachers.filter((teacher) => {
-      const name = String(teacher.full_name || "").toLowerCase();
-      const nip = String(teacher.nip || "").toLowerCase();
+    if (!keyword) return people;
+    return people.filter((person) => {
+      const name = String(person.full_name || "").toLowerCase();
+      const nip = String(person.nip || "").toLowerCase();
       return name.includes(keyword) || nip.includes(keyword);
     });
-  }, [searchText, teachers]);
+  }, [people, searchText]);
 
-  const handleToggle = async (teacher, active) => {
-    setPendingTeacherId(teacher.id);
-    try {
-      const result = await saveAssignment({
-        teacherId: teacher.id,
-        active,
-      }).unwrap();
-      message.success(result?.message || "Penugasan keuangan disimpan.");
-    } catch (saveError) {
-      message.error(
-        saveError?.data?.message || "Gagal menyimpan penugasan keuangan.",
-      );
-    } finally {
-      setPendingTeacherId(null);
-    }
-  };
-
-  const renderToggle = (teacher) => (
+  const renderToggle = (person) => (
     <Checkbox
-      checked={teacher.is_finance_admin === true}
-      disabled={teacher.is_active === false || pendingTeacherId === teacher.id}
-      onChange={(event) => handleToggle(teacher, event.target.checked)}
+      checked={column.isChecked(person)}
+      disabled={column.isDisabled(person)}
+      onChange={(event) => column.toggle(person, event.target.checked)}
     >
       Admin keuangan
     </Checkbox>
   );
 
-  if (isError) {
+  const renderTags = (person) => (
+    <Flex gap={6} wrap="wrap">
+      {person.person_type === "staff" ? <Tag color="purple">Tendik</Tag> : null}
+      {person.person_type === "staff" && !person.has_account ? (
+        <Tag color="orange">Belum ada akun</Tag>
+      ) : null}
+      {person.is_active === false ? <Tag>Tidak aktif</Tag> : null}
+    </Flex>
+  );
+
+  if (column.isError) {
     return (
       <Card style={cardStyle}>
         <Result
           status="warning"
           title="Penugasan keuangan tidak dapat dimuat"
           subTitle={
-            error?.data?.message ||
+            column.error?.data?.message ||
             "Halaman ini hanya untuk admin satuan."
           }
         />
@@ -105,15 +187,19 @@ const FinanceStaffSlot = () => {
             </Title>
           </Space>
           <Text type="secondary">
-            Guru yang ditugaskan mengelola keuangan {homebaseName} dan tidak
-            dapat membuka keuangan satuan lain. Beberapa guru boleh ditugaskan.
+            Guru atau tendik yang ditugaskan mengelola keuangan{" "}
+            {column.homebaseName || "satuan ini"} dan tidak dapat membuka
+            keuangan satuan lain. Tendik butuh akun login dari menu Tendik.
           </Text>
         </Flex>
 
-        <Flex justify="space-between" align={isMobile ? "stretch" : "center"} vertical={isMobile} gap={12}>
-          <Text strong>
-            {filteredTeachers.length} guru
-          </Text>
+        <Flex
+          justify="space-between"
+          align={isMobile ? "stretch" : "center"}
+          vertical={isMobile}
+          gap={12}
+        >
+          <Text strong>{filteredPeople.length} guru & tendik</Text>
           <Input
             allowClear
             value={searchText}
@@ -124,27 +210,29 @@ const FinanceStaffSlot = () => {
           />
         </Flex>
 
-        {isLoading ? (
+        {column.loading ? (
           <Flex justify="center" style={{ padding: "48px 0" }}>
             <Spin />
           </Flex>
-        ) : filteredTeachers.length === 0 ? (
-          <Empty description="Belum ada guru pada satuan ini." />
+        ) : filteredPeople.length === 0 ? (
+          <Empty description="Belum ada guru atau tendik pada satuan ini." />
         ) : isMobile ? (
           <List
-            dataSource={filteredTeachers}
-            rowKey="id"
+            dataSource={filteredPeople}
+            rowKey="row_key"
             split={false}
-            renderItem={(teacher) => (
-              <List.Item style={{ padding: 0, marginBottom: 10, borderBlockEnd: "none" }}>
+            renderItem={(person) => (
+              <List.Item
+                style={{ padding: 0, marginBottom: 10, borderBlockEnd: "none" }}
+              >
                 <Card size="small" style={{ width: "100%", borderRadius: 16 }}>
                   <Flex vertical gap={8}>
-                    <Text strong>{teacher.full_name}</Text>
-                    <Text type="secondary">{teacher.nip || "NIP belum diisi"}</Text>
-                    {teacher.is_active === false ? (
-                      <Tag>Tidak aktif</Tag>
-                    ) : null}
-                    {renderToggle(teacher)}
+                    <Text strong>{person.full_name}</Text>
+                    <Text type="secondary">
+                      {person.nip || "NIP belum diisi"}
+                    </Text>
+                    {renderTags(person)}
+                    {renderToggle(person)}
                   </Flex>
                 </Card>
               </List.Item>
@@ -152,26 +240,29 @@ const FinanceStaffSlot = () => {
           />
         ) : (
           <Table
-            rowKey="id"
+            rowKey="row_key"
             pagination={false}
-            dataSource={filteredTeachers}
+            dataSource={filteredPeople}
             columns={[
               {
-                title: "Guru",
+                title: "Guru / Tendik",
                 dataIndex: "full_name",
-                render: (_, teacher) => (
+                render: (_, person) => (
                   <Flex vertical gap={2}>
-                    <Text strong>{teacher.full_name}</Text>
-                    <Text type="secondary">{teacher.nip || "NIP belum diisi"}</Text>
+                    <Text strong>{person.full_name}</Text>
+                    <Text type="secondary">
+                      {person.nip || "NIP belum diisi"}
+                    </Text>
                   </Flex>
                 ),
               },
               {
                 title: "Status",
-                width: 140,
-                render: (_, teacher) =>
-                  teacher.is_active === false ? (
-                    <Tag>Tidak aktif</Tag>
+                width: 200,
+                render: (_, person) =>
+                  person.person_type === "staff" ||
+                  person.is_active === false ? (
+                    renderTags(person)
                   ) : (
                     <Tag color="green">Aktif</Tag>
                   ),
@@ -179,7 +270,7 @@ const FinanceStaffSlot = () => {
               {
                 title: "Keuangan",
                 width: 220,
-                render: (_, teacher) => renderToggle(teacher),
+                render: (_, person) => renderToggle(person),
               },
             ]}
           />

@@ -17,10 +17,19 @@ export const ApiFinanceStaff = createApi({
       }),
       invalidatesTags: [{ type: "FinanceStaffAssignment", id: "LIST" }],
     }),
+    saveFinanceTendikAssignment: builder.mutation({
+      query: ({ staffId, active }) => ({
+        url: `/staff-assignments/staff/${staffId}`,
+        method: "PUT",
+        body: { active },
+      }),
+      invalidatesTags: [{ type: "FinanceStaffAssignment", id: "LIST" }],
+    }),
   }),
 });
 
 export const {
   useGetFinanceStaffAssignmentsQuery,
   useSaveFinanceStaffAssignmentMutation,
+  useSaveFinanceTendikAssignmentMutation,
 } = ApiFinanceStaff;

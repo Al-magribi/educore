@@ -24,7 +24,10 @@ const SavingReport = () => {
   const { user } = useSelector((state) => state.auth);
   const financeScope = useFinanceScope();
   const isParent = user?.role === "parent";
-  const isAdmin = user?.role === "admin";
+  const isAdmin =
+    user?.role === "admin" ||
+    (["teacher", "staff"].includes(user?.role) &&
+      user?.can_manage_finance === true);
   const [selectedStudentId, setSelectedStudentId] = useState();
 
   const { data: savingStudentsResponse, isLoading: isLoadingStudents } =
