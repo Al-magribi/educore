@@ -28,9 +28,6 @@ app.use(userAgent());
 // Static Folder
 app.use("/assets/lms/:teacherId/modul", protectTeachingModuleAssets);
 app.use("/assets", express.static(path.join(__dirname, "assets")));
-app.use("/assets", (_req, res) => {
-  res.status(404).json({ message: "File tidak ditemukan." });
-});
 const backupPath = path.join(process.cwd(), "temp_backup");
 if (!fs.existsSync(backupPath)) {
   fs.mkdirSync(backupPath, { recursive: true });
@@ -39,6 +36,12 @@ if (!fs.existsSync(backupPath)) {
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
 }
+// Vite writes the production bundle to client/dist/assets. This 404 has to
+// come after that mount; otherwise /assets/*.js never reaches the build and
+// the deployed app stays a blank page.
+app.use("/assets", (_req, res) => {
+  res.status(404).json({ message: "File tidak ditemukan." });
+});
 app.use("/temp_backup", express.static(path.join(backupPath)));
 
 registerApiRoutes(app);
