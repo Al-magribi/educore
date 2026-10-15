@@ -8,8 +8,11 @@ import {
   fetchTeacherAssignments,
 } from "../../utils/staffAssignment.js";
 
+const STAFF_WITHOUT_ASSIGNMENT_MESSAGE =
+  "Akun tendik ini belum memiliki penugasan. Hubungi admin satuan.";
+
 const attachOptionalFinanceStaff = async (db, user) => {
-  if (!user || user.role !== "teacher") return user;
+  if (!user || !["teacher", "staff"].includes(user.role)) return user;
 
   try {
     const mod = await import("../finance/financeStaffAccess.js");
@@ -239,6 +242,42 @@ router.post(
       // Jika data admin ditemukan, masukkan ke roleData.
       // Frontend akan membaca 'level' dari sini (user.level)
       if (adminRes.rowCount > 0) roleData = adminRes.rows[0];
+
+      // --- TENDIK ---
+    } else if (user.role === "staff") {
+      const staffRes = await client.query(
+        `
+        SELECT
+          s.id AS staff_id, s.nip, s.phone, s.email, s.is_active AS staff_active,
+          s.homebase_id,
+          hb.name AS homebase_name
+        FROM u_staff s
+        LEFT JOIN a_homebase hb ON s.homebase_id = hb.id
+        WHERE s.user_id = $1
+        LIMIT 1
+      `,
+        [user.id],
+      );
+      const staff = staffRes.rows[0];
+      if (!staff || staff.staff_active === false || !staff.homebase_id) {
+        return res
+          .status(403)
+          .json({ message: "Akun dinonaktifkan. Hubungi admin." });
+      }
+
+      const access = await attachOptionalFinanceStaff(client, {
+        id: user.id,
+        role: user.role,
+        homebase_id: staff.homebase_id,
+      });
+      if (access.can_manage_finance !== true) {
+        return res
+          .status(403)
+          .json({ message: STAFF_WITHOUT_ASSIGNMENT_MESSAGE });
+      }
+
+      delete staff.staff_active;
+      roleData = { ...staff, can_manage_finance: true };
     }
 
     // 5. Generate Token
@@ -293,7 +332,7 @@ router.post(
 router.get(
   "/load-user",
   // Pastikan middleware authorize mengizinkan semua role ini
-  authorize("admin", "student", "teacher", "parent", "tahfiz"),
+  authorize("admin", "student", "teacher", "parent", "tahfiz", "staff"),
   withQuery(async (req, res, pool) => {
     const { id, role } = req.user;
 
@@ -402,6 +441,20 @@ router.get(
         LEFT JOIN a_homebase hb ON a.homebase_id = hb.id
         WHERE u.id = $1
       `;
+
+      // --- TENDIK ---
+    } else if (role === "staff") {
+      query = `
+        SELECT
+          u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
+          s.id AS staff_id, s.nip, s.phone, s.email,
+          s.homebase_id,
+          hb.name AS homebase_name
+        FROM u_users u
+        JOIN u_staff s ON s.user_id = u.id
+        LEFT JOIN a_homebase hb ON s.homebase_id = hb.id
+        WHERE u.id = $1
+      `;
     }
 
     if (!query) {
@@ -426,6 +479,15 @@ router.get(
       const withAssignments = attachAssignmentFlags(userData, assignments);
       await attachOptionalFinanceStaff(pool, withAssignments);
       return res.status(200).json(withAssignments);
+    }
+
+    if (role === "staff") {
+      await attachOptionalFinanceStaff(pool, userData);
+      if (userData.can_manage_finance !== true) {
+        return res
+          .status(403)
+          .json({ message: STAFF_WITHOUT_ASSIGNMENT_MESSAGE });
+      }
     }
 
     return res.status(200).json(userData);
@@ -509,6 +571,7 @@ router.put(
     if (role === "teacher") detailTable = "u_teachers";
     else if (role === "admin") detailTable = "u_admin";
     else if (role === "parent") detailTable = "u_parents";
+    else if (role === "staff") detailTable = "u_staff";
 
     if (detailTable) {
       const updates = [];

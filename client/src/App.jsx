@@ -85,7 +85,7 @@ const App = () => {
         <Route
           element={
             <RouteProtection
-              allowedRoles={["admin", "teacher", "student", "parent"]}
+              allowedRoles={["admin", "teacher", "student", "parent", "staff"]}
               allowedLevels={[
                 "pusat",
                 "satuan",

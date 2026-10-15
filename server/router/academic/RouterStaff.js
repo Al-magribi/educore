@@ -2,6 +2,12 @@ import { Router } from "express";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { ensureStaffTable } from "../../services/academic/staffTable.js";
+import {
+  deleteStaffAccount,
+  ensureStaffAccountSchema,
+  readAccountPayload,
+  saveStaffAccount,
+} from "../../services/academic/staffAccount.js";
 
 const router = Router();
 
@@ -101,6 +107,7 @@ router.get(
   "/staff",
   authorize("satuan"),
   withQuery(async (req, res, db) => {
+    await ensureStaffAccountSchema();
     await ensureStaffTable(db);
     const page = Number.parseInt(req.query.page, 10) || 1;
     const limit = Number.parseInt(req.query.limit, 10) || 10;
@@ -129,8 +136,13 @@ router.get(
 
     const result = await db.query(
       `
-        SELECT s.id, s.full_name, s.nip, s.phone, s.email, s.notes, s.rfid_no, s.is_active
+        SELECT
+          s.id, s.full_name, s.nip, s.phone, s.email, s.notes, s.rfid_no, s.is_active,
+          s.user_id,
+          acc.username AS account_username,
+          acc.is_active AS account_active
         FROM public.u_staff s
+        LEFT JOIN public.u_users acc ON acc.id = s.user_id
         WHERE ${whereClause}
         ORDER BY s.full_name ASC, s.id ASC
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -156,6 +168,7 @@ router.post(
   "/staff",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
+    await ensureStaffAccountSchema();
     await ensureStaffTable(client);
     const homebaseId = req.user.homebase_id;
     if (!homebaseId) {
@@ -193,10 +206,19 @@ router.post(
       ],
     );
 
+    const account = await saveStaffAccount(
+      client,
+      { ...result.rows[0], user_id: null },
+      readAccountPayload(req.body),
+    );
+    if (account.error) {
+      return res.status(400).json({ message: account.error });
+    }
+
     res.status(201).json({
       status: "success",
       message: "Tendik berhasil ditambahkan",
-      data: result.rows[0],
+      data: { ...result.rows[0], user_id: account.userId },
     });
   }),
 );
@@ -205,6 +227,7 @@ router.put(
   "/staff/:id",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
+    await ensureStaffAccountSchema();
     await ensureStaffTable(client);
     const staffId = Number.parseInt(req.params.id, 10);
     const homebaseId = req.user.homebase_id;
@@ -236,7 +259,7 @@ router.put(
           updated_by = $8,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $9 AND homebase_id = $10
-        RETURNING id, full_name, nip, phone, email, notes, rfid_no, is_active
+        RETURNING id, full_name, nip, phone, email, notes, rfid_no, is_active, user_id
       `,
       [
         validated.data.full_name,
@@ -256,10 +279,19 @@ router.put(
       return res.status(404).json({ message: "Tendik tidak ditemukan" });
     }
 
+    const account = await saveStaffAccount(
+      client,
+      result.rows[0],
+      readAccountPayload(req.body),
+    );
+    if (account.error) {
+      return res.status(400).json({ message: account.error });
+    }
+
     res.json({
       status: "success",
       message: "Tendik berhasil diperbarui",
-      data: result.rows[0],
+      data: { ...result.rows[0], user_id: account.userId },
     });
   }),
 );
@@ -268,6 +300,7 @@ router.delete(
   "/staff/:id",
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
+    await ensureStaffAccountSchema();
     await ensureStaffTable(client);
     const staffId = Number.parseInt(req.params.id, 10);
     const homebaseId = req.user.homebase_id;
@@ -286,7 +319,7 @@ router.delete(
       `
         DELETE FROM public.u_staff
         WHERE id = $1 AND homebase_id = $2
-        RETURNING id
+        RETURNING id, user_id
       `,
       [staffId, homebaseId],
     );
@@ -294,6 +327,8 @@ router.delete(
     if (result.rowCount === 0) {
       return res.status(404).json({ message: "Tendik tidak ditemukan" });
     }
+
+    await deleteStaffAccount(client, result.rows[0].user_id);
 
     res.json({
       status: "success",

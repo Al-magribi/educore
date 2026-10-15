@@ -172,6 +172,9 @@ const AppLayout = ({ children, title, asShell = false }) => {
       case "parent":
         items = combinedMenus.parent;
         break;
+      case "staff":
+        items = combinedMenus.staff;
+        break;
       case "center":
         items = combinedMenus.center;
         break;

@@ -50,6 +50,17 @@ export const authorize = (...allowedRolesOrLevels) => {
       }
 
       const user = foundUser.rows[0];
+      if (user.role === "staff") {
+        const staffResult = await client.query(
+          `SELECT homebase_id, is_active FROM public.u_staff WHERE user_id = $1 LIMIT 1`,
+          [user.id],
+        );
+        const staff = staffResult.rows[0];
+        user.homebase_id = staff?.homebase_id || null;
+        if (!staff || staff.is_active === false) {
+          user.is_active = false;
+        }
+      }
       user.assignments =
         user.role === "teacher"
           ? await fetchTeacherAssignments(client, user.id, user.homebase_id)
