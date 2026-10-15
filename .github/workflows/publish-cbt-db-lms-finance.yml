@@ -49,77 +49,32 @@ jobs:
         run: |
           set -euo pipefail
 
-          checkout_owned_paths() {
-            local source_ref="$1"
-            shift
-            local path
-
-            for path in "$@"; do
-              if git ls-tree -r --name-only "${source_ref}" -- "${path}" | grep -q .; then
-                git checkout "${source_ref}" -- "${path}"
-              else
-                echo "Skipping missing path on ${source_ref}: ${path}"
-              fi
-            done
-          }
-
           restore_lms_owned_paths() {
-            checkout_owned_paths origin/feature/lms \
+            git checkout origin/feature/lms -- \
               client/src/App.jsx \
               client/src/components/editor \
               client/src/components/index.js \
               client/src/components/layout/menus/lmsMenus.jsx \
-              client/src/components/layout/AppLayout.jsx \
               client/src/components/scroll/InfiniteScrollList.jsx \
               client/src/module/lms \
               client/src/module/parent/dashboard/ParentDash.jsx \
-              client/src/module/teacher/dashboard/TeacherDash.jsx \
-              client/src/module/student/dashboard \
               client/src/routes/modules/lmsRoutes.jsx \
               client/src/service/lms \
-              client/src/utils/RouteProtection.jsx \
-              client/src/utils/staffAssignment.js \
-              scripts/ci/ensure-route-protection.js \
               database/attendance_schema.sql \
+              database/attendance_seed.sql \
+              database/attendance_seed_full.sql \
+              database/attendance_seed_lite.sql \
               database/lms_schema.sql \
               docs/esp32_rfid_attendance_mfrc522.ino \
-              server/middleware/authorize.js \
-              server/router/auth/RouterAuth.js \
-              server/router/lms \
-              server/utils/staffAssignment.js
+              server/router/lms
             git add -A
           }
 
           ensure_parent_report_components() {
-            checkout_owned_paths origin/feature/lms \
+            git checkout origin/feature/lms -- \
               client/src/module/parent/dashboard/ParentDash.jsx \
-              client/src/module/teacher/dashboard/TeacherDash.jsx \
-              client/src/module/student/dashboard \
               client/src/module/lms/report/AcademicReport.jsx
             git add -A
-          }
-
-          restore_finance_owned_paths() {
-            checkout_owned_paths origin/feature/finance \
-              client/src/components/layout/menus/financeMenus.jsx \
-              client/src/module/finance \
-              client/src/routes/modules/financeRoutes.jsx \
-              client/src/service/finance \
-              server/router/finance
-            git add -A
-          }
-
-          ensure_route_protection() {
-            local file="client/src/utils/RouteProtection.jsx"
-            local script="scripts/ci/ensure-route-protection.js"
-            if [[ ! -f "${file}" ]]; then
-              return 0
-            fi
-            if [[ ! -f "${script}" ]]; then
-              checkout_owned_paths origin/feature/lms "${script}"
-            fi
-            node "${script}"
-            git add "${file}"
           }
 
           # Compose always starts from `main`, then layers feature branches
@@ -149,17 +104,13 @@ jobs:
           # later branches cannot silently roll those files back to older copies.
           restore_lms_owned_paths
           ensure_parent_report_components
-          restore_finance_owned_paths
-          ensure_route_protection
 
           if ! git diff --cached --quiet; then
-            git commit -m "chore(compose): restore feature-owned paths"
+            git commit -m "chore(compose): restore LMS-owned paths from feature/lms"
           fi
 
           git diff --quiet origin/feature/lms -- \
             client/src/module/parent/dashboard/ParentDash.jsx \
-            client/src/module/teacher/dashboard/TeacherDash.jsx \
-            client/src/module/student/dashboard \
             client/src/module/lms/report/AcademicReport.jsx
 
       - name: Setup Node.js
