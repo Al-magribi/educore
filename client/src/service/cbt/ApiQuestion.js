@@ -46,6 +46,29 @@ export const ApiQuestion = createApi({
       }),
       invalidatesTags: ["Question"],
     }),
+    createQuestionGroup: builder.mutation({
+      query: (body) => ({
+        url: "/question-groups",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Question"],
+    }),
+    updateQuestionGroup: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/question-groups/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Question"],
+    }),
+    deleteQuestionGroup: builder.mutation({
+      query: (id) => ({
+        url: `/question-groups/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Question"],
+    }),
     bulkCreateQuestion: builder.mutation({
       query: (questions) => ({
         url: "/bulk-create", // Sesuaikan dengan path di RouterQuestion
@@ -175,6 +198,9 @@ export const {
   useCreateQuestionMutation,
   useUpdateQuestionMutation,
   useDeleteQuestionMutation,
+  useCreateQuestionGroupMutation,
+  useUpdateQuestionGroupMutation,
+  useDeleteQuestionGroupMutation,
   useBulkCreateQuestionMutation,
   useBulkDeleteQuestionsMutation,
   useGetAiQuestionGenerateMetaQuery,

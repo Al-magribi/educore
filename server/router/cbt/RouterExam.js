@@ -4,11 +4,12 @@ import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { getActivePeriode } from "../../utils/helper.js";
 import { computeItemAnalysis } from "../../utils/itemAnalysis.js";
-import { computeExamScoresForStudents } from "../../services/cbt/examScores.js";
 import {
-  canManageCbt,
-  isForbiddenCbtOwner,
-} from "../../utils/staffAssignment.js";
+  annotateQuestionGroups,
+  groupQuestionsIntoBlocks,
+  parseSavedQuestionOrder,
+  restoreQuestionOrder,
+} from "../../services/cbt/questionGroup.js";
 
 const router = Router();
 
@@ -1399,10 +1400,22 @@ router.get(
     exam.session = session;
     const questionResult = await pool.query(
       `
-        SELECT id, q_type, bloom_level, content, score_point, media_url, audio_url
-        FROM cbt.c_question
-        WHERE bank_id = $1
-        ORDER BY id ASC
+        SELECT
+          q.id,
+          q.q_type,
+          q.bloom_level,
+          q.content,
+          q.score_point,
+          q.media_url,
+          q.audio_url,
+          q.group_id,
+          q.group_order,
+          qg.title AS group_title,
+          COALESCE(qg.stimulus, '') AS group_stimulus
+        FROM cbt.c_question q
+        LEFT JOIN cbt.c_question_group qg ON qg.id = q.group_id
+        WHERE q.bank_id = $1
+        ORDER BY COALESCE(qg.order_no, q.id), COALESCE(q.group_order, 0), q.id
       `,
       [exam.bank_id],
     );
@@ -1430,9 +1443,70 @@ router.get(
       });
     }
 
-    if (exam.is_shuffle) {
-      questions = [...questions].sort(() => Math.random() - 0.5);
+    if (exam.is_shuffle && questions.length > 1) {
+      const savedResult = await pool.query(
+        `
+          SELECT question_order
+          FROM cbt.c_exam_attendance
+          WHERE exam_id = $1 AND student_id = $2
+          LIMIT 1
+        `,
+        [examId, userId],
+      );
+      const savedOrder = parseSavedQuestionOrder(
+        savedResult.rows[0]?.question_order,
+      );
+      const restored = restoreQuestionOrder(questions, savedOrder);
+      if (restored) {
+        questions = restored;
+      } else {
+        const generated = shuffleArray(groupQuestionsIntoBlocks(questions)).flat();
+        const generatedIds = generated.map((question) => question.id);
+        const claim = await pool.query(
+          `
+            UPDATE cbt.c_exam_attendance
+            SET question_order = $3::jsonb, updated_at = NOW()
+            WHERE exam_id = $1
+              AND student_id = $2
+              AND question_order IS NULL
+            RETURNING question_order
+          `,
+          [examId, userId, JSON.stringify(generatedIds)],
+        );
+        if (claim.rowCount > 0) {
+          questions = generated;
+        } else {
+          const reread = await pool.query(
+            `
+              SELECT question_order
+              FROM cbt.c_exam_attendance
+              WHERE exam_id = $1 AND student_id = $2
+              LIMIT 1
+            `,
+            [examId, userId],
+          );
+          const restoredAgain = restoreQuestionOrder(
+            questions,
+            parseSavedQuestionOrder(reread.rows[0]?.question_order),
+          );
+          if (restoredAgain) {
+            questions = restoredAgain;
+          } else {
+            await pool.query(
+              `
+                UPDATE cbt.c_exam_attendance
+                SET question_order = $3::jsonb, updated_at = NOW()
+                WHERE exam_id = $1 AND student_id = $2
+              `,
+              [examId, userId, JSON.stringify(generatedIds)],
+            );
+            questions = generated;
+          }
+        }
+      }
     }
+
+    questions = annotateQuestionGroups(questions);
 
     return res.json({ exam, questions });
   }),
@@ -2066,6 +2140,41 @@ router.get(
       return res.json({ data: [] });
     }
 
+    const questionResult = await pool.query(
+      `
+        SELECT q.id, q.q_type, q.bloom_level, q.score_point
+        FROM cbt.c_question q
+        JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        LEFT JOIN cbt.c_question_group qg ON qg.id = q.group_id
+        WHERE e.id = $1
+        ORDER BY COALESCE(qg.order_no, q.id), COALESCE(q.group_order, 0), q.id
+      `,
+      [examId],
+    );
+
+    const questions = questionResult.rows;
+    const questionIds = questions.map((q) => q.id);
+
+    let options = [];
+    if (questionIds.length > 0) {
+      const optionResult = await pool.query(
+        `
+          SELECT id, question_id, label, content, is_correct
+          FROM cbt.c_question_options
+          WHERE question_id = ANY($1::int[])
+          ORDER BY id ASC
+        `,
+        [questionIds],
+      );
+      options = optionResult.rows;
+    }
+
+    const optionsByQuestion = options.reduce((acc, item) => {
+      if (!acc[item.question_id]) acc[item.question_id] = [];
+      acc[item.question_id].push(item);
+      return acc;
+    }, {});
+
     const studentIds = students.map((item) => item.id);
     const scoreByStudent = await computeExamScoresForStudents(pool, {
       examId,
@@ -2390,8 +2499,9 @@ router.get(
         SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        LEFT JOIN cbt.c_question_group qg ON qg.id = q.group_id
         WHERE e.id = $1
-        ORDER BY q.id ASC
+        ORDER BY COALESCE(qg.order_no, q.id), COALESCE(q.group_order, 0), q.id
       `,
       [examId],
     );
@@ -2868,11 +2978,21 @@ router.get(
 
     const questionResult = await pool.query(
       `
-        SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
+        SELECT
+          q.id,
+          q.q_type,
+          q.bloom_level,
+          q.content,
+          q.score_point,
+          q.group_id,
+          q.group_order,
+          qg.title AS group_title,
+          COALESCE(qg.stimulus, '') AS group_stimulus
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        LEFT JOIN cbt.c_question_group qg ON qg.id = q.group_id
         WHERE e.id = $1
-        ORDER BY q.id ASC
+        ORDER BY COALESCE(qg.order_no, q.id), COALESCE(q.group_order, 0), q.id
       `,
       [examId],
     );
@@ -2990,7 +3110,8 @@ router.get(
       answerRows: aliasAnswerRows,
     });
 
-    const items = questions.map((question, index) => {
+    const orderedQuestions = annotateQuestionGroups(questions);
+    const items = orderedQuestions.map((question, index) => {
       const questionOptions = optionByQuestion[question.id] || [];
       const optionText = (opt) => {
         const label = opt.label ? `${opt.label}. ` : "";
@@ -3023,6 +3144,14 @@ router.get(
         bloom_label: getBloomLevelLabel(question.bloom_level),
         question: question.content || "-",
         maxPoints: question.score_point || 0,
+        group_id: question.group_id,
+        group_title: question.group_title,
+        group_stimulus: question.group_stimulus,
+        group_order: question.group_order,
+        group_from: question.group_from,
+        group_to: question.group_to,
+        group_position: question.group_position,
+        group_count: question.group_count,
         rawAnswer: serializeRawAnswer(rawAnswerValue),
         status,
       };
@@ -3303,8 +3432,9 @@ router.get(
         SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        LEFT JOIN cbt.c_question_group qg ON qg.id = q.group_id
         WHERE e.id = $1
-        ORDER BY q.id ASC
+        ORDER BY COALESCE(qg.order_no, q.id), COALESCE(q.group_order, 0), q.id
       `,
       [examId],
     );
@@ -3546,8 +3676,9 @@ router.get(
         SELECT q.id, q.q_type, q.bloom_level, q.content, q.score_point
         FROM cbt.c_question q
         JOIN cbt.c_exam e ON e.bank_id = q.bank_id
+        LEFT JOIN cbt.c_question_group qg ON qg.id = q.group_id
         WHERE e.id = $1
-        ORDER BY q.id ASC
+        ORDER BY COALESCE(qg.order_no, q.id), COALESCE(q.group_order, 0), q.id
       `,
       [examId],
     );
