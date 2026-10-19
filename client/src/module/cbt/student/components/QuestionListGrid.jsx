@@ -49,6 +49,8 @@ const QuestionListGrid = ({
   >
     {questionMap.map((item, index) => {
       const isActive = index === currentIndex;
+      const statusStyle = getQuestionButtonStyle(item.status, isActive);
+      const groupShadow = "inset 0 -3px 0 #0ea5e9";
       return (
         <div
           key={item.id || item.number}
@@ -79,7 +81,12 @@ const QuestionListGrid = ({
               paddingInline: 0,
               fontWeight: 600,
               outline: "none",
-              ...getQuestionButtonStyle(item.status, isActive),
+              ...statusStyle,
+              boxShadow: item.groupId
+                ? statusStyle.boxShadow && statusStyle.boxShadow !== "none"
+                  ? `${statusStyle.boxShadow}, ${groupShadow}`
+                  : groupShadow
+                : statusStyle.boxShadow,
             }}
           >
             {item.number}

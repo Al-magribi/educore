@@ -5,6 +5,7 @@ import {
   Col,
   Divider,
   Empty,
+  Flex,
   Grid,
   Layout,
   Row,
@@ -28,6 +29,7 @@ import ProgressPanel from "../components/ProgressPanel";
 import QuestionListPanel from "../components/QuestionListPanel";
 import QuestionListModal from "../components/QuestionListModal";
 import QuestionContent from "../components/QuestionContent";
+import RichContentViewer from "../../components/RichContentViewer";
 import ExamActions from "../components/ExamActions";
 
 const { Content } = Layout;
@@ -480,6 +482,7 @@ const ExamInterface = () => {
         id: question.id,
         number: index + 1,
         status: getStatusForQuestion(question.id),
+        groupId: question.group_id || null,
       })),
     [questions, getStatusForQuestion],
   );
@@ -764,6 +767,33 @@ const ExamInterface = () => {
                   <Empty description="Gagal memuat soal" />
                 ) : (
                   <Space vertical size={18} style={{ width: "100%" }}>
+                    {currentQuestion?.group_id ? (
+                      <Card
+                        style={{
+                          borderRadius: 16,
+                          border: "1px solid rgba(14, 165, 233, 0.28)",
+                          background: "rgba(14, 165, 233, 0.06)",
+                        }}
+                      >
+                        <Space vertical size={8} style={{ width: "100%" }}>
+                          <Flex justify="space-between" align="center" gap={8} wrap="wrap">
+                            <Text strong style={{ color: palette.ink }}>
+                              Stimulus bersama
+                            </Text>
+                            <Tag color="cyan" style={{ margin: 0 }}>
+                              Soal {currentQuestion.group_from}–{currentQuestion.group_to}
+                            </Tag>
+                          </Flex>
+                          <Text type="secondary">
+                            Bagian {currentQuestion.group_position} dari {currentQuestion.group_count}
+                            {currentQuestion.group_title
+                              ? ` · ${currentQuestion.group_title}`
+                              : ""}
+                          </Text>
+                          <RichContentViewer value={currentQuestion.group_stimulus} />
+                        </Space>
+                      </Card>
+                    ) : null}
                     <QuestionContent
                       key={currentQuestion?.id || "empty-question"}
                       question={currentQuestion}
