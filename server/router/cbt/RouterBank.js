@@ -437,9 +437,21 @@ router.post(
 
     const questionResult = await client.query(
       `
-        SELECT id, bank_id, q_type, bloom_level, content, media_url, audio_url
-        FROM cbt.c_question
-        WHERE id = ANY($1::int[])
+        SELECT
+          q.id,
+          q.bank_id,
+          q.q_type,
+          q.bloom_level,
+          q.content,
+          q.media_url,
+          q.audio_url,
+          q.group_id,
+          q.group_order,
+          g.title AS group_title,
+          g.stimulus AS group_stimulus
+        FROM cbt.c_question q
+        LEFT JOIN cbt.c_question_group g ON g.id = q.group_id
+        WHERE q.id = ANY($1::int[])
       `,
       [questionIds],
     );
@@ -501,6 +513,7 @@ router.post(
     const pointByQuestion = new Map(
       normalizedQuestions.map((q) => [q.question_id, q.score_point]),
     );
+    const copiedQuestionIds = new Map();
 
     for (const q of questionResult.rows) {
       const forcedPoint = pointByQuestion.get(q.id) || 1;
@@ -522,6 +535,7 @@ router.post(
       );
 
       const newQuestionId = insertQuestion.rows[0].id;
+      copiedQuestionIds.set(q.id, newQuestionId);
       const options = optionsByQuestionId[q.id] || [];
 
       for (const opt of options) {
@@ -531,6 +545,48 @@ router.post(
             VALUES ($1, $2, $3, $4, $5)
           `,
           [newQuestionId, opt.label, opt.content, opt.media_url, opt.is_correct],
+        );
+      }
+    }
+
+    const copiedGroups = new Map();
+    for (const q of questionResult.rows) {
+      if (!q.group_id || !copiedQuestionIds.has(q.id)) continue;
+      if (!copiedGroups.has(q.group_id)) {
+        copiedGroups.set(q.group_id, {
+          title: q.group_title || "Grup soal",
+          stimulus: q.group_stimulus || "",
+          members: [],
+        });
+      }
+      copiedGroups.get(q.group_id).members.push(q);
+    }
+
+    for (const group of copiedGroups.values()) {
+      if (group.members.length < 2) continue;
+      group.members.sort(
+        (left, right) => (left.group_order || 0) - (right.group_order || 0),
+      );
+      const newMemberIds = group.members.map((member) =>
+        copiedQuestionIds.get(member.id),
+      );
+      const insertedGroup = await client.query(
+        `
+          INSERT INTO cbt.c_question_group (bank_id, title, stimulus, order_no)
+          VALUES ($1, $2, $3, $4)
+          RETURNING id
+        `,
+        [newBankId, group.title, group.stimulus, Math.min(...newMemberIds)],
+      );
+      const newGroupId = insertedGroup.rows[0].id;
+      for (let index = 0; index < newMemberIds.length; index += 1) {
+        await client.query(
+          `
+            UPDATE cbt.c_question
+            SET group_id = $1, group_order = $2
+            WHERE id = $3
+          `,
+          [newGroupId, index + 1, newMemberIds[index]],
         );
       }
     }

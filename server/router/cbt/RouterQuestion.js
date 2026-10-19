@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import {
+  dissolveUndersizedGroups,
+  hasStimulusContent,
+} from "../../services/cbt/questionGroup.js";
 import multer from "multer";
 import path from "path";
 
@@ -164,10 +168,20 @@ router.get(
 
     // Ambil Soal
     const sqlQuestion = `
-      SELECT id, q_type, bloom_level, COALESCE(content, '') AS content, score_point 
-      FROM cbt.c_question
-      WHERE bank_id = $1 
-      ORDER BY id ASC
+      SELECT
+        q.id,
+        q.q_type,
+        q.bloom_level,
+        COALESCE(q.content, '') AS content,
+        q.score_point,
+        q.group_id,
+        q.group_order,
+        qg.title AS group_title,
+        COALESCE(qg.stimulus, '') AS group_stimulus
+      FROM cbt.c_question q
+      LEFT JOIN cbt.c_question_group qg ON qg.id = q.group_id
+      WHERE q.bank_id = $1
+      ORDER BY COALESCE(qg.order_no, q.id), COALESCE(q.group_order, 0), q.id
     `;
     const qRes = await pool.query(sqlQuestion, [bank_id]);
     const questions = qRes.rows;
@@ -404,8 +418,13 @@ router.delete(
   authorize("satuan", "teacher"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
+    const previous = await client.query(
+      `SELECT group_id FROM cbt.c_question WHERE id = $1`,
+      [id],
+    );
     // Opsi otomatis terhapus karena constraint ON DELETE CASCADE di database
     await client.query(`DELETE FROM cbt.c_question WHERE id = $1`, [id]);
+    await dissolveUndersizedGroups(client, [previous.rows[0]?.group_id]);
     res.json({ message: "Soal berhasil dihapus" });
   }),
 );
@@ -471,11 +490,210 @@ router.post(
       return res.status(400).json({ message: "Pilih soal yang akan dihapus" });
     }
 
+    const previous = await client.query(
+      `
+        SELECT DISTINCT group_id
+        FROM cbt.c_question
+        WHERE id = ANY($1::int[]) AND group_id IS NOT NULL
+      `,
+      [ids],
+    );
     await client.query(`DELETE FROM cbt.c_question WHERE id = ANY($1::int[])`, [
       ids,
     ]);
+    await dissolveUndersizedGroups(
+      client,
+      previous.rows.map((row) => row.group_id),
+    );
 
     res.json({ message: `${ids.length} soal berhasil dihapus` });
+  }),
+);
+
+const normalizeGroupQuestionIds = (value) => {
+  if (!Array.isArray(value)) return [];
+  const ids = [];
+  const seen = new Set();
+  value.forEach((item) => {
+    const id = parseInt(item, 10);
+    if (!Number.isInteger(id) || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids;
+};
+
+const loadGroupQuestions = async (client, bankId, questionIds) => {
+  const result = await client.query(
+    `
+      SELECT id, group_id
+      FROM cbt.c_question
+      WHERE bank_id = $1 AND id = ANY($2::int[])
+    `,
+    [bankId, questionIds],
+  );
+  const byId = new Map(result.rows.map((row) => [row.id, row]));
+  return questionIds.map((id) => byId.get(id)).filter(Boolean);
+};
+
+router.post(
+  "/question-groups",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const bankId = parseInt(req.body?.bank_id, 10);
+    const title = String(req.body?.title || "").trim().slice(0, 200);
+    const stimulus = normalizeRichTextField(req.body?.stimulus);
+    const questionIds = normalizeGroupQuestionIds(req.body?.question_ids);
+
+    if (!Number.isInteger(bankId)) {
+      return res.status(400).json({ message: "Bank soal tidak valid" });
+    }
+    if (questionIds.length < 2) {
+      return res.status(400).json({ message: "Grup soal minimal berisi 2 soal" });
+    }
+    if (!hasStimulusContent(stimulus)) {
+      return res.status(400).json({ message: "Stimulus grup wajib diisi" });
+    }
+
+    const questions = await loadGroupQuestions(client, bankId, questionIds);
+    if (questions.length !== questionIds.length) {
+      return res.status(400).json({
+        message: "Semua soal harus berasal dari bank yang sama",
+      });
+    }
+    if (questions.some((question) => question.group_id)) {
+      return res.status(400).json({
+        message: "Ada soal yang sudah masuk grup lain. Lepas dulu dari grup itu.",
+      });
+    }
+
+    const inserted = await client.query(
+      `
+        INSERT INTO cbt.c_question_group (bank_id, title, stimulus, order_no)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+      `,
+      [bankId, title || "Grup soal", stimulus, Math.min(...questionIds)],
+    );
+    const groupId = inserted.rows[0].id;
+
+    for (let index = 0; index < questionIds.length; index += 1) {
+      await client.query(
+        `
+          UPDATE cbt.c_question
+          SET group_id = $1, group_order = $2
+          WHERE id = $3
+        `,
+        [groupId, index + 1, questionIds[index]],
+      );
+    }
+
+    res.json({ message: "Grup soal berhasil dibuat", id: groupId });
+  }),
+);
+
+router.put(
+  "/question-groups/:id",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const groupId = parseInt(req.params.id, 10);
+    const title = String(req.body?.title || "").trim().slice(0, 200);
+    const stimulus = normalizeRichTextField(req.body?.stimulus);
+    const questionIds = normalizeGroupQuestionIds(req.body?.question_ids);
+
+    if (!Number.isInteger(groupId)) {
+      return res.status(400).json({ message: "Grup soal tidak valid" });
+    }
+    if (questionIds.length < 2) {
+      return res.status(400).json({ message: "Grup soal minimal berisi 2 soal" });
+    }
+    if (!hasStimulusContent(stimulus)) {
+      return res.status(400).json({ message: "Stimulus grup wajib diisi" });
+    }
+
+    const groupResult = await client.query(
+      `SELECT id, bank_id FROM cbt.c_question_group WHERE id = $1`,
+      [groupId],
+    );
+    if (groupResult.rowCount === 0) {
+      return res.status(404).json({ message: "Grup soal tidak ditemukan" });
+    }
+
+    const bankId = groupResult.rows[0].bank_id;
+    const questions = await loadGroupQuestions(client, bankId, questionIds);
+    if (questions.length !== questionIds.length) {
+      return res.status(400).json({
+        message: "Semua soal harus berasal dari bank yang sama",
+      });
+    }
+    if (
+      questions.some(
+        (question) => question.group_id && question.group_id !== groupId,
+      )
+    ) {
+      return res.status(400).json({
+        message: "Ada soal yang sudah masuk grup lain",
+      });
+    }
+
+    await client.query(
+      `
+        UPDATE cbt.c_question_group
+        SET title = $1, stimulus = $2, updated_at = NOW()
+        WHERE id = $3
+      `,
+      [title || "Grup soal", stimulus, groupId],
+    );
+    await client.query(
+      `
+        UPDATE cbt.c_question
+        SET group_id = NULL, group_order = NULL
+        WHERE group_id = $1 AND NOT (id = ANY($2::int[]))
+      `,
+      [groupId, questionIds],
+    );
+
+    for (let index = 0; index < questionIds.length; index += 1) {
+      await client.query(
+        `
+          UPDATE cbt.c_question
+          SET group_id = $1, group_order = $2
+          WHERE id = $3
+        `,
+        [groupId, index + 1, questionIds[index]],
+      );
+    }
+
+    res.json({ message: "Grup soal berhasil diperbarui" });
+  }),
+);
+
+router.delete(
+  "/question-groups/:id",
+  authorize("satuan", "teacher"),
+  withTransaction(async (req, res, client) => {
+    const groupId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(groupId)) {
+      return res.status(400).json({ message: "Grup soal tidak valid" });
+    }
+
+    await client.query(
+      `
+        UPDATE cbt.c_question
+        SET group_id = NULL, group_order = NULL
+        WHERE group_id = $1
+      `,
+      [groupId],
+    );
+    const deleted = await client.query(
+      `DELETE FROM cbt.c_question_group WHERE id = $1`,
+      [groupId],
+    );
+    if (deleted.rowCount === 0) {
+      return res.status(404).json({ message: "Grup soal tidak ditemukan" });
+    }
+
+    res.json({ message: "Grup soal dilepas. Soal di dalamnya tetap tersimpan." });
   }),
 );
 

@@ -1,11 +1,11 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Card, Space, Button, Typography, Flex } from "antd";
-import { Trash2, X } from "lucide-react";
+import { Layers, Trash2, X } from "lucide-react";
 
 const MotionDiv = motion.div;
 
-const QuestionBulkActions = ({ selectedCount, onCancel, onDelete }) => {
+const QuestionBulkActions = ({ selectedCount, onCancel, onDelete, onGroup }) => {
   if (selectedCount === 0) return null;
 
   return (
@@ -51,15 +51,25 @@ const QuestionBulkActions = ({ selectedCount, onCancel, onDelete }) => {
               Batalkan seleksi
             </Button>
           </Space>
-          <Button
-            type="primary"
-            danger
-            icon={<Trash2 size={16} />}
-            onClick={onDelete}
-            style={{ borderRadius: 10 }}
-          >
-            Hapus Terpilih
-          </Button>
+          <Space size={8} wrap>
+            <Button
+              icon={<Layers size={16} />}
+              onClick={onGroup}
+              disabled={selectedCount < 2}
+              style={{ borderRadius: 10 }}
+            >
+              Jadikan grup
+            </Button>
+            <Button
+              type="primary"
+              danger
+              icon={<Trash2 size={16} />}
+              onClick={onDelete}
+              style={{ borderRadius: 10 }}
+            >
+              Hapus Terpilih
+            </Button>
+          </Space>
         </Flex>
       </Card>
     </MotionDiv>
