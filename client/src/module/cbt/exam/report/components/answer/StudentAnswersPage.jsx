@@ -912,19 +912,43 @@ const StudentAnswersPage = () => {
     return Math.min(maxPoints, Math.max(0, 100 - totalWithout));
   };
 
-  const grouped = useMemo(() => {
-    const map = {};
+  const reviewBlocks = useMemo(() => {
+    const blocks = [];
     visibleAnswers.forEach((item) => {
-      if (!map[item.type]) map[item.type] = [];
-      map[item.type].push(item);
-    });
-    return map;
-  }, [visibleAnswers]);
+      if (item.group_id) {
+        const last = blocks[blocks.length - 1];
+        if (last?.kind === "group" && last.groupId === item.group_id) {
+          last.items.push(item);
+          last.to = item.group_to || last.to;
+          return;
+        }
+        blocks.push({
+          kind: "group",
+          key: `group-${item.group_id}-${item.id}`,
+          groupId: item.group_id,
+          title: item.group_title || "Grup soal",
+          stimulus: item.group_stimulus || "",
+          from: item.group_from,
+          to: item.group_to,
+          items: [item],
+        });
+        return;
+      }
 
-  const sections = Object.entries(grouped).map(([type, items]) => ({
-    type,
-    items,
-  }));
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "type" && last.type === item.type) {
+        last.items.push(item);
+        return;
+      }
+      blocks.push({
+        kind: "type",
+        key: `type-${item.type}-${item.id}`,
+        type: item.type,
+        items: [item],
+      });
+    });
+    return blocks;
+  }, [visibleAnswers]);
   const manualAnswers = useMemo(
     () => visibleAnswers.filter((item) => ["essay", "short"].includes(item.type)),
     [visibleAnswers],
@@ -1064,12 +1088,21 @@ const StudentAnswersPage = () => {
           <h1>Jawaban Siswa | ${String(examName || "").replaceAll("-", " ")}</h1>
           <div class="meta">${studentName} • NIS ${studentNis} • ${studentClass}</div>
           <div class="meta">Total Skor: ${displayedScore} / 100</div>
-          ${sections
+          ${reviewBlocks
             .map(
-              (section) => `
+              (block) => `
             <div class="section">
-              <div class="label">${TYPE_LABELS[section.type] || section.type}</div>
-              ${section.items
+              <div class="label">${
+                block.kind === "group"
+                  ? `Grup soal ${block.from}–${block.to}${block.title ? ` · ${block.title}` : ""}`
+                  : TYPE_LABELS[block.type] || block.type
+              }</div>
+              ${
+                block.kind === "group" && block.stimulus
+                  ? `<div class="question">${block.stimulus}</div>`
+                  : ""
+              }
+              ${block.items
                 .map(
                   (item) => `
                 <div class="question">
@@ -1167,13 +1200,13 @@ const StudentAnswersPage = () => {
       <StudentAnswersMetrics
         manualOnly={manualOnly}
         totalQuestions={totalQuestions}
-        sectionsLength={sections.length}
+        sectionsLength={reviewBlocks.length}
         displayedScore={displayedScore}
         reviewSummary={reviewSummary}
         essayCount={manualAnswers.length}
       />
 
-      {sections.length === 0 ? (
+      {reviewBlocks.length === 0 ? (
         <Card
           variant='borderless'
           style={{
@@ -1204,9 +1237,9 @@ const StudentAnswersPage = () => {
               onFinalizeAllQuestions={handleFinalizeAllQuestions}
             />
           ) : null}
-          {sections.map((section, index) => (
+          {reviewBlocks.map((block, index) => (
             <MotionDiv
-              key={section.type}
+              key={block.key}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04 }}
@@ -1226,21 +1259,50 @@ const StudentAnswersPage = () => {
                   style={{ marginBottom: 12 }}
                 >
                   <Space align='center' size={8} wrap>
-                    <TypeTag type={section.type} />
-                    <Text type='secondary'>{section.items.length} soal</Text>
+                    {block.kind === "group" ? (
+                      <Tag color='cyan' style={{ borderRadius: 999, margin: 0 }}>
+                        Grup soal {block.from}–{block.to}
+                      </Tag>
+                    ) : (
+                      <TypeTag type={block.type} />
+                    )}
+                    <Text type='secondary'>
+                      {block.kind === "group" && block.title
+                        ? `${block.title} · `
+                        : ""}
+                      {block.items.length} soal
+                    </Text>
                   </Space>
                   <Tag color='default' style={{ borderRadius: 999, margin: 0 }}>
                     <FileText
                       size={12}
                       style={{ marginRight: 6, verticalAlign: "text-bottom" }}
                     />
-                    Review manual tersedia
+                    {block.kind === "group"
+                      ? "Disusun ulang sesuai bank soal"
+                      : "Review manual tersedia"}
                   </Tag>
                 </Flex>
+                {block.kind === "group" ? (
+                  <div
+                    style={{
+                      marginBottom: 12,
+                      padding: 12,
+                      borderRadius: 16,
+                      background: "rgba(14, 165, 233, 0.06)",
+                      border: "1px solid rgba(14, 165, 233, 0.22)",
+                    }}
+                  >
+                    <Text strong style={{ display: "block", marginBottom: 8 }}>
+                      Stimulus
+                    </Text>
+                    <RichContentViewer value={block.stimulus} />
+                  </div>
+                ) : null}
                 <div
                   style={{ display: "flex", flexDirection: "column", gap: 12 }}
                 >
-                  {section.items.map((item) => (
+                  {block.items.map((item) => (
                     <AnswerCard
                       key={item.id}
                       item={{

@@ -19,10 +19,11 @@ import {
   Alert,
   Progress,
 } from 'antd';
-import { Edit3, Trash2, AlertTriangle, BrainCircuit, Sparkles, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit3, Trash2, AlertTriangle, BrainCircuit, Sparkles, Eye, ChevronLeft, ChevronRight, Layers, Unlink } from 'lucide-react';
 import {
   useGetQuestionsQuery,
   useDeleteQuestionMutation,
+  useDeleteQuestionGroupMutation,
   useBulkDeleteQuestionsMutation,
   useGetAiQuestionGenerateLatestQuery,
 } from '../../../../service/cbt/ApiQuestion';
@@ -32,6 +33,8 @@ import QuestionBulkActions from './QuestionBulkActions';
 import QuestionItem from './QuestionItem';
 import QuestionNavigator from './QuestionNavigator';
 import { exportQuestionsToDocx } from './questionDocxExport';
+import QuestionGroupModal from './QuestionGroupModal';
+import RichContentViewer from '../../components/RichContentViewer';
 
 const QuestionForm = lazy(() => import('../components/question/QuestionForm'));
 const ImportExcelModal = lazy(() => import('./ImportExcelModal'));
@@ -89,12 +92,14 @@ const QuestionsList = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isAiGenerateOpen, setIsAiGenerateOpen] = useState(false);
   const [isAiPreviewOpen, setIsAiPreviewOpen] = useState(false);
+  const [groupEditor, setGroupEditor] = useState(null);
   const [activeAiJobId, setActiveAiJobId] = useState(null);
   const latestAiJobStatusRef = useRef(null);
   const [latestAiPollingInterval, setLatestAiPollingInterval] = useState(8000);
 
   const { data: questions = [], isLoading, refetch } = useGetQuestionsQuery({ bankid: bankId }, { skip: !bankId });
   const [deleteQuestion] = useDeleteQuestionMutation();
+  const [deleteQuestionGroup] = useDeleteQuestionGroupMutation();
   const [bulkDelete] = useBulkDeleteQuestionsMutation();
   const { data: latestAiJob, refetch: refetchLatestAiJob } = useGetAiQuestionGenerateLatestQuery(
     { bankId },
@@ -145,6 +150,64 @@ const QuestionsList = () => {
   }, [bankId, latestAiJob?.status]);
 
   const totalScore = useMemo(() => questions.reduce((acc, curr) => acc + (curr.score_point || 0), 0), [questions]);
+  const groupRanges = useMemo(() => {
+    const ranges = new Map();
+    questions.forEach((question, index) => {
+      if (!question.group_id) return;
+      const current = ranges.get(question.group_id) || {
+        from: index + 1,
+        to: index + 1,
+      };
+      current.to = index + 1;
+      ranges.set(question.group_id, current);
+    });
+    return ranges;
+  }, [questions]);
+
+  const handleMakeGroup = () => {
+    const selected = questions.filter((question) => selectedIds.includes(question.id));
+    if (selected.length < 2) {
+      message.warning('Pilih minimal 2 soal untuk dijadikan grup');
+      return;
+    }
+    const groupIds = [...new Set(selected.map((question) => question.group_id).filter(Boolean))];
+    if (groupIds.length > 1) {
+      message.warning('Soal terpilih berasal dari grup yang berbeda');
+      return;
+    }
+    if (groupIds.length === 1) {
+      const members = questions.filter((question) => question.group_id === groupIds[0]);
+      const hasOutsider = selected.some((question) => question.group_id !== groupIds[0]);
+      if (!hasOutsider && selected.length === members.length) {
+        setGroupEditor({ mode: 'edit', groupId: groupIds[0] });
+        return;
+      }
+      message.warning('Lepas soal dari grup lama sebelum menggabungkannya');
+      return;
+    }
+    setGroupEditor({
+      mode: 'create',
+      questionIds: selected.map((question) => question.id),
+    });
+  };
+
+  const handleReleaseGroup = (groupId) => {
+    Modal.confirm({
+      title: 'Lepas grup soal ini?',
+      content: 'Stimulus grup dihapus. Soal di dalamnya tetap tersimpan sebagai soal mandiri.',
+      okText: 'Lepas grup',
+      cancelText: 'Batal',
+      onOk: async () => {
+        try {
+          await deleteQuestionGroup(groupId).unwrap();
+          message.success('Grup soal dilepas');
+          refetch();
+        } catch (error) {
+          message.error(error?.data?.message || 'Gagal melepas grup soal');
+        }
+      },
+    });
+  };
 
   useEffect(() => {
     if (questions.length === 0) {
@@ -269,6 +332,12 @@ const QuestionsList = () => {
                   SOAL {questionIndex + 1}
                 </Title>
                 <Flex align="center" gap={6} wrap="wrap">
+                  {question.group_id ? (
+                    <Tag color="cyan" style={{ fontSize: 10, margin: 0, borderRadius: 999 }}>
+                      Grup {groupRanges.get(question.group_id)?.from}–
+                      {groupRanges.get(question.group_id)?.to}
+                    </Tag>
+                  ) : null}
                   <Tag
                     color={typeMeta.color}
                     style={{
@@ -321,6 +390,28 @@ const QuestionsList = () => {
             </Flex>
 
             <Space size={4} style={{ flexShrink: 0 }}>
+              {question.group_id ? (
+                <>
+                  <Tooltip title="Edit grup">
+                    <Button
+                      type="text"
+                      size={isMobile ? 'middle' : 'small'}
+                      icon={<Layers size={16} />}
+                      style={{ borderRadius: 10 }}
+                      onClick={() => setGroupEditor({ mode: 'edit', groupId: question.group_id })}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Lepas grup">
+                    <Button
+                      type="text"
+                      size={isMobile ? 'middle' : 'small'}
+                      icon={<Unlink size={16} />}
+                      style={{ borderRadius: 10 }}
+                      onClick={() => handleReleaseGroup(question.group_id)}
+                    />
+                  </Tooltip>
+                </>
+              ) : null}
               <Button
                 type="text"
                 size={isMobile ? 'middle' : 'small'}
@@ -342,6 +433,23 @@ const QuestionsList = () => {
               </Popconfirm>
             </Space>
           </Flex>
+
+          {question.group_id && question.group_order === 1 ? (
+            <Flex
+              vertical
+              gap={6}
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                background: 'rgba(14, 165, 233, 0.06)',
+                border: '1px solid rgba(14, 165, 233, 0.22)',
+              }}>
+              <Text strong style={{ fontSize: 12 }}>
+                Stimulus {question.group_title || 'grup soal'}
+              </Text>
+              <RichContentViewer value={question.group_stimulus} />
+            </Flex>
+          ) : null}
 
           <QuestionItem question={question} />
 
@@ -471,6 +579,7 @@ const QuestionsList = () => {
           selectedCount={selectedIds.length}
           onCancel={() => setSelectedIds([])}
           onDelete={handleBulkDelete}
+          onGroup={handleMakeGroup}
         />
 
         {isLoading ? (
@@ -615,6 +724,19 @@ const QuestionsList = () => {
           />
         </Suspense>
       )}
+      <QuestionGroupModal
+        open={Boolean(groupEditor)}
+        bankId={bankId}
+        questions={questions}
+        editor={groupEditor}
+        onClose={(saved) => {
+          setGroupEditor(null);
+          if (saved) {
+            setSelectedIds([]);
+            refetch();
+          }
+        }}
+      />
     </MotionDiv>
   );
 };
