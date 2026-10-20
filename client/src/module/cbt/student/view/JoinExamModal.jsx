@@ -15,19 +15,6 @@ import { useNavigate } from "react-router-dom";
 
 const { Text } = Typography;
 
-const requestExamFullscreen = async () => {
-  if (typeof document === "undefined") return false;
-  if (document.fullscreenElement) return true;
-  const element = document.documentElement;
-  if (!element?.requestFullscreen) return false;
-  try {
-    await element.requestFullscreen();
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 const statusAlert = (status) => {
   if (status === "pelanggaran") {
     return { type: "error", title: "Status: Pelanggaran" };
@@ -99,7 +86,6 @@ const JoinExamModal = ({ open, onClose, exam }) => {
         token: values.token?.trim(),
         student_ip: fallbackIp || undefined,
       }).unwrap();
-      await requestExamFullscreen();
       message.success("Token valid. Selamat mengerjakan ujian.");
 
       navigate(
@@ -159,9 +145,9 @@ const JoinExamModal = ({ open, onClose, exam }) => {
             <Input placeholder="Masukkan token ujian" />
           </Form.Item>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Status ujian: Belum Masuk = belum mengikuti, Pelanggaran = keluar
-            dari halaman ujian, Mengerjakan = masih berlangsung, Selesai = sudah
-            menjawab semua soal.
+            Status ujian: Belum Masuk = belum mengikuti, Pelanggaran = batas
+            toleransi tercapai, Mengerjakan = masih berlangsung, Selesai =
+            sudah menyelesaikan ujian.
           </Text>
           <Space style={{ width: "100%", justifyContent: "flex-end" }}>
             <Button onClick={onClose}>Batal</Button>

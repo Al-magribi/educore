@@ -152,6 +152,9 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
       form.setFieldsValue({
         ...initialValues,
         class_ids: initialValues.classes?.map((c) => c.id) || [],
+        violation_tolerance: initialValues.violation_tolerance ?? 3,
+        violation_duration_seconds:
+          initialValues.violation_duration_seconds ?? 5,
       });
     } else {
       form.resetFields();
@@ -268,7 +271,12 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
           form={form}
           layout='vertical'
           onFinish={onFinish}
-          initialValues={{ is_active: true, is_shuffle: false }}
+          initialValues={{
+            is_active: true,
+            is_shuffle: false,
+            violation_tolerance: 3,
+            violation_duration_seconds: 5,
+          }}
         >
           {!isEdit && (
             <Alert
@@ -370,6 +378,49 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
                       style={{ width: "100%" }}
                       placeholder='90'
                       prefix={<Clock3 size={14} />}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={screens.xs ? 0 : 12}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label='Toleransi Pelanggaran'
+                    name='violation_tolerance'
+                    rules={[
+                      {
+                        required: true,
+                        message: "Toleransi pelanggaran wajib diisi",
+                      },
+                    ]}
+                    extra='Jumlah pelanggaran yang membuat siswa dikeluarkan dan harus diizinkan pengawas.'
+                  >
+                    <InputNumber
+                      min={1}
+                      precision={0}
+                      style={{ width: "100%" }}
+                      placeholder='3'
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label='Durasi Pelanggaran (Detik)'
+                    name='violation_duration_seconds'
+                    rules={[
+                      {
+                        required: true,
+                        message: "Durasi pelanggaran wajib diisi",
+                      },
+                    ]}
+                    extra='Waktu siswa boleh berada di luar tab ujian sebelum satu pelanggaran tercatat.'
+                  >
+                    <InputNumber
+                      min={1}
+                      precision={0}
+                      style={{ width: "100%" }}
+                      placeholder='5'
                     />
                   </Form.Item>
                 </Col>
