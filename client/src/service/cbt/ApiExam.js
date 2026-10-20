@@ -235,12 +235,12 @@ export const ApiExam = createApi({
       invalidatesTags: ["Exam"],
     }),
     markStudentExamViolation: builder.mutation({
-      query: ({ exam_id, reason }) => ({
+      query: ({ exam_id, ...body }) => ({
         url: `/student-exams/${exam_id}/violation`,
         method: "POST",
-        body: { reason },
+        body,
       }),
-      invalidatesTags: ["Exam"],
+      invalidatesTags: (result) => (result?.kicked ? ["Exam"] : []),
     }),
     enterStudentExam: builder.mutation({
       query: ({ exam_id, token, student_ip }) => ({

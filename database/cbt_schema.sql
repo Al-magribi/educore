@@ -25,6 +25,8 @@ CREATE TABLE cbt.c_exam (
     is_active boolean DEFAULT true,
     is_shuffle boolean DEFAULT false,
     grade_id integer REFERENCES public.a_grade(id),
+    violation_tolerance integer NOT NULL DEFAULT 3 CHECK (violation_tolerance >= 1),
+    violation_duration_seconds integer NOT NULL DEFAULT 5 CHECK (violation_duration_seconds >= 1),
     created_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -92,6 +94,10 @@ CREATE TABLE cbt.c_exam_attendance (
     start_at timestamptz DEFAULT CURRENT_TIMESTAMP,
     created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+    violation_count integer NOT NULL DEFAULT 0 CHECK (violation_count >= 0),
+    violation_baseline integer NOT NULL DEFAULT 0 CHECK (violation_baseline >= 0),
+    away_started_at timestamptz,
+    away_counted boolean NOT NULL DEFAULT false,
     CONSTRAINT unique_exam_student UNIQUE (exam_id, student_id)
 );
 

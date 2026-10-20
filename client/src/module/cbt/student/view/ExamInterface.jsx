@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Button,
   Card,
   Col,
   Divider,
@@ -8,6 +7,7 @@ import {
   Flex,
   Grid,
   Layout,
+  Modal,
   Row,
   Skeleton,
   Space,
@@ -15,7 +15,7 @@ import {
   Typography,
   message,
 } from "antd";
-import { AlarmClock, BookOpenCheck, UserRound } from "lucide-react";
+import { AlarmClock, BookOpenCheck, TriangleAlert, UserRound } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
@@ -43,60 +43,6 @@ const formatTime = (seconds) => {
   const secs = safeSeconds % 60;
   const pad = (value) => String(value).padStart(2, "0");
   return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
-};
-
-const isStandaloneDisplayMode = () => {
-  if (typeof window === "undefined") return false;
-  const standaloneMatch = window.matchMedia?.("(display-mode: standalone)")
-    ?.matches;
-  const fullscreenMatch = window.matchMedia?.("(display-mode: fullscreen)")
-    ?.matches;
-  return Boolean(
-    standaloneMatch || fullscreenMatch || window.navigator?.standalone,
-  );
-};
-
-const isFullscreenActive = () =>
-  typeof document !== "undefined" &&
-  Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-
-const isAppleSafariBrowser = () => {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  const isAppleDevice = /iPad|iPhone|iPod|Macintosh/i.test(ua);
-  const isSafariEngine =
-    /Safari/i.test(ua) &&
-    !/Chrome|Chromium|CriOS|Edg|EdgiOS|OPR|Firefox|FxiOS/i.test(ua);
-  return isAppleDevice && isSafariEngine;
-};
-
-const requestFullscreenExam = async () => {
-  if (typeof document === "undefined") return false;
-  if (isFullscreenActive()) return true;
-  const rootElement = document.documentElement;
-  const requestMethod =
-    rootElement?.requestFullscreen ||
-    rootElement?.webkitRequestFullscreen?.bind(rootElement);
-  if (!requestMethod) return false;
-  try {
-    await requestMethod();
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const exitFullscreenExam = async () => {
-  if (typeof document === "undefined") return;
-  if (!isFullscreenActive()) return;
-  const exitMethod =
-    document.exitFullscreen || document.webkitExitFullscreen?.bind(document);
-  if (!exitMethod) return;
-  try {
-    await exitMethod();
-  } catch {
-    // ignore
-  }
 };
 
 const ExamInterface = () => {
@@ -184,25 +130,36 @@ const ExamInterface = () => {
     sessionStartAt,
     totalMinutes,
   ]);
+  const violationTolerance =
+    Number(examInfo?.violation_tolerance) > 0
+      ? Number(examInfo.violation_tolerance)
+      : 3;
+  const violationDurationSeconds =
+    Number(examInfo?.violation_duration_seconds) > 0
+      ? Number(examInfo.violation_duration_seconds)
+      : 5;
+  const sessionStrike = Math.max(
+    0,
+    (Number(examInfo?.session?.violation_count) || 0) -
+      (Number(examInfo?.session?.violation_baseline) || 0),
+  );
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const [finishExam] = useFinishStudentExamMutation();
   const [markViolation] = useMarkStudentExamViolationMutation();
   const [saveAnswer] = useSaveStudentExamAnswerMutation();
   const [isAutoFinishing, setIsAutoFinishing] = useState(false);
-  const [isRequestingFullscreen, setIsRequestingFullscreen] = useState(false);
-  const [fullScreenNotice, setFullScreenNotice] = useState("");
-  const [fullScreenOn, setFullScreenOn] = useState(
-    isFullscreenActive() || isStandaloneDisplayMode(),
-  );
-  const [fallbackExamLockOn, setFallbackExamLockOn] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(() =>
-    typeof window === "undefined"
-      ? null
-      : window.visualViewport?.height || window.innerHeight,
-  );
-  const violationLockRef = useRef(false);
+  const [strikeCount, setStrikeCount] = useState(0);
+  const [awayOpen, setAwayOpen] = useState(false);
+  const [awayRemaining, setAwayRemaining] = useState(violationDurationSeconds);
+  const [awayPhase, setAwayPhase] = useState("counting");
   const finishLockRef = useRef(false);
-  const autoFullscreenAttemptedRef = useRef(false);
+  const awayActiveRef = useRef(false);
+  const expireSentRef = useRef(false);
+  const leftAtRef = useRef(null);
+  const strikeRef = useRef(0);
+  const durationRef = useRef(violationDurationSeconds);
+  const kickedRedirectRef = useRef(false);
+  const returnStartedRef = useRef(false);
 
   useEffect(() => {
     if (!isCountdownReady) return;
@@ -226,7 +183,6 @@ const ExamInterface = () => {
       let isSuccess = false;
       try {
         await finishExam({ exam_id: examId }).unwrap();
-        await exitFullscreenExam();
         isSuccess = true;
         if (!silent) {
           message.success("Ujian berhasil diselesaikan.");
@@ -261,125 +217,117 @@ const ExamInterface = () => {
     handleExamFinish,
   ]);
 
-  const requestFullscreen = useCallback(async () => {
-    setIsRequestingFullscreen(true);
-    const ok = await requestFullscreenExam();
-    const standaloneMode = isStandaloneDisplayMode();
-    if (ok || standaloneMode) {
-      setFullScreenNotice("");
-      setFallbackExamLockOn(false);
-      setFullScreenOn(true);
-      setIsRequestingFullscreen(false);
-      return;
-    }
-    setFallbackExamLockOn(true);
-    setFullScreenOn(true);
-    setFullScreenNotice(
-      isAppleSafariBrowser()
-        ? "Safari Apple membatasi fullscreen halaman. Sistem memakai mode ujian terkunci sebagai pengganti agar aturan tetap berlaku."
-        : "Browser menolak fullscreen native. Sistem memakai mode ujian terkunci agar ujian tetap berjalan dengan pembatasan yang sama.",
-    );
-    setIsRequestingFullscreen(false);
-  }, []);
+  useEffect(() => {
+    durationRef.current = violationDurationSeconds;
+  }, [violationDurationSeconds]);
 
   useEffect(() => {
-    if (!isCountdownReady || !fallbackExamLockOn) return;
+    strikeRef.current = sessionStrike;
+    setStrikeCount(sessionStrike);
+  }, [examId, sessionStrike]);
 
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyPosition = document.body.style.position;
-    const previousBodyInset = document.body.style.inset;
-    const previousBodyWidth = document.body.style.width;
-    const previousBodyHeight = document.body.style.height;
-    const previousBodyTouchAction = document.body.style.touchAction;
-    const previousRootOverflow = document.documentElement.style.overflow;
-    const syncViewportHeight = () => {
-      const nextHeight =
-        window.visualViewport?.height || window.innerHeight || null;
-      setViewportHeight(nextHeight);
-    };
-
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.inset = "0";
-    document.body.style.width = "100%";
-    document.body.style.height = "100%";
-    document.body.style.touchAction = "none";
-    syncViewportHeight();
-
-    window.addEventListener("resize", syncViewportHeight);
-    window.visualViewport?.addEventListener("resize", syncViewportHeight);
-
-    return () => {
-      document.documentElement.style.overflow = previousRootOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.position = previousBodyPosition;
-      document.body.style.inset = previousBodyInset;
-      document.body.style.width = previousBodyWidth;
-      document.body.style.height = previousBodyHeight;
-      document.body.style.touchAction = previousBodyTouchAction;
-      window.removeEventListener("resize", syncViewportHeight);
-      window.visualViewport?.removeEventListener("resize", syncViewportHeight);
-    };
-  }, [fallbackExamLockOn, isCountdownReady]);
-
-  const markViolationAndLeave = useCallback(
-    async (reason) => {
-      if (!examId || violationLockRef.current || finishLockRef.current) return;
-      violationLockRef.current = true;
-      try {
-        await markViolation({ exam_id: examId, reason }).unwrap();
-      } catch {
-        // ignore, redirect tetap dijalankan
-      } finally {
-        await exitFullscreenExam();
-        message.error(
-          "Pelanggaran terdeteksi. Anda dikeluarkan dari ujian dan harus meminta izin pengawas.",
-        );
-        navigate("/siswa/jadwal-ujian");
+  const applyViolationPayload = useCallback(
+    (payload) => {
+      if (!payload) return false;
+      const nextStrike = Number(payload.strike_count);
+      if (Number.isFinite(nextStrike)) {
+        strikeRef.current = nextStrike;
+        setStrikeCount(nextStrike);
       }
+      if (!payload.kicked || kickedRedirectRef.current) return Boolean(payload.kicked);
+      kickedRedirectRef.current = true;
+      setAwayPhase("recorded");
+      setAwayRemaining(0);
+      setAwayOpen(true);
+      message.error(
+        "Batas pelanggaran tercapai. Anda dikeluarkan dari ujian dan harus meminta izin pengawas.",
+      );
+      window.setTimeout(() => {
+        navigate("/siswa/jadwal-ujian");
+      }, 1400);
+      return true;
     },
-    [examId, markViolation, navigate],
+    [navigate],
   );
-
-  useEffect(() => {
-    if (!isCountdownReady) return;
-    setFullScreenOn(
-      isFullscreenActive() || isStandaloneDisplayMode() || fallbackExamLockOn,
-    );
-    if (autoFullscreenAttemptedRef.current) return;
-    autoFullscreenAttemptedRef.current = true;
-    requestFullscreen();
-  }, [fallbackExamLockOn, isCountdownReady, requestFullscreen]);
 
   useEffect(() => {
     if (!isCountdownReady || !examId) return;
 
-    const onFullscreenChange = () => {
-      const active =
-        isFullscreenActive() ||
-        isStandaloneDisplayMode() ||
-        fallbackExamLockOn;
-      setFullScreenOn(active);
-      if (!active && !violationLockRef.current) {
-        markViolationAndLeave("exit_fullscreen");
+    const sendAway = (action) =>
+      markViolation({ exam_id: examId, action })
+        .unwrap()
+        .catch(() => null);
+
+    const onHide = () => {
+      if (finishLockRef.current || awayActiveRef.current || kickedRedirectRef.current) {
+        return;
       }
+      awayActiveRef.current = true;
+      expireSentRef.current = false;
+      returnStartedRef.current = false;
+      leftAtRef.current = Date.now();
+      setAwayPhase("counting");
+      setAwayRemaining(durationRef.current);
+      setAwayOpen(true);
+      void sendAway("leave");
+    };
+
+    const onShow = () => {
+      if (!awayActiveRef.current) return;
+      returnStartedRef.current = true;
+      const elapsed = leftAtRef.current
+        ? Math.floor((Date.now() - leftAtRef.current) / 1000)
+        : durationRef.current;
+      const remain = Math.max(0, durationRef.current - elapsed);
+      setAwayRemaining(remain);
+      void sendAway("return").then((payload) => {
+        awayActiveRef.current = false;
+        leftAtRef.current = null;
+        if (!payload) {
+          setAwayOpen(false);
+          return;
+        }
+        const strikeBefore = strikeRef.current;
+        const kicked = applyViolationPayload(payload);
+        if (kicked) return;
+        const nextStrike = Number(payload.strike_count);
+        const strikeIncreased =
+          Number.isFinite(nextStrike) && nextStrike > strikeBefore;
+        if (payload.recorded || strikeIncreased) {
+          if (Number.isFinite(nextStrike)) {
+            strikeRef.current = nextStrike;
+            setStrikeCount(nextStrike);
+          }
+          setAwayPhase("recorded");
+          setAwayRemaining(0);
+          setAwayOpen(true);
+          window.setTimeout(() => setAwayOpen(false), 1600);
+          return;
+        }
+        setAwayPhase("safe");
+        setAwayOpen(true);
+        window.setTimeout(() => setAwayOpen(false), 1100);
+      });
     };
 
     const onVisibilityChange = () => {
-      if (document.hidden) {
-        markViolationAndLeave("switch_tab");
-      }
-    };
-
-    const onBlur = () => {
-      if (!document.hidden) {
-        markViolationAndLeave("window_blur");
-      }
+      if (document.hidden) onHide();
+      else onShow();
     };
 
     const onPageHide = () => {
-      markViolationAndLeave("page_hide");
+      if (!examId || finishLockRef.current) return;
+      try {
+        fetch(`/api/cbt/student-exams/${examId}/violation`, {
+          method: "POST",
+          credentials: "include",
+          keepalive: true,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "leave" }),
+        });
+      } catch {
+        // abaikan jika halaman sudah tertutup
+      }
     };
 
     const blockedCtrlKeys = new Set(["tab", "t", "w", "n", "r"]);
@@ -389,30 +337,58 @@ const ExamInterface = () => {
       const lowerKey = key.toLowerCase();
       const isTabCombo = key === "Tab" && event.altKey;
       const isCtrlCombo = event.ctrlKey && blockedCtrlKeys.has(lowerKey);
-      const isFunctionKey =
-        key === "F11" || key === "F12" || key === "Escape";
+      const isFunctionKey = key === "F11" || key === "F12" || key === "Escape";
 
       if (isTabCombo || isCtrlCombo || isFunctionKey) {
         event.preventDefault();
       }
     };
 
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+    const timer = window.setInterval(() => {
+      if (returnStartedRef.current) return;
+      if (!awayActiveRef.current || !leftAtRef.current || expireSentRef.current) {
+        return;
+      }
+      const elapsed = Math.floor((Date.now() - leftAtRef.current) / 1000);
+      const remain = Math.max(0, durationRef.current - elapsed);
+      setAwayRemaining(remain);
+      if (remain > 0) return;
+      expireSentRef.current = true;
+      void sendAway("expire").then((payload) => {
+        if (returnStartedRef.current) return;
+        if (!payload?.recorded && !payload?.kicked) {
+          window.setTimeout(() => {
+            if (awayActiveRef.current) expireSentRef.current = false;
+          }, 1000);
+          return;
+        }
+        const kicked = applyViolationPayload(payload);
+        if (kicked) {
+          awayActiveRef.current = false;
+          return;
+        }
+        const nextStrike = Number(payload.strike_count);
+        if (Number.isFinite(nextStrike)) {
+          strikeRef.current = nextStrike;
+          setStrikeCount(nextStrike);
+        }
+        setAwayPhase("recorded");
+        setAwayRemaining(0);
+        setAwayOpen(true);
+      });
+    }, 250);
+
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("blur", onBlur);
     window.addEventListener("pagehide", onPageHide);
     window.addEventListener("keydown", onKeyDown, true);
 
     return () => {
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
+      window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("blur", onBlur);
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [examId, fallbackExamLockOn, isCountdownReady, markViolationAndLeave]);
+  }, [applyViolationPayload, examId, isCountdownReady, markViolation]);
 
   const questions = useMemo(() => examData?.questions || [], [examData?.questions]);
   const totalQuestions = questions.length;
@@ -430,12 +406,14 @@ const ExamInterface = () => {
     setAnswers({});
     setDoubts({});
     hasHydratedRef.current = false;
-    violationLockRef.current = false;
     finishLockRef.current = false;
-    autoFullscreenAttemptedRef.current = false;
-    setFallbackExamLockOn(false);
-    setFullScreenOn(isFullscreenActive() || isStandaloneDisplayMode());
-    setFullScreenNotice("");
+    awayActiveRef.current = false;
+    expireSentRef.current = false;
+    leftAtRef.current = null;
+    kickedRedirectRef.current = false;
+    returnStartedRef.current = false;
+    setAwayOpen(false);
+    setAwayPhase("counting");
   }, [examId]);
 
   useEffect(() => {
@@ -585,10 +563,7 @@ const ExamInterface = () => {
   return (
     <Layout
       style={{
-        minHeight: viewportHeight ? `${viewportHeight}px` : "100vh",
-        height:
-          fallbackExamLockOn && viewportHeight ? `${viewportHeight}px` : "auto",
-        overflow: fallbackExamLockOn ? "hidden" : "visible",
+        minHeight: "100vh",
         background:
           "radial-gradient(circle at 10% 10%, rgba(30, 94, 255, 0.16), transparent 45%), radial-gradient(circle at 90% 0%, rgba(20, 184, 166, 0.18), transparent 40%), linear-gradient(160deg, #f6f8ff 0%, #f9fbff 50%, #ffffff 100%)",
       }}
@@ -678,6 +653,12 @@ const ExamInterface = () => {
                       <Tag color="blue">{user?.nis || "-"}</Tag>
                       <Tag color="green">{user?.class_name || "-"}</Tag>
                       <Tag color="cyan">Mengerjakan</Tag>
+                      <Tag
+                        color={strikeCount > 0 ? "red" : "default"}
+                        icon={<TriangleAlert size={12} />}
+                      >
+                        Pelanggaran {strikeCount}/{violationTolerance}
+                      </Tag>
                     </Space>
                   </div>
                 </Space>
@@ -833,51 +814,61 @@ const ExamInterface = () => {
         </Space>
       </Content>
 
-      {isCountdownReady && !fullScreenOn && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(7, 16, 38, 0.88)",
-            display: "grid",
-            placeItems: "center",
-            padding: 24,
-          }}
-        >
-          <Card
+      <Modal
+        open={awayOpen}
+        title={
+          awayPhase === "recorded"
+            ? "Pelanggaran tercatat"
+            : awayPhase === "safe"
+              ? "Anda kembali tepat waktu"
+              : "Anda meninggalkan halaman ujian"
+        }
+        footer={null}
+        closable={false}
+        maskClosable={false}
+        keyboard={false}
+        centered
+      >
+        <Flex vertical align="center" gap={8} style={{ padding: "8px 0 4px" }}>
+          <Title
             style={{
-              width: "100%",
-              maxWidth: 520,
-              borderRadius: 16,
-              border: "1px solid #1f5eff",
+              margin: 0,
+              fontSize: 72,
+              lineHeight: 1,
+              color: awayPhase === "recorded" ? "#dc2626" : "#1d4ed8",
             }}
           >
-            <Space direction="vertical" size={14} style={{ width: "100%" }}>
-              <Title level={4} style={{ margin: 0 }}>
-                Mode Ujian Terkunci
-              </Title>
-              <Text>
-                Ujian harus berjalan dalam mode terkunci. Jika browser mendukung
-                fullscreen maka sistem akan memakainya. Jika tidak, halaman akan
-                dikunci memenuhi layar dan perpindahan tab/aplikasi tetap
-                dianggap pelanggaran.
-              </Text>
-              {fullScreenNotice ? (
-                <Text type="danger">{fullScreenNotice}</Text>
-              ) : null}
-              <Button
-                type="primary"
-                size="large"
-                loading={isRequestingFullscreen}
-                onClick={requestFullscreen}
-              >
-                Aktifkan Mode Ujian
-              </Button>
-            </Space>
-          </Card>
-        </div>
-      )}
+            {awayRemaining}
+          </Title>
+          <Text type="secondary">detik</Text>
+          {awayPhase === "counting" ? (
+            <Text style={{ textAlign: "center" }}>
+              Kembali ke tab ujian sebelum hitungan habis. Jika waktu ini
+              terlewati, pelanggaran bertambah tanpa mengeluarkan Anda dari
+              ujian.
+            </Text>
+          ) : null}
+          {awayPhase === "safe" ? (
+            <Text style={{ textAlign: "center" }}>
+              Anda kembali sebelum {violationDurationSeconds} detik. Pelanggaran
+              tidak bertambah.
+            </Text>
+          ) : null}
+          {awayPhase === "recorded" && strikeCount >= violationTolerance ? (
+            <Text style={{ textAlign: "center" }}>
+              Pelanggaran {strikeCount}/{violationTolerance}. Batas toleransi
+              tercapai. Anda dikeluarkan dari ujian dan harus meminta izin
+              pengawas.
+            </Text>
+          ) : null}
+          {awayPhase === "recorded" && strikeCount < violationTolerance ? (
+            <Text style={{ textAlign: "center" }}>
+              Pelanggaran {strikeCount}/{violationTolerance}. Ujian tetap
+              berjalan selama jumlah ini belum mencapai toleransi.
+            </Text>
+          ) : null}
+        </Flex>
+      </Modal>
 
       <QuestionListModal
         open={isSmallScreen && isQuestionListOpen}
