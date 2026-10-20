@@ -20,6 +20,7 @@ import {
   RefreshCcw,
   Search,
   Settings2,
+  TriangleAlert,
   UserCheck,
   UserX,
 } from "lucide-react";
@@ -40,14 +41,15 @@ const AttendanceTable = ({
   isMobile = false,
   isLoading = false,
 }) => {
-  const [pollingMinutes, setPollingMinutes] = useState(5);
-  const { isLoading: pollingLoading } = useGetExamAttendanceQuery(
-    { exam_id: examId },
-    {
-      skip: !examId,
-      pollingInterval: pollingMinutes * 60 * 1000,
-    },
-  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { isLoading: pollingLoading, refetch: refetchAttendance } =
+    useGetExamAttendanceQuery(
+      { exam_id: examId },
+      {
+        skip: !examId,
+        pollingInterval: 3 * 60 * 1000,
+      },
+    );
   const [allowExamStudent, { isLoading: allowLoading }] =
     useAllowExamStudentMutation();
   const [repeatExamStudent, { isLoading: repeatLoading }] =
@@ -59,6 +61,15 @@ const AttendanceTable = ({
   const [classFilter, setClassFilter] = useState("all");
   const tableLoading = isLoading || pollingLoading;
   const normalizeStatus = (value) => (value === "izin" ? "izinkan" : value);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetchAttendance();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const classOptions = useMemo(() => {
     const classes = Array.from(
@@ -364,6 +375,22 @@ const AttendanceTable = ({
           </div>
 
           <Flex
+            align='center'
+            gap={8}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 14,
+              background: "#fff7ed",
+              border: "1px solid #fed7aa",
+            }}
+          >
+            <TriangleAlert size={14} color='#c2410c' />
+            <Text style={{ color: "#9a3412" }}>
+              Jumlah pelanggaran: {item.violationCount ?? 0}
+            </Text>
+          </Flex>
+
+          <Flex
             wrap='wrap'
             gap={8}
             style={{ flexDirection: isMobile ? "column" : "row" }}
@@ -512,19 +539,14 @@ const AttendanceTable = ({
                 onChange={(event) => setSearchText(event.target.value)}
                 style={{ width: isMobile ? "100%" : 260, maxWidth: "100%" }}
               />
-              <Select
-                value={pollingMinutes}
-                onChange={setPollingMinutes}
-                style={{ width: isMobile ? "100%" : 180, maxWidth: "100%" }}
-                options={[
-                  { value: 1, label: "Auto Update 1 menit" },
-                  { value: 2, label: "Auto Update 2 menit" },
-                  { value: 3, label: "Auto Update 3 menit" },
-                  { value: 4, label: "Auto Update 4 menit" },
-                  { value: 5, label: "Auto Update 5 menit" },
-                ]}
-                virtual={false}
-              />
+              <Button
+                icon={<RefreshCcw size={14} />}
+                loading={isRefreshing}
+                onClick={handleRefresh}
+                block={isMobile}
+              >
+                Refresh
+              </Button>
               <Select
                 value={statusFilter}
                 onChange={setStatusFilter}
