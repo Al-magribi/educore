@@ -119,7 +119,8 @@ const AppLayout = ({ children, title, asShell = false }) => {
         if (
           currentUser?.role === "teacher" &&
           item.key === "/manajemen-piket" &&
-          !currentUser?.has_duty_today
+          !currentUser?.has_duty_today &&
+          !currentUser?.can_manage_kurikulum
         ) {
           return null;
         }
@@ -162,7 +163,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
       return nextItem;
     });
-
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -179,6 +179,9 @@ const AppLayout = ({ children, title, asShell = false }) => {
         break;
       case "parent":
         items = combinedMenus.parent;
+        break;
+      case "staff":
+        items = combinedMenus.staff;
         break;
       case "center":
         items = combinedMenus.center;
@@ -287,6 +290,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
           // Keep default mini/closed state across breakpoint changes.
           setCollapsed(true);
         }}
+        className='app-sider'
         style={{
           background: "#001529",
           boxShadow: "2px 0 6px rgba(0,21,41,0.35)",
@@ -295,56 +299,61 @@ const AppLayout = ({ children, title, asShell = false }) => {
           top: 0,
           left: 0,
           zIndex: isMobile ? 1002 : 101,
+          overflow: "hidden",
         }}
         zeroWidthTriggerStyle={{ top: "10px" }} // Menyesuaikan posisi trigger bawaan jika ada
       >
-        {/* Logo Area */}
-        <div
-          style={{
-            height: 72,
-            margin: 12,
-            padding: collapsed ? "0" : "0 14px",
-            background: "rgba(255, 255, 255, 0.18)",
-            borderRadius: borderRadiusLG,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: collapsed ? "center" : "flex-start",
-            color: "white",
-            fontWeight: "bold",
-            overflow: "hidden",
-            whiteSpace: "nowrap",
-            transition: "all 0.2s",
-          }}
-        >
-          {collapsed ? (
-            <Avatar size={38} src={publicConfig?.app_logo} />
-          ) : (
-            <Space size={10}>
+        <div className='app-sider-shell'>
+          {/* Logo Area — stays pinned while the menu scrolls */}
+          <div
+            style={{
+              flexShrink: 0,
+              height: 72,
+              margin: 12,
+              padding: collapsed ? "0" : "0 14px",
+              background: "rgba(255, 255, 255, 0.18)",
+              borderRadius: borderRadiusLG,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: collapsed ? "center" : "flex-start",
+              color: "white",
+              fontWeight: "bold",
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+              transition: "all 0.2s",
+            }}
+          >
+            {collapsed ? (
               <Avatar size={38} src={publicConfig?.app_logo} />
-              <Text
-                style={{
-                  color: "white",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  margin: 0,
-                }}
-                ellipsis
-              >
-                {publicConfig?.app_name}
-              </Text>
-            </Space>
-          )}
-          {/* Ganti icon jika collapsed agar tidak blank */}
-        </div>
+            ) : (
+              <Space size={10}>
+                <Avatar size={38} src={publicConfig?.app_logo} />
+                <Text
+                  style={{
+                    color: "white",
+                    fontSize: 18,
+                    fontWeight: 700,
+                    margin: 0,
+                  }}
+                  ellipsis
+                >
+                  {publicConfig?.app_name}
+                </Text>
+              </Space>
+            )}
+          </div>
 
-        <Menu
-          theme='dark'
-          mode='inline'
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={handleMenuClick}
-          style={{ borderRight: 0 }}
-        />
+          <div className='app-sider-nav'>
+            <Menu
+              theme='dark'
+              mode='inline'
+              selectedKeys={[location.pathname]}
+              items={menuItems}
+              onClick={handleMenuClick}
+              style={{ borderRight: 0 }}
+            />
+          </div>
+        </div>
       </Sider>
 
       {isMobile && !collapsed && (
