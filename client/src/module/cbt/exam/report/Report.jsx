@@ -156,6 +156,7 @@ const Report = ({ exam_id, exam_name, token }) => {
       browser: item.browser || "-",
       startAt: item.start_at || "-",
       status: item.status || "belum_masuk",
+      violationCount: Number(item.violation_count) || 0,
     }));
   }, [attendanceResponse]);
 
