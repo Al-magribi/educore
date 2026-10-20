@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { isIP } from "node:net";
+import pool from "../../config/connection.js";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { getActivePeriode } from "../../utils/helper.js";
@@ -625,6 +626,193 @@ const getAllowAttendanceStatus = async (db) => {
   return "izinkan";
 };
 
+const VIOLATION_TOLERANCE_DEFAULT = 3;
+const VIOLATION_DURATION_DEFAULT = 5;
+
+let examSecurityReady = null;
+
+const ensureExamSecuritySchema = () => {
+  if (examSecurityReady) return examSecurityReady;
+
+  examSecurityReady = (async () => {
+    await pool.query(`
+      ALTER TABLE cbt.c_exam
+      ADD COLUMN IF NOT EXISTS violation_tolerance integer NOT NULL DEFAULT 3
+    `);
+    await pool.query(`
+      ALTER TABLE cbt.c_exam
+      ADD COLUMN IF NOT EXISTS violation_duration_seconds integer NOT NULL DEFAULT 5
+    `);
+    await pool.query(`
+      ALTER TABLE cbt.c_exam_attendance
+      ADD COLUMN IF NOT EXISTS violation_count integer NOT NULL DEFAULT 0
+    `);
+    await pool.query(`
+      ALTER TABLE cbt.c_exam_attendance
+      ADD COLUMN IF NOT EXISTS violation_baseline integer NOT NULL DEFAULT 0
+    `);
+    await pool.query(`
+      ALTER TABLE cbt.c_exam_attendance
+      ADD COLUMN IF NOT EXISTS away_started_at timestamptz
+    `);
+    await pool.query(`
+      ALTER TABLE cbt.c_exam_attendance
+      ADD COLUMN IF NOT EXISTS away_counted boolean NOT NULL DEFAULT false
+    `);
+  })().catch((error) => {
+    examSecurityReady = null;
+    throw error;
+  });
+
+  return examSecurityReady;
+};
+
+const parseViolationSetting = (value, label) => {
+  const parsed = parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return { error: `${label} minimal 1` };
+  }
+  return { value: parsed };
+};
+
+const readViolationState = async (db, examId, studentId) => {
+  const result = await db.query(
+    `
+      SELECT
+        a.status,
+        COALESCE(a.violation_count, 0) AS violation_count,
+        COALESCE(a.violation_baseline, 0) AS violation_baseline,
+        a.away_started_at,
+        COALESCE(a.away_counted, false) AS away_counted,
+        COALESCE(e.violation_tolerance, $3) AS violation_tolerance,
+        COALESCE(e.violation_duration_seconds, $4) AS violation_duration_seconds
+      FROM cbt.c_exam_attendance a
+      JOIN cbt.c_exam e ON e.id = a.exam_id
+      WHERE a.exam_id = $1 AND a.student_id = $2
+      LIMIT 1
+    `,
+    [
+      examId,
+      studentId,
+      VIOLATION_TOLERANCE_DEFAULT,
+      VIOLATION_DURATION_DEFAULT,
+    ],
+  );
+
+  return result.rows[0] || null;
+};
+
+const presentViolationState = (row, recorded = false) => {
+  const violationCount = Number(row?.violation_count) || 0;
+  const baseline = Number(row?.violation_baseline) || 0;
+  const tolerance = Number(row?.violation_tolerance) || VIOLATION_TOLERANCE_DEFAULT;
+  const durationSeconds =
+    Number(row?.violation_duration_seconds) || VIOLATION_DURATION_DEFAULT;
+  const status = normalizeAttendanceStatus(row?.status);
+
+  return {
+    status,
+    violation_count: violationCount,
+    violation_baseline: baseline,
+    strike_count: Math.max(0, violationCount - baseline),
+    violation_tolerance: tolerance,
+    violation_duration_seconds: durationSeconds,
+    recorded: Boolean(recorded),
+    kicked: status === "pelanggaran",
+  };
+};
+
+const recordAwayViolationIfDue = async (db, examId, studentId) => {
+  const updated = await db.query(
+    `
+      UPDATE cbt.c_exam_attendance AS attendance
+      SET
+        violation_count = attendance.violation_count + 1,
+        away_counted = true,
+        status = CASE
+          WHEN (
+            attendance.violation_count + 1 - COALESCE(attendance.violation_baseline, 0)
+          ) >= COALESCE(exam.violation_tolerance, $3)
+            THEN 'pelanggaran'
+          ELSE attendance.status
+        END,
+        updated_at = NOW()
+      FROM cbt.c_exam AS exam
+      WHERE exam.id = attendance.exam_id
+        AND attendance.exam_id = $1
+        AND attendance.student_id = $2
+        AND attendance.status = 'mengerjakan'
+        AND attendance.away_started_at IS NOT NULL
+        AND COALESCE(attendance.away_counted, false) = false
+        AND EXTRACT(EPOCH FROM (NOW() - attendance.away_started_at))
+            >= COALESCE(exam.violation_duration_seconds, $4)
+      RETURNING attendance.id
+    `,
+    [
+      examId,
+      studentId,
+      VIOLATION_TOLERANCE_DEFAULT,
+      VIOLATION_DURATION_DEFAULT,
+    ],
+  );
+
+  return updated.rowCount > 0;
+};
+
+const clearAwayMark = async (db, examId, studentId) => {
+  await db.query(
+    `
+      UPDATE cbt.c_exam_attendance
+      SET away_started_at = NULL,
+          away_counted = false,
+          updated_at = NOW()
+      WHERE exam_id = $1
+        AND student_id = $2
+        AND (away_started_at IS NOT NULL OR away_counted = true)
+    `,
+    [examId, studentId],
+  );
+};
+
+const markAwayStart = async (db, examId, studentId) => {
+  await db.query(
+    `
+      UPDATE cbt.c_exam_attendance
+      SET
+        away_started_at = COALESCE(away_started_at, NOW()),
+        away_counted = CASE
+          WHEN away_started_at IS NULL THEN false
+          ELSE away_counted
+        END,
+        updated_at = NOW()
+      WHERE exam_id = $1
+        AND student_id = $2
+        AND status = 'mengerjakan'
+    `,
+    [examId, studentId],
+  );
+};
+
+const settleStudentAway = async (db, examId, studentId, action) => {
+  await ensureExamSecuritySchema();
+  const before = await readViolationState(db, examId, studentId);
+  if (!before) return null;
+
+  if (action === "leave") {
+    await markAwayStart(db, examId, studentId);
+    const afterLeave = await readViolationState(db, examId, studentId);
+    return presentViolationState(afterLeave, false);
+  }
+
+  const incremented = await recordAwayViolationIfDue(db, examId, studentId);
+  const recorded = incremented || Boolean(before.away_counted);
+  if (action === "return") {
+    await clearAwayMark(db, examId, studentId);
+  }
+  const after = await readViolationState(db, examId, studentId);
+  return presentViolationState(after, recorded && (incremented || before.away_counted));
+};
+
 const normalizeBloomLevel = (value) => {
   const parsed = parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) {
@@ -989,6 +1177,7 @@ router.get(
   "/get-exams",
   authorize("satuan", "teacher"),
   withQuery(async (req, res, pool) => {
+    await ensureExamSecuritySchema();
     const { page = 1, limit = 10, search = "" } = req.query;
     const { id: userId, role, homebase_id } = req.user;
     const normalizedSearch = String(search || "").trim();
@@ -1031,6 +1220,8 @@ router.get(
         e.is_active,
         e.is_shuffle,
         e.grade_id,
+        COALESCE(e.violation_tolerance, 3) AS violation_tolerance,
+        COALESCE(e.violation_duration_seconds, 5) AS violation_duration_seconds,
         g.name as grade_name,
         e.created_at,
         b.id as bank_id,
@@ -1326,6 +1517,8 @@ router.get(
       return res.status(400).json({ message: "Kelas siswa tidak ditemukan" });
     }
 
+    await ensureExamSecuritySchema();
+
     const examResult = await pool.query(
       `
         SELECT
@@ -1333,6 +1526,8 @@ router.get(
           e.name,
           e.duration_minutes,
           e.is_shuffle,
+          COALESCE(e.violation_tolerance, 3) AS violation_tolerance,
+          COALESCE(e.violation_duration_seconds, 5) AS violation_duration_seconds,
           b.id as bank_id,
           b.title as bank_title,
           s.name as subject_name,
@@ -1357,10 +1552,13 @@ router.get(
     }
 
     const exam = examResult.rows[0];
+    await settleStudentAway(pool, examId, userId, "return");
     const sessionResult = await pool.query(
       `
         SELECT
           start_at,
+          COALESCE(violation_count, 0) AS violation_count,
+          COALESCE(violation_baseline, 0) AS violation_baseline,
           $3::int as duration_minutes,
           (start_at + ($3::int * INTERVAL '1 minute')) as end_at,
           GREATEST(
@@ -1579,6 +1777,9 @@ router.post(
       return res.status(400).json({ message: "Data jawaban belum diisi" });
     }
 
+    await ensureExamSecuritySchema();
+    await recordAwayViolationIfDue(pool, examId, userId);
+
     const attendanceResult = await pool.query(
       `
         SELECT status
@@ -1681,35 +1882,27 @@ router.post(
   withQuery(async (req, res, pool) => {
     const userId = req.user.id;
     const examId = parseInt(req.params.exam_id, 10);
+    const action = String(req.body?.action || "").trim();
 
     if (!Number.isInteger(examId)) {
       return res.status(400).json({ message: "Exam ID tidak valid" });
     }
 
-    const attendanceResult = await pool.query(
-      `
-        SELECT status
-        FROM cbt.c_exam_attendance
-        WHERE exam_id = $1 AND student_id = $2
-        LIMIT 1
-      `,
-      [examId, userId],
-    );
+    if (!["leave", "return", "expire"].includes(action)) {
+      return res.status(400).json({ message: "Aksi pelanggaran tidak valid" });
+    }
 
-    if (attendanceResult.rowCount === 0) {
+    await ensureExamSecuritySchema();
+    const current = await readViolationState(pool, examId, userId);
+
+    if (!current) {
       return res.status(403).json({
         status: "belum_masuk",
         message: "Anda belum masuk ujian. Silakan masukkan token.",
       });
     }
 
-    const currentStatus = normalizeAttendanceStatus(
-      attendanceResult.rows[0].status,
-    );
-
-    if (currentStatus === "pelanggaran") {
-      return res.json({ message: "Status pelanggaran sudah tercatat." });
-    }
+    const currentStatus = normalizeAttendanceStatus(current.status);
 
     if (currentStatus === "selesai") {
       return res.status(403).json({
@@ -1718,24 +1911,27 @@ router.post(
       });
     }
 
-    if (currentStatus !== "mengerjakan") {
-      return res.status(403).json({
-        status: currentStatus,
-        message: "Status ujian tidak mengizinkan perubahan ke pelanggaran.",
+    if (currentStatus === "pelanggaran") {
+      return res.json({
+        message: "Status pelanggaran sudah tercatat.",
+        ...presentViolationState(current, false),
       });
     }
 
-    await pool.query(
-      `
-        UPDATE cbt.c_exam_attendance
-        SET status = 'pelanggaran',
-            updated_at = NOW()
-        WHERE exam_id = $1 AND student_id = $2
-      `,
-      [examId, userId],
-    );
+    if (currentStatus !== "mengerjakan") {
+      return res.status(403).json({
+        status: currentStatus,
+        message: "Status ujian tidak mengizinkan pencatatan pelanggaran.",
+      });
+    }
 
-    return res.json({ message: "Pelanggaran ujian tercatat." });
+    const settled = await settleStudentAway(pool, examId, userId, action);
+    return res.json({
+      message: settled?.recorded
+        ? "Pelanggaran ujian tercatat."
+        : "Status kehadiran ujian diperbarui.",
+      ...settled,
+    });
   }),
 );
 
@@ -1807,6 +2003,8 @@ router.get(
       return res.status(400).json({ message: "Exam ID tidak valid" });
     }
 
+    await ensureExamSecuritySchema();
+
     const examCheck = await pool.query(
       `
         SELECT e.id, e.duration_minutes, e.token, b.teacher_id, ut.homebase_id
@@ -1873,7 +2071,8 @@ router.get(
             to_char(a.start_at AT TIME ZONE 'Asia/Jakarta', 'DD Mon YYYY, HH24:MI'),
             '-'
           ) as start_at,
-          COALESCE(a.status, 'belum_masuk') as status
+          COALESCE(a.status, 'belum_masuk') as status,
+          COALESCE(a.violation_count, 0) as violation_count
         FROM cbt.c_exam_class ec
         JOIN a_class c ON c.id = ec.class_id
         JOIN student_class sc ON sc.class_id = c.id
@@ -1931,11 +2130,16 @@ router.put(
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
+    await ensureExamSecuritySchema();
     const allowStatus = await getAllowAttendanceStatus(client);
     const attendanceResult = await client.query(
       `
         UPDATE cbt.c_exam_attendance
-        SET status = $3, updated_at = NOW()
+        SET status = $3,
+            violation_baseline = COALESCE(violation_count, 0),
+            away_started_at = NULL,
+            away_counted = false,
+            updated_at = NOW()
         WHERE exam_id = $1 AND student_id = $2
         RETURNING id
       `,
@@ -4280,12 +4484,31 @@ router.post(
       grade_id,
       class_ids = [],
       teacher_id,
+      violation_tolerance,
+      violation_duration_seconds,
     } = req.body;
 
     const user = req.user;
 
     if (!bank_id || !name || !duration_minutes) {
       return res.status(400).json({ message: "Form belum lengkap" });
+    }
+
+    await ensureExamSecuritySchema();
+
+    const toleranceSetting = parseViolationSetting(
+      violation_tolerance,
+      "Toleransi pelanggaran",
+    );
+    if (toleranceSetting.error) {
+      return res.status(400).json({ message: toleranceSetting.error });
+    }
+    const durationSetting = parseViolationSetting(
+      violation_duration_seconds,
+      "Durasi pelanggaran",
+    );
+    if (durationSetting.error) {
+      return res.status(400).json({ message: durationSetting.error });
     }
 
     const teacherScope = await ensureTeacherScope({
@@ -4333,9 +4556,19 @@ router.post(
     const insertExam = await client.query(
       `
         INSERT INTO cbt.c_exam
-          (bank_id, name, duration_minutes, token, is_active, is_shuffle, grade_id)
+          (
+            bank_id,
+            name,
+            duration_minutes,
+            token,
+            is_active,
+            is_shuffle,
+            grade_id,
+            violation_tolerance,
+            violation_duration_seconds
+          )
         VALUES 
-          ($1, $2, $3, $4, $5, $6, $7)
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id
       `,
       [
@@ -4346,6 +4579,8 @@ router.post(
         is_active,
         is_shuffle,
         parseInt(grade_id, 10),
+        toleranceSetting.value,
+        durationSetting.value,
       ],
     );
 
@@ -4379,9 +4614,13 @@ router.put(
       grade_id,
       class_ids = [],
       teacher_id,
+      violation_tolerance,
+      violation_duration_seconds,
     } = req.body;
 
     const user = req.user;
+
+    await ensureExamSecuritySchema();
 
     const examCheck = await client.query(
       `
@@ -4420,6 +4659,21 @@ router.put(
       return res.status(400).json({ message: "Form belum lengkap" });
     }
 
+    const toleranceSetting = parseViolationSetting(
+      violation_tolerance,
+      "Toleransi pelanggaran",
+    );
+    if (toleranceSetting.error) {
+      return res.status(400).json({ message: toleranceSetting.error });
+    }
+    const durationSetting = parseViolationSetting(
+      violation_duration_seconds,
+      "Durasi pelanggaran",
+    );
+    if (durationSetting.error) {
+      return res.status(400).json({ message: durationSetting.error });
+    }
+
     const bankCheck = await validateBankOwnership({
       pool: client,
       bankId: parseInt(bank_id, 10),
@@ -4454,8 +4708,10 @@ router.put(
             token = COALESCE($4, token),
             is_active = $5,
             is_shuffle = $6,
-            grade_id = $7
-        WHERE id = $8
+            grade_id = $7,
+            violation_tolerance = $8,
+            violation_duration_seconds = $9
+        WHERE id = $10
       `,
       [
         parseInt(bank_id, 10),
@@ -4465,6 +4721,8 @@ router.put(
         is_active,
         is_shuffle,
         parseInt(grade_id, 10),
+        toleranceSetting.value,
+        durationSetting.value,
         id,
       ],
     );
