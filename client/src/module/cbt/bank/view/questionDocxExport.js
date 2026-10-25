@@ -1055,6 +1055,17 @@ const buildDocumentHtml = ({ bankName, generatedAt, questions }) => {
         <section class="question-section">
           <p class="question-title"><strong>Soal ${index + 1}</strong></p>
           ${buildMetaLine(question)}
+          ${
+            question.preparedStimulus
+              ? `<div class="question-content"><p><strong>${escapeHtml(
+                  question.group_title || "Bacaan",
+                )}${
+                  question.group_order
+                    ? ` · bagian ${escapeHtml(question.group_order)}`
+                    : ""
+                }</strong></p>${question.preparedStimulus}</div>`
+              : ""
+          }
           <div class="question-content">${question.preparedContent || ""}</div>
           ${buildOptionsHtml(question, question.preparedOptions || [])}
           ${buildRubricHtml(question)}
@@ -1183,6 +1194,11 @@ export const exportQuestionsToDocx = async ({ bankName, questions }) => {
         imageCache,
         formulaCache,
       );
+      const preparedStimulus = await prepareRichHtml(
+        question.group_stimulus,
+        imageCache,
+        formulaCache,
+      );
       const preparedOptions = await Promise.all(
         (question.options || []).map(async (option) => ({
           ...option,
@@ -1205,6 +1221,7 @@ export const exportQuestionsToDocx = async ({ bankName, questions }) => {
       return {
         ...question,
         preparedContent,
+        preparedStimulus,
         preparedOptions,
         preparedRubric,
       };
