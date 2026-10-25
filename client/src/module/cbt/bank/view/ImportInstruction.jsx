@@ -98,7 +98,7 @@ const ImportInstruction = () => (
         type="info"
         showIcon
         icon={<Info size={18} />}
-        description="Kolom: type_id, bloom_level (opsional 1–6 / C1–C6), question_text, score_point, option_a–option_e, key. Isi data di sheet Template Soal; petunjuk lengkap ada di sheet Panduan."
+        description="Kolom: group_code, group_title, stimulus, type_id, bloom_level, question_text, score_point, option_a–option_e, key. Soal mandiri mengosongkan tiga kolom grup. Soal yang berbagi bacaan memakai group_code yang sama, berurutan, minimal 2 baris, dan stimulus diisi di baris pertama. Petunjuk lengkap ada di sheet Panduan."
         style={{ borderRadius: 16, marginBottom: 14 }}
       />
 

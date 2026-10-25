@@ -54,11 +54,33 @@ CREATE TABLE cbt.c_question (
     content text NOT NULL,
     media_url text,
     audio_url text,
-    score_point integer DEFAULT 1
+    score_point integer DEFAULT 1,
+    group_id integer,
+    group_order integer
 );
 
 CREATE INDEX idx_c_question_bank
 ON cbt.c_question (bank_id, id);
+
+CREATE TABLE cbt.c_question_group (
+    id SERIAL PRIMARY KEY,
+    bank_id integer REFERENCES cbt.c_bank(id) ON DELETE CASCADE,
+    title varchar(255),
+    stimulus text,
+    order_no integer DEFAULT 1,
+    created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_c_question_group_bank
+ON cbt.c_question_group (bank_id, order_no);
+
+ALTER TABLE cbt.c_question
+  ADD CONSTRAINT c_question_group_id_fkey
+  FOREIGN KEY (group_id) REFERENCES cbt.c_question_group(id) ON DELETE SET NULL;
+
+CREATE INDEX idx_c_question_group_member
+ON cbt.c_question (group_id, group_order);
 
 CREATE TABLE cbt.c_question_options (
     id SERIAL PRIMARY KEY,

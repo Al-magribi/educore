@@ -303,6 +303,31 @@ const QuestionContent = ({
         }}
         styles={{ body: { padding: isSmallScreen ? 14 : 24 } }}
       >
+        {question.group_stimulus ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: isSmallScreen ? 12 : 14,
+              borderRadius: 12,
+              background: "#f5f3ff",
+              border: "1px solid #ddd6fe",
+            }}
+          >
+            <Text
+              style={{
+                display: "block",
+                marginBottom: 8,
+                color: "#6d28d9",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {question.group_title || "Bacaan"}
+              {question.group_order ? ` · bagian ${question.group_order}` : ""}
+            </Text>
+            <RichContentViewer value={question.group_stimulus} />
+          </div>
+        ) : null}
         <div
           style={{
             fontSize: isSmallScreen ? 15 : 16,
@@ -324,72 +349,118 @@ const QuestionContent = ({
         />
       ) : isMatching ? (
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isSmallScreen ? "1fr" : "1.25fr 1fr",
-              gap: 16,
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Text type="secondary" style={{ fontWeight: 600 }}>
-                Premis
-              </Text>
+          <div className="cbt-match-scope">
+            <style>{`
+              .cbt-match-scope { container-type: inline-size; width: 100%; }
+              .cbt-match-board {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 16px;
+                width: 100%;
+              }
+              .cbt-match-col { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+              .cbt-match-heading {
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 0.4px;
+                text-transform: uppercase;
+                color: #64748b;
+              }
+              .cbt-match-card {
+                min-width: 0;
+                border: 1px solid #e7eef8;
+                border-radius: 14px;
+                background: #fff;
+                padding: 12px;
+              }
+              .cbt-match-premis {
+                display: grid;
+                grid-template-columns: 36px minmax(0, 1fr);
+                gap: 10px;
+                align-items: start;
+              }
+              .cbt-match-badge {
+                width: 32px;
+                height: 32px;
+                border-radius: 10px;
+                display: grid;
+                place-items: center;
+                background: #eff6ff;
+                color: #1d4ed8;
+                font-weight: 700;
+                font-size: 13px;
+              }
+              .cbt-match-text {
+                min-width: 0;
+                line-height: 1.5;
+                overflow-wrap: break-word;
+                word-break: normal;
+              }
+              .cbt-match-drop {
+                grid-column: 2;
+                min-height: 48px;
+                min-width: 0;
+                border-radius: 12px;
+                border: 1px dashed #d8e4f8;
+                background: #f8fbff;
+                padding: 8px 12px;
+                display: flex;
+                align-items: center;
+              }
+              .cbt-match-chip {
+                width: 100%;
+                min-width: 0;
+                background: #fff;
+                border-radius: 10px;
+                border: 1px solid #e7eef8;
+                padding: 8px 10px;
+              }
+              .cbt-match-pool { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+              .cbt-match-answer {
+                min-width: 0;
+                border: 1px solid #e7eef8;
+                border-radius: 12px;
+                background: #fff;
+                padding: 12px 14px;
+                cursor: grab;
+              }
+              @container (min-width: 720px) {
+                .cbt-match-board {
+                  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+                  align-items: start;
+                }
+              }
+            `}</style>
+            <div className="cbt-match-board">
+            <div className="cbt-match-col">
+              <div className="cbt-match-heading">Premis</div>
               {leftItems.map((item, idx) => {
                 const assignedId = assignments[item.id];
                 const assignedItem = assignedId
                   ? rightItemsById.get(assignedId)
                   : null;
                 return (
-                  <Card
-                    key={item.id}
-                    styles={{ body: { padding: "12px 16px" } }}
-                    style={{
-                      borderRadius: 14,
-                      borderColor: "#e7eef8",
-                      background: "#fff",
-                    }}
-                  >
-                    <Space
-                      orientation="vertical"
-                      size={10}
-                      style={{ width: "100%" }}
-                    >
-                      <Space align="start">
-                        <Tag color="blue" style={{ minWidth: 32 }}>
-                          {String.fromCharCode(65 + idx)}
-                        </Tag>
-                        <div
-                          style={{
-                            color: palette.subtle,
-                            overflowWrap: "anywhere",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          <RichContentViewer
-                            value={
-                              typeof item.label === "string" ? item.label : "-"
-                            }
-                          />
-                        </div>
-                      </Space>
+                  <div className="cbt-match-card" key={item.id}>
+                    <div className="cbt-match-premis">
+                      <div className="cbt-match-badge">
+                        {String.fromCharCode(65 + idx)}
+                      </div>
+                      <div className="cbt-match-text" style={{ color: palette.ink }}>
+                        <RichContentViewer
+                          value={typeof item.label === "string" ? item.label : "-"}
+                        />
+                      </div>
                       <Droppable droppableId={`left-${item.id}`}>
                         {(provided, snapshot) => (
                           <div
+                            className="cbt-match-drop"
                             ref={provided.innerRef}
                             {...provided.droppableProps}
                             style={{
-                              minHeight: 44,
-                              borderRadius: 12,
-                              border: `1px dashed ${
-                                snapshot.isDraggingOver ? "#1f5eff" : "#d8e4f8"
-                              }`,
+                              borderColor: snapshot.isDraggingOver ? "#1f5eff" : undefined,
                               background: snapshot.isDraggingOver
                                 ? "rgba(31, 94, 255, 0.06)"
-                                : "#f8fbff",
-                              padding: "8px 12px",
-                              display: "flex",
-                              alignItems: "center",
+                                : undefined,
                             }}
                           >
                             {assignedItem ? (
@@ -399,28 +470,20 @@ const QuestionContent = ({
                               >
                                 {(dragProvided, dragSnapshot) => (
                                   <div
+                                    className="cbt-match-chip"
                                     ref={dragProvided.innerRef}
                                     {...dragProvided.draggableProps}
                                     {...dragProvided.dragHandleProps}
                                     style={{
-                                      width: "100%",
-                                      background: "#ffffff",
-                                      borderRadius: 10,
-                                      border: "1px solid #e7eef8",
-                                      padding: "6px 10px",
                                       boxShadow: dragSnapshot.isDragging
                                         ? "0 8px 16px rgba(15, 23, 42, 0.12)"
                                         : "none",
                                       ...dragProvided.draggableProps.style,
+                                      minWidth: 0,
+                                      maxWidth: "100%",
                                     }}
                                   >
-                                    <div
-                                      style={{
-                                        color: palette.ink,
-                                        overflowWrap: "anywhere",
-                                        wordBreak: "break-word",
-                                      }}
-                                    >
+                                    <div className="cbt-match-text" style={{ color: palette.ink }}>
                                       <RichContentViewer
                                         value={
                                           typeof assignedItem.content === "string"
@@ -433,34 +496,26 @@ const QuestionContent = ({
                                 )}
                               </Draggable>
                             ) : (
-                              <Text type="secondary">
-                                Tarik jawaban ke sini
-                              </Text>
+                              <Text type="secondary">Tarik jawaban ke sini</Text>
                             )}
                             {provided.placeholder}
                           </div>
                         )}
                       </Droppable>
-                    </Space>
-                  </Card>
+                    </div>
+                  </div>
                 );
               })}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Text type="secondary" style={{ fontWeight: 600 }}>
-                Daftar Jawaban
-              </Text>
+            <div className="cbt-match-col">
+              <div className="cbt-match-heading">Daftar jawaban</div>
               <Droppable droppableId="right-pool">
                 {(provided) => (
                   <div
+                    className="cbt-match-pool"
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
                   >
                     {rightPool.map((item, idx) => (
                       <Draggable
@@ -469,44 +524,37 @@ const QuestionContent = ({
                         index={idx}
                       >
                         {(dragProvided, dragSnapshot) => (
-                          <Card
+                          <div
+                            className="cbt-match-answer"
                             ref={dragProvided.innerRef}
                             {...dragProvided.draggableProps}
                             {...dragProvided.dragHandleProps}
-                            styles={{ body: { padding: "10px 14px" } }}
                             style={{
-                              borderRadius: 12,
-                              borderColor: "#e7eef8",
-                              background: "#ffffff",
                               boxShadow: dragSnapshot.isDragging
                                 ? "0 10px 18px rgba(15, 23, 42, 0.15)"
                                 : "none",
                               ...dragProvided.draggableProps.style,
+                              minWidth: 0,
+                              maxWidth: "100%",
                             }}
                           >
-                            <div
-                              style={{
-                                color: palette.ink,
-                                overflowWrap: "anywhere",
-                                wordBreak: "break-word",
-                              }}
-                            >
+                            <div className="cbt-match-text" style={{ color: palette.ink }}>
                               <RichContentViewer
-                                value={
-                                  typeof item.content === "string"
-                                    ? item.content
-                                    : ""
-                                }
+                                value={typeof item.content === "string" ? item.content : ""}
                               />
                             </div>
-                          </Card>
+                          </div>
                         )}
                       </Draggable>
                     ))}
+                    {rightPool.length === 0 ? (
+                      <Text type="secondary">Semua jawaban sudah dipasangkan.</Text>
+                    ) : null}
                     {provided.placeholder}
                   </div>
                 )}
               </Droppable>
+            </div>
             </div>
           </div>
         </DragDropContext>

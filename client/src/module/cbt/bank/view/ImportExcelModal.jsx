@@ -19,7 +19,10 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { downloadTemplate } from "./ExcelTemplateManager";
+import {
+  downloadTemplate,
+  parseQuestionImportRows,
+} from "./ExcelTemplateManager";
 import ImportInstruction from "./ImportInstruction";
 import { useBulkCreateQuestionMutation } from "../../../../service/cbt/ApiQuestion";
 
@@ -28,40 +31,18 @@ const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
-const getRowValue = (row, keys = []) => {
-  for (const key of keys) {
-    const value = row?.[key];
-    if (value !== undefined && value !== null && value !== "") {
-      return value;
-    }
-  }
-  return undefined;
+const sheetToImportRows = (sheet, XLSX) => {
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const headers = (matrix[0] || []).map((cell) => String(cell || "").trim());
+  return matrix.slice(1).map((cells, index) => {
+    const row = { __row: index + 2 };
+    headers.forEach((header, column) => {
+      if (!header) return;
+      row[header] = cells[column];
+    });
+    return row;
+  });
 };
-
-const parseInteger = (value) => {
-  const parsed = parseInt(value, 10);
-  return Number.isInteger(parsed) ? parsed : null;
-};
-
-const normalizeBloomLevel = (value) => {
-  const parsed = parseInteger(value);
-  if (!parsed || parsed < 1 || parsed > 6) {
-    return null;
-  }
-  return parsed;
-};
-
-const parseAnswerLetters = (answerKey) =>
-  String(answerKey || "")
-    .toUpperCase()
-    .split(/[,;|\s]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const isBlankImportRow = (row = {}) =>
-  !Object.values(row).some(
-    (value) => value !== undefined && value !== null && String(value).trim() !== "",
-  );
 
 const resolveQuestionSheetName = (workbook, XLSX) => {
   const byName = workbook.SheetNames.find((name) =>
@@ -106,144 +87,12 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = resolveQuestionSheetName(workbook, XLSX);
         const sheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils
-          .sheet_to_json(sheet)
-          .filter((row) => !isBlankImportRow(row));
-
-        if (json.length === 0) {
-          throw new Error(
-            "File Excel kosong atau sheet Template Soal tidak ditemukan.",
-          );
-        }
-
-        const formattedQuestions = json.map((row, index) => {
-          const rowNumber = index + 2;
-          const q_type = parseInteger(
-            getRowValue(row, ["type_id", "Jenis", "jenis"]),
-          );
-          const content = getRowValue(row, [
-            "question_text",
-            "Pertanyaan",
-            "pertanyaan",
-          ]);
-          const scorePoint =
-            parseInteger(getRowValue(row, ["score_point", "Poin", "poin"])) || 1;
-          const answerKey = getRowValue(row, ["key", "Jawaban", "jawaban"]);
-          const bloomLevel = normalizeBloomLevel(
-            getRowValue(row, [
-              "bloom_level",
-              "Bloom Level",
-              "BLOOM_LEVEL",
-              "Bloom",
-              "bloom",
-            ]),
-          );
-
-          if (!q_type || q_type < 1 || q_type > 6) {
-            throw new Error(
-              `Tipe soal tidak valid pada baris ${rowNumber}. Gunakan angka 1 sampai 6.`,
-            );
-          }
-
-          if (!content) {
-            throw new Error(`Pertanyaan wajib diisi pada baris ${rowNumber}.`);
-          }
-
-          let options = [];
-          const correctLetters = parseAnswerLetters(answerKey);
-
-          if ([1, 2].includes(q_type)) {
-            ["a", "b", "c", "d", "e"].forEach((l) => {
-              const optionValue = getRowValue(row, [
-                `option_${l}`,
-                l.toUpperCase(),
-                l,
-              ]);
-              if (optionValue) {
-                options.push({
-                  label: l.toUpperCase(),
-                  content: String(optionValue),
-                  is_correct: correctLetters.includes(l.toUpperCase()),
-                });
-              }
-            });
-
-            if (options.length < 2) {
-              throw new Error(
-                `Soal PG pada baris ${rowNumber} minimal punya 2 opsi (option_a, option_b, ...).`,
-              );
-            }
-            if (!options.some((opt) => opt.is_correct)) {
-              throw new Error(
-                `Kunci jawaban PG tidak valid pada baris ${rowNumber}. Isi kolom key dengan huruf opsi, contoh: A atau A,C.`,
-              );
-            }
-          } else if (q_type === 4) {
-            options = String(answerKey || "")
-              .split(",")
-              .map((v) => ({
-                content: v.trim(),
-                is_correct: true,
-              }))
-              .filter((item) => item.content);
-
-            if (options.length === 0) {
-              throw new Error(
-                `Isian singkat pada baris ${rowNumber} wajib mengisi kolom key, contoh: 0, Kosong.`,
-              );
-            }
-          } else if (q_type === 5) {
-            const normalizedKey = String(answerKey || "")
-              .trim()
-              .toLowerCase();
-            if (!["benar", "salah"].includes(normalizedKey)) {
-              throw new Error(
-                `Benar/Salah pada baris ${rowNumber} wajib mengisi key dengan Benar atau Salah.`,
-              );
-            }
-            options = [
-              {
-                content: "Benar",
-                is_correct: normalizedKey === "benar",
-              },
-              {
-                content: "Salah",
-                is_correct: normalizedKey === "salah",
-              },
-            ];
-          } else if (q_type === 6) {
-            ["a", "b", "c", "d", "e"].forEach((l) => {
-              const val = getRowValue(row, [`option_${l}`, l.toUpperCase(), l]);
-              if (val && String(val).includes("|")) {
-                const [left, right] = String(val)
-                  .split("|")
-                  .map((s) => s.trim());
-                if (left && right) {
-                  options.push({
-                    label: left,
-                    content: right,
-                    is_correct: true,
-                  });
-                }
-              }
-            });
-
-            if (options.length === 0) {
-              throw new Error(
-                `Menjodohkan pada baris ${rowNumber} wajib format option: Sisi Kiri | Sisi Kanan.`,
-              );
-            }
-          }
-
-          return {
-            bank_soal_id: bankId,
-            q_type,
-            bloom_level: bloomLevel,
-            content: String(content),
-            score_point: scorePoint,
-            options,
-          };
-        });
+        const formattedQuestions = parseQuestionImportRows(
+          sheetToImportRows(sheet, XLSX),
+        ).map((question) => ({
+          ...question,
+          bank_soal_id: bankId,
+        }));
 
         await bulkCreateQuestion(formattedQuestions).unwrap();
 
