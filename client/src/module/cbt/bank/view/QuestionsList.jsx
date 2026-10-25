@@ -360,6 +360,21 @@ const QuestionsList = () => {
                     }}>
                     {question.score_point} Pts
                   </Tag>
+                  {question.group_id && (
+                    <Tag
+                      style={{
+                        fontSize: 10,
+                        margin: 0,
+                        borderRadius: 999,
+                        paddingInline: 10,
+                        borderColor: 'rgba(124, 58, 237, 0.2)',
+                        color: '#6d28d9',
+                        background: 'rgba(245, 243, 255, 0.9)',
+                      }}>
+                      {question.group_title || 'Grup soal'}
+                      {question.group_order ? ` · ${question.group_order}` : ''}
+                    </Tag>
+                  )}
                   <Tooltip
                     title={
                       question.bloom_level
@@ -434,24 +449,14 @@ const QuestionsList = () => {
             </Space>
           </Flex>
 
-          {question.group_id && question.group_order === 1 ? (
-            <Flex
-              vertical
-              gap={6}
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                background: 'rgba(14, 165, 233, 0.06)',
-                border: '1px solid rgba(14, 165, 233, 0.22)',
-              }}>
-              <Text strong style={{ fontSize: 12 }}>
-                Stimulus {question.group_title || 'grup soal'}
-              </Text>
-              <RichContentViewer value={question.group_stimulus} />
-            </Flex>
-          ) : null}
-
-          <QuestionItem question={question} />
+          <QuestionItem
+            question={question}
+            groupSize={
+              question.group_id
+                ? questions.filter((item) => item.group_id === question.group_id).length
+                : 0
+            }
+          />
 
           <Flex
             justify="space-between"
