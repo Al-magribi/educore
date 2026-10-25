@@ -90,6 +90,92 @@ const normalizeRichTextField = (value) => {
   return String(value);
 };
 
+const collectImportGroups = (questions) => {
+  const groups = [];
+  let current = null;
+  const seenCodes = new Set();
+
+  questions.forEach((question, index) => {
+    const code = String(question.group_code || "").trim();
+    const normalizedCode = code.toLowerCase();
+    const title = String(question.group_title || "").trim();
+    const stimulus = String(question.stimulus || "").trim();
+    const label = `soal ke-${index + 1}`;
+
+    if (!normalizedCode) {
+      if (title || stimulus) {
+        const error = new Error(
+          `${label} mengisi bacaan tanpa group_code.`,
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+      current = null;
+      question._group = null;
+      question._groupOrder = null;
+      return;
+    }
+
+    if (!current || current.normalizedCode !== normalizedCode) {
+      if (seenCodes.has(normalizedCode)) {
+        const error = new Error(
+          `Kode grup "${code}" terputus. Soal dalam satu grup harus ditulis berurutan.`,
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+      seenCodes.add(normalizedCode);
+      current = {
+        code,
+        normalizedCode,
+        title: title || null,
+        stimulus,
+        count: 0,
+      };
+      groups.push(current);
+    } else if (stimulus && current.stimulus && stimulus !== current.stimulus) {
+      const error = new Error(
+        `Teks bacaan grup "${current.code}" tidak sama pada ${label}.`,
+      );
+      error.statusCode = 400;
+      throw error;
+    } else {
+      if (!current.stimulus && stimulus) current.stimulus = stimulus;
+      if (!current.title && title) current.title = title;
+    }
+
+    current.count += 1;
+    question._group = current;
+    question._groupOrder = current.count;
+  });
+
+  groups.forEach((group) => {
+    if (group.count < 2) {
+      const error = new Error(
+        `Grup "${group.code}" hanya berisi 1 soal. Satu grup minimal 2 soal.`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!group.stimulus) {
+      const error = new Error(
+        `Grup "${group.code}" wajib memiliki teks bacaan pada kolom stimulus.`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+    if (group.title && group.title.length > 255) {
+      const error = new Error(
+        `Judul grup "${group.code}" maksimal 255 karakter.`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+  });
+
+  return groups;
+};
+
 const normalizeQuestionOptions = (options = []) => {
   if (!Array.isArray(options)) return [];
 
@@ -440,26 +526,78 @@ router.post(
       return res.status(400).json({ message: "Data tidak valid" });
     }
 
+    const bankIds = [
+      ...new Set(
+        questions
+          .map((question) => parseInt(question.bank_soal_id, 10))
+          .filter((id) => Number.isInteger(id)),
+      ),
+    ];
+    if (bankIds.length !== 1) {
+      return res.status(400).json({ message: "Bank soal tidak valid" });
+    }
+
+    let importGroups;
+    try {
+      importGroups = collectImportGroups(questions);
+    } catch (error) {
+      if (error.statusCode === 400) {
+        return res.status(400).json({ message: error.message });
+      }
+      throw error;
+    }
+
+    const groupIdByRef = new Map();
+    const bankId = bankIds[0];
+    let nextGroupOrder = 1;
+    if (Number.isInteger(bankId)) {
+      const orderResult = await client.query(
+        `SELECT COALESCE(MAX(order_no), 0) AS max_order
+         FROM cbt.c_question_group
+         WHERE bank_id = $1`,
+        [bankId],
+      );
+      nextGroupOrder = Number(orderResult.rows[0]?.max_order || 0) + 1;
+    }
+
+    for (const group of importGroups) {
+      const insertedGroup = await client.query(
+        `INSERT INTO cbt.c_question_group (bank_id, title, stimulus, order_no)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
+        [
+          bankId,
+          group.title,
+          normalizeRichTextField(group.stimulus),
+          nextGroupOrder,
+        ],
+      );
+      nextGroupOrder += 1;
+      groupIdByRef.set(group, insertedGroup.rows[0].id);
+    }
+
     for (const q of questions) {
       const normalizedBloomLevel = normalizeBloomLevel(q.bloom_level);
       const normalizedContent = normalizeRichTextField(q.content);
       const normalizedOptions = normalizeQuestionOptions(q.options);
-      // 1. Insert Soal Utama
+      const groupId = q._group ? groupIdByRef.get(q._group) : null;
       const resQ = await client.query(
-        `INSERT INTO cbt.c_question (bank_id, q_type, bloom_level, content, score_point)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        `INSERT INTO cbt.c_question
+          (bank_id, q_type, bloom_level, content, score_point, group_id, group_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [
           q.bank_soal_id,
           q.q_type,
           normalizedBloomLevel,
           normalizedContent,
           q.score_point,
-        ], // score_weight dari frontend
+          groupId,
+          q._groupOrder || null,
+        ],
       );
 
       const questionId = resQ.rows[0].id;
 
-      // 2. Insert Opsi/Jawaban
       if (normalizedOptions.length > 0) {
         const optQuery = `INSERT INTO cbt.c_question_options (question_id, label, content, is_correct) VALUES ($1, $2, $3, $4)`;
         for (const opt of normalizedOptions) {
