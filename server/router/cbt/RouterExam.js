@@ -5,6 +5,11 @@ import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { getActivePeriode } from "../../utils/helper.js";
 import { computeItemAnalysis } from "../../utils/itemAnalysis.js";
+import { computeExamScoresForStudents } from "../../services/cbt/examScores.js";
+import {
+  canManageCbt,
+  isForbiddenCbtOwner,
+} from "../../utils/staffAssignment.js";
 import {
   annotateQuestionGroups,
   groupQuestionsIntoBlocks,
