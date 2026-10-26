@@ -170,6 +170,9 @@ Catatan penting:
 - Alasan utamanya: bot GitHub Actions yang dipakai untuk sync tidak memiliki izin `workflows`, sehingga perubahan workflow harus tetap dilakukan dari branch yang memang punya kredensial yang sesuai, biasanya `main`.
 - Kalau ada perubahan workflow di `main`, branch feature lokal Anda tidak otomatis berubah file workflow-nya. Itu normal.
 - Untuk pekerjaan harian, fokus saja pada kode fitur. Jangan mengedit workflow dari branch feature kecuali memang sedang memperbaiki alur CI dan tahu konsekuensinya.
+- Push ke `feature/*` menjalankan workflow milik branch itu sendiri. Karena itu setiap perubahan workflow harus dipush dengan isi yang sama ke `main` dan semua `feature/*`.
+- Sync tidak lagi menyelesaikan konflik secara otomatis. Jika `main` konflik dengan sebuah `feature/*`, job gagal, tidak ada yang dipush, dan workflow membuka PR `main -> feature/*`. Selesaikan konflik secara manual dengan mempertahankan perubahan dari kedua sisi.
+- Sebelum push hasil sync, workflow menjalankan `scripts/ci/check-undefined-identifiers.js`. Jika ada fungsi yang dipakai tetapi import-nya hilang, sync gagal dan branch feature tidak berubah.
 
 ## Branch `release/*`
 
@@ -204,7 +207,9 @@ Yang dilakukan workflow publish:
 6. validasi file router API
 7. force-push hasilnya ke `release/cbt-db-lms-finance`
 
-Jika ada konflik merge pada file yang sama, workflow akan memilih isi dari branch yang sedang di-merge. Dengan urutan di atas, prioritas konflik menjadi:
+Sebelum publish, hasil compose divalidasi: semua router API harus bisa di-import dan `scripts/ci/check-undefined-identifiers.js` harus lolos. Jika gagal, branch `release/*` dan `product/*` tidak diperbarui sehingga server tetap memakai build terakhir yang sehat.
+
+Jika ada konflik merge pada file yang sama, workflow akan memilih isi dari branch yang sedang di-merge dan mencatat daftar file yang konflik di ringkasan job (Job Summary). Dengan urutan di atas, prioritas konflik menjadi:
 
 1. `feature/finance`
 2. `feature/lms`
