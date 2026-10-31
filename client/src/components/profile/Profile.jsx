@@ -100,6 +100,13 @@ const roleConfig = {
     gradient: "linear-gradient(135deg, #166534 0%, #4ade80 100%)",
     icon: <Users size={18} />,
   },
+  staff: {
+    label: "Tendik",
+    color: "#475569",
+    light: "#f8fafc",
+    gradient: "linear-gradient(135deg, #334155 0%, #64748b 100%)",
+    icon: <User size={18} />,
+  },
 };
 
 const getRoleConfig = (role) =>
@@ -453,6 +460,12 @@ const Profile = () => {
                 : user?.student_name || "-",
           },
           { label: "Kelas Siswa", value: user?.class_name || "-" },
+          { label: "Homebase", value: user?.homebase_name || "-" },
+        ];
+      case "staff":
+        return [
+          { label: "NIP", value: user?.nip || "-" },
+          { label: "Tugas", value: "Admin keuangan satuan" },
           { label: "Homebase", value: user?.homebase_name || "-" },
         ];
       case "admin":
