@@ -19,6 +19,7 @@ const roleKeys = [
   "student",
   "parent",
   "tahfiz",
+  "staff",
 ];
 
 const buildEmptyMenus = () =>
@@ -77,6 +78,7 @@ const applySpecialOrdering = (groups) => {
   ]);
   merged.admin = mergeRoleMenus(groups, "admin", ["core", "db", "cbt", "lms"]);
   merged.finance = mergeRoleMenus(groups, "finance", ["core", "finance"]);
+  merged.staff = mergeRoleMenus(groups, "staff", ["core", "finance"]);
   merged.teacher = mergeRoleMenus(groups, "teacher", [
     "core",
     "db",
