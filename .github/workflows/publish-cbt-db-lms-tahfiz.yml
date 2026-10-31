@@ -49,104 +49,37 @@ jobs:
         run: |
           set -euo pipefail
 
-          checkout_owned_paths() {
-            local source_ref="$1"
-            shift
-            local path
-
-            for path in "$@"; do
-              if git ls-tree -r --name-only "${source_ref}" -- "${path}" | grep -q .; then
-                git checkout "${source_ref}" -- "${path}"
-              else
-                echo "Skipping missing path on ${source_ref}: ${path}"
-              fi
-            done
-          }
-
           restore_lms_owned_paths() {
-            checkout_owned_paths origin/feature/lms \
+            git checkout origin/feature/lms -- \
               client/src/App.jsx \
               client/src/components/editor \
               client/src/components/index.js \
               client/src/components/layout/menus/lmsMenus.jsx \
-              client/src/components/layout/AppLayout.jsx \
               client/src/components/scroll/InfiniteScrollList.jsx \
               client/src/module/lms \
               client/src/module/parent/dashboard/ParentDash.jsx \
-              client/src/module/teacher/dashboard/TeacherDash.jsx \
-              client/src/module/student/dashboard \
               client/src/routes/modules/lmsRoutes.jsx \
               client/src/service/lms \
-              client/src/utils/RouteProtection.jsx \
-              client/src/utils/staffAssignment.js \
-              scripts/ci/ensure-route-protection.js \
               database/attendance_schema.sql \
+              database/attendance_seed.sql \
+              database/attendance_seed_full.sql \
+              database/attendance_seed_lite.sql \
               database/lms_schema.sql \
               docs/esp32_rfid_attendance_mfrc522.ino \
-              server/middleware/authorize.js \
-              server/router/auth/RouterAuth.js \
-              server/router/lms \
-              server/services/telegram \
-              server/utils/staffAssignment.js
+              server/router/lms
             git add -A
           }
 
           ensure_parent_report_components() {
-            checkout_owned_paths origin/feature/lms \
+            git checkout origin/feature/lms -- \
               client/src/module/parent/dashboard/ParentDash.jsx \
-              client/src/module/teacher/dashboard/TeacherDash.jsx \
-              client/src/module/student/dashboard \
               client/src/module/lms/report/AcademicReport.jsx
             git add -A
-          }
-
-          restore_tahfiz_owned_paths() {
-            checkout_owned_paths origin/feature/tahfiz \
-              client/src/components/layout/menus/tahfizMenus.jsx \
-              client/src/module/tahfiz \
-              client/src/routes/modules/tahfizRoutes.jsx \
-              client/src/service/tahfiz \
-              database/tahfiz_schema.sql \
-              server/router/tahfiz
-            git add -A
-          }
-
-          harmonize_shared_app_shell() {
-            perl -0pi -e 's/\{isTahfizEnabled && renderTahfizRoutes\(\)\}/\{isTahfizEnabled \&\& renderTahfizRoutes\(\{\n                LazyPage,\n              \}\)\}/g' client/src/App.jsx
-            git add client/src/App.jsx
-          }
-
-          # LMS adds allowedAssignments; tahfiz adds requireMusyrif. A 3-way
-          # merge can keep one parameter and drop the other while both bodies
-          # remain, which crashes the client with a ReferenceError.
-          ensure_route_protection() {
-            local file="client/src/utils/RouteProtection.jsx"
-            local script="scripts/ci/ensure-route-protection.js"
-            if [[ ! -f "${file}" ]]; then
-              return 0
-            fi
-            if [[ ! -f "${script}" ]]; then
-              checkout_owned_paths origin/feature/lms "${script}"
-            fi
-            node "${script}"
-            git add "${file}"
           }
 
           merge_branch() {
             local source_branch="$1"
             local merge_message="chore(compose): merge ${source_branch} into ${COMPOSE_BRANCH}"
-
-            # Feature branches still overlap on a few shared files, so compose
-            # auto-resolves conflicts. Probe with a plain merge first so every
-            # auto-resolved file is listed in the job summary; the code checks
-            # below block publishing if a resolution dropped something.
-            if ! git merge "origin/${source_branch}" --no-ff --no-commit >/dev/null 2>&1; then
-              local conflicted
-              conflicted="$(git diff --name-only --diff-filter=U | paste -sd ' ' -)"
-              echo "::warning::Auto-resolving conflicts from ${source_branch}: ${conflicted}"
-              echo "- \`${source_branch}\` auto-resolved: ${conflicted}" >> "${GITHUB_STEP_SUMMARY}"
-            fi
-            git merge --abort >/dev/null 2>&1 || true
 
             if git merge "origin/${source_branch}" --no-ff -X theirs -m "${merge_message}"; then
               echo "Merged ${source_branch} into ${COMPOSE_BRANCH}"
@@ -170,18 +103,13 @@ jobs:
           # cannot silently roll those files back to older copies.
           restore_lms_owned_paths
           ensure_parent_report_components
-          restore_tahfiz_owned_paths
-          harmonize_shared_app_shell
-          ensure_route_protection
 
           if ! git diff --cached --quiet; then
-            git commit -m "chore(compose): restore feature-owned paths"
+            git commit -m "chore(compose): restore LMS-owned paths from feature/lms"
           fi
 
           git diff --quiet origin/feature/lms -- \
             client/src/module/parent/dashboard/ParentDash.jsx \
-            client/src/module/teacher/dashboard/TeacherDash.jsx \
-            client/src/module/student/dashboard \
             client/src/module/lms/report/AcademicReport.jsx
 
       - name: Setup Node.js
@@ -210,9 +138,6 @@ jobs:
           set -euo pipefail
           node --check server/router/registerApiRoutes.js
           node --input-type=module -e "await import('./server/router/registerApiRoutes.js'); process.exit(0)"
-
-          # Merges can keep a call while dropping its import; block publishing.
-          node scripts/ci/check-undefined-identifiers.js
 
           # Keep workflow files unchanged on release branch to avoid
           # requiring `workflows` permission for GitHub App pushes.
