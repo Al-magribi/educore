@@ -20,6 +20,12 @@ const PRODUCT_PROFILES = {
     FEATURES.LMS,
     FEATURES.FINANCE,
   ],
+  "educore-cbt-db-lms-tahfiz": [
+    FEATURES.CBT,
+    FEATURES.DB,
+    FEATURES.LMS,
+    FEATURES.TAHFIZ,
+  ],
   "educore-cbt-db-lms-finance-tahfiz": [
     FEATURES.CBT,
     FEATURES.DB,
