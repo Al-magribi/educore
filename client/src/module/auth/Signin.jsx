@@ -36,8 +36,6 @@ const Signin = () => {
       password: (values.password || '').trim(),
     };
 
-    // Menggabungkan role ke dalam values agar dikirim ke backend
-    // Backend perlu tahu role apa yang sedang mencoba login
     const payload = {
       ...sanitizedValues,
       role: getSigninPayloadRole(role),
