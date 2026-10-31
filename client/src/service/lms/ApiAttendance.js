@@ -362,6 +362,49 @@ export const ApiAttendance = createApi({
         { type: "Attendance", id: "STAFF_REPORT" },
       ],
     }),
+    getClassAttendanceWorkspace: builder.query({
+      query: () => "/attendance/class/workspace",
+      transformResponse: (response) => response?.data,
+      providesTags: [{ type: "Attendance", id: "CLASS_WORKSPACE" }],
+    }),
+    getClassAttendanceRecords: builder.query({
+      query: ({ startDate, endDate }) => ({
+        url: "/attendance/class/records",
+        params: { start_date: startDate, end_date: endDate },
+      }),
+      transformResponse: (response) => response?.data || [],
+      providesTags: [{ type: "Attendance", id: "CLASS_RECORDS" }],
+    }),
+    saveClassAttendanceRecord: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: id ? `/attendance/class/records/${id}` : "/attendance/class/records",
+        method: id ? "PUT" : "POST",
+        body,
+      }),
+      invalidatesTags: [
+        { type: "Attendance", id: "CLASS_RECORDS" },
+        { type: "Attendance", id: "STUDENT_REPORT" },
+      ],
+    }),
+    deleteClassAttendanceRecord: builder.mutation({
+      query: (id) => ({
+        url: `/attendance/class/records/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [
+        { type: "Attendance", id: "CLASS_RECORDS" },
+        { type: "Attendance", id: "STUDENT_REPORT" },
+        { type: "Attendance", id: "SCAN_LOG_REPORT" },
+      ],
+    }),
+    saveClassAttendanceOfficers: builder.mutation({
+      query: (studentIds) => ({
+        url: "/attendance/class/officers",
+        method: "PUT",
+        body: { student_ids: studentIds },
+      }),
+      invalidatesTags: [{ type: "Attendance", id: "CLASS_WORKSPACE" }],
+    }),
     updateDailyAttendanceRecord: builder.mutation({
       query: ({ id, homebaseId, ...body }) => ({
         url: `/attendance/reports/daily/${id}`,
@@ -580,4 +623,9 @@ export const {
   useSaveAttendanceHolidayMutation,
   useDeleteAttendanceHolidayMutation,
   useBulkDeleteAttendanceHolidaysMutation,
+  useGetClassAttendanceWorkspaceQuery,
+  useGetClassAttendanceRecordsQuery,
+  useSaveClassAttendanceRecordMutation,
+  useDeleteClassAttendanceRecordMutation,
+  useSaveClassAttendanceOfficersMutation,
 } = ApiAttendance;

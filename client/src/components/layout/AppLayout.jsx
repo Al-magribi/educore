@@ -109,6 +109,13 @@ const AppLayout = ({ children, title, asShell = false }) => {
         }
 
         if (
+          item.requiresAttendanceOfficer &&
+          !currentUser?.is_attendance_officer
+        ) {
+          return null;
+        }
+
+        if (
           currentUser?.role === "teacher" &&
           item.key === "/manajemen-piket" &&
           !currentUser?.has_duty_today &&

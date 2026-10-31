@@ -7,6 +7,8 @@ import {
   attachAssignmentFlags,
   fetchTeacherAssignments,
 } from "../../utils/staffAssignment.js";
+import pool from "../../config/connection.js";
+import { isClassAttendanceOfficer } from "../../services/attendance/classAttendanceAccess.js";
 
 const STAFF_WITHOUT_ASSIGNMENT_MESSAGE =
   "Akun tendik ini belum memiliki penugasan. Hubungi admin satuan.";
@@ -153,6 +155,10 @@ router.post(
         [user.id],
       );
       if (studentRes.rowCount > 0) roleData = studentRes.rows[0];
+      roleData.is_attendance_officer = await isClassAttendanceOfficer(
+        pool,
+        user.id,
+      );
 
       // --- GURU ---
     } else if (user.role === "teacher") {
@@ -468,6 +474,13 @@ router.get(
 
     if (!userData) {
       return res.status(404).json({ message: "Data user tidak ditemukan" });
+    }
+
+    if (role === "student") {
+      userData.is_attendance_officer = await isClassAttendanceOfficer(
+        pool,
+        userData.id,
+      );
     }
 
     if (role === "teacher") {

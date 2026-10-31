@@ -19,6 +19,7 @@ import {
   renderAdminOnlyLmsRoutes,
   renderAttendanceReportRoutes,
   renderLmsRoutes,
+  renderClassAttendanceRoutes,
   renderTeacherOnlyLmsRoutes,
   renderStudentLmsRoutes,
   renderParentLmsRoutes,
@@ -129,6 +130,11 @@ const App = () => {
 
             {isLmsEnabled &&
               renderAttendanceReportRoutes({
+                LazyRoute,
+              })}
+
+            {isLmsEnabled &&
+              renderClassAttendanceRoutes({
                 LazyRoute,
               })}
 

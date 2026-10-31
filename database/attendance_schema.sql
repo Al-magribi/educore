@@ -557,6 +557,18 @@ ON attendance.attendance_manual_adjustment(attendance_id, created_at DESC);
 CREATE INDEX idx_attendance_manual_adjustment_session
 ON attendance.attendance_manual_adjustment(teacher_session_log_id, created_at DESC);
 
+-- Siswa yang ditugaskan wali kelas untuk mengelola presensi kelasnya.
+CREATE TABLE class_attendance_officer(
+    class_id integer NOT NULL REFERENCES public.a_class(id) ON DELETE CASCADE,
+    student_id integer NOT NULL REFERENCES public.u_users(id) ON DELETE CASCADE,
+    homebase_id integer NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
+    assigned_by integer REFERENCES public.u_users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(class_id, student_id)
+);
+CREATE INDEX idx_class_attendance_officer_student
+ON attendance.class_attendance_officer(student_id);
+
 ALTER TABLE attendance.rfid_scan_log
 ADD CONSTRAINT rfid_scan_log_attendance_id_fkey
 FOREIGN KEY(attendance_id) REFERENCES attendance.daily_attendance(id) ON DELETE SET NULL;

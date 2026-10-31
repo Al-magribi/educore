@@ -176,6 +176,14 @@ const teacherLmsMenu = ({
             requiresHomeroom: true,
           }
         : null,
+      includeDuty
+        ? {
+            label: "Presensi",
+            key: "/presensi-kelas",
+            icon: <ClipboardList size={14} />,
+            requiresHomeroom: true,
+          }
+        : null,
       canKurikulum
         ? {
             label: "Manajemen Presensi",
@@ -209,6 +217,12 @@ const studentLmsMenu = () => [
     label: "Poin Siswa",
     key: "/poin-siswa",
     icon: <ShieldAlert size={14} />,
+  },
+  {
+    label: "Presensi",
+    key: "/presensi-kelas",
+    icon: <ClipboardList size={14} />,
+    requiresAttendanceOfficer: true,
   },
 ];
 

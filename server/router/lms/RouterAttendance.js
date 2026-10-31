@@ -114,7 +114,7 @@ const DEVICE_TYPES = new Set(["gate", "classroom", "extracurricular"]);
 const ASSIGNMENT_SCOPES = new Set(["user", "class", "grade", "homebase"]);
 const JAKARTA_TZ = "Asia/Jakarta";
 
-const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
+export const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
   SELECT 1
   FROM attendance.rfid_scan_log sl
   JOIN attendance.rfid_device d ON d.id = sl.device_id
@@ -127,10 +127,11 @@ const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
     )
 )`;
 
-/** Siswa: tampilkan tap gate + yang belum tap (absent/excused/pending dari auto-absent). */
-const STUDENT_REPORT_ROW_VISIBLE_SQL = `(
+/** Siswa: tampilkan tap gate + yang belum tap (absent/excused/pending dari auto-absent) + input manual. */
+export const STUDENT_REPORT_ROW_VISIBLE_SQL = `(
   ${GATE_LINKED_SCAN_EXISTS_SQL}
   OR da.attendance_status IN ('absent', 'excused', 'pending')
+  OR da.requirement_source = 'manual'
 )`;
 
 /** Guru: tampilkan tap gate + yang belum tap (absent/excused/pending dari auto-absent). */
@@ -139,7 +140,7 @@ const TEACHER_REPORT_ROW_VISIBLE_SQL = `(
   OR da.attendance_status IN ('absent', 'excused', 'pending', 'not_scheduled')
 )`;
 
-const toJakartaTimestampSql = (columnSql) =>
+export const toJakartaTimestampSql = (columnSql) =>
   `CASE WHEN ${columnSql} IS NULL THEN NULL ELSE TO_CHAR((${columnSql} AT TIME ZONE '${JAKARTA_TZ}'), 'YYYY-MM-DD HH24:MI:SS') END`;
 
 const getDefaultDateRange = () => {
@@ -298,7 +299,7 @@ const recalculateTeacherSessionFields = ({
   return { sessionStatus: "late", lateMinutes: diffMinutes };
 };
 
-const recalculateDailyAttendanceFields = ({
+export const recalculateDailyAttendanceFields = ({
   checkinAt,
   checkoutAt,
   dayRule,
@@ -4202,6 +4203,165 @@ router.post(
   }),
 );
 
+export const updateDailyAttendanceRecord = async (
+  client,
+  res,
+  { homebase_id, recordId, payload, requirementSource = null },
+) => {
+  const existingRes = await client.query(
+    `SELECT
+       id,
+       user_id,
+       attendance_date,
+       checkin_at,
+       checkout_at
+     FROM attendance.daily_attendance
+     WHERE id = $1
+       AND homebase_id = $2
+     LIMIT 1`,
+    [recordId, homebase_id],
+  );
+  if (existingRes.rowCount === 0) {
+    return res.status(404).json({
+      status: "error",
+      message: "Data absensi tidak ditemukan.",
+    });
+  }
+
+  const existing = existingRes.rows[0];
+    const hasCheckinField = Object.prototype.hasOwnProperty.call(
+    payload,
+    "checkin_at",
+  );
+  const hasCheckoutField = Object.prototype.hasOwnProperty.call(
+    payload,
+    "checkout_at",
+  );
+  const hasStatusField = Object.prototype.hasOwnProperty.call(
+    payload,
+    "attendance_status",
+  );
+  const hasNotesField = Object.prototype.hasOwnProperty.call(payload, "notes");
+
+  if (
+    !hasCheckinField &&
+    !hasCheckoutField &&
+    !hasStatusField &&
+    !hasNotesField
+  ) {
+    return res.status(400).json({
+      status: "error",
+      message:
+        "Minimal satu field checkin_at, checkout_at, attendance_status, atau notes wajib diisi.",
+    });
+  }
+
+  const checkinAt = hasCheckinField
+    ? parseTimestampOrNull(payload.checkin_at)
+    : existing.checkin_at
+      ? new Date(existing.checkin_at)
+      : null;
+  const checkoutAt = hasCheckoutField
+    ? parseTimestampOrNull(payload.checkout_at)
+    : existing.checkout_at
+      ? new Date(existing.checkout_at)
+      : null;
+
+  if (hasCheckinField && payload.checkin_at && !checkinAt) {
+    return res.status(400).json({
+      status: "error",
+      message: "Format checkin_at tidak valid.",
+    });
+  }
+  if (hasCheckoutField && payload.checkout_at && !checkoutAt) {
+    return res.status(400).json({
+      status: "error",
+      message: "Format checkout_at tidak valid.",
+    });
+  }
+  if (checkinAt && checkoutAt && checkoutAt.getTime() < checkinAt.getTime()) {
+    return res.status(400).json({
+      status: "error",
+      message: "checkout_at tidak boleh lebih awal dari checkin_at.",
+    });
+  }
+
+  const referenceAt = checkinAt || checkoutAt || new Date(existing.attendance_date);
+  const dayRule = await resolveScanPolicyDayRule(client, {
+    homebaseId: homebase_id,
+    userId: existing.user_id,
+    scannedAt: referenceAt,
+  });
+  const recalculated = recalculateDailyAttendanceFields({
+    checkinAt,
+    checkoutAt,
+    dayRule,
+  });
+
+  let attendanceStatus = recalculated.attendanceStatus;
+  let lateMinutes = recalculated.lateMinutes;
+  let presenceMinutes = recalculated.presenceMinutes;
+
+  if (hasStatusField) {
+    const requestedStatus = String(payload.attendance_status || "").trim();
+    if (!DAILY_ATTENDANCE_STATUSES.has(requestedStatus)) {
+      return res.status(400).json({
+        status: "error",
+        message: "attendance_status tidak valid.",
+      });
+    }
+    attendanceStatus = requestedStatus;
+  }
+
+  const notesValue = hasNotesField
+    ? String(payload.notes || "").trim() || null
+    : undefined;
+
+  const updated = await client.query(
+    `UPDATE attendance.daily_attendance
+     SET
+       checkin_at = $3::timestamptz,
+       checkout_at = $4::timestamptz,
+       attendance_status = $5,
+       late_minutes = $6,
+       presence_minutes = $7,
+       minimum_required_minutes = COALESCE($8, minimum_required_minutes),
+       notes = CASE WHEN $9::boolean THEN $10 ELSE notes END,
+       requirement_source = COALESCE($11, requirement_source),
+       evaluated_at = NOW(),
+       updated_at = NOW()
+     WHERE id = $1
+       AND homebase_id = $2
+     RETURNING
+       id,
+       attendance_status,
+       ${toJakartaTimestampSql("checkin_at")} AS checkin_at,
+       ${toJakartaTimestampSql("checkout_at")} AS checkout_at,
+       late_minutes,
+       presence_minutes,
+       notes`,
+    [
+      recordId,
+      homebase_id,
+      checkinAt ? checkinAt.toISOString() : null,
+      checkoutAt ? checkoutAt.toISOString() : null,
+      attendanceStatus,
+      lateMinutes,
+      presenceMinutes,
+      dayRule?.min_presence_minutes ?? null,
+      hasNotesField,
+      notesValue,
+      requirementSource,
+    ],
+  );
+
+  return res.json({
+    status: "success",
+    message: "Data absensi berhasil diperbarui.",
+    data: updated.rows[0],
+  });
+};
+
 router.put(
   "/attendance/reports/daily/:id",
   authorize("satuan", "pusat", "assignment:kurikulum"),
@@ -4222,156 +4382,10 @@ router.put(
       });
     }
 
-    const existingRes = await client.query(
-      `SELECT
-         id,
-         user_id,
-         attendance_date,
-         checkin_at,
-         checkout_at
-       FROM attendance.daily_attendance
-       WHERE id = $1
-         AND homebase_id = $2
-       LIMIT 1`,
-      [recordId, homebase_id],
-    );
-    if (existingRes.rowCount === 0) {
-      return res.status(404).json({
-        status: "error",
-        message: "Data absensi tidak ditemukan.",
-      });
-    }
-
-    const existing = existingRes.rows[0];
-    const payload = req.body || {};
-    const hasCheckinField = Object.prototype.hasOwnProperty.call(
-      payload,
-      "checkin_at",
-    );
-    const hasCheckoutField = Object.prototype.hasOwnProperty.call(
-      payload,
-      "checkout_at",
-    );
-    const hasStatusField = Object.prototype.hasOwnProperty.call(
-      payload,
-      "attendance_status",
-    );
-    const hasNotesField = Object.prototype.hasOwnProperty.call(payload, "notes");
-
-    if (
-      !hasCheckinField &&
-      !hasCheckoutField &&
-      !hasStatusField &&
-      !hasNotesField
-    ) {
-      return res.status(400).json({
-        status: "error",
-        message:
-          "Minimal satu field checkin_at, checkout_at, attendance_status, atau notes wajib diisi.",
-      });
-    }
-
-    const checkinAt = hasCheckinField
-      ? parseTimestampOrNull(payload.checkin_at)
-      : existing.checkin_at
-        ? new Date(existing.checkin_at)
-        : null;
-    const checkoutAt = hasCheckoutField
-      ? parseTimestampOrNull(payload.checkout_at)
-      : existing.checkout_at
-        ? new Date(existing.checkout_at)
-        : null;
-
-    if (hasCheckinField && payload.checkin_at && !checkinAt) {
-      return res.status(400).json({
-        status: "error",
-        message: "Format checkin_at tidak valid.",
-      });
-    }
-    if (hasCheckoutField && payload.checkout_at && !checkoutAt) {
-      return res.status(400).json({
-        status: "error",
-        message: "Format checkout_at tidak valid.",
-      });
-    }
-    if (checkinAt && checkoutAt && checkoutAt.getTime() < checkinAt.getTime()) {
-      return res.status(400).json({
-        status: "error",
-        message: "checkout_at tidak boleh lebih awal dari checkin_at.",
-      });
-    }
-
-    const referenceAt = checkinAt || checkoutAt || new Date(existing.attendance_date);
-    const dayRule = await resolveScanPolicyDayRule(client, {
-      homebaseId: homebase_id,
-      userId: existing.user_id,
-      scannedAt: referenceAt,
-    });
-    const recalculated = recalculateDailyAttendanceFields({
-      checkinAt,
-      checkoutAt,
-      dayRule,
-    });
-
-    let attendanceStatus = recalculated.attendanceStatus;
-    let lateMinutes = recalculated.lateMinutes;
-    let presenceMinutes = recalculated.presenceMinutes;
-
-    if (hasStatusField) {
-      const requestedStatus = String(payload.attendance_status || "").trim();
-      if (!DAILY_ATTENDANCE_STATUSES.has(requestedStatus)) {
-        return res.status(400).json({
-          status: "error",
-          message: "attendance_status tidak valid.",
-        });
-      }
-      attendanceStatus = requestedStatus;
-    }
-
-    const notesValue = hasNotesField
-      ? String(payload.notes || "").trim() || null
-      : undefined;
-
-    const updated = await client.query(
-      `UPDATE attendance.daily_attendance
-       SET
-         checkin_at = $3::timestamptz,
-         checkout_at = $4::timestamptz,
-         attendance_status = $5,
-         late_minutes = $6,
-         presence_minutes = $7,
-         minimum_required_minutes = COALESCE($8, minimum_required_minutes),
-         notes = CASE WHEN $9::boolean THEN $10 ELSE notes END,
-         evaluated_at = NOW(),
-         updated_at = NOW()
-       WHERE id = $1
-         AND homebase_id = $2
-       RETURNING
-         id,
-         attendance_status,
-         ${toJakartaTimestampSql("checkin_at")} AS checkin_at,
-         ${toJakartaTimestampSql("checkout_at")} AS checkout_at,
-         late_minutes,
-         presence_minutes,
-         notes`,
-      [
-        recordId,
-        homebase_id,
-        checkinAt ? checkinAt.toISOString() : null,
-        checkoutAt ? checkoutAt.toISOString() : null,
-        attendanceStatus,
-        lateMinutes,
-        presenceMinutes,
-        dayRule?.min_presence_minutes ?? null,
-        hasNotesField,
-        notesValue,
-      ],
-    );
-
-    return res.json({
-      status: "success",
-      message: "Data absensi berhasil diperbarui.",
-      data: updated.rows[0],
+    return updateDailyAttendanceRecord(client, res, {
+      homebase_id,
+      recordId,
+      payload: req.body || {},
     });
   }),
 );
