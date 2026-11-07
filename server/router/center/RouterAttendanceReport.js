@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import { EXCUSED_STATUS_SQL } from "../../services/attendance/attendanceStatuses.js";
 
 const router = Router();
 
@@ -20,6 +21,18 @@ const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
       OR sl.id = da.first_gate_scan_id
       OR sl.id = da.last_gate_scan_id
     )
+)`;
+
+/** Siswa: tampilkan tap gate + yang belum tap (absent/sakit/izin/pending). */
+const STUDENT_REPORT_ROW_VISIBLE_SQL = `(
+  ${GATE_LINKED_SCAN_EXISTS_SQL}
+  OR da.attendance_status IN ('absent', ${EXCUSED_STATUS_SQL}, 'pending')
+)`;
+
+/** Guru: tampilkan tap gate + yang belum tap (absent/sakit/izin/pending). */
+const TEACHER_REPORT_ROW_VISIBLE_SQL = `(
+  ${GATE_LINKED_SCAN_EXISTS_SQL}
+  OR da.attendance_status IN ('absent', ${EXCUSED_STATUS_SQL}, 'pending', 'not_scheduled')
 )`;
 
 const normalizeNumberOrNull = (value) => {
@@ -51,6 +64,8 @@ const emptyStudentPayload = (startDate, endDate) => ({
     late_count: 0,
     absent_count: 0,
     excused_count: 0,
+    sick_count: 0,
+    permit_count: 0,
     incomplete_count: 0,
     pending_count: 0,
     not_scheduled_count: 0,
@@ -174,8 +189,8 @@ const buildEffectiveStatusSql = (hasGateSql, offDaySql) => `
         WHEN da.attendance_status IN ('present', 'late', 'incomplete') THEN da.attendance_status
         ELSE 'present'
       END
-    WHEN da.attendance_status = 'excused'
-      AND COALESCE(da.notes, '') NOT ILIKE 'Auto-pending%' THEN 'excused'
+    WHEN da.attendance_status IN (${EXCUSED_STATUS_SQL})
+      AND COALESCE(da.notes, '') NOT ILIKE 'Auto-pending%' THEN da.attendance_status
     WHEN da.attendance_status = 'absent' THEN 'absent'
     WHEN ${offDaySql} THEN 'not_scheduled'
     ELSE 'pending'
@@ -421,7 +436,9 @@ router.get(
            COUNT(*) FILTER (WHERE rep.attendance_status = 'present')::int AS present_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'late')::int AS late_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'absent')::int AS absent_count,
-           COUNT(*) FILTER (WHERE rep.attendance_status = 'excused')::int AS excused_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status IN (${EXCUSED_STATUS_SQL}))::int AS excused_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'sick')::int AS sick_count,
+           COUNT(*) FILTER (WHERE rep.attendance_status = 'permit')::int AS permit_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'incomplete')::int AS incomplete_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'pending')::int AS pending_count,
            COUNT(*) FILTER (WHERE rep.attendance_status = 'not_scheduled')::int AS not_scheduled_count

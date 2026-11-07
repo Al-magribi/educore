@@ -119,7 +119,12 @@ router.get(
       WHERE u.role = 'student' 
         AND s.homebase_id = $1
         AND ce.periode_id = $5 
-        AND (u.full_name ILIKE $2 OR s.nis ILIKE $2)
+        AND (
+          u.full_name ILIKE $2
+          OR s.nis ILIKE $2
+          OR COALESCE(s.nisn, '') ILIKE $2
+          OR COALESCE(rc.card_uid, '') ILIKE $2
+        )
       
       ORDER BY g.name ASC NULLS LAST, c.name ASC, u.full_name ASC
       LIMIT $3 OFFSET $4
@@ -130,10 +135,22 @@ router.get(
       FROM u_users u
       JOIN u_students s ON u.id = s.user_id
       JOIN u_class_enrollments ce ON s.user_id = ce.student_id
+      LEFT JOIN LATERAL (
+        SELECT card_uid
+        FROM attendance.rfid_card
+        WHERE user_id = u.id AND is_active = true
+        ORDER BY is_primary DESC, id DESC
+        LIMIT 1
+      ) rc ON true
       WHERE u.role = 'student' 
         AND s.homebase_id = $1
         AND ce.periode_id = $3
-        AND (u.full_name ILIKE $2 OR s.nis ILIKE $2)
+        AND (
+          u.full_name ILIKE $2
+          OR s.nis ILIKE $2
+          OR COALESCE(s.nisn, '') ILIKE $2
+          OR COALESCE(rc.card_uid, '') ILIKE $2
+        )
     `;
 
     const [dataResult, countResult] = await Promise.all([
