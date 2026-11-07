@@ -1,0 +1,5 @@
+Tinos font family (Regular, Bold, Italic, Bold Italic)
+Copyright (c) Google Corporation.
+
+Licensed under the Apache License, Version 2.0.
+https://www.apache.org/licenses/LICENSE-2.0
