@@ -57,12 +57,10 @@ export const statCardStyle = {
 };
 
 export const heroStyle = {
-  borderRadius: 28,
+  borderRadius: 16,
   overflow: "hidden",
-  background:
-    "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
-  color: "#fff",
-  boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
+  background: "transparent",
+  boxShadow: "none",
   width: "100%",
 };
 

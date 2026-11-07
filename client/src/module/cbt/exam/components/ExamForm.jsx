@@ -68,7 +68,7 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
   const screens = useBreakpoint();
   const [form] = Form.useForm();
   const { user } = useSelector((state) => state.auth);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.can_manage_cbt === true;
 
   const gradeId = Form.useWatch("grade_id", form);
   const classIds = Form.useWatch("class_ids", form);

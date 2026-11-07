@@ -1,8 +1,8 @@
 import React from "react";
-import { useGetTeacherDashQuery } from "../../../service/main/ApiDash";
 import {
   Alert,
   Avatar,
+  Button,
   Card,
   Col,
   Flex,
@@ -22,7 +22,11 @@ import {
   ClipboardList,
   FileText,
   Layers,
+  MessageCircle,
 } from "lucide-react";
+import { useGetTeacherDashQuery } from "../../../service/main/ApiDash";
+import { useGetTeacherTelegramQuery } from "../../../service/lms/ApiAttendance";
+import PageHeader from "../../../components/ui/PageHeader";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -62,9 +66,8 @@ const cardStyle = {
 
 const heroStyle = {
   ...cardStyle,
-  background: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
-  color: "#fff",
-  boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
+  background: "transparent",
+  boxShadow: "none",
 };
 
 const statCardStyle = {
@@ -254,6 +257,8 @@ const renderPaginatedList = ({
 
 const TeacherDash = () => {
   const { data, isLoading, isError } = useGetTeacherDashQuery();
+  const { data: telegramRes } = useGetTeacherTelegramQuery();
+  const telegram = telegramRes?.data;
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const subjects = data?.subjects || [];
@@ -387,98 +392,71 @@ const TeacherDash = () => {
       }}
     >
       <MotionDiv variants={itemVariants}>
-        <Card style={heroStyle} bodyStyle={{ padding: isMobile ? 20 : 28 }}>
-          <Flex
-            vertical={isMobile ? true : false}
-            justify={isMobile ? "center" : "space-between"}
-          >
-            <Flex gap={"middle"} align='center'>
-              <MotionDiv
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.35 }}
-                style={{ flexShrink: 0 }}
-              >
-                <Avatar
-                  size={isMobile ? 60 : 72}
-                  src={data?.teacher?.img_url || undefined}
-                  style={{
-                    background: "rgba(255,255,255,0.18)",
-                    fontWeight: 700,
-                    fontSize: isMobile ? 24 : 28,
-                    border: "1px solid rgba(255,255,255,0.22)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {teacherInitial}
-                </Avatar>
-              </MotionDiv>
-
-              <Space vertical>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.75)",
-                    fontSize: isMobile ? 12 : 14,
-                  }}
-                >
-                  Dashboard Guru
-                </Text>
-                <Title
-                  level={isMobile ? 4 : 3}
-                  style={{
-                    margin: 0,
-                    color: "#fff",
-                    lineHeight: 1.15,
-                    fontSize: isMobile ? 24 : undefined,
-                  }}
-                >
-                  {teacherName}
-                </Title>
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.85)",
-                    fontSize: isMobile ? 12 : 14,
-                  }}
-                >
-                  {homebaseSummary}
-                </Text>
-              </Space>
-            </Flex>
-
-            <Space wrap size={[8, 8]} style={{ marginTop: isMobile ? 8 : 6 }}>
-              <Tag
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  paddingBlock: 2,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  marginInlineEnd: 0,
-                  fontSize: 12,
-                }}
-              >
-                NIP: {data?.teacher?.nip || "-"}
-              </Tag>
-              <Tag
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: data?.activePeriode
-                    ? "rgba(34,197,94,0.18)"
-                    : "rgba(248,113,113,0.18)",
-                  color: "#fff",
-                  marginInlineEnd: 0,
-                  whiteSpace: "normal",
-                  fontSize: 12,
-                  lineHeight: 1.4,
-                }}
-              >
+        <PageHeader
+          title={teacherName}
+          description={homebaseSummary}
+          meta={
+            <Space wrap size={[8, 8]}>
+              <Tag>NIP: {data?.teacher?.nip || "-"}</Tag>
+              <Tag color={data?.activePeriode ? "green" : "default"}>
                 {data?.activePeriode
                   ? `Periode Aktif: ${data.activePeriode.name}`
                   : "Belum ada periode aktif"}
               </Tag>
+            </Space>
+          }
+        />
+      </MotionDiv>
+
+      <MotionDiv variants={itemVariants}>
+        <Card style={cardStyle} bodyStyle={{ padding: isMobile ? 16 : 20 }}>
+          <Flex align='start' gap={14} wrap='wrap'>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #dbeafe, #ccfbf1)",
+                color: "#0f766e",
+                flexShrink: 0,
+              }}
+            >
+              <MessageCircle size={20} />
+            </div>
+            <Space direction='vertical' size={8} style={{ flex: 1, minWidth: 220 }}>
+              <Space wrap>
+                <Text strong style={{ fontSize: 16 }}>
+                  Notifikasi Absensi Telegram
+                </Text>
+                {telegram?.is_bound ? (
+                  <Tag color='success'>Terhubung</Tag>
+                ) : (
+                  <Tag>Belum terhubung</Tag>
+                )}
+              </Space>
+              <Text type='secondary'>
+                {telegram?.is_bound
+                  ? "Akun Telegram Anda sudah terhubung. Tap datang/pulang Anda sendiri akan dikirim ke chat bot. Jika chat Telegram ini sama dengan akun orang tua, notifikasi datang/pulang anak juga masuk ke sini."
+                  : "Hubungkan Telegram agar menerima notifikasi jam datang dan pulang saat tap di mesin absensi. Pakai Telegram yang sama dengan akun orang tua jika Anda juga orang tua siswa."}
+              </Text>
+              {telegram?.bind_link ? (
+                <Button
+                  type={telegram?.is_bound ? "default" : "primary"}
+                  href={telegram.bind_link}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  {telegram?.is_bound ? "Buka Bot Lagi" : "Hubungkan Telegram"}
+                </Button>
+              ) : (
+                <Alert
+                  type='warning'
+                  showIcon
+                  message='Bot Telegram sekolah belum dikonfigurasi. Hubungi admin sekolah.'
+                />
+              )}
             </Space>
           </Flex>
         </Card>
