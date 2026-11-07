@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { statusLabel, timeOnly } from './classAttendanceShared';
+import { isPermitRecord, isSickRecord, statusLabel, timeOnly } from './classAttendanceShared';
 
 const buildRecapRows = (students, rows) =>
   students.map((student, index) => {
@@ -13,7 +13,8 @@ const buildRecapRows = (students, rows) =>
       Nama: student.full_name,
       Hadir: count('present', 'insufficient_hours'),
       Telat: count('late'),
-      'Sakit/Izin': count('excused'),
+      Sakit: own.filter(isSickRecord).length,
+      Izin: own.filter(isPermitRecord).length,
       Absen: count('absent'),
       'Belum tap/lengkap': count('pending', 'incomplete'),
     };
@@ -48,7 +49,8 @@ export const downloadClassAttendanceExcel = ({
     { wch: 32 },
     { wch: 8 },
     { wch: 8 },
-    { wch: 11 },
+    { wch: 8 },
+    { wch: 8 },
     { wch: 8 },
     { wch: 17 },
   ];

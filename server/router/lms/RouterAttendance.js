@@ -36,6 +36,10 @@ import {
   STAFF_TARGET_ROLE,
 } from "../../services/attendance/rfidStaffAttendance.js";
 import { ensureStaffAttendanceSchema } from "../../services/attendance/staffAttendanceSchema.js";
+import {
+  EXCUSED_STATUSES,
+  EXCUSED_STATUS_SQL,
+} from "../../services/attendance/attendanceStatuses.js";
 import { notifyGateTelegramTap } from "../../services/telegram/notifyTeacherGate.js";
 import pool from "../../config/connection.js";
 import {
@@ -58,7 +62,7 @@ const DAILY_ATTENDANCE_STATUSES = new Set([
   "present",
   "late",
   "absent",
-  "excused",
+  ...EXCUSED_STATUSES,
   "not_scheduled",
   "incomplete",
   "insufficient_hours",
@@ -70,7 +74,7 @@ const TEACHER_SESSION_STATUSES = new Set([
   "late",
   "missed",
   "partial",
-  "excused",
+  ...EXCUSED_STATUSES,
 ]);
 
 const ALLOWED_STATUSES = new Set([
@@ -127,17 +131,17 @@ export const GATE_LINKED_SCAN_EXISTS_SQL = `EXISTS (
     )
 )`;
 
-/** Siswa: tampilkan tap gate + yang belum tap (absent/excused/pending dari auto-absent) + input manual. */
+/** Siswa: tampilkan tap gate + yang belum tap (absent/sakit/izin/pending dari auto-absent) + input manual. */
 export const STUDENT_REPORT_ROW_VISIBLE_SQL = `(
   ${GATE_LINKED_SCAN_EXISTS_SQL}
-  OR da.attendance_status IN ('absent', 'excused', 'pending')
+  OR da.attendance_status IN ('absent', ${EXCUSED_STATUS_SQL}, 'pending')
   OR da.requirement_source = 'manual'
 )`;
 
-/** Guru: tampilkan tap gate + yang belum tap (absent/excused/pending dari auto-absent). */
+/** Guru: tampilkan tap gate + yang belum tap (absent/sakit/izin/pending dari auto-absent). */
 const TEACHER_REPORT_ROW_VISIBLE_SQL = `(
   ${GATE_LINKED_SCAN_EXISTS_SQL}
-  OR da.attendance_status IN ('absent', 'excused', 'pending', 'not_scheduled')
+  OR da.attendance_status IN ('absent', ${EXCUSED_STATUS_SQL}, 'pending', 'not_scheduled')
 )`;
 
 export const toJakartaTimestampSql = (columnSql) =>
@@ -964,7 +968,9 @@ router.get(
          c.name AS class_name,
          a.id AS attendance_id,
          a.status,
-         TO_CHAR(a.date::date, 'YYYY-MM-DD') AS date
+         TO_CHAR(a.date::date, 'YYYY-MM-DD') AS date,
+         da.attendance_status AS daily_status,
+         da.notes AS daily_notes
        FROM u_class_enrollments e
        JOIN u_users u ON e.student_id = u.id
        JOIN u_students st ON e.student_id = st.user_id
@@ -974,6 +980,10 @@ router.get(
         AND a.class_id = e.class_id
         AND a.subject_id = $1
         AND a.date = $2::date
+       LEFT JOIN attendance.daily_attendance da
+         ON da.user_id = e.student_id
+        AND da.attendance_date = $2::date
+        AND da.target_role = 'student'
        WHERE e.class_id = $3
          AND e.periode_id = $4
          AND COALESCE(u.is_active, true) = true
@@ -3425,7 +3435,9 @@ router.get(
          COUNT(*) FILTER (WHERE da.attendance_status = 'present')::int AS present_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'late')::int AS late_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'absent')::int AS absent_count,
-         COUNT(*) FILTER (WHERE da.attendance_status = 'excused')::int AS excused_count,
+         COUNT(*) FILTER (WHERE da.attendance_status IN (${EXCUSED_STATUS_SQL}))::int AS excused_count,
+         COUNT(*) FILTER (WHERE da.attendance_status = 'sick')::int AS sick_count,
+         COUNT(*) FILTER (WHERE da.attendance_status = 'permit')::int AS permit_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'pending')::int AS pending_count
        FROM attendance.daily_attendance da
@@ -3553,6 +3565,9 @@ router.get(
          COUNT(*) FILTER (WHERE da.attendance_status = 'present')::int AS present_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'late')::int AS late_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'absent')::int AS absent_count,
+         COUNT(*) FILTER (WHERE da.attendance_status IN (${EXCUSED_STATUS_SQL}))::int AS excused_count,
+         COUNT(*) FILTER (WHERE da.attendance_status = 'sick')::int AS sick_count,
+         COUNT(*) FILTER (WHERE da.attendance_status = 'permit')::int AS permit_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'incomplete')::int AS incomplete_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'insufficient_hours')::int AS insufficient_hours_count,
          COUNT(*) FILTER (WHERE da.attendance_status = 'not_scheduled')::int AS not_scheduled_count,
@@ -3601,7 +3616,9 @@ router.get(
          COUNT(*) FILTER (WHERE tsr.session_status = 'late')::int AS late_sessions,
          COUNT(*) FILTER (WHERE tsr.session_status = 'missed')::int AS missed_sessions,
          COUNT(*) FILTER (WHERE tsr.session_status = 'partial')::int AS partial_sessions,
-         COUNT(*) FILTER (WHERE tsr.session_status = 'excused')::int AS excused_sessions,
+         COUNT(*) FILTER (WHERE tsr.session_status IN (${EXCUSED_STATUS_SQL}))::int AS excused_sessions,
+         COUNT(*) FILTER (WHERE tsr.session_status = 'sick')::int AS sick_sessions,
+         COUNT(*) FILTER (WHERE tsr.session_status = 'permit')::int AS permit_sessions,
          COUNT(*) FILTER (
            WHERE tsr.actual_checkin_at IS NULL
              AND tsr.session_status IN ('pending', 'missed')
@@ -3848,8 +3865,14 @@ router.get(
                AND tsr.session_status IN ('pending', 'missed')
            )::int AS belum_tap_recorded,
            SUM(${sessionCountSql}) FILTER (
-             WHERE tsr.session_status = 'excused'
+             WHERE tsr.session_status IN (${EXCUSED_STATUS_SQL})
            )::int AS excused_count,
+           SUM(${sessionCountSql}) FILTER (
+             WHERE tsr.session_status = 'sick'
+           )::int AS sick_count,
+           SUM(${sessionCountSql}) FILTER (
+             WHERE tsr.session_status = 'permit'
+           )::int AS permit_count,
            SUM(${sessionCountSql}) FILTER (
              WHERE tsr.session_status = 'partial'
            )::int AS partial_count
@@ -3867,6 +3890,8 @@ router.get(
            COALESCE(e.should_attend, 0)::int AS should_attend,
            COALESCE(a.attended_tap, 0)::int AS attended_tap,
            COALESCE(a.excused_count, 0)::int AS excused_count,
+           COALESCE(a.sick_count, 0)::int AS sick_count,
+           COALESCE(a.permit_count, 0)::int AS permit_count,
            COALESCE(a.partial_count, 0)::int AS partial_count,
            COALESCE(a.belum_tap_recorded, 0)::int AS belum_tap_recorded
          FROM expected e
@@ -3894,6 +3919,8 @@ router.get(
          comb.should_attend,
          comb.attended_tap,
          comb.excused_count,
+         comb.sick_count,
+         comb.permit_count,
          comb.partial_count,
          GREATEST(
            comb.should_attend
@@ -3921,6 +3948,8 @@ router.get(
         attended_tap: attendedTap,
         belum_tap: Number(row.belum_tap || 0),
         excused_count: Number(row.excused_count || 0),
+        sick_count: Number(row.sick_count || 0),
+        permit_count: Number(row.permit_count || 0),
         partial_count: Number(row.partial_count || 0),
         attendance_rate:
           shouldAttend > 0

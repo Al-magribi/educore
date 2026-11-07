@@ -26,7 +26,7 @@ const RecordFormModal = ({ open, record, students, onClose, isMobile }) => {
             checkout_time: toTimeValue(record.checkout_at),
             notes: record.notes || '',
           }
-        : { attendance_date: dayjs(), attendance_status: 'excused' },
+        : { attendance_date: dayjs(), attendance_status: 'sick' },
     );
   }, [open, record, form]);
 

@@ -183,7 +183,8 @@ export const SummaryStatCard = ({ item, isMobile }) => (
 
 export const StatCardGrid = ({ items, isMobile }) => {
   if (!items?.length) return null;
-  const mdSpan = items.length >= 4 ? 6 : items.length === 3 ? 8 : 12;
+  const mdSpan =
+    items.length === 5 ? { flex: '20%' } : items.length >= 4 ? 6 : items.length === 3 ? 8 : 12;
 
   return (
     <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]} style={{ margin: 0, width: '100%' }}>

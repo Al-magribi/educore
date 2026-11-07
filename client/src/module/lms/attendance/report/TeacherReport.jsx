@@ -17,8 +17,11 @@ import {
   BookOpen,
   ChartColumn,
   DoorOpen,
+  Download,
+  MailCheck,
   RefreshCw,
   Search,
+  Thermometer,
   Trash2,
   UserCheck,
   UserX,
@@ -34,6 +37,7 @@ import {
 } from '../../../../service/lms/ApiAttendance';
 import { useGetClassesQuery } from '../../../../service/public/ApiPublic';
 import TeachingRecapPanel from './TeachingRecapPanel';
+import { downloadDailyAttendanceExcel } from './reportExport';
 import {
   BulkDeleteBar,
   FilterBar,
@@ -66,6 +70,9 @@ const STATUS_COLORS = {
   present: 'green',
   late: 'gold',
   absent: 'red',
+  sick: 'cyan',
+  permit: 'blue',
+  excused: 'geekblue',
   incomplete: 'orange',
   insufficient_hours: 'volcano',
   not_scheduled: 'blue',
@@ -78,7 +85,9 @@ const SESSION_STATUS_COLORS = {
   late: 'gold',
   missed: 'red',
   partial: 'orange',
-  excused: 'blue',
+  sick: 'cyan',
+  permit: 'blue',
+  excused: 'geekblue',
 };
 
 const formatSlotRange = (row) => {
@@ -106,6 +115,9 @@ const TEACHER_STATUS_OPTIONS = [
   { value: 'present', label: 'Present' },
   { value: 'late', label: 'Late' },
   { value: 'absent', label: 'Absent' },
+  { value: 'sick', label: 'Sick (Sakit)' },
+  { value: 'permit', label: 'Permit (Izin)' },
+  { value: 'excused', label: 'Excused (Sakit/Izin lama)' },
   { value: 'incomplete', label: 'Incomplete' },
   { value: 'insufficient_hours', label: 'Insufficient Hours' },
   { value: 'not_scheduled', label: 'Not Scheduled' },
@@ -122,7 +134,9 @@ const TEACHER_SESSION_STATUS_OPTIONS = [
   { value: 'late', label: 'Late' },
   { value: 'missed', label: 'Missed' },
   { value: 'partial', label: 'Partial' },
-  { value: 'excused', label: 'Excused (Sakit/Izin)' },
+  { value: 'sick', label: 'Sick (Sakit)' },
+  { value: 'permit', label: 'Permit (Izin)' },
+  { value: 'excused', label: 'Excused (Sakit/Izin lama)' },
   { value: 'pending', label: 'Pending (Belum tap)' },
 ];
 
@@ -167,6 +181,22 @@ const GUIDE_STATUS_ITEMS = [
     label: 'Absent (Tidak Hadir)',
     description:
       'Jarang muncul di laporan ini karena laporan hanya menampilkan guru yang pernah tap kartu gate. Status ini lebih sering dari koreksi manual admin.',
+  },
+  {
+    status: 'sick',
+    label: 'Sick (Sakit)',
+    description: 'Diisi manual lewat Edit saat guru tidak hadir karena sakit.',
+  },
+  {
+    status: 'permit',
+    label: 'Permit (Izin)',
+    description: 'Diisi manual lewat Edit saat guru tidak hadir dengan izin.',
+  },
+  {
+    status: 'excused',
+    label: 'Excused (Sakit/Izin lama)',
+    description:
+      'Data lama sebelum Sakit dan Izin dipisah. Di Excel, catatan berisi kata "sakit" dihitung Sakit, selain itu Izin.',
   },
 ];
 
@@ -386,6 +416,14 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     [data?.data?.session_rows],
   );
 
+  const handleDownloadExcel = () => {
+    if (!rows.length) {
+      message.warning('Tidak ada data presensi guru untuk diunduh.');
+      return;
+    }
+    downloadDailyAttendanceExcel({ type: 'teacher', rows, range });
+  };
+
   const statItems =
     activeTab === 'kehadiran'
       ? [
@@ -407,6 +445,24 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             color: '#b91c1c',
             bg: '#fef2f2',
           },
+          {
+            key: 'sick',
+            title: 'Sakit',
+            value: Number(summary.sick_count || 0),
+            suffix: 'hari',
+            icon: <Thermometer size={isMobile ? 14 : 18} />,
+            color: '#0e7490',
+            bg: '#ecfeff',
+          },
+          {
+            key: 'permit',
+            title: 'Izin',
+            value: Number(summary.permit_count || 0),
+            suffix: 'hari',
+            icon: <MailCheck size={isMobile ? 14 : 18} />,
+            color: '#1d4ed8',
+            bg: '#eff6ff',
+          },
         ]
       : activeTab === 'mengajar'
         ? [
@@ -427,6 +483,24 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               icon: <UserX size={isMobile ? 14 : 18} />,
               color: '#b91c1c',
               bg: '#fef2f2',
+            },
+            {
+              key: 'sick',
+              title: 'Sakit',
+              value: Number(sessionSummary.sick_sessions || 0),
+              suffix: 'sesi',
+              icon: <Thermometer size={isMobile ? 14 : 18} />,
+              color: '#0e7490',
+              bg: '#ecfeff',
+            },
+            {
+              key: 'permit',
+              title: 'Izin',
+              value: Number(sessionSummary.permit_sessions || 0),
+              suffix: 'sesi',
+              icon: <MailCheck size={isMobile ? 14 : 18} />,
+              color: '#1d4ed8',
+              bg: '#eff6ff',
             },
           ]
         : [];
@@ -654,6 +728,15 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
                   style={toolbarButtonStyle(isMobile)}>
                   Panduan
                 </Button>
+                {activeTab === 'kehadiran' && (
+                  <Button
+                    icon={<Download size={16} />}
+                    onClick={handleDownloadExcel}
+                    disabled={rows.length === 0}
+                    style={toolbarButtonStyle(isMobile)}>
+                    Excel
+                  </Button>
+                )}
                 <Button
                   icon={<RefreshCw size={16} />}
                   loading={isFetching}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Button, Card, DatePicker, Flex, Input, Modal, Select, Tag } from 'antd';
-import { AlertTriangle, CalendarRange, Clock3, RefreshCw, Search, UsersRound } from 'lucide-react';
+import { Button, Card, DatePicker, Flex, Input, Modal, Select, Tag, message } from 'antd';
+import { AlertTriangle, CalendarRange, Clock3, Download, RefreshCw, Search, UsersRound } from 'lucide-react';
 import { useGetStaffAttendanceReportQuery } from '../../../../service/lms/ApiAttendance';
 import {
   DETAIL_ACTIONS,
@@ -25,6 +25,7 @@ import {
   useResponsiveFlags,
 } from './reportShared';
 import { CardGridView, ReportDetailGrid, ReportMetricGrid, ReportRecordCard } from './reportMobile';
+import { downloadDailyAttendanceExcel } from './reportExport';
 
 const { RangePicker } = DatePicker;
 
@@ -71,6 +72,14 @@ const StaffReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
   const summary = data?.data?.summary || {};
   const rows = useMemo(() => sortByLatestTap(data?.data?.rows), [data?.data?.rows]);
 
+  const handleDownloadExcel = () => {
+    if (!rows.length) {
+      message.warning('Tidak ada data presensi tendik untuk diunduh.');
+      return;
+    }
+    downloadDailyAttendanceExcel({ type: 'staff', rows, range });
+  };
+
   const statItems = [
     {
       key: 'staff',
@@ -115,13 +124,22 @@ const StaffReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             description="Kehadiran harian tenaga kependidikan dari tap kartu di device gerbang."
             isMobile={isMobile}
             extra={
-              <Button
-                icon={<RefreshCw size={16} />}
-                loading={isFetching}
-                onClick={() => refetch()}
-                style={toolbarButtonStyle(isMobile)}>
-                Refresh
-              </Button>
+              <>
+                <Button
+                  icon={<Download size={16} />}
+                  onClick={handleDownloadExcel}
+                  disabled={rows.length === 0}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Excel
+                </Button>
+                <Button
+                  icon={<RefreshCw size={16} />}
+                  loading={isFetching}
+                  onClick={() => refetch()}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Refresh
+                </Button>
+              </>
             }
           />
 

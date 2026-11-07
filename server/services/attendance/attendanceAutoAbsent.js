@@ -9,12 +9,13 @@ import {
 } from "./rfidDailyAttendance.js";
 import { isAttendanceHoliday } from "./holidayCalendar.js";
 import { resolveStaffPolicy, STAFF_TARGET_ROLE } from "./rfidStaffAttendance.js";
+import { EXCUSED_STATUSES, EXCUSED_STATUS_SQL } from "./attendanceStatuses.js";
 
 const FINAL_STATUSES = new Set([
   "present",
   "late",
   "absent",
-  "excused",
+  ...EXCUSED_STATUSES,
   "not_scheduled",
   "insufficient_hours",
 ]);
@@ -756,7 +757,7 @@ const processAutoCheckout = async (
     if (!existing?.checkin_at || existing.checkout_at) continue;
     if (
       existing.attendance_status === "absent" ||
-      existing.attendance_status === "excused" ||
+      EXCUSED_STATUSES.includes(existing.attendance_status) ||
       existing.attendance_status === "not_scheduled"
     ) {
       continue;
@@ -849,7 +850,7 @@ const processStaffDailyAttendance = async (
        AND checkin_at IS NOT NULL
        AND checkin_at <= $3::timestamptz
        AND checkout_at IS NULL
-       AND attendance_status NOT IN ('absent', 'excused')`,
+       AND attendance_status NOT IN ('absent', ${EXCUSED_STATUS_SQL})`,
     [homebaseId, attendanceDate, fillAt.toISOString()],
   );
 

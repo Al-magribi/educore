@@ -11,7 +11,17 @@ import {
   Tag,
   message,
 } from 'antd';
-import { BookOpenCheck, CalendarRange, RefreshCw, School, Search, Trash2, Users } from 'lucide-react';
+import {
+  CalendarRange,
+  Download,
+  MailCheck,
+  RefreshCw,
+  School,
+  Search,
+  Thermometer,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import {
   useBulkDeleteDailyAttendanceRecordsMutation,
   useDeleteDailyAttendanceRecordMutation,
@@ -42,6 +52,7 @@ import {
   useResponsiveFlags,
 } from './reportShared';
 import { CardGridView, ReportDetailGrid, ReportMetricGrid, ReportRecordCard } from './reportMobile';
+import { downloadDailyAttendanceExcel } from './reportExport';
 
 const { RangePicker } = DatePicker;
 
@@ -49,7 +60,9 @@ const STATUS_COLORS = {
   present: 'green',
   late: 'gold',
   absent: 'red',
-  excused: 'blue',
+  sick: 'cyan',
+  permit: 'blue',
+  excused: 'geekblue',
   incomplete: 'orange',
   pending: 'default',
 };
@@ -58,7 +71,9 @@ const STUDENT_STATUS_OPTIONS = [
   { value: 'present', label: 'Present (Hadir)' },
   { value: 'late', label: 'Late (Telat)' },
   { value: 'absent', label: 'Absent (Absen)' },
-  { value: 'excused', label: 'Excused (Sakit/Izin)' },
+  { value: 'sick', label: 'Sick (Sakit)' },
+  { value: 'permit', label: 'Permit (Izin)' },
+  { value: 'excused', label: 'Excused (Sakit/Izin lama)' },
   { value: 'incomplete', label: 'Incomplete' },
   { value: 'pending', label: 'Pending (Belum tap)' },
 ];
@@ -212,6 +227,14 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
     }
   };
 
+  const handleDownloadExcel = () => {
+    if (!rows.length) {
+      message.warning('Tidak ada data presensi siswa untuk diunduh.');
+      return;
+    }
+    downloadDailyAttendanceExcel({ type: 'student', rows, range });
+  };
+
   const statItems = [
     {
       key: 'present',
@@ -230,10 +253,18 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
       bg: '#fefce8',
     },
     {
-      key: 'excused',
-      title: 'Sakit/Izin',
-      value: Number(summary.excused_count || 0),
-      icon: <BookOpenCheck size={isMobile ? 14 : 18} />,
+      key: 'sick',
+      title: 'Sakit',
+      value: Number(summary.sick_count || 0),
+      icon: <Thermometer size={isMobile ? 14 : 18} />,
+      color: '#0e7490',
+      bg: '#ecfeff',
+    },
+    {
+      key: 'permit',
+      title: 'Izin',
+      value: Number(summary.permit_count || 0),
+      icon: <MailCheck size={isMobile ? 14 : 18} />,
       color: '#1d4ed8',
       bg: '#eff6ff',
     },
@@ -256,13 +287,22 @@ const StudentReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             description="Rekap kehadiran harian siswa berdasarkan data daily_attendance."
             isMobile={isMobile}
             extra={
-              <Button
-                icon={<RefreshCw size={16} />}
-                loading={isFetching}
-                onClick={() => refetch()}
-                style={toolbarButtonStyle(isMobile)}>
-                Refresh
-              </Button>
+              <>
+                <Button
+                  icon={<Download size={16} />}
+                  onClick={handleDownloadExcel}
+                  disabled={rows.length === 0}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Excel
+                </Button>
+                <Button
+                  icon={<RefreshCw size={16} />}
+                  loading={isFetching}
+                  onClick={() => refetch()}
+                  style={toolbarButtonStyle(isMobile)}>
+                  Refresh
+                </Button>
+              </>
             }
           />
 

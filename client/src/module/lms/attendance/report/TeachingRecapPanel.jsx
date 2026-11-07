@@ -87,7 +87,9 @@ const TeachingRecapPanel = ({
         'Hadir (sesi present+late)': row.attended_tap,
         'Seharusnya (sesi)': row.should_attend,
         'Belum tap (sesi)': row.belum_tap,
-        Excused: row.excused_count,
+        Sakit: row.sick_count,
+        Izin: row.permit_count,
+        'Sakit/Izin (lama)': row.excused_count - row.sick_count - row.permit_count,
         Partial: row.partial_count,
         'Persentase (%)': row.attendance_rate,
       }));

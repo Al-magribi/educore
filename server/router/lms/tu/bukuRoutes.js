@@ -657,12 +657,18 @@ const pullAttendance = async (client, homebaseId, studentId, periodeName, semest
     `
       SELECT
         COUNT(*) FILTER (
-          WHERE attendance_status = 'excused'
-            AND COALESCE(notes, '') ILIKE '%sakit%'
+          WHERE attendance_status = 'sick'
+            OR (
+              attendance_status = 'excused'
+              AND COALESCE(notes, '') ILIKE '%sakit%'
+            )
         )::int AS sick,
         COUNT(*) FILTER (
-          WHERE attendance_status = 'excused'
-            AND COALESCE(notes, '') NOT ILIKE '%sakit%'
+          WHERE attendance_status = 'permit'
+            OR (
+              attendance_status = 'excused'
+              AND COALESCE(notes, '') NOT ILIKE '%sakit%'
+            )
         )::int AS permit,
         COUNT(*) FILTER (WHERE attendance_status = 'absent')::int AS absent
       FROM attendance.daily_attendance

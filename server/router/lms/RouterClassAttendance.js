@@ -12,6 +12,7 @@ import {
   ensureClassAttendanceOfficerTable,
   resolveClassAttendanceAccess,
 } from "../../services/attendance/classAttendanceAccess.js";
+import { EXCUSED_STATUSES } from "../../services/attendance/attendanceStatuses.js";
 import {
   GATE_LINKED_SCAN_EXISTS_SQL,
   STUDENT_REPORT_ROW_VISIBLE_SQL,
@@ -30,7 +31,7 @@ const CLASS_RECORD_STATUSES = new Set([
   "present",
   "late",
   "absent",
-  "excused",
+  ...EXCUSED_STATUSES,
   "incomplete",
   "insufficient_hours",
   "pending",

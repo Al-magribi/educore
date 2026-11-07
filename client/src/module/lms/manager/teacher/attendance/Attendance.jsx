@@ -62,6 +62,16 @@ const normalizeStatus = (status) => {
   return status;
 };
 
+/** Sakit/Izin dari presensi harian; data lama `excused` dibedakan lewat catatan. */
+const resolveDailyLeave = (dailyStatus, dailyNotes) => {
+  if (dailyStatus === "sick") return "Sakit";
+  if (dailyStatus === "permit") return "Izin";
+  if (dailyStatus === "excused") {
+    return /sakit/i.test(String(dailyNotes || "")) ? "Sakit" : "Izin";
+  }
+  return null;
+};
+
 const StatusHeader = ({ option, onClick, disabled, compact = false }) => (
   <button
     type='button'
@@ -233,6 +243,7 @@ const Attendance = ({ subjectId, subject }) => {
         nisn: item.nisn,
         class_name: item.class_name,
         status: normalizeStatus(item.status) || undefined,
+        daily_leave: resolveDailyLeave(item.daily_status, item.daily_notes),
       })),
     );
     setSelectedRowKeys([]);
@@ -356,6 +367,37 @@ const Attendance = ({ subjectId, subject }) => {
     }
   };
 
+  const dailyLeaveRows = rows.filter((row) => row.daily_leave && !row.status);
+
+  const handleApplyDailyLeave = async () => {
+    if (!dailyLeaveRows.length || isBusy) return;
+    const leaveById = new Map(
+      dailyLeaveRows.map((row) => [row.student_id, row.daily_leave]),
+    );
+    const previous = new Map(
+      dailyLeaveRows.map((row) => [row.student_id, row.status]),
+    );
+    setRows((prev) =>
+      prev.map((item) =>
+        leaveById.has(item.student_id)
+          ? { ...item, status: leaveById.get(item.student_id) }
+          : item,
+      ),
+    );
+    const ok = await persistStatus(
+      dailyLeaveRows.map((row) => ({
+        student_id: row.student_id,
+        status: row.daily_leave,
+      })),
+      previous,
+    );
+    if (ok) {
+      message.success(
+        `${dailyLeaveRows.length} siswa diisi Sakit/Izin dari presensi harian.`,
+      );
+    }
+  };
+
   const clearLocalStatus = (studentIds) => {
     const idSet = new Set(studentIds.map(Number));
     setRows((prev) =>
@@ -424,6 +466,14 @@ const Attendance = ({ subjectId, subject }) => {
             <div style={{ color: "#667085", fontSize: 12 }}>
               NIS {record.nis || "-"}
             </div>
+            {record.daily_leave ? (
+              <Tag
+                color={record.daily_leave === "Sakit" ? "cyan" : "blue"}
+                style={{ marginTop: 4, marginInlineEnd: 0, fontSize: 11 }}
+              >
+                Harian: {record.daily_leave}
+              </Tag>
+            ) : null}
           </div>
         ),
       },
@@ -575,6 +625,14 @@ const Attendance = ({ subjectId, subject }) => {
                       <Text type='secondary' style={{ fontSize: 12 }}>
                         NIS {record.nis || "-"}
                       </Text>
+                      {record.daily_leave ? (
+                        <Tag
+                          color={record.daily_leave === "Sakit" ? "cyan" : "blue"}
+                          style={{ marginTop: 4, marginInlineEnd: 0, fontSize: 11 }}
+                        >
+                          Harian: {record.daily_leave}
+                        </Tag>
+                      ) : null}
                     </div>
                     <Popconfirm
                       title='Hapus status absensi siswa ini?'
@@ -773,6 +831,16 @@ const Attendance = ({ subjectId, subject }) => {
               {statusSummary[item.value] || 0}
             </Tag>
           ))}
+          {dailyLeaveRows.length > 0 ? (
+            <Button
+              size='small'
+              icon={<ClipboardCheck size={14} />}
+              disabled={!canEdit || isBusy}
+              onClick={handleApplyDailyLeave}
+            >
+              Isi Sakit/Izin dari presensi harian ({dailyLeaveRows.length})
+            </Button>
+          ) : null}
         </Space>
       </Card>
 

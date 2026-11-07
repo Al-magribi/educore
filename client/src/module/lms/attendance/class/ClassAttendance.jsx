@@ -15,13 +15,14 @@ import {
   message,
 } from 'antd';
 import {
-  BookOpenCheck,
   CalendarRange,
   Download,
+  MailCheck,
   Plus,
   RefreshCw,
   School,
   Search,
+  Thermometer,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -47,6 +48,8 @@ import { CardGridView, ReportMetricGrid, ReportRecordCard } from '../report/repo
 import {
   CLASS_STATUS_META,
   CLASS_STATUS_OPTIONS,
+  isPermitRecord,
+  isSickRecord,
   statusLabel,
   timeOnly,
 } from './classAttendanceShared';
@@ -131,10 +134,18 @@ const ClassAttendance = () => {
       bg: '#fefce8',
     },
     {
-      key: 'excused',
-      title: 'Sakit/Izin',
-      value: countByStatus('excused'),
-      icon: <BookOpenCheck size={isMobile ? 14 : 18} />,
+      key: 'sick',
+      title: 'Sakit',
+      value: rows.filter(isSickRecord).length,
+      icon: <Thermometer size={isMobile ? 14 : 18} />,
+      color: '#0e7490',
+      bg: '#ecfeff',
+    },
+    {
+      key: 'permit',
+      title: 'Izin',
+      value: rows.filter(isPermitRecord).length,
+      icon: <MailCheck size={isMobile ? 14 : 18} />,
       color: '#1d4ed8',
       bg: '#eff6ff',
     },

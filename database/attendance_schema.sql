@@ -372,6 +372,8 @@ CREATE TABLE daily_attendance(
                 'present',
                 'late',
                 'absent',
+                'sick',
+                'permit',
                 'excused',
                 'not_scheduled',
                 'incomplete',
@@ -454,6 +456,8 @@ CREATE TABLE teacher_schedule_requirement(
                 'late',
                 'missed',
                 'partial',
+                'sick',
+                'permit',
                 'excused'
             )
         ),

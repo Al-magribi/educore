@@ -1,5 +1,6 @@
 import pool from "../../config/connection.js";
 import { ensureStaffTable } from "../academic/staffTable.js";
+import { runAttendanceStatusMigration } from "./attendanceStatuses.js";
 
 const POLICY_TARGET_ROLE_CHECK = `CHECK (target_role IN ('student', 'teacher', 'all', 'staff'))`;
 const POLICY_TYPE_CHECK = `CHECK (policy_type IN ('student_fixed', 'teacher_schedule_based', 'teacher_fixed_daily', 'activity_fixed', 'staff_fixed_daily'))`;
@@ -64,7 +65,7 @@ const runStaffAttendanceMigration = async (db) => {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT staff_daily_attendance_status_check CHECK (
-        attendance_status IN ('pending', 'present', 'late', 'absent', 'excused', 'incomplete', 'insufficient_hours')
+        attendance_status IN ('pending', 'present', 'late', 'absent', 'sick', 'permit', 'excused', 'incomplete', 'insufficient_hours')
       ),
       CONSTRAINT staff_daily_attendance_time_order_check CHECK (
         checkout_at IS NULL OR checkin_at IS NULL OR checkout_at >= checkin_at
@@ -82,6 +83,8 @@ const runStaffAttendanceMigration = async (db) => {
     CREATE INDEX IF NOT EXISTS idx_staff_daily_attendance_homebase_date
     ON attendance.staff_daily_attendance (homebase_id, attendance_date)
   `);
+
+  await runAttendanceStatusMigration(db);
 };
 
 let schemaPromise = null;
