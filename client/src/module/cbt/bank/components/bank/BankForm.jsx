@@ -67,7 +67,7 @@ const BankForm = ({ initialValues, onClose, onSuccess }) => {
 
   // 1. Ambil Data User dari Redux
   const { user } = useSelector((state) => state.auth);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.can_manage_cbt === true;
 
   // RTK Query hooks
   const { data: subjects, isLoading: loadingSubjects } = useGetSubjectsQuery();

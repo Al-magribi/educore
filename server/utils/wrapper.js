@@ -27,7 +27,16 @@ export const withTransaction = (handler) => {
       // agar query menjadi satu kesatuan transaksi.
       await handler(req, res, client);
 
-      // Commit perubahan jika tidak ada error
+      // Jika handler sudah mengirim error response (4xx/5xx), rollback
+      // supaya perubahan parsial tidak ter-commit.
+      // Opt-in: res.locals.commitTransaction = true untuk audit/log yang harus
+      // tetap tersimpan meski response ke klien adalah 4xx (mis. RFID unregistered).
+      if (res.statusCode >= 400 && !res.locals.commitTransaction) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      // Commit perubahan jika tidak ada error, atau handler meminta commit eksplisit
       await client.query("COMMIT");
     } catch (error) {
       // Jika ada error, batalkan semua perubahan
@@ -35,11 +44,15 @@ export const withTransaction = (handler) => {
 
       logError(error, `Transaction Error on ${req.originalUrl}`);
 
-      // Pastikan response belum terkirim sebelum mengirim status 500
+      // Pastikan response belum terkirim sebelum mengirim status
       if (!res.headersSent) {
-        res.status(error.statusCode || 500).json({
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({
           status: "error",
-          message: error.message || "Transaction failed",
+          message:
+            error.statusCode && error.message
+              ? error.message
+              : "Transaction failed",
           error: process.env.MODE === "development" ? error.message : undefined,
         });
       }
