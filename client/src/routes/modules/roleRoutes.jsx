@@ -3,6 +3,7 @@ import { Route } from "react-router-dom";
 
 import { AppLayout } from "../../components";
 import RouteProtection from "../../utils/RouteProtection";
+import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 
 const Profile = lazy(() => import("../../components/profile/Profile"));
 const StudentDash = lazy(() => import("../../module/student/dashboard/StudentDash"));
@@ -10,6 +11,7 @@ const TeacherDash = lazy(() => import("../../module/teacher/dashboard/TeacherDas
 const StudentExamList = lazy(
   () => import("../../module/cbt/student/view/StudentExamList"),
 );
+const StudentExamListPage = withMuseTheme(StudentExamList);
 
 const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
   <>
@@ -37,7 +39,7 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
           isCbtEnabled ? (
             createElement(LazyPage, {
               title: "Jadwal Ujian",
-              Component: StudentExamList,
+              Component: StudentExamListPage,
             })
           ) : (
             createElement(NotFoundRedirect)

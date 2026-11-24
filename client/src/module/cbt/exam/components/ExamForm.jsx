@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   Alert,
   Button,
-  Card,
   Col,
   Flex,
   Form,
@@ -11,15 +10,13 @@ import {
   InputNumber,
   Row,
   Select,
-  Space,
   Switch,
   Typography,
   message,
 } from "antd";
-import { motion } from "framer-motion";
-import { BookOpen, Clock3, User, Users } from "lucide-react";
-import PageHeader from "../../../../components/ui/PageHeader";
+import { BookOpen, Clock3, User } from "lucide-react";
 import { useSelector } from "react-redux";
+import { museColors, museRadius } from "../../../../config/theme";
 import {
   useGetBanksForExamQuery,
   useCreateExamMutation,
@@ -31,38 +28,47 @@ import {
   useGetClassesQuery,
 } from "../../../../service/public/ApiPublic";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
 
-const containerVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.34,
-      staggerChildren: 0.07,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
+const SectionLabel = ({ children }) => (
+  <div
+    style={{
+      fontSize: 12,
+      fontWeight: 700,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+      color: museColors.muted,
+      margin: "4px 0 12px",
+    }}
+  >
+    {children}
+  </div>
+);
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
-  },
-};
-
-const summaryCardStyle = {
-  borderRadius: 20,
-  height: "100%",
-  border: "1px solid rgba(148, 163, 184, 0.16)",
-  boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
-};
+const SwitchRow = ({ name, title, description, last }) => (
+  <Flex
+    align='center'
+    justify='space-between'
+    gap={16}
+    style={{
+      padding: "12px 16px",
+      borderBottom: last ? 0 : `1px solid ${museColors.divider}`,
+    }}
+  >
+    <div style={{ minWidth: 0 }}>
+      <Text strong style={{ display: "block" }}>
+        {title}
+      </Text>
+      <Text type='secondary' style={{ fontSize: 12 }}>
+        {description}
+      </Text>
+    </div>
+    <Form.Item name={name} valuePropName='checked' noStyle>
+      <Switch aria-label={title} />
+    </Form.Item>
+  </Flex>
+);
 
 const ExamForm = ({ initialValues, onClose, onSuccess }) => {
   const screens = useBreakpoint();
@@ -105,37 +111,6 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
         .map((item) => ({ label: item.name, value: item.id })),
     [classes],
   );
-
-  const summaryItems = [
-    {
-      key: "teacher",
-      label: "Pengampu",
-      value: isAdmin
-        ? teacherIdField
-          ? "Dipilih"
-          : "Belum Dipilih"
-        : user?.full_name || "-",
-      icon: <User size={18} />,
-      background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-      color: "#1d4ed8",
-    },
-    {
-      key: "bank",
-      label: "Bank Soal",
-      value: resolvedTeacherId ? banks?.length || 0 : 0,
-      icon: <BookOpen size={18} />,
-      background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-      color: "#15803d",
-    },
-    {
-      key: "classes",
-      label: "Kelas Dipilih",
-      value: Array.isArray(classIds) ? classIds.length : 0,
-      icon: <Users size={18} />,
-      background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-      color: "#b45309",
-    },
-  ];
 
   useEffect(() => {
     if (isAdmin) {
@@ -193,8 +168,10 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
 
       if (isEdit) {
         await updateExam({ id: initialValues.id, ...payload }).unwrap();
+        message.success("Jadwal ujian berhasil diperbarui");
       } else {
         await createExam(payload).unwrap();
+        message.success("Jadwal ujian berhasil dibuat");
       }
 
       form.resetFields();
@@ -205,388 +182,241 @@ const ExamForm = ({ initialValues, onClose, onSuccess }) => {
   };
 
   return (
-    <MotionDiv
-      initial='hidden'
-      animate='show'
-      variants={containerVariants}
-      style={{ display: "flex", flexDirection: "column", gap: 18 }}
+    <Form
+      form={form}
+      layout='vertical'
+      onFinish={onFinish}
+      style={{ marginTop: 16 }}
+      initialValues={{
+        is_active: true,
+        is_shuffle: false,
+        violation_tolerance: 3,
+        violation_duration_seconds: 5,
+      }}
     >
-      <MotionDiv variants={itemVariants}>
-        <PageHeader
-          title={isEdit ? "Edit Jadwal Ujian" : "Buat Jadwal Ujian"}
-          description='Atur pengampu, bank soal, durasi, grade, serta cakupan kelas.'
+      {!isEdit && (
+        <Alert
+          title={isAdmin ? "Mode admin" : `Pengampu: ${user?.full_name || "Anda"}`}
+          description={
+            isAdmin
+              ? "Pilih guru terlebih dahulu. Daftar bank soal mengikuti guru yang dipilih."
+              : "Pengampu otomatis terisi sesuai akun Anda."
+          }
+          type='info'
+          showIcon
+          style={{ marginBottom: 16 }}
         />
-      </MotionDiv>
+      )}
 
-      <MotionDiv variants={itemVariants}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: screens.xs
-              ? "1fr"
-              : "repeat(3, minmax(0, 1fr))",
-            gap: 16,
-          }}
+      <SectionLabel>Ujian</SectionLabel>
+
+      {isAdmin && (
+        <Form.Item
+          label='Guru Pengampu'
+          name='teacher_id'
+          rules={[{ required: true, message: "Guru pengampu wajib dipilih" }]}
         >
-          {summaryItems.map((item) => (
-            <Card
-              key={item.key}
-              variant='borderless'
-              style={summaryCardStyle}
-              styles={{ body: { padding: 18 } }}
-            >
-              <Flex align='center' justify='space-between' gap={16}>
-                <Space orientation='vertical' size={4} style={{ minWidth: 0 }}>
-                  <Text type='secondary'>{item.label}</Text>
-                  <Title
-                    level={screens.xs ? 5 : 4}
-                    style={{ margin: 0, overflowWrap: "anywhere" }}
-                  >
-                    {item.value}
-                  </Title>
-                </Space>
-                <div
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: item.background,
-                    color: item.color,
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.icon}
-                </div>
-              </Flex>
-            </Card>
-          ))}
-        </div>
-      </MotionDiv>
-
-      <MotionDiv variants={itemVariants}>
-        <Form
-          form={form}
-          layout='vertical'
-          onFinish={onFinish}
-          initialValues={{
-            is_active: true,
-            is_shuffle: false,
-            violation_tolerance: 3,
-            violation_duration_seconds: 5,
-          }}
-        >
-          {!isEdit && (
-            <Alert
-              message={isAdmin ? "Mode Admin" : `Guru: ${user?.full_name}`}
-              description={
-                isAdmin
-                  ? "Pilih guru terlebih dahulu. Bank soal dan jadwal akan mengikuti guru tersebut."
-                  : "Guru otomatis terpilih sesuai akun Anda."
-              }
-              type='info'
-              showIcon
-              style={{ marginBottom: 16, borderRadius: 16 }}
-            />
-          )}
-
-          <Card
-            variant='borderless'
-            style={{
-              borderRadius: 24,
-              boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
-            }}
-            styles={{ body: { padding: screens.xs ? 16 : 20 } }}
+          <Select
+            placeholder='Cari nama guru'
+            loading={loadingTeachers}
+            showSearch
+            optionFilterProp='label'
+            allowClear
+            suffixIcon={<User size={14} />}
+            virtual={false}
           >
-            <Space orientation='vertical' size={18} style={{ width: "100%" }}>
-              {isAdmin && (
-                <Form.Item
-                  label='Guru'
-                  name='teacher_id'
-                  rules={[
-                    { required: true, message: "Admin wajib memilih guru" },
-                  ]}
-                >
-                  <Select
-                    placeholder='Cari nama guru'
-                    loading={loadingTeachers}
-                    showSearch
-                    optionFilterProp='label'
-                    allowClear
-                    suffixIcon={<User size={14} />}
-                    virtual={false}
-                  >
-                    {teachers?.map((t) => (
-                      <Select.Option
-                        key={t.id}
-                        value={t.id}
-                        label={t.full_name}
-                      >
-                        {t.full_name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              )}
+            {teachers?.map((t) => (
+              <Select.Option key={t.id} value={t.id} label={t.full_name}>
+                {t.full_name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
+      )}
 
-              <Form.Item
-                label='Bank Soal'
-                name='bank_id'
-                rules={[{ required: true, message: "Pilih bank soal" }]}
-              >
-                <Select
-                  placeholder={
-                    resolvedTeacherId
-                      ? "Pilih bank soal"
-                      : "Pilih guru terlebih dahulu"
-                  }
-                  loading={loadingBanks}
-                  showSearch
-                  optionFilterProp='label'
-                  disabled={!resolvedTeacherId}
-                  suffixIcon={<BookOpen size={14} />}
-                  options={(banks || []).map((bank) => ({
-                    label: `${bank.title} (${bank.subject_name || "Mapel Umum"})`,
-                    value: bank.id,
-                  }))}
-                  virtual={false}
-                />
-              </Form.Item>
+      <Form.Item
+        label='Bank Soal'
+        name='bank_id'
+        rules={[{ required: true, message: "Bank soal wajib dipilih" }]}
+        extra={
+          resolvedTeacherId && !loadingBanks && (banks || []).length === 0
+            ? "Guru ini belum punya bank soal. Buat bank soal dulu di menu Bank Soal."
+            : undefined
+        }
+      >
+        <Select
+          placeholder={
+            resolvedTeacherId ? "Pilih bank soal" : "Pilih guru terlebih dahulu"
+          }
+          loading={loadingBanks}
+          showSearch
+          optionFilterProp='label'
+          disabled={!resolvedTeacherId}
+          suffixIcon={<BookOpen size={14} />}
+          options={(banks || []).map((bank) => ({
+            label: `${bank.title} (${bank.subject_name || "Mapel umum"})`,
+            value: bank.id,
+          }))}
+          virtual={false}
+        />
+      </Form.Item>
 
-              <Row gutter={screens.xs ? 0 : 12}>
-                <Col xs={24} md={16}>
-                  <Form.Item
-                    label='Nama Jadwal Ujian'
-                    name='name'
-                    rules={[
-                      { required: true, message: "Nama jadwal wajib diisi" },
-                    ]}
-                  >
-                    <Input placeholder='Contoh: PTS Matematika Kelas X' />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    label='Durasi (Menit)'
-                    name='duration_minutes'
-                    rules={[{ required: true, message: "Durasi wajib diisi" }]}
-                  >
-                    <InputNumber
-                      min={10}
-                      style={{ width: "100%" }}
-                      placeholder='90'
-                      prefix={<Clock3 size={14} />}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
+      <Row gutter={16}>
+        <Col xs={24} md={16}>
+          <Form.Item
+            label='Nama Jadwal Ujian'
+            name='name'
+            rules={[{ required: true, message: "Nama jadwal wajib diisi" }]}
+          >
+            <Input placeholder='Contoh: PTS Matematika Kelas X' />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={8}>
+          <Form.Item
+            label='Durasi (menit)'
+            name='duration_minutes'
+            rules={[{ required: true, message: "Durasi wajib diisi" }]}
+          >
+            <InputNumber
+              min={10}
+              style={{ width: "100%" }}
+              placeholder='90'
+              prefix={<Clock3 size={14} color={museColors.muted} />}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
 
-              <Row gutter={screens.xs ? 0 : 12}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label='Toleransi Pelanggaran'
-                    name='violation_tolerance'
-                    rules={[
-                      {
-                        required: true,
-                        message: "Toleransi pelanggaran wajib diisi",
-                      },
-                    ]}
-                    extra='Jumlah pelanggaran yang membuat siswa dikeluarkan dan harus diizinkan pengawas.'
-                  >
-                    <InputNumber
-                      min={1}
-                      precision={0}
-                      style={{ width: "100%" }}
-                      placeholder='3'
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label='Durasi Pelanggaran (Detik)'
-                    name='violation_duration_seconds'
-                    rules={[
-                      {
-                        required: true,
-                        message: "Durasi pelanggaran wajib diisi",
-                      },
-                    ]}
-                    extra='Waktu siswa boleh berada di luar tab ujian sebelum satu pelanggaran tercatat.'
-                  >
-                    <InputNumber
-                      min={1}
-                      precision={0}
-                      style={{ width: "100%" }}
-                      placeholder='5'
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
+      <SectionLabel>Peserta</SectionLabel>
 
-              <Row gutter={screens.xs ? 0 : 12}>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    label='Tingkat'
-                    name='grade_id'
-                    rules={[{ required: true, message: "Pilih grade" }]}
-                  >
-                    <Select
-                      placeholder='Pilih tingkat'
-                      loading={loadingGrades}
-                      showSearch
-                      onChange={() => form.setFieldValue("class_ids", [])}
-                      virtual={false}
-                    >
-                      {grades?.map((grade) => (
-                        <Select.Option key={grade.id} value={grade.id}>
-                          {grade.name}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
+      <Row gutter={16}>
+        <Col xs={24} sm={12}>
+          <Form.Item
+            label='Tingkat'
+            name='grade_id'
+            rules={[{ required: true, message: "Tingkat wajib dipilih" }]}
+          >
+            <Select
+              placeholder='Pilih tingkat'
+              loading={loadingGrades}
+              showSearch
+              optionFilterProp='children'
+              onChange={() => form.setFieldValue("class_ids", [])}
+              virtual={false}
+            >
+              {grades?.map((grade) => (
+                <Select.Option key={grade.id} value={grade.id}>
+                  {grade.name}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Col>
 
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    label={
-                      <Space size={6} align='center'>
-                        <Users size={14} />
-                        <span>Kelas</span>
-                      </Space>
-                    }
-                    name='class_ids'
-                    rules={[
-                      { required: true, message: "Pilih minimal 1 kelas" },
-                    ]}
-                  >
-                    <Select
-                      mode='multiple'
-                      placeholder={
-                        gradeId ? "Pilih kelas" : "Pilih grade dahulu"
-                      }
-                      loading={loadingClasses}
-                      options={classOptions}
-                      disabled={!gradeId}
-                      maxTagCount='responsive'
-                      allowClear
-                      showSearch={{ optionFilterProp: "label" }}
-                      virtual={false}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Flex
-                vertical={!!screens.xs}
-                justify='space-between'
-                align={screens.xs ? "stretch" : "center"}
-                gap={screens.xs ? 8 : 12}
-                style={{
-                  marginTop: -8,
-                  marginBottom: 8,
-                  padding: "12px 14px",
-                  borderRadius: 16,
-                  background: "#f8fafc",
-                  border: "1px solid rgba(148, 163, 184, 0.14)",
-                }}
-              >
+        <Col xs={24} sm={12}>
+          <Form.Item
+            label={
+              <Flex align='center' justify='space-between' gap={8} style={{ width: "100%" }}>
+                <span>Kelas</span>
                 <Button
+                  type='link'
                   size='small'
                   onClick={handleSelectAllClasses}
-                  style={{ width: screens.xs ? "100%" : "auto" }}
+                  disabled={!gradeId || classOptions.length === 0}
+                  style={{ padding: 0, height: "auto" }}
                 >
-                  Pilih Semua Kelas
+                  Pilih semua
                 </Button>
-                <Text type='secondary' style={{ fontSize: 12 }}>
-                  Pilih kelas secara eksplisit. Gunakan tombol "Pilih Semua
-                  Kelas" hanya jika ujian memang berlaku untuk seluruh kelas di
-                  tingkat ini.
-                </Text>
               </Flex>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: screens.xs
-                    ? "1fr"
-                    : "repeat(2, minmax(0, 1fr))",
-                  gap: 16,
-                }}
-              >
-                <Card
-                  variant='borderless'
-                  style={{ borderRadius: 18, background: "#f8fafc" }}
-                  styles={{ body: { padding: 16 } }}
-                >
-                  <Form.Item
-                    label='Status Aktif'
-                    name='is_active'
-                    valuePropName='checked'
-                    style={{ marginBottom: 0 }}
-                  >
-                    <Switch />
-                  </Form.Item>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    Jadwal aktif langsung tersedia untuk peserta sesuai
-                    konfigurasi.
-                  </Text>
-                </Card>
-
-                <Card
-                  variant='borderless'
-                  style={{ borderRadius: 18, background: "#f8fafc" }}
-                  styles={{ body: { padding: 16 } }}
-                >
-                  <Form.Item
-                    label='Acak Soal'
-                    name='is_shuffle'
-                    valuePropName='checked'
-                    style={{ marginBottom: 0 }}
-                  >
-                    <Switch />
-                  </Form.Item>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    Soal akan diacak untuk membantu menjaga variasi urutan
-                    peserta.
-                  </Text>
-                </Card>
-              </div>
-            </Space>
-          </Card>
-
-          <div
-            style={{
-              display: "flex",
-              flexDirection: screens.xs ? "column-reverse" : "row",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 16,
-            }}
+            }
+            name='class_ids'
+            rules={[{ required: true, message: "Pilih minimal 1 kelas" }]}
+            extra={
+              Array.isArray(classIds) && classIds.length > 0
+                ? `${classIds.length} kelas dipilih`
+                : undefined
+            }
+            styles={{ label: { width: "100%" } }}
           >
-            <Button
-              onClick={onClose}
-              disabled={isLoading}
-              block={!!screens.xs}
-              style={{ minWidth: screens.xs ? "100%" : 92 }}
-            >
-              Batal
-            </Button>
-            <Button
-              type='primary'
-              htmlType='submit'
-              loading={isLoading}
-              block={!!screens.xs}
-              style={{ minWidth: screens.xs ? "100%" : 132 }}
-            >
-              {isEdit ? "Simpan Perubahan" : "Buat Jadwal"}
-            </Button>
-          </div>
-        </Form>
-      </MotionDiv>
-    </MotionDiv>
+            <Select
+              mode='multiple'
+              placeholder={gradeId ? "Pilih kelas" : "Pilih tingkat dahulu"}
+              loading={loadingClasses}
+              options={classOptions}
+              disabled={!gradeId}
+              maxTagCount='responsive'
+              allowClear
+              showSearch={{ optionFilterProp: "label" }}
+              virtual={false}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <SectionLabel>Pengawasan</SectionLabel>
+
+      <Row gutter={16}>
+        <Col xs={24} md={12}>
+          <Form.Item
+            label='Toleransi Pelanggaran'
+            name='violation_tolerance'
+            rules={[{ required: true, message: "Toleransi pelanggaran wajib diisi" }]}
+            extra='Jumlah pelanggaran sebelum siswa dikeluarkan dan perlu izin pengawas.'
+          >
+            <InputNumber min={1} precision={0} style={{ width: "100%" }} placeholder='3' />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item
+            label='Batas Keluar Tab (detik)'
+            name='violation_duration_seconds'
+            rules={[{ required: true, message: "Batas keluar tab wajib diisi" }]}
+            extra='Lama siswa boleh meninggalkan tab ujian sebelum satu pelanggaran tercatat.'
+          >
+            <InputNumber min={1} precision={0} style={{ width: "100%" }} placeholder='5' />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <Flex
+        vertical
+        style={{
+          border: `1px solid ${museColors.divider}`,
+          borderRadius: museRadius.item,
+          marginBottom: 24,
+        }}
+      >
+        <SwitchRow
+          name='is_active'
+          title='Jadwal aktif'
+          description='Siswa di kelas terpilih bisa melihat dan mengikuti ujian ini.'
+        />
+        <SwitchRow
+          name='is_shuffle'
+          title='Acak urutan soal'
+          description='Setiap siswa mendapat urutan soal yang berbeda.'
+          last
+        />
+      </Flex>
+
+      <Flex
+        justify='flex-end'
+        gap={8}
+        style={{ flexDirection: screens.xs ? "column-reverse" : "row" }}
+      >
+        <Button onClick={onClose} disabled={isLoading} block={!!screens.xs}>
+          Batal
+        </Button>
+        <Button
+          type='primary'
+          htmlType='submit'
+          loading={isLoading}
+          block={!!screens.xs}
+        >
+          {isEdit ? "Simpan Perubahan" : "Buat Jadwal"}
+        </Button>
+      </Flex>
+    </Form>
   );
 };
 

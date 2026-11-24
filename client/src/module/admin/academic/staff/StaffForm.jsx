@@ -1,5 +1,7 @@
 import React, { useEffect } from "react";
-import { Divider, Form, Input, Modal, Switch, Typography } from "antd";
+import { Col, Divider, Form, Input, Row, Switch, Typography } from "antd";
+import { Pencil, UserPlus } from "lucide-react";
+import { FormModal } from "../../../../components/ui/muse/DataSection";
 import { hasFinanceStaffDesk } from "../../../finance/assignment/FinanceStaffSlot";
 
 const { Text } = Typography;
@@ -24,23 +26,18 @@ const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
   }, [form, initialValues, open]);
 
   return (
-    <Modal
-      title={initialValues ? "Edit Tendik" : "Tambah Tendik"}
+    <FormModal
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}
-      okText={initialValues ? "Simpan" : "Tambah"}
-      cancelText="Batal"
       confirmLoading={loading}
-      destroyOnClose
-      centered
+      width={640}
+      icon={initialValues ? <Pencil size={16} /> : <UserPlus size={16} />}
+      title={initialValues ? "Edit Tendik" : "Tambah Tendik"}
+      description="Data induk tenaga kependidikan satuan ini."
+      okText={initialValues ? "Simpan Perubahan" : "Tambah Tendik"}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onSubmit}
-        style={{ marginTop: 12 }}
-      >
+      <Form form={form} layout="vertical" onFinish={onSubmit}>
         <Form.Item
           name="full_name"
           label="Nama Lengkap"
@@ -48,18 +45,28 @@ const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
         >
           <Input placeholder="Nama tendik" maxLength={150} />
         </Form.Item>
-        <Form.Item name="nip" label="NIP">
-          <Input placeholder="Opsional" maxLength={50} />
-        </Form.Item>
-        <Form.Item name="rfid_no" label="No RFID (Opsional)">
-          <Input placeholder="Nomor RFID kartu tendik" maxLength={100} />
-        </Form.Item>
-        <Form.Item name="phone" label="Telepon">
-          <Input placeholder="Opsional" maxLength={30} />
-        </Form.Item>
-        <Form.Item name="email" label="Email">
-          <Input placeholder="Opsional" maxLength={120} />
-        </Form.Item>
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item name="nip" label="NIP">
+              <Input placeholder="Opsional" maxLength={50} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="rfid_no" label="No RFID (opsional)">
+              <Input placeholder="Nomor RFID kartu tendik" maxLength={100} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="phone" label="Telepon">
+              <Input placeholder="Opsional" maxLength={30} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="email" label="Email">
+              <Input placeholder="Opsional" maxLength={120} />
+            </Form.Item>
+          </Col>
+        </Row>
         <Form.Item name="notes" label="Catatan">
           <Input.TextArea rows={3} placeholder="Opsional" />
         </Form.Item>
@@ -118,7 +125,7 @@ const StaffForm = ({ open, onCancel, onSubmit, initialValues, loading }) => {
           </>
         ) : null}
       </Form>
-    </Modal>
+    </FormModal>
   );
 };
 

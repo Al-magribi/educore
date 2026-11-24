@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   Alert,
-  Card,
+  Button,
   Col,
   DatePicker,
   Empty,
@@ -11,7 +11,6 @@ import {
   Input,
   Row,
   Select,
-  Statistic,
   Table,
   Tabs,
   Tag,
@@ -29,6 +28,8 @@ import {
   UserX,
   Users,
 } from 'lucide-react';
+import { CardTitle, MuseCard, StatCard } from '../../../components/ui/muse';
+import { museColors } from '../../../config/theme';
 import {
   useGetCenterStudentAttendanceReportQuery,
   useGetCenterTeacherAttendanceReportQuery,
@@ -92,23 +93,9 @@ const OffDayNotice = ({ count, subject }) => {
     <Alert
       type="info"
       showIcon
-      message={`${n} ${subject} tidak dihitung belum tap karena libur akhir pekan atau hari libur.`}
+      title={`${n} ${subject} tidak dihitung belum tap karena libur akhir pekan atau hari libur.`}
     />
   );
-};
-
-const surfaceCardStyle = {
-  borderRadius: 24,
-  border: '1px solid rgba(148, 163, 184, 0.16)',
-  boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
-};
-
-const statCardStyle = {
-  borderRadius: 18,
-  border: '1px solid #e2ebf5',
-  background: '#ffffff',
-  height: '100%',
-  minWidth: 0,
 };
 
 const formatDateTimeCell = (value, compact = false) => {
@@ -158,11 +145,11 @@ const PanelHeader = ({ title, description, filter, isMobile }) => (
     gap={12}
     style={{ width: '100%', minWidth: 0 }}>
     <Flex align="center" gap={6} style={{ minWidth: 0, flex: 1 }}>
-      <Text strong style={{ color: '#0f172a', fontSize: isMobile ? 14 : 15 }}>
+      <Text strong style={{ color: museColors.text, fontSize: isMobile ? 14 : 16 }}>
         {title}
       </Text>
       <Tooltip title={description} placement="right">
-        <Info size={14} style={{ color: '#94a3b8', cursor: 'default', flexShrink: 0 }} />
+        <Info size={14} aria-label="Keterangan" style={{ color: museColors.muted, cursor: 'default', flexShrink: 0 }} />
       </Tooltip>
     </Flex>
     {filter}
@@ -208,57 +195,24 @@ const FilterBar = ({
         flex: isCompact ? undefined : '1 1 180px',
       }}
     />
-    <a
+    <Button
       onClick={onRefresh}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        whiteSpace: 'nowrap',
-        alignSelf: isMobile ? 'flex-start' : 'center',
-        padding: isMobile ? '4px 0' : undefined,
-      }}>
-      <RefreshCw size={14} />
-      Refresh
-    </a>
+      icon={<RefreshCw size={14} />}
+      style={{ alignSelf: isMobile ? 'stretch' : 'center' }}>
+      Muat ulang
+    </Button>
   </Flex>
 );
 
-const SummaryStatCard = ({ item, isMobile, suffix }) => (
-  <Card
-    style={statCardStyle}
-    styles={{ body: { padding: isMobile ? 10 : 14 } }}>
-    <Flex justify="space-between" align="center" gap={8} style={{ minWidth: 0 }}>
-      <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
-        <Statistic
-          title={<span style={{ fontSize: isMobile ? 11 : 13 }}>{item.title}</span>}
-          value={item.value}
-          suffix={suffix}
-          styles={{
-            content: {
-              fontSize: isMobile ? 18 : 24,
-              lineHeight: 1.2,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            },
-          }}
-        />
-      </div>
-      <div
-        style={{
-          width: isMobile ? 32 : 40,
-          height: isMobile ? 32 : 40,
-          borderRadius: 12,
-          display: 'grid',
-          placeItems: 'center',
-          background: item.bg,
-          color: item.color,
-          flexShrink: 0,
-        }}>
-        {item.icon}
-      </div>
-    </Flex>
-  </Card>
+const SummaryStatCard = ({ item, suffix }) => (
+  <StatCard
+    compact
+    title={item.title}
+    value={item.value}
+    suffix={suffix}
+    icon={item.icon}
+    tone={item.tone}
+  />
 );
 
 const buildPagination = (pageSize, setPageSize, isMobile) => ({
@@ -306,33 +260,29 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
         Number(summary.present_count || 0) +
         Number(summary.late_count || 0) +
         Number(summary.incomplete_count || 0),
-      icon: <CalendarRange size={isMobile ? 14 : 18} />,
-      color: '#166534',
-      bg: '#f0fdf4',
+      icon: <CalendarRange size={18} />,
+      tone: 'success',
     },
     {
       key: 'pending',
       title: 'Belum tap',
       value: Number(summary.pending_count || 0),
-      icon: <Users size={isMobile ? 14 : 18} />,
-      color: '#a16207',
-      bg: '#fefce8',
+      icon: <Users size={18} />,
+      tone: 'warning',
     },
     {
       key: 'excused',
       title: 'Sakit / Izin',
       value: `${Number(summary.sick_count || 0)} / ${Number(summary.permit_count || 0)}`,
-      icon: <BookOpenCheck size={isMobile ? 14 : 18} />,
-      color: '#1d4ed8',
-      bg: '#eff6ff',
+      icon: <BookOpenCheck size={18} />,
+      tone: 'primary',
     },
     {
       key: 'absent',
       title: 'Absen',
       value: Number(summary.absent_count || 0),
-      icon: <School size={isMobile ? 14 : 18} />,
-      color: '#b91c1c',
-      bg: '#fef2f2',
+      icon: <School size={18} />,
+      tone: 'danger',
     },
   ];
 
@@ -421,7 +371,7 @@ const StudentAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]} style={{ margin: 0 }}>
         {statItems.map((item) => (
           <Col key={item.key} xs={12} sm={12} md={6} style={{ minWidth: 0 }}>
-            <SummaryStatCard item={item} isMobile={isMobile} />
+            <SummaryStatCard item={item} />
           </Col>
         ))}
       </Row>
@@ -483,17 +433,15 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       key: 'hadir',
       title: 'Hadir',
       value: Number(summary.present_teachers || 0),
-      icon: <UserCheck size={isMobile ? 14 : 18} />,
-      color: '#15803d',
-      bg: '#f0fdf4',
+      icon: <UserCheck size={18} />,
+      tone: 'success',
     },
     {
       key: 'absent',
       title: 'Belum hadir',
       value: Number(summary.absent_teachers || 0),
-      icon: <UserX size={isMobile ? 14 : 18} />,
-      color: '#b91c1c',
-      bg: '#fef2f2',
+      icon: <UserX size={18} />,
+      tone: 'danger',
     },
   ];
 
@@ -582,7 +530,7 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
       <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]}>
         {statItems.map((item) => (
           <Col key={item.key} xs={12} sm={12} md={12} style={{ minWidth: 0 }}>
-            <SummaryStatCard item={item} isMobile={isMobile} suffix="guru" />
+            <SummaryStatCard item={item} suffix="guru" />
           </Col>
         ))}
       </Row>
@@ -625,24 +573,10 @@ const CenterAttendanceReports = ({
   const reportKey = `${homebaseId || 'none'}-${periodeId || 'all'}-${autoRefreshMs}`;
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        ...surfaceCardStyle,
-        borderRadius: isMobile ? 18 : 24,
-        overflow: 'hidden',
-        width: '100%',
-        maxWidth: '100%',
-        minWidth: 0,
-      }}
+    <MuseCard
       styles={{
-        header: {
-          padding: isMobile ? '12px 14px' : '16px 20px',
-        },
-        body: {
-          padding: isMobile ? 12 : 20,
-          overflow: 'hidden',
-        },
+        header: { padding: isMobile ? '12px 16px' : '16px 24px' },
+        body: { padding: isMobile ? 16 : 24, paddingTop: 0 },
       }}
       title={
         <Flex
@@ -651,28 +585,24 @@ const CenterAttendanceReports = ({
           vertical={isCompact}
           gap={12}
           style={{ width: '100%', minWidth: 0 }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Text strong style={{ fontSize: isMobile ? 15 : 16, display: 'block' }}>
-              Laporan Presensi
-            </Text>
-            <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13, display: 'block' }}>
-              {isMobile
+          <CardTitle
+            icon={<CalendarRange size={16} />}
+            title="Laporan Presensi"
+            description={
+              isMobile
                 ? 'Presensi harian seluruh siswa & guru.'
-                : 'Presensi harian seluruh siswa & guru aktif (tap gerbang RFID).'}
-            </Text>
-          </div>
+                : 'Presensi harian seluruh siswa & guru aktif (tap gerbang RFID).'
+            }
+          />
           <Flex
-            vertical
-            gap={4}
-            style={{
-              width: isCompact ? '100%' : 160,
-              minWidth: 0,
-              flexShrink: 0,
-            }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            align="center"
+            gap={8}
+            style={{ width: isCompact ? '100%' : 'auto', flexShrink: 0 }}>
+            <Text type="secondary" style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
               Update otomatis
             </Text>
             <Select
+              aria-label="Interval update otomatis"
               value={autoRefreshMs}
               onChange={onAutoRefreshChange}
               options={[
@@ -680,7 +610,7 @@ const CenterAttendanceReports = ({
                 { value: 60_000, label: '1 menit' },
                 { value: 300_000, label: '5 menit' },
               ]}
-              style={{ width: '100%' }}
+              style={{ width: isCompact ? '100%' : 120 }}
             />
           </Flex>
         </Flex>
@@ -720,7 +650,7 @@ const CenterAttendanceReports = ({
           ]}
         />
       )}
-    </Card>
+    </MuseCard>
   );
 };
 

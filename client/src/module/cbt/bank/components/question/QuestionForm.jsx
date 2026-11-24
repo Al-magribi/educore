@@ -46,6 +46,7 @@ import OptionTrueFalse from "./OptionTrueFalse";
 import OptionMatching from "./OptionMatching";
 import OptionShortAnswer from "./OptionShortAnswer";
 import TextEditor from "./TextEditor";
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 
 const QUESTION_TYPES = [
   { label: "PG Jawaban Tunggal", value: 1, icon: <CheckCircle2 size={16} /> },
@@ -247,7 +248,7 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
               description='Pilih template rubric yang paling dekat dengan karakter soal, lalu bagi poinnya per aspek. Total poin rubric harus sama dengan bobot skor soal.'
               type='info'
               showIcon
-              style={{ borderRadius: 16 }}
+              style={{ borderRadius: museRadius.item }}
             />
 
             <Form.Item
@@ -278,9 +279,9 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
                       key={key}
                       size='small'
                       style={{
-                        borderRadius: 16,
-                        border: "1px solid rgba(148, 163, 184, 0.18)",
-                        background: "#f8fafc",
+                        borderRadius: museRadius.item,
+                        border: `1px solid ${museColors.divider}`,
+                        background: museColors.bgSoft,
                       }}
                       styles={{ body: { padding: 14 } }}
                     >
@@ -391,7 +392,7 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
                         template_id: form.getFieldValue("rubric_template_id"),
                       })
                     }
-                    style={{ borderRadius: 14, height: 42 }}
+                    style={{ borderRadius: museRadius.item, height: 42 }}
                   >
                     Tambah Aspek Rubric
                   </Button>
@@ -402,8 +403,8 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
                     gap={10}
                     style={{
                       padding: 14,
-                      borderRadius: 16,
-                      background: "linear-gradient(135deg, #eff6ff, #ecfeff)",
+                      borderRadius: museRadius.item,
+                      background: museColors.primarySoft,
                       border: "1px solid rgba(59, 130, 246, 0.14)",
                       flexDirection: isMobile ? "column" : "row",
                     }}
@@ -452,8 +453,8 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
     <Card
       bordered={false}
       style={{
-        borderRadius: 24,
-        boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+        borderRadius: museRadius.card,
+        boxShadow: museShadow.card,
       }}
       styles={{ body: { padding: 0 } }}
     >
@@ -465,8 +466,7 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
       >
         <div
           style={{
-            background:
-              "linear-gradient(135deg, rgba(239,246,255,1), rgba(236,253,245,0.96))",
+            background: museColors.primarySoft,
             padding: isMobile ? 20 : 28,
             borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
           }}
@@ -476,10 +476,10 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
               style={{
                 width: isMobile ? 48 : 56,
                 height: isMobile ? 48 : 56,
-                borderRadius: 18,
+                borderRadius: museRadius.card,
                 display: "grid",
                 placeItems: "center",
-                background: "linear-gradient(135deg, #2563eb, #14b8a6)",
+                background: museColors.primary,
                 color: "#fff",
                 boxShadow: "0 16px 30px rgba(37, 99, 235, 0.28)",
                 flexShrink: 0,
@@ -516,7 +516,7 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
                     borderRadius: 999,
                     padding: "6px 12px",
                     background: "rgba(37, 99, 235, 0.10)",
-                    color: "#1d4ed8",
+                    color: museColors.primary,
                     fontWeight: 600,
                   }}
                 >
@@ -537,8 +537,8 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
             <Card
               bordered={false}
               style={{
-                borderRadius: 20,
-                border: "1px solid rgba(148, 163, 184, 0.18)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
                 background: "#fff",
               }}
               styles={{ body: { padding: isMobile ? 16 : 18 } }}
@@ -626,8 +626,8 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
             <Card
               bordered={false}
               style={{
-                borderRadius: 20,
-                border: "1px solid rgba(148, 163, 184, 0.18)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
                 background: "#fff",
               }}
               styles={{ body: { padding: isMobile ? 16 : 18 } }}
@@ -652,13 +652,13 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
             <Card
               bordered={false}
               style={{
-                borderRadius: 20,
-                boxShadow: "0 12px 24px rgba(15, 23, 42, 0.04)",
+                borderRadius: museRadius.card,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: isMobile ? 16 : 18 } }}
             >
               <Flex align='center' gap={10} style={{ marginBottom: 14 }}>
-                <Sparkles size={18} color='#1d4ed8' />
+                <Sparkles size={18} color={museColors.primary} />
                 <Title level={5} style={{ margin: 0 }}>
                   {qType === 3 ? "Rubric Penilaian Uraian" : "Kunci Jawaban & Opsi"}
                 </Title>
@@ -669,15 +669,15 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
             <Card
               bordered={false}
               style={{
-                borderRadius: 20,
-                background: "linear-gradient(135deg, #ecfeff, #eff6ff)",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
                 border: "1px solid rgba(14, 165, 233, 0.16)",
               }}
             >
               <Flex align='flex-start' gap={12}>
                 <CheckCircle2
                   size={18}
-                  color='#0284c7'
+                  color={museColors.cyan}
                   style={{ marginTop: 2 }}
                 />
                 <div>
@@ -704,7 +704,7 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
                 size='large'
                 icon={<X size={16} />}
                 style={{
-                  borderRadius: 14,
+                  borderRadius: museRadius.item,
                   minWidth: isMobile ? "100%" : 120,
                 }}
               >
@@ -717,7 +717,7 @@ const QuestionForm = ({ initialData, bankId, onSaveSuccess, onCancel }) => {
                 loading={isLoading}
                 size='large'
                 style={{
-                  borderRadius: 14,
+                  borderRadius: museRadius.item,
                   minWidth: isMobile ? "100%" : 180,
                   boxShadow: "0 12px 24px rgba(37, 99, 235, 0.22)",
                 }}

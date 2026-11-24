@@ -31,6 +31,7 @@ import {
   useGetExamAttendanceQuery,
 } from "../../../../../service/cbt/ApiExam";
 import { InfiniteScrollList } from "../../../../../components";
+import { museColors, museOnColor, museRadius, museShadow } from "../../../../../config/theme";
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
@@ -196,34 +197,34 @@ const AttendanceTable = ({
     const statusLabel = getStatusLabel(normalizedStatus);
     const statusToneMap = {
       mengerjakan: {
-        background: "linear-gradient(135deg, #2563eb 0%, #38bdf8 100%)",
-        soft: "linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%)",
-        color: "#1d4ed8",
-        text: "#ffffff",
+        background: museColors.primary,
+        soft: museColors.primarySoft,
+        color: museColors.primary,
+        text: "#fff",
       },
       pelanggaran: {
-        background: "linear-gradient(135deg, #dc2626 0%, #f97316 100%)",
-        soft: "linear-gradient(135deg, #fee2e2 0%, #ffedd5 100%)",
-        color: "#dc2626",
-        text: "#ffffff",
+        background: museColors.danger,
+        soft: museColors.accentSoft,
+        color: museColors.danger,
+        text: "#fff",
       },
       selesai: {
-        background: "linear-gradient(135deg, #16a34a 0%, #4ade80 100%)",
-        soft: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-        color: "#15803d",
-        text: "#ffffff",
+        background: museColors.success,
+        soft: museColors.bgSoft,
+        color: museColors.success,
+        text: "#fff",
       },
       izinkan: {
-        background: "linear-gradient(135deg, #d97706 0%, #fbbf24 100%)",
-        soft: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-        color: "#b45309",
-        text: "#ffffff",
+        background: museColors.warning,
+        soft: museColors.bgSoft,
+        color: museOnColor.warning,
+        text: museOnColor.warning,
       },
       belum_masuk: {
-        background: "linear-gradient(135deg, #64748b 0%, #94a3b8 100%)",
-        soft: "linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%)",
-        color: "#475569",
-        text: "#ffffff",
+        background: museColors.muted,
+        soft: museColors.divider,
+        color: museColors.muted,
+        text: "#fff",
       },
     };
     const tone = statusToneMap[normalizedStatus] || statusToneMap.belum_masuk;
@@ -241,12 +242,12 @@ const AttendanceTable = ({
           variant='borderless'
           size='small'
           style={{
-            borderRadius: 20,
+            borderRadius: museRadius.card,
             height: "100%",
             overflow: "hidden",
-            border: "1px solid rgba(148, 163, 184, 0.14)",
-            boxShadow: "0 18px 34px rgba(15, 23, 42, 0.06)",
-            background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+            border: `1px solid ${museColors.divider}`,
+            boxShadow: museShadow.card,
+            background: "#fff",
           }}
           styles={{
             body: {
@@ -263,7 +264,7 @@ const AttendanceTable = ({
                 style={{
                   width: 42,
                   height: 42,
-                  borderRadius: 16,
+                  borderRadius: museRadius.item,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -304,14 +305,14 @@ const AttendanceTable = ({
             <div
               style={{
                 padding: "10px 12px",
-                borderRadius: 14,
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
+                borderRadius: museRadius.item,
+                background: museColors.bgSoft,
+                border: `1px solid ${museColors.divider}`,
                 minWidth: 0,
               }}
             >
               <Flex align='center' gap={6} style={{ minWidth: 0 }}>
-                <Globe size={14} color='#475569' style={{ flexShrink: 0 }} />
+                <Globe size={14} color={museColors.muted} style={{ flexShrink: 0 }} />
                 <Tooltip title={ipText}>
                   <Text
                     style={{
@@ -331,14 +332,14 @@ const AttendanceTable = ({
             <div
               style={{
                 padding: "10px 12px",
-                borderRadius: 14,
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
+                borderRadius: museRadius.item,
+                background: museColors.bgSoft,
+                border: `1px solid ${museColors.divider}`,
                 minWidth: 0,
               }}
             >
               <Flex align='center' gap={6} style={{ minWidth: 0 }}>
-                <Monitor size={14} color='#475569' style={{ flexShrink: 0 }} />
+                <Monitor size={14} color={museColors.muted} style={{ flexShrink: 0 }} />
                 <Tooltip title={browserText}>
                   <Text
                     style={{
@@ -360,13 +361,13 @@ const AttendanceTable = ({
           <div
             style={{
               padding: "10px 12px",
-              borderRadius: 14,
+              borderRadius: museRadius.item,
               background: tone.background,
               color: tone.text,
               border: "1px solid transparent",
             }}
           >
-            <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.88)" }}>
+            <Text style={{ fontSize: 12, color: tone.text, opacity: 0.85 }}>
               Mulai Ujian | {statusLabel}
             </Text>
             <div style={{ marginTop: 4, fontWeight: 600, color: tone.text }}>
@@ -379,13 +380,13 @@ const AttendanceTable = ({
             gap={8}
             style={{
               padding: "10px 12px",
-              borderRadius: 14,
-              background: "#fff7ed",
-              border: "1px solid #fed7aa",
+              borderRadius: museRadius.item,
+              background: museColors.accentSoft,
+              border: `1px solid ${museColors.accentSoft}`,
             }}
           >
-            <TriangleAlert size={14} color='#c2410c' />
-            <Text style={{ color: "#9a3412" }}>
+            <TriangleAlert size={14} color={museColors.accent} />
+            <Text style={{ color: museColors.navy }}>
               Jumlah pelanggaran: {item.violationCount ?? 0}
             </Text>
           </Flex>
@@ -434,8 +435,8 @@ const AttendanceTable = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
-          boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         }}
         styles={{ body: { padding: isMobile ? 16 : 20 } }}
       >
@@ -479,28 +480,28 @@ const AttendanceTable = ({
               {
                 label: "Mengerjakan",
                 value: statusCounts.mengerjakan,
-                color: "#2563eb",
+                color: museColors.primary,
               },
               {
                 label: "Pelanggaran",
                 value: statusCounts.pelanggaran,
-                color: "#dc2626",
+                color: museColors.danger,
               },
               {
                 label: "Selesai",
                 value: statusCounts.selesai,
-                color: "#16a34a",
+                color: museColors.success,
               },
               {
                 label: "Belum Masuk",
                 value: statusCounts.belum_masuk,
-                color: "#64748b",
+                color: museColors.muted,
               },
             ].map((item) => (
               <Card
                 key={item.label}
                 variant='borderless'
-                style={{ borderRadius: 18, background: "#f8fafc" }}
+                style={{ borderRadius: museRadius.card, background: museColors.bgSoft }}
                 styles={{ body: { padding: isMobile ? 12 : 16 } }}
               >
                 <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>

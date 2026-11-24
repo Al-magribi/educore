@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Form, Button, Checkbox, theme, Typography, Grid, Card, Flex } from "antd";
 import { Plus, Trash2, CheckCircle2, Circle } from "lucide-react";
 import TextEditor from "./TextEditor";
+import { museRadius, museShadow } from "../../../../../config/theme";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -30,12 +31,12 @@ const OptionSingleMulti = ({ form, isMulti }) => {
     flexWrap: "wrap",
     alignItems: "stretch",
     border: `1px solid ${isCorrect ? token.colorPrimary : token.colorSplit}`,
-    borderRadius: 18,
+    borderRadius: museRadius.card,
     backgroundColor: isCorrect ? token.colorPrimaryBg : token.colorBgContainer,
     transition: "all 0.2s ease",
     overflow: "hidden",
     marginBottom: 16,
-    boxShadow: "0 10px 22px rgba(15,23,42,.04)",
+    boxShadow: museShadow.card,
   });
 
   const getSidebarStyle = (isCorrect) => ({
@@ -160,7 +161,7 @@ const OptionSingleMulti = ({ form, isMulti }) => {
             block
             icon={<Plus size={18} />}
             size="large"
-            style={{ height: 45, marginTop: 8, borderRadius: 14 }}
+            style={{ height: 45, marginTop: 8, borderRadius: museRadius.item }}
           >
             Tambah Opsi Jawaban
           </Button>

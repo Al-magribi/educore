@@ -1,6 +1,7 @@
 import React from "react";
 import { Alert, Button, Flex, Input, Space, Switch, Tag, Typography } from "antd";
 import { Download, FlaskConical, Search } from "lucide-react";
+import { museRadius } from "../../../../../../config/theme";
 
 const { Text, Title } = Typography;
 
@@ -77,7 +78,7 @@ const ItemAnalysisHeader = ({
         type='warning'
         showIcon={!isMobile}
         message={data.sample_warning_message}
-        style={{ borderRadius: 14 }}
+        style={{ borderRadius: museRadius.item }}
       />
     ) : null}
 

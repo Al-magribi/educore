@@ -1,38 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Card,
-  Button,
-  Input,
-  Modal,
-  Form,
-  message,
-  Popconfirm,
-  Select,
-  Row,
-  Col,
-  InputNumber,
-  Tooltip,
-  Typography,
-  Flex,
-  Badge,
-  Grid,
-  Tag,
-} from "antd";
-import {
-  Plus,
-  Search,
-  Trash2,
-  Edit2,
-  BookOpen,
-  Hash,
-  Layers,
-  GitBranch,
-  Loader2,
-  CheckCircle,
-  Upload,
-} from "lucide-react";
-import PageHeader from "../../../../components/ui/PageHeader";
+import { Button, Col, Form, Grid, Input, InputNumber, Row, Select, Tag, message } from "antd";
+import { BookOpen, Edit2, GitBranch, Hash, Layers, Upload } from "lucide-react";
 import {
   useGetSubjectsQuery,
   useAddSubjectMutation,
@@ -43,56 +12,21 @@ import {
 } from "../../../../service/academic/ApiSubject";
 import { InfiniteScrollList } from "../../../../components";
 import SubjectImportDrawer from "./SubjectImportDrawer";
+import { DataListCard, DataRow, EditDeleteActions, FormModal } from "../../../../components/ui/muse/DataSection";
+import { museColors } from "../../../../config/theme";
 
-const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
-const CATEGORY_STYLES = [
-  {
-    ribbon: "blue",
-    tagBackground: "rgba(59, 130, 246, 0.12)",
-    tagColor: "#1d4ed8",
-  },
-  {
-    ribbon: "green",
-    tagBackground: "rgba(16, 185, 129, 0.12)",
-    tagColor: "#047857",
-  },
-  {
-    ribbon: "gold",
-    tagBackground: "rgba(245, 158, 11, 0.14)",
-    tagColor: "#b45309",
-  },
-  {
-    ribbon: "purple",
-    tagBackground: "rgba(139, 92, 246, 0.12)",
-    tagColor: "#6d28d9",
-  },
-  {
-    ribbon: "magenta",
-    tagBackground: "rgba(236, 72, 153, 0.12)",
-    tagColor: "#be185d",
-  },
-  {
-    ribbon: "cyan",
-    tagBackground: "rgba(6, 182, 212, 0.12)",
-    tagColor: "#0f766e",
-  },
-  {
-    ribbon: "orange",
-    tagBackground: "rgba(249, 115, 22, 0.12)",
-    tagColor: "#c2410c",
-  },
-];
+const CATEGORY_COLORS = ["blue", "green", "gold", "purple", "cyan", "orange"];
 
 const getCategoryStyle = (categoryName) => {
   const source = (categoryName || "umum").toString().trim().toLowerCase();
   const index =
     source.split("").reduce((total, char) => total + char.charCodeAt(0), 0) %
-    CATEGORY_STYLES.length;
+    CATEGORY_COLORS.length;
 
-  return CATEGORY_STYLES[index];
+  return { ribbon: CATEGORY_COLORS[index] };
 };
 
 const SubjectTable = ({ screens }) => {
@@ -216,34 +150,25 @@ const SubjectTable = ({ screens }) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: "easeOut" }}
-      style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      <PageHeader
-        size='section'
+      <DataListCard
         title='Direktori Mata Pelajaran'
-        description='Cari, filter, dan kelola data mapel dari panel yang lebih ringkas.'
+        count={subjectsData?.total || allSubjects.length}
+        unit='mapel'
+        searchProps={{
+          placeholder: "Cari mata pelajaran...",
+          onChange: (e) => {
+            setSearchText(e.target.value);
+            setPage(1);
+          },
+        }}
         extra={
-          <Flex
-            gap={10}
-            wrap='wrap'
-            vertical={!activeScreens.md}
-            style={{ width: !activeScreens.md ? "100%" : "auto" }}
-          >
-            <Input
-              prefix={<Search size={16} color='#94a3b8' />}
-              placeholder='Cari mata pelajaran...'
-              style={{ width: !activeScreens.md ? "100%" : 220 }}
-              allowClear
-              onChange={(e) => {
-                setSearchText(e.target.value);
-                setPage(1);
-              }}
-            />
-
+          <>
             <Select
-              placeholder='Filter Kategori'
+              aria-label='Filter kategori'
+              placeholder='Semua kategori'
               allowClear
-              style={{ width: !activeScreens.md ? "100%" : 180 }}
+              style={{ width: isMobile ? "100%" : 170 }}
               value={filterCategory}
               onChange={(val) => {
                 setFilterCategory(val);
@@ -254,14 +179,14 @@ const SubjectTable = ({ screens }) => {
                 label: c.name,
                 value: c.id,
               }))}
-              suffixIcon={<Layers size={14} color='#94a3b8' />}
+              prefix={<Layers size={14} color={museColors.muted} />}
               virtual={false}
             />
-
             <Select
-              placeholder='Filter Cabang'
+              aria-label='Filter cabang'
+              placeholder='Semua cabang'
               allowClear
-              style={{ width: !activeScreens.md ? "100%" : 180 }}
+              style={{ width: isMobile ? "100%" : 170 }}
               value={filterBranch}
               onChange={(val) => {
                 setFilterBranch(val);
@@ -272,404 +197,140 @@ const SubjectTable = ({ screens }) => {
                 value: b.id,
               }))}
               disabled={!filterCategory && !filterBranch}
-              suffixIcon={<GitBranch size={14} color='#94a3b8' />}
+              prefix={<GitBranch size={14} color={museColors.muted} />}
               virtual={false}
             />
-
-            <Button
-              icon={<Upload size={18} />}
-              onClick={() => setIsImportOpen(true)}
-            >
+            <Button icon={<Upload size={16} />} onClick={() => setIsImportOpen(true)}>
               Import
             </Button>
-
-            <Button
-              type='primary'
-              icon={<Plus size={18} />}
-              onClick={() => setIsModalOpen(true)}
-            >
-              Mapel
-            </Button>
-          </Flex>
+          </>
         }
-      />
+        onAdd={() => setIsModalOpen(true)}
+        addLabel='Tambah Mapel'
+      >
+        <InfiniteScrollList
+          data={allSubjects}
+          loading={isFetching}
+          hasMore={allSubjects.length < (subjectsData?.total || 0)}
+          onLoadMore={handleLoadMore}
+          height='auto'
+          emptyText={
+            searchText || filterCategory || filterBranch
+              ? "Tidak ada mapel yang cocok dengan filter."
+              : "Belum ada mata pelajaran. Tambahkan manual atau import dari Excel."
+          }
+          grid={{ gutter: [0, 0], xs: 24 }}
+          renderItem={(item) => (
+            <DataRow
+              icon={<BookOpen size={18} />}
+              title={item.name}
+              subtitle={`Kode ${item.code || "-"} · Cabang ${item.branch_name || "-"}`}
+              tags={
+                isMobile ? null : (
+                  <>
+                    <Tag color={getCategoryStyle(item.category_name).ribbon} style={{ margin: 0 }}>
+                      {item.category_name || "Umum"}
+                    </Tag>
+                    <Tag style={{ margin: 0 }}>KKM {item.kkm ?? "-"}</Tag>
+                  </>
+                )
+              }
+              actions={
+                <EditDeleteActions
+                  onEdit={() => handleEdit(item)}
+                  onDelete={() => handleDelete(item.id)}
+                  deleteTitle={`Hapus mapel ${item.name}?`}
+                  deleteDescription='Jadwal dan nilai yang memakai mapel ini bisa terdampak.'
+                />
+              }
+            />
+          )}
+        />
+      </DataListCard>
 
-      <InfiniteScrollList
-        data={allSubjects}
-        loading={isFetching}
-        hasMore={allSubjects.length < (subjectsData?.total || 0)}
-        onLoadMore={handleLoadMore}
-        height='70vh'
-        emptyText='Belum ada data mata pelajaran'
-        grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 12, lg: 8, xl: 6 }}
-        renderItem={(item) => {
-          const categoryStyle = getCategoryStyle(item.category_name);
-
-          return (
-            <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.18 }}>
-              <Badge.Ribbon
-                text={item.category_name || "Umum"}
-                color={categoryStyle.ribbon}
-                style={{ top: 12 }}
-              >
-                <Card
-                  hoverable
-                  style={{
-                    borderRadius: 22,
-                    boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
-                  }}
-                  styles={{ body: { padding: "20px 18px" } }}
-                  actions={[
-                    <Tooltip title='Edit' key='edit'>
-                      <Button
-                        type='text'
-                        icon={<Edit2 size={16} color='#f59e0b' />}
-                        onClick={() => handleEdit(item)}
-                      />
-                    </Tooltip>,
-                    <Popconfirm
-                      key='delete'
-                      title='Hapus Mapel?'
-                      onConfirm={() => handleDelete(item.id)}
-                      okText='Hapus'
-                      cancelText='Batal'
-                      okButtonProps={{ danger: true }}
-                    >
-                      <Tooltip title='Hapus'>
-                        <Button type='text' danger icon={<Trash2 size={16} />} />
-                      </Tooltip>
-                    </Popconfirm>,
-                  ]}
-                >
-                  <Flex vertical align='flex-start' gap={12}>
-                    <Flex align='center' gap={12} style={{ width: "100%" }}>
-                      <div
-                        style={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: 16,
-                          background: "linear-gradient(135deg, #dbeafe, #ede9fe)",
-                          color: "#2563eb",
-                          display: "grid",
-                          placeItems: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <BookOpen size={18} />
-                      </div>
-                      <div style={{ flex: 1, overflow: "hidden" }}>
-                        <Text
-                          strong
-                          style={{
-                            fontSize: 16,
-                            display: "block",
-                            lineHeight: 1.2,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                          title={item.name}
-                        >
-                          {item.name}
-                        </Text>
-                        <Text
-                          type='secondary'
-                          style={{ fontSize: 13, display: "block" }}
-                        >
-                          Kategori: {item.category_name || "-"}
-                        </Text>
-                        <Text type='secondary' style={{ fontSize: 13 }}>
-                          Cabang: {item.branch_name || "-"}
-                        </Text>
-                      </div>
-                    </Flex>
-
-                    <Flex gap={8} wrap='wrap'>
-                      <Tag
-                        bordered={false}
-                        style={{
-                          borderRadius: 999,
-                          padding: "6px 12px",
-                          background: categoryStyle.tagBackground,
-                          color: categoryStyle.tagColor,
-                          fontWeight: 600,
-                        }}
-                      >
-                        Kategori: {item.category_name || "Umum"}
-                      </Tag>
-                      <Tag
-                        bordered={false}
-                        style={{
-                          borderRadius: 999,
-                          padding: "6px 12px",
-                          background: "rgba(59, 130, 246, 0.10)",
-                          color: "#1d4ed8",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Kode: {item.code || "?"}
-                      </Tag>
-                      <Tag
-                        bordered={false}
-                        style={{
-                          borderRadius: 999,
-                          padding: "6px 12px",
-                          background: "rgba(16, 185, 129, 0.10)",
-                          color: "#047857",
-                          fontWeight: 600,
-                        }}
-                      >
-                        KKM: {item.kkm}
-                      </Tag>
-                    </Flex>
-                  </Flex>
-                </Card>
-              </Badge.Ribbon>
-            </MotionDiv>
-          );
-        }}
-      />
-
-      <Modal
+      <FormModal
         open={isModalOpen}
         onCancel={handleClose}
-        footer={null}
-        destroyOnHidden
-        closable={false}
-        centered
-        width={isMobile ? "calc(100vw - 24px)" : 680}
-        styles={{
-          content: {
-            padding: 0,
-            overflow: "hidden",
-            borderRadius: 28,
-            boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
-          },
-          body: { padding: 0 },
-        }}
-        modalRender={(modalNode) => (
-          <MotionDiv
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
-          >
-            {modalNode}
-          </MotionDiv>
-        )}
+        onOk={form.submit}
+        confirmLoading={isAdding || isUpdating}
+        icon={editingItem ? <Edit2 size={16} /> : <BookOpen size={16} />}
+        title={editingItem ? "Edit Mata Pelajaran" : "Tambah Mata Pelajaran"}
+        description='Pilih kategori dulu, lalu cabang (opsional).'
+        okText={editingItem ? "Simpan Perubahan" : "Buat Mapel"}
+        width={640}
       >
-        <Form
-          form={form}
-          onFinish={handleSubmit}
-          layout='vertical'
-          initialValues={{ kkm: 75 }}
-        >
-          <div
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(239,246,255,1), rgba(250,245,255,0.96))",
-              padding: isMobile ? 20 : 28,
-              borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-            }}
+        <Form form={form} onFinish={handleSubmit} layout='vertical'>
+          <Form.Item
+            name='name'
+            label='Nama Mata Pelajaran'
+            rules={[{ required: true, message: "Nama wajib diisi" }]}
           >
-            <Flex align='flex-start' gap={16}>
-              <div
-                style={{
-                  width: isMobile ? 48 : 56,
-                  height: isMobile ? 48 : 56,
-                  borderRadius: 18,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "linear-gradient(135deg, #2563eb, #7c3aed)",
-                  color: "#fff",
-                  boxShadow: "0 16px 30px rgba(99, 102, 241, 0.28)",
-                }}
+            <Input
+              prefix={<BookOpen size={16} color={museColors.muted} />}
+              placeholder='Contoh: Matematika'
+            />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name='category_id'
+                label='Kategori'
+                rules={[{ required: true, message: "Pilih kategori" }]}
               >
-                {editingItem ? <Edit2 size={22} /> : <BookOpen size={22} />}
-              </div>
-              <div style={{ flex: 1 }}>
-                <Title level={4} style={{ margin: 0 }}>
-                  {editingItem
-                    ? "Edit Mata Pelajaran"
-                    : "Buat Mata Pelajaran Baru"}
-                </Title>
-                <Text
-                  type='secondary'
-                  style={{ display: "block", marginTop: 6 }}
-                >
-                  Simpan data mapel dengan kategori, cabang, kode, dan nilai KKM
-                  yang konsisten.
-                </Text>
-              </div>
-            </Flex>
-          </div>
-
-          <div style={{ padding: isMobile ? 20 : 28 }}>
-            <MotionDiv
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.22, delay: 0.05 }}
-              style={{ display: "flex", flexDirection: "column", gap: 20 }}
-            >
-              <div
-                style={{
-                  borderRadius: 20,
-                  border: "1px solid rgba(148, 163, 184, 0.18)",
-                  background: "#fff",
-                  padding: isMobile ? 16 : 18,
-                }}
-              >
-                <Form.Item
-                  name='name'
-                  label='Nama Mata Pelajaran'
-                  rules={[{ required: true, message: "Nama wajib diisi" }]}
-                >
-                  <Input
-                    placeholder='Contoh: Kitab Safinah'
-                    size='large'
-                    prefix={<BookOpen size={16} color='#2563eb' />}
-                    style={{ borderRadius: 14, paddingBlock: 8 }}
-                  />
-                </Form.Item>
-
-                <Row gutter={16}>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name='category_id'
-                      label='Kategori'
-                      rules={[{ required: true, message: "Pilih kategori" }]}
-                    >
-                      <Select
-                        size='large'
-                        placeholder='Pilih Kategori'
-                        options={categoriesData?.data?.map((c) => ({
-                          label: c.name,
-                          value: c.id,
-                        }))}
-                        onChange={(val) => {
-                          setSelectedCategoryInForm(val);
-                          form.setFieldValue("branch_id", null);
-                        }}
-                        virtual={false}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item name='branch_id' label='Cabang (Opsional)'>
-                      <Select
-                        size='large'
-                        placeholder={
-                          selectedCategoryInForm
-                            ? "Pilih Cabang"
-                            : "Pilih Kategori Dulu"
-                        }
-                        options={formBranches.map((b) => ({
-                          label: b.name,
-                          value: b.id,
-                        }))}
-                        disabled={!selectedCategoryInForm}
-                        allowClear
-                        virtual={false}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-
-                <Row gutter={16}>
-                  <Col xs={24} md={12}>
-                    <Form.Item name='code' label='Kode Mapel'>
-                      <Input
-                        placeholder='Contoh: MP-01'
-                        prefix={<Hash size={16} color='#64748b' />}
-                        style={{ borderRadius: 14, paddingBlock: 8 }}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name='kkm'
-                      label='Nilai KKM'
-                      rules={[{ required: true }]}
-                    >
-                      <InputNumber
-                        min={0}
-                        max={100}
-                        style={{ width: "100%" }}
-                        size='large'
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </div>
-
-              <div
-                style={{
-                  borderRadius: 20,
-                  background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
-                  border: "1px solid rgba(99, 102, 241, 0.16)",
-                  padding: isMobile ? 16 : 18,
-                }}
-              >
-                <Flex align='flex-start' gap={12}>
-                  <CheckCircle
-                    size={18}
-                    color='#4f46e5'
-                    style={{ marginTop: 2 }}
-                  />
-                  <div>
-                    <Text strong style={{ display: "block", marginBottom: 4 }}>
-                      Tips kelengkapan data
-                    </Text>
-                    <Text type='secondary'>
-                      Tentukan kategori lebih dulu agar pilihan cabang tepat dan
-                      data mapel tetap konsisten saat dipakai di modul lain.
-                    </Text>
-                  </div>
-                </Flex>
-              </div>
-
-              <Flex justify='flex-end' gap={10} vertical={isMobile}>
-                <Button
-                  size='large'
-                  onClick={handleClose}
-                  style={{
-                    borderRadius: 14,
-                    minWidth: isMobile ? "100%" : 120,
+                <Select
+                  placeholder='Pilih kategori'
+                  options={categoriesData?.data?.map((c) => ({
+                    label: c.name,
+                    value: c.id,
+                  }))}
+                  onChange={(val) => {
+                    setSelectedCategoryInForm(val);
+                    form.setFieldValue("branch_id", null);
                   }}
-                >
-                  Batal
-                </Button>
-                <Button
-                  type='primary'
-                  htmlType='submit'
-                  size='large'
-                  loading={isAdding || isUpdating}
-                  icon={
-                    isAdding || isUpdating ? (
-                      <Loader2 className='animate-spin' size={16} />
-                    ) : editingItem ? (
-                      <Edit2 size={16} />
-                    ) : (
-                      <Plus size={16} />
-                    )
-                  }
-                  style={{
-                    borderRadius: 14,
-                    minWidth: isMobile ? "100%" : 190,
-                    boxShadow: "0 12px 24px rgba(99, 102, 241, 0.22)",
-                  }}
-                >
-                  {editingItem ? "Simpan Perubahan" : "Buat Mapel"}
-                </Button>
-              </Flex>
-            </MotionDiv>
-          </div>
+                  virtual={false}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name='branch_id' label='Cabang (opsional)'>
+                <Select
+                  placeholder={selectedCategoryInForm ? "Pilih cabang" : "Pilih kategori dulu"}
+                  options={formBranches.map((b) => ({
+                    label: b.name,
+                    value: b.id,
+                  }))}
+                  disabled={!selectedCategoryInForm}
+                  allowClear
+                  virtual={false}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item name='code' label='Kode Mapel'>
+                <Input
+                  placeholder='Contoh: MP-01'
+                  prefix={<Hash size={16} color={museColors.muted} />}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name='kkm'
+                label='Nilai KKM'
+                rules={[{ required: true, message: "Nilai KKM wajib diisi" }]}
+              >
+                <InputNumber min={0} max={100} style={{ width: "100%" }} placeholder='0-100' />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
-      </Modal>
+      </FormModal>
 
-      <SubjectImportDrawer
-        open={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-      />
+      <SubjectImportDrawer open={isImportOpen} onClose={() => setIsImportOpen(false)} />
     </MotionDiv>
   );
 };

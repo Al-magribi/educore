@@ -159,6 +159,9 @@ const teacherLmsMenu = ({
             label: "Manajemen Piket",
             key: "/manajemen-piket",
             icon: <CalendarCheck2 size={14} />,
+            // Guru hanya melihat piket di hari tugasnya, kecuali tim kurikulum.
+            visible: (user) =>
+              Boolean(user?.has_duty_today || user?.can_manage_kurikulum),
           }
         : null,
       canKesiswaan

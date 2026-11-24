@@ -326,3 +326,19 @@ export {
   renderStudentLmsRoutes,
   renderParentLmsRoutes,
 };
+
+// Satu pintu untuk App.jsx (menerima routeContext dari main).
+const renderAllLmsRoutes = (context) => (
+  <>
+    {renderLmsRoutes(context)}
+    {renderAdminOnlyLmsRoutes(context)}
+    {renderTuRoutes(context)}
+    {renderAttendanceReportRoutes(context)}
+    {renderClassAttendanceRoutes(context)}
+    {renderTeacherOnlyLmsRoutes(context)}
+    {renderStudentLmsRoutes(context)}
+    {renderParentLmsRoutes(context)}
+  </>
+);
+
+export default renderAllLmsRoutes;

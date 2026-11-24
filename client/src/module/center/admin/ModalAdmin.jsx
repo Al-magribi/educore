@@ -1,52 +1,23 @@
 import React, { useEffect } from "react";
+import { Alert, Col, Form, Input, Modal, Row, Select, Space, Switch, message } from "antd";
 import {
-  Card,
-  Col,
-  Form,
-  Grid,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Switch,
-  Typography,
-  message,
-} from "antd";
-import {
-  UserOutlined,
+  EditOutlined,
+  HomeOutlined,
+  LockOutlined,
   MailOutlined,
   PhoneOutlined,
-  LockOutlined,
-  HomeOutlined,
-  SafetyCertificateOutlined,
-  EditOutlined,
   PlusOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
-import { motion } from "framer-motion";
 import {
   useAddAdminMutation,
   useUpdateAdminMutation,
 } from "../../../service/center/ApiAdmin";
 import { useGetHomebaseQuery } from "../../../service/center/ApiHomebase";
-
-const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
-
-const modalVariants = {
-  hidden: { opacity: 0, y: 18, scale: 0.98 },
-  show: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.25, ease: "easeOut" },
-  },
-};
+import { CardTitle } from "../../../components/ui/muse";
+import { museColors } from "../../../config/theme";
 
 const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
   const [form] = Form.useForm();
 
   const { data: homebaseData, isLoading: loadingHomebase } =
@@ -96,273 +67,162 @@ const ModalAdmin = ({ open, onCancel, onSuccess, initialData }) => {
 
   return (
     <Modal
-      title={null}
+      title={
+        <CardTitle
+          icon={initialData ? <EditOutlined /> : <PlusOutlined />}
+          title={initialData ? "Edit Admin" : "Tambah Admin Baru"}
+          description="Atur level akses sesuai tanggung jawab admin."
+        />
+      }
       open={open}
       onCancel={onCancel}
       onOk={form.submit}
       confirmLoading={isAdding || isUpdating}
       destroyOnHidden
       centered
-      closable={false}
       width={760}
       okText={initialData ? "Simpan Perubahan" : "Simpan Admin"}
       cancelText='Batal'
-      modalRender={(node) => (
-        <MotionDiv
-          variants={modalVariants}
-          initial='hidden'
-          animate='show'
-          style={{ borderRadius: 28, overflow: "hidden" }}
-        >
-          {node}
-        </MotionDiv>
-      )}
     >
       <Space orientation='vertical' size={18} style={{ width: "100%" }}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: 24,
-            background:
-              "radial-gradient(circle at top left, rgba(14,165,233,0.16), transparent 30%), linear-gradient(135deg, #0f172a, #1d4ed8 60%, #0f766e)",
-            boxShadow: "0 24px 56px rgba(15, 23, 42, 0.18)",
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 26 } }}
-        >
-          <Space orientation='vertical' size={12} style={{ width: "100%" }}>
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 18,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "rgba(255,255,255,0.14)",
-                color: "#e0f2fe",
-                fontSize: 24,
-              }}
-            >
-              {initialData ? <EditOutlined /> : <PlusOutlined />}
-            </div>
-            <div>
-              <Title level={3} style={{ margin: 0, color: "#f8fafc" }}>
-                {initialData ? "Edit Admin" : "Tambah Admin Baru"}
-              </Title>
-              <Text
-                style={{
-                  display: "block",
-                  marginTop: 8,
-                  color: "rgba(226, 232, 240, 0.92)",
-                  lineHeight: 1.7,
-                }}
+        <Form form={form} layout='vertical' onFinish={handleFinish}>
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name='full_name'
+                label='Nama Lengkap'
+                rules={[{ required: true, message: "Wajib diisi" }]}
               >
-                Lengkapi data akun admin dengan struktur yang lebih rapi agar
-                pengelolaan akses tetap konsisten dan mudah dipantau.
-              </Text>
-            </div>
-          </Space>
-        </Card>
+                <Input
+                  placeholder='Nama Admin'
+                  prefix={<UserOutlined style={{ color: museColors.muted }} />}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name='username'
+                label='Username'
+                rules={[{ required: true, message: "Wajib diisi" }]}
+              >
+                <Input
+                  placeholder='Username Login'
+                  disabled={!!initialData}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: 24,
-            border: "1px solid rgba(148, 163, 184, 0.14)",
-            boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Form form={form} layout='vertical' onFinish={handleFinish}>
-            <Row gutter={[16, 0]}>
-              <Col xs={24} md={12}>
-                <Form.Item
-                  name='full_name'
-                  label='Nama Lengkap'
-                  rules={[{ required: true, message: "Wajib diisi" }]}
-                >
-                  <Input
-                    size='large'
-                    placeholder='Nama Admin'
-                    prefix={<UserOutlined style={{ color: "#64748b" }} />}
-                    style={{ borderRadius: 14 }}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item
-                  name='username'
-                  label='Username'
-                  rules={[{ required: true, message: "Wajib diisi" }]}
-                >
-                  <Input
-                    size='large'
-                    placeholder='Username Login'
-                    disabled={!!initialData}
-                    style={{ borderRadius: 14 }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name='level'
+                label='Level Akses'
+                initialValue='admin'
+                rules={[{ required: true, message: "Pilih level akses" }]}
+              >
+                <Select
+                  placeholder='Pilih Level'
+                  style={{ width: "100%" }}
+                  options={[
+                    { value: "pusat", label: "Pusat" },
+                    { value: "satuan", label: "Satuan (Sekolah)" },
+                    { value: "tahfiz", label: "Tahfiz" },
+                    { value: "keuangan", label: "Keuangan" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name='phone' label='No. Telepon'>
+                <Input
+                  placeholder='08xxx'
+                  prefix={<PhoneOutlined style={{ color: museColors.muted }} />}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
-            <Row gutter={[16, 0]}>
-              <Col xs={24} md={12}>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) =>
+              prevValues.level !== currentValues.level
+            }
+          >
+            {({ getFieldValue }) =>
+              getFieldValue("level") === "satuan" ? (
                 <Form.Item
-                  name='level'
-                  label='Level Akses'
-                  initialValue='admin'
-                  rules={[{ required: true, message: "Pilih level akses" }]}
+                  name='homebase_id'
+                  label='Pilih Satuan Pendidikan (Homebase)'
+                  rules={[
+                    {
+                      required: true,
+                      message: "Admin Satuan wajib memilih Homebase",
+                    },
+                  ]}
                 >
                   <Select
-                    size='large'
-                    placeholder='Pilih Level'
-                    style={{ width: "100%" }}
-                    options={[
-                      { value: "pusat", label: "Pusat" },
-                      { value: "satuan", label: "Satuan (Sekolah)" },
-                      { value: "tahfiz", label: "Tahfiz" },
-                      { value: "keuangan", label: "Keuangan" },
-                    ]}
+                    placeholder='Pilih Homebase'
+                    loading={loadingHomebase}
+                    allowClear
+                    showSearch
+                    optionFilterProp='label'
+                    suffixIcon={<HomeOutlined style={{ color: museColors.muted }} />}
+                    options={(homebaseData?.data || []).map((hb) => ({
+                      value: hb.id,
+                      label: hb.name,
+                    }))}
                   />
                 </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item name='phone' label='No. Telepon'>
-                  <Input
-                    size='large'
-                    placeholder='08xxx'
-                    prefix={<PhoneOutlined style={{ color: "#64748b" }} />}
-                    style={{ borderRadius: 14 }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+              ) : null
+            }
+          </Form.Item>
 
-            <Form.Item
-              noStyle
-              shouldUpdate={(prevValues, currentValues) =>
-                prevValues.level !== currentValues.level
+          <Form.Item name='email' label='Email'>
+            <Input
+              placeholder='email@sekolah.com'
+              prefix={<MailOutlined style={{ color: museColors.muted }} />}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name='password'
+            label={initialData ? "Password Baru (Opsional)" : "Password"}
+            rules={[
+              {
+                required: !initialData,
+                message: "Password wajib diisi untuk admin baru",
+              },
+              { min: 6, message: "Minimal 6 karakter" },
+            ]}
+          >
+            <Input.Password
+              prefix={<LockOutlined style={{ color: museColors.muted }} />}
+              placeholder={
+                initialData
+                  ? "Isi jika ingin mengganti password"
+                  : "Password akun"
               }
-            >
-              {({ getFieldValue }) =>
-                getFieldValue("level") === "satuan" ? (
-                  <Form.Item
-                    name='homebase_id'
-                    label='Pilih Satuan Pendidikan (Homebase)'
-                    rules={[
-                      {
-                        required: true,
-                        message: "Admin Satuan wajib memilih Homebase",
-                      },
-                    ]}
-                  >
-                    <Select
-                      size='large'
-                      placeholder='Pilih Homebase'
-                      loading={loadingHomebase}
-                      allowClear
-                      showSearch
-                      optionFilterProp='label'
-                      suffixIcon={<HomeOutlined style={{ color: "#64748b" }} />}
-                      options={(homebaseData?.data || []).map((hb) => ({
-                        value: hb.id,
-                        label: hb.name,
-                      }))}
-                    />
-                  </Form.Item>
-                ) : null
-              }
-            </Form.Item>
+            />
+          </Form.Item>
 
-            <Form.Item name='email' label='Email'>
-              <Input
-                size='large'
-                placeholder='email@sekolah.com'
-                prefix={<MailOutlined style={{ color: "#64748b" }} />}
-                style={{ borderRadius: 14 }}
-              />
-            </Form.Item>
-
+          {initialData ? (
             <Form.Item
-              name='password'
-              label={initialData ? "Password Baru (Opsional)" : "Password"}
-              rules={[
-                {
-                  required: !initialData,
-                  message: "Password wajib diisi untuk admin baru",
-                },
-                { min: 6, message: "Minimal 6 karakter" },
-              ]}
+              name='is_active'
+              label='Status Akun'
+              valuePropName='checked'
             >
-              <Input.Password
-                size='large'
-                prefix={<LockOutlined style={{ color: "#64748b" }} />}
-                placeholder={
-                  initialData
-                    ? "Isi jika ingin mengganti password"
-                    : "Password akun"
-                }
-                style={{ borderRadius: 14 }}
-              />
+              <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
             </Form.Item>
+          ) : null}
 
-            {initialData ? (
-              <Form.Item
-                name='is_active'
-                label='Status Akun'
-                valuePropName='checked'
-              >
-                <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
-              </Form.Item>
-            ) : null}
-
-            <Card
-              variant='borderless'
-              style={{
-                borderRadius: 18,
-                background:
-                  "linear-gradient(135deg, rgba(59,130,246,0.08), rgba(14,165,233,0.08))",
-                border: "1px solid rgba(59,130,246,0.12)",
-              }}
-              styles={{ body: { padding: 16 } }}
-            >
-              <Space align='start' size={12}>
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 14,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(255,255,255,0.8)",
-                    color: "#0284c7",
-                    fontSize: 18,
-                    flexShrink: 0,
-                  }}
-                >
-                  <SafetyCertificateOutlined />
-                </div>
-                <div>
-                  <Text style={{ color: "#0f172a", fontWeight: 600 }}>
-                    Catatan akses
-                  </Text>
-                  <Text
-                    style={{
-                      display: "block",
-                      color: "#475569",
-                      marginTop: 4,
-                      lineHeight: 1.65,
-                    }}
-                  >
-                    Pilih level akses sesuai tanggung jawab admin. Jika level
-                    adalah satuan, hubungkan akun dengan homebase yang tepat.
-                  </Text>
-                </div>
-              </Space>
-            </Card>
-          </Form>
-        </Card>
+          <Alert
+            type="info"
+            showIcon
+            title="Catatan akses"
+            description="Pilih level akses sesuai tanggung jawab admin. Jika level adalah satuan, hubungkan akun dengan homebase yang tepat."
+          />
+        </Form>
       </Space>
     </Modal>
   );

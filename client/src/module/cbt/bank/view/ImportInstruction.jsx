@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Alert, Table, Typography, Card, Flex, Tag } from "antd";
 import { Info, FileSpreadsheet, CheckCircle2 } from "lucide-react";
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
@@ -55,10 +56,9 @@ const ImportInstruction = () => (
     <Card
       bordered={false}
       style={{
-        borderRadius: 20,
-        background:
-          "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(236,253,245,0.98))",
-        boxShadow: "0 12px 24px rgba(15, 23, 42, 0.05)",
+        borderRadius: museRadius.card,
+        background: museColors.primarySoft,
+        boxShadow: museShadow.card,
       }}
       styles={{ body: { padding: 18 } }}
     >
@@ -85,7 +85,7 @@ const ImportInstruction = () => (
             borderRadius: 999,
             padding: "6px 12px",
             background: "rgba(37, 99, 235, 0.10)",
-            color: "#1d4ed8",
+            color: museColors.primary,
             fontWeight: 600,
           }}
         >
@@ -99,7 +99,7 @@ const ImportInstruction = () => (
         showIcon
         icon={<Info size={18} />}
         description="Kolom: group_code, group_title, stimulus, type_id, bloom_level, question_text, score_point, option_a–option_e, key. Soal mandiri mengosongkan tiga kolom grup. Soal yang berbagi bacaan memakai group_code yang sama, berurutan, minimal 2 baris, dan stimulus diisi di baris pertama. Petunjuk lengkap ada di sheet Panduan."
-        style={{ borderRadius: 16, marginBottom: 14 }}
+        style={{ borderRadius: museRadius.item, marginBottom: 14 }}
       />
 
       <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -120,7 +120,7 @@ const ImportInstruction = () => (
               width: 170,
               render: (value) => (
                 <Flex align="center" gap={8}>
-                  <FileSpreadsheet size={14} color="#1d4ed8" />
+                  <FileSpreadsheet size={14} color={museColors.primary} />
                   <span>{value}</span>
                 </Flex>
               ),
@@ -137,7 +137,7 @@ const ImportInstruction = () => (
               key: "note",
               render: (value) => (
                 <Flex align="center" gap={8}>
-                  <CheckCircle2 size={14} color="#16a34a" />
+                  <CheckCircle2 size={14} color={museColors.success} />
                   <span>{value}</span>
                 </Flex>
               ),

@@ -1,44 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Input, Button, Flex, Card, Grid, Typography, Statistic } from "antd";
-import {
-  Search,
-  Plus,
-  Upload as UploadIcon,
-  GraduationCap,
-  Users,
-  LayoutGrid,
-} from "lucide-react";
+import { Button, Grid } from "antd";
+import { GraduationCap, LayoutGrid, Upload as UploadIcon, Users } from "lucide-react";
 import { useGetClassesQuery } from "../../../../service/main/ApiClass";
 
 import { InfiniteScrollList } from "../../../../components";
-import PageHeader from "../../../../components/ui/PageHeader";
 import ClassItem from "./ClassItem";
 import ClassModal from "./ClassModal";
 import StudentDrawer from "./StudentDrawer";
 import UploadStudent from "./components/UploadStudent";
+import { StatCard } from "../../../../components/ui/muse";
+import { DataListCard } from "../../../../components/ui/muse/DataSection";
 
 const { useBreakpoint } = Grid;
-const { Title, Text } = Typography;
 const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35, ease: "easeOut", staggerChildren: 0.08 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: "easeOut" },
-  },
-};
 
 const Classes = ({ screens }) => {
   const breakpointScreens = useBreakpoint();
@@ -148,175 +123,55 @@ const Classes = ({ screens }) => {
     0,
   );
   const activeClasses = listData.filter((item) => item.is_active).length;
-  const summaryCards = [
-    {
-      key: "classes",
-      title: "Total Kelas",
-      value: totalClasses,
-      icon: <LayoutGrid size={18} />,
-    },
-    {
-      key: "students",
-      title: "Siswa Terdata",
-      value: totalStudents,
-      icon: <Users size={18} />,
-    },
-    {
-      key: "active",
-      title: "Kelas Aktif",
-      value: activeClasses,
-      icon: <GraduationCap size={18} />,
-    },
-  ];
 
   return (
     <>
       <MotionDiv
-        variants={containerVariants}
-        initial='hidden'
-        animate='visible'
-        style={{ display: "flex", flexDirection: "column", gap: 20 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24 }}
       >
-        <MotionDiv variants={itemVariants}>
-          <PageHeader
-            size='section'
-            title='Direktori Kelas'
-            description='Kelola daftar kelas, tambah data baru, dan upload siswa.'
-            extra={
-              <>
-                <Button
-                  icon={<UploadIcon size={16} />}
-                  onClick={() => setIsUploadDrawerOpen(true)}
-                >
-                  Upload Siswa
-                </Button>
-                <Button
-                  type='primary'
-                  icon={<Plus size={16} />}
-                  onClick={handleAddClass}
-                >
-                  Tambah Kelas
-                </Button>
-              </>
-            }
-          />
-        </MotionDiv>
+        <div
+          style={{
+            display: "grid",
+            gap: isMobile ? 16 : 24,
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          }}
+        >
+          <StatCard title='Total Kelas' value={totalClasses} icon={<LayoutGrid size={24} />} tone='primary' />
+          <StatCard title='Siswa Terdata' value={totalStudents} icon={<Users size={24} />} tone='accent' />
+          <StatCard title='Kelas Aktif' value={activeClasses} icon={<GraduationCap size={24} />} tone='navy' />
+        </div>
 
-        <MotionDiv variants={itemVariants}>
-          <Flex gap={16} wrap='wrap'>
-            {summaryCards.map((item) => (
-              <MotionDiv
-                key={item.key}
-                whileHover={{ y: -4 }}
-                transition={{ duration: 0.18 }}
-                style={{
-                  flex: activeScreens.md ? "1 1 0" : "1 1 100%",
-                  minWidth: activeScreens.md ? 0 : "100%",
-                }}
-              >
-                <Card
-                  hoverable
-                  style={{
-                    borderRadius: 22,
-                    border: "1px solid rgba(148, 163, 184, 0.18)",
-                    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.06)",
-                  }}
-                  styles={{ body: { padding: "18px 20px" } }}
-                >
-                  <Flex justify='space-between' align='start'>
-                    <Statistic title={item.title} value={item.value} />
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        display: "grid",
-                        placeItems: "center",
-                        borderRadius: 16,
-                        background: "linear-gradient(135deg, #dcfce7, #dbeafe)",
-                        color: "#0369a1",
-                      }}
-                    >
-                      {item.icon}
-                    </div>
-                  </Flex>
-                </Card>
-              </MotionDiv>
-            ))}
-          </Flex>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            hoverable
-            variant='borderless'
-            style={{
-              borderRadius: 22,
-              boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
-            }}
-            styles={{ body: { padding: isMobile ? 16 : 20 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={activeScreens.md ? "center" : "stretch"}
-              vertical={!activeScreens.md}
-              gap={16}
-            >
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  Pencarian & Aksi Cepat
-                </Title>
-                <Text type='secondary'>
-                  Gunakan pencarian untuk mempersempit daftar kelas secara
-                  langsung.
-                </Text>
-              </div>
-
-              <Flex
-                gap={10}
-                vertical={!activeScreens.md}
-                style={{ width: !activeScreens.md ? "100%" : "auto" }}
-              >
-                <Input
-                  prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
-                  placeholder='Cari nama kelas...'
-                  onChange={handleSearch}
-                  style={{ width: !activeScreens.md ? "100%" : 320 }}
-                  allowClear
-                  size='large'
-                />
-
-                <Button
-                  type='primary'
-                  icon={<Plus size={16} />}
-                  onClick={handleAddClass}
-                  size='large'
-                  style={{ display: activeScreens.md ? "none" : "inline-flex" }}
-                >
-                  Tambah Kelas
-                </Button>
-              </Flex>
-            </Flex>
-          </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
+        <DataListCard
+          flush={false}
+          title='Direktori Kelas'
+          count={totalClasses}
+          unit='kelas'
+          searchProps={{ placeholder: "Cari nama kelas...", onChange: handleSearch }}
+          extra={
+            <Button icon={<UploadIcon size={16} />} onClick={() => setIsUploadDrawerOpen(true)}>
+              {isMobile ? "Upload" : "Upload Siswa"}
+            </Button>
+          }
+          onAdd={handleAddClass}
+          addLabel='Tambah Kelas'
+        >
           <InfiniteScrollList
             data={listData}
             loading={isFetching}
             hasMore={hasMore}
             onLoadMore={handleLoadMore}
+            height='auto'
             emptyText={
-              search ? "Kelas tidak ditemukan" : "Belum ada data kelas"
+              search
+                ? "Kelas tidak ditemukan. Coba kata kunci lain."
+                : "Belum ada kelas. Tambahkan kelas pertama atau upload siswa."
             }
-            grid={{
-              gutter: [16, 16],
-              xs: 24,
-              sm: 12,
-              md: 8,
-              lg: 6,
-            }}
+            grid={{ gutter: [16, 16], xs: 24, sm: 12, md: 8, lg: 8, xl: 6 }}
             renderItem={(item) => (
-              <MotionDiv whileHover={{ y: -4 }} transition={{ duration: 0.18 }}>
+              <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.18 }} style={{ height: "100%" }}>
                 <ClassItem
                   item={item}
                   onEdit={() => handleEditClass(item)}
@@ -325,7 +180,7 @@ const Classes = ({ screens }) => {
               </MotionDiv>
             )}
           />
-        </MotionDiv>
+        </DataListCard>
       </MotionDiv>
 
       <ClassModal

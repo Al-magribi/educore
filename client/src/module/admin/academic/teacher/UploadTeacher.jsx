@@ -1,36 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { Alert, Button, Collapse, Input, Space, Table, Tooltip, Upload, message } from "antd";
 import {
-  Drawer,
-  Button,
-  Upload,
-  Table,
-  message,
-  Alert,
-  Space,
-  Typography,
-  Collapse,
-  Divider,
-  Row,
-  Col,
-  Statistic,
-  Tooltip,
-  Input,
-  Grid,
-  Flex,
-  Card,
-  Tag,
-} from "antd";
-import {
-  InboxOutlined,
-  DeleteOutlined,
-  FileExcelOutlined,
   CheckCircleOutlined,
-  WarningOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   InfoCircleOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
-import { UploadCloud, X, Sparkles, GraduationCap } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   useGetClassesListQuery,
@@ -42,12 +19,11 @@ import {
   buildTeacherAllocationExample,
   downloadTeacherTemplate,
 } from "./teacherImportTemplate";
+import { CardTitle, MuseCard } from "../../../../components/ui/muse";
+import { ImportDrawer, ImportStats, UploadDropzone } from "../../../../components/ui/muse/ImportKit";
+import { museColors } from "../../../../config/theme";
 
-const { Dragger } = Upload;
-const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
 const { TextArea } = Input;
-const MotionDiv = motion.div;
 
 const normalizeText = (value) => value?.toString().trim() || "";
 const normalizeKey = (value) =>
@@ -262,7 +238,6 @@ const buildRow = ({ row, index, classes, subjects }) => {
 };
 
 const UploadTeacher = ({ open, onClose, onFinish }) => {
-  const screens = useBreakpoint();
   const [tableData, setTableData] = useState([]);
   const [fileList, setFileList] = useState([]);
 
@@ -554,11 +529,11 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
       render: (_, record) =>
         record.isValid ? (
           <Tooltip title='Data valid'>
-            <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 18 }} />
+            <CheckCircleOutlined style={{ color: museColors.success, fontSize: 18 }} />
           </Tooltip>
         ) : (
           <Tooltip title={record.errors.join(", ")}>
-            <WarningOutlined style={{ color: "#f5222d", fontSize: 18 }} />
+            <WarningOutlined style={{ color: museColors.danger, fontSize: 18 }} />
           </Tooltip>
         ),
     },
@@ -578,269 +553,157 @@ const UploadTeacher = ({ open, onClose, onFinish }) => {
     },
   ];
 
+  const statusLabel =
+    summary.totalData === 0 ? "Menunggu file" : summary.errorCount > 0 ? "Perlu review" : "Siap impor";
+
   return (
-    <Drawer
-      title={null}
-      width={screens.md ? 1180 : "100%"}
-      onClose={onClose}
+    <ImportDrawer
       open={open}
-      closable={false}
-      destroyOnHidden
-      styles={{
-        header: { display: "none" },
-        body: {
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
-          overflow: "hidden",
-          padding: 0,
-          background: "#f8fafc",
-        },
-      }}
+      onClose={onClose}
+      width={1180}
+      icon={<UploadCloud size={16} />}
+      title="Import Data Guru"
+      description="Upload Excel guru, tinjau username, wali kelas, dan alokasi mengajar sebelum sinkronisasi."
+      status={statusLabel}
+      statusColor={summary.errorCount > 0 ? "warning" : summary.totalData > 0 ? "success" : "processing"}
+      actions={
+        <>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={downloadTemplateFile}
+            loading={isDownloadingTemplate}
+          >
+            Template
+          </Button>
+          <Button
+            onClick={handleUploadSubmit}
+            type="primary"
+            loading={isUploading}
+            disabled={summary.validCount === 0}
+          >
+            Impor {summary.validCount > 0 ? `(${summary.validCount})` : ""}
+          </Button>
+        </>
+      }
     >
-      <MotionDiv
-        initial={{ opacity: 0, x: 24 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-        style={{ height: "100%", display: "flex", flexDirection: "column" }}
-      >
-      <div
-        style={{
-          padding: 24,
-          background:
-            "linear-gradient(135deg, rgba(239,246,255,1), rgba(236,253,245,0.98))",
-          borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-        }}
-      >
-        <Flex justify="space-between" align="flex-start" gap={16}>
-          <Flex align="flex-start" gap={16}>
-            <div
-              style={{
-                width: 58,
-                height: 58,
-                borderRadius: 20,
-                display: "grid",
-                placeItems: "center",
-                background: "linear-gradient(135deg, #2563eb, #14b8a6)",
-                color: "#fff",
-                boxShadow: "0 18px 32px rgba(37, 99, 235, 0.24)",
-                flexShrink: 0,
-              }}
-            >
-              <UploadCloud size={24} />
-            </div>
-            <div>
-              <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 6 }}>
-                <Title level={3} style={{ margin: 0 }}>
-                  Import Data Guru
-                </Title>
-                <Tag
-                  bordered={false}
-                  style={{
-                    marginInlineEnd: 0,
-                    borderRadius: 999,
-                    padding: "6px 12px",
-                    background: summary.errorCount > 0 ? "rgba(245,158,11,.12)" : "rgba(37,99,235,.10)",
-                    color: summary.errorCount > 0 ? "#b45309" : "#1d4ed8",
-                    fontWeight: 600,
-                  }}
-                >
-                  {summary.totalData === 0 ? "Menunggu File" : summary.errorCount > 0 ? "Perlu Review" : "Siap Impor"}
-                </Tag>
-              </Flex>
-              <Text type='secondary' style={{ display: "block", maxWidth: 620 }}>
-                Upload file Excel guru, tinjau validasi username, wali kelas,
-                dan alokasi mengajar sebelum sinkronisasi ke sistem.
-              </Text>
-            </div>
-          </Flex>
-          <Flex gap={10} wrap="wrap" justify="flex-end">
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={downloadTemplateFile}
-              loading={isDownloadingTemplate}
-              style={{ borderRadius: 14 }}
-            >
-              Template
-            </Button>
-            <Button onClick={onClose} icon={<X size={16} />} style={{ borderRadius: 14 }}>
-              Tutup
-            </Button>
-            <Button
-              onClick={handleUploadSubmit}
-              type='primary'
-              loading={isUploading}
-              disabled={summary.validCount === 0}
-              style={{ borderRadius: 14, boxShadow: "0 12px 24px rgba(37,99,235,.20)" }}
-            >
-              Impor {summary.validCount > 0 ? `(${summary.validCount})` : ""}
-            </Button>
-          </Flex>
-        </Flex>
-
-        {summary.totalData > 0 && (
-          <Row gutter={[12, 12]} style={{ marginTop: 18 }}>
-            <Col xs={24} sm={8}>
-              <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "14px 16px" } }}>
-                <Statistic title='Total' value={summary.totalData} />
-              </Card>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "14px 16px" } }}>
-                <Statistic title='Valid' value={summary.validCount} valueStyle={{ color: "#15803d" }} />
-              </Card>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "14px 16px" } }}>
-                <Statistic title='Perlu Cek' value={summary.errorCount} valueStyle={{ color: "#dc2626" }} />
-              </Card>
-            </Col>
-          </Row>
-        )}
-      </div>
-
-      <div style={{ padding: 20, flex: 1, overflow: "auto" }}>
-      <div style={{ flexShrink: 0, marginBottom: 16 }}>
-        <Collapse
-          size='small'
-          defaultActiveKey={["1"]}
+      {summary.totalData > 0 && (
+        <ImportStats
           items={[
-            {
-              key: "1",
-              label: (
-                <Space>
-                  <InfoCircleOutlined />
-                  <span>Panduan Format & Template Excel</span>
-                </Space>
-              ),
-              children: (
-                <Alert
-                  message='Aturan Pengisian Data'
-                  description={
-                    <div>
-                      <ol style={{ paddingLeft: 20, margin: "0 0 10px" }}>
-                        <li>
-                          Klik tombol <strong>Template</strong> untuk unduh file
-                          terbaru. Jika sudah ada data guru, file berisi data
-                          aktual siap diedit.
-                        </li>
-                        <li>
-                          Isi/ubah data pada sheet <strong>Template Guru</strong>{" "}
-                          saja. Jangan ubah nama kolom.
-                        </li>
-                        <li>
-                          Cocokkan <strong>Wali Kelas</strong> dengan sheet{" "}
-                          <strong>Referensi Kelas</strong>.
-                        </li>
-                        <li>
-                          Isi <strong>Alokasi Mengajar</strong> dengan format{" "}
-                          <strong>{buildTeacherAllocationExample()}</strong> dan
-                          gunakan kode mapel dari sheet{" "}
-                          <strong>Referensi Mapel</strong>.
-                        </li>
-                        <li>
-                          Upload file, lalu perbaiki baris berikon merah sebelum
-                          klik <strong>Impor</strong>.
-                        </li>
-                      </ol>
-                      <ul style={{ paddingLeft: 20, margin: 0 }}>
-                        <li>
-                          Kolom wajib: <strong>Username</strong> dan{" "}
-                          <strong>Nama Lengkap</strong>.
-                        </li>
-                        <li>
-                          <strong>Username</strong> dipakai sebagai kunci update.
-                          Jika sudah ada, data guru akan diperbarui.
-                        </li>
-                        <li>
-                          <strong>Password</strong> opsional. Kosongkan saat
-                          update agar password lama tetap. Untuk guru baru, jika
-                          kosong otomatis jadi <strong>123456</strong>.
-                        </li>
-                        <li>
-                          Nama mapel persis sistem juga didukung jika kode mapel
-                          belum tersedia.
-                        </li>
-                      </ul>
-                    </div>
-                  }
-                  type='info'
-                  showIcon
-                  style={{ marginBottom: 12 }}
-                />
-              ),
-            },
+            { label: "Total", value: summary.totalData },
+            { label: "Valid", value: summary.validCount, color: museColors.success },
+            { label: "Perlu cek", value: summary.errorCount, color: museColors.danger },
           ]}
         />
-      </div>
+      )}
 
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        {summary.totalData === 0 ? (
-          <Card bordered={false} style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15,23,42,.06)" }} styles={{ body: { padding: 24, height: "100%" } }}>
-            <Dragger
-              accept='.xlsx, .xls'
-              beforeUpload={handleFile}
-              fileList={fileList}
-              onChange={(info) => setFileList(info.fileList.slice(-1))}
-              showUploadList={false}
-              disabled={!referencesReady}
-              style={{
-                minHeight: 360,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                padding: 24,
-                border: "2px dashed #93c5fd",
-                borderRadius: 22,
-                background:
-                  "linear-gradient(135deg, rgba(239,246,255,0.85), rgba(240,253,250,0.85))",
-              }}
-            >
-              <p className='ant-upload-drag-icon'>
-                <InboxOutlined style={{ color: "#2563eb", fontSize: 52 }} />
-              </p>
-              <Title level={3}>Klik atau tarik file Excel ke sini</Title>
-              <Text type='secondary'>
-                {referencesReady
-                  ? "Gunakan template upload guru terbaru."
-                  : "Menunggu referensi mapel dan kelas dimuat."}
-              </Text>
-              <div style={{ marginTop: 20 }}>
-                <Tag bordered={false} style={{ borderRadius: 999, padding: "8px 14px", background: "rgba(37,99,235,.10)", color: "#1d4ed8", fontWeight: 600 }}>
-                  <Flex align="center" gap={8}>
-                    <Sparkles size={14} />
-                    <span>Validasi alokasi mengajar otomatis</span>
-                  </Flex>
-                </Tag>
-              </div>
-            </Dragger>
-          </Card>
-        ) : (
-          <>
-            {summary.errorCount > 0 && (
+      <Collapse
+        size="small"
+        defaultActiveKey={summary.totalData === 0 ? ["1"] : []}
+        style={{ background: "#fff" }}
+        items={[
+          {
+            key: "1",
+            label: (
+              <Space>
+                <InfoCircleOutlined />
+                <span>Panduan format & template Excel</span>
+              </Space>
+            ),
+            children: (
               <Alert
-                message={`Terdapat ${summary.errorCount} baris data belum valid. Periksa username, wali kelas, atau format alokasi mengajar.`}
-                type='warning'
+                title="Aturan pengisian data"
+                description={
+                  <div>
+                    <ol style={{ paddingLeft: 20, margin: "0 0 10px" }}>
+                      <li>
+                        Klik <strong>Template</strong> untuk unduh file terbaru. Jika sudah ada data
+                        guru, file berisi data aktual siap diedit.
+                      </li>
+                      <li>
+                        Isi/ubah data pada sheet <strong>Template Guru</strong> saja. Jangan ubah nama
+                        kolom.
+                      </li>
+                      <li>
+                        Cocokkan <strong>Wali Kelas</strong> dengan sheet{" "}
+                        <strong>Referensi Kelas</strong>.
+                      </li>
+                      <li>
+                        Isi <strong>Alokasi Mengajar</strong> dengan format{" "}
+                        <strong>{buildTeacherAllocationExample()}</strong> dan gunakan kode mapel dari
+                        sheet <strong>Referensi Mapel</strong>.
+                      </li>
+                      <li>
+                        Upload file, lalu perbaiki baris berikon merah sebelum klik{" "}
+                        <strong>Impor</strong>.
+                      </li>
+                    </ol>
+                    <ul style={{ paddingLeft: 20, margin: 0 }}>
+                      <li>
+                        Kolom wajib: <strong>Username</strong> dan <strong>Nama Lengkap</strong>.
+                      </li>
+                      <li>
+                        <strong>Username</strong> dipakai sebagai kunci update. Jika sudah ada, data
+                        guru akan diperbarui.
+                      </li>
+                      <li>
+                        <strong>Password</strong> opsional. Kosongkan saat update agar password lama
+                        tetap. Untuk guru baru, jika kosong otomatis jadi <strong>123456</strong>.
+                      </li>
+                      <li>Nama mapel persis sistem juga didukung jika kode mapel belum tersedia.</li>
+                    </ul>
+                  </div>
+                }
+                type="info"
                 showIcon
-                style={{ marginBottom: 12 }}
               />
-            )}
-            <Table
-              columns={columns}
-              dataSource={tableData}
-              rowKey='key'
-              pagination={false}
-              size='small'
-              bordered
-              scroll={{ x: 1300, y: "calc(100vh - 390px)" }}
+            ),
+          },
+        ]}
+      />
+
+      {summary.totalData === 0 ? (
+        <UploadDropzone
+          beforeUpload={handleFile}
+          fileList={fileList}
+          onChange={(info) => setFileList(info.fileList.slice(-1))}
+          disabled={!referencesReady}
+          hint={
+            referencesReady
+              ? "Gunakan template upload guru terbaru. Alokasi mengajar divalidasi otomatis."
+              : "Menunggu referensi mapel dan kelas dimuat..."
+          }
+          note="Format .xlsx / .xls"
+        />
+      ) : (
+        <MuseCard
+          flush
+          title={
+            <CardTitle
+              title="Review Data Guru"
+              description="Perbaiki baris berikon merah sebelum impor."
             />
-          </>
-        )}
-      </div>
-      </div>
-      </MotionDiv>
-    </Drawer>
+          }
+        >
+          {summary.errorCount > 0 && (
+            <Alert
+              title={`Ada ${summary.errorCount} baris belum valid.`}
+              description="Periksa username, wali kelas, atau format alokasi mengajar."
+              type="warning"
+              showIcon
+              style={{ margin: "0 24px 16px" }}
+            />
+          )}
+          <Table
+            columns={columns}
+            dataSource={tableData}
+            rowKey="key"
+            pagination={false}
+            size="small"
+            scroll={{ x: 1300, y: "calc(100vh - 420px)" }}
+          />
+        </MuseCard>
+      )}
+    </ImportDrawer>
   );
 };
 

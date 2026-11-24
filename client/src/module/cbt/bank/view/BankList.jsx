@@ -1,39 +1,33 @@
 import React, { Suspense, lazy, useState, useEffect } from "react";
 import {
+  Alert,
   Button,
   Flex,
-  Input,
-  Modal,
-  Card,
-  Tag,
-  Typography,
-  Tooltip,
-  Popconfirm,
-  message,
-  theme,
-  Avatar,
-  Spin,
   Grid,
-  Statistic,
-  Divider,
+  Modal,
+  Skeleton,
+  Spin,
+  Tag,
+  Tooltip,
+  message,
 } from "antd";
 import { motion } from "framer-motion";
 import {
-  Plus,
-  Search,
-  FileText,
-  Edit,
-  Trash2,
   BookOpen,
-  Calendar,
-  MessageCircleQuestionMark,
   Folder,
   LibraryBig,
   Layers3,
-  Users,
+  ListChecks,
+  Pencil,
 } from "lucide-react";
 import { InfiniteScrollList, LoadApp } from "../../../../components";
 import PageHeader from "../../../../components/ui/PageHeader";
+import { CardTitle } from "../../../../components/ui/muse";
+import {
+  DataListCard,
+  DataRow,
+  EditDeleteActions,
+} from "../../../../components/ui/muse/DataSection";
 import { BankForm } from "../components";
 import GroupBankForm from "../components/bank/Grouped/GroupBankForm";
 import {
@@ -44,35 +38,26 @@ import { useSearchParams } from "react-router-dom";
 
 const QuestionsList = lazy(() => import("./QuestionsList"));
 
-const { Text, Title } = Typography;
-const { useToken } = theme;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.38,
-      staggerChildren: 0.08,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
+const typeLabels = {
+  UH: "Ulangan Harian",
+  TS: "Tengah Semester",
+  AS: "Akhir Semester",
+  UAS: "Ujian Akhir Sekolah",
+  GB: "Gabungan",
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
-  },
+const typeColors = {
+  UH: "blue",
+  TS: "orange",
+  AS: "red",
+  UAS: "purple",
+  GB: "green",
 };
 
 const BankList = () => {
-  const { token } = useToken();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -88,7 +73,7 @@ const BankList = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
 
-  const { data, isFetching } = useGetBanksQuery({
+  const { data, isFetching, isError, error } = useGetBanksQuery({
     page,
     search: searchText,
   });
@@ -138,11 +123,11 @@ const BankList = () => {
   const handleDelete = async (id) => {
     try {
       await deleteBank(id).unwrap();
-      message.success("Berhasil dihapus");
+      message.success("Bank soal berhasil dihapus");
       setPage(1);
       setAllData((prev) => prev.filter((item) => item.id !== id));
     } catch {
-      message.error("Gagal menghapus");
+      message.error("Gagal menghapus bank soal");
     }
   };
 
@@ -165,219 +150,62 @@ const BankList = () => {
     });
   };
 
-  const getInitials = (name) => {
-    if (!name) return "?";
-    return name
-      .split(" ")
-      .slice(0, 2)
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
+    const totalBanks = data?.totalData || data?.total || allData.length || 0;
+  const isInitialLoading = isFetching && allData.length === 0;
 
-  const totalBanks = data?.totalData || data?.total || allData.length || 0;
-  const loadedBanks = allData.length;
-  const groupedBanks = allData.filter((item) => item.type === "GB").length;
-  const uniqueTeachers = new Set(
-    allData.map((item) => item.teacher_name).filter(Boolean),
-  ).size;
-  const summaryCards = [
-    {
-      key: "banks",
-      title: "Total Bank",
-      value: totalBanks,
-      icon: <LibraryBig size={18} />,
-      bg: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-      color: "#1d4ed8",
-    },
-    {
-      key: "loaded",
-      title: "Data Dimuat",
-      value: loadedBanks,
-      icon: <Layers3 size={18} />,
-      bg: "linear-gradient(135deg, #dcfce7, #ecfccb)",
-      color: "#16a34a",
-    },
-    {
-      key: "teachers",
-      title: "Guru Terlibat",
-      value: uniqueTeachers,
-      icon: <Users size={18} />,
-      bg: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
-      color: "#7c3aed",
-    },
-    {
-      key: "grouped",
-      title: "Bank Gabungan",
-      value: groupedBanks,
-      icon: <Folder size={18} />,
-      bg: "linear-gradient(135deg, #fef3c7, #ffedd5)",
-      color: "#d97706",
-    },
-  ];
+  const formatDate = (value) =>
+    value
+      ? new Date(value).toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "-";
 
   const renderItem = (item) => {
-    const typeColors = {
-      UH: "blue",
-      TS: "orange",
-      AS: "red",
-      UAS: "purple",
-      GB: "green",
-    };
-    const color = typeColors[item.type] || "default";
+    const isGrouped = item.type === "GB";
+    const typeLabel = typeLabels[item.type] || item.type;
+    const subtitle = [
+      item.subject_name || "Mapel umum",
+      item.teacher_name || "Belum ada guru",
+      formatDate(item.created_at),
+    ].join(" · ");
 
     return (
-      <MotionDiv
-        variants={itemVariants}
-        whileHover={{ y: -4 }}
-        transition={{ duration: 0.2 }}
-        style={{ height: "100%" }}
-      >
-        <Card
-          hoverable
-          size='small'
-          style={{
-            height: "100%",
-            borderRadius: 22,
-            display: "flex",
-            flexDirection: "column",
-            border: "1px solid #eef2ff",
-            background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-            boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-          }}
-          styles={{
-            body: {
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              padding: 18,
-            },
-          }}
-          title={
-            <Flex justify='space-between' align='center' gap={8}>
-              <Tag color={color} style={{ borderRadius: 999, fontWeight: 600 }}>
-                {item.type}
-              </Tag>
-              <Flex align='center' gap={4}>
-                <Calendar size={12} color='#94a3b8' />
-                <Text type='secondary' style={{ fontSize: 11 }}>
-                  {new Date(item.created_at).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </Text>
-              </Flex>
-            </Flex>
-          }
-          actions={[
-            <Tooltip title='Lihat Soal' key='view'>
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <MessageCircleQuestionMark
-                  size={16}
-                  onClick={() =>
-                    handleQuestionList(
-                      item.title.replaceAll(/ /g, "-"),
-                      item.id,
-                    )
-                  }
-                />
-              </div>
-            </Tooltip>,
-            <Tooltip title='Edit' key='edit'>
-              <div
-                onClick={() => openForm(item)}
-                style={{ display: "flex", justifyContent: "center" }}
+      <DataRow
+        icon={isGrouped ? <Layers3 size={18} /> : <BookOpen size={18} />}
+        tone={isGrouped ? "accentSoft" : "primarySoft"}
+        title={item.title}
+        subtitle={isMobile ? `${typeLabel} · ${subtitle}` : subtitle}
+        tags={
+          isMobile ? null : (
+            <Tag color={typeColors[item.type] || "default"} style={{ margin: 0 }}>
+              {typeLabel}
+            </Tag>
+          )
+        }
+        onClick={() => handleQuestionList(item.title.replaceAll(" ", "-"), item.id)}
+        actions={
+          <>
+            <Tooltip title='Lihat daftar soal'>
+              <Button
+                type={isMobile ? "text" : "default"}
+                aria-label={`Lihat soal ${item.title}`}
+                icon={<ListChecks size={16} />}
+                onClick={() => handleQuestionList(item.title.replaceAll(" ", "-"), item.id)}
               >
-                <Edit size={16} />
-              </div>
-            </Tooltip>,
-            <Tooltip title='Hapus' key='delete'>
-              <Popconfirm
-                title='Hapus Bank Soal?'
-                onConfirm={() => handleDelete(item.id)}
-                okText='Ya'
-                cancelText='Batal'
-                okButtonProps={{ danger: true }}
-              >
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  <Trash2 size={16} />
-                </div>
-              </Popconfirm>
-            </Tooltip>,
-          ]}
-        >
-          <Flex gap='middle' align='start' style={{ marginBottom: 14 }}>
-            <div
-              style={{
-                background: `linear-gradient(135deg, ${token.colorPrimaryBg}, #ffffff)`,
-                border: `1px solid ${token.colorPrimaryBorder}`,
-                padding: 12,
-                borderRadius: 14,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <BookOpen size={20} color={token.colorPrimary} />
-            </div>
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <Tooltip title={item.title}>
-                <Title
-                  level={5}
-                  ellipsis={{ rows: 2 }}
-                  style={{
-                    margin: "0 0 6px 0",
-                    fontSize: 16,
-                    lineHeight: 1.35,
-                  }}
-                >
-                  {item.title}
-                </Title>
-              </Tooltip>
-              <Tag
-                variant='filled'
-                style={{
-                  margin: 0,
-                  paddingInline: 10,
-                  borderRadius: 999,
-                  background: "#eef6ff",
-                  color: "#1d4ed8",
-                }}
-              >
-                {item.subject_name || "Mapel Umum"}
-              </Tag>
-            </div>
-          </Flex>
-
-          <Divider style={{ margin: "2px 0 14px", borderColor: "#e8eefc" }} />
-
-          <Flex align='center' gap={10} style={{ marginTop: "auto" }}>
-            <Avatar
-              size={30}
-              style={{
-                backgroundColor: "#e2e8f0",
-                color: "#334155",
-                fontSize: 11,
-                fontWeight: 700,
-              }}
-            >
-              {getInitials(item.teacher_name)}
-            </Avatar>
-            <div style={{ minWidth: 0 }}>
-              <Text
-                style={{ display: "block", fontSize: 12, color: "#0f172a" }}
-              >
-                Penyusun
-              </Text>
-              <Text ellipsis type='secondary' style={{ fontSize: 12 }}>
-                {item.teacher_name || "Belum ada guru"}
-              </Text>
-            </div>
-          </Flex>
-        </Card>
-      </MotionDiv>
+                {isMobile ? null : "Soal"}
+              </Button>
+            </Tooltip>
+            <EditDeleteActions
+              onEdit={() => openForm(item)}
+              onDelete={() => handleDelete(item.id)}
+              deleteTitle={`Hapus bank soal ${item.title}?`}
+              deleteDescription='Semua soal di dalam bank ini ikut terhapus.'
+            />
+          </>
+        }
+      />
     );
   };
 
@@ -395,145 +223,72 @@ const BankList = () => {
         </Suspense>
       ) : (
         <MotionDiv
-          variants={containerVariants}
-          initial='hidden'
-          animate='show'
-          style={{ width: "100%" }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
         >
-          <MotionDiv variants={itemVariants}>
+          <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
             <PageHeader
-              title='Manajemen Bank Soal'
-              description='Atur bank soal per guru, mata pelajaran, dan tipe ujian dari satu panel yang lebih fokus untuk kebutuhan operasional CBT.'
+              title='Bank Soal'
+              description='Kelola bank soal per guru, mata pelajaran, dan tipe ujian.'
               extra={
-                <>
-                  <Button
-                    icon={<Plus size={16} />}
-                    type='primary'
-                    onClick={() => openForm(null)}
-                  >
-                    Bank Soal
-                  </Button>
-                  <Button
-                    icon={<Folder size={16} />}
-                    onClick={() => setIsGroupModalOpen(true)}
-                  >
-                    Gabung Bank
-                  </Button>
-                </>
+                <Button
+                  icon={<Folder size={16} />}
+                  onClick={() => setIsGroupModalOpen(true)}
+                >
+                  Gabung Bank
+                </Button>
               }
             />
-          </MotionDiv>
 
-          <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-            {summaryCards.map((item) => (
-              <MotionDiv
-                key={item.key}
-                variants={itemVariants}
-                style={{
-                  flex: screens.xl
-                    ? "1 1 0"
-                    : screens.md
-                      ? "1 1 calc(50% - 8px)"
-                      : "1 1 100%",
-                  minWidth: screens.md ? 0 : "100%",
-                }}
-              >
-                <Card
-                  style={{
-                    borderRadius: 22,
-                    border: "1px solid #eef2ff",
-                    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
-                  }}
-                  styles={{ body: { padding: "18px 20px" } }}
-                  hoverable
-                >
-                  <Flex justify='space-between' align='start'>
-                    <Statistic title={item.title} value={item.value} />
-                    <div
-                      style={{
-                        width: 46,
-                        height: 46,
-                        display: "grid",
-                        placeItems: "center",
-                        borderRadius: 16,
-                        background: item.bg,
-                        color: item.color,
-                      }}
-                    >
-                      {item.icon}
-                    </div>
-                  </Flex>
-                </Card>
-              </MotionDiv>
-            ))}
-          </Flex>
+            {isError ? (
+              <Alert
+                type='error'
+                showIcon
+                title='Gagal memuat bank soal'
+                description={
+                  error?.data?.message || "Periksa koneksi lalu muat ulang halaman."
+                }
+              />
+            ) : null}
 
-          <MotionDiv variants={itemVariants}>
-            <Card
-              style={{
-                marginBottom: 18,
-                borderRadius: 24,
-                border: "1px solid #eef2ff",
-                boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+            <DataListCard
+              icon={<LibraryBig size={16} />}
+              title='Daftar Bank Soal'
+              count={totalBanks}
+              unit='bank'
+              searchProps={{
+                placeholder: "Cari judul, mapel, atau guru",
+                value: searchInput,
+                onChange: (e) => setSearchInput(e.target.value),
               }}
-              styles={{ body: { padding: screens.md ? 20 : 16 } }}
+              onAdd={() => openForm(null)}
+              addLabel='Bank Soal'
             >
-              <Flex vertical gap={14}>
-                <Flex
-                  vertical={isMobile}
-                  justify='space-between'
-                  align={isMobile ? "stretch" : "center"}
-                  gap={12}
-                >
-                  <div>
-                    <Title level={5} style={{ margin: 0 }}>
-                      Daftar Bank Soal
-                    </Title>
-                    <Text
-                      type='secondary'
-                      style={{ fontSize: 12, display: "block" }}
-                    >
-                      Menampilkan {loadedBanks} dari {totalBanks} data tersedia
-                    </Text>
-                    <Text type='secondary' style={{ fontSize: 12 }}>
-                      Gunakan pencarian untuk mempersempit hasil berdasarkan
-                      judul, mapel, atau penyusun.
-                    </Text>
-                  </div>
-
-                  <Input
-                    prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
-                    style={{ width: isMobile ? "100%" : 340 }}
-                    placeholder='Cari judul, mapel, atau guru...'
-                    allowClear
-                    size='large'
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                  />
-                </Flex>
-              </Flex>
-            </Card>
-          </MotionDiv>
-
-          <MotionDiv variants={itemVariants}>
-            <InfiniteScrollList
-              data={allData}
-              loading={isFetching}
-              hasMore={data?.hasMore || false}
-              onLoadMore={handleLoadMore}
-              renderItem={renderItem}
-              emptyText='Belum ada bank soal tersedia'
-              grid={{
-                gutter: [16, 16],
-                xs: 24,
-                sm: 12,
-                md: 12,
-                lg: 8,
-                xl: 6,
-              }}
-              height={isMobile ? "calc(100vh - 300px)" : "calc(100vh - 360px)"}
-            />
-          </MotionDiv>
+              {isInitialLoading ? (
+                <div style={{ padding: 24 }}>
+                  <Skeleton active avatar paragraph={{ rows: 1 }} />
+                  <Skeleton active avatar paragraph={{ rows: 1 }} />
+                  <Skeleton active avatar paragraph={{ rows: 1 }} />
+                </div>
+              ) : (
+                <InfiniteScrollList
+                  data={allData}
+                  loading={isFetching}
+                  hasMore={data?.hasMore || false}
+                  onLoadMore={handleLoadMore}
+                  renderItem={renderItem}
+                  height='auto'
+                  emptyText={
+                    searchText
+                      ? "Bank soal tidak ditemukan. Coba kata kunci lain."
+                      : "Belum ada bank soal. Klik tombol Bank Soal untuk membuat yang pertama."
+                  }
+                  grid={{ gutter: [0, 0], xs: 24 }}
+                />
+              )}
+            </DataListCard>
+          </Flex>
         </MotionDiv>
       )}
 
@@ -543,26 +298,14 @@ const BankList = () => {
         footer={null}
         destroyOnHidden
         centered
-        width={isMobile ? "calc(100vw - 24px)" : 620}
-        closable={false}
-        styles={{
-          content: {
-            padding: 0,
-            overflow: "hidden",
-            borderRadius: 28,
-            boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
-          },
-          body: { padding: 0 },
-        }}
-        modalRender={(modalNode) => (
-          <MotionDiv
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
-          >
-            {modalNode}
-          </MotionDiv>
-        )}
+        width={isMobile ? "calc(100vw - 24px)" : 560}
+        title={
+          <CardTitle
+            icon={editingItem ? <Pencil size={16} /> : <BookOpen size={16} />}
+            title={editingItem ? "Edit Bank Soal" : "Buat Bank Soal"}
+            description='Tentukan pemilik, mata pelajaran, judul, dan tipe ujian.'
+          />
+        }
       >
         <BankForm
           initialValues={editingItem}
@@ -573,28 +316,18 @@ const BankList = () => {
 
       <Modal
         title={
-          <Flex align='center' gap={8}>
-            <div
-              style={{
-                background: token.colorPrimaryBg,
-                padding: 6,
-                borderRadius: 6,
-                display: "flex",
-              }}
-            >
-              <Folder size={18} color={token.colorPrimary} />
-            </div>
-            <Text strong style={{ fontSize: 16 }}>
-              Gabung Bank Soal
-            </Text>
-          </Flex>
+          <CardTitle
+            icon={<Folder size={16} />}
+            title='Gabung Bank Soal'
+            description='Pilih soal dari beberapa bank untuk dijadikan satu bank gabungan.'
+          />
         }
         open={isGroupModalOpen}
         onCancel={() => setIsGroupModalOpen(false)}
         footer={null}
         destroyOnHidden
         centered
-        width={900}
+        width={isMobile ? "calc(100vw - 24px)" : 900}
       >
         <GroupBankForm
           onClose={() => setIsGroupModalOpen(false)}

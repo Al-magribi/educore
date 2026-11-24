@@ -25,6 +25,7 @@ import {
 } from "./ExcelTemplateManager";
 import ImportInstruction from "./ImportInstruction";
 import { useBulkCreateQuestionMutation } from "../../../../service/cbt/ApiQuestion";
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 
 const { Dragger } = Upload;
 const { Text, Title } = Typography;
@@ -125,8 +126,8 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: 28,
-          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         },
         body: { padding: 0 },
       }}
@@ -142,8 +143,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
     >
       <div
         style={{
-          background:
-            "linear-gradient(135deg, rgba(239,246,255,1), rgba(236,253,245,0.96))",
+          background: museColors.primarySoft,
           padding: isMobile ? 20 : 28,
           borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
         }}
@@ -154,10 +154,10 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
               style={{
                 width: isMobile ? 48 : 56,
                 height: isMobile ? 48 : 56,
-                borderRadius: 18,
+                borderRadius: museRadius.card,
                 display: "grid",
                 placeItems: "center",
-                background: "linear-gradient(135deg, #2563eb, #14b8a6)",
+                background: museColors.primary,
                 color: "#fff",
                 boxShadow: "0 16px 30px rgba(37, 99, 235, 0.28)",
                 flexShrink: 0,
@@ -187,7 +187,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
                     borderRadius: 999,
                     padding: "6px 12px",
                     background: "rgba(37, 99, 235, 0.10)",
-                    color: "#1d4ed8",
+                    color: museColors.primary,
                     fontWeight: 600,
                   }}
                 >
@@ -200,7 +200,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
           <Button
             onClick={onCancel}
             icon={<X size={16} />}
-            style={{ borderRadius: 14, flexShrink: 0 }}
+            style={{ borderRadius: museRadius.item, flexShrink: 0 }}
           >
             Tutup
           </Button>
@@ -219,8 +219,8 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
           <Card
             bordered={false}
             style={{
-              borderRadius: 22,
-              boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+              borderRadius: museRadius.card,
+              boxShadow: museShadow.card,
             }}
             styles={{ body: { padding: 20 } }}
           >
@@ -232,13 +232,12 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
               style={{
                 padding: isMobile ? "18px" : "28px",
                 border: "2px dashed #93c5fd",
-                borderRadius: 20,
-                background:
-                  "linear-gradient(135deg, rgba(239,246,255,0.85), rgba(240,253,250,0.85))",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
               }}
             >
               <p className="ant-upload-drag-icon">
-                <UploadCloud size={52} color={loading ? "#cbd5e1" : "#2563eb"} />
+                <UploadCloud size={52} color={loading ? museColors.divider : museColors.primary} />
               </p>
               <Title level={4} style={{ marginBottom: 8 }}>
                 {loading ? "Sedang memproses data..." : "Klik atau seret file Excel ke sini"}
@@ -253,7 +252,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
                     borderRadius: 999,
                     padding: "8px 14px",
                     background: "rgba(37, 99, 235, 0.10)",
-                    color: "#1d4ed8",
+                    color: museColors.primary,
                     fontWeight: 600,
                   }}
                 >
@@ -270,13 +269,13 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
             <Card
               bordered={false}
               style={{
-                borderRadius: 20,
-                background: "linear-gradient(135deg, #eff6ff, #ecfeff)",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
               }}
               styles={{ body: { padding: 18 } }}
             >
               <Flex vertical gap={10}>
-                <Progress percent={99} status="active" strokeColor="#2563eb" />
+                <Progress percent={99} status="active" strokeColor={museColors.primary} />
                 <Text type="secondary">
                   Data sedang diverifikasi dan dikirim ke server. Mohon tunggu hingga proses selesai.
                 </Text>
@@ -294,7 +293,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
               disabled={loading}
               block={isMobile}
               size="large"
-              style={{ minWidth: isMobile ? "100%" : 92, borderRadius: 14 }}
+              style={{ minWidth: isMobile ? "100%" : 92, borderRadius: museRadius.item }}
             >
               Batal
             </Button>
@@ -304,7 +303,7 @@ const ImportExcelModal = ({ visible, onCancel, bankId, onSuccess }) => {
               disabled={loading}
               block={isMobile}
               size="large"
-              style={{ minWidth: isMobile ? "100%" : 170, borderRadius: 14 }}
+              style={{ minWidth: isMobile ? "100%" : 170, borderRadius: museRadius.item }}
             >
               Unduh Template
             </Button>

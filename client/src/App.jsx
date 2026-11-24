@@ -15,16 +15,7 @@ import {
   renderCbtShellRoutes,
   renderCbtStandaloneRoutes,
 } from "./routes/modules/cbtRoutes";
-import {
-  renderAdminOnlyLmsRoutes,
-  renderAttendanceReportRoutes,
-  renderLmsRoutes,
-  renderClassAttendanceRoutes,
-  renderTeacherOnlyLmsRoutes,
-  renderStudentLmsRoutes,
-  renderParentLmsRoutes,
-  renderTuRoutes,
-} from "./routes/modules/lmsRoutes";
+import renderLmsRoutes from "./routes/modules/lmsRoutes";
 import renderDbRoutes from "./routes/modules/dbRoutes";
 import renderFinanceRoutes from "./routes/modules/financeRoutes";
 import renderTahfizRoutes from "./routes/modules/tahfizRoutes";
@@ -56,6 +47,7 @@ const NotFoundRedirect = () => {
   return <Navigate to='/' replace />;
 };
 
+// Dengan `title`, halaman dibungkus AppLayout; tanpa `title`, hanya Suspense.
 const LazyRoute = ({ title, Component: RouteComponent }) => {
   const content = (
     <Suspense fallback={<LoadApp />}>
@@ -74,114 +66,63 @@ const LazyPage = ({ title, Component: PageComponent }) => (
   </AppLayout>
 );
 
+// Kontrak route: SEMUA render*Routes menerima objek yang sama ini.
+// Feature menambah route hanya di routes/modules/<domain>Routes.jsx (satu
+// default export), lengkap dengan RouteProtection-nya sendiri. Jangan menambah
+// route domain ke centerRoutes/adminRoutes/roleRoutes atau ke file ini.
+const routeContext = {
+  LazyPage,
+  LazyRoute,
+  NotFoundRedirect,
+  isCbtEnabled,
+  isDbEnabled,
+  isLmsEnabled,
+  isTahfizEnabled,
+  isFinanceEnabled,
+};
+
 const App = () => {
   useLoadUserQuery();
 
   return (
-    <BrowserRouter>
-      <AppMetadata />
-      <Routes>
-        {renderPublicRoutes()}
+    <Suspense fallback={<LoadApp />}>
+      <BrowserRouter>
+        <AppMetadata />
+        <Routes>
+          {renderPublicRoutes()}
 
-        <Route
-          element={
-            <RouteProtection
-              allowedRoles={["admin", "teacher", "student", "parent", "staff"]}
-              allowedLevels={[
-                "pusat",
-                "satuan",
-                "tahfiz",
-                "finance",
-                "keuangan",
-              ]}
-            />
-          }
-        >
-          <Route element={<AppLayout asShell />}>
-            {renderCenterRoutes({
-              LazyPage,
-              NotFoundRedirect,
-              isDbEnabled,
-            })}
-
-            {renderAdminRoutes({
-              LazyPage,
-            })}
-
-            {isCbtEnabled &&
-              renderCbtShellRoutes({
-                LazyPage,
-              })}
-
-            {isLmsEnabled &&
-              renderLmsRoutes({
-                LazyRoute,
-              })}
-
-            {isLmsEnabled &&
-              renderAdminOnlyLmsRoutes({
-                LazyRoute,
-              })}
-
-            {isLmsEnabled &&
-              renderTuRoutes({
-                LazyRoute,
-              })}
-
-            {isLmsEnabled &&
-              renderAttendanceReportRoutes({
-                LazyRoute,
-              })}
-
-            {isLmsEnabled &&
-              renderClassAttendanceRoutes({
-                LazyRoute,
-              })}
-
-            {isLmsEnabled &&
-              renderTeacherOnlyLmsRoutes({
-                LazyRoute,
-              })}
-
-            {isLmsEnabled &&
-              renderStudentLmsRoutes({
-                LazyRoute,
-              })}
-
-            {isLmsEnabled &&
-              renderParentLmsRoutes({
-                LazyRoute,
-              })}
-
-            {isDbEnabled &&
-              renderDbRoutes({
-                LazyPage,
-                NotFoundRedirect,
-              })}
-
-            {isFinanceEnabled &&
-              renderFinanceRoutes({
-                LazyPage,
-              })}
-
-            {isTahfizEnabled && renderTahfizRoutes()}
-
-            {renderRoleRoutes({
-              LazyPage,
-              NotFoundRedirect,
-              isCbtEnabled,
-            })}
+          <Route
+            element={
+              <RouteProtection
+                allowedRoles={["admin", "teacher", "student", "parent", "staff"]}
+                allowedLevels={[
+                  "pusat",
+                  "satuan",
+                  "tahfiz",
+                  "finance",
+                  "keuangan",
+                ]}
+              />
+            }
+          >
+            <Route element={<AppLayout asShell />}>
+              {renderCenterRoutes(routeContext)}
+              {renderAdminRoutes(routeContext)}
+              {isCbtEnabled && renderCbtShellRoutes(routeContext)}
+              {isLmsEnabled && renderLmsRoutes(routeContext)}
+              {isDbEnabled && renderDbRoutes(routeContext)}
+              {isFinanceEnabled && renderFinanceRoutes(routeContext)}
+              {isTahfizEnabled && renderTahfizRoutes(routeContext)}
+              {renderRoleRoutes(routeContext)}
+            </Route>
           </Route>
-        </Route>
 
-        {isCbtEnabled &&
-          renderCbtStandaloneRoutes({
-            LazyRoute,
-          })}
+          {isCbtEnabled && renderCbtStandaloneRoutes(routeContext)}
 
-        <Route path='*' element={<NotFoundRedirect />} />
-      </Routes>
-    </BrowserRouter>
+          <Route path='*' element={<NotFoundRedirect />} />
+        </Routes>
+      </BrowserRouter>
+    </Suspense>
   );
 };
 
