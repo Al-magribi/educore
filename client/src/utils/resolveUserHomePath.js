@@ -17,6 +17,10 @@ const resolveUserHomePath = (user) => {
       return "/guru-dashboard";
     case "parent":
       return "/orangtua-dashboard";
+    case "staff":
+      return isFinanceEnabled && user.can_manage_finance
+        ? "/finance-dashboard"
+        : null;
     case "admin":
     case "center":
       if (user.level === "pusat") {
