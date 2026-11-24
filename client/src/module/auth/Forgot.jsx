@@ -1,69 +1,116 @@
 import React, { useState } from "react";
-import { Form, Input, Button, Card, Typography } from "antd";
-import { MailOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import { Alert, Button, Form, Input, Typography } from "antd";
+import { ArrowLeft, KeyRound, Mail, MailCheck } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useForgotPasswordMutation } from "../../service/auth/ApiAuth";
+import { museColors } from "../../config/theme";
+import AuthShell from "./AuthShell";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
+
+const BackToLogin = () => (
+  <Link to='/' style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}>
+    <ArrowLeft size={16} /> Kembali ke halaman masuk
+  </Link>
+);
+
+const getErrorText = (error) => {
+  if (!error) return null;
+  if (error?.data?.message) return error.data.message;
+  if (error?.status === "FETCH_ERROR") {
+    return "Tidak dapat terhubung ke server. Periksa koneksi internet Anda.";
+  }
+  if (error?.status === 404) {
+    return "Reset password lewat email belum tersedia. Hubungi admin sekolah untuk mengatur ulang password.";
+  }
+  return "Gagal mengirim tautan reset. Coba lagi beberapa saat lagi.";
+};
 
 const Forgot = () => {
-  const [loading, setLoading] = useState(false);
+  const [sentTo, setSentTo] = useState(null);
+  const [forgotPassword, { isLoading, error, reset }] = useForgotPasswordMutation();
 
-  const onFinish = (values) => {
-    setLoading(true);
-    console.log("Forgot Password:", values);
-    setTimeout(() => setLoading(false), 2000);
+  const onFinish = async ({ email }) => {
+    const normalized = email.trim();
+    try {
+      await forgotPassword({ email: normalized }).unwrap();
+      setSentTo(normalized);
+    } catch {
+      // pesan ditampilkan lewat Alert di bawah
+    }
   };
 
+  if (sentTo) {
+    return (
+      <AuthShell
+        icon={<MailCheck size={24} />}
+        title='Cek email Anda'
+        description={
+          <>
+            Jika <Text strong>{sentTo}</Text> terdaftar, tautan untuk membuat password baru sudah
+            dikirim. Tautan hanya berlaku sementara.
+          </>
+        }
+        footer={<BackToLogin />}
+      >
+        <title>Lupa Password</title>
+        <Alert
+          type='info'
+          showIcon
+          title='Tidak menerima email?'
+          description='Periksa folder spam, atau kirim ulang setelah beberapa menit.'
+          style={{ marginBottom: 16 }}
+        />
+        <Button block onClick={() => setSentTo(null)}>
+          Kirim ulang ke email lain
+        </Button>
+      </AuthShell>
+    );
+  }
+
+  const errorText = getErrorText(error);
+
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        minHeight: "100vh",
-        backgroundColor: "#f0f2f5",
-      }}
+    <AuthShell
+      icon={<KeyRound size={24} />}
+      title='Lupa password?'
+      description='Masukkan email yang terdaftar. Kami akan mengirim tautan untuk membuat password baru.'
+      footer={<BackToLogin />}
     >
       <title>Lupa Password</title>
-      <Card
-        style={{ width: 400, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-        variant="borderless"
+      <Form
+        name='forgot'
+        layout='vertical'
+        requiredMark={false}
+        onFinish={onFinish}
+        onValuesChange={() => error && reset()}
       >
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <Title level={3}>Lupa Password?</Title>
-          <Text type="secondary">
-            Masukkan email Anda untuk mereset password
-          </Text>
-        </div>
+        {errorText ? (
+          <Alert type='error' showIcon title={errorText} style={{ marginBottom: 16 }} />
+        ) : null}
 
-        <Form name="forgot" onFinish={onFinish} layout="vertical" size="large">
-          <Form.Item
-            name="email"
-            rules={[
-              { type: "email", message: "Format email tidak valid!" },
-              { required: true, message: "Mohon masukkan email!" },
-            ]}
-          >
-            <Input prefix={<MailOutlined />} placeholder="Email Address" />
-          </Form.Item>
+        <Form.Item
+          label='Email'
+          name='email'
+          rules={[
+            { required: true, message: "Email wajib diisi" },
+            { type: "email", message: "Format email tidak valid" },
+          ]}
+        >
+          <Input
+            autoFocus
+            type='email'
+            autoComplete='email'
+            prefix={<Mail size={16} color={museColors.muted} />}
+            placeholder='nama@sekolah.sch.id'
+          />
+        </Form.Item>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={loading}>
-              Kirim Link Reset
-            </Button>
-          </Form.Item>
-
-          <div style={{ textAlign: "center" }}>
-            <Link
-              to="/signin"
-              style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
-            >
-              <ArrowLeftOutlined /> Kembali ke Masuk
-            </Link>
-          </div>
-        </Form>
-      </Card>
-    </div>
+        <Button type='primary' htmlType='submit' block size='large' loading={isLoading}>
+          Kirim tautan reset
+        </Button>
+      </Form>
+    </AuthShell>
   );
 };
 
