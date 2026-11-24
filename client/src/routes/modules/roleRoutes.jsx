@@ -5,9 +5,13 @@ import { AppLayout } from "../../components";
 import RouteProtection from "../../utils/RouteProtection";
 import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 
-const Profile = lazy(() => import("../../components/profile/Profile"));
-const StudentDash = lazy(() => import("../../module/student/dashboard/StudentDash"));
-const TeacherDash = lazy(() => import("../../module/teacher/dashboard/TeacherDash"));
+const Profile = withMuseTheme(lazy(() => import("../../components/profile/Profile")));
+const StudentDash = withMuseTheme(
+  lazy(() => import("../../module/student/dashboard/StudentDash")),
+);
+const TeacherDash = withMuseTheme(
+  lazy(() => import("../../module/teacher/dashboard/TeacherDash")),
+);
 const StudentExamList = lazy(
   () => import("../../module/cbt/student/view/StudentExamList"),
 );
