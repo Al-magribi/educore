@@ -20,6 +20,7 @@ import {
   useGetAiQuestionGenerateMetaQuery,
   useStartAiQuestionGenerateMutation,
 } from "../../../../service/cbt/ApiQuestion";
+import { museColors, museRadius } from "../../../../config/theme";
 
 const { Text, Title } = Typography;
 
@@ -159,8 +160,8 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
             <Card
               size='small'
               style={{
-                borderRadius: 18,
-                background: "linear-gradient(135deg, #eff6ff, #ecfeff)",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
                 border: "1px solid rgba(59, 130, 246, 0.12)",
               }}
             >
@@ -284,7 +285,7 @@ const AiGenerateQuestionModal = ({ open, bankId, onCancel, onStarted }) => {
 
             <Card
               size='small'
-              style={{ borderRadius: 18 }}
+              style={{ borderRadius: museRadius.card }}
               title={
                 <Flex align='center' gap={8}>
                   <Sparkles size={16} />

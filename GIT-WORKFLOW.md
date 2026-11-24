@@ -50,6 +50,20 @@ developer commit ke feature/db | feature/lms | feature/finance
 - `product/*`
   Dipakai bot GitHub Actions untuk hasil build yang siap dipakai deploy.
 
+## Kepemilikan File
+
+Sync `main` → `feature/*` hanya konflik kalau kedua sisi mengedit file yang sama. Aturannya:
+
+- File shell (layout, `App.jsx`, theme, `components/ui`, route inti, auth, `RouteProtection`) **milik `main`**. Daftarnya di `scripts/ci/shared-paths.js`.
+- Feature menambah menu, preload, dan route lewat file domainnya sendiri: `menus/<domain>Menus.jsx`, `preloads/<domain>.js`, `routes/modules/<domain>Routes.jsx`. Detail di CLAUDE.md §0.
+- Workflow `guard-shared-paths.yml` gagal saat `feature/*` mengubah file milik `main`. Pindahkan perubahan itu ke `main`, tunggu sync, lalu lanjutkan di feature.
+- Cek sendiri sebelum push:
+  ```bash
+  git fetch origin
+  node scripts/ci/shared-paths.js --check --base origin/main
+  ```
+- Merge `main` ke feature sesering mungkin (minimal sebelum mulai kerja), supaya perbedaan tidak menumpuk.
+
 ## Aturan Umum
 
 - Selalu cek status sebelum pindah branch:
@@ -320,6 +334,9 @@ Workflow yang aktif:
 
 - `sync-main-to-features.yml`
   Saat `main` berubah, workflow ini merge `main` ke `feature/db`, `feature/lms`, `feature/tahfiz`, dan `feature/finance`, tetapi tetap mempertahankan isi `.github/workflows/*` milik branch target.
+  Kalau konflik, workflow berhenti (tidak auto-resolve) dan membuka PR `Sync main into feature/...`. Selesaikan dengan merge `main` ke feature secara lokal, pertahankan kedua sisi, lalu push.
+- `guard-shared-paths.yml`
+  Saat `feature/*` di-push atau ada PR ke `feature/*`, workflow ini gagal jika branch mengubah file milik `main` (lihat "Kepemilikan File").
 - `build-main.yml`
   Saat `main` berubah, workflow ini build dan publish `product/cbt`.
 - `publish-cbt-db-lms-finance.yml`

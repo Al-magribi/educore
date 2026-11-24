@@ -1,127 +1,131 @@
-import React, { useEffect, useState } from 'react';
-import {
-  App as AntdApp,
-  Form,
-  Input,
-  Button,
-  Card,
-  Typography,
-  Segmented,
-  Checkbox,
-  Flex,
-  ConfigProvider,
-  Space, // 1. Import ConfigProvider
-} from 'antd';
-import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
-import { useDoSigninMutation } from '../../service/auth/ApiAuth';
-import { useSelector } from 'react-redux';
+import React, { useEffect, useState } from "react";
+import { Alert, Button, Checkbox, Flex, Form, Input, Segmented, message } from "antd";
+import { KeyRound, LogIn, UserRound } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useDoSigninMutation } from "../../service/auth/ApiAuth";
+import { museColors } from "../../config/theme";
+import AuthShell from "./AuthShell";
 
-const { Title, Text } = Typography;
-const roleOptions = ['Admin', 'Guru', 'Siswa', 'Wali'];
+const roleOptions = [
+  { label: "Admin", value: "admin" },
+  { label: "Guru", value: "guru" },
+  { label: "Siswa", value: "siswa" },
+  { label: "Wali", value: "wali" },
+];
 
-const getSigninPayloadRole = (role) => role.toLowerCase();
+const usernameHint = {
+  admin: "Username admin",
+  guru: "Username atau NIP",
+  siswa: "Username atau NIS",
+  wali: "Username wali",
+};
 
 const Signin = () => {
-  const { publicConfig } = useSelector((state) => state.app);
-  const { message } = AntdApp.useApp();
+  const [role, setRole] = useState("admin");
+  const [doSignin, { data, error, isLoading, isSuccess, reset }] = useDoSigninMutation();
 
-  const [role, setRole] = useState('Admin');
-
-  const [doSignin, { data, error, isLoading, isSuccess }] = useDoSigninMutation();
+  const roleLabel = roleOptions.find((item) => item.value === role)?.label;
 
   const onFinish = (values) => {
-    const sanitizedValues = {
+    doSignin({
       ...values,
-      username: (values.username || '').trim(),
-      password: (values.password || '').trim(),
-    };
-
-    // Menggabungkan role ke dalam values agar dikirim ke backend
-    // Backend perlu tahu role apa yang sedang mencoba login
-    const payload = {
-      ...sanitizedValues,
-      role: getSigninPayloadRole(role),
-    };
-    doSignin(payload);
+      username: (values.username || "").trim(),
+      password: (values.password || "").trim(),
+      role,
+    });
   };
 
   useEffect(() => {
     if (isSuccess) {
-      message.success(data?.message || 'Login berhasil');
+      message.success(data?.message || "Berhasil masuk");
     }
+  }, [data, isSuccess]);
 
-    if (error) {
-      message.error(error?.data?.message || 'Terjadi kesalahan');
-    }
-  }, [data, error, isSuccess, message]);
+  const errorText = error
+    ? error?.data?.message ||
+      (error?.status === "FETCH_ERROR"
+        ? "Tidak dapat terhubung ke server. Periksa koneksi internet Anda."
+        : "Gagal masuk. Periksa username dan password.")
+    : null;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        backgroundColor: '#f0f2f5',
-      }}>
-      <title>{`Masuk ${role}`}</title>
-      <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        <Flex align="center" gap={'middle'} style={{ marginBottom: 24 }}>
-          <img src={publicConfig.app_logo} alt="Logo" width={70} height={70} />
+    <AuthShell
+      title='Masuk'
+      description='Pilih peran Anda, lalu masuk dengan akun yang diberikan sekolah.'
+    >
+      <title>{`Masuk ${roleLabel}`}</title>
+      <Form
+        name='login'
+        layout='vertical'
+        requiredMark={false}
+        initialValues={{ remember: true }}
+        onFinish={onFinish}
+        onValuesChange={() => error && reset()}
+      >
+        <Form.Item label='Masuk sebagai'>
+          <Segmented
+            block
+            aria-label='Pilih peran'
+            options={roleOptions}
+            value={role}
+            onChange={(value) => {
+              setRole(value);
+              if (error) reset();
+            }}
+            style={{ background: museColors.bgSoft, padding: 3 }}
+          />
+        </Form.Item>
 
-          <Flex vertical gap={'small'}>
-            <Title level={2} style={{ marginBottom: 0 }}>
-              Masuk
-            </Title>
-            <Text type="secondary">Selamat datang kembali di platform kami</Text>
-          </Flex>
+        {errorText ? (
+          <Alert type='error' showIcon title={errorText} style={{ marginBottom: 16 }} />
+        ) : null}
+
+        <Form.Item
+          label='Username'
+          name='username'
+          rules={[{ required: true, whitespace: true, message: "Username wajib diisi" }]}
+        >
+          <Input
+            autoFocus
+            autoComplete='username'
+            prefix={<UserRound size={16} color={museColors.muted} />}
+            placeholder={usernameHint[role]}
+          />
+        </Form.Item>
+
+        <Form.Item
+          label='Password'
+          name='password'
+          rules={[{ required: true, message: "Password wajib diisi" }]}
+        >
+          <Input.Password
+            autoComplete='current-password'
+            prefix={<KeyRound size={16} color={museColors.muted} />}
+            placeholder='Masukkan password'
+          />
+        </Form.Item>
+
+        <Flex justify='space-between' align='center' style={{ marginBottom: 24 }}>
+          <Form.Item name='remember' valuePropName='checked' noStyle>
+            <Checkbox>Ingat saya</Checkbox>
+          </Form.Item>
+          <Link to='/forgot-password' style={{ fontWeight: 600 }}>
+            Lupa password?
+          </Link>
         </Flex>
 
-        <Form name="login" initialValues={{ remember: true }} onFinish={onFinish} layout="vertical" size="large">
-          {/* Role Selection dengan Warna Custom */}
-          <Form.Item style={{ marginBottom: 16 }}>
-            <ConfigProvider
-              theme={{
-                components: {
-                  Segmented: {
-                    itemSelectedBg: '#1677ff', // Warna Background saat dipilih (Biru)
-                    itemSelectedColor: '#ffffff', // Warna Teks saat dipilih (Putih)
-                    trackBg: '#f5f5f5', // Warna track background (abu muda)
-                    itemColor: '#595959', // Warna teks saat tidak dipilih
-                    itemHoverColor: '#1677ff', // Warna teks saat di-hover
-                  },
-                },
-              }}>
-              <Segmented block options={roleOptions} value={role} onChange={setRole} />
-            </ConfigProvider>
-          </Form.Item>
-
-          <Form.Item name="username" rules={[{ required: true, message: 'Mohon masukkan username!' }]}>
-            <Input prefix={<UserOutlined />} placeholder="Username" />
-          </Form.Item>
-
-          <Form.Item name="password" rules={[{ required: true, message: 'Mohon masukkan Password!' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
-          </Form.Item>
-
-          <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
-            <Form.Item name="remember" valuePropName="checked" noStyle>
-              <Checkbox>Ingat Saya</Checkbox>
-            </Form.Item>
-            <Link to="/forgot-password" style={{ color: '#1677ff' }}>
-              Lupa Password?
-            </Link>
-          </Flex>
-
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={isLoading} icon={<LoginOutlined />}>
-              Masuk
-            </Button>
-          </Form.Item>
-        </Form>
-      </Card>
-    </div>
+        <Button
+          type='primary'
+          htmlType='submit'
+          block
+          size='large'
+          loading={isLoading}
+          icon={<LogIn size={16} />}
+        >
+          Masuk sebagai {roleLabel}
+        </Button>
+      </Form>
+    </AuthShell>
   );
 };
 

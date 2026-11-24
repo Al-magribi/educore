@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Card, Space, Button, Typography, Flex } from "antd";
 import { Layers, Trash2, X } from "lucide-react";
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 
 const MotionDiv = motion.div;
 
@@ -19,15 +20,14 @@ const QuestionBulkActions = ({ selectedCount, onCancel, onDelete, onGroup }) => 
         size="small"
         style={{
           marginBottom: 20,
-          background:
-            "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(236,253,245,0.98))",
+          background: museColors.primarySoft,
           backdropFilter: "blur(6px)",
-          border: "1px solid #bfdbfe",
+          border: `1px solid ${museColors.primarySoft}`,
           position: "sticky",
           top: 16,
           zIndex: 100,
-          borderRadius: 18,
-          boxShadow: "0 12px 24px rgba(15, 23, 42, 0.10)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         }}
       >
         <Flex
@@ -38,7 +38,7 @@ const QuestionBulkActions = ({ selectedCount, onCancel, onDelete, onGroup }) => 
           style={{ padding: "6px 8px" }}
         >
           <Space size="middle" wrap>
-            <Typography.Text strong style={{ color: "#1d4ed8" }}>
+            <Typography.Text strong style={{ color: museColors.primary }}>
               {selectedCount} soal terpilih
             </Typography.Text>
             <Button
@@ -46,7 +46,7 @@ const QuestionBulkActions = ({ selectedCount, onCancel, onDelete, onGroup }) => 
               size="small"
               onClick={onCancel}
               icon={<X size={14} />}
-              style={{ color: "#0284c7" }}
+              style={{ color: museColors.cyan }}
             >
               Batalkan seleksi
             </Button>

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   Button,
-  Card,
   Empty,
   Flex,
   Grid,
@@ -10,6 +9,7 @@ import {
   Spin,
   Table,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -28,8 +28,10 @@ import {
   useGetBackupsQuery,
 } from "../../../../service/center/ApiDatabase";
 import { formatDate } from "../../../../utils/helper";
+import { CardTitle, IconBox, MuseCard } from "../../../../components/ui/muse";
+import { museColors, museRadius } from "../../../../config/theme";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -59,7 +61,7 @@ const DeleteBackupButton = ({ record, onDelete, isDeleting, block = false }) => 
       size="small"
       loading={isDeleting}
       block={block}
-      style={{ borderRadius: 999 }}
+      aria-label={block ? undefined : "Hapus backup"}
     >
       {block ? "Hapus" : null}
     </Button>
@@ -78,29 +80,15 @@ const DownloadBackupButton = ({
     loading={isDownloading}
     onClick={() => onDownload(record.name)}
     block={block}
-    style={{ borderRadius: 999 }}
+    aria-label={block ? undefined : "Unduh backup"}
   >
-    {block ? "Download" : null}
+    {block ? "Unduh" : null}
   </Button>
 );
 
 const BackupFolderCell = ({ record, isMobile }) => (
   <Flex align="flex-start" gap={isMobile ? 10 : 12} style={{ minWidth: 0, width: "100%" }}>
-    <div
-      style={{
-        width: isMobile ? 36 : 40,
-        height: isMobile ? 36 : 40,
-        borderRadius: 14,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(59,130,246,0.12)",
-        color: "#2563eb",
-        flexShrink: 0,
-      }}
-    >
-      <FolderOpenOutlined />
-    </div>
+    <IconBox icon={<FolderOpenOutlined />} size={isMobile ? 32 : 40} />
     <Space orientation="vertical" size={4} style={{ minWidth: 0, flex: 1 }}>
       <Text
         strong
@@ -115,7 +103,6 @@ const BackupFolderCell = ({ record, isMobile }) => (
           style={{
             width: "fit-content",
             margin: 0,
-            borderRadius: 999,
             fontSize: isMobile ? 11 : undefined,
           }}
         >
@@ -126,7 +113,6 @@ const BackupFolderCell = ({ record, isMobile }) => (
           style={{
             width: "fit-content",
             margin: 0,
-            borderRadius: 999,
             fontSize: isMobile ? 11 : undefined,
           }}
         >
@@ -140,7 +126,6 @@ const BackupFolderCell = ({ record, isMobile }) => (
 const Backup = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const isCompact = !screens.lg;
   const [downloadingName, setDownloadingName] = useState(null);
 
   const { data: backups = [], isLoading, refetch } = useGetBackupsQuery();
@@ -196,14 +181,14 @@ const Backup = () => {
 
   const columns = [
     {
-      title: "Folder Backup",
+      title: "FOLDER BACKUP",
       dataIndex: "name",
       key: "name",
       ellipsis: true,
       render: (_, record) => <BackupFolderCell record={record} isMobile={false} />,
     },
     {
-      title: "Tanggal Dibuat",
+      title: "TANGGAL DIBUAT",
       dataIndex: "createdAt",
       key: "createdAt",
       width: 170,
@@ -212,7 +197,7 @@ const Backup = () => {
       ),
     },
     {
-      title: "Aksi",
+      title: "AKSI",
       key: "action",
       align: "center",
       width: 120,
@@ -235,79 +220,40 @@ const Backup = () => {
 
   return (
     <MotionDiv
-      whileHover={isMobile ? undefined : { y: -3 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
     >
-      <Card
-        variant="borderless"
-        style={{
-          height: "100%",
-          borderRadius: isMobile ? 18 : 22,
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-          boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
-          width: "100%",
-          maxWidth: "100%",
-          minWidth: 0,
-          overflow: "hidden",
-        }}
-        styles={{ body: { padding: isMobile ? 12 : 18, overflow: "hidden" } }}
-      >
-        <Space
-          orientation="vertical"
-          size={isMobile ? 12 : 16}
-          style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
-        >
-          <Flex
-            wrap="wrap"
-            gap={12}
-            justify="space-between"
-            align={isCompact ? "stretch" : "flex-start"}
-            vertical={isCompact}
-            style={{ width: "100%", minWidth: 0 }}
-          >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <Title
-                level={4}
-                style={{ margin: 0, color: "#0f172a", fontSize: isMobile ? 16 : undefined }}
-              >
-                Riwayat Backup
-              </Title>
-              <Text
-                style={{
-                  color: "#64748b",
-                  fontSize: isMobile ? 12 : undefined,
-                  display: "block",
-                }}
-              >
-                {isMobile
-                  ? "Snapshot database & assets di server."
-                  : "Simpan salinan penuh database dan folder `server/assets` ke folder backup di server."}
-              </Text>
-            </div>
-            <Flex gap={8} wrap="wrap" style={{ width: isCompact ? "100%" : "auto" }}>
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={refetch}
-                style={{ borderRadius: 999 }}
-              />
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                loading={isCreating}
-                onClick={handleCreateBackup}
-                block={isCompact}
-                style={{
-                  borderRadius: 999,
-                  fontWeight: 600,
-                  flex: isCompact ? 1 : undefined,
-                }}
-              >
-                {isMobile ? "Buat Backup" : "Buat Backup Baru"}
-              </Button>
-            </Flex>
+      <MuseCard
+        flush={!isMobile}
+        title={
+          <CardTitle
+            title="Riwayat Backup"
+            description={
+              isMobile
+                ? "Snapshot database & assets di server."
+                : "Salinan penuh database dan folder server/assets disimpan ke folder backup di server."
+            }
+          />
+        }
+        extra={
+          <Flex gap={8} style={{ padding: "8px 0" }}>
+            <Tooltip title="Muat ulang">
+              <Button icon={<ReloadOutlined />} onClick={refetch} aria-label="Muat ulang daftar backup" />
+            </Tooltip>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              loading={isCreating}
+              onClick={handleCreateBackup}
+            >
+              {isMobile ? "Backup" : "Buat Backup Baru"}
+            </Button>
           </Flex>
-
+        }
+      >
+        <div style={{ width: "100%", minWidth: 0 }}>
           {isMobile ? (
             <SpinningList
               loading={isLoading}
@@ -324,15 +270,14 @@ const Backup = () => {
                 columns={columns}
                 rowKey="name"
                 loading={isLoading}
-                pagination={{ pageSize: 5 }}
-                size="small"
+                pagination={{ pageSize: 5, style: { paddingInline: 24 } }}
                 scroll={{ x: 640 }}
                 locale={{ emptyText: "Belum ada riwayat backup." }}
               />
             </div>
           )}
-        </Space>
-      </Card>
+        </div>
+      </MuseCard>
     </MotionDiv>
   );
 };
@@ -354,9 +299,9 @@ const SpinningList = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            borderRadius: 16,
-            background: "#f8fafc",
-            border: "1px dashed #cbd5e1",
+            borderRadius: museRadius.item,
+            background: museColors.bgLayout,
+            border: `1px dashed ${museColors.border}`,
           }}
         >
           <Empty
@@ -370,8 +315,8 @@ const SpinningList = ({
             <div
               key={record.name}
               style={{
-                borderRadius: 16,
-                border: "1px solid #e2e8f0",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
                 background: "#ffffff",
                 padding: 12,
                 minWidth: 0,

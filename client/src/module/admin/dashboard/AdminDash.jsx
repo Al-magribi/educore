@@ -1,42 +1,42 @@
 import React from "react";
-import { useGetDashboardSummaryQuery } from "../../../service/main/ApiDash";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
-  Row,
-  Col,
-  Card,
-  Statistic,
-  Table,
-  Tag,
-  Spin,
   Alert,
-  Typography,
-  Progress,
-  Space,
+  Col,
+  Flex,
   Grid,
   List,
-  Flex,
+  Progress,
+  Row,
+  Skeleton,
+  Table,
+  Tag,
+  Typography,
 } from "antd";
 import {
-  School,
-  UsersRound,
-  UserCheck,
-  GraduationCap,
-  BookOpen,
-  ClipboardList,
-  Building2,
-  BookMarked,
   Activity,
+  BookMarked,
+  BookOpen,
+  Building2,
+  CalendarDays,
+  ChevronRight,
+  ClipboardList,
+  Folders,
+  GraduationCap,
+  History,
+  School,
+  UserCheck,
+  UsersRound,
 } from "lucide-react";
+import { useGetDashboardSummaryQuery } from "../../../service/main/ApiDash";
 import PageHeader from "../../../components/ui/PageHeader";
+import { CardTitle, IconBox, MuseCard, StatCard } from "../../../components/ui/muse";
+import { museColors, museRadius } from "../../../config/theme";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-
-const cardStyle = {
-  borderRadius: 22,
-  background: "rgba(255,255,255,0.92)",
-  boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-};
+const MotionDiv = motion.div;
 
 const actionTagColor = (action = "") => {
   const value = action.toLowerCase();
@@ -47,345 +47,261 @@ const actionTagColor = (action = "") => {
   return "geekblue";
 };
 
-const summaryIconBox = (background, color, icon) => (
-  <div
-    style={{
-      width: 42,
-      height: 42,
-      display: "grid",
-      placeItems: "center",
-      borderRadius: 14,
-      background,
-      color,
-    }}
-  >
-    {icon}
-  </div>
-);
+const formatDateTime = (value) =>
+  value
+    ? new Date(value).toLocaleString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "-";
+
+const QUICK_LINKS = [
+  { key: "periode", label: "Atur periode ajaran", to: "/admin-data-pokok?tab=periode", icon: <CalendarDays size={16} /> },
+  { key: "class", label: "Kelola kelas & siswa", to: "/admin-data-pokok?tab=class", icon: <Folders size={16} /> },
+  { key: "teacher", label: "Data guru", to: "/admin-data-akademik?tab=teacher", icon: <UserCheck size={16} /> },
+  { key: "subject", label: "Mata pelajaran", to: "/admin-data-akademik?tab=subject", icon: <BookOpen size={16} /> },
+];
 
 const AdminDash = () => {
+  const navigate = useNavigate();
   const { data, isLoading, isError } = useGetDashboardSummaryQuery();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
   const stats = [
-    {
-      title: "Siswa Aktif",
-      value: data?.stats?.students || 0,
-      icon: <UsersRound size={18} />,
-      color: "#2563eb",
-      bg: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-    },
-    {
-      title: "Guru Aktif",
-      value: data?.stats?.teachers || 0,
-      icon: <UserCheck size={18} />,
-      color: "#16a34a",
-      bg: "linear-gradient(135deg, #dcfce7, #ecfccb)",
-    },
-    {
-      title: "Rombel",
-      value: data?.stats?.classes || 0,
-      icon: <GraduationCap size={18} />,
-      color: "#7c3aed",
-      bg: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
-    },
-    {
-      title: "Mapel",
-      value: data?.stats?.subjects || 0,
-      icon: <BookOpen size={18} />,
-      color: "#d97706",
-      bg: "linear-gradient(135deg, #fef3c7, #ffedd5)",
-    },
-    {
-      title: "Ujian Aktif",
-      value: data?.stats?.activeExams || 0,
-      icon: <ClipboardList size={18} />,
-      color: "#0891b2",
-      bg: "linear-gradient(135deg, #cffafe, #dbeafe)",
-    },
+    { key: "students", title: "Siswa Aktif", value: data?.stats?.students || 0, icon: <UsersRound size={24} />, tone: "primary" },
+    { key: "teachers", title: "Guru Aktif", value: data?.stats?.teachers || 0, icon: <UserCheck size={24} />, tone: "accent" },
+    { key: "classes", title: "Rombel", value: data?.stats?.classes || 0, icon: <GraduationCap size={24} />, tone: "navy" },
+    { key: "subjects", title: "Mapel", value: data?.stats?.subjects || 0, icon: <BookOpen size={24} />, tone: "warning" },
+    { key: "exams", title: "Ujian Aktif", value: data?.stats?.activeExams || 0, icon: <ClipboardList size={24} />, tone: "success" },
   ];
 
-  const insightCards = [
-    {
-      key: "majors",
-      title: "Total Jurusan",
-      value: data?.stats?.majors || 0,
-      icon: <Building2 size={18} />,
-      color: "#0f766e",
-      bg: "linear-gradient(135deg, #ccfbf1, #dbeafe)",
-    },
-    {
-      key: "classes",
-      title: "Jumlah Kelas",
-      value: data?.stats?.classes || 0,
-      icon: <School size={18} />,
-      color: "#1d4ed8",
-      bg: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-    },
-    {
-      key: "subjects",
-      title: "Aktivitas Mapel",
-      value: data?.stats?.subjects || 0,
-      icon: <BookMarked size={18} />,
-      color: "#b45309",
-      bg: "linear-gradient(135deg, #fef3c7, #fde68a)",
-    },
+  const insights = [
+    { key: "majors", title: "Total Jurusan", value: data?.stats?.majors || 0, icon: <Building2 size={16} /> },
+    { key: "classes", title: "Jumlah Kelas", value: data?.stats?.classes || 0, icon: <School size={16} /> },
+    { key: "subjects", title: "Aktivitas Mapel", value: data?.stats?.subjects || 0, icon: <BookMarked size={16} /> },
   ];
+
+  const subjectActivity = data?.stats?.subjects ? Math.min(data.stats.subjects * 2, 100) : 0;
 
   const logColumns = [
     {
-      title: "Waktu",
+      title: "WAKTU",
       dataIndex: "created_at",
       key: "created_at",
-      render: (text) => new Date(text).toLocaleString("id-ID"),
+      render: formatDateTime,
       width: 190,
       ellipsis: true,
     },
     {
-      title: "User",
+      title: "USER",
       dataIndex: "full_name",
       key: "full_name",
       render: (text) => <Text strong>{text}</Text>,
       ellipsis: true,
     },
     {
-      title: "Aktivitas",
+      title: "AKTIVITAS",
       dataIndex: "action",
       key: "action",
-      render: (text) => <Tag color={actionTagColor(text)}>{text}</Tag>,
-      width: 140,
-      align: "center",
+      render: (text) => (
+        <Tag color={actionTagColor(text)} style={{ margin: 0 }}>
+          {text}
+        </Tag>
+      ),
+      width: 150,
     },
   ];
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: "grid",
-          placeItems: "center",
-          minHeight: "60vh",
-        }}
-      >
-          <Spin size='large' />
-      </div>
+      <Flex vertical gap={24}>
+        <Skeleton active title paragraph={{ rows: 1 }} />
+        <div style={{ display: "grid", gap: 24, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+          {stats.map((item) => (
+            <MuseCard key={item.key}>
+              <Skeleton active paragraph={{ rows: 1 }} />
+            </MuseCard>
+          ))}
+        </div>
+      </Flex>
     );
   }
 
   if (isError) {
     return (
-      <div style={{ padding: screens.md ? "24px" : "12px" }}>
-        <Alert title='Gagal memuat data dashboard.' type='error' showIcon />
-      </div>
+      <Alert
+        type='error'
+        showIcon
+        title='Gagal memuat data dashboard'
+        description='Periksa koneksi lalu muat ulang halaman.'
+      />
     );
   }
 
+  const activePeriode = data?.activePeriode;
+
   return (
-    <div>
+    <MotionDiv
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      style={{ display: "grid", gap: isMobile ? 16 : 24 }}
+    >
       <PageHeader
         title={data?.homebase?.name || "Dashboard Satuan"}
-        description='Ringkasan operasional homebase, statistik inti, dan aktivitas sistem terbaru.'
+        description='Ringkasan operasional satuan, statistik inti, dan aktivitas sistem terbaru.'
         meta={
           <Flex gap={8} wrap='wrap'>
-            <Tag>Level: {data?.homebase?.level || "Satuan"}</Tag>
-            <Tag color={data?.activePeriode ? "green" : "volcano"}>
-              {data?.activePeriode
-                ? `Periode Aktif: ${data.activePeriode.name}`
-                : "Belum ada periode aktif"}
+            <Tag style={{ margin: 0 }}>Jenjang: {data?.homebase?.level || "Satuan"}</Tag>
+            <Tag color={activePeriode ? "green" : "volcano"} style={{ margin: 0 }}>
+              {activePeriode ? `Periode aktif: ${activePeriode.name}` : "Belum ada periode aktif"}
             </Tag>
-            <Tag>Homebase ID: {data?.homebase?.id}</Tag>
           </Flex>
         }
       />
 
-      <div>
-        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-        {stats.map((item) => (
-          <div
-            key={item.title}
-            style={{
-              flex: screens.xl
-                ? "1 1 0"
-                : screens.md
-                  ? "1 1 calc(33.333% - 11px)"
-                  : "1 1 100%",
-              minWidth: screens.md ? 0 : "100%",
-            }}
-          >
-            <Card
-              variant='borderless'
-              style={{
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.88)",
-                boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
-              }}
-              styles={{ body: { padding: "18px 20px" } }}
-            >
-              <Flex justify='space-between' align='start'>
-                <Statistic title={item.title} value={item.value} />
-                {summaryIconBox(item.bg, item.color, item.icon)}
-              </Flex>
-            </Card>
-          </div>
+      {!activePeriode ? (
+        <Alert
+          type='warning'
+          showIcon
+          title='Belum ada periode aktif'
+          description='Sebagian data (kelas, jadwal, ujian) bergantung pada periode aktif.'
+          action={
+            <a href='/admin-data-pokok?tab=periode' onClick={(e) => { e.preventDefault(); navigate("/admin-data-pokok?tab=periode"); }}>
+              Atur periode
+            </a>
+          }
+        />
+      ) : null}
+
+      <div
+        style={{
+          display: "grid",
+          gap: isMobile ? 16 : 24,
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        }}
+      >
+        {stats.map(({ key, ...item }) => (
+          <StatCard key={key} {...item} />
         ))}
-        </Flex>
       </div>
 
-      <div>
-        <Row gutter={[16, 16]}>
+      <Row gutter={[24, 24]}>
         <Col xs={24} lg={9}>
-          <div>
-            <Card variant='borderless' style={cardStyle}>
-            <Space direction='vertical' size={18} style={{ width: "100%" }}>
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  Ringkasan Akademik
-                </Title>
-                <Text type='secondary'>
-                  Snapshot cepat operasional homebase saat ini.
-                </Text>
-              </div>
-
-              <Flex vertical gap={14}>
-                {insightCards.map((item) => (
-                  <div key={item.key}>
-                    <Card
-                      variant='borderless'
-                      style={{
-                        borderRadius: 18,
-                        background: "#f8fafc",
-                        boxShadow: "inset 0 0 0 1px rgba(148, 163, 184, 0.12)",
-                      }}
-                      styles={{ body: { padding: "16px 18px" } }}
-                    >
-                      <Flex justify='space-between' align='center'>
-                        <div>
-                          <Text type='secondary'>{item.title}</Text>
-                          <div
-                            style={{
-                              fontSize: 28,
-                              fontWeight: 700,
-                              lineHeight: 1.15,
-                              marginTop: 4,
-                              color: "#0f172a",
-                            }}
-                          >
-                            {item.value}
-                          </div>
-                        </div>
-                        {summaryIconBox(item.bg, item.color, item.icon)}
-                      </Flex>
-                    </Card>
-                  </div>
+          <Flex vertical gap={24}>
+            <MuseCard title={<CardTitle title='Ringkasan Akademik' description='Snapshot operasional satuan saat ini.' />}>
+              <Flex vertical gap={16}>
+                {insights.map((item) => (
+                  <Flex key={item.key} align='center' justify='space-between' gap={12}>
+                    <Flex align='center' gap={12}>
+                      <IconBox icon={item.icon} size={32} tone='primarySoft' />
+                      <Text style={{ fontWeight: 600 }}>{item.title}</Text>
+                    </Flex>
+                    <Text strong style={{ fontSize: 20, fontWeight: 700, color: museColors.navy }}>
+                      {item.value}
+                    </Text>
+                  </Flex>
                 ))}
-              </Flex>
 
-              <div>
-                <Card
-                  variant='borderless'
+                <div
                   style={{
-                    borderRadius: 18,
-                    background:
-                      "linear-gradient(180deg, rgba(219,234,254,.6) 0%, rgba(255,255,255,.9) 100%)",
+                    marginTop: 4,
+                    padding: 16,
+                    borderRadius: museRadius.item,
+                    background: museColors.bgLayout,
                   }}
-                  styles={{ body: { padding: "18px 18px 16px" } }}
                 >
                   <Flex justify='space-between' align='center'>
-                    <div>
-                      <Text strong>Aktivitas Akademik</Text>
-                      <div>
-                        <Text type='secondary' style={{ fontSize: 13 }}>
-                          Indikator sederhana berdasarkan total mapel aktif.
-                        </Text>
-                      </div>
-                    </div>
-                    <Activity size={18} color='#1d4ed8' />
+                    <Text strong>Aktivitas Akademik</Text>
+                    <Activity size={16} color={museColors.primary} />
                   </Flex>
+                  <Text type='secondary' style={{ fontSize: 12 }}>
+                    Indikator sederhana berdasarkan total mapel aktif.
+                  </Text>
                   <Progress
-                    percent={
-                      data?.stats?.subjects
-                        ? Math.min(data.stats.subjects * 2, 100)
-                        : 0
-                    }
-                    strokeColor={{
-                      "0%": "#1d4ed8",
-                      "100%": "#14b8a6",
-                    }}
-                    railColor='rgba(148,163,184,0.18)'
-                    style={{ marginTop: 14, marginBottom: 6 }}
+                    percent={subjectActivity}
+                    strokeColor={{ "0%": museColors.primary, "100%": museColors.accent }}
+                    size={["100%", 6]}
+                    style={{ marginTop: 8, marginBottom: 0 }}
                   />
-                </Card>
-              </div>
-            </Space>
-            </Card>
-          </div>
+                </div>
+              </Flex>
+            </MuseCard>
+
+            <MuseCard flush title={<CardTitle title='Akses Cepat' />}>
+              <List
+                dataSource={QUICK_LINKS}
+                renderItem={(item) => (
+                  <List.Item
+                    style={{ padding: "12px 24px", cursor: "pointer" }}
+                    onClick={() => navigate(item.to)}
+                  >
+                    <a
+                      href={item.to}
+                      onClick={(e) => e.preventDefault()}
+                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", color: museColors.text }}
+                    >
+                      <span style={{ color: museColors.primary, display: "inline-flex" }}>{item.icon}</span>
+                      <span style={{ flex: 1, fontWeight: 600 }}>{item.label}</span>
+                      <ChevronRight size={16} color={museColors.muted} />
+                    </a>
+                  </List.Item>
+                )}
+              />
+            </MuseCard>
+          </Flex>
         </Col>
 
         <Col xs={24} lg={15}>
-          <div>
-            <Card
-              variant='borderless'
-              style={cardStyle}
-              title={
-                <Flex align='center' gap={8}>
-                  <ClipboardList size={18} color='#1d4ed8' />
-                  <span>Aktivitas Sistem Terakhir</span>
-                </Flex>
-              }
-              styles={{ body: { paddingTop: 8 } }}
-            >
-              {isMobile ? (
-                <List
-                  dataSource={data?.logs || []}
-                  locale={{ emptyText: "Belum ada aktivitas terbaru" }}
-                  renderItem={(item) => (
-                    <List.Item style={{ padding: "12px 4px" }}>
-                      <Space
-                        direction='vertical'
-                        size={4}
-                        style={{ width: "100%" }}
-                      >
-                        <Flex
-                          align='center'
-                          justify='space-between'
-                          gap={8}
-                          wrap='wrap'
-                        >
-                          <Text strong style={{ fontSize: 13 }}>
-                            {item.full_name}
-                          </Text>
-                          <Tag
-                            color={actionTagColor(item.action)}
-                            style={{ marginInlineEnd: 0 }}
-                          >
-                            {item.action}
-                          </Tag>
-                        </Flex>
-                        <Text type='secondary' style={{ fontSize: 12 }}>
-                          {new Date(item.created_at).toLocaleString("id-ID")}
-                        </Text>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
-              ) : (
-                <Table
-                  dataSource={data?.logs || []}
-                  columns={logColumns}
-                  pagination={false}
-                  rowKey={(record) => `${record.created_at}-${record.full_name}`}
-                  size='small'
-                  locale={{ emptyText: "Belum ada aktivitas terbaru" }}
-                  scroll={{ x: 520 }}
-                />
-              )}
-            </Card>
-          </div>
+          <MuseCard
+            flush
+            style={{ height: "100%" }}
+            title={
+              <CardTitle
+                icon={<History size={16} />}
+                title='Aktivitas Sistem Terakhir'
+                description='Log login dan perubahan data terbaru.'
+              />
+            }
+          >
+            {isMobile ? (
+              <List
+                dataSource={data?.logs || []}
+                locale={{ emptyText: "Belum ada aktivitas terbaru" }}
+                renderItem={(item) => (
+                  <List.Item style={{ padding: "12px 16px" }}>
+                    <Flex vertical gap={4} style={{ width: "100%" }}>
+                      <Flex align='center' justify='space-between' gap={8} wrap='wrap'>
+                        <Text strong>{item.full_name}</Text>
+                        <Tag color={actionTagColor(item.action)} style={{ margin: 0 }}>
+                          {item.action}
+                        </Tag>
+                      </Flex>
+                      <Text type='secondary' style={{ fontSize: 12 }}>
+                        {formatDateTime(item.created_at)}
+                      </Text>
+                    </Flex>
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Table
+                dataSource={data?.logs || []}
+                columns={logColumns}
+                pagination={false}
+                rowKey={(record) => `${record.created_at}-${record.full_name}-${record.action}`}
+                locale={{ emptyText: "Belum ada aktivitas terbaru" }}
+                scroll={{ x: 520 }}
+              />
+            )}
+          </MuseCard>
         </Col>
-        </Row>
-      </div>
-    </div>
+      </Row>
+    </MotionDiv>
   );
 };
 

@@ -8,15 +8,16 @@ import React, {
   useState,
 } from "react";
 import {
+  Avatar,
+  Breadcrumb,
+  Button,
+  ConfigProvider,
+  Dropdown,
+  Flex,
+  Grid,
   Layout,
   Menu,
-  Avatar,
-  Dropdown,
-  Button,
-  theme,
   Typography,
-  Grid,
-  Space,
 } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -29,72 +30,31 @@ import {
 } from "@ant-design/icons";
 
 import { getCombinedMenus } from "./menus/index.js";
+import {
+  filterMenuItemsByUser,
+  resolveMenuRole,
+  resolveSelectedMenuKey,
+} from "./menus/menuAccess";
+import routePreloaders from "./preloads";
 import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
 import LoadApp from "../loader/LoadApp";
+import {
+  museColors,
+  museLayout,
+  museShadow,
+  museShellTheme,
+} from "../../config/theme";
+import "./sidebar.css";
 
 const { Header, Sider, Content } = Layout;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const LayoutShellContext = createContext(null);
 
-const routePreloaders = {
-  "/profile": () => import("../profile/Profile"),
-  "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
-  "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
-  "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
-  "/center-teacher": () => import("../../module/center/teacher/CenterTeacher"),
-  "/center-market": () => import("../../module/center/market/CenterMarket"),
-  "/center-config": () => import("../../module/center/config/CenterConfig"),
-  "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
-  "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
-  "/admin-data-akademik": () =>
-    import("../../module/admin/academic/AdminAcademinc"),
-  "/finance-dashboard": () =>
-    import("../../module/finance/dashboard/FinanceDash"),
-  "/finance/pembayaran-spp": () =>
-    import("../../module/finance/fee/monthly/Monthly"),
-  "/finance/pembayaran-spp/laporan": () =>
-    import("../../module/finance/fee/monthly/Report"),
-  "/finance/pembayaran-lainnya": () =>
-    import("../../module/finance/fee/others/Others"),
-  "/finance/beasiswa": () =>
-    import("../../module/finance/scholarship/Scholarship"),
-  "/finance/transaksi": () =>
-    import("../../module/finance/fee/transaction/Transaction"),
-  "/finance/pengeluaran": () =>
-    import("../../module/finance/expense/Expense"),
-  "/finance/rapbs": () => import("../../module/finance/rapbs/Rapbs"),
-  "/finance/laporan": () =>
-    import("../../module/finance/report/FinanceReport"),
-  "/finance/laporan-tabungan": () =>
-    import("../../module/finance/report/SavingReport"),
-  "/finance/laporan-kas-kelas": () =>
-    import("../../module/finance/report/CashReport"),
-  "/guru/keuangan-kelas": () =>
-    import("../../module/finance/teacher/contribution/Contribution"),
-  "/guru/tabungan": () =>
-    import("../../module/finance/teacher/saving/Saving"),
-  "/siswa/laporan-tabungan": () =>
-    import("../../module/finance/student/saving/StudentSaving"),
-  "/siswa/laporan-uang-kas": () =>
-    import("../../module/finance/student/contribution/StudentContribution"),
-  "/computer-based-test/bank": () =>
-    import("../../module/cbt/bank/view/BankList"),
-  "/computer-based-test/jadwal-ujian": () =>
-    import("../../module/cbt/exam/view/ExamList"),
-  "/guru/ai-config": () => import("../../module/teacher/ai/AiConfig"),
-  "/siswa-dashboard": () =>
-    import("../../module/student/dashboard/StudentDash"),
-  "/siswa/jadwal-ujian": () =>
-    import("../../module/cbt/student/view/StudentExamList"),
-  "/computer-based-test/start": () =>
-    import("../../module/cbt/student/view/ExamInterface"),
-  "/guru-dashboard": () =>
-    import("../../module/teacher/dashboard/TeacherDash"),
-};
-
-const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
-
+// Shell ini milik `main` dan tidak berisi aturan domain.
+// - Menu: components/layout/menus/<domain>Menus.jsx (visibilitas lewat `visible(user)`)
+// - Preload: components/layout/preloads/<domain>.js
+// - Route: routes/modules/<domain>Routes.jsx
 const AppLayout = ({ children, title, asShell = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -107,8 +67,11 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
   const { user } = useSelector((state) => state.auth);
 
-  // Default: mini icon sidebar (80px) on desktop; closed drawer on mobile.
-  const [collapsed, setCollapsed] = useState(true);
+  // Default Muse: sidebar terbuka di desktop (>=992px); drawer tertutup di mobile.
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 992,
+  );
+  const [isScrolled, setIsScrolled] = useState(false);
   const [shellTitle, setShellTitle] = useState(null);
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const isMobile = !screens.lg;
@@ -128,37 +91,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
     });
   }, []);
 
-  const filterMenuItemsByUser = (items, currentUser) => {
-    return items
-      .map((item) => {
-        if (item.requiresHomeroom && !currentUser?.is_homeroom) {
-          return null;
-        }
-
-        if (
-          currentUser?.role === "teacher" &&
-          item.key === "/manajemen-piket" &&
-          !currentUser?.has_duty_today
-        ) {
-          return null;
-        }
-
-        if (Array.isArray(item.children)) {
-          const nextChildren = filterMenuItemsByUser(item.children, currentUser);
-          if (nextChildren.length === 0) {
-            return null;
-          }
-          return {
-            ...item,
-            children: nextChildren,
-          };
-        }
-
-        return item;
-      })
-      .filter(Boolean);
-  };
-
   const enhanceMenuItems = (items) =>
     items.map((item) => {
       const nextItem = { ...item };
@@ -175,6 +107,10 @@ const AppLayout = ({ children, title, asShell = false }) => {
         );
       }
 
+      if (item.icon) {
+        nextItem.icon = <span className='muse-menu-icon'>{item.icon}</span>;
+      }
+
       if (Array.isArray(item.children)) {
         nextItem.children = enhanceMenuItems(item.children);
       }
@@ -182,43 +118,15 @@ const AppLayout = ({ children, title, asShell = false }) => {
       return nextItem;
     });
 
-  const {
-    token: { colorBgContainer, borderRadiusLG },
-  } = theme.useToken();
-
-  const menuItems = (() => {
-    const combinedMenus = getCombinedMenus(user);
-    let items = [];
-    switch (user?.role) {
-      case "student":
-        items = combinedMenus.student;
-        break;
-      case "teacher":
-        items = combinedMenus.teacher;
-        break;
-      case "parent":
-        items = combinedMenus.parent;
-        break;
-      case "center":
-        items = combinedMenus.center;
-        break;
-      case "admin":
-        if (user.level === "pusat") {
-          items = combinedMenus.center;
-        } else if (user.level === "tahfiz") {
-          items = combinedMenus.tahfiz;
-        } else if (isFinanceLevel(user.level)) {
-          items = combinedMenus.finance;
-        } else {
-          items = combinedMenus.admin;
-        }
-        break;
-      default:
-        items = [];
-    }
-
-    return enhanceMenuItems(filterMenuItemsByUser(items, user));
-  })();
+  const roleMenuItems = filterMenuItemsByUser(
+    getCombinedMenus(user)[resolveMenuRole(user)] || [],
+    user,
+  );
+  const menuItems = enhanceMenuItems(roleMenuItems);
+  const selectedMenuKey = resolveSelectedMenuKey(
+    roleMenuItems,
+    location.pathname,
+  );
 
   useEffect(() => {
     if (effectiveTitle) {
@@ -235,6 +143,13 @@ const AppLayout = ({ children, title, asShell = false }) => {
     shellContext.setShellTitle(title || null);
     return () => shellContext.setShellTitle(null);
   }, [asShell, shellContext, title]);
+
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     if (!isRouteTransitioning) return;
@@ -267,6 +182,11 @@ const AppLayout = ({ children, title, asShell = false }) => {
     }
   };
 
+  const roleLabel = [user?.role, user?.level]
+    .filter(Boolean)
+    .map((value) => String(value).toUpperCase())
+    .join(" · ");
+
   const userDropdownItems = [
     {
       key: "profile",
@@ -294,211 +214,236 @@ const AppLayout = ({ children, title, asShell = false }) => {
   }
 
   const layoutContent = (
-    <Layout style={{ minHeight: "100vh" }}>
-      {/* === SIDEBAR === */}
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        breakpoint='lg'
-        collapsedWidth={isMobile ? 0 : 80} // Mobile/tablet: drawer (0), desktop: icon rail (80px)
-        width={240}
-        onBreakpoint={() => {
-          // Keep default mini/closed state across breakpoint changes.
-          setCollapsed(true);
-        }}
-        className='app-sider'
-        style={{
-          background: "#001529",
-          boxShadow: "2px 0 6px rgba(0,21,41,0.35)",
-          height: "100vh",
-          position: isMobile ? "fixed" : "sticky",
-          top: 0,
-          left: 0,
-          zIndex: isMobile ? 1002 : 101,
-          overflow: "hidden",
-        }}
-        zeroWidthTriggerStyle={{ top: "10px" }} // Menyesuaikan posisi trigger bawaan jika ada
-      >
-        <div className='app-sider-shell'>
-          {/* Logo Area — stays pinned while the menu scrolls */}
+    <Layout style={{ minHeight: "100vh", background: museColors.bgLayout }}>
+      {/* === SIDEBAR (Muse: transparan di desktop, drawer di mobile) === */}
+      <ConfigProvider theme={museShellTheme}>
+        <Sider
+          className='muse-sider'
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          breakpoint='lg'
+          collapsedWidth={isMobile ? 0 : museLayout.siderCollapsedWidth}
+          width={museLayout.siderWidth}
+          onBreakpoint={(broken) => setCollapsed(broken)}
+          theme='light'
+          style={{
+            background: museColors.bgLayout,
+            boxShadow: isMobile && !collapsed ? museShadow.card : "none",
+            height: "100vh",
+            position: isMobile ? "fixed" : "sticky",
+            top: 0,
+            left: 0,
+            zIndex: isMobile ? 1002 : 101,
+            padding: collapsed ? "24px 0" : "24px 16px",
+            transition: "all 0.2s",
+          }}
+        >
+          {/* Brand */}
+          <Flex
+            align='center'
+            justify={collapsed ? "center" : "flex-start"}
+            gap={10}
+            style={{ padding: collapsed ? 0 : "0 10px", minHeight: 40 }}
+          >
+            <Avatar
+              size={36}
+              shape='square'
+              src={publicConfig?.app_logo}
+              style={{ background: museColors.primary, borderRadius: 8, flexShrink: 0 }}
+            >
+              {publicConfig?.app_name?.[0]}
+            </Avatar>
+            {!collapsed ? (
+              <Text
+                strong
+                ellipsis
+                style={{ color: museColors.navy, fontSize: 16, fontWeight: 700 }}
+              >
+                {publicConfig?.app_name}
+              </Text>
+            ) : null}
+          </Flex>
+
           <div
             style={{
-              flexShrink: 0,
-              height: 72,
-              margin: 12,
-              padding: collapsed ? "0" : "0 14px",
-              background: "rgba(255, 255, 255, 0.18)",
-              borderRadius: borderRadiusLG,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: collapsed ? "center" : "flex-start",
-              color: "white",
-              fontWeight: "bold",
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              transition: "all 0.2s",
+              height: 1,
+              margin: "18px 0",
+              background: `linear-gradient(90deg, transparent, ${museColors.border}, transparent)`,
             }}
-          >
-            {collapsed ? (
-              <Avatar size={38} src={publicConfig?.app_logo} />
-            ) : (
-              <Space size={10}>
-                <Avatar size={38} src={publicConfig?.app_logo} />
-                <Text
-                  style={{
-                    color: "white",
-                    fontSize: 18,
-                    fontWeight: 700,
-                    margin: 0,
-                  }}
-                  ellipsis
-                >
-                  {publicConfig?.app_name}
-                </Text>
-              </Space>
-            )}
-          </div>
+          />
 
-          <div className='app-sider-nav'>
-            <Menu
-              theme='dark'
-              mode='inline'
-              selectedKeys={[
-                location.pathname.startsWith("/keuangan/")
-                  ? "/keuangan"
-                  : location.pathname,
-              ]}
-              items={menuItems}
-              onClick={handleMenuClick}
-              style={{ borderRight: 0 }}
-            />
-          </div>
-        </div>
-      </Sider>
+          <Menu
+            mode='inline'
+            selectedKeys={[selectedMenuKey]}
+            items={menuItems}
+            onClick={handleMenuClick}
+            style={{ borderInlineEnd: 0, background: "transparent", flex: 1 }}
+          />
+
+          {!collapsed ? (
+            <div
+              style={{
+                marginTop: 24,
+                padding: 16,
+                borderRadius: 12,
+                background: `linear-gradient(135deg, ${museColors.primary}, ${museColors.navy})`,
+                color: "#fff",
+              }}
+            >
+              <Flex align='center' gap={10}>
+                <Avatar
+                  size={32}
+                  src={user?.img_url}
+                  icon={<UserOutlined />}
+                  style={{ background: museColors.accent, flexShrink: 0 }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <Text strong ellipsis style={{ color: "#fff", display: "block" }}>
+                    {user?.full_name || "User"}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 11 }}>
+                    {roleLabel}
+                  </Text>
+                </div>
+              </Flex>
+              <Button
+                block
+                size='small'
+                icon={<LogoutOutlined />}
+                onClick={handleLogout}
+                style={{
+                  marginTop: 12,
+                  background: "#fff",
+                  color: museColors.navy,
+                  border: 0,
+                  fontWeight: 600,
+                }}
+              >
+                Keluar
+              </Button>
+            </div>
+          ) : null}
+        </Sider>
+      </ConfigProvider>
 
       {isMobile && !collapsed && (
         <div
+          role='presentation'
           onClick={() => setCollapsed(true)}
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0, 0, 0, 0.45)",
+            background: "rgba(22, 17, 94, 0.35)",
             zIndex: 1001,
           }}
         />
       )}
 
       {/* === MAIN LAYOUT === */}
-      <Layout>
-        {/* Header */}
-        <Header
-          style={{
-            padding: screens.xs ? "0 12px" : "0 24px", // Padding lebih kecil di HP
-            background: colorBgContainer,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            boxShadow: "0 1px 4px rgba(0,21,41,0.08)",
-            position: "sticky",
-            top: 0,
-            zIndex: 100,
-            height: 64,
-          }}
-        >
-          {/* Kiri: Toggle & Title */}
-          <div
+      <Layout style={{ background: "transparent", minWidth: 0 }}>
+        <ConfigProvider theme={museShellTheme}>
+          <Header
+            className={`muse-header${isScrolled ? " is-scrolled" : ""}`}
             style={{
+              height: "auto",
+              lineHeight: "normal",
+              padding: screens.xs ? "10px 12px" : "12px 20px",
+              margin: screens.xs ? "8px" : "10px 16px",
+              borderRadius: 12,
+              background: "transparent",
               display: "flex",
               alignItems: "center",
-              gap: 8,
-              overflow: "hidden",
+              justifyContent: "space-between",
+              gap: 12,
+              position: "sticky",
+              top: screens.xs ? 8 : 10,
+              zIndex: 100,
             }}
           >
-            <Button
-              type='text'
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{
-                fontSize: "16px",
-                width: 48, // Perkecil area klik di HP
-                height: 64,
-              }}
-            />
-
-            {/* Title: Sembunyikan di layar sangat kecil jika perlu, atau perkecil font */}
-            <Title
-              level={4}
-              style={{
-                margin: 0,
-                color: "#595959",
-                fontSize: screens.xs ? "16px" : "20px", // Font responsif
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {effectiveTitle || "Dashboard"}
-            </Title>
-          </div>
-
-          {/* Kanan: User Profile */}
-          <Dropdown menu={{ items: userDropdownItems }} trigger={["click"]}>
-            <div
-              style={{
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 8px", // Padding trigger lebih kecil
-                borderRadius: borderRadiusLG,
-                transition: "background 0.3s",
-                // Di HP, batasi lebar agar tidak menabrak title
-                maxWidth: screens.xs ? "60px" : "auto",
-                justifyContent: "flex-end",
-              }}
-              className='user-dropdown-trigger'
-            >
-              {/* Avatar Selalu Muncul */}
-              <Avatar
-                size={screens.xs ? "default" : "large"} // Avatar lebih kecil di HP
-                src={user?.img_url}
-                icon={<UserOutlined />}
-                style={{ backgroundColor: "#1890ff", flexShrink: 0 }}
+            {/* Kiri: toggle + breadcrumb + judul */}
+            <Flex align='center' gap={8} style={{ minWidth: 0 }}>
+              <Button
+                type='text'
+                aria-label={collapsed ? "Buka menu" : "Tutup menu"}
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed(!collapsed)}
+                style={{ flexShrink: 0 }}
               />
+              <div style={{ minWidth: 0 }}>
+                {!screens.xs ? (
+                  <Breadcrumb
+                    items={[
+                      { title: "Halaman" },
+                      { title: effectiveTitle || "Dashboard" },
+                    ]}
+                    style={{ fontSize: 12 }}
+                  />
+                ) : null}
+                <Text
+                  strong
+                  ellipsis
+                  style={{
+                    display: "block",
+                    color: museColors.navy,
+                    fontSize: screens.xs ? 15 : 16,
+                    fontWeight: 700,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {effectiveTitle || "Dashboard"}
+                </Text>
+              </div>
+            </Flex>
 
-              {/* Text Info: HANYA MUNCUL DI TABLET KE ATAS (!screens.xs) */}
-              {!screens.xs && (
-                <div style={{ textAlign: "right", lineHeight: "1.2" }}>
-                  <Text strong style={{ display: "block" }}>
-                    {user?.full_name || "User"}
-                  </Text>
-                  <Text type='secondary' style={{ fontSize: "11px" }}>
-                    {user?.role?.toUpperCase()}
-                    {user?.level ? ` - ${user.level.toUpperCase()}` : ""}
-                  </Text>
-                </div>
-              )}
+            {/* Kanan: user */}
+            <Dropdown menu={{ items: userDropdownItems }} trigger={["click"]}>
+              <button
+                type='button'
+                className='user-dropdown-trigger'
+                aria-label='Menu akun'
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "4px 8px",
+                  borderRadius: 8,
+                  border: 0,
+                  background: "transparent",
+                  font: "inherit",
+                  flexShrink: 0,
+                }}
+              >
+                <Avatar
+                  size={screens.xs ? "default" : "large"}
+                  src={user?.img_url}
+                  icon={<UserOutlined />}
+                  style={{ backgroundColor: museColors.primary, flexShrink: 0 }}
+                />
+                {!screens.xs && (
+                  <div style={{ textAlign: "right", lineHeight: 1.2 }}>
+                    <Text strong style={{ display: "block", color: museColors.navy }}>
+                      {user?.full_name || "User"}
+                    </Text>
+                    <Text type='secondary' style={{ fontSize: 11 }}>
+                      {roleLabel}
+                    </Text>
+                  </div>
+                )}
+                {!screens.xs && <CaretDownOutlined style={{ color: museColors.muted }} />}
+              </button>
+            </Dropdown>
+          </Header>
+        </ConfigProvider>
 
-              {/* Icon Panah: Hanya muncul di Desktop */}
-              {!screens.xs && (
-                <Button type='text' size='small' icon={<CaretDownOutlined />} />
-              )}
-            </div>
-          </Dropdown>
-        </Header>
-
-        {/* Content Area */}
+        {/* Content */}
         <Content
           style={{
-            margin: screens.xs ? "16px 8px" : "24px 16px", // Margin content lebih rapat di HP
-            padding: screens.xs ? 12 : 24, // Padding dalam lebih rapat di HP
+            margin: screens.xs ? "8px 8px 0" : "12px 16px 0",
+            padding: screens.xs ? "4px 4px 16px" : "8px 4px 24px",
             minHeight: 280,
-            backgroundColor: colorBgContainer,
-            borderRadius: borderRadiusLG,
-            overflowX: "hidden", // Mencegah scroll horizontal jika tabel lebar
-            background:
-              "radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 24%), linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+            overflowX: "hidden",
           }}
         >
           {asShell ? (
@@ -512,9 +457,13 @@ const AppLayout = ({ children, title, asShell = false }) => {
           )}
         </Content>
 
-        {/* Footer */}
         <Layout.Footer
-          style={{ textAlign: "center", color: "#8c8c8c", fontSize: "12px" }}
+          style={{
+            textAlign: "center",
+            color: museColors.muted,
+            fontSize: "12px",
+            background: "transparent",
+          }}
         >
           Almadev ©{new Date().getFullYear()}
         </Layout.Footer>

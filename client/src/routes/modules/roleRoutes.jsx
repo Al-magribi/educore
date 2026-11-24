@@ -3,6 +3,7 @@ import { Route } from "react-router-dom";
 
 import { AppLayout } from "../../components";
 import RouteProtection from "../../utils/RouteProtection";
+import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 
 const Profile = lazy(() => import("../../components/profile/Profile"));
 const StudentDash = lazy(() => import("../../module/student/dashboard/StudentDash"));
@@ -10,9 +11,7 @@ const TeacherDash = lazy(() => import("../../module/teacher/dashboard/TeacherDas
 const StudentExamList = lazy(
   () => import("../../module/cbt/student/view/StudentExamList"),
 );
-const StudentSaving = lazy(
-  () => import("../../module/finance/student/saving/StudentSaving"),
-);
+const StudentExamListPage = withMuseTheme(StudentExamList);
 
 const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
   <>
@@ -40,16 +39,12 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
           isCbtEnabled ? (
             createElement(LazyPage, {
               title: "Jadwal Ujian",
-              Component: StudentExamList,
+              Component: StudentExamListPage,
             })
           ) : (
             createElement(NotFoundRedirect)
           )
         }
-      />
-      <Route
-        path="/siswa/laporan-tabungan"
-        element={<LazyPage title="Tabungan Saya" Component={StudentSaving} />}
       />
     </Route>
 
@@ -67,7 +62,7 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
     <Route
       element={
         <RouteProtection
-          allowedRoles={["admin", "teacher", "student", "parent"]}
+          allowedRoles={["admin", "teacher", "student", "parent", "staff"]}
           allowedLevels={["pusat", "satuan", "tahfiz"]}
         />
       }

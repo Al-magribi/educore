@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Space, Typography } from "antd";
+import { museColors } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -9,7 +10,7 @@ const GroupFormFooter = ({ totalPoints, onClose, isCreating, canSubmit }) => (
     style={{
       width: "100%",
       justifyContent: "space-between",
-      borderTop: "1px solid #f0f0f0",
+      borderTop: `1px solid ${museColors.divider}`,
       paddingTop: 12,
     }}
   >

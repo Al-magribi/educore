@@ -21,6 +21,7 @@ import {
   sortBloomRows,
   toPercentage,
 } from "./bloomUtils";
+import { museColors, museRadius, museShadow } from "../../../../../../config/theme";
 
 const MotionDiv = motion.div;
 
@@ -385,14 +386,14 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
       shortLabel: "Peserta",
       value: aggregateStats.totalStudents,
       suffix: "siswa",
-      color: "#1d4ed8",
+      color: museColors.primary,
       icon: <Users size={isMobile ? 16 : 18} />,
     },
     {
       label: "Rata-rata Akurasi",
       shortLabel: "Akurasi",
       value: formatPercent(aggregateStats.accuracy),
-      color: "#0f766e",
+      color: museColors.cyan,
       icon: <Target size={isMobile ? 16 : 18} />,
     },
     {
@@ -402,7 +403,7 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
       suffix: insight.strongest
         ? formatPercent(insight.strongest.correct_percentage)
         : "",
-      color: "#15803d",
+      color: museColors.success,
       icon: <CheckCircle2 size={isMobile ? 16 : 18} />,
     },
     {
@@ -410,7 +411,7 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
       shortLabel: "Penguatan",
       value: insight.weakest ? getBloomCode(insight.weakest.bloom_level) : "-",
       suffix: insight.weakest ? formatPercent(insight.weakest.correct_percentage) : "",
-      color: "#dc2626",
+      color: museColors.danger,
       icon: <XCircle size={isMobile ? 16 : 18} />,
     },
   ];
@@ -463,8 +464,8 @@ const BloomAnalysis = ({ data, isLoading = false, isMobile = false }) => {
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 18 : 24,
-          boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 14 : 20 } }}

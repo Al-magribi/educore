@@ -36,6 +36,7 @@ import {
   useGetExamManualReviewSummaryQuery,
   useStartExamAiGradingJobMutation,
 } from "../../../../../../service/cbt/ApiExam";
+import { museColors, museRadius, museShadow } from "../../../../../../config/theme";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -499,14 +500,14 @@ const ManualReviewQueue = ({
         activeTab === "finalisasi" ? "Siswa Sudah Final" : "Siswa Perlu Review",
       shortLabel: activeTab === "finalisasi" ? "Sudah Final" : "Perlu Review",
       value: activeStudents.length,
-      color: "#2563eb",
+      color: museColors.primary,
       icon: <Users size={isMobile ? 16 : 18} />,
     },
     {
       label: activeTab === "finalisasi" ? "Total Final" : "Total Pending",
       shortLabel: activeTab === "finalisasi" ? "Total Final" : "Pending",
       value: totalPendingAnswers,
-      color: "#d97706",
+      color: museColors.warning,
       icon: <Clock3 size={isMobile ? 16 : 18} />,
     },
     {
@@ -520,7 +521,7 @@ const ManualReviewQueue = ({
       label: "Jawaban Singkat",
       shortLabel: "Singkat",
       value: typeSummary.short || 0,
-      color: "#0284c7",
+      color: museColors.cyan,
       icon: <FileText size={isMobile ? 16 : 18} />,
     },
   ];
@@ -564,9 +565,9 @@ const ManualReviewQueue = ({
         size='small'
         variant='borderless'
         style={{
-          borderRadius: 16,
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-          background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+          borderRadius: museRadius.item,
+          border: `1px solid ${museColors.divider}`,
+          background: "#fff",
         }}
         styles={{ body: { padding: 14 } }}
       >
@@ -643,8 +644,8 @@ const ManualReviewQueue = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 18 : 24,
-          boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 14 : 20 } }}
@@ -714,9 +715,9 @@ const ManualReviewQueue = ({
                 key={item.label}
                 variant='borderless'
                 style={{
-                  borderRadius: isMobile ? 14 : 18,
-                  background: "#f8fafc",
-                  border: "1px solid rgba(148, 163, 184, 0.14)",
+                  borderRadius: museRadius.card,
+                  background: museColors.bgSoft,
+                  border: `1px solid ${museColors.divider}`,
                   minWidth: 0,
                   overflow: "hidden",
                 }}
@@ -756,7 +757,7 @@ const ManualReviewQueue = ({
                     style={{
                       width: isMobile ? 32 : 42,
                       height: isMobile ? 32 : 42,
-                      borderRadius: isMobile ? 10 : 14,
+                      borderRadius: museRadius.item,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -868,7 +869,7 @@ const ManualReviewQueue = ({
                   />
                 </Flex>
               }
-              style={{ borderRadius: 14 }}
+              style={{ borderRadius: museRadius.item }}
             />
           ) : null}
 
@@ -888,7 +889,7 @@ const ManualReviewQueue = ({
                     <Card
                       key={`skeleton-${index}`}
                       loading
-                      style={{ borderRadius: 16 }}
+                      style={{ borderRadius: museRadius.item }}
                     />
                   ))
                 : activeStudents.map(renderMobileStudentCard)}
@@ -896,8 +897,8 @@ const ManualReviewQueue = ({
           ) : (
             <div
               style={{
-                borderRadius: 18,
-                border: "1px solid rgba(148, 163, 184, 0.14)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
                 overflow: "hidden",
               }}
             >

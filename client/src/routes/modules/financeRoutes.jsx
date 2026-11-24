@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
 import FinanceDeskAccess from "../../module/finance/access/FinanceDeskAccess";
@@ -42,6 +42,20 @@ const ParentPayment = lazy(
 );
 const ParentSavingReport = lazy(
   () => import("../../module/finance/report/SavingReport"),
+);
+
+// Keuangan Pusat (admin level pusat): daftar homebase lalu shell per homebase.
+const CenterFinanceHome = lazy(
+  () => import("../../module/center/finance/CenterFinanceHome"),
+);
+const CenterFinanceShell = lazy(
+  () => import("../../module/center/finance/CenterFinanceShell"),
+);
+const CenterFinanceReport = lazy(
+  () => import("../../module/finance/report/CenterFinanceReport"),
+);
+const StudentSaving = lazy(
+  () => import("../../module/finance/student/saving/StudentSaving"),
 );
 
 const renderFinanceRoutes = ({ LazyPage }) => {
@@ -146,7 +160,37 @@ const renderFinanceRoutes = ({ LazyPage }) => {
         />
       </Route>
 
+      <Route
+        element={
+          <RouteProtection allowedRoles={["admin"]} allowedLevels={["pusat"]} />
+        }
+      >
+        <Route
+          path='/keuangan'
+          element={<Page title='Keuangan Pusat' Component={CenterFinanceHome} />}
+        />
+        <Route path='/keuangan/:homebaseId' element={<CenterFinanceShell />}>
+          <Route index element={<Navigate to='pembayaran-spp' replace />} />
+          <Route path='pembayaran-spp' element={<Monthly />} />
+          <Route path='pembayaran-lainnya' element={<Others />} />
+          <Route path='beasiswa' element={<Scholarship />} />
+          <Route path='pengeluaran' element={<Expense />} />
+          <Route path='transaksi' element={<Transaction />} />
+          <Route
+            path='rapbs'
+            element={<Rapbs forceDetail listPath='/keuangan' />}
+          />
+          <Route path='laporan' element={<CenterFinanceReport />} />
+          <Route path='laporan-tabungan' element={<SavingReport />} />
+          <Route path='pengaturan' element={<Setting />} />
+        </Route>
+      </Route>
+
       <Route element={<RouteProtection allowedRoles={["student"]} />}>
+        <Route
+          path='/siswa/laporan-tabungan'
+          element={<Page title='Tabungan Saya' Component={StudentSaving} />}
+        />
         <Route
           path='/siswa/laporan-uang-kas'
           element={

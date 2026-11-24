@@ -16,6 +16,7 @@ import {
   formatIndex,
   normalizeQuestionText,
 } from "./itemAnalysisUtils";
+import { museColors, museRadius, museShadow } from "../../../../../../config/theme";
 
 const MotionDiv = motion.div;
 
@@ -105,12 +106,12 @@ const ItemAnalysis = ({
 
   const alphaColor =
     summary.cronbach_alpha_key === "good"
-      ? "#15803d"
+      ? museColors.success
       : summary.cronbach_alpha_key === "fair"
-        ? "#2563eb"
+        ? museColors.primary
         : summary.cronbach_alpha_key === "low"
-          ? "#dc2626"
-          : "#64748b";
+          ? museColors.danger
+          : museColors.muted;
 
   const metricItems = [
     {
@@ -129,7 +130,7 @@ const ItemAnalysis = ({
       shortLabel: "Kesukaran",
       value: formatIndex(summary.average_difficulty),
       suffix: "P",
-      color: "#0f766e",
+      color: museColors.cyan,
       icon: <Gauge size={isMobile ? 16 : 18} />,
     },
     {
@@ -137,7 +138,7 @@ const ItemAnalysis = ({
       shortLabel: "Daya Beda",
       value: formatIndex(summary.average_point_biserial),
       suffix: "rpb",
-      color: "#1d4ed8",
+      color: museColors.primary,
       icon: <Target size={isMobile ? 16 : 18} />,
     },
     {
@@ -145,7 +146,7 @@ const ItemAnalysis = ({
       shortLabel: "Tolak",
       value: summary.reject_count ?? 0,
       suffix: "soal",
-      color: "#dc2626",
+      color: museColors.danger,
       icon: <AlertTriangle size={isMobile ? 16 : 18} />,
     },
   ];
@@ -193,8 +194,8 @@ const ItemAnalysis = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 18 : 24,
-          boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 14 : 20 } }}
