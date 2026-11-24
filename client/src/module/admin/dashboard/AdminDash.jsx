@@ -7,7 +7,6 @@ import {
   Flex,
   Grid,
   List,
-  Progress,
   Row,
   Skeleton,
   Table,
@@ -15,8 +14,6 @@ import {
   Typography,
 } from "antd";
 import {
-  Activity,
-  BookMarked,
   BookOpen,
   Building2,
   CalendarDays,
@@ -32,7 +29,7 @@ import {
 import { useGetDashboardSummaryQuery } from "../../../service/main/ApiDash";
 import PageHeader from "../../../components/ui/PageHeader";
 import { CardTitle, IconBox, MuseCard, StatCard } from "../../../components/ui/muse";
-import { museColors, museRadius } from "../../../config/theme";
+import { museColors } from "../../../config/theme";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -67,7 +64,7 @@ const QUICK_LINKS = [
 
 const AdminDash = () => {
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useGetDashboardSummaryQuery();
+  const { data, isLoading, isError, error } = useGetDashboardSummaryQuery();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -78,14 +75,6 @@ const AdminDash = () => {
     { key: "subjects", title: "Mapel", value: data?.stats?.subjects || 0, icon: <BookOpen size={24} />, tone: "warning" },
     { key: "exams", title: "Ujian Aktif", value: data?.stats?.activeExams || 0, icon: <ClipboardList size={24} />, tone: "success" },
   ];
-
-  const insights = [
-    { key: "majors", title: "Total Jurusan", value: data?.stats?.majors || 0, icon: <Building2 size={16} /> },
-    { key: "classes", title: "Jumlah Kelas", value: data?.stats?.classes || 0, icon: <School size={16} /> },
-    { key: "subjects", title: "Aktivitas Mapel", value: data?.stats?.subjects || 0, icon: <BookMarked size={16} /> },
-  ];
-
-  const subjectActivity = data?.stats?.subjects ? Math.min(data.stats.subjects * 2, 100) : 0;
 
   const logColumns = [
     {
@@ -137,12 +126,17 @@ const AdminDash = () => {
         type='error'
         showIcon
         title='Gagal memuat data dashboard'
-        description='Periksa koneksi lalu muat ulang halaman.'
+        description={error?.data?.message || "Periksa koneksi lalu muat ulang halaman."}
       />
     );
   }
 
   const activePeriode = data?.activePeriode;
+  const summaryRows = [
+    { key: "level", title: "Jenjang", value: data?.homebase?.level || "-", icon: <School size={16} /> },
+    { key: "periode", title: "Periode Aktif", value: activePeriode?.name || "Belum diatur", icon: <CalendarDays size={16} /> },
+    { key: "majors", title: "Jurusan", value: (data?.stats?.majors || 0).toLocaleString("id-ID"), icon: <Building2 size={16} /> },
+  ];
 
   return (
     <MotionDiv
@@ -190,45 +184,27 @@ const AdminDash = () => {
         ))}
       </div>
 
-      <Row gutter={[24, 24]}>
+      <Row gutter={[isMobile ? 16 : 24, isMobile ? 16 : 24]}>
         <Col xs={24} lg={9}>
-          <Flex vertical gap={24}>
-            <MuseCard title={<CardTitle title='Ringkasan Akademik' description='Snapshot operasional satuan saat ini.' />}>
+          <Flex vertical gap={isMobile ? 16 : 24}>
+            <MuseCard
+              title={<CardTitle title='Ringkasan Satuan' description='Kondisi dasar yang memengaruhi data akademik.' />}
+            >
               <Flex vertical gap={16}>
-                {insights.map((item) => (
+                {summaryRows.map((item) => (
                   <Flex key={item.key} align='center' justify='space-between' gap={12}>
-                    <Flex align='center' gap={12}>
+                    <Flex align='center' gap={12} style={{ minWidth: 0 }}>
                       <IconBox icon={item.icon} size={32} tone='primarySoft' />
                       <Text style={{ fontWeight: 600 }}>{item.title}</Text>
                     </Flex>
-                    <Text strong style={{ fontSize: 20, fontWeight: 700, color: museColors.navy }}>
+                    <Text
+                      strong
+                      style={{ color: museColors.navy, textAlign: "right", minWidth: 0, wordBreak: "break-word" }}
+                    >
                       {item.value}
                     </Text>
                   </Flex>
                 ))}
-
-                <div
-                  style={{
-                    marginTop: 4,
-                    padding: 16,
-                    borderRadius: museRadius.item,
-                    background: museColors.bgLayout,
-                  }}
-                >
-                  <Flex justify='space-between' align='center'>
-                    <Text strong>Aktivitas Akademik</Text>
-                    <Activity size={16} color={museColors.primary} />
-                  </Flex>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    Indikator sederhana berdasarkan total mapel aktif.
-                  </Text>
-                  <Progress
-                    percent={subjectActivity}
-                    strokeColor={{ "0%": museColors.primary, "100%": museColors.accent }}
-                    size={["100%", 6]}
-                    style={{ marginTop: 8, marginBottom: 0 }}
-                  />
-                </div>
               </Flex>
             </MuseCard>
 
