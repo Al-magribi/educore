@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { useFinanceScope } from '../../../center/finance/FinanceScopeContext';
-import { Form, Card, Flex, Grid, Space, Tabs, Typography, message } from 'antd';
-import { motion } from 'framer-motion';
+import { Button, Flex, Form, Grid, Typography, message } from 'antd';
 import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
   CreditCard,
   Gift,
+  Info,
+  Plus,
   ReceiptText,
-  Sparkles,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -28,7 +29,7 @@ import {
 } from '../../../../service/finance/ApiMonthly';
 import FinanceSkeleton from '../../shared/FinanceSkeleton';
 import { currentMonth } from './constants';
-import MonthlyHeader from './components/MonthlyHeader';
+import { MuseCard, PageTabs } from '../../../../components/ui/muse';
 import MonthlyPaymentModal from './components/MonthlyPaymentModal';
 import MonthlySummaryCards from './components/MonthlySummaryCards';
 import MonthlyFilters from './components/MonthlyFilters';
@@ -37,34 +38,8 @@ import MonthlyTariffTable from './components/MonthlyTariffTable';
 import MonthlyReportPanel from './components/MonthlyReportPanel';
 import MonthlyTariffModal from './components/MonthlyTariffModal';
 
-import { museColors, museRadius, museShadow } from "../../../../config/theme";
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
-const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.35,
-      ease: [0.22, 1, 0.36, 1],
-      staggerChildren: 0.07,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.3,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
 
 const Monthly = ({ initialTab = 'tariffs' }) => {
   const { user } = useSelector((state) => state.auth);
@@ -73,7 +48,20 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
   const financeScope = useFinanceScope();
   const scopedHomebaseId = financeScope?.homebaseId || undefined;
 
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const setActiveTab = useCallback(
+    (key) => {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          next.set('tab', key);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const [filters, setFilters] = useState({
     homebase_id: scopedHomebaseId,
     periode_id: undefined,
@@ -194,9 +182,12 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
     );
   }, [mainStudents, payments]);
 
+  // Tanpa ?tab=, buka tab bawaan dari prop (mis. Report.jsx -> 'report').
   useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
+    if (!searchParams.get('tab') && initialTab !== 'tariffs') {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, searchParams, setActiveTab]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -623,147 +614,112 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
     : undefined;
   const activeMonthLabel = months.find((item) => Number(item.value) === Number(filters.bill_month))?.label;
 
-  // Label tab: ikon 14 + teks satu baris, tanpa caption (CLAUDE.md §4 "Tab").
-  const createTabLabel = (label, icon, count) => (
-    <Flex align="center" gap={6} style={{ whiteSpace: 'nowrap' }}>
-      {icon}
-      <span>{label}{count !== undefined ? ` (${count})` : ''}</span>
+  const scopeNote = (
+    <Flex align="flex-start" gap={8}>
+      <Info size={14} color={museColors.muted} style={{ flexShrink: 0, marginTop: 4 }} />
+      <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
+        Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}. Default: periode aktif. Kosongkan filter
+        periode untuk melihat semua periode, lalu bisa dipersempit berdasarkan tingkat, kelas, dan siswa.
+      </Text>
     </Flex>
   );
 
+  // Ringkasan + filter berlaku untuk semua tab, jadi dirender di atas isi tab.
+  const withContext = (content) => (
+    <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
+      <MonthlySummaryCards items={summaryCards} />
+      <MonthlyFilters
+        filters={filters}
+        setFilters={setFilters}
+        homebases={homebases}
+        periodes={periodes}
+        grades={grades}
+        classes={mainClasses}
+        months={months}
+      />
+      <MuseCard styles={{ body: { padding: isMobile ? 12 : 16 } }}>{content}</MuseCard>
+      {scopeNote}
+    </Flex>
+  );
+
+  const tabs = [
+    {
+      key: 'tariffs',
+      label: `Tarif SPP (${tariffs.length})`,
+      icon: <ReceiptText />,
+      render: () =>
+        withContext(
+          <MonthlyTariffTable
+            tariffs={tariffs}
+            loading={isFetchingTariffs}
+            onEdit={openTariffModal}
+            onDelete={handleDeleteTariff}
+            isDeletingTariff={isDeletingTariff}
+            onCreate={() => openTariffModal()}
+          />,
+        ),
+    },
+    {
+      key: 'payments',
+      label: `Pembayaran (${payments.length})`,
+      icon: <CreditCard />,
+      render: () =>
+        withContext(
+          <MonthlyPaymentTable
+            payments={payments}
+            loading={isFetchingPayments}
+            selectedMonth={months.find((item) => Number(item.value) === Number(filters.bill_month))?.label}
+            homebaseName={
+              homebases.find((item) => Number(item.id) === Number(filters.homebase_id))?.name ||
+              user?.homebase_name
+            }
+            onCreatePayment={openCreatePaymentModal}
+            onEditPayment={openEditPaymentModal}
+            onDeletePayment={handleDeletePayment}
+            isDeletingPayment={isDeletingPayment}
+          />,
+        ),
+    },
+    {
+      key: 'report',
+      label: 'Laporan',
+      icon: <BarChart3 />,
+      render: () =>
+        withContext(
+          <MonthlyReportPanel
+            payments={payments}
+            filterContext={{
+              homebaseName: activeHomebaseName,
+              periodeName: activePeriodeName,
+              periodeId: filters.periode_id,
+              gradeName: activeGradeName,
+              className: activeClassName,
+              monthLabel: activeMonthLabel,
+              studentSearch: filters.student_search || undefined,
+            }}
+          />,
+        ),
+    },
+  ];
+
   return (
-    <MotionDiv variants={containerVariants} initial="hidden" animate="visible">
-      <Space vertical size={isMobile ? 16 : 24} style={{ width: '100%', display: 'flex' }}>
-        <MotionDiv variants={itemVariants}>
-          <MonthlyHeader
-            onOpenTariff={() => {
+    <>
+      <PageTabs
+        title="Pembayaran SPP Bulanan"
+        description="Kelola tarif dan status pembayaran SPP bulanan siswa."
+        extra={
+          <Button
+            type="primary"
+            icon={<Plus size={16} />}
+            onClick={() => {
               setActiveTab('tariffs');
               openTariffModal();
-            }}
-          />
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <MonthlySummaryCards items={summaryCards} />
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <MonthlyFilters
-            filters={filters}
-            setFilters={setFilters}
-            homebases={homebases}
-            periodes={periodes}
-            grades={grades}
-            classes={mainClasses}
-            months={months}
-          />
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants} style={{ width: '100%' }}>
-          <Card
-            variant="borderless"
-            style={{
-              borderRadius: museRadius.card,
-              border: `1px solid ${museColors.divider}`,
-              boxShadow: museShadow.card,
-              overflow: 'hidden',
-            }}
-            styles={{ body: { padding: isMobile ? 8 : 12 } }}>
-            <Tabs
-              activeKey={activeTab}
-              onChange={setActiveTab}
-              size={isMobile ? 'small' : 'middle'}
-              items={[
-                {
-                  key: 'tariffs',
-                  label: createTabLabel(
-                    'Tarif SPP',
-                    <ReceiptText size={14} />,
-                    tariffs.length,
-                    'Pengaturan tarif per periode',
-                  ),
-                  children: (
-                    <MonthlyTariffTable
-                      tariffs={tariffs}
-                      loading={isFetchingTariffs}
-                      onEdit={openTariffModal}
-                      onDelete={handleDeleteTariff}
-                      isDeletingTariff={isDeletingTariff}
-                      onCreate={() => openTariffModal()}
-                    />
-                  ),
-                },
-                {
-                  key: 'payments',
-                  label: createTabLabel(
-                    isMobile ? 'Pembayaran' : 'Pembayaran SPP',
-                    <CreditCard size={14} />,
-                    payments.length,
-                    'Monitoring status pelunasan',
-                  ),
-                  children: (
-                    <MonthlyPaymentTable
-                      payments={payments}
-                      loading={isFetchingPayments}
-                      selectedMonth={months.find((item) => Number(item.value) === Number(filters.bill_month))?.label}
-                      homebaseName={
-                        homebases.find((item) => Number(item.id) === Number(filters.homebase_id))?.name ||
-                        user?.homebase_name
-                      }
-                      onCreatePayment={openCreatePaymentModal}
-                      onEditPayment={openEditPaymentModal}
-                      onDeletePayment={handleDeletePayment}
-                      isDeletingPayment={isDeletingPayment}
-                    />
-                  ),
-                },
-                {
-                  key: 'report',
-                  label: createTabLabel(
-                    isMobile ? 'Laporan' : 'Laporan SPP',
-                    <BarChart3 size={14} />,
-                    undefined,
-                    'Ringkasan capaian per kelas',
-                  ),
-                  children: (
-                    <MonthlyReportPanel
-                      payments={payments}
-                      filterContext={{
-                        homebaseName: activeHomebaseName,
-                        periodeName: activePeriodeName,
-                        periodeId: filters.periode_id,
-                        gradeName: activeGradeName,
-                        className: activeClassName,
-                        monthLabel: activeMonthLabel,
-                        studentSearch: filters.student_search || undefined,
-                      }}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            variant="borderless"
-            style={{
-              borderRadius: museRadius.card,
-              border: `1px solid ${museColors.divider}`,
-              background: "#ffffff",
-            }}
-            styles={{ body: { padding: isMobile ? '12px 14px' : '14px 16px' } }}>
-            <Flex align="flex-start" gap={8}>
-              <Sparkles size={14} color={museColors.muted} style={{ flexShrink: 0, marginTop: 3 }} />
-              <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
-                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}. Default: periode aktif. Kosongkan filter
-                periode untuk melihat semua periode, lalu bisa dipersempit berdasarkan tingkat, kelas, dan siswa.
-              </Text>
-            </Flex>
-          </Card>
-        </MotionDiv>
-      </Space>
+            }}>
+            Tambah Tarif SPP
+          </Button>
+        }
+        items={tabs}
+      />
 
       <MonthlyTariffModal
         open={tariffModalOpen}
@@ -814,7 +770,7 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
         }
         confirmLoading={isAddingPayment || isUpdatingPayment}
       />
-    </MotionDiv>
+    </>
   );
 };
 

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { useFinanceScope } from '../../../center/finance/FinanceScopeContext';
-import { Card, Flex, Form, Grid, Space, Tabs, Typography, message } from 'antd';
-import { motion } from 'framer-motion';
-import { CreditCard, ReceiptText, Sparkles } from 'lucide-react';
+import { Button, Flex, Form, Grid, Tabs, Typography, message } from 'antd';
+import { CreditCard, Info, Plus, ReceiptText } from 'lucide-react';
+
+import { MuseCard, PageTabs } from '../../../../components/ui/muse';
 
 import FinanceSkeleton from '../../shared/FinanceSkeleton';
 import {
@@ -24,44 +26,16 @@ import {
   buildOtherPaymentValue,
   getOtherPaymentSelectionKey,
 } from '../transaction/components/transactionFormShared.jsx';
-import { cardStyle } from './constants';
 import OthersChargesTable from './components/OthersChargesTable';
 import OthersFilters from './components/OthersFilters';
-import OthersHeader from './components/OthersHeader';
 import OthersPaymentModal from './components/OthersPaymentModal';
 import OthersReportPanel from './components/OthersReportPanel';
 import OthersSummaryCards from './components/OthersSummaryCards';
 import OthersTypeModal from './components/OthersTypeModal';
 import OthersTypesTable from './components/OthersTypesTable';
 
-import { museColors, museRadius, museShadow } from "../../../../config/theme";
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
-const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.35,
-      ease: [0.22, 1, 0.36, 1],
-      staggerChildren: 0.07,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.3,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
 
 const Others = () => {
   const { user } = useSelector((state) => state.auth);
@@ -71,6 +45,7 @@ const Others = () => {
   const financeScope = useFinanceScope();
   const scopedHomebaseId = financeScope?.homebaseId || undefined;
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState({
     homebase_id: scopedHomebaseId,
     periode_id: undefined,
@@ -665,128 +640,110 @@ const Others = () => {
     ? periodes.find((item) => Number(item.id) === Number(filters.periode_id))?.name || '-'
     : 'Semua periode';
 
-  // Label tab: ikon 14 + teks satu baris, tanpa caption (CLAUDE.md §4 "Tab").
-  const createTabLabel = (label, icon, count) => (
-    <Flex align="center" gap={6} style={{ whiteSpace: 'nowrap' }}>
-      {icon}
-      <span>{label}{count !== undefined ? ` (${count})` : ''}</span>
+  const scopeNote = (
+    <Flex align="flex-start" gap={8}>
+      <Info size={14} color={museColors.muted} style={{ flexShrink: 0, marginTop: 4 }} />
+      <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
+        Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}. Kosongkan filter periode untuk melihat
+        semua periode. Tagihan mengikuti cakupan jenis (tingkat / individu); siswa yang pindah kelas tetap
+        terikat jika masuk roster individu.
+      </Text>
     </Flex>
   );
 
-  return (
-    <MotionDiv variants={containerVariants} initial="hidden" animate="visible">
-      <Space vertical size={isMobile ? 16 : 24} style={{ width: '100%', display: 'flex' }}>
-        <MotionDiv variants={itemVariants}>
-          <OthersHeader onOpenType={() => openTypeModal()} />
-        </MotionDiv>
+  // Ringkasan + filter berlaku untuk semua tab, jadi dirender di atas isi tab.
+  const withContext = (content) => (
+    <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
+      <OthersSummaryCards summary={summary} />
+      <OthersFilters
+        filters={filters}
+        setFilters={setFilters}
+        homebases={homebases}
+        periodes={periodes}
+        grades={grades}
+        classes={classes}
+        types={types}
+      />
+      <MuseCard styles={{ body: { padding: isMobile ? 12 : 16 } }}>{content}</MuseCard>
+      {scopeNote}
+    </Flex>
+  );
 
-        <MotionDiv variants={itemVariants}>
-          <OthersSummaryCards summary={summary} />
-        </MotionDiv>
+  // Tab bertingkat di bagian Laporan memakai query sendiri: ?sub= (CLAUDE.md §4 pola 2).
+  const reportSub = ['summary', 'payments'].includes(searchParams.get('sub'))
+    ? searchParams.get('sub')
+    : 'summary';
+  const handleReportSubChange = (key) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('sub', key);
+    setSearchParams(next, { replace: true });
+  };
 
-        <MotionDiv variants={itemVariants}>
-          <OthersFilters
-            filters={filters}
-            setFilters={setFilters}
-            homebases={homebases}
-            periodes={periodes}
-            grades={grades}
-            classes={classes}
+  const tabs = [
+    {
+      key: 'types',
+      label: `Jenis Biaya (${types.length})`,
+      icon: <ReceiptText />,
+      render: () =>
+        withContext(
+          <OthersTypesTable
             types={types}
-          />
-        </MotionDiv>
+            loading={isFetchingTypes}
+            onAddType={() => openTypeModal()}
+            onEditType={openTypeModal}
+            onDeleteType={handleDeleteType}
+            onBulkDeleteType={handleBulkDeleteType}
+            isDeletingType={isDeletingType}
+          />,
+        ),
+    },
+    {
+      key: 'report',
+      label: `Laporan (${charges.length})`,
+      icon: <CreditCard />,
+      render: () =>
+        withContext(
+          <Tabs
+            activeKey={reportSub}
+            onChange={handleReportSubChange}
+            size={isMobile ? 'small' : 'middle'}
+            items={[
+              {
+                key: 'summary',
+                label: 'Rangkuman',
+                children: <OthersReportPanel charges={charges} />,
+              },
+              {
+                key: 'payments',
+                label: `Daftar Pembayaran (${charges.length})`,
+                children: (
+                  <OthersChargesTable
+                    charges={charges}
+                    loading={isFetchingCharges}
+                    onEditCharge={handleEditCharge}
+                    onDeleteCharge={handleDeleteCharge}
+                    isDeletingCharge={isDeletingCharge}
+                  />
+                ),
+              },
+            ]}
+          />,
+        ),
+    },
+  ];
 
-        <MotionDiv variants={itemVariants} style={{ width: '100%' }}>
-          <Card
-            style={{
-              ...cardStyle,
-              borderRadius: museRadius.card,
-              boxShadow: museShadow.card,
-              overflow: 'hidden',
-            }}
-            styles={{ body: { padding: isMobile ? 8 : undefined, paddingTop: 12 } }}>
-            <Tabs
-              size={isMobile ? 'small' : 'middle'}
-              items={[
-                {
-                  key: 'types',
-                  label: createTabLabel(
-                    isMobile ? 'Jenis' : 'Jenis Biaya',
-                    <ReceiptText size={14} />,
-                    types.length,
-                    'Master biaya non-SPP',
-                  ),
-                  children: (
-                    <OthersTypesTable
-                      types={types}
-                      loading={isFetchingTypes}
-                      onAddType={() => openTypeModal()}
-                      onEditType={openTypeModal}
-                      onDeleteType={handleDeleteType}
-                      onBulkDeleteType={handleBulkDeleteType}
-                      isDeletingType={isDeletingType}
-                    />
-                  ),
-                },
-                {
-                  key: 'report',
-                  label: createTabLabel(
-                    isMobile ? 'Laporan' : 'Laporan Pembayaran',
-                    <CreditCard size={14} />,
-                    charges.length,
-                    'Ringkasan dan daftar tagihan',
-                  ),
-                  children: (
-                    <Tabs
-                      size={isMobile ? 'small' : 'middle'}
-                      items={[
-                        {
-                          key: 'summary',
-                          label: 'Rangkuman',
-                          children: <OthersReportPanel charges={charges} />,
-                        },
-                        {
-                          key: 'payments',
-                          label: isMobile ? `Pembayaran (${charges.length})` : `Daftar Pembayaran (${charges.length})`,
-                          children: (
-                            <OthersChargesTable
-                              charges={charges}
-                              loading={isFetchingCharges}
-                              onEditCharge={handleEditCharge}
-                              onDeleteCharge={handleDeleteCharge}
-                              isDeletingCharge={isDeletingCharge}
-                            />
-                          ),
-                        },
-                      ]}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            variant="borderless"
-            style={{
-              borderRadius: museRadius.card,
-              border: `1px solid ${museColors.divider}`,
-              background: "#ffffff",
-            }}
-            styles={{ body: { padding: isMobile ? '12px 14px' : '14px 16px' } }}>
-            <Flex align="flex-start" gap={8}>
-              <Sparkles size={14} color={museColors.muted} style={{ flexShrink: 0, marginTop: 3 }} />
-              <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
-                Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}. Kosongkan filter periode untuk melihat
-                semua periode. Tagihan mengikuti cakupan jenis (tingkat / individu); siswa yang pindah kelas tetap
-                terikat jika masuk roster individu.
-              </Text>
-            </Flex>
-          </Card>
-        </MotionDiv>
-      </Space>
+  return (
+    <>
+      <PageTabs
+        title="Pembayaran Lainnya"
+        description="Atur jenis biaya dan pantau pembayaran di luar SPP bulanan."
+        extra={
+          <Button type="primary" icon={<Plus size={16} />} onClick={() => openTypeModal()}>
+            Atur Jenis Biaya
+          </Button>
+        }
+        items={tabs}
+      />
 
       <OthersTypeModal
         open={typeModalOpen}
@@ -847,7 +804,7 @@ const Others = () => {
         onSubmit={handleSubmitPayment}
         onOtherPaymentAmountChange={handleOtherPaymentAmountChange}
       />
-    </MotionDiv>
+    </>
   );
 };
 
