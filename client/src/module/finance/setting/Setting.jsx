@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useFinanceScope } from '../../center/finance/FinanceScopeContext';
-import { Alert, Card, Flex, Form, Grid, Button, Space, Typography, message } from 'antd';
-import { motion } from 'framer-motion';
-import { Banknote, Building2, CreditCard, FileBadge2 } from 'lucide-react';
+import { Alert, Flex, Form, Grid, Select, message } from 'antd';
+import { Banknote, Building2, CreditCard, FileBadge2, Wallet } from 'lucide-react';
+
+import { MuseCard, PageTabs } from '../../../components/ui/muse';
+import FinanceStatGrid from '../shared/FinanceStatGrid';
 import FinanceSkeleton from '../shared/FinanceSkeleton';
 import {
   useAddBankAccountMutation,
@@ -15,41 +18,11 @@ import {
   useUploadFinanceSignatureMutation,
   useUpdateBankAccountMutation,
 } from '../../../service/finance/ApiSetting';
-import SettingHeader from './components/SettingHeader';
 import FinanceProfileTab from './components/FinanceProfileTab';
 import MidtransTab from './components/MidtransTab';
 import PaymentMethodsCard from './components/PaymentMethodsCard';
 import BankAccountsTab, { createBankColumns } from './components/BankAccountsTab';
 
-import { museColors, museRadius, museShadow } from "../../../config/theme";
-const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.35,
-      ease: [0.22, 1, 0.36, 1],
-      staggerChildren: 0.08,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.28,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const { Paragraph, Text, Title } = Typography;
 
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
 
@@ -58,7 +31,20 @@ const Setting = () => {
   const isMobile = !screens.md;
   const financeScope = useFinanceScope();
   const [selectedHomebaseId, setSelectedHomebaseId] = useState(financeScope?.homebaseId || undefined);
-  const [activeTab, setActiveTab] = useState('profile');
+  const [, setSearchParams] = useSearchParams();
+  const setActiveTab = useCallback(
+    (key) => {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          next.set('tab', key);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [editingBankAccount, setEditingBankAccount] = useState(null);
 
@@ -313,21 +299,29 @@ const Setting = () => {
   const financeSummaryItems = [
     {
       title: 'Satuan aktif',
+      icon: <Building2 size={18} />,
+      tone: 'primary',
       value: selectedHomebase?.name || 'Belum dipilih',
       caption: 'Konfigurasi akan tersimpan per unit',
     },
     {
       title: 'Rekening bank',
+      icon: <Banknote size={18} />,
+      tone: 'success',
       value: `${bankAccounts.length} rekening`,
       caption: `${bankAccounts.filter((item) => item.is_active).length} aktif`,
     },
     {
       title: 'Metode pembayaran',
+      icon: <Wallet size={18} />,
+      tone: 'purple',
       value: `${paymentMethods.length} kanal`,
       caption: `${paymentMethods.filter((item) => item.is_active).length} metode aktif`,
     },
     {
       title: 'Gateway Midtrans',
+      icon: <CreditCard size={18} />,
+      tone: 'cyan',
       value: midtransMethod?.is_active ? 'Aktif' : 'Belum aktif',
       caption: gatewayConfig?.is_production ? 'Mode production' : 'Mode sandbox',
     },
@@ -338,24 +332,12 @@ const Setting = () => {
     return <FinanceSkeleton withHeader />;
   }
 
-  // Label tab: ikon 14 + teks satu baris, tanpa caption (CLAUDE.md §4 "Tab").
-  const createTabLabel = (label, shortLabel, icon) => (
-    <Flex align="center" gap={6} style={{ whiteSpace: 'nowrap' }}>
-      {icon}
-      <span>{isMobile ? shortLabel : label}</span>
-    </Flex>
-  );
-
   const tabItems = [
     {
       key: 'profile',
-      label: createTabLabel(
-        'Petugas Invoice',
-        'Petugas',
-        <FileBadge2 size={14} />,
-        'Profil penandatangan',
-      ),
-      children: (
+      label: 'Petugas Invoice',
+      icon: <FileBadge2 />,
+      render: () => (
         <FinanceProfileTab
           form={financeProfileForm}
           selectedHomebaseName={selectedHomebase?.name}
@@ -368,8 +350,9 @@ const Setting = () => {
     },
     {
       key: 'midtrans',
-      label: createTabLabel('Midtrans', 'Midtrans', <CreditCard size={14} />, 'Gateway pembayaran'),
-      children: (
+      label: 'Midtrans',
+      icon: <CreditCard />,
+      render: () => (
         <MidtransTab
           form={midtransForm}
           gatewayConfig={gatewayConfig}
@@ -381,13 +364,9 @@ const Setting = () => {
     },
     {
       key: 'banks',
-      label: createTabLabel(
-        'Rekening Bank',
-        'Rekening',
-        <Banknote size={14} />,
-        'Tujuan transfer manual',
-      ),
-      children: (
+      label: 'Rekening Bank',
+      icon: <Banknote />,
+      render: () => (
         <BankAccountsTab
           bankAccounts={bankAccounts}
           bankColumns={bankColumns}
@@ -406,13 +385,9 @@ const Setting = () => {
     },
     {
       key: 'methods',
-      label: createTabLabel(
-        'Metode Pembayaran',
-        'Metode',
-        <Building2 size={14} />,
-        'Aktif atau nonaktifkan kanal',
-      ),
-      children: (
+      label: 'Metode Pembayaran',
+      icon: <Building2 />,
+      render: () => (
         <PaymentMethodsCard
           paymentMethods={paymentMethods}
           manualBankMethod={manualBankMethod}
@@ -428,162 +403,57 @@ const Setting = () => {
     },
   ];
 
-  return (
-    <MotionDiv variants={containerVariants} initial="hidden" animate="visible">
-      <Space vertical size={isMobile ? 16 : 24} style={{ width: '100%', display: 'flex' }}>
-        <MotionDiv variants={itemVariants}>
-          <SettingHeader
-            homebases={homebases}
-            selectedHomebaseId={effectiveSelectedHomebaseId}
-            onChange={setSelectedHomebaseId}
+  // Ringkasan satuan berlaku untuk semua tab; tanpa satuan, tab hanya menampilkan petunjuk.
+  const withContext = (content) =>
+    hasSelectedHomebase ? (
+      <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
+        {isSettingsBusy ? (
+          <Alert
+            type="info"
+            showIcon
+            title="Memuat konfigurasi satuan"
+            description="Panel akan diperbarui otomatis saat data Midtrans, rekening, dan profil invoice selesai dimuat."
           />
-        </MotionDiv>
-
-        {!hasSelectedHomebase ? (
-          <MotionDiv variants={itemVariants}>
-            <Alert
-              type="info"
-              showIcon
-              title="Satuan belum dipilih"
-              description="Pilih satuan terlebih dahulu untuk mengatur Midtrans, rekening bank, metode pembayaran, dan profil invoice."
-              style={{ borderRadius: museRadius.card }}
-            />
-          </MotionDiv>
         ) : null}
+        <FinanceStatGrid
+          items={financeSummaryItems.map(({ caption, ...item }) => ({
+            ...item,
+            key: item.title,
+            note: caption,
+            noteAsText: true,
+          }))}
+        />
+        {content}
+      </Flex>
+    ) : (
+      <MuseCard>
+        <Alert
+          type="info"
+          showIcon
+          title="Satuan belum dipilih"
+          description="Pilih satuan di kanan atas untuk mengatur Midtrans, rekening bank, metode pembayaran, dan profil invoice."
+        />
+      </MuseCard>
+    );
 
-        {hasSelectedHomebase ? (
-          <MotionDiv variants={itemVariants}>
-            <Flex vertical gap={18}>
-              <Card
-                variant="borderless"
-                style={{
-                  width: '100%',
-                  borderRadius: museRadius.card,
-                  border: `1px solid ${museColors.divider}`,
-                  boxShadow: museShadow.card,
-                  background: "#ffffff",
-                  overflow: 'hidden',
-                }}
-                styles={{ body: { padding: isMobile ? 12 : 22 } }}>
-                <Flex vertical gap={isMobile ? 14 : 18}>
-                  {isSettingsBusy ? (
-                    <Alert
-                      type="info"
-                      showIcon
-                      title="Memuat konfigurasi satuan"
-                      description="Panel tetap tersedia dan akan diperbarui otomatis saat data Midtrans, rekening, dan profil invoice selesai dimuat."
-                      style={{ borderRadius: museRadius.card }}
-                    />
-                  ) : null}
-
-                  <div
-                    style={{
-                      padding: isMobile ? 14 : 20,
-                      borderRadius: museRadius.card,
-                      border: '1px solid rgba(59,130,246,0.12)',
-                      background: museColors.primarySoft,
-                    }}>
-                    <Title level={isMobile ? 5 : 4} style={{ margin: 0, lineHeight: 1.3 }}>
-                      Workspace Pengaturan Pembayaran
-                    </Title>
-                    {!isMobile ? (
-                      <Paragraph type="secondary" style={{ margin: '6px 0 0', maxWidth: 760 }}>
-                        Gunakan panel ini untuk memastikan profil invoice, rekening bank, dan koneksi Midtrans setiap
-                        satuan tersusun rapi dan siap dipakai operasional harian.
-                      </Paragraph>
-                    ) : null}
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: isMobile
-                          ? '1fr'
-                          : screens.lg
-                            ? 'repeat(4, minmax(0, 1fr))'
-                            : 'repeat(2, minmax(0, 1fr))',
-                        gap: 12,
-                        marginTop: 16,
-                      }}>
-                      {financeSummaryItems.map((item) => (
-                        <div
-                          key={item.title}
-                          style={{
-                            padding: isMobile ? '12px 14px' : '14px 16px',
-                            borderRadius: museRadius.card,
-                            background: '#ffffff',
-                            border: `1px solid ${museColors.divider}`,
-                            boxShadow: museShadow.card,
-                          }}>
-                          <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
-                            {item.title}
-                          </Text>
-                          <div
-                            style={{
-                              marginTop: 8,
-                              fontSize: isMobile ? 14 : 16,
-                              fontWeight: 700,
-                              color: museColors.text,
-                              wordBreak: 'break-word',
-                            }}>
-                            {item.value}
-                          </div>
-                          <div
-                            style={{
-                              marginTop: 4,
-                              fontSize: 12,
-                              color: museColors.muted,
-                            }}>
-                            {item.caption}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: isMobile
-                          ? 'repeat(2, minmax(0, 1fr))'
-                          : screens.lg
-                            ? 'repeat(4, minmax(0, 1fr))'
-                            : 'repeat(2, minmax(0, 1fr))',
-                        gap: 12,
-                        marginBottom: 18,
-                      }}>
-                      {tabItems.map((item) => {
-                        const isActive = activeTab === item.key;
-
-                        return (
-                          <Button
-                            key={item.key}
-                            type={isActive ? 'primary' : 'default'}
-                            onClick={() => setActiveTab(item.key)}
-                            style={{
-                              height: 'auto',
-                              minHeight: isMobile ? 58 : 74,
-                              padding: isMobile ? '10px 12px' : '12px 14px',
-                              borderRadius: museRadius.card,
-                              justifyContent: 'flex-start',
-                              textAlign: 'left',
-                              whiteSpace: 'normal',
-                              boxShadow: isActive ? '0 18px 32px rgba(37, 99, 235, 0.18)' : 'none',
-                            }}>
-                            {item.label}
-                          </Button>
-                        );
-                      })}
-                    </div>
-
-                    <div style={{ width: '100%' }}>{tabItems.find((item) => item.key === activeTab)?.children}</div>
-                  </div>
-                </Flex>
-              </Card>
-            </Flex>
-          </MotionDiv>
-        ) : null}
-      </Space>
-    </MotionDiv>
+  return (
+    <PageTabs
+      title="Pengaturan Keuangan"
+      description="Kelola kanal pembayaran, rekening tujuan transfer, dan identitas invoice. Perubahan tersimpan khusus untuk satuan yang dipilih."
+      extra={
+        <Select
+          aria-label="Pilih satuan"
+          value={effectiveSelectedHomebaseId}
+          onChange={setSelectedHomebaseId}
+          options={homebases.map((item) => ({ value: item.id, label: item.name }))}
+          suffixIcon={<Building2 size={14} />}
+          style={{ width: isMobile ? '100%' : 260, maxWidth: '100%' }}
+          placeholder="Pilih satuan"
+          disabled={homebases.length <= 1}
+        />
+      }
+      items={tabItems.map((item) => ({ ...item, render: () => withContext(item.render()) }))}
+    />
   );
 };
 

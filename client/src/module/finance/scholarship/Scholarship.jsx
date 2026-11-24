@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { useFinanceScope } from '../../center/finance/FinanceScopeContext';
-import { Alert, Button, Card, Flex, Form, Grid, Input, Select, Space, Tabs, Typography, message } from 'antd';
-import { motion } from 'framer-motion';
-import { RefreshCw } from 'lucide-react';
+import { Alert, Button, Flex, Form, Grid, Input, Select, Space, message } from 'antd';
+import { BarChart3, List, Plus, RefreshCw, TicketPercent, Users } from 'lucide-react';
+
+import { MuseCard, PageTabs } from '../../../components/ui/muse';
 
 import FinanceSkeleton from '../shared/FinanceSkeleton';
 import {
@@ -21,19 +23,15 @@ import {
   useUpdateScholarshipMutation,
   useUpdateScholarshipStudentMutation,
 } from '../../../service/finance/ApiScholarship';
-import { cardStyle, monthKey, pageStyle, parseMonthKey } from './constants';
+import { monthKey, parseMonthKey } from './constants';
 import ScholarshipBenefitModal from './components/ScholarshipBenefitModal';
 import ScholarshipBenefitTable from './components/ScholarshipBenefitTable';
 import ScholarshipDetailSummary from './components/ScholarshipDetailSummary';
 import ScholarshipFormModal from './components/ScholarshipFormModal';
-import ScholarshipHeader from './components/ScholarshipHeader';
 import ScholarshipListTable from './components/ScholarshipListTable';
 import ScholarshipStudentsPanel from './components/ScholarshipStudentsPanel';
 import ScholarshipSummaryCards from './components/ScholarshipSummaryCards';
 
-import { museRadius } from "../../../config/theme";
-const { Text } = Typography;
-const MotionDiv = motion.div;
 
 const Scholarship = () => {
   const { user } = useSelector((state) => state.auth);
@@ -42,7 +40,20 @@ const Scholarship = () => {
   const financeScope = useFinanceScope();
   const lockHomebase = Boolean(user?.homebase_id) || Boolean(financeScope?.homebaseId);
 
-  const [activeTab, setActiveTab] = useState('list');
+  const [, setSearchParams] = useSearchParams();
+  const setActiveTab = useCallback(
+    (key) => {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          next.set('tab', key);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const [selectedId, setSelectedId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -388,8 +399,9 @@ const Scholarship = () => {
   const tabItems = [
     {
       key: 'list',
-      label: isMobile ? 'Daftar' : 'Daftar Beasiswa',
-      children: (
+      label: 'Daftar Beasiswa',
+      icon: <List />,
+      render: () => (
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Flex gap={8} wrap="wrap">
             <Select
@@ -436,8 +448,9 @@ const Scholarship = () => {
     },
     {
       key: 'benefits',
-      label: isMobile ? 'Aturan' : 'Aturan Potongan',
-      children: (
+      label: 'Aturan Potongan',
+      icon: <TicketPercent />,
+      render: () => (
         <ScholarshipBenefitTable
           scholarship={selectedScholarship}
           benefits={benefits}
@@ -451,8 +464,9 @@ const Scholarship = () => {
     },
     {
       key: 'students',
-      label: isMobile ? 'Penerima' : 'Penerima Siswa',
-      children: (
+      label: 'Penerima Siswa',
+      icon: <Users />,
+      render: () => (
         <ScholarshipStudentsPanel
           scholarship={selectedScholarship}
           students={recipients}
@@ -477,7 +491,8 @@ const Scholarship = () => {
     {
       key: 'summary',
       label: 'Ringkasan',
-      children: (
+      icon: <BarChart3 />,
+      render: () => (
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Flex justify="flex-end">
             <Button
@@ -499,34 +514,44 @@ const Scholarship = () => {
     },
   ];
 
+  // Ringkasan, error, dan beasiswa terpilih berlaku untuk semua tab.
+  const withContext = (content) => (
+    <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
+      <ScholarshipSummaryCards summary={summary} />
+      {isListError ? (
+        <Alert
+          type="error"
+          showIcon
+          title="Gagal memuat data beasiswa"
+          description={listError?.data?.message || listError?.error || 'Terjadi kesalahan'}
+        />
+      ) : null}
+      <MuseCard styles={{ body: { padding: isMobile ? 12 : 16 } }}>
+        {selectedScholarship ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            title={`Beasiswa terpilih: ${selectedScholarship.name}`}
+          />
+        ) : null}
+        {content}
+      </MuseCard>
+    </Flex>
+  );
+
   return (
-    <div>
-      <MotionDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <ScholarshipHeader onCreate={openCreate} />
-          <ScholarshipSummaryCards summary={summary} />
-
-          {isListError ? (
-            <Alert
-              type="error"
-              showIcon
-              title="Gagal memuat data beasiswa"
-              description={listError?.data?.message || listError?.error || 'Terjadi kesalahan'}
-            />
-          ) : null}
-
-          {selectedScholarship ? (
-            <Card size="small" style={{ borderRadius: museRadius.card }}>
-              <Text type="secondary">Beasiswa terpilih: </Text>
-              <Text strong>{selectedScholarship.name}</Text>
-            </Card>
-          ) : null}
-
-          <Card style={{ ...cardStyle, overflow: 'hidden' }} styles={{ body: { padding: isMobile ? 10 : 16 } }}>
-            <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} size={isMobile ? 'small' : 'middle'} />
-          </Card>
-        </Space>
-      </MotionDiv>
+    <>
+      <PageTabs
+        title="Beasiswa"
+        description="Buat beasiswa, tentukan potongan, lalu pilih penerima siswa."
+        extra={
+          <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
+            Tambah Beasiswa
+          </Button>
+        }
+        items={tabItems.map((item) => ({ ...item, render: () => withContext(item.render()) }))}
+      />
 
       <ScholarshipFormModal
         open={formModalOpen}
@@ -558,7 +583,7 @@ const Scholarship = () => {
         }}
         onSubmit={handleSubmitBenefit}
       />
-    </div>
+    </>
   );
 };
 
