@@ -3,8 +3,20 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { withTransaction, withQuery } from "../../utils/wrapper.js"; // Sesuaikan path wrapper
 import { authorize } from "../../middleware/authorize.js";
+import {
+  AuthDeniedError,
+  enrichDomainProfiles,
+  findDomainRole,
+} from "./domainProfiles.js";
+
+// File ini milik main. Data login khusus domain (tendik, piket, penugasan,
+// musyrif, keuangan) ditambahkan lewat server/router/<domain>/authProfile.js,
+// bukan dengan mengedit file ini. Lihat domainProfiles.js.
 
 const router = Router();
+
+const sendAuthDenied = (res, error) =>
+  res.status(error.status || 403).json({ message: error.message });
 
 // ============================================================================
 // 1. SIGNUP PARENT (Orang Tua mendaftar berdasarkan NIS Siswa)
@@ -137,6 +149,7 @@ router.post(
         `
         SELECT 
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           (
             SELECT COALESCE(json_agg(
@@ -204,6 +217,24 @@ router.post(
       if (adminRes.rowCount > 0) roleData = adminRes.rows[0];
     }
 
+    delete user.password;
+
+    // 4b. Role & data khusus domain (lihat domainProfiles.js). Domain boleh
+    // menolak login (mis. tendik tanpa penugasan) sebelum token dibuat.
+    let payload;
+    try {
+      const domainRole = await findDomainRole(user.role);
+      if (domainRole?.loadSigninProfile) {
+        roleData = (await domainRole.loadSigninProfile(client, user.id)) || {};
+      }
+
+      payload = { ...user, ...roleData };
+      await enrichDomainProfiles({ db: client, user: payload, phase: "signin" });
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
+    }
+
     // 5. Generate Token
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT, {
       expiresIn: "7d",
@@ -225,15 +256,10 @@ router.post(
       user.id,
     ]);
 
-    delete user.password;
-
     // 7. Kirim Response
     return res.status(200).json({
       message: "Login berhasil",
-      user: {
-        ...user, // id, role, username...
-        ...roleData, // level (jika admin), nis (jika siswa), dll
-      },
+      user: payload, // data user + profil role + data domain
     });
   }),
 );
@@ -244,7 +270,7 @@ router.post(
 router.get(
   "/load-user",
   // Pastikan middleware authorize mengizinkan semua role ini
-  authorize("admin", "student", "teacher", "parent", "tahfiz"),
+  authorize("admin", "student", "teacher", "parent", "tahfiz", "staff"),
   withQuery(async (req, res, pool) => {
     const { id, role } = req.user;
 
@@ -279,6 +305,7 @@ router.get(
         SELECT 
           u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           (
             SELECT COALESCE(json_agg(
@@ -338,20 +365,33 @@ router.get(
       `;
     }
 
-    if (!query) {
-      return res
-        .status(403)
-        .json({ message: "Role tidak dikenali atau akses ditolak." });
+    try {
+      let userData;
+
+      if (query) {
+        const resData = await pool.query(query, [id]);
+        userData = resData.rows[0];
+      } else {
+        // Role di luar role inti (mis. staff) disediakan domain.
+        const domainRole = await findDomainRole(role);
+        if (!domainRole?.loadUserProfile) {
+          return res
+            .status(403)
+            .json({ message: "Role tidak dikenali atau akses ditolak." });
+        }
+        userData = await domainRole.loadUserProfile(pool, id);
+      }
+
+      if (!userData) {
+        return res.status(404).json({ message: "Data user tidak ditemukan" });
+      }
+
+      await enrichDomainProfiles({ db: pool, user: userData, phase: "load-user" });
+      return res.status(200).json(userData);
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
     }
-
-    const resData = await pool.query(query, [id]);
-    const userData = resData.rows[0];
-
-    if (!userData) {
-      return res.status(404).json({ message: "Data user tidak ditemukan" });
-    }
-
-    return res.status(200).json(userData);
   }),
 );
 
@@ -432,6 +472,7 @@ router.put(
     if (role === "teacher") detailTable = "u_teachers";
     else if (role === "admin") detailTable = "u_admin";
     else if (role === "parent") detailTable = "u_parents";
+    else detailTable = (await findDomainRole(role))?.detailTable || "";
 
     if (detailTable) {
       const updates = [];

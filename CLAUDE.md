@@ -37,7 +37,8 @@ Setiap file punya **satu pemilik**. Petanya ada di [scripts/ci/shared-paths.js](
 | File | Pemilik | Akibat kalau diedit branch lain |
 |---|---|---|
 | `module/parent/`, `module/student/dashboard/`, `module/teacher/dashboard/` | `feature/lms` | Diedit di `main` → sync `main → feature/lms` konflik. Diedit di feature lain → ditimpa versi lms saat compose. |
-| `server/router/auth/RouterAuth.js`, `server/middleware/authorize.js` | `feature/lms` | Perubahan dari tahfiz/finance **hilang di produk** (compose memakai versi lms). |
+| `server/router/auth/` (`RouterAuth.js`, `domainProfiles.js`) | `main` | Guard feature gagal. Data login khusus domain ditaruh di `server/router/<domain>/authProfile.js` (milik feature itu), bukan di `RouterAuth.js`. |
+| `server/middleware/authorize.js` | `feature/lms` | Perubahan dari tahfiz/finance **hilang di produk** (compose memakai versi lms). |
 | `components/profile/` | `main` | Guard feature gagal. |
 | `module/<domain>/`, `service/<domain>/`, `server/router/<domain>/`, `<domain>Menus.jsx`, `<domain>Routes.jsx` | `feature/<domain>` | Diedit di `main` → guard main gagal. |
 
@@ -46,8 +47,9 @@ Aturan kerja:
 1. **Di `main`**: jangan mengedit file milik feature, termasuk untuk restyle. `guard-shared-paths.yml` gagal (job `guard-main`) bila itu terjadi. Restyle dashboard guru/siswa/orang tua dikerjakan di `feature/lms`.
 2. **Di `feature/*`**: jangan mengedit file milik `main` (guard gagal) atau milik feature lain (guard memberi peringatan, dan perubahannya tidak sampai ke produk). Kerjakan di branch pemiliknya.
 3. **Satu perubahan, satu branch.** Jangan mengerjakan hal yang sama di `main` dan di feature secara paralel (misalnya restyle dashboard di keduanya), karena pasti konflik.
-4. **Butuh file baru yang dipakai lintas feature?** Taruh di `main` lalu tambahkan ke `MAIN_OWNED_PATHS`. Path milik feature baru harus ditambahkan ke `FEATURE_OWNED_PATHS` **dan** ke fungsi `restore_<domain>_owned_paths` di ketiga `publish-*.yml`, dengan isi yang sama.
-5. **Mengubah `.github/workflows/`**: edit di `main`, lalu merge `main` ke keempat `feature/*` secara manual dan push. Bot sync tidak boleh mendorong file workflow (batasan `GITHUB_TOKEN`), jadi perubahan workflow tidak ikut sync otomatis.
+4. **Data login/profil user per domain** (role tambahan seperti tendik, flag seperti `is_musyrif`, `can_manage_finance`, `has_duty_today`): isi `server/router/<domain>/authProfile.js` dengan `roles` dan/atau `enrichProfile`. Bentuknya dijelaskan di [server/router/auth/domainProfiles.js](server/router/auth/domainProfiles.js). Untuk menolak login, lempar `AuthDeniedError`. Jangan menambah query domain (skema `lms.*`, `tahfiz.*`, `finance.*`) ke `RouterAuth.js`, karena produk tanpa domain itu tidak punya skemanya.
+5. **Butuh file baru yang dipakai lintas feature?** Taruh di `main` lalu tambahkan ke `MAIN_OWNED_PATHS`. Path milik feature baru harus ditambahkan ke `FEATURE_OWNED_PATHS` **dan** ke fungsi `restore_<domain>_owned_paths` di ketiga `publish-*.yml`, dengan isi yang sama.
+6. **Mengubah `.github/workflows/`**: edit di `main`, lalu merge `main` ke keempat `feature/*` secara manual dan push. Bot sync tidak boleh mendorong file workflow (batasan `GITHUB_TOKEN`), jadi perubahan workflow tidak ikut sync otomatis.
 
 ### Kalau sync main gagal
 
