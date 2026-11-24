@@ -155,6 +155,12 @@ Judul halaman memakai [PageHeader.jsx](client/src/components/ui/PageHeader.jsx),
 - `font-weight: 600`. Satu tombol `type="primary"` per area aksi; lainnya `default`/`text`.
 - Aksi berbahaya: `danger` + `Popconfirm` / `Modal.confirm`.
 
+### Tab
+- **Tab halaman** (`PageTabs`, `Segmented`): `size="middle"` (tinggi item 32px) di semua lebar layar, **jangan** `size="large"`. Label: ikon `14px` + teks `14px/600`, jarak ikon–teks `6px`, padding label `0 4px`, track padding `3px`. Ukuran ini sudah diatur di `PageTabs`; ikon `item.icon` otomatis dikecilkan ke 14.
+- **Tab bertingkat** (`Tabs` di dalam bagian/drawer): pakai ukuran default (`middle`), `small` untuk tab di dalam card/drawer sempit atau di bawah 768px. Jangan `size="large"` dan jangan `tabBarGutter`/padding tambahan.
+- Label tab satu baris (`nowrap`), tanpa caption/deskripsi di bawah label; deskripsi bagian taruh di prop `description` item `PageTabs`.
+- Bila tab lebih lebar dari layar, biarkan scroll horizontal di wadah tab (sudah ada di `PageTabs`), jangan diperkecil di bawah ukuran di atas.
+
 ### Grafik (`@ant-design/plots`)
 - Grafik utama boleh di dalam card berlatar gradien `colorPrimary` (gaya "bar chart" Muse) dengan teks putih; grafik sekunder di card putih.
 - Garis/area tipis, grid samar, tanpa border chart. Progress bar tinggi `3px`.
@@ -192,7 +198,7 @@ Deep-link ke bagian tertentu lewat URL, misalnya `/admin-data-pokok?tab=class` a
 - **Empty state**: `Empty` dengan kalimat yang menjelaskan langkah berikutnya + tombol aksi bila ada.
 - **Error**: `Alert type="error"` di dalam card, dengan pesan dari server bila ada (`error?.data?.message`). Di antd v6 pakai `title=`, bukan `message=` (deprecated).
 - **Modal**: judul pakai `<CardTitle>` di prop `title`. Jangan ada hero gradien atau card bertumpuk di dalam modal; form langsung di body, catatan/tips pakai `Alert type="info"`.
-- **Tab**: pakai prop `icon` + `label` teks biasa. Jangan membuat kotak ikon bergradien di label tab.
+- **Tab**: pakai prop `icon` + `label` teks biasa, ukuran ikuti §4 "Tab". Jangan membuat kotak ikon bergradien di label tab.
 - **Feedback aksi**: `message.success` / `message.error` (lebih baik lewat `App.useApp()` agar ikut theme), kalimat singkat: "Data siswa berhasil disimpan".
 - **Konfirmasi**: hapus/reset/publish wajib dikonfirmasi; sebutkan objek yang terdampak.
 - **Responsif**: setiap halaman harus bisa dipakai di lebar 360px tanpa scroll horizontal halaman (tabel boleh scroll di dalam card).
