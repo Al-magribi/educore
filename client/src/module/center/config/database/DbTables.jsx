@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
-  Badge,
   Button,
-  Card,
   Col,
   Empty,
   Flex,
@@ -11,29 +9,27 @@ import {
   Popconfirm,
   Row,
   Select,
-  Space,
-  Spin,
+  Skeleton,
   Tag,
   Typography,
   message,
 } from "antd";
 import {
-  AppstoreOutlined,
-  CheckCircleFilled,
+  CheckOutlined,
   CheckSquareOutlined,
   DatabaseOutlined,
   DeleteOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { motion } from "framer-motion";
 import {
   useGetTablesQuery,
   useResetTablesMutation,
 } from "../../../../service/center/ApiDatabase";
+import { CardTitle, IconBox, MuseCard } from "../../../../components/ui/muse";
+import { museColors, museRadius } from "../../../../config/theme";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
 const HIDDEN_SCHEMAS = ["pgboss"];
 const HIDDEN_TABLES = [
   "db_city",
@@ -84,7 +80,6 @@ const getTableMeta = (table, index = 0) => {
 const DbTables = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const isCompact = !screens.lg;
 
   const { data: tables, isLoading } = useGetTablesQuery();
   const [resetTables, { isLoading: isResetting }] = useResetTablesMutation();
@@ -195,232 +190,128 @@ const DbTables = () => {
 
     return (
       <Col xs={24} sm={12} md={8} lg={6} key={table.key} style={{ minWidth: 0 }}>
-        <MotionDiv
-          whileHover={isMobile ? undefined : { y: -3 }}
-          transition={{ duration: 0.2 }}
-          style={{ height: "100%", minWidth: 0 }}
+        <div
+          role="checkbox"
+          aria-checked={isSelected}
+          tabIndex={0}
+          onClick={() => toggleSelection(table.key)}
+          onKeyDown={(event) => {
+            if (event.key === " " || event.key === "Enter") {
+              event.preventDefault();
+              toggleSelection(table.key);
+            }
+          }}
+          style={{
+            cursor: "pointer",
+            border: `1px solid ${isSelected ? museColors.primary : museColors.divider}`,
+            borderRadius: museRadius.card,
+            background: isSelected ? museColors.primarySoft : "#fff",
+            padding: isMobile ? 12 : 16,
+            transition: "border-color 0.2s, background 0.2s",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            height: "100%",
+            minWidth: 0,
+          }}
         >
-          <div
-            onClick={() => toggleSelection(table.key)}
-            style={{
-              position: "relative",
-              cursor: "pointer",
-              border: `1px solid ${isSelected ? "#60a5fa" : "#dbe2ea"}`,
-              borderRadius: isMobile ? 16 : 20,
-              background: isSelected
-                ? "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(14,165,233,0.08))"
-                : "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
-              padding: isMobile ? 12 : 16,
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              gap: isMobile ? 10 : 12,
-              minHeight: isMobile ? 80 : 92,
-              minWidth: 0,
-              overflow: "hidden",
-              boxShadow: isSelected
-                ? "0 16px 40px rgba(37,99,235,0.12)"
-                : "0 10px 24px rgba(15,23,42,0.04)",
-            }}
-          >
-            <div
-              style={{
-                width: isMobile ? 36 : 40,
-                height: isMobile ? 36 : 40,
-                borderRadius: 14,
-                background: isSelected ? "#2563eb" : "#eef2ff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: isSelected ? "#fff" : "#4f46e5",
-                flexShrink: 0,
-              }}
-            >
-              {isSelected ? <CheckCircleFilled /> : <DatabaseOutlined />}
-            </div>
+          <IconBox
+            icon={isSelected ? <CheckOutlined /> : <DatabaseOutlined />}
+            tone={isSelected ? "primary" : museColors.muted}
+            size={36}
+          />
 
-            <div style={{ flex: 1, minWidth: 0, overflow: "hidden", paddingRight: isSelected ? 20 : 0 }}>
-              <Text
-                strong={isSelected}
-                style={{
-                  color: isSelected ? "#1d4ed8" : "#0f172a",
-                  display: "block",
-                  fontSize: isMobile ? 13 : undefined,
-                }}
-                ellipsis={{ tooltip: table.fullName }}
-              >
-                {table.tableName}
-              </Text>
-              <Space size={6} wrap style={{ marginTop: 4 }}>
-                <Tag
-                  color={table.color}
-                  style={{ margin: 0, borderRadius: 999, fontSize: isMobile ? 11 : undefined }}
-                >
-                  {table.schema}
-                </Tag>
-                {!isMobile && (
-                  <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-                    {table.fullName}
-                  </Text>
-                )}
-              </Space>
-            </div>
-
-            {isSelected ? (
-              <CheckCircleFilled
-                style={{
-                  position: "absolute",
-                  top: 12,
-                  right: 12,
-                  fontSize: 18,
-                  color: "#2563eb",
-                }}
-              />
-            ) : null}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Text strong style={{ display: "block" }} ellipsis={{ tooltip: table.fullName }}>
+              {table.tableName}
+            </Text>
+            <Tag color={table.color} style={{ margin: "4px 0 0", fontSize: 11 }}>
+              {table.schema}
+            </Tag>
           </div>
-        </MotionDiv>
+        </div>
       </Col>
     );
   };
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: isMobile ? 18 : 22,
-        border: "1px solid rgba(148, 163, 184, 0.14)",
-        boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
-        width: "100%",
-        minWidth: 0,
-        overflow: "hidden",
-      }}
-      styles={{ body: { padding: isMobile ? 12 : 18 } }}
-    >
-      <Space orientation="vertical" size={isMobile ? 14 : 18} style={{ width: "100%" }}>
-        <Flex
-          wrap="wrap"
-          gap={12}
-          justify="space-between"
-          align={isCompact ? "stretch" : "flex-start"}
-          vertical={isCompact}
-          style={{ width: "100%", minWidth: 0 }}
-        >
-          <Flex align="flex-start" gap={12} style={{ minWidth: 0, flex: 1 }}>
-            <div
-              style={{
-                width: isMobile ? 40 : 44,
-                height: isMobile ? 40 : 44,
-                borderRadius: 16,
-                background: "rgba(99,102,241,0.12)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#4f46e5",
-                flexShrink: 0,
-              }}
-            >
-              <AppstoreOutlined />
-            </div>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <Flex align="center" gap={8} wrap="wrap">
-                <Title
-                  level={4}
-                  style={{ margin: 0, color: "#0f172a", fontSize: isMobile ? 16 : undefined }}
-                >
-                  {isMobile ? "Manajemen Tabel" : "Manajemen Data Tabel"}
-                </Title>
-                {normalizedTables.length > 0 ? (
-                  <Badge
-                    count={normalizedTables.length}
-                    style={{ backgroundColor: "#64748b" }}
-                  />
-                ) : null}
-              </Flex>
-              {!isMobile && (
-                <Text style={{ color: "#64748b", display: "block", marginTop: 4 }}>
-                  Pilih tabel dari semua schema untuk dikosongkan beserta reset
-                  identity-nya. Admin pusat/center beserta relasi `u_admin` akan
-                  dipertahankan.
-                </Text>
-              )}
-            </div>
-          </Flex>
-
-          <Flex
-            gap={8}
-            wrap="wrap"
-            vertical={isMobile}
-            style={{ width: isCompact ? "100%" : "auto", minWidth: 0 }}
-          >
-            <Select
-              value={schemaFilter}
-              onChange={setSchemaFilter}
-              options={schemaOptions}
-              style={{ width: isMobile ? "100%" : 190, maxWidth: "100%" }}
-            />
-            <Input
-              placeholder={isMobile ? "Cari tabel..." : "Cari schema atau tabel..."}
-              prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                width: isMobile ? "100%" : 260,
-                maxWidth: "100%",
-                borderRadius: 999,
-              }}
-              allowClear
-            />
-          </Flex>
+    <MuseCard
+      title={
+        <CardTitle
+          title={
+            <Flex align="center" gap={8}>
+              {isMobile ? "Manajemen Tabel" : "Manajemen Data Tabel"}
+              {normalizedTables.length > 0 ? (
+                <Tag style={{ margin: 0 }}>{normalizedTables.length}</Tag>
+              ) : null}
+            </Flex>
+          }
+          description={
+            isMobile
+              ? undefined
+              : "Kosongkan tabel beserta reset identity-nya. Admin pusat/center dan relasi u_admin tetap dipertahankan."
+          }
+        />
+      }
+      extra={
+        <Flex gap={8} wrap style={{ padding: "8px 0" }}>
+          <Select
+            aria-label="Filter schema"
+            value={schemaFilter}
+            onChange={setSchemaFilter}
+            options={schemaOptions}
+            style={{ width: isMobile ? "100%" : 180 }}
+          />
+          <Input
+            aria-label="Cari tabel"
+            placeholder={isMobile ? "Cari tabel..." : "Cari schema atau tabel..."}
+            prefix={<SearchOutlined style={{ color: museColors.muted }} />}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ width: isMobile ? "100%" : 240 }}
+            allowClear
+          />
         </Flex>
-
-        <div
+      }
+    >
+      <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
+        <Flex
+          justify="space-between"
+          align={isMobile ? "stretch" : "center"}
+          vertical={isMobile}
+          wrap
+          gap={12}
           style={{
             padding: isMobile ? 12 : 16,
-            background: "#f8fafc",
-            borderRadius: 18,
-            border: "1px solid #e2e8f0",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: isMobile ? "stretch" : "center",
-            flexDirection: isMobile ? "column" : "row",
-            flexWrap: "wrap",
-            gap: isMobile ? 10 : 14,
+            background: museColors.bgLayout,
+            borderRadius: museRadius.item,
             minWidth: 0,
           }}
         >
-          <Space wrap size={[8, 8]} style={{ width: isMobile ? "100%" : "auto" }}>
+          <Flex wrap gap={8} align="center">
             <Button
               type={allVisibleSelected ? "primary" : "default"}
               icon={<CheckSquareOutlined />}
               onClick={handleSelectAll}
               block={isMobile}
-              style={{ borderRadius: 999 }}
             >
               {allVisibleSelected ? "Batal Pilih Semua" : "Pilih Semua"}
             </Button>
 
             {schemaSummary.map(([schema, count], index) => (
-              <Tag
-                key={schema}
-                color={schemaColors[index % schemaColors.length]}
-                style={{ borderRadius: 999, margin: 0, fontSize: isMobile ? 11 : undefined }}
-              >
+              <Tag key={schema} color={schemaColors[index % schemaColors.length]} style={{ margin: 0 }}>
                 {schema}: {count}
               </Tag>
             ))}
 
             {selectedTables.length > 0 ? (
-              <Text strong style={{ color: "#d97706", fontSize: isMobile ? 12 : undefined }}>
-                {selectedTables.length} tabel dipilih
-              </Text>
+              <Text strong>{selectedTables.length} tabel dipilih</Text>
             ) : null}
 
             {hasPartialSelection && !isMobile ? (
-              <Text type="secondary">
-                Sebagian tabel terlihat sudah dipilih
-              </Text>
+              <Text type="secondary">Sebagian tabel terlihat sudah dipilih</Text>
             ) : null}
-          </Space>
+          </Flex>
 
           {selectedTables.length > 0 ? (
             <Popconfirm
@@ -437,7 +328,6 @@ const DbTables = () => {
                 icon={<DeleteOutlined />}
                 loading={isResetting}
                 block={isMobile}
-                style={{ borderRadius: 999, fontWeight: 600 }}
               >
                 {isMobile
                   ? `Kosongkan (${selectedTables.length})`
@@ -445,26 +335,20 @@ const DbTables = () => {
               </Button>
             </Popconfirm>
           ) : null}
-        </div>
+        </Flex>
 
-        <Spin spinning={isLoading} tip="Memuat daftar tabel...">
-          {filteredTables.length > 0 ? (
-            <Row gutter={[isMobile ? 10 : 16, isMobile ? 10 : 16]}>
-              {filteredTables.map((table) => renderCard(table))}
-            </Row>
-          ) : (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                searchTerm
-                  ? "Tabel tidak ditemukan"
-                  : "Tidak ada tabel tersedia"
-              }
-            />
-          )}
-        </Spin>
-      </Space>
-    </Card>
+        {isLoading ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : filteredTables.length > 0 ? (
+          <Row gutter={[16, 16]}>{filteredTables.map((table) => renderCard(table))}</Row>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={searchTerm ? "Tabel tidak ditemukan. Coba kata kunci lain." : "Tidak ada tabel tersedia"}
+          />
+        )}
+      </Flex>
+    </MuseCard>
   );
 };
 

@@ -1,33 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { Alert, Button, Collapse, Space, Table, Tag, Tooltip, message } from "antd";
 import {
-  Drawer,
-  Button,
-  Upload,
-  Table,
-  message,
-  Alert,
-  Space,
-  Typography,
-  Collapse,
-  Row,
-  Col,
-  Statistic,
-  Tooltip,
-  Flex,
-  Card,
-  Tag,
-} from "antd";
-import {
-  InboxOutlined,
-  DeleteOutlined,
   CheckCircleOutlined,
-  WarningOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   InfoCircleOutlined,
   MinusCircleOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
-import { UploadCloud, X, Sparkles } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   useLazyExportStudentsQuery,
@@ -37,10 +18,9 @@ import {
   downloadStudentExcel,
   STUDENT_SHEET_NAME,
 } from "./studentImportTemplate";
-
-const { Dragger } = Upload;
-const { Title, Text } = Typography;
-const MotionDiv = motion.div;
+import { CardTitle, MuseCard } from "../../../../components/ui/muse";
+import { ImportDrawer, ImportStats, UploadDropzone } from "../../../../components/ui/muse/ImportKit";
+import { museColors } from "../../../../config/theme";
 
 const normalizeText = (value) => {
   if (value === undefined || value === null) return "";
@@ -325,7 +305,7 @@ const ImportStudent = ({ open, onClose, onFinish }) => {
         if (!record.isValid) {
           return (
             <Tooltip title={record.errors.join(", ")}>
-              <Tag color="error" style={{ margin: 0, borderRadius: 999 }}>
+              <Tag color="error" style={{ margin: 0 }}>
                 <WarningOutlined /> Error
               </Tag>
             </Tooltip>
@@ -334,7 +314,7 @@ const ImportStudent = ({ open, onClose, onFinish }) => {
         if (record.unchanged) {
           return (
             <Tooltip title="Data sama, tidak akan diperbarui">
-              <Tag style={{ margin: 0, borderRadius: 999 }}>
+              <Tag style={{ margin: 0 }}>
                 <MinusCircleOutlined /> Sama
               </Tag>
             </Tooltip>
@@ -342,7 +322,7 @@ const ImportStudent = ({ open, onClose, onFinish }) => {
         }
         return (
           <Tooltip title={`Akan diperbarui: ${record.changes.join(", ")}`}>
-            <Tag color="success" style={{ margin: 0, borderRadius: 999 }}>
+            <Tag color="success" style={{ margin: 0 }}>
               <CheckCircleOutlined /> Update
             </Tag>
           </Tooltip>
@@ -365,280 +345,136 @@ const ImportStudent = ({ open, onClose, onFinish }) => {
     },
   ];
 
+  const statusLabel =
+    summary.totalData === 0 ? "Menunggu file" : summary.errorCount > 0 ? "Perlu review" : "Siap impor";
+
   return (
-    <Drawer
-      title={null}
-      width={1100}
-      onClose={onClose}
+    <ImportDrawer
       open={open}
-      closable={false}
-      destroyOnHidden
-      styles={{
-        header: { display: "none" },
-        body: {
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
-          overflow: "hidden",
-          padding: 0,
-          background: "#f8fafc",
-        },
-      }}
+      onClose={onClose}
+      icon={<UploadCloud size={16} />}
+      title="Import Pembaruan Data Siswa"
+      description="Unggah Excel hasil unduhan. Hanya baris yang berbeda yang diperbarui pada periode aktif."
+      status={statusLabel}
+      statusColor={summary.errorCount > 0 ? "warning" : summary.totalData > 0 ? "success" : "processing"}
+      actions={
+        <>
+          <Button icon={<DownloadOutlined />} onClick={handleDownload} loading={isDownloading}>
+            Download
+          </Button>
+          <Button
+            onClick={handleUploadSubmit}
+            type="primary"
+            loading={isUploading}
+            disabled={summary.validCount === 0}
+          >
+            Impor {summary.updateCount > 0 ? `(${summary.updateCount})` : ""}
+          </Button>
+        </>
+      }
     >
-      <MotionDiv
-        initial={{ opacity: 0, x: 24 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-        style={{ height: "100%", display: "flex", flexDirection: "column" }}
-      >
-        <div
-          style={{
-            padding: 24,
-            background:
-              "linear-gradient(135deg, rgba(239,246,255,1), rgba(236,253,245,0.98))",
-            borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-          }}
-        >
-          <Flex justify="space-between" align="flex-start" gap={16}>
-            <Flex align="flex-start" gap={16}>
-              <div
-                style={{
-                  width: 58,
-                  height: 58,
-                  borderRadius: 20,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "linear-gradient(135deg, #2563eb, #14b8a6)",
-                  color: "#fff",
-                  boxShadow: "0 18px 32px rgba(37, 99, 235, 0.24)",
-                  flexShrink: 0,
-                }}
-              >
-                <UploadCloud size={24} />
-              </div>
-              <div>
-                <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 6 }}>
-                  <Title level={3} style={{ margin: 0 }}>
-                    Import Data Siswa
-                  </Title>
-                  <Tag
-                    bordered={false}
-                    style={{
-                      marginInlineEnd: 0,
-                      borderRadius: 999,
-                      padding: "6px 12px",
-                      background:
-                        summary.errorCount > 0
-                          ? "rgba(245,158,11,.12)"
-                          : "rgba(37,99,235,.10)",
-                      color: summary.errorCount > 0 ? "#b45309" : "#1d4ed8",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {summary.totalData === 0
-                      ? "Menunggu File"
-                      : summary.errorCount > 0
-                        ? "Perlu Review"
-                        : "Siap Impor"}
-                  </Tag>
-                </Flex>
-                <Text type="secondary" style={{ display: "block", maxWidth: 620 }}>
-                  Unggah file Excel hasil unduhan. Hanya data yang berbeda yang akan
-                  diperbarui pada periode aktif.
-                </Text>
-              </div>
-            </Flex>
-            <Flex gap={10} wrap="wrap" justify="flex-end">
-              <Button
-                icon={<DownloadOutlined />}
-                onClick={handleDownload}
-                loading={isDownloading}
-                style={{ borderRadius: 14 }}
-              >
-                Download
-              </Button>
-              <Button onClick={onClose} icon={<X size={16} />} style={{ borderRadius: 14 }}>
-                Tutup
-              </Button>
-              <Button
-                onClick={handleUploadSubmit}
-                type="primary"
-                loading={isUploading}
-                disabled={summary.validCount === 0}
-                style={{
-                  borderRadius: 14,
-                  boxShadow: "0 12px 24px rgba(37,99,235,.20)",
-                }}
-              >
-                Impor {summary.updateCount > 0 ? `(${summary.updateCount})` : ""}
-              </Button>
-            </Flex>
-          </Flex>
+      {summary.totalData > 0 && (
+        <ImportStats
+          items={[
+            { label: "Total", value: summary.totalData },
+            { label: "Akan update", value: summary.updateCount, color: museColors.success },
+            { label: "Tidak berubah", value: summary.unchangedCount, color: museColors.muted },
+            { label: "Perlu cek", value: summary.errorCount, color: museColors.danger },
+          ]}
+        />
+      )}
 
-          {summary.totalData > 0 && (
-            <Row gutter={[12, 12]} style={{ marginTop: 18 }}>
-              <Col xs={12} sm={6}>
-                <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "14px 16px" } }}>
-                  <Statistic title="Total" value={summary.totalData} />
-                </Card>
-              </Col>
-              <Col xs={12} sm={6}>
-                <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "14px 16px" } }}>
-                  <Statistic title="Akan Update" value={summary.updateCount} valueStyle={{ color: "#15803d" }} />
-                </Card>
-              </Col>
-              <Col xs={12} sm={6}>
-                <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "14px 16px" } }}>
-                  <Statistic title="Tidak Berubah" value={summary.unchangedCount} />
-                </Card>
-              </Col>
-              <Col xs={12} sm={6}>
-                <Card size="small" style={{ borderRadius: 18 }} styles={{ body: { padding: "14px 16px" } }}>
-                  <Statistic title="Perlu Cek" value={summary.errorCount} valueStyle={{ color: "#dc2626" }} />
-                </Card>
-              </Col>
-            </Row>
-          )}
-        </div>
-
-        <div style={{ padding: 20, flex: 1, overflow: "auto" }}>
-          <div style={{ flexShrink: 0, marginBottom: 16 }}>
-            <Collapse
-              size="small"
-              defaultActiveKey={["1"]}
-              items={[
-                {
-                  key: "1",
-                  label: (
-                    <Space>
-                      <InfoCircleOutlined />
-                      <span>Panduan Export & Import Excel</span>
-                    </Space>
-                  ),
-                  children: (
-                    <Alert
-                      message="Aturan Pengisian Data"
-                      description={
-                        <div>
-                          <ol style={{ paddingLeft: 20, margin: "0 0 10px" }}>
-                            <li>
-                              Klik <strong>Download</strong> untuk mengunduh data siswa
-                              periode aktif: NIS, NISN, Nama, Tingkat, Kelas, RFID.
-                            </li>
-                            <li>
-                              Edit sheet <strong>Data Siswa</strong> saja. Jangan ubah
-                              nama kolom.
-                            </li>
-                            <li>
-                              Cocokkan <strong>Tingkat</strong> dan <strong>Kelas</strong>{" "}
-                              dengan sheet <strong>Referensi Kelas</strong>.
-                            </li>
-                            <li>
-                              Unggah file, tinjau status baris, lalu klik{" "}
-                              <strong>Impor</strong>.
-                            </li>
-                          </ol>
-                          <ul style={{ paddingLeft: 20, margin: 0 }}>
-                            <li>
-                              <strong>NIS</strong> dipakai sebagai kunci pencarian siswa.
-                            </li>
-                            <li>
-                              Jika data berbeda, baris akan diperbarui. Jika sama, dilewati.
-                            </li>
-                            <li>
-                              Import tidak menambah siswa baru. NIS yang tidak ditemukan
-                              ditandai error.
-                            </li>
-                          </ul>
-                        </div>
-                      }
-                      type="info"
-                      showIcon
-                    />
-                  ),
-                },
-              ]}
-            />
-          </div>
-
-          {summary.totalData === 0 ? (
-            <Card
-              bordered={false}
-              style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15,23,42,.06)" }}
-              styles={{ body: { padding: 24 } }}
-            >
-              <Dragger
-                accept=".xlsx, .xls"
-                beforeUpload={handleFile}
-                fileList={fileList}
-                onChange={(info) => setFileList(info.fileList.slice(-1))}
-                showUploadList={false}
-                disabled={!refsReady}
-                style={{
-                  minHeight: 320,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  padding: 24,
-                  border: "2px dashed #93c5fd",
-                  borderRadius: 22,
-                  background:
-                    "linear-gradient(135deg, rgba(239,246,255,0.85), rgba(240,253,250,0.85))",
-                }}
-              >
-                <p className="ant-upload-drag-icon">
-                  <InboxOutlined style={{ color: "#2563eb", fontSize: 52 }} />
-                </p>
-                <Title level={3}>Klik atau tarik file Excel ke sini</Title>
-                <Text type="secondary">
-                  {refsReady
-                    ? "Gunakan file hasil download data siswa periode aktif."
-                    : "Menunggu data siswa dan referensi kelas periode aktif."}
-                </Text>
-                <div style={{ marginTop: 20 }}>
-                  <Tag
-                    bordered={false}
-                    style={{
-                      borderRadius: 999,
-                      padding: "8px 14px",
-                      background: "rgba(37,99,235,.10)",
-                      color: "#1d4ed8",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Flex align="center" gap={8}>
-                      <Sparkles size={14} />
-                      <span>Update hanya jika data berbeda</span>
-                    </Flex>
-                  </Tag>
-                </div>
-              </Dragger>
-            </Card>
-          ) : (
-            <>
-              {summary.errorCount > 0 && (
-                <Alert
-                  message={`Terdapat ${summary.errorCount} baris belum valid. Periksa NIS, nama, atau kecocokan tingkat/kelas.`}
-                  type="warning"
-                  showIcon
-                  style={{ marginBottom: 12 }}
-                />
-              )}
-              <Table
-                columns={columns}
-                dataSource={tableData}
-                rowKey="key"
-                pagination={false}
-                size="small"
-                bordered
-                scroll={{ x: 1100, y: "calc(100vh - 390px)" }}
+      <Collapse
+        size="small"
+        defaultActiveKey={summary.totalData === 0 ? ["1"] : []}
+        style={{ background: "#fff" }}
+        items={[
+          {
+            key: "1",
+            label: (
+              <Space>
+                <InfoCircleOutlined />
+                <span>Panduan export & import Excel</span>
+              </Space>
+            ),
+            children: (
+              <Alert
+                title="Aturan pengisian data"
+                description={
+                  <div>
+                    <ol style={{ paddingLeft: 20, margin: "0 0 10px" }}>
+                      <li>
+                        Klik <strong>Download</strong> untuk mengunduh data siswa periode aktif: NIS,
+                        NISN, Nama, Tingkat, Kelas, RFID.
+                      </li>
+                      <li>
+                        Edit sheet <strong>Data Siswa</strong> saja. Jangan ubah nama kolom.
+                      </li>
+                      <li>
+                        Cocokkan <strong>Tingkat</strong> dan <strong>Kelas</strong> dengan sheet{" "}
+                        <strong>Referensi Kelas</strong>.
+                      </li>
+                      <li>
+                        Unggah file, tinjau status baris, lalu klik <strong>Impor</strong>.
+                      </li>
+                    </ol>
+                    <ul style={{ paddingLeft: 20, margin: 0 }}>
+                      <li>
+                        <strong>NIS</strong> dipakai sebagai kunci pencarian siswa.
+                      </li>
+                      <li>Jika data berbeda, baris diperbarui. Jika sama, dilewati.</li>
+                      <li>
+                        Import tidak menambah siswa baru. NIS yang tidak ditemukan ditandai error.
+                      </li>
+                    </ul>
+                  </div>
+                }
+                type="info"
+                showIcon
               />
-            </>
+            ),
+          },
+        ]}
+      />
+
+      {summary.totalData === 0 ? (
+        <UploadDropzone
+          beforeUpload={handleFile}
+          fileList={fileList}
+          onChange={(info) => setFileList(info.fileList.slice(-1))}
+          disabled={!refsReady}
+          hint={
+            refsReady
+              ? "Gunakan file hasil download data siswa periode aktif."
+              : "Menunggu data siswa dan referensi kelas periode aktif..."
+          }
+          note="Update hanya jika data berbeda"
+        />
+      ) : (
+        <MuseCard
+          flush
+          title={<CardTitle title="Review Perubahan" description="Tinjau status tiap baris sebelum impor." />}
+        >
+          {summary.errorCount > 0 && (
+            <Alert
+              title={`Ada ${summary.errorCount} baris belum valid.`}
+              description="Periksa NIS, nama, atau kecocokan tingkat/kelas."
+              type="warning"
+              showIcon
+              style={{ margin: "0 24px 16px" }}
+            />
           )}
-        </div>
-      </MotionDiv>
-    </Drawer>
+          <Table
+            columns={columns}
+            dataSource={tableData}
+            rowKey="key"
+            pagination={false}
+            size="small"
+            scroll={{ x: 1100, y: "calc(100vh - 420px)" }}
+          />
+        </MuseCard>
+      )}
+    </ImportDrawer>
   );
 };
 

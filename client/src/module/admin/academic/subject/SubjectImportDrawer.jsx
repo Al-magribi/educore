@@ -1,53 +1,39 @@
 import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import {
-  Drawer,
-  Button,
-  Upload,
-  Table,
-  message,
   Alert,
-  Space,
-  Typography,
-  Collapse,
-  Divider,
-  Row,
+  Button,
   Col,
-  Statistic,
-  Tooltip,
-  Grid,
+  Collapse,
   Flex,
-  Card,
-  Tag,
+  Row,
   Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+  Upload,
+  message,
 } from "antd";
 import {
-  InboxOutlined,
-  DeleteOutlined,
   CheckCircleOutlined,
-  WarningOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   InfoCircleOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
-import {
-  UploadCloud,
-  X,
-  Sparkles,
-  BookOpen,
-  GitBranch,
-  Layers,
-} from "lucide-react";
+import { Layers, UploadCloud } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   useGetSubjectCategoriesQuery,
   useGetSubjectBranchesQuery,
   useUploadSubjectsMutation,
 } from "../../../../service/academic/ApiSubject";
+import { CardTitle, MuseCard } from "../../../../components/ui/muse";
+import { ImportDrawer, ImportStats, UploadDropzone } from "../../../../components/ui/muse/ImportKit";
+import { museColors } from "../../../../config/theme";
 
-const { Dragger } = Upload;
-const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
+const { Text } = Typography;
 
 const normalizeText = (value) => value?.toString().trim() || "";
 const normalizeKey = (value) =>
@@ -193,8 +179,6 @@ const recalculateRow = (row, categories, branches) => {
 };
 
 const SubjectImportDrawer = ({ open, onClose }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
   const [tableData, setTableData] = useState([]);
   const [fileList, setFileList] = useState([]);
 
@@ -423,10 +407,10 @@ const SubjectImportDrawer = ({ open, onClose }) => {
       align: "center",
       render: (_, record) =>
         record.errors.length === 0 ? (
-          <CheckCircleOutlined style={{ color: "#16a34a", fontSize: 18 }} />
+          <CheckCircleOutlined style={{ color: museColors.success, fontSize: 18 }} />
         ) : (
           <Tooltip title={record.errors.join(", ")}>
-            <WarningOutlined style={{ color: "#dc2626", fontSize: 18 }} />
+            <WarningOutlined style={{ color: museColors.danger, fontSize: 18 }} />
           </Tooltip>
         ),
     },
@@ -447,415 +431,149 @@ const SubjectImportDrawer = ({ open, onClose }) => {
   ];
 
   return (
-    <Drawer
-      title={null}
-      width={isMobile ? "100%" : 1180}
-      onClose={closeAndReset}
+    <ImportDrawer
       open={open}
-      closable={false}
-      destroyOnHidden
-      styles={{
-        header: { display: "none" },
-        body: {
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
-          overflow: "hidden",
-          padding: 0,
-          background: "#f8fafc",
-        },
-      }}
-    >
-      <MotionDiv
-        initial={{ opacity: 0, x: 24 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-        style={{ height: "100%", display: "flex", flexDirection: "column" }}
-      >
-        <div
-          style={{
-            padding: isMobile ? 20 : 24,
-            background:
-              "linear-gradient(135deg, rgba(240,253,244,1), rgba(239,246,255,0.98))",
-            borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-          }}
-        >
-          <Flex justify="space-between" align="flex-start" gap={16}>
-            <Flex align="flex-start" gap={16}>
-              <div
-                style={{
-                  width: isMobile ? 50 : 58,
-                  height: isMobile ? 50 : 58,
-                  borderRadius: 20,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "linear-gradient(135deg, #0f766e, #0284c7)",
-                  color: "#fff",
-                  boxShadow: "0 18px 32px rgba(2, 132, 199, 0.24)",
-                  flexShrink: 0,
-                }}
-              >
-                <UploadCloud size={24} />
-              </div>
-
-              <div>
-                <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 6 }}>
-                  <Title level={3} style={{ margin: 0 }}>
-                    Import Mata Pelajaran
-                  </Title>
-                  <Tag
-                    bordered={false}
-                    style={{
-                      marginInlineEnd: 0,
-                      borderRadius: 999,
-                      padding: "6px 12px",
-                      background:
-                        errorCount > 0
-                          ? "rgba(245, 158, 11, 0.12)"
-                          : "rgba(3, 105, 161, 0.10)",
-                      color: errorCount > 0 ? "#b45309" : "#0369a1",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {readinessLabel}
-                  </Tag>
-                </Flex>
-                <Text type="secondary" style={{ display: "block", maxWidth: 680 }}>
-                  Upload file Excel sesuai field form mapel, review hasil mapping
-                  kategori dan cabang, lalu import data yang sudah valid ke sistem.
-                </Text>
-              </div>
-            </Flex>
-
-            <Flex gap={10} wrap="wrap" justify="flex-end">
-              <Button
-                icon={<DownloadOutlined />}
-                onClick={downloadTemplate}
-                style={{ borderRadius: 14 }}
-              >
-                Template
-              </Button>
-              <Button
-                onClick={closeAndReset}
-                icon={<X size={16} />}
-                style={{ borderRadius: 14 }}
-              >
-                Tutup
-              </Button>
-              <Button
-                onClick={handleUploadSubmit}
-                type="primary"
-                loading={isUploading}
-                disabled={validCount === 0}
-                style={{
-                  borderRadius: 14,
-                  boxShadow: "0 12px 24px rgba(2, 132, 199, 0.20)",
-                }}
-              >
-                Import {validCount > 0 ? `(${validCount})` : ""}
-              </Button>
-            </Flex>
-          </Flex>
-
-          <Row gutter={[12, 12]} style={{ marginTop: 20 }}>
-            <Col xs={24} md={12}>
-              <Card
-                size="small"
-                style={{
-                  borderRadius: 18,
-                  border: "1px solid rgba(148, 163, 184, 0.18)",
-                  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-                }}
-                styles={{ body: { padding: "14px 16px" } }}
-              >
-                <Flex align="center" gap={10} style={{ marginBottom: 10 }}>
-                  <Layers size={18} color="#0369a1" />
-                  <Text strong>Format Field Import</Text>
-                </Flex>
-                <Space wrap size={[8, 8]}>
-                  <Tag color="blue">Nama Mata Pelajaran</Tag>
-                  <Tag color="cyan">Kategori</Tag>
-                  <Tag color="geekblue">Cabang</Tag>
-                  <Tag color="purple">Kode Mapel</Tag>
-                  <Tag color="green">Nilai KKM</Tag>
-                </Space>
-              </Card>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Row gutter={[12, 12]}>
-                <Col xs={24} sm={8}>
-                  <Card
-                    size="small"
-                    style={{
-                      borderRadius: 18,
-                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-                    }}
-                    styles={{ body: { padding: "14px 16px" } }}
-                  >
-                    <Statistic title="Data" value={totalData} />
-                  </Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                  <Card
-                    size="small"
-                    style={{
-                      borderRadius: 18,
-                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-                    }}
-                    styles={{ body: { padding: "14px 16px" } }}
-                  >
-                    <Statistic
-                      title="Valid"
-                      value={validCount}
-                      valueStyle={{ color: "#15803d" }}
-                    />
-                  </Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                  <Card
-                    size="small"
-                    style={{
-                      borderRadius: 18,
-                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-                    }}
-                    styles={{ body: { padding: "14px 16px" } }}
-                  >
-                    <Statistic
-                      title="Perlu Cek"
-                      value={errorCount}
-                      valueStyle={{ color: "#dc2626" }}
-                    />
-                  </Card>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
-        </div>
-
-        <div style={{ padding: isMobile ? 16 : 20, flex: 1, overflow: "auto" }}>
-          <MotionDiv
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, delay: 0.04 }}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              minHeight: "100%",
-            }}
+      onClose={closeAndReset}
+      width={1180}
+      icon={<UploadCloud size={16} />}
+      title="Import Mata Pelajaran"
+      description="Upload Excel, review mapping kategori & cabang, lalu import data yang valid."
+      status={readinessLabel}
+      statusColor={errorCount > 0 ? "warning" : "processing"}
+      actions={
+        <>
+          <Button icon={<DownloadOutlined />} onClick={downloadTemplate}>
+            Template
+          </Button>
+          <Button
+            onClick={handleUploadSubmit}
+            type="primary"
+            loading={isUploading}
+            disabled={validCount === 0}
           >
-            <Collapse
-              size="small"
-              style={{
-                borderRadius: 18,
-                overflow: "hidden",
-                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-              }}
-              items={[
-                {
-                  key: "1",
-                  label: (
-                    <Space>
-                      <InfoCircleOutlined />
-                      <span>Panduan Format & Template Excel</span>
-                    </Space>
-                  ),
-                  children: (
-                    <div>
-                      <Alert
-                        title="Aturan Pengisian Data"
-                        description={
-                          <ul style={{ paddingLeft: 20, margin: 0 }}>
-                            <li>
-                              <b>Nama Mata Pelajaran:</b> wajib diisi sesuai nama
-                              mapel.
-                            </li>
-                            <li>
-                              <b>Kategori:</b> wajib dan harus sama dengan kategori
-                              yang tersedia di sistem.
-                            </li>
-                            <li>
-                              <b>Cabang:</b> opsional, tetapi jika diisi harus cocok
-                              dengan kategori yang dipilih.
-                            </li>
-                            <li>
-                              <b>Nilai KKM:</b> wajib angka 0-100.
-                            </li>
-                          </ul>
-                        }
-                        type="info"
-                        showIcon
-                        style={{ marginBottom: 12 }}
-                      />
-                      <Flex gap={10} wrap="wrap">
-                        <Button
-                          icon={<DownloadOutlined />}
-                          onClick={downloadTemplate}
-                        >
-                          Download Template
-                        </Button>
-                        <Tag
-                          bordered={false}
-                          color="processing"
-                          style={{ borderRadius: 999, padding: "6px 12px" }}
-                        >
-                          Format .xlsx / .xls
-                        </Tag>
-                      </Flex>
-                    </div>
-                  ),
-                },
-              ]}
-            />
+            Import {validCount > 0 ? `(${validCount})` : ""}
+          </Button>
+        </>
+      }
+    >
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
+          <MuseCard style={{ height: "100%" }}>
+            <Flex align="center" gap={8} style={{ marginBottom: 8 }}>
+              <Layers size={16} color={museColors.primary} />
+              <Text strong>Kolom yang dibaca dari Excel</Text>
+            </Flex>
+            <Space wrap size={[8, 8]}>
+              <Tag style={{ margin: 0 }}>Nama Mata Pelajaran</Tag>
+              <Tag style={{ margin: 0 }}>Kategori</Tag>
+              <Tag style={{ margin: 0 }}>Cabang</Tag>
+              <Tag style={{ margin: 0 }}>Kode Mapel</Tag>
+              <Tag style={{ margin: 0 }}>Nilai KKM</Tag>
+            </Space>
+          </MuseCard>
+        </Col>
+        <Col xs={24} md={12}>
+          <ImportStats
+            items={[
+              { label: "Data", value: totalData },
+              { label: "Valid", value: validCount, color: museColors.success },
+              { label: "Perlu cek", value: errorCount, color: museColors.danger },
+            ]}
+          />
+        </Col>
+      </Row>
 
-            {tableData.length === 0 ? (
-              <Card
-                bordered={false}
-                style={{
-                  flex: 1,
-                  borderRadius: 24,
-                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
-                }}
-                styles={{ body: { padding: 24, height: "100%" } }}
-              >
-                <Dragger
-                  accept=".xlsx, .xls"
-                  beforeUpload={handleFile}
-                  fileList={fileList}
-                  showUploadList={false}
-                  style={{
-                    minHeight: 360,
-                    padding: isMobile ? 24 : 40,
-                    border: "2px dashed #93c5fd",
-                    borderRadius: 22,
-                    background:
-                      "linear-gradient(135deg, rgba(239,246,255,0.85), rgba(240,253,250,0.85))",
-                  }}
-                >
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined style={{ color: "#0284c7", fontSize: 52 }} />
-                  </p>
-                  <Title level={3}>Klik atau tarik file Excel ke sini</Title>
-                  <Text type="secondary">
-                    Sistem akan membaca field form mapel, melakukan pencocokan
-                    kategori dan cabang, lalu menampilkan hasil review sebelum
-                    import.
-                  </Text>
-                  <div style={{ marginTop: 20 }}>
-                    <Tag
-                      bordered={false}
-                      style={{
-                        borderRadius: 999,
-                        padding: "8px 14px",
-                        background: "rgba(14, 165, 233, 0.10)",
-                        color: "#0369a1",
-                        fontWeight: 600,
-                      }}
-                    >
-                      <Flex align="center" gap={8}>
-                        <Sparkles size={14} />
-                        <span>Auto-match kategori dan cabang dari Excel</span>
-                      </Flex>
-                    </Tag>
-                  </div>
-                </Dragger>
-              </Card>
-            ) : (
-              <Card
-                bordered={false}
-                style={{
-                  borderRadius: 24,
-                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
-                }}
-                styles={{ body: { padding: 18 } }}
-              >
-                <Flex justify="space-between" align="center" gap={12} wrap="wrap">
-                  <div>
-                    <Title level={4} style={{ margin: 0 }}>
-                      Review & Mapping Data
-                    </Title>
-                    <Text type="secondary">
-                      Periksa kategori, cabang, kode, dan KKM sebelum data
-                      disimpan ke server.
-                    </Text>
-                  </div>
-                  <Space wrap size={[8, 8]}>
-                    <Tag
-                      bordered={false}
-                      style={{
-                        borderRadius: 999,
-                        padding: "8px 14px",
-                        fontWeight: 600,
-                        color: "#0369a1",
-                        background: "rgba(3, 105, 161, 0.10)",
-                      }}
-                    >
-                      <Flex align="center" gap={8}>
-                        <Layers size={14} />
-                        <span>{categories.length} kategori</span>
-                      </Flex>
-                    </Tag>
-                    <Tag
-                      bordered={false}
-                      style={{
-                        borderRadius: 999,
-                        padding: "8px 14px",
-                        fontWeight: 600,
-                        color: "#1d4ed8",
-                        background: "rgba(59, 130, 246, 0.10)",
-                      }}
-                    >
-                      <Flex align="center" gap={8}>
-                        <GitBranch size={14} />
-                        <span>{branches.length} cabang</span>
-                      </Flex>
-                    </Tag>
-                    <Tag
-                      bordered={false}
-                      style={{
-                        borderRadius: 999,
-                        padding: "8px 14px",
-                        fontWeight: 600,
-                        color: "#047857",
-                        background: "rgba(16, 185, 129, 0.10)",
-                      }}
-                    >
-                      <Flex align="center" gap={8}>
-                        <BookOpen size={14} />
-                        <span>{validCount} siap import</span>
-                      </Flex>
-                    </Tag>
-                  </Space>
-                </Flex>
-
-                <Divider style={{ margin: "16px 0" }} />
-
-                {errorCount > 0 && (
-                  <Alert
-                    title={`Terdapat ${errorCount} data yang perlu diperiksa.`}
-                    description="Pilih kategori atau cabang yang benar, atau hapus baris yang tidak ingin diimport."
-                    type="warning"
-                    showIcon
-                    style={{ marginBottom: 14, borderRadius: 16 }}
-                  />
-                )}
-
-                <Table
-                  dataSource={tableData}
-                  columns={columns}
-                  rowKey="key"
-                  pagination={false}
-                  size="small"
-                  bordered
-                  scroll={{ y: "calc(100vh - 360px)", x: 1350 }}
+      <Collapse
+        size="small"
+        style={{ background: "#fff" }}
+        items={[
+          {
+            key: "1",
+            label: (
+              <Space>
+                <InfoCircleOutlined />
+                <span>Panduan format & template Excel</span>
+              </Space>
+            ),
+            children: (
+              <div>
+                <Alert
+                  title="Aturan pengisian data"
+                  description={
+                    <ul style={{ paddingLeft: 20, margin: 0 }}>
+                      <li>
+                        <b>Nama Mata Pelajaran:</b> wajib diisi sesuai nama mapel.
+                      </li>
+                      <li>
+                        <b>Kategori:</b> wajib dan harus sama dengan kategori di sistem.
+                      </li>
+                      <li>
+                        <b>Cabang:</b> opsional, tetapi jika diisi harus cocok dengan kategorinya.
+                      </li>
+                      <li>
+                        <b>Nilai KKM:</b> wajib angka 0-100.
+                      </li>
+                    </ul>
+                  }
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 12 }}
                 />
-              </Card>
-            )}
-          </MotionDiv>
-        </div>
-      </MotionDiv>
-    </Drawer>
+                <Button icon={<DownloadOutlined />} onClick={downloadTemplate}>
+                  Download Template (.xlsx)
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      {tableData.length === 0 ? (
+        <UploadDropzone
+          beforeUpload={handleFile}
+          fileList={fileList}
+          hint="Sistem membaca kolom form mapel, mencocokkan kategori dan cabang, lalu menampilkan review sebelum import."
+          note="Format .xlsx / .xls"
+        />
+      ) : (
+        <MuseCard
+          flush
+          title={
+            <CardTitle
+              title="Review & Mapping Data"
+              description="Periksa kategori, cabang, kode, dan KKM sebelum disimpan."
+            />
+          }
+          extra={
+            <Space wrap size={[6, 6]}>
+              <Tag style={{ margin: 0 }}>{categories.length} kategori</Tag>
+              <Tag style={{ margin: 0 }}>{branches.length} cabang</Tag>
+              <Tag color="success" style={{ margin: 0 }}>
+                {validCount} siap import
+              </Tag>
+            </Space>
+          }
+        >
+          {errorCount > 0 && (
+            <Alert
+              title={`Ada ${errorCount} data yang perlu diperiksa.`}
+              description="Pilih kategori atau cabang yang benar, atau hapus baris yang tidak ingin diimport."
+              type="warning"
+              showIcon
+              style={{ margin: "0 24px 16px" }}
+            />
+          )}
+          <Table
+            dataSource={tableData}
+            columns={columns}
+            rowKey="key"
+            pagination={false}
+            size="small"
+            scroll={{ y: "calc(100vh - 420px)", x: 1350 }}
+          />
+        </MuseCard>
+      )}
+    </ImportDrawer>
   );
 };
 
