@@ -741,7 +741,6 @@ const Profile = () => {
               <Tabs
                 defaultActiveKey="details"
                 items={tabItems}
-                size="large"
                 tabBarStyle={{ marginBottom: 8 }}
               />
             </Card>

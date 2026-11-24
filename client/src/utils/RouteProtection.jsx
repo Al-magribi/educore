@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Result } from "antd";
 import resolveUserHomePath from "./resolveUserHomePath";
+import { hasStaffAssignment } from "./staffAssignment";
 
 const RouteProtection = ({
   allowedRoles,
@@ -40,6 +41,31 @@ const RouteProtection = ({
   }
 
   if (
+    user.role === "teacher" &&
+    Array.isArray(allowedAssignments) &&
+    allowedAssignments.length > 0
+  ) {
+    const hasAssignment = allowedAssignments.some((type) =>
+      hasStaffAssignment(user, type),
+    );
+    if (!hasAssignment) {
+      if (homePath && homePath !== location.pathname) {
+        return <Navigate to={homePath} replace />;
+      }
+
+      return (
+        <Result
+          status="403"
+          title="Akses ditolak"
+          subTitle="Akun guru ini belum ditugaskan untuk modul tersebut."
+        />
+      );
+    }
+
+    return <Outlet />;
+  }
+
+  if (
     user.role === "admin" &&
     allowedLevels &&
     (!user.level || !allowedLevels.includes(user.level))
@@ -58,7 +84,7 @@ const RouteProtection = ({
   }
 
   if (requireMusyrif && !user.is_musyrif) {
-    return <Navigate to='/' replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;

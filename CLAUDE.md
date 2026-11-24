@@ -12,6 +12,24 @@ Nilai di bawah diambil dari stylesheet Muse versi open source (`src/assets/style
 - Jangan pernah kerja manual di `release/*` atau `product/*`. Lihat [GIT-WORKFLOW.md](GIT-WORKFLOW.md).
 - Perubahan **shared UI** (theme, `AppLayout`, `components/ui/*`, `index.css`) masuk lewat `main`. UI khusus modul (CBT, LMS, Finance, Tahfiz, DB) dikerjakan di `feature/*` masing-masing.
 
+### Kepemilikan file (supaya sync main → feature tidak konflik)
+
+Sync konflik bila `main` dan `feature/*` mengedit file yang sama. Karena itu shell punya titik sambung per domain, dan feature **hanya mengisi file domainnya**:
+
+| Kebutuhan feature | Edit file ini (milik feature) | Jangan edit (milik `main`) |
+|---|---|---|
+| Menu sidebar | `components/layout/menus/<domain>Menus.jsx` | `AppLayout.jsx`, `menus/index.js`, `menus/menuAccess.js`, `coreMenus.jsx` |
+| Menu hanya untuk user tertentu | properti `visible: (user) => ...` di item menu | `filterMenuItemsByUser` |
+| Preload saat hover menu | `components/layout/preloads/<domain>.js` | `preloads/index.js`, `preloads/core.js` |
+| Route halaman | `routes/modules/<domain>Routes.jsx` (satu default export, terima `routeContext`, pasang `RouteProtection` sendiri) | `App.jsx`, `centerRoutes`, `adminRoutes`, `roleRoutes`, `publicRoutes` |
+| Halaman domain di area pusat/guru/siswa | route di `<domain>Routes.jsx` dengan `allowedRoles`/`allowedLevels` yang sesuai | route file milik role lain |
+| Halaman & service | `module/<domain>/`, `service/<domain>/` | `module/auth/` |
+
+- Daftar lengkap file milik `main` ada di [scripts/ci/shared-paths.js](scripts/ci/shared-paths.js). Workflow `guard-shared-paths.yml` **gagal** kalau `feature/*` mengubahnya, dan compose release memulihkannya dari `main`.
+- Butuh perubahan di file milik `main` (prop baru di `RouteProtection`, komponen `ui/` baru, role baru)? Kerjakan di `main` dulu, tunggu sync, baru pakai di feature.
+- `module/admin` dan `module/center` dirapikan UI-nya di `main`. Feature boleh mengubah logikanya, tapi merge `main` dulu sebelum mulai agar tidak konflik.
+- Restyle module domain (CBT, LMS, Finance, Tahfiz, DB) dikerjakan di branch pemiliknya, bukan di `main`.
+
 ## 1. Stack UI
 
 - React 19 + Vite, **Ant Design v6** (`antd`), `@ant-design/plots` untuk grafik, `lucide-react` untuk ikon.
@@ -155,6 +173,12 @@ Judul halaman memakai [PageHeader.jsx](client/src/components/ui/PageHeader.jsx),
 - `font-weight: 600`. Satu tombol `type="primary"` per area aksi; lainnya `default`/`text`.
 - Aksi berbahaya: `danger` + `Popconfirm` / `Modal.confirm`.
 
+### Tab
+- **Tab halaman** (`PageTabs`, `Segmented`): `size="middle"` (tinggi item 32px) di semua lebar layar, **jangan** `size="large"`. Label: ikon `14px` + teks `14px/600`, jarak ikon–teks `6px`, padding label `0 4px`, track padding `3px`. Ukuran ini sudah diatur di `PageTabs`; ikon `item.icon` otomatis dikecilkan ke 14.
+- **Tab bertingkat** (`Tabs` di dalam bagian/drawer): pakai ukuran default (`middle`), `small` untuk tab di dalam card/drawer sempit atau di bawah 768px. Jangan `size="large"` dan jangan `tabBarGutter`/padding tambahan.
+- Label tab satu baris (`nowrap`), tanpa caption/deskripsi di bawah label; deskripsi bagian taruh di prop `description` item `PageTabs`.
+- Bila tab lebih lebar dari layar, biarkan scroll horizontal di wadah tab (sudah ada di `PageTabs`), jangan diperkecil di bawah ukuran di atas.
+
 ### Grafik (`@ant-design/plots`)
 - Grafik utama boleh di dalam card berlatar gradien `colorPrimary` (gaya "bar chart" Muse) dengan teks putih; grafik sekunder di card putih.
 - Garis/area tipis, grid samar, tanpa border chart. Progress bar tinggi `3px`.
@@ -192,7 +216,7 @@ Deep-link ke bagian tertentu lewat URL, misalnya `/admin-data-pokok?tab=class` a
 - **Empty state**: `Empty` dengan kalimat yang menjelaskan langkah berikutnya + tombol aksi bila ada.
 - **Error**: `Alert type="error"` di dalam card, dengan pesan dari server bila ada (`error?.data?.message`). Di antd v6 pakai `title=`, bukan `message=` (deprecated).
 - **Modal**: judul pakai `<CardTitle>` di prop `title`. Jangan ada hero gradien atau card bertumpuk di dalam modal; form langsung di body, catatan/tips pakai `Alert type="info"`.
-- **Tab**: pakai prop `icon` + `label` teks biasa. Jangan membuat kotak ikon bergradien di label tab.
+- **Tab**: pakai prop `icon` + `label` teks biasa, ukuran ikuti §4 "Tab". Jangan membuat kotak ikon bergradien di label tab.
 - **Feedback aksi**: `message.success` / `message.error` (lebih baik lewat `App.useApp()` agar ikut theme), kalimat singkat: "Data siswa berhasil disimpan".
 - **Konfirmasi**: hapus/reset/publish wajib dikonfirmasi; sebutkan objek yang terdampak.
 - **Responsif**: setiap halaman harus bisa dipakai di lebar 360px tanpa scroll horizontal halaman (tabel boleh scroll di dalam card).
