@@ -1,33 +1,20 @@
-import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Button,
-  Card,
-  Divider,
-  Drawer,
+  Collapse,
   Flex,
-  Grid,
   Select,
-  Space,
-  Statistic,
   Table,
-  Tabs,
-  Tag,
+  Tooltip,
   Typography,
-  Upload,
-  message,
 } from "antd";
-import {
-  CheckCircleOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  InboxOutlined,
-  InfoCircleOutlined,
-  WarningOutlined,
-} from "@ant-design/icons";
-import { ShieldUser, UploadCloud, X, Sparkles, School } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Info, Trash2, UploadCloud } from "lucide-react";
 import * as XLSX from "xlsx";
+import { CardTitle, MuseCard } from "../../../../components/ui/muse";
+import { ImportDrawer, ImportStats, UploadDropzone } from "../../../../components/ui/muse/ImportKit";
+import { museCardStyle, museColors } from "../../../../config/theme";
 import { useImportMusyrifMutation } from "../../../../service/tahfiz/ApiHalaqoh";
 import {
   downloadMusyrifImportTemplate,
@@ -37,10 +24,7 @@ import {
   parseBooleanValue,
 } from "./importHelpers";
 
-const { Dragger } = Upload;
-const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
+const { Text } = Typography;
 
 const pickValue = (row, keys) => {
   for (const key of keys) {
@@ -149,11 +133,9 @@ const MusyrifImportDrawer = ({
   homebaseOptions,
   selectedHomebaseId,
 }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { message } = App.useApp();
   const [tableData, setTableData] = useState([]);
   const [fileList, setFileList] = useState([]);
-  const [activeTab, setActiveTab] = useState("upload");
   const [importMusyrif, { isLoading: isImporting }] = useImportMusyrifMutation();
 
   const homebaseMap = useMemo(
@@ -168,8 +150,14 @@ const MusyrifImportDrawer = ({
   const closeAndReset = () => {
     setTableData([]);
     setFileList([]);
-    setActiveTab("upload");
     onClose();
+  };
+
+  const selectedHomebaseLabel = homebaseLabelMap.get(selectedHomebaseId);
+
+  const resetFile = () => {
+    setTableData([]);
+    setFileList([]);
   };
 
   const markDuplicateUsernames = (rows) => {
@@ -269,439 +257,211 @@ const MusyrifImportDrawer = ({
   const validCount = tableData.filter((item) => item.errors.length === 0).length;
   const errorCount = totalData - validCount;
   const readinessLabel =
-    totalData === 0 ? "Menunggu File" : errorCount === 0 ? "Siap Diimport" : "Perlu Review";
+    totalData === 0 ? "Menunggu file" : errorCount === 0 ? "Siap diimpor" : "Perlu ditinjau";
+  const readinessColor = totalData === 0 ? "processing" : errorCount === 0 ? "success" : "warning";
 
   const columns = [
     {
-      title: "Homebase File",
-      dataIndex: "homebase_name",
-      width: 180,
-      render: (value) => <Text type="secondary">{value || "-"}</Text>,
+      title: "STATUS",
+      key: "status",
+      width: 90,
+      align: "center",
+      fixed: "left",
+      render: (_, record) =>
+        record.errors.length === 0 ? (
+          <Tooltip title='Siap diimpor'>
+            <CheckCircle2 size={18} color={museColors.success} aria-label='Valid' />
+          </Tooltip>
+        ) : (
+          <Tooltip title={record.errors.join(", ")}>
+            <AlertTriangle size={18} color={museColors.danger} aria-label='Perlu dicek' />
+          </Tooltip>
+        ),
     },
     {
-      title: "Homebase Sistem",
+      title: "HOMEBASE FILE",
+      dataIndex: "homebase_name",
+      width: 180,
+      render: (value) => <Text type='secondary'>{value || "-"}</Text>,
+    },
+    {
+      title: "HOMEBASE SISTEM",
       dataIndex: "selectedHomebaseId",
       width: 220,
       render: (value, record) => (
         <Select
           showSearch
+          optionFilterProp='label'
           virtual={false}
           value={value}
           options={homebaseOptions}
           onChange={(nextValue) => handleHomebaseChange(nextValue, record.key)}
-          placeholder="Pilih homebase"
+          placeholder='Pilih homebase'
           status={!value ? "error" : ""}
           style={{ width: "100%" }}
         />
       ),
     },
     {
-      title: "Nama Musyrif",
+      title: "NAMA MUSYRIF",
       dataIndex: "full_name",
       width: 220,
       render: (value) => <Text strong>{value || "-"}</Text>,
     },
+    { title: "USERNAME", dataIndex: "username", width: 180 },
+    { title: "NO HP", dataIndex: "phone", width: 160, render: (value) => value || "-" },
+    { title: "L/P", dataIndex: "gender", width: 80, align: "center", render: (value) => value || "-" },
     {
-      title: "Username",
-      dataIndex: "username",
-      width: 180,
-    },
-    {
-      title: "No HP",
-      dataIndex: "phone",
-      width: 160,
-      render: (value) => value || "-",
-    },
-    {
-      title: "L/P",
-      dataIndex: "gender",
-      width: 80,
-      align: "center",
-      render: (value) => value || "-",
-    },
-    {
-      title: "Status",
-      key: "status",
-      width: 100,
-      align: "center",
-      render: (_, record) =>
-        record.errors.length === 0 ? (
-          <CheckCircleOutlined style={{ color: "#16a34a", fontSize: 18 }} />
-        ) : (
-          <Space size={4}>
-            <WarningOutlined style={{ color: "#dc2626", fontSize: 18 }} />
-          </Space>
-        ),
-    },
-    {
-      title: "Aksi",
+      title: "AKSI",
       key: "action",
-      width: 60,
+      width: 70,
       align: "center",
       render: (_, record) => (
-        <Button
-          type="text"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDeleteRow(record.key)}
-        />
+        <Tooltip title='Hapus baris'>
+          <Button
+            type='text'
+            danger
+            aria-label='Hapus baris'
+            icon={<Trash2 size={16} />}
+            onClick={() => handleDeleteRow(record.key)}
+          />
+        </Tooltip>
       ),
     },
   ];
 
-  const uploadContent = (
-    <MotionDiv
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: "easeOut" }}
-      style={{ display: "flex", flexDirection: "column", gap: 16 }}
+  return (
+    <ImportDrawer
+      open={open}
+      onClose={closeAndReset}
+      icon={<UploadCloud size={16} />}
+      title='Import Data Musyrif'
+      description='Unggah Excel, tinjau homebase tiap baris, lalu impor ke sistem.'
+      status={readinessLabel}
+      statusColor={readinessColor}
+      actions={
+        <>
+          <Button icon={<Download size={16} />} onClick={downloadMusyrifImportTemplate}>
+            Template
+          </Button>
+          <Button
+            type='primary'
+            onClick={handleImport}
+            loading={isImporting}
+            disabled={validCount === 0}
+          >
+            Impor {validCount > 0 ? `(${validCount})` : ""}
+          </Button>
+        </>
+      }
     >
-      <RowSummary
-        homebaseLabel={homebaseLabelMap.get(selectedHomebaseId)}
-        totalData={totalData}
-        validCount={validCount}
-        errorCount={errorCount}
+      {totalData > 0 ? (
+        <ImportStats
+          items={[
+            { label: "Total", value: totalData },
+            { label: "Valid", value: validCount, color: museColors.success },
+            { label: "Perlu cek", value: errorCount, color: museColors.danger },
+          ]}
+        />
+      ) : null}
+
+      <Collapse
+        size='small'
+        defaultActiveKey={totalData === 0 ? ["guide"] : []}
+        style={{ background: museCardStyle.background }}
+        items={[
+          {
+            key: "guide",
+            label: (
+              <Flex align='center' gap={8}>
+                <Info size={14} />
+                <span>Panduan pengisian Excel</span>
+              </Flex>
+            ),
+            children: (
+              <Alert
+                type='info'
+                showIcon
+                title='Aturan pengisian import musyrif'
+                description={
+                  <ul style={{ paddingLeft: 18, margin: 0 }}>
+                    <li>Isi data di sheet pertama (<strong>Template</strong>).</li>
+                    <li>
+                      <strong>Username</strong> wajib unik dan dipakai sebagai akun login musyrif.
+                    </li>
+                    <li>
+                      <strong>Password</strong> wajib diisi untuk setiap baris.
+                    </li>
+                    <li>
+                      Isi <strong>L/P</strong> dengan <code>L</code> atau <code>P</code>.
+                    </li>
+                    <li>
+                      Kolom <strong>Homebase</strong> boleh kosong; sistem memakai homebase default
+                      {selectedHomebaseLabel ? ` (${selectedHomebaseLabel})` : ""}.
+                    </li>
+                  </ul>
+                }
+              />
+            ),
+          },
+        ]}
       />
 
-      {tableData.length === 0 ? (
-        <Card
-          bordered={false}
-          style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Dragger
-            accept=".xlsx, .xls"
-            beforeUpload={handleFile}
-            fileList={fileList}
-            showUploadList={false}
-            style={{
-              minHeight: 340,
-              padding: isMobile ? 24 : 40,
-              border: "2px dashed #93c5fd",
-              borderRadius: 22,
-              background:
-                "linear-gradient(135deg, rgba(239,246,255,0.85), rgba(240,253,250,0.85))",
-            }}
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined style={{ color: "#0284c7", fontSize: 52 }} />
-            </p>
-            <Title level={3}>Klik atau tarik file Excel ke sini</Title>
-            <Text type="secondary">
-              Sistem akan membaca template musyrif, menyesuaikan homebase, lalu
-              menampilkan hasil review sebelum import.
-            </Text>
-            <div style={{ marginTop: 20 }}>
-              <Tag
-                bordered={false}
-                style={{
-                  borderRadius: 999,
-                  padding: "8px 14px",
-                  background: "rgba(14, 165, 233, 0.10)",
-                  color: "#0369a1",
-                  fontWeight: 600,
-                }}
-              >
-                <Flex align="center" gap={8}>
-                  <Sparkles size={14} />
-                  <span>Auto-match homebase dari template Excel</span>
-                </Flex>
-              </Tag>
-            </div>
-          </Dragger>
-        </Card>
+      {totalData === 0 ? (
+        <UploadDropzone
+          beforeUpload={handleFile}
+          fileList={fileList}
+          hint='Sistem membaca template musyrif, mencocokkan homebase, lalu menampilkan hasil tinjauan sebelum impor.'
+          note={`${homebaseOptions.length} homebase tersedia`}
+        />
       ) : (
-        <Card
-          bordered={false}
-          style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-          styles={{ body: { padding: 18 } }}
+        <MuseCard
+          flush
+          title={
+            <CardTitle
+              title='Tinjau Data Musyrif'
+              description='Periksa homebase, username, dan status tiap baris sebelum impor.'
+            />
+          }
+          extra={
+            <Button type='text' onClick={resetFile}>
+              Ganti file
+            </Button>
+          }
         >
-          <Flex justify="space-between" align="center" gap={12} wrap="wrap">
-            <div>
-              <Title level={4} style={{ margin: 0 }}>
-                Review Data Musyrif
-              </Title>
-              <Text type="secondary">
-                Periksa homebase, username, dan status tiap baris sebelum import.
-              </Text>
-            </div>
-            <Tag
-              bordered={false}
-              style={{
-                borderRadius: 999,
-                padding: "8px 14px",
-                fontWeight: 600,
-                color: "#0369a1",
-                background: "rgba(3, 105, 161, 0.10)",
-              }}
-            >
-              <Flex align="center" gap={8}>
-                <School size={14} />
-                <span>{homebaseOptions.length} homebase tersedia</span>
-              </Flex>
-            </Tag>
-          </Flex>
-
-          <Divider style={{ margin: "16px 0" }} />
-
           {errorCount > 0 ? (
             <Alert
-              type="warning"
+              type='warning'
               showIcon
-              style={{ marginBottom: 14, borderRadius: 16 }}
-              message={`Terdapat ${errorCount} baris yang perlu diperiksa.`}
-              description="Perbaiki mapping homebase atau hapus baris yang tidak ingin diimport."
+              style={{ margin: "0 24px 16px" }}
+              title={`Ada ${errorCount} baris yang perlu diperiksa.`}
+              description='Perbaiki homebase atau hapus baris yang tidak ingin diimpor.'
             />
           ) : null}
 
           <Table
             dataSource={tableData}
             columns={columns}
-            rowKey="key"
+            rowKey='key'
             pagination={false}
-            size="small"
-            bordered
+            size='small'
             expandable={{
               expandedRowRender: (record) => (
-                <Space direction="vertical" size={4}>
-                  <Text>Password: {record.password || "-"}</Text>
+                <Flex vertical gap={4}>
                   <Text>Catatan: {record.notes || "-"}</Text>
-                  <Text>Status Aktif: {record.is_active ? "Aktif" : "Nonaktif"}</Text>
+                  <Text>Status aktif: {record.is_active ? "Aktif" : "Nonaktif"}</Text>
                   {record.errors.length ? (
-                    <Text type="danger">Catatan validasi: {record.errors.join(", ")}</Text>
+                    <Text type='danger'>Perlu diperbaiki: {record.errors.join(", ")}</Text>
                   ) : null}
-                </Space>
+                </Flex>
               ),
             }}
-            scroll={{ y: "calc(100vh - 380px)", x: 1200 }}
+            scroll={{ y: "calc(100vh - 420px)", x: 1200 }}
           />
-        </Card>
+        </MuseCard>
       )}
-    </MotionDiv>
-  );
-
-  const guideContent = (
-    <Card
-      bordered={false}
-      style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-      styles={{ body: { padding: isMobile ? 16 : 20 } }}
-    >
-      <Alert
-        type="info"
-        showIcon
-        style={{ borderRadius: 16, marginBottom: 16 }}
-        message="Aturan Pengisian Import Musyrif"
-        description={
-          <ul style={{ paddingLeft: 18, marginBottom: 0 }}>
-            <li>Gunakan sheet pertama bernama `Template` saat mengisi data.</li>
-            <li>`Username` wajib unik dan akan dipakai sebagai akun login musyrif.</li>
-            <li>`Password` wajib diisi untuk setiap baris import.</li>
-            <li>Isi `L/P` dengan `L` atau `P` agar validasi otomatis berjalan baik.</li>
-            <li>Kolom `Homebase` boleh dikosongkan jika Anda sedang bekerja dalam satu homebase tetap.</li>
-          </ul>
-        }
-      />
-      <Button icon={<DownloadOutlined />} onClick={downloadMusyrifImportTemplate}>
-        Download Template Excel
-      </Button>
-    </Card>
-  );
-
-  return (
-    <Drawer
-      title={null}
-      width={isMobile ? "100%" : 1120}
-      onClose={closeAndReset}
-      open={open}
-      destroyOnHidden
-      closable={false}
-      styles={{
-        header: { display: "none" },
-        body: {
-          padding: 0,
-          background: "#f8fafc",
-        },
-      }}
-    >
-      <MotionDiv
-        initial={{ opacity: 0, x: 24 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-        style={{ height: "100%", display: "flex", flexDirection: "column" }}
-      >
-        <div
-          style={{
-            padding: isMobile ? 20 : 24,
-            background:
-              "linear-gradient(135deg, rgba(240,253,244,1), rgba(239,246,255,0.98))",
-            borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-          }}
-        >
-          <Flex justify="space-between" align="flex-start" gap={16}>
-            <Flex align="flex-start" gap={16}>
-              <div
-                style={{
-                  width: isMobile ? 50 : 58,
-                  height: isMobile ? 50 : 58,
-                  borderRadius: 20,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "linear-gradient(135deg, #0f766e, #0284c7)",
-                  color: "#fff",
-                  boxShadow: "0 18px 32px rgba(2, 132, 199, 0.24)",
-                  flexShrink: 0,
-                }}
-              >
-                <UploadCloud size={24} />
-              </div>
-
-              <div>
-                <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 6 }}>
-                  <Title level={3} style={{ margin: 0 }}>
-                    Import Data Musyrif
-                  </Title>
-                  <Tag
-                    bordered={false}
-                    style={{
-                      marginInlineEnd: 0,
-                      borderRadius: 999,
-                      padding: "6px 12px",
-                      background:
-                        errorCount > 0
-                          ? "rgba(245, 158, 11, 0.12)"
-                          : "rgba(3, 105, 161, 0.10)",
-                      color: errorCount > 0 ? "#b45309" : "#0369a1",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {readinessLabel}
-                  </Tag>
-                </Flex>
-                <Text type="secondary" style={{ display: "block", maxWidth: 700 }}>
-                  Upload file Excel, review hasil mapping homebase, lalu sinkronkan
-                  data musyrif ke sistem dari satu panel yang lebih fokus.
-                </Text>
-              </div>
-            </Flex>
-
-            <Flex gap={10} wrap="wrap" justify="flex-end">
-              <Button
-                icon={<DownloadOutlined />}
-                onClick={downloadMusyrifImportTemplate}
-                style={{ borderRadius: 14 }}
-              >
-                Template
-              </Button>
-              <Button
-                onClick={closeAndReset}
-                icon={<X size={16} />}
-                style={{ borderRadius: 14 }}
-              >
-                Tutup
-              </Button>
-              <Button
-                onClick={handleImport}
-                type="primary"
-                loading={isImporting}
-                disabled={validCount === 0}
-                style={{
-                  borderRadius: 14,
-                  boxShadow: "0 12px 24px rgba(2, 132, 199, 0.20)",
-                }}
-              >
-                Import {validCount > 0 ? `(${validCount})` : ""}
-              </Button>
-            </Flex>
-          </Flex>
-        </div>
-
-        <div style={{ padding: isMobile ? 16 : 20, flex: 1, overflow: "auto" }}>
-          <Card
-            bordered={false}
-            style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-            styles={{ body: { padding: isMobile ? 14 : 18 } }}
-          >
-            <Tabs
-              activeKey={activeTab}
-              onChange={setActiveTab}
-              type="card"
-              size="large"
-              items={[
-                {
-                  key: "upload",
-                  label: (
-                    <Flex align="center" gap={8}>
-                      <ShieldUser size={16} />
-                      <span>Upload & Review</span>
-                    </Flex>
-                  ),
-                  children: uploadContent,
-                },
-                {
-                  key: "guide",
-                  label: (
-                    <Flex align="center" gap={8}>
-                      <InfoCircleOutlined />
-                      <span>Panduan</span>
-                    </Flex>
-                  ),
-                  children: guideContent,
-                },
-              ]}
-            />
-          </Card>
-        </div>
-      </MotionDiv>
-    </Drawer>
+    </ImportDrawer>
   );
 };
-
-const RowSummary = ({ homebaseLabel, totalData, validCount, errorCount }) => (
-  <Flex vertical gap={16}>
-    <Card
-      size="small"
-      style={{
-        borderRadius: 18,
-        border: "1px solid rgba(148, 163, 184, 0.18)",
-        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-      }}
-      styles={{ body: { padding: "14px 16px" } }}
-    >
-      <Flex align="center" gap={10}>
-        <School size={18} color="#0369a1" />
-        <div>
-          <Text strong>Homebase Default</Text>
-          <Text type="secondary" style={{ display: "block" }}>
-            {homebaseLabel || "Pilih/mapping dari file Excel"}
-          </Text>
-        </div>
-      </Flex>
-    </Card>
-
-    <Flex gap={12} wrap="wrap">
-      <Card
-        size="small"
-        style={{ borderRadius: 18, minWidth: 140, boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)" }}
-        styles={{ body: { padding: "14px 16px" } }}
-      >
-        <Statistic title="Data" value={totalData} />
-      </Card>
-      <Card
-        size="small"
-        style={{ borderRadius: 18, minWidth: 140, boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)" }}
-        styles={{ body: { padding: "14px 16px" } }}
-      >
-        <Statistic title="Valid" value={validCount} valueStyle={{ color: "#15803d" }} />
-      </Card>
-      <Card
-        size="small"
-        style={{ borderRadius: 18, minWidth: 140, boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)" }}
-        styles={{ body: { padding: "14px 16px" } }}
-      >
-        <Statistic title="Perlu Cek" value={errorCount} valueStyle={{ color: "#dc2626" }} />
-      </Card>
-    </Flex>
-  </Flex>
-);
 
 export default MusyrifImportDrawer;

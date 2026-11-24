@@ -1,33 +1,20 @@
-import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Button,
-  Card,
-  Divider,
-  Drawer,
+  Collapse,
   Flex,
-  Grid,
   Select,
-  Space,
-  Statistic,
   Table,
-  Tabs,
-  Tag,
+  Tooltip,
   Typography,
-  Upload,
-  message,
 } from "antd";
-import {
-  CheckCircleOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  InboxOutlined,
-  InfoCircleOutlined,
-  WarningOutlined,
-} from "@ant-design/icons";
-import { BookUser, CalendarRange, Sparkles, UploadCloud, Users, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Info, Trash2, UploadCloud } from "lucide-react";
 import * as XLSX from "xlsx";
+import { CardTitle, MuseCard } from "../../../../components/ui/muse";
+import { ImportDrawer, ImportStats, UploadDropzone } from "../../../../components/ui/muse/ImportKit";
+import { museCardStyle, museColors } from "../../../../config/theme";
 import { useImportHalaqohMutation } from "../../../../service/tahfiz/ApiHalaqoh";
 import {
   downloadHalaqohImportTemplate,
@@ -37,10 +24,7 @@ import {
   parseDelimitedValues,
 } from "./importHelpers";
 
-const { Dragger } = Upload;
-const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
+const { Text } = Typography;
 
 const pickValue = (row, keys) => {
   for (const key of keys) {
@@ -284,11 +268,9 @@ const HalaqohImportDrawer = ({
   selectedPeriodeId,
   importReference,
 }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const { message } = App.useApp();
   const [tableData, setTableData] = useState([]);
   const [fileList, setFileList] = useState([]);
-  const [activeTab, setActiveTab] = useState("upload");
   const [importHalaqoh, { isLoading: isImporting }] = useImportHalaqohMutation();
 
   const periodeMap = useMemo(() => {
@@ -365,7 +347,6 @@ const HalaqohImportDrawer = ({
   const closeAndReset = () => {
     setTableData([]);
     setFileList([]);
-    setActiveTab("upload");
     onClose();
   };
 
@@ -533,480 +514,256 @@ const HalaqohImportDrawer = ({
   const validCount = tableData.filter((item) => item.errors.length === 0).length;
   const errorCount = totalData - validCount;
   const readinessLabel =
-    totalData === 0 ? "Menunggu File" : errorCount === 0 ? "Siap Diimport" : "Perlu Review";
+    totalData === 0 ? "Menunggu file" : errorCount === 0 ? "Siap diimpor" : "Perlu ditinjau";
+  const readinessColor = totalData === 0 ? "processing" : errorCount === 0 ? "success" : "warning";
   const handleDownloadTemplate = () => {
     downloadHalaqohImportTemplate(importReference);
   };
 
+  const resetFile = () => {
+    setTableData([]);
+    setFileList([]);
+  };
+
   const columns = [
     {
-      title: "Periode File",
-      dataIndex: "periode_name",
-      width: 200,
-      render: (value) => <Text type="secondary">{value || "-"}</Text>,
+      title: "STATUS",
+      key: "status",
+      width: 90,
+      align: "center",
+      fixed: "left",
+      render: (_, record) =>
+        record.errors.length === 0 ? (
+          <Tooltip title='Siap diimpor'>
+            <CheckCircle2 size={18} color={museColors.success} aria-label='Valid' />
+          </Tooltip>
+        ) : (
+          <Tooltip title={record.errors.join(", ")}>
+            <AlertTriangle size={18} color={museColors.danger} aria-label='Perlu dicek' />
+          </Tooltip>
+        ),
     },
     {
-      title: "Periode Sistem",
+      title: "PERIODE FILE",
+      dataIndex: "periode_name",
+      width: 200,
+      render: (value) => <Text type='secondary'>{value || "-"}</Text>,
+    },
+    {
+      title: "PERIODE SISTEM",
       dataIndex: "selectedPeriodeId",
       width: 220,
       render: (value, record) => (
         <Select
           showSearch
+          optionFilterProp='label'
           virtual={false}
           value={value}
           options={periodeOptions}
           onChange={(nextValue) => handlePeriodeChange(nextValue, record.key)}
-          placeholder="Pilih periode"
+          placeholder='Pilih periode'
           status={!value ? "error" : ""}
           style={{ width: "100%" }}
         />
       ),
     },
     {
-      title: "Nama Halaqoh",
+      title: "NAMA HALAQOH",
       dataIndex: "name",
       width: 220,
       render: (value) => <Text strong>{value || "-"}</Text>,
     },
     {
-      title: "Musyrif File",
+      title: "MUSYRIF FILE",
       dataIndex: "musyrif_identifier",
-      width: 220,
-      render: (value) => <Text type="secondary">{value || "-"}</Text>,
+      width: 200,
+      render: (value) => <Text type='secondary'>{value || "-"}</Text>,
     },
     {
-      title: "Musyrif Sistem",
+      title: "MUSYRIF SISTEM",
       dataIndex: "selectedMusyrifId",
       width: 240,
       render: (value, record) => (
         <Select
           showSearch
-          optionFilterProp="label"
+          optionFilterProp='label'
           virtual={false}
           value={value}
           options={musyrifOptions}
           onChange={(nextValue) => handleMusyrifChange(nextValue, record.key)}
-          placeholder="Pilih musyrif"
+          placeholder='Pilih musyrif'
           status={!value ? "error" : ""}
           style={{ width: "100%" }}
         />
       ),
     },
     {
-      title: "Siswa Cocok",
+      title: "SISWA COCOK",
       dataIndex: "student_ids",
-      width: 120,
+      width: 130,
       align: "center",
       render: (value) => value.length,
     },
     {
-      title: "Status",
-      key: "status",
-      width: 100,
-      align: "center",
-      render: (_, record) =>
-        record.errors.length === 0 ? (
-          <CheckCircleOutlined style={{ color: "#16a34a", fontSize: 18 }} />
-        ) : (
-          <WarningOutlined style={{ color: "#dc2626", fontSize: 18 }} />
-        ),
-    },
-    {
-      title: "Aksi",
+      title: "AKSI",
       key: "action",
-      width: 60,
+      width: 70,
       align: "center",
       render: (_, record) => (
-        <Button
-          type="text"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDeleteRow(record.key)}
-        />
+        <Tooltip title='Hapus baris'>
+          <Button
+            type='text'
+            danger
+            aria-label='Hapus baris'
+            icon={<Trash2 size={16} />}
+            onClick={() => handleDeleteRow(record.key)}
+          />
+        </Tooltip>
       ),
     },
   ];
 
-  const uploadContent = (
-    <MotionDiv
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: "easeOut" }}
-      style={{ display: "flex", flexDirection: "column", gap: 16 }}
-    >
-      <Flex gap={12} wrap="wrap">
-        <Card
-          size="small"
-          style={{
-            borderRadius: 18,
-            minWidth: 180,
-            boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-          }}
-          styles={{ body: { padding: "14px 16px" } }}
-        >
-          <Flex align="center" gap={10}>
-            <CalendarRange size={18} color="#0369a1" />
-            <div>
-              <Text strong>Periode Default</Text>
-              <Text type="secondary" style={{ display: "block" }}>
-                {periodeOptions.find((item) => item.value === selectedPeriodeId)?.label || "Mapping dari file"}
-              </Text>
-            </div>
-          </Flex>
-        </Card>
-        <Card
-          size="small"
-          style={{
-            borderRadius: 18,
-            minWidth: 140,
-            boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-          }}
-          styles={{ body: { padding: "14px 16px" } }}
-        >
-          <Statistic title="Data" value={totalData} />
-        </Card>
-        <Card
-          size="small"
-          style={{
-            borderRadius: 18,
-            minWidth: 140,
-            boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-          }}
-          styles={{ body: { padding: "14px 16px" } }}
-        >
-          <Statistic title="Valid" value={validCount} valueStyle={{ color: "#15803d" }} />
-        </Card>
-        <Card
-          size="small"
-          style={{
-            borderRadius: 18,
-            minWidth: 140,
-            boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-          }}
-          styles={{ body: { padding: "14px 16px" } }}
-        >
-          <Statistic title="Perlu Cek" value={errorCount} valueStyle={{ color: "#dc2626" }} />
-        </Card>
-      </Flex>
+  const defaultPeriodeLabel = periodeOptions.find(
+    (item) => item.value === selectedPeriodeId,
+  )?.label;
 
-      {tableData.length === 0 ? (
-        <Card
-          bordered={false}
-          style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}
-        >
-          <Dragger
-            accept=".xlsx, .xls"
-            beforeUpload={handleFile}
-            fileList={fileList}
-            showUploadList={false}
-            style={{
-              minHeight: 340,
-              padding: isMobile ? 24 : 40,
-              border: "2px dashed #93c5fd",
-              borderRadius: 22,
-              background:
-                "linear-gradient(135deg, rgba(239,246,255,0.85), rgba(240,253,250,0.85))",
-            }}
+  return (
+    <ImportDrawer
+      open={open}
+      onClose={closeAndReset}
+      icon={<UploadCloud size={16} />}
+      title='Import Data Halaqoh'
+      description='Unggah Excel, cocokkan periode, musyrif, dan NIS siswa, lalu impor.'
+      status={readinessLabel}
+      statusColor={readinessColor}
+      width={1160}
+      actions={
+        <>
+          <Button icon={<Download size={16} />} onClick={handleDownloadTemplate}>
+            Template
+          </Button>
+          <Button
+            type='primary'
+            onClick={handleImport}
+            loading={isImporting}
+            disabled={validCount === 0}
           >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined style={{ color: "#0284c7", fontSize: 52 }} />
-            </p>
-            <Title level={3}>Klik atau tarik file Excel ke sini</Title>
-            <Text type="secondary">
-              Sistem akan membaca periode, musyrif, dan daftar NIS siswa sebelum
-              menampilkan hasil review import halaqoh.
-            </Text>
-            <div style={{ marginTop: 20 }}>
-              <Tag
-                bordered={false}
-                style={{
-                  borderRadius: 999,
-                  padding: "8px 14px",
-                  background: "rgba(14, 165, 233, 0.10)",
-                  color: "#0369a1",
-                  fontWeight: 600,
-                }}
-              >
-                <Flex align="center" gap={8}>
-                  <Sparkles size={14} />
-                  <span>Auto-match periode, musyrif, dan NIS siswa</span>
-                </Flex>
-              </Tag>
-            </div>
-          </Dragger>
-        </Card>
+            Impor {validCount > 0 ? `(${validCount})` : ""}
+          </Button>
+        </>
+      }
+    >
+      {totalData > 0 ? (
+        <ImportStats
+          items={[
+            { label: "Total", value: totalData },
+            { label: "Valid", value: validCount, color: museColors.success },
+            { label: "Perlu cek", value: errorCount, color: museColors.danger },
+          ]}
+        />
+      ) : null}
+
+      <Collapse
+        size='small'
+        defaultActiveKey={totalData === 0 ? ["guide"] : []}
+        style={{ background: museCardStyle.background }}
+        items={[
+          {
+            key: "guide",
+            label: (
+              <Flex align='center' gap={8}>
+                <Info size={14} />
+                <span>Panduan pengisian Excel</span>
+              </Flex>
+            ),
+            children: (
+              <Alert
+                type='info'
+                showIcon
+                title='Aturan pengisian import halaqoh'
+                description={
+                  <ul style={{ paddingLeft: 18, margin: 0 }}>
+                    <li>
+                      Tulis nama periode sesuai yang tersedia
+                      {defaultPeriodeLabel ? ` (default: ${defaultPeriodeLabel})` : ""}.
+                    </li>
+                    <li>
+                      Pakai <strong>Username Musyrif</strong> agar pencocokan lebih akurat
+                      dibanding nama.
+                    </li>
+                    <li>Daftar NIS siswa boleh dipisah koma, titik koma, atau baris baru.</li>
+                    <li>Baris dengan NIS yang tidak dikenali ditandai perlu dicek.</li>
+                    <li>
+                      Template resmi menyertakan sheet <strong>Panduan</strong> dan data referensi.
+                    </li>
+                  </ul>
+                }
+              />
+            ),
+          },
+        ]}
+      />
+
+      {totalData === 0 ? (
+        <UploadDropzone
+          beforeUpload={handleFile}
+          fileList={fileList}
+          hint='Sistem membaca periode, musyrif, dan daftar NIS siswa, lalu menampilkan hasil tinjauan sebelum impor.'
+          note={`${periodeOptions.length} periode · ${musyrifOptions.length} musyrif · ${studentOptions.length} siswa referensi`}
+        />
       ) : (
-        <Card
-          bordered={false}
-          style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-          styles={{ body: { padding: 18 } }}
+        <MuseCard
+          flush
+          title={
+            <CardTitle
+              title='Tinjau Data Halaqoh'
+              description='Pastikan periode, musyrif, dan anggota siswa sudah sesuai.'
+            />
+          }
+          extra={
+            <Button type='text' onClick={resetFile}>
+              Ganti file
+            </Button>
+          }
         >
-          <Flex justify="space-between" align="center" gap={12} wrap="wrap">
-            <div>
-              <Title level={4} style={{ margin: 0 }}>
-                Review Data Halaqoh
-              </Title>
-              <Text type="secondary">
-                Pastikan periode, musyrif, dan daftar anggota siswa sudah sesuai.
-              </Text>
-            </div>
-            <Flex gap={8} wrap="wrap">
-              <Tag
-                bordered={false}
-                style={{
-                  borderRadius: 999,
-                  padding: "8px 14px",
-                  fontWeight: 600,
-                  color: "#0369a1",
-                  background: "rgba(3, 105, 161, 0.10)",
-                }}
-              >
-                {periodeOptions.length} periode
-              </Tag>
-              <Tag
-                bordered={false}
-                style={{
-                  borderRadius: 999,
-                  padding: "8px 14px",
-                  fontWeight: 600,
-                  color: "#1d4ed8",
-                  background: "rgba(59, 130, 246, 0.10)",
-                }}
-              >
-                {musyrifOptions.length} musyrif
-              </Tag>
-              <Tag
-                bordered={false}
-                style={{
-                  borderRadius: 999,
-                  padding: "8px 14px",
-                  fontWeight: 600,
-                  color: "#047857",
-                  background: "rgba(16, 185, 129, 0.10)",
-                }}
-              >
-                {studentOptions.length} siswa referensi
-              </Tag>
-            </Flex>
-          </Flex>
-
-          <Divider style={{ margin: "16px 0" }} />
-
           {errorCount > 0 ? (
             <Alert
-              type="warning"
+              type='warning'
               showIcon
-              style={{ marginBottom: 14, borderRadius: 16 }}
-              message={`Terdapat ${errorCount} baris yang perlu diperiksa.`}
-              description="Periksa mapping periode, musyrif, atau NIS siswa yang belum dikenali."
+              style={{ margin: "0 24px 16px" }}
+              title={`Ada ${errorCount} baris yang perlu diperiksa.`}
+              description='Periksa periode, musyrif, atau NIS siswa yang belum dikenali.'
             />
           ) : null}
 
           <Table
             dataSource={tableData}
             columns={columns}
-            rowKey="key"
+            rowKey='key'
             pagination={false}
-            size="small"
-            bordered
+            size='small'
             expandable={{
               expandedRowRender: (record) => (
-                <Space direction="vertical" size={4}>
+                <Flex vertical gap={4}>
                   <Text>NIS dari file: {record.student_identifier_text || "-"}</Text>
                   <Text>Jumlah siswa cocok: {record.student_ids.length}</Text>
-                  <Text>Status Aktif: {record.is_active ? "Aktif" : "Nonaktif"}</Text>
+                  <Text>Status aktif: {record.is_active ? "Aktif" : "Nonaktif"}</Text>
                   {record.unresolved_students.length ? (
-                    <Text type="danger">
+                    <Text type='danger'>
                       NIS belum dikenali: {record.unresolved_students.join(", ")}
                     </Text>
                   ) : null}
                   {record.errors.length ? (
-                    <Text type="danger">Catatan validasi: {record.errors.join(", ")}</Text>
+                    <Text type='danger'>Perlu diperbaiki: {record.errors.join(", ")}</Text>
                   ) : null}
-                </Space>
+                </Flex>
               ),
             }}
-            scroll={{ y: "calc(100vh - 380px)", x: 1320 }}
+            scroll={{ y: "calc(100vh - 420px)", x: 1320 }}
           />
-        </Card>
+        </MuseCard>
       )}
-    </MotionDiv>
-  );
-
-  const guideContent = (
-    <Card
-      bordered={false}
-      style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-      styles={{ body: { padding: isMobile ? 16 : 20 } }}
-    >
-      <Alert
-        type="info"
-        showIcon
-        style={{ borderRadius: 16, marginBottom: 16 }}
-        message="Aturan Pengisian Import Halaqoh"
-        description={
-          <ul style={{ paddingLeft: 18, marginBottom: 0 }}>
-            <li>Gunakan nama periode sesuai yang tersedia pada homebase yang sedang dipilih.</li>
-            <li>Gunakan `Username Musyrif` agar pencocokan lebih stabil dibanding nama bebas.</li>
-            <li>Daftar NIS siswa boleh dipisah dengan koma, titik koma, atau baris baru.</li>
-            <li>Jika ada NIS yang tidak dikenali, baris akan masuk status perlu review.</li>
-            <li>Template resmi sudah menyertakan sheet `Panduan` untuk dibagikan ke operator lain.</li>
-          </ul>
-        }
-      />
-      <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
-        Download Template Excel
-      </Button>
-    </Card>
-  );
-
-  return (
-    <Drawer
-      title={null}
-      width={isMobile ? "100%" : 1160}
-      onClose={closeAndReset}
-      open={open}
-      destroyOnHidden
-      closable={false}
-      styles={{
-        header: { display: "none" },
-        body: {
-          padding: 0,
-          background: "#f8fafc",
-        },
-      }}
-    >
-      <MotionDiv
-        initial={{ opacity: 0, x: 24 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-        style={{ height: "100%", display: "flex", flexDirection: "column" }}
-      >
-        <div
-          style={{
-            padding: isMobile ? 20 : 24,
-            background:
-              "linear-gradient(135deg, rgba(240,253,244,1), rgba(239,246,255,0.98))",
-            borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-          }}
-        >
-          <Flex justify="space-between" align="flex-start" gap={16}>
-            <Flex align="flex-start" gap={16}>
-              <div
-                style={{
-                  width: isMobile ? 50 : 58,
-                  height: isMobile ? 50 : 58,
-                  borderRadius: 20,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "linear-gradient(135deg, #0f766e, #0284c7)",
-                  color: "#fff",
-                  boxShadow: "0 18px 32px rgba(2, 132, 199, 0.24)",
-                  flexShrink: 0,
-                }}
-              >
-                <UploadCloud size={24} />
-              </div>
-
-              <div>
-                <Flex align="center" gap={10} wrap="wrap" style={{ marginBottom: 6 }}>
-                  <Title level={3} style={{ margin: 0 }}>
-                    Import Data Halaqoh
-                  </Title>
-                  <Tag
-                    bordered={false}
-                    style={{
-                      marginInlineEnd: 0,
-                      borderRadius: 999,
-                      padding: "6px 12px",
-                      background:
-                        errorCount > 0
-                          ? "rgba(245, 158, 11, 0.12)"
-                          : "rgba(3, 105, 161, 0.10)",
-                      color: errorCount > 0 ? "#b45309" : "#0369a1",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {readinessLabel}
-                  </Tag>
-                </Flex>
-                <Text type="secondary" style={{ display: "block", maxWidth: 720 }}>
-                  Upload file Excel halaqoh, cek kecocokan periode, musyrif, dan
-                  anggota siswa, lalu import dari panel yang lebih fokus.
-                </Text>
-              </div>
-            </Flex>
-
-            <Flex gap={10} wrap="wrap" justify="flex-end">
-              <Button
-                icon={<DownloadOutlined />}
-                onClick={handleDownloadTemplate}
-                style={{ borderRadius: 14 }}
-              >
-                Template
-              </Button>
-              <Button
-                onClick={closeAndReset}
-                icon={<X size={16} />}
-                style={{ borderRadius: 14 }}
-              >
-                Tutup
-              </Button>
-              <Button
-                onClick={handleImport}
-                type="primary"
-                loading={isImporting}
-                disabled={validCount === 0}
-                style={{
-                  borderRadius: 14,
-                  boxShadow: "0 12px 24px rgba(2, 132, 199, 0.20)",
-                }}
-              >
-                Import {validCount > 0 ? `(${validCount})` : ""}
-              </Button>
-            </Flex>
-          </Flex>
-        </div>
-
-        <div style={{ padding: isMobile ? 16 : 20, flex: 1, overflow: "auto" }}>
-          <Card
-            bordered={false}
-            style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-            styles={{ body: { padding: isMobile ? 14 : 18 } }}
-          >
-            <Tabs
-              activeKey={activeTab}
-              onChange={setActiveTab}
-              type="card"
-              size="large"
-              items={[
-                {
-                  key: "upload",
-                  label: (
-                    <Flex align="center" gap={8}>
-                      <BookUser size={16} />
-                      <span>Upload & Review</span>
-                    </Flex>
-                  ),
-                  children: uploadContent,
-                },
-                {
-                  key: "guide",
-                  label: (
-                    <Flex align="center" gap={8}>
-                      <InfoCircleOutlined />
-                      <span>Panduan</span>
-                    </Flex>
-                  ),
-                  children: guideContent,
-                },
-              ]}
-            />
-          </Card>
-        </div>
-      </MotionDiv>
-    </Drawer>
+    </ImportDrawer>
   );
 };
 

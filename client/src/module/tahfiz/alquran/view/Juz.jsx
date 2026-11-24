@@ -1,51 +1,35 @@
-import React from "react";
+import { useState } from "react";
 import {
   Alert,
+  App,
   Button,
-  Card,
   Col,
   Empty,
+  Flex,
   Form,
+  Grid,
   InputNumber,
-  Modal,
   Row,
   Skeleton,
-  Space,
   Tag,
+  Tooltip,
   Typography,
-  message,
 } from "antd";
-import { motion } from "framer-motion";
-import {
-  BookMarked,
-  Eye,
-  EyeOff,
-  Flag,
-  List,
-  MoveRight,
-  PencilLine,
-} from "lucide-react";
+import { BookMarked, ChevronDown, ChevronUp, List, MoveRight, PencilLine, Rows3 } from "lucide-react";
+
+import { IconBox, MuseCard } from "../../../../components/ui/muse";
+import { FormModal } from "../../../../components/ui/muse/DataSection";
 import {
   useGetJuzAyahListQuery,
   useUpdateJuzLineCountMutation,
 } from "../../../../service/tahfiz/ApiAlquran";
 import AyahDetailPanel from "./AyahDetailPanel";
 
-const { Text, Title } = Typography;
-const MotionDiv = motion.div;
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] },
-  },
-};
+const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const arabicTextStyle = {
-  fontFamily:
-    "'Noto Naskh Arabic', 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif",
+  fontFamily: "'Noto Naskh Arabic', 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif",
   direction: "rtl",
   unicodeBidi: "isolate",
   letterSpacing: "0.2px",
@@ -59,16 +43,17 @@ const arabicTagTextStyle = {
   fontWeight: 600,
 };
 
-const getDisplaySurahName = (value, surahNumber) =>
-  value || `Surah ${surahNumber ?? "-"}`;
+const getDisplaySurahName = (value, surahNumber) => value || `Surah ${surahNumber ?? "-"}`;
 
 const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const { message } = App.useApp();
   const [form] = Form.useForm();
-  const [activeJuz, setActiveJuz] = React.useState(null);
-  const [activeJuzAyah, setActiveJuzAyah] = React.useState(null);
-  const [visibleSurahMap, setVisibleSurahMap] = React.useState({});
-  const [updateJuzLineCount, { isLoading: isSaving }] =
-    useUpdateJuzLineCountMutation();
+  const [activeJuz, setActiveJuz] = useState(null);
+  const [activeJuzAyah, setActiveJuzAyah] = useState(null);
+  const [visibleSurahMap, setVisibleSurahMap] = useState({});
+  const [updateJuzLineCount, { isLoading: isSaving }] = useUpdateJuzLineCountMutation();
   const ayahQuery = useGetJuzAyahListQuery(activeJuzAyah?.number, {
     skip: !activeJuzAyah?.number,
   });
@@ -95,26 +80,8 @@ const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
   };
 
   const toggleSurahList = (juzNumber) => {
-    setVisibleSurahMap((prev) => ({
-      ...prev,
-      [juzNumber]: !prev[juzNumber],
-    }));
+    setVisibleSurahMap((prev) => ({ ...prev, [juzNumber]: !prev[juzNumber] }));
   };
-
-  if (isError) {
-    return (
-      <Alert
-        type='error'
-        showIcon
-        message='Gagal memuat data juz.'
-        action={
-          <a onClick={refetch} style={{ fontWeight: 600 }}>
-            Coba lagi
-          </a>
-        }
-      />
-    );
-  }
 
   if (activeJuzAyah) {
     return (
@@ -128,7 +95,7 @@ const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
         arabicTextStyle={arabicTextStyle}
         renderMeta={(ayah) => (
           <>
-            <Tag color='blue'>
+            <Tag color='blue' style={{ margin: 0 }}>
               {ayah.surah_number}:{ayah.ayah_number}
             </Tag>
             <Text type='secondary'>{ayah.surah_name}</Text>
@@ -137,7 +104,8 @@ const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
                 controls
                 preload='none'
                 src={ayah.audio_url}
-                style={{ width: 240, height: 32 }}
+                aria-label={`Audio ayat ${ayah.surah_number}:${ayah.ayah_number}`}
+                style={{ width: 240, maxWidth: "100%", height: 32 }}
               />
             ) : null}
           </>
@@ -146,215 +114,177 @@ const Juz = ({ data = [], isLoading, isFetching, isError, refetch }) => {
     );
   }
 
+  const gap = isMobile ? 16 : 24;
+
+  const renderBoundary = (label, surahNumber, surahName, ayah) => (
+    <div style={{ minWidth: 0 }}>
+      <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+        {label}
+      </Text>
+      <Text strong style={{ display: "block" }}>
+        Surah {surahNumber}{" "}
+        <span style={arabicTextStyle}>{getDisplaySurahName(surahName, surahNumber)}</span>
+      </Text>
+      <Text type='secondary' style={{ fontSize: 12 }}>
+        Ayat {ayah}
+      </Text>
+    </div>
+  );
+
   return (
-    <Space direction='vertical' size={16} style={{ width: "100%" }}>
+    <Flex vertical gap={gap}>
+      {isError ? (
+        <Alert
+          type='error'
+          showIcon
+          title='Gagal memuat data juz'
+          action={
+            <Button size='small' onClick={refetch}>
+              Coba lagi
+            </Button>
+          }
+        />
+      ) : null}
+
+      {isFetching && !isLoading ? <Text type='secondary'>Memperbarui data juz…</Text> : null}
+
       {isLoading ? (
-        <Row gutter={[12, 12]}>
+        <Row gutter={[gap, gap]}>
           {Array.from({ length: 6 }, (_, index) => (
             <Col xs={24} md={12} xl={8} key={index}>
-              <Card style={{ borderRadius: 16 }}>
+              <MuseCard>
                 <Skeleton active paragraph={{ rows: 4 }} />
-              </Card>
+              </MuseCard>
             </Col>
           ))}
         </Row>
       ) : null}
 
-      {!isLoading && !data.length ? (
-        <Card style={{ borderRadius: 16 }}>
-          <Empty description='Data juz tidak tersedia' />
-        </Card>
+      {!isLoading && !isError && !data.length ? (
+        <MuseCard>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='Data juz belum tersedia.' />
+        </MuseCard>
       ) : null}
 
-      <Row gutter={[12, 12]}>
-        {data.map((item, index) => (
-          <Col xs={24} md={12} xl={8} key={item.number}>
-            <MotionDiv
-              variants={cardVariants}
-              initial='hidden'
-              animate='show'
-              transition={{ delay: Math.min(index * 0.025, 0.2) }}
-              whileHover={{ y: -4 }}
-              style={{ height: "100%" }}
-            >
-              <Card
-                hoverable
-                style={{
-                  borderRadius: 18,
-                  height: "100%",
-                  border: "1px solid #dbeafe",
-                  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.07)",
-                  background:
-                    "linear-gradient(180deg, #ffffff 0%, rgba(239,246,255,0.55) 100%)",
-                }}
-              >
-                <Space direction='vertical' size={12} style={{ width: "100%" }}>
-                  <Space
-                    align='center'
-                    style={{ justifyContent: "space-between", width: "100%" }}
-                  >
-                    <Tag
-                      style={{
-                        margin: 0,
-                        borderRadius: 999,
-                        color: "#1d4ed8",
-                        borderColor: "#bfdbfe",
-                        background: "#eff6ff",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Juz {item.number}
-                    </Tag>
-                    <Space size={6} wrap>
-                      <Tag icon={<BookMarked size={12} />} color='blue'>
+      <Row gutter={[gap, gap]}>
+        {data.map((item) => {
+          const surahList = item.surah_list || [];
+          const isSurahVisible = Boolean(visibleSurahMap[item.number]);
+          return (
+            <Col xs={24} md={12} xl={8} key={item.number}>
+              <MuseCard style={{ height: "100%" }} styles={{ body: { height: "100%" } }}>
+                <Flex vertical gap={12} style={{ height: "100%" }}>
+                  <Flex justify='space-between' align='center' gap={12}>
+                    <Flex align='center' gap={10}>
+                      <IconBox
+                        icon={<span style={{ fontWeight: 700, fontSize: 14 }}>{item.number}</span>}
+                        tone='primarySoft'
+                        size={40}
+                      />
+                      <Text strong style={{ fontSize: 16 }}>
+                        Juz {item.number}
+                      </Text>
+                    </Flex>
+                    <Flex gap={6} wrap justify='flex-end'>
+                      <Tag icon={<BookMarked size={12} />} style={{ marginInlineEnd: 0 }}>
                         {item.verse_count || "-"} ayat
                       </Tag>
-                      <Tag color='cyan'>{item.line_count || "-"} baris</Tag>
-                    </Space>
-                  </Space>
+                      <Tag
+                        icon={<Rows3 size={12} />}
+                        color={item.line_count ? "default" : "warning"}
+                        style={{ marginInlineEnd: 0 }}
+                      >
+                        {item.line_count ? `${item.line_count} baris` : "Baris belum diisi"}
+                      </Tag>
+                    </Flex>
+                  </Flex>
+
+                  <Flex align='center' gap={8}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {renderBoundary("Awal", item.start_surah_number, item.start_surah_name, item.start_ayah)}
+                    </div>
+                    <MoveRight size={16} aria-hidden style={{ flexShrink: 0, opacity: 0.45 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {renderBoundary("Akhir", item.end_surah_number, item.end_surah_name, item.end_ayah)}
+                    </div>
+                  </Flex>
 
                   <div>
-                    <Text type='secondary'>Awal Juz</Text>
-                    <Title level={5} style={{ margin: "2px 0 0 0" }}>
-                      Surah {item.start_surah_number} (
-                      <span style={arabicTextStyle}>
-                        {getDisplaySurahName(
-                          item.start_surah_name,
-                          item.start_surah_number,
-                        )}
-                      </span>)
-                    </Title>
-                    <Text>Ayat {item.start_ayah}</Text>
-                  </div>
-
-                  <Space align='center' size={6}>
-                    <MoveRight size={16} color='#64748b' />
-                    <Text type='secondary'>Sampai</Text>
-                  </Space>
-
-                  <div>
-                    <Text type='secondary'>Akhir Juz</Text>
-                    <Title level={5} style={{ margin: "2px 0 0 0" }}>
-                      Surah {item.end_surah_number} (
-                      <span style={arabicTextStyle}>
-                        {getDisplaySurahName(
-                          item.end_surah_name,
-                          item.end_surah_number,
-                        )}
-                      </span>)
-                    </Title>
-                    <Text>Ayat {item.end_ayah}</Text>
-                  </div>
-
-                  <div>
-                    <Space
-                      align='center'
-                      style={{ width: "100%", justifyContent: "space-between" }}
+                    <Button
+                      type='link'
+                      size='small'
+                      style={{ paddingInline: 0 }}
+                      onClick={() => toggleSurahList(item.number)}
+                      aria-expanded={isSurahVisible}
+                      icon={isSurahVisible ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      iconPlacement='end'
                     >
-                      <Text type='secondary'>Surah dalam Juz</Text>
-                      <Button
-                        type='link'
-                        size='small'
-                        onClick={() => toggleSurahList(item.number)}
-                        icon={
-                          visibleSurahMap[item.number] ? (
-                            <EyeOff size={14} />
-                          ) : (
-                            <Eye size={14} />
-                          )
-                        }
+                      {isSurahVisible ? "Sembunyikan" : "Tampilkan"} {surahList.length} surah
+                    </Button>
+                    {isSurahVisible ? (
+                      <Flex
+                        gap={6}
+                        wrap
+                        style={{ marginTop: 6, maxHeight: 170, overflow: "auto", paddingRight: 4 }}
                       >
-                        {visibleSurahMap[item.number] ? "Sembunyikan" : "Tampilkan"}
-                      </Button>
-                    </Space>
-
-                    {visibleSurahMap[item.number] ? (
-                      <div
-                        style={{
-                          marginTop: 6,
-                          maxHeight: 170,
-                          overflow: "auto",
-                          paddingRight: 4,
-                        }}
-                      >
-                        <Space wrap>
-                          {(item.surah_list || []).map((surah) => (
-                            <Tag key={`${item.number}-${surah.number}`}>
-                              {surah.number}.{" "}
-                              <span style={arabicTagTextStyle}>
-                                {getDisplaySurahName(surah.name, surah.number)}
-                              </span>
-                            </Tag>
-                          ))}
-                        </Space>
-                      </div>
-                    ) : (
-                      <Text type='secondary' style={{ marginTop: 4, display: "block" }}>
-                        {(item.surah_list || []).length} surah disembunyikan
-                      </Text>
-                    )}
+                        {surahList.map((surah) => (
+                          <Tag key={`${item.number}-${surah.number}`} style={{ marginInlineEnd: 0 }}>
+                            {surah.number}.{" "}
+                            <span style={arabicTagTextStyle}>
+                              {getDisplaySurahName(surah.name, surah.number)}
+                            </span>
+                          </Tag>
+                        ))}
+                      </Flex>
+                    ) : null}
                   </div>
 
-                  <Tag icon={<Flag size={12} />} color='blue'>
-                    Detail rentang juz lengkap
-                  </Tag>
-
-                  <Button
-                    type='primary'
-                    icon={<PencilLine size={14} />}
-                    onClick={() => openLineCountModal(item)}
-                    style={{ borderRadius: 10 }}
-                  >
-                    Isi Jumlah Baris
-                  </Button>
-                  <Button
-                    type='default'
-                    icon={<List size={14} />}
-                    onClick={() => setActiveJuzAyah(item)}
-                    style={{ borderRadius: 10 }}
-                  >
-                    Lihat Ayat
-                  </Button>
-                </Space>
-              </Card>
-            </MotionDiv>
-          </Col>
-        ))}
+                  <Flex gap={8} style={{ marginTop: "auto" }}>
+                    <Button icon={<List size={16} />} onClick={() => setActiveJuzAyah(item)}>
+                      Lihat Ayat
+                    </Button>
+                    <Tooltip title='Isi jumlah baris juz ini'>
+                      <Button
+                        type='text'
+                        icon={<PencilLine size={16} />}
+                        onClick={() => openLineCountModal(item)}
+                      >
+                        Jumlah Baris
+                      </Button>
+                    </Tooltip>
+                  </Flex>
+                </Flex>
+              </MuseCard>
+            </Col>
+          );
+        })}
       </Row>
 
-      {isFetching && !isLoading ? (
-        <Text type='secondary'>Memperbarui data juz...</Text>
-      ) : null}
-
-      <Modal
-        title={activeJuz ? `Jumlah Baris Juz ${activeJuz.number}` : "Jumlah Baris Juz"}
+      <FormModal
         open={Boolean(activeJuz)}
         onCancel={() => setActiveJuz(null)}
         onOk={handleSaveLineCount}
-        okText='Simpan'
-        cancelText='Batal'
+        icon={<Rows3 size={18} />}
+        title={activeJuz ? `Jumlah Baris Juz ${activeJuz.number}` : "Jumlah Baris Juz"}
+        description='Dipakai untuk menghitung target dan capaian berbasis baris.'
         confirmLoading={isSaving}
-        destroyOnHidden
+        width={420}
       >
         <Form form={form} layout='vertical'>
           <Form.Item
             label='Jumlah Baris'
             name='line_count'
+            style={{ marginBottom: 0 }}
             rules={[
               { required: true, message: "Jumlah baris wajib diisi." },
-              {
-                type: "number",
-                min: 0,
-                message: "Jumlah baris harus angka >= 0.",
-              },
+              { type: "number", min: 0, message: "Jumlah baris harus angka 0 atau lebih." },
             ]}
           >
-            <InputNumber min={0} style={{ width: "100%" }} />
+            <InputNumber min={0} style={{ width: "100%" }} placeholder='Contoh: 300' />
           </Form.Item>
         </Form>
-      </Modal>
-
-    </Space>
+      </FormModal>
+    </Flex>
   );
 };
 

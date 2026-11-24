@@ -1,8 +1,7 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
   Col,
   Empty,
   Flex,
@@ -11,18 +10,18 @@ import {
   Row,
   Segmented,
   Skeleton,
-  Space,
   Tag,
   Typography,
 } from "antd";
-import { motion } from "framer-motion";
-import { BookOpen, List, Search, ScrollText } from "lucide-react";
+import { BookOpen, List, ScrollText } from "lucide-react";
+
+import { IconBox, MuseCard } from "../../../../components/ui/muse";
+import { museColors } from "../../../../config/theme";
 import { useGetSurahAyahListQuery } from "../../../../service/tahfiz/ApiAlquran";
 import AyahDetailPanel from "./AyahDetailPanel";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
 
 const arabicTextStyle = {
   fontFamily:
@@ -31,15 +30,6 @@ const arabicTextStyle = {
   unicodeBidi: "isolate",
   letterSpacing: "0.2px",
   lineHeight: 1.5,
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
-  },
 };
 
 const normalizeRevelation = (type) => {
@@ -57,6 +47,7 @@ const getSurahTranslation = (surah) =>
 
 const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
   const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [search, setSearch] = useState("");
   const [revelationFilter, setRevelationFilter] = useState("all");
   const [activeSurah, setActiveSurah] = useState(null);
@@ -78,21 +69,6 @@ const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
     });
   }, [data, revelationFilter, search]);
 
-  if (isError) {
-    return (
-      <Alert
-        type='error'
-        showIcon
-        message='Gagal memuat data surah.'
-        action={
-          <a onClick={refetch} style={{ fontWeight: 600 }}>
-            Coba lagi
-          </a>
-        }
-      />
-    );
-  }
-
   if (activeSurah) {
     return (
       <AyahDetailPanel
@@ -111,10 +87,7 @@ const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
             wrap='wrap'
             vertical={context.isMobile}
           >
-            <Tag
-              color='blue'
-              style={{ margin: 0, borderRadius: 999, fontWeight: 600 }}
-            >
+            <Tag color='blue' style={{ margin: 0 }}>
               Ayat {ayah.ayah_number}
             </Tag>
             <Text type='secondary'>Juz {ayah.juz_number}</Text>
@@ -124,30 +97,36 @@ const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
     );
   }
 
+  const gap = isMobile ? 16 : 24;
+
   return (
-    <Space direction='vertical' size={16} style={{ width: "100%" }}>
-      <Card
-        style={{
-          borderRadius: 20,
-          border: "1px solid #dbeafe",
-          background: "linear-gradient(135deg, #eff6ff 0%, #ffffff 70%)",
-        }}
-      >
-        <Row gutter={[12, 12]} align='middle'>
-          <Col xs={24} md={14}>
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder='Cari nomor / nama surah'
-              prefix={<Search size={16} color='#1d4ed8' />}
-              allowClear
-              size='large'
-              style={{ borderRadius: 12 }}
-            />
-          </Col>
-          <Col xs={24} md={10}>
+    <Flex vertical gap={gap}>
+      {isError ? (
+        <Alert
+          type='error'
+          showIcon
+          title='Gagal memuat data surah'
+          action={
+            <Button size='small' onClick={refetch}>
+              Coba lagi
+            </Button>
+          }
+        />
+      ) : null}
+
+      <MuseCard>
+        <Flex gap={12} wrap align='center'>
+          <Input.Search
+            aria-label='Cari surah'
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder='Cari nomor / nama surah'
+            allowClear
+            style={{ flex: "1 1 240px", maxWidth: isMobile ? "100%" : 360 }}
+          />
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
             <Segmented
-              block
+              aria-label='Filter jenis surah'
               value={revelationFilter}
               onChange={setRevelationFilter}
               options={[
@@ -156,114 +135,87 @@ const Surah = ({ data = [], isLoading, isFetching, isError, refetch }) => {
                 { label: "Madaniyah", value: "medinan" },
               ]}
             />
-          </Col>
-        </Row>
-      </Card>
+          </div>
+          <Text type='secondary' style={{ marginInlineStart: "auto" }}>
+            {isFetching && !isLoading
+              ? "Memperbarui data…"
+              : `${filteredSurah.length.toLocaleString("id-ID")} surah`}
+          </Text>
+        </Flex>
+      </MuseCard>
 
       {isLoading ? (
-        <Row gutter={[12, 12]}>
+        <Row gutter={[gap, gap]}>
           {Array.from({ length: 6 }, (_, index) => (
             <Col xs={24} md={12} xl={8} key={index}>
-              <Card style={{ borderRadius: 16 }}>
+              <MuseCard>
                 <Skeleton active paragraph={{ rows: 3 }} />
-              </Card>
+              </MuseCard>
             </Col>
           ))}
         </Row>
       ) : null}
 
-      {!isLoading && !filteredSurah.length ? (
-        <Card style={{ borderRadius: 16 }}>
-          <Empty description='Surah tidak ditemukan' />
-        </Card>
+      {!isLoading && !isError && !filteredSurah.length ? (
+        <MuseCard>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description='Surah tidak ditemukan. Coba kata kunci atau filter lain.'
+          />
+        </MuseCard>
       ) : null}
 
-      <Row gutter={[12, 12]}>
-        {filteredSurah.map((surah, index) => (
+      <Row gutter={[gap, gap]}>
+        {filteredSurah.map((surah) => (
           <Col xs={24} md={12} xl={8} key={surah.number}>
-            <MotionDiv
-              variants={itemVariants}
-              initial='hidden'
-              animate='show'
-              transition={{ delay: Math.min(index * 0.02, 0.18) }}
-              whileHover={{ y: -4 }}
-              style={{ height: "100%" }}
-            >
-              <Card
-                hoverable
-                style={{
-                  borderRadius: 18,
-                  height: "100%",
-                  border: "1px solid #dbeafe",
-                  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.07)",
-                  background:
-                    "linear-gradient(180deg, #ffffff 0%, rgba(239,246,255,0.6) 100%)",
-                }}
-                styles={{ body: { padding: screens.md ? 18 : 14 } }}
-              >
-                <Space direction='vertical' size={10} style={{ width: "100%" }}>
-                  <Space
-                    align='center'
-                    style={{ justifyContent: "space-between", width: "100%" }}
+            <MuseCard style={{ height: "100%" }} styles={{ body: { height: "100%" } }}>
+              <Flex vertical gap={12} style={{ height: "100%" }}>
+                <Flex justify='space-between' align='center' gap={12}>
+                  <IconBox
+                    icon={<span style={{ fontWeight: 700, fontSize: 14 }}>{surah.number}</span>}
+                    tone='primarySoft'
+                    size={40}
+                  />
+                  <Text
+                    style={{
+                      ...arabicTextStyle,
+                      fontSize: 26,
+                      color: museColors.navy,
+                    }}
                   >
-                    <Tag
-                      style={{
-                        margin: 0,
-                        borderRadius: 999,
-                        color: "#1d4ed8",
-                        borderColor: "#bfdbfe",
-                        background: "#eff6ff",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Surah {surah.number}
-                    </Tag>
-                    <Text
-                      style={{
-                        ...arabicTextStyle,
-                        fontSize: 28,
-                        color: "#0f172a",
-                      }}
-                    >
-                      {getSurahArabicName(surah)}
-                    </Text>
-                  </Space>
+                    {getSurahArabicName(surah)}
+                  </Text>
+                </Flex>
 
-                  <div>
-                    <Title level={5} style={{ margin: 0 }}>
-                      {surah.name_latin || `Surah ${surah.number}`}
-                    </Title>
-                    <Text type='secondary'>{getSurahTranslation(surah)}</Text>
-                  </div>
+                <div>
+                  <Text strong style={{ display: "block", fontSize: 16 }}>
+                    {surah.name_latin || `Surah ${surah.number}`}
+                  </Text>
+                  <Text type='secondary'>{getSurahTranslation(surah)}</Text>
+                </div>
 
-                  <Space wrap>
-                    <Tag icon={<BookOpen size={12} />} color='blue'>
-                      {surah.number_of_verses} ayat
-                    </Tag>
-                    <Tag icon={<ScrollText size={12} />} color='cyan'>
-                      {normalizeRevelation(surah.revelation_type)}
-                    </Tag>
-                  </Space>
+                <Flex gap={6} wrap>
+                  <Tag icon={<BookOpen size={12} />} style={{ marginInlineEnd: 0 }}>
+                    {surah.number_of_verses} ayat
+                  </Tag>
+                  <Tag icon={<ScrollText size={12} />} style={{ marginInlineEnd: 0 }}>
+                    {normalizeRevelation(surah.revelation_type)}
+                  </Tag>
+                </Flex>
 
-                  <Button
-                    type='default'
-                    icon={<List size={14} />}
-                    onClick={() => setActiveSurah(surah)}
-                    style={{ borderRadius: 10 }}
-                  >
-                    Lihat Ayat
-                  </Button>
-                </Space>
-              </Card>
-            </MotionDiv>
+                <Button
+                  icon={<List size={16} />}
+                  onClick={() => setActiveSurah(surah)}
+                  style={{ marginTop: "auto", alignSelf: "flex-start" }}
+                >
+                  Lihat Ayat
+                </Button>
+              </Flex>
+            </MuseCard>
           </Col>
         ))}
       </Row>
-
-      {isFetching && !isLoading ? (
-        <Text type='secondary'>Memperbarui data surah...</Text>
-      ) : null}
-    </Space>
+    </Flex>
   );
 };
 

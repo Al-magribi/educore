@@ -1,36 +1,25 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Alert,
-  Badge,
-  Button,
-  Card,
-  Col,
-  Divider,
+  App,
   Empty,
   Flex,
   Form,
   Grid,
-  Input,
-  Popconfirm,
-  Row,
+  List,
   Select,
-  Space,
+  Skeleton,
   Table,
   Tag,
   Typography,
-  message,
+  theme,
 } from "antd";
-import { motion } from "framer-motion";
-import {
-  Plus,
-  Search,
-  Sparkles,
-  Trash2,
-  Pencil,
-  Target as TargetIcon,
-  ListChecks,
-  CheckCircle2,
-} from "lucide-react";
+import { CheckCircle2, ListChecks, Target as TargetIcon } from "lucide-react";
+
+import PageHeader from "../../../components/ui/PageHeader";
+import { MuseCard, StatCard } from "../../../components/ui/muse";
+import { DataListCard, EditDeleteActions } from "../../../components/ui/muse/DataSection";
+import { museRadius } from "../../../config/theme";
 import {
   useCreateTargetPlanMutation,
   useDeleteTargetPlanMutation,
@@ -40,31 +29,8 @@ import {
 } from "../../../service/tahfiz/ApiTarget";
 import TargetPlanDrawer from "./TargetPlanDrawer";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.35,
-      staggerChildren: 0.08,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 14 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
-  },
-};
 
 const normalizeToNull = (value) =>
   value === undefined || value === null || value === "" ? null : value;
@@ -78,6 +44,8 @@ const toArray = (value) => {
 const Target = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const { message } = App.useApp();
+  const { token } = theme.useToken();
 
   const [form] = Form.useForm();
   const formHomebaseId = Form.useWatch("homebase_id", form);
@@ -259,328 +227,258 @@ const Target = () => {
     }
   };
 
+  const renderItemTags = (items, withMandatory = false) => (
+    <Flex gap={6} wrap>
+      {items.map((item) => (
+        <Tag
+          key={item.id}
+          color={item.target_type === "juz" ? "gold" : "blue"}
+          style={{ marginInlineEnd: 0 }}
+        >
+          {itemLabel(item)}
+          {withMandatory ? (item.is_mandatory ? " · Wajib" : " · Opsional") : ""}
+        </Tag>
+      ))}
+    </Flex>
+  );
+
+  const renderStatus = (active) => (
+    <Tag color={active ? "success" : "default"} style={{ marginInlineEnd: 0 }}>
+      {active ? "Aktif" : "Nonaktif"}
+    </Tag>
+  );
+
+  const renderActions = (record) => (
+    <EditDeleteActions
+      onEdit={() => openEdit(record)}
+      onDelete={() => handleDelete(record.id)}
+      deleteTitle={`Hapus ${record.title || "target plan"}?`}
+      deleteDescription='Target beserta semua item di dalamnya akan terhapus permanen.'
+      deleting={deleting}
+    />
+  );
+
   const columns = [
     {
-      title: "Target Plan",
+      title: "TARGET PLAN",
       key: "target_plan",
       render: (_, record) => (
-        <Space direction='vertical' size={2}>
-          <Text strong>{record.title || "Tanpa Judul"}</Text>
-          <Text type='secondary'>
-            {record.homebase_name || "Semua Satuan"} | {record.periode_name} |{" "}
-            {record.grade_name}
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {record.title || "Tanpa judul"}
           </Text>
-        </Space>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {[record.homebase_name || "Semua satuan", record.periode_name, record.grade_name]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+        </div>
       ),
     },
     {
-      title: "Item Target",
+      title: "ITEM TARGET",
       key: "items",
-      width: 360,
       render: (_, record) => {
         const items = record.items || [];
         if (!items.length) return <Text type='secondary'>Belum ada item</Text>;
-
         return (
-          <Space wrap>
-            {items.slice(0, 3).map((item) => (
-              <Tag
-                key={item.id}
-                color={item.target_type === "juz" ? "gold" : "blue"}
-              >
-                {itemLabel(item)}
-              </Tag>
-            ))}
-            {items.length > 3 ? <Tag>+{items.length - 3} item</Tag> : null}
-          </Space>
+          <Flex gap={6} wrap style={{ whiteSpace: "normal", maxWidth: 420 }}>
+            {renderItemTags(items.slice(0, 3))}
+            {items.length > 3 ? (
+              <Tag style={{ marginInlineEnd: 0 }}>+{items.length - 3} item</Tag>
+            ) : null}
+          </Flex>
         );
       },
     },
     {
-      title: "Status",
+      title: "STATUS",
       dataIndex: "is_active",
       width: 120,
-      render: (active) => (
-        <Badge
-          color={active ? "#22c55e" : "#94a3b8"}
-          text={active ? "Aktif" : "Nonaktif"}
-        />
-      ),
+      render: renderStatus,
     },
     {
-      title: "Aksi",
+      title: "AKSI",
       key: "action",
-      width: 140,
-      fixed: "right",
-      render: (_, record) => (
-        <Space>
-          <Button
-            icon={<Pencil size={14} />}
-            onClick={() => openEdit(record)}
-            size='small'
-          >
-            Edit
-          </Button>
-          <Popconfirm
-            title='Hapus Target Plan'
-            description='Data target beserta item akan terhapus permanen.'
-            okText='Hapus'
-            cancelText='Batal'
-            okButtonProps={{ danger: true, loading: deleting }}
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Button danger size='small' icon={<Trash2 size={14} />} />
-          </Popconfirm>
-        </Space>
-      ),
+      width: 110,
+      align: "right",
+      render: (_, record) => <Flex justify='flex-end'>{renderActions(record)}</Flex>,
     },
   ];
 
-  if (optionsQuery.isError || plansQuery.isError) {
-    return (
-      <Alert
-        type='error'
-        showIcon
-        message='Gagal memuat data target tahfiz.'
-        description='Silakan refresh halaman atau cek koneksi server.'
-      />
-    );
-  }
-
+  const summary = plansQuery.data?.summary || {};
   const summaryCards = [
-    {
-      key: "total",
-      title: "Total Plan",
-      value: plansQuery.data?.summary?.total_plans || 0,
-      icon: <TargetIcon size={18} />,
-      bg: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-      color: "#1d4ed8",
-    },
-    {
-      key: "active",
-      title: "Plan Aktif",
-      value: plansQuery.data?.summary?.active_plans || 0,
-      icon: <CheckCircle2 size={18} />,
-      bg: "linear-gradient(135deg, #bfdbfe, #dbeafe)",
-      color: "#1e40af",
-    },
-    {
-      key: "items",
-      title: "Total Item Target",
-      value: plansQuery.data?.summary?.total_items || 0,
-      icon: <ListChecks size={18} />,
-      bg: "linear-gradient(135deg, #e0f2fe, #dbeafe)",
-      color: "#0369a1",
-    },
+    { title: "Total Plan", value: summary.total_plans || 0, icon: <TargetIcon size={24} />, tone: "primary" },
+    { title: "Plan Aktif", value: summary.active_plans || 0, icon: <CheckCircle2 size={24} />, tone: "success" },
+    { title: "Total Item Target", value: summary.total_items || 0, icon: <ListChecks size={24} />, tone: "accent" },
   ];
+
+  const plans = plansQuery.data?.plans || [];
+  const isListLoading = plansQuery.isLoading || plansQuery.isFetching;
+  const hasFilter = Boolean(selectedHomebaseId || periodeId || gradeId || searchValue);
+  const emptyNode = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        hasFilter
+          ? "Tidak ada target plan yang cocok dengan filter."
+          : "Belum ada target plan. Buat target pertama untuk tingkat dan periode tertentu."
+      }
+    />
+  );
+
+  const filterControls = (
+    <>
+      <Select
+        aria-label='Filter satuan'
+        allowClear
+        value={selectedHomebaseId}
+        placeholder='Semua satuan'
+        options={homebaseOptions}
+        virtual={false}
+        style={{ width: isMobile ? "100%" : 170 }}
+        onChange={(value) => {
+          setHomebaseId(value);
+          setPeriodeId(undefined);
+          setGradeId(undefined);
+        }}
+        loading={optionsQuery.isFetching}
+      />
+      <Select
+        aria-label='Filter periode'
+        allowClear
+        value={periodeId}
+        placeholder='Semua periode'
+        options={periodeOptions}
+        virtual={false}
+        style={{ width: isMobile ? "100%" : 170 }}
+        onChange={setPeriodeId}
+        loading={optionsQuery.isFetching}
+      />
+      <Select
+        aria-label='Filter tingkat'
+        allowClear
+        value={gradeId}
+        placeholder='Semua tingkat'
+        options={gradeOptions}
+        virtual={false}
+        style={{ width: isMobile ? "100%" : 150 }}
+        onChange={setGradeId}
+        loading={optionsQuery.isFetching}
+      />
+    </>
+  );
 
   return (
-    <MotionDiv variants={containerVariants} initial='hidden' animate='show'>
-      <Space direction='vertical' size={18} style={{ width: "100%" }}>
-        <MotionDiv variants={itemVariants}>
-          <Card
-            style={{
-              borderRadius: 26,
-              border: "none",
-              overflow: "hidden",
-              background:
-                "radial-gradient(circle at top left, rgba(147,197,253,0.34), transparent 30%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #38bdf8 100%)",
-              boxShadow: "0 26px 54px rgba(15, 23, 42, 0.18)",
-            }}
-            styles={{ body: { padding: isMobile ? 18 : 24 } }}
-          >
-            <Space direction='vertical' size={8} style={{ color: "#fff" }}>
-              <Space
-                size={6}
+    <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
+      <PageHeader
+        title='Target Tahfiz'
+        description='Atur target hafalan per periode, tingkat, dan satuan dengan kombinasi item juz maupun surah.'
+      />
+
+      {optionsQuery.isError || plansQuery.isError ? (
+        <Alert
+          type='error'
+          showIcon
+          title='Gagal memuat data target tahfiz'
+          description={
+            plansQuery.error?.data?.message ||
+            optionsQuery.error?.data?.message ||
+            "Muat ulang halaman atau periksa koneksi server."
+          }
+        />
+      ) : null}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: isMobile ? 16 : 24,
+        }}
+      >
+        {summaryCards.map((item) =>
+          plansQuery.isLoading ? (
+            <MuseCard key={item.title}>
+              <Skeleton active paragraph={{ rows: 1 }} />
+            </MuseCard>
+          ) : (
+            <StatCard key={item.title} {...item} />
+          ),
+        )}
+      </div>
+
+      <DataListCard
+        title='Daftar Target Plan'
+        icon={<TargetIcon size={18} />}
+        count={plans.length}
+        unit='plan'
+        searchProps={{
+          placeholder: "Cari judul target",
+          value: searchInput,
+          onChange: (event) => {
+            const { value } = event.target;
+            setSearchInput(value);
+            if (!value) setSearchValue("");
+          },
+          onSearch: (value) => setSearchValue(value.trim()),
+        }}
+        extra={filterControls}
+        onAdd={openCreate}
+        addLabel='Buat Target'
+      >
+        {isMobile ? (
+          <List
+            loading={isListLoading}
+            dataSource={plans}
+            locale={{ emptyText: emptyNode }}
+            pagination={plans.length > 8 ? { pageSize: 8, size: "small", align: "center" } : false}
+            style={{ padding: 12 }}
+            renderItem={(record) => (
+              <div
                 style={{
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.18)",
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  borderRadius: museRadius.item,
+                  padding: 12,
+                  marginBottom: 12,
                 }}
               >
-                <TargetIcon size={14} />
-                <Text style={{ color: "#e0f2fe", fontWeight: 600 }}>
-                  Target Management
-                </Text>
-              </Space>
-              <Title level={isMobile ? 4 : 3} style={{ margin: 0, color: "#fff" }}>
-                Manajemen Target Tahfiz
-              </Title>
-              <Text style={{ color: "rgba(241,245,249,0.88)", maxWidth: 760 }}>
-                Atur target hafalan per periode, tingkat, dan satuan dengan
-                kombinasi item Juz maupun Surah.
-              </Text>
-            </Space>
-          </Card>
-        </MotionDiv>
-
-        <Row gutter={[14, 14]}>
-          {summaryCards.map((item) => (
-            <Col xs={24} md={8} key={item.key}>
-              <MotionDiv variants={itemVariants} style={{ height: "100%" }}>
-                <Card
-                  hoverable
-                  style={{
-                    borderRadius: 20,
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.07)",
-                    height: "100%",
-                  }}
-                  styles={{ body: { padding: 18 } }}
-                >
-                  <Space
-                    align='start'
-                    style={{ width: "100%", justifyContent: "space-between" }}
-                  >
-                    <Space direction='vertical' size={4}>
-                      <Text type='secondary'>{item.title}</Text>
-                      <Title level={3} style={{ margin: 0 }}>
-                        {item.value}
-                      </Title>
-                    </Space>
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 14,
-                        display: "grid",
-                        placeItems: "center",
-                        background: item.bg,
-                        color: item.color,
-                      }}
-                    >
-                      {item.icon}
-                    </div>
-                  </Space>
-                </Card>
-              </MotionDiv>
-            </Col>
-          ))}
-        </Row>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            style={{
-              borderRadius: 24,
-              border: "1px solid #e2e8f0",
-              boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+                <Flex justify='space-between' align='flex-start' gap={8}>
+                  <div style={{ minWidth: 0 }}>
+                    <Text strong style={{ display: "block" }}>
+                      {record.title || "Tanpa judul"}
+                    </Text>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      {[record.periode_name, record.grade_name].filter(Boolean).join(" · ")}
+                    </Text>
+                  </div>
+                  <Flex gap={4}>{renderActions(record)}</Flex>
+                </Flex>
+                <Flex gap={6} wrap style={{ marginTop: 8 }}>
+                  {renderStatus(record.is_active)}
+                  {renderItemTags((record.items || []).slice(0, 3))}
+                  {(record.items || []).length > 3 ? (
+                    <Tag style={{ marginInlineEnd: 0 }}>+{record.items.length - 3} item</Tag>
+                  ) : null}
+                </Flex>
+              </div>
+            )}
+          />
+        ) : (
+          <Table
+            rowKey='id'
+            loading={isListLoading}
+            dataSource={plans}
+            columns={columns}
+            pagination={{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
+            locale={{ emptyText: emptyNode }}
+            scroll={{ x: true }}
+            expandable={{
+              expandedRowRender: (record) => renderItemTags(record.items || [], true),
+              rowExpandable: (record) => (record.items || []).length > 0,
             }}
-            styles={{ body: { padding: isMobile ? 14 : 18 } }}
-          >
-            <Row gutter={[12, 12]}>
-              <Col xs={24} md={6}>
-                <Select
-                  allowClear
-                  value={selectedHomebaseId}
-                  placeholder='Filter Satuan'
-                  options={homebaseOptions}
-                  virtual={false}
-                  style={{ width: "100%" }}
-                  onChange={(value) => {
-                    setHomebaseId(value);
-                    setPeriodeId(undefined);
-                    setGradeId(undefined);
-                  }}
-                  loading={optionsQuery.isFetching}
-                />
-              </Col>
-              <Col xs={24} md={6}>
-                <Select
-                  allowClear
-                  value={periodeId}
-                  placeholder='Filter Periode'
-                  options={periodeOptions}
-                  virtual={false}
-                  style={{ width: "100%" }}
-                  onChange={setPeriodeId}
-                  loading={optionsQuery.isFetching}
-                />
-              </Col>
-              <Col xs={24} md={6}>
-                <Select
-                  allowClear
-                  value={gradeId}
-                  placeholder='Filter Tingkat'
-                  options={gradeOptions}
-                  virtual={false}
-                  style={{ width: "100%" }}
-                  onChange={setGradeId}
-                  loading={optionsQuery.isFetching}
-                />
-              </Col>
-              <Col xs={24} md={6}>
-                <Input
-                  value={searchInput}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setSearchInput(value);
-                    if (!value) setSearchValue("");
-                  }}
-                  onPressEnter={() => setSearchValue(searchInput.trim())}
-                  placeholder='Cari judul target...'
-                  prefix={<Search size={14} color='#1d4ed8' />}
-                  suffix={
-                    <Button
-                      type='text'
-                      size='small'
-                      icon={<Sparkles size={14} />}
-                      onClick={() => setSearchValue(searchInput.trim())}
-                    />
-                  }
-                  allowClear
-                />
-              </Col>
-            </Row>
-
-            <Divider />
-
-            <Flex
-              justify='space-between'
-              align={isMobile ? "stretch" : "center"}
-              vertical={isMobile}
-              gap={10}
-              style={{ marginBottom: 12 }}
-            >
-              <Text strong>Daftar Target Plan</Text>
-              <Button
-                type='primary'
-                icon={<Plus size={16} />}
-                onClick={openCreate}
-                style={{ borderRadius: 10 }}
-              >
-                Buat Target Plan
-              </Button>
-            </Flex>
-
-            <Table
-              rowKey='id'
-              loading={plansQuery.isLoading || plansQuery.isFetching}
-              dataSource={plansQuery.data?.plans || []}
-              columns={columns}
-              pagination={{ pageSize: 8, showSizeChanger: false }}
-              locale={{ emptyText: <Empty description='Belum ada target plan' /> }}
-              scroll={{ x: 920 }}
-              expandable={{
-                expandedRowRender: (record) => (
-                  <Space wrap>
-                    {(record.items || []).map((item) => (
-                      <Tag
-                        key={item.id}
-                        color={item.target_type === "juz" ? "gold" : "blue"}
-                      >
-                        {itemLabel(item)}
-                        {item.is_mandatory ? " | Wajib" : " | Opsional"}
-                      </Tag>
-                    ))}
-                  </Space>
-                ),
-                rowExpandable: (record) => (record.items || []).length > 0,
-              }}
-            />
-          </Card>
-        </MotionDiv>
-      </Space>
+          />
+        )}
+      </DataListCard>
 
       <TargetPlanDrawer
         isMobile={isMobile}
@@ -597,7 +495,7 @@ const Target = () => {
         surahOptions={surahOptions}
         saving={creating || updating}
       />
-    </MotionDiv>
+    </Flex>
   );
 };
 

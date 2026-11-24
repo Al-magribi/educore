@@ -1,34 +1,45 @@
-import React from "react";
-import {
-  BookOpen,
-  CircleDot,
-  Layers2,
-  Plus,
-  Save,
-  Target as TargetIcon,
-  Trash2,
-  X,
-} from "lucide-react";
+import { BookOpen, Layers2, ListChecks, Plus, Target as TargetIcon, Trash2 } from "lucide-react";
 import {
   Button,
-  Card,
   Col,
-  Divider,
   Drawer,
+  Empty,
   Flex,
   Form,
   Input,
   Row,
   Select,
-  Space,
   Switch,
-  Tag,
+  Tooltip,
   Typography,
+  theme,
 } from "antd";
-import { motion } from "framer-motion";
 
-const { Title, Text } = Typography;
-const MotionDiv = motion.div;
+import { CardTitle, MuseCard } from "../../../components/ui/muse";
+import { museRadius } from "../../../config/theme";
+
+const { Text } = Typography;
+
+const targetTypeOptions = [
+  {
+    value: "juz",
+    label: (
+      <Flex align='center' gap={6}>
+        <Layers2 size={14} />
+        Juz
+      </Flex>
+    ),
+  },
+  {
+    value: "surah",
+    label: (
+      <Flex align='center' gap={6}>
+        <BookOpen size={14} />
+        Surah
+      </Flex>
+    ),
+  },
+];
 
 const TargetPlanDrawer = ({
   isMobile,
@@ -44,97 +55,40 @@ const TargetPlanDrawer = ({
   juzOptions,
   surahOptions,
   saving,
-}) => (
-  <Drawer
-    title={null}
-    width={isMobile ? "100%" : 960}
-    open={drawerOpen}
-    onClose={closeDrawer}
-    destroyOnHidden
-    closable={false}
-    styles={{
-      body: { padding: 0, background: "#f8fafc" },
-      header: { display: "none" },
-    }}
-  >
-    <MotionDiv
-      initial={{ opacity: 0, x: 24 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.24, ease: "easeOut" }}
-      style={{ height: "100%", display: "flex", flexDirection: "column" }}
-    >
-      <div
-        style={{
-          padding: isMobile ? 18 : 24,
-          background:
-            "linear-gradient(135deg, rgba(239,246,255,1), rgba(224,242,254,0.98))",
-          borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-        }}
-      >
-        <Flex justify='space-between' align='flex-start' gap={16}>
-          <Flex align='flex-start' gap={14}>
-            <div
-              style={{
-                width: isMobile ? 50 : 56,
-                height: isMobile ? 50 : 56,
-                borderRadius: 18,
-                display: "grid",
-                placeItems: "center",
-                background: "linear-gradient(135deg, #1d4ed8, #0ea5e9)",
-                color: "#fff",
-                boxShadow: "0 18px 32px rgba(29, 78, 216, 0.24)",
-                flexShrink: 0,
-              }}
-            >
-              <TargetIcon size={24} />
-            </div>
+}) => {
+  const { token } = theme.useToken();
 
-            <div>
-              <Flex
-                align={isMobile ? "flex-start" : "center"}
-                vertical={isMobile}
-                gap={10}
-                style={{ marginBottom: 6 }}
-              >
-                <Title level={3} style={{ margin: 0 }}>
-                  {editingPlan ? "Edit Target Plan" : "Buat Target Plan"}
-                </Title>
-                <Tag
-                  style={{
-                    marginInlineEnd: 0,
-                    borderRadius: 999,
-                    padding: "6px 12px",
-                    background: "rgba(3, 105, 161, 0.10)",
-                    color: "#0369a1",
-                    border: "1px solid rgba(3, 105, 161, 0.16)",
-                    fontWeight: 600,
-                  }}
-                >
-                  Tahfiz Targeting
-                </Tag>
-              </Flex>
-
-              <Text type='secondary' style={{ display: "block", maxWidth: 620 }}>
-                Susun target plan beserta item Juz atau Surah untuk setiap satuan,
-                periode, dan tingkat dalam satu panel kerja.
-              </Text>
-            </div>
-          </Flex>
-
-          <Button onClick={closeDrawer} icon={<X size={16} />} style={{ borderRadius: 12 }}>
-            Tutup
+  return (
+    <Drawer
+      title={
+        <CardTitle
+          icon={<TargetIcon size={18} />}
+          title={editingPlan ? "Edit Target Plan" : "Buat Target Plan"}
+          description={
+            isMobile
+              ? undefined
+              : "Susun target juz atau surah untuk satuan, periode, dan tingkat tertentu."
+          }
+        />
+      }
+      width={isMobile ? "100%" : 880}
+      open={drawerOpen}
+      onClose={closeDrawer}
+      destroyOnHidden
+      styles={{ body: { background: token.colorBgLayout, padding: isMobile ? 16 : 24 } }}
+      footer={
+        <Flex justify='flex-end' gap={8}>
+          <Button onClick={closeDrawer}>Batal</Button>
+          <Button type='primary' onClick={form.submit} loading={saving}>
+            Simpan Target
           </Button>
         </Flex>
-      </div>
-
-      <div style={{ padding: isMobile ? 14 : 20, flex: 1, overflow: "auto" }}>
-        <Card
-          bordered={false}
-          style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
-          styles={{ body: { padding: isMobile ? 14 : 20 } }}
-        >
-          <Form form={form} layout='vertical' onFinish={handleSubmit}>
-            <Row gutter={[12, 12]}>
+      }
+    >
+      <Form form={form} layout='vertical' onFinish={handleSubmit}>
+        <Flex vertical gap={isMobile ? 16 : 24}>
+          <MuseCard title={<CardTitle title='Informasi Plan' />}>
+            <Row gutter={16}>
               <Col xs={24} md={8}>
                 <Form.Item
                   label='Satuan'
@@ -187,169 +141,149 @@ const TargetPlanDrawer = ({
                 </Form.Item>
               </Col>
               <Col xs={24} md={8}>
-                <Form.Item label='Status Aktif' name='is_active' valuePropName='checked'>
+                <Form.Item label='Status' name='is_active' valuePropName='checked'>
                   <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
                 </Form.Item>
               </Col>
               <Col span={24}>
-                <Form.Item label='Catatan Plan' name='notes'>
-                  <Input.TextArea rows={2} placeholder='Catatan tambahan plan...' />
+                <Form.Item label='Catatan Plan' name='notes' style={{ marginBottom: 0 }}>
+                  <Input.TextArea rows={2} placeholder='Catatan tambahan (opsional)' />
                 </Form.Item>
               </Col>
             </Row>
+          </MuseCard>
 
-            <Divider orientation='left'>Item Target</Divider>
-
-            <Form.List name='items'>
-              {(fields, { add, remove }) => (
-                <Space direction='vertical' size={12} style={{ width: "100%" }}>
-                  {fields.map(({ key, name }, index) => (
-                    <Card
-                      key={key}
-                      style={{
-                        borderRadius: 14,
-                        border: "1px solid #dbeafe",
-                        background:
-                          "linear-gradient(180deg, #ffffff 0%, rgba(239,246,255,0.5) 100%)",
-                      }}
-                      styles={{ body: { padding: 14 } }}
-                    >
-                      <Row gutter={[12, 12]}>
-                        <Col xs={24} md={4}>
-                          <Form.Item
-                            label={`Item #${index + 1}`}
-                            name={[name, "target_type"]}
-                            rules={[{ required: true, message: "Pilih tipe target." }]}
-                          >
-                            <Select
-                              virtual={false}
-                              options={[
-                                {
-                                  value: "juz",
-                                  label: (
-                                    <Space size={6}>
-                                      <Layers2 size={14} />
-                                      Juz
-                                    </Space>
-                                  ),
-                                },
-                                {
-                                  value: "surah",
-                                  label: (
-                                    <Space size={6}>
-                                      <BookOpen size={14} />
-                                      Surah
-                                    </Space>
-                                  ),
-                                },
-                              ]}
-                            />
-                          </Form.Item>
-                        </Col>
-
-                        <Form.Item shouldUpdate noStyle>
-                          {({ getFieldValue }) => {
-                            const type = getFieldValue(["items", name, "target_type"]);
-
-                            return (
-                              <>
-                                {type === "juz" ? (
-                                  <Col xs={24} md={8}>
-                                    <Form.Item
-                                      label='Pilih Juz'
-                                      name={[name, "juz_ids"]}
-                                      rules={[{ required: true, message: "Juz wajib dipilih." }]}
-                                    >
-                                      <Select
-                                        mode='multiple'
-                                        options={juzOptions}
-                                        virtual={false}
-                                        placeholder='Pilih satu atau lebih juz'
-                                      />
-                                    </Form.Item>
-                                  </Col>
-                                ) : null}
-
-                                {type === "surah" ? (
-                                  <Col xs={24} md={8}>
-                                    <Form.Item
-                                      label='Pilih Surah'
-                                      name={[name, "surah_ids"]}
-                                      rules={[{ required: true, message: "Surah wajib dipilih." }]}
-                                    >
-                                      <Select
-                                        mode='multiple'
-                                        virtual={false}
-                                        showSearch
-                                        optionFilterProp='label'
-                                        placeholder='Pilih satu atau lebih surah'
-                                        options={surahOptions}
-                                      />
-                                    </Form.Item>
-                                  </Col>
-                                ) : null}
-                              </>
-                            );
-                          }}
-                        </Form.Item>
-
-                        <Col xs={24} md={4}>
-                          <Form.Item
-                            label='Wajib'
-                            name={[name, "is_mandatory"]}
-                            valuePropName='checked'
-                            initialValue
-                          >
-                            <Switch
-                              checkedChildren={<CircleDot size={12} />}
-                              unCheckedChildren={<CircleDot size={12} />}
-                            />
-                          </Form.Item>
-                        </Col>
-
-                        <Col xs={24} md={20}>
-                          <Form.Item label='Catatan Item' name={[name, "notes"]}>
-                            <Input placeholder='Opsional: target khusus, metode, dll.' />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={4}>
-                          <Button
-                            danger
-                            icon={<Trash2 size={14} />}
-                            style={{ marginTop: 30 }}
-                            onClick={() => remove(name)}
-                            block
-                          >
-                            Hapus
-                          </Button>
-                        </Col>
-                      </Row>
-                    </Card>
-                  ))}
-
+          <Form.List name='items'>
+            {(fields, { add, remove }) => (
+              <MuseCard
+                title={
+                  <CardTitle
+                    icon={<ListChecks size={18} />}
+                    title='Item Target'
+                    description={`${fields.length} item`}
+                  />
+                }
+                extra={
                   <Button
-                    icon={<Plus size={15} />}
+                    icon={<Plus size={16} />}
                     onClick={() => add({ target_type: "juz", is_mandatory: true })}
                   >
-                    Tambah Item Target
+                    Tambah Item
                   </Button>
-                </Space>
-              )}
-            </Form.List>
+                }
+              >
+                {fields.length === 0 ? (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description='Belum ada item. Tambahkan minimal satu juz atau surah.'
+                  />
+                ) : (
+                  <Flex vertical gap={12}>
+                    {fields.map(({ key, name }, index) => (
+                      <div
+                        key={key}
+                        style={{
+                          border: `1px solid ${token.colorBorderSecondary}`,
+                          borderRadius: museRadius.item,
+                          padding: isMobile ? 12 : 16,
+                        }}
+                      >
+                        <Flex justify='space-between' align='center' style={{ marginBottom: 8 }}>
+                          <Text strong>Item {index + 1}</Text>
+                          <Tooltip title='Hapus item'>
+                            <Button
+                              type='text'
+                              danger
+                              aria-label={`Hapus item ${index + 1}`}
+                              icon={<Trash2 size={16} />}
+                              onClick={() => remove(name)}
+                            />
+                          </Tooltip>
+                        </Flex>
+                        <Row gutter={16}>
+                          <Col xs={24} md={6}>
+                            <Form.Item
+                              label='Tipe'
+                              name={[name, "target_type"]}
+                              rules={[{ required: true, message: "Pilih tipe target." }]}
+                            >
+                              <Select virtual={false} options={targetTypeOptions} />
+                            </Form.Item>
+                          </Col>
 
-            <Divider />
+                          <Form.Item shouldUpdate noStyle>
+                            {({ getFieldValue }) => {
+                              const type = getFieldValue(["items", name, "target_type"]);
+                              return type === "surah" ? (
+                                <Col xs={24} md={13}>
+                                  <Form.Item
+                                    label='Pilih Surah'
+                                    name={[name, "surah_ids"]}
+                                    rules={[{ required: true, message: "Surah wajib dipilih." }]}
+                                  >
+                                    <Select
+                                      mode='multiple'
+                                      virtual={false}
+                                      showSearch
+                                      optionFilterProp='label'
+                                      placeholder='Pilih satu atau lebih surah'
+                                      options={surahOptions}
+                                      maxTagCount='responsive'
+                                    />
+                                  </Form.Item>
+                                </Col>
+                              ) : (
+                                <Col xs={24} md={13}>
+                                  <Form.Item
+                                    label='Pilih Juz'
+                                    name={[name, "juz_ids"]}
+                                    rules={[{ required: true, message: "Juz wajib dipilih." }]}
+                                  >
+                                    <Select
+                                      mode='multiple'
+                                      options={juzOptions}
+                                      virtual={false}
+                                      placeholder='Pilih satu atau lebih juz'
+                                      maxTagCount='responsive'
+                                    />
+                                  </Form.Item>
+                                </Col>
+                              );
+                            }}
+                          </Form.Item>
 
-            <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-              <Button onClick={closeDrawer}>Batal</Button>
-              <Button type='primary' htmlType='submit' icon={<Save size={15} />} loading={saving}>
-                Simpan Target Plan
-              </Button>
-            </Space>
-          </Form>
-        </Card>
-      </div>
-    </MotionDiv>
-  </Drawer>
-);
+                          <Col xs={24} md={5}>
+                            <Form.Item
+                              label='Sifat'
+                              name={[name, "is_mandatory"]}
+                              valuePropName='checked'
+                              initialValue
+                            >
+                              <Switch checkedChildren='Wajib' unCheckedChildren='Opsional' />
+                            </Form.Item>
+                          </Col>
+
+                          <Col span={24}>
+                            <Form.Item
+                              label='Catatan Item'
+                              name={[name, "notes"]}
+                              style={{ marginBottom: 0 }}
+                            >
+                              <Input placeholder='Opsional: target khusus, metode, dll.' />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                      </div>
+                    ))}
+                  </Flex>
+                )}
+              </MuseCard>
+            )}
+          </Form.List>
+        </Flex>
+      </Form>
+    </Drawer>
+  );
+};
 
 export default TargetPlanDrawer;

@@ -1,24 +1,23 @@
 import React from "react";
-import { EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { Pencil, Trash2 } from "lucide-react";
 import {
   Alert,
+  App,
   Button,
-  Card,
-  Col,
   DatePicker,
+  Empty,
+  Flex,
   Form,
-  Popconfirm,
-  Row,
+  Grid,
+  List,
   Select,
-  Space,
-  Spin,
+  Skeleton,
   Table,
   Tag,
   Tooltip,
   Typography,
-  message,
+  theme,
 } from "antd";
+import { NotebookPen, Plus, RotateCcw } from "lucide-react";
 import dayjs from "dayjs";
 import {
   useCreateDailyReportRecordMutation,
@@ -28,11 +27,20 @@ import {
   useUpdateDailyReportRecordMutation,
   useValidateDailyReportPayloadMutation,
 } from "../../../service/tahfiz/ApiReport";
+import PageHeader from "../../../components/ui/PageHeader";
+import { CardTitle, MuseCard } from "../../../components/ui/muse";
+import { EditDeleteActions } from "../../../components/ui/muse/DataSection";
+import { museRadius } from "../../../config/theme";
 import DailyReportInputModal from "./DailyReportInputModal";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const [editingId, setEditingId] = React.useState(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -207,28 +215,29 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
   const periodes = data?.filters?.periodes || [];
   const grades = data?.filters?.grades || [];
   const classes = data?.filters?.classes || [];
-  const structureFilterSpan = actor.user_role === "admin" ? 6 : 8;
   const disableAdminDetailFilter = isAdmin && !adminStructureFilterReady;
 
-  if (isLoading || isFetching) {
+  if (isLoading) {
     return (
-      <Card>
-        <Space>
-          <Spin size='small' />
-          <Text>Menyiapkan referensi setoran hafalan...</Text>
-        </Space>
-      </Card>
+      <Flex vertical gap={24}>
+        <Skeleton.Input active style={{ width: 280 }} />
+        <MuseCard>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </MuseCard>
+      </Flex>
     );
   }
 
   if (error) {
     return (
-      <Alert
-        type='error'
-        showIcon
-        title='Gagal memuat referensi setoran hafalan'
-        description={error?.data?.message || "Silakan coba lagi."}
-      />
+      <MuseCard>
+        <Alert
+          type='error'
+          showIcon
+          title='Gagal memuat referensi setoran hafalan'
+          description={error?.data?.message || "Silakan muat ulang halaman."}
+        />
+      </MuseCard>
     );
   }
 
@@ -314,341 +323,331 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
     }
   };
 
+  const formatDateTime = (value) => (value ? dayjs(value).format("DD MMM YYYY, HH:mm") : "-");
+
+  const renderRange = (record) => (
+    <Text>
+      {record.start_surah_name || "-"} : {record.start_ayat ?? "-"}
+      <Text type='secondary'> → </Text>
+      {record.end_surah_name || "-"} : {record.end_ayat ?? "-"}
+    </Text>
+  );
+
+  const renderActions = (record) => {
+    const canManageRecord = Number(record.recorded_by_user_id) === Number(actor.user_id);
+    return (
+      <EditDeleteActions
+        onEdit={canManageRecord ? () => handleEdit(record) : undefined}
+        onDelete={() => handleDelete(record.id)}
+        deleteTitle={`Hapus setoran ${record.student_name || "ini"}?`}
+        deleteDescription='Data setoran yang dihapus tidak dapat dikembalikan.'
+        deleteDisabled={!canManageRecord}
+        deleteDisabledReason='Hanya pencatat setoran yang dapat menghapus data ini'
+        deleting={deleting}
+      />
+    );
+  };
+
   const recordColumns = [
     {
-      title: "Tanggal",
-      key: "audit",
-      width: 190,
-      render: (_, record) => (
-        <Space vertical size={2}>
-          <Text type='secondary'>
-            Dibuat:{" "}
-            {record.created_at
-              ? dayjs(record.created_at).format("YYYY-MM-DD HH:mm")
-              : "-"}
-          </Text>
-          <Text type='secondary'>
-            Diubah:{" "}
-            {record.updated_at
-              ? dayjs(record.updated_at).format("YYYY-MM-DD HH:mm")
-              : "-"}
-          </Text>
-        </Space>
-      ),
-    },
-
-    {
-      title: "Siswa",
+      title: "SISWA",
       key: "student",
       render: (_, record) => (
-        <Space vertical size={2}>
-          <Text strong>{record.student_name}</Text>
-          <Text type='secondary'>NIS: {record.nis || "-"}</Text>
-        </Space>
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {record.student_name}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            NIS {record.nis || "-"}
+          </Text>
+        </div>
       ),
     },
     {
-      title: "Setoran",
-      key: "range",
+      title: "TANGGAL",
+      key: "date",
+      width: 150,
       render: (_, record) => (
-        <Space vertical size={2}>
-          <Text type='success'>
-            {record.start_surah_name || "-"} : {record.start_ayat}
-          </Text>
-          <Text type='danger'>
-            {record.end_surah_name || "-"} : {record.end_ayat}
-          </Text>
-        </Space>
+        <Tooltip title={`Dibuat ${formatDateTime(record.created_at)} · Diubah ${formatDateTime(record.updated_at)}`}>
+          <span>{record.date ? dayjs(record.date).format("DD MMM YYYY") : formatDateTime(record.created_at)}</span>
+        </Tooltip>
       ),
     },
     {
-      title: "Jenis",
+      title: "SETORAN",
+      key: "range",
+      render: (_, record) => renderRange(record),
+    },
+    {
+      title: "JENIS",
       dataIndex: "activity_name",
       width: 140,
       render: (value, record) => (
-        <Tag>{value || record.activity_code || "-"}</Tag>
+        <Tag color='blue' style={{ marginInlineEnd: 0 }}>
+          {value || record.activity_code || "-"}
+        </Tag>
       ),
     },
     {
-      title: "Pencatat",
+      title: "PENCATAT",
       key: "recorder",
       width: 180,
       render: (_, record) => (
-        <Space vertical size={2}>
-          <Text>{record.recorded_by_name || "-"}</Text>
-          <Text type='secondary'>{record.recorded_by_role || "-"}</Text>
-        </Space>
+        <div>
+          <Text style={{ display: "block" }}>{record.recorded_by_name || "-"}</Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.recorded_by_role || "-"}
+          </Text>
+        </div>
       ),
     },
-
     {
-      title: "Aksi",
+      title: "AKSI",
       key: "action",
-      width: 120,
-      render: (_, record) => {
-        const canManageRecord =
-          Number(record.recorded_by_user_id) === Number(actor.user_id);
-
-        return (
-          <Space>
-            <Tooltip
-              title={
-                canManageRecord
-                  ? "Edit setoran"
-                  : "Hanya pencatat setoran yang dapat mengubah data ini"
-              }
-            >
-              <Button
-                size='small'
-                type='text'
-                shape='circle'
-                icon={<Pencil size={16} />}
-                disabled={!canManageRecord}
-                onClick={() => handleEdit(record)}
-              />
-            </Tooltip>
-            <Popconfirm
-              title='Hapus setoran ini?'
-              onConfirm={() => handleDelete(record.id)}
-              okButtonProps={{ loading: deleting }}
-              disabled={!canManageRecord}
-            >
-              <Tooltip
-                title={
-                  canManageRecord
-                    ? "Hapus setoran"
-                    : "Hanya pencatat setoran yang dapat menghapus data ini"
-                }
-              >
-                <Button
-                  danger
-                  size='small'
-                  type='text'
-                  shape='circle'
-                  icon={<Trash2 size={16} />}
-                  disabled={!canManageRecord}
-                />
-              </Tooltip>
-            </Popconfirm>
-          </Space>
-        );
-      },
+      width: 110,
+      align: "right",
+      render: (_, record) => <Flex justify='flex-end'>{renderActions(record)}</Flex>,
     },
   ];
 
-  const adminStructureFilterContent =
-    actor.user_role === "admin" ? (
-      <div
-        style={{
-          padding: 16,
-          border: "1px solid #f0f0f0",
-          borderRadius: 14,
-          background: "linear-gradient(180deg, #fafcff 0%, #ffffff 100%)",
-          marginBottom: 16,
+  const resetAllFilters = () => {
+    setPage(1);
+    setDateFrom(null);
+    setDateTo(null);
+    if (isAdmin) {
+      setLocalHomebaseId(undefined);
+      setLocalPeriodeId(undefined);
+      setLocalGradeId(undefined);
+      setLocalClassId(undefined);
+    }
+  };
+
+  const hasActiveFilter = Boolean(
+    dateFrom || dateTo || (isAdmin && (homebaseId || periodeId || gradeId || classId)),
+  );
+
+  const filterWidth = isMobile ? "100%" : 180;
+  const adminStructureFilters = isAdmin ? (
+    <>
+      <Select
+        aria-label='Filter satuan'
+        allowClear
+        style={{ width: filterWidth }}
+        value={homebaseId}
+        placeholder='Semua satuan'
+        options={homebases.map((item) => ({ value: item.id, label: item.name }))}
+        onChange={(value) => {
+          setLocalHomebaseId(value);
+          setLocalPeriodeId(undefined);
+          setLocalGradeId(undefined);
+          setLocalClassId(undefined);
+          setPage(1);
         }}
-      >
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={8} xl={structureFilterSpan}>
-            <Text type='secondary'>Satuan</Text>
-            <Select
-              allowClear
-              size='large'
-              style={{ width: "100%", marginTop: 6 }}
-              value={homebaseId}
-              placeholder='Pilih satuan'
-              options={homebases.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              onChange={(value) => {
-                setLocalHomebaseId(value);
-                setLocalPeriodeId(undefined);
-                setLocalGradeId(undefined);
-                setLocalClassId(undefined);
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} md={8} xl={structureFilterSpan}>
-            <Text type='secondary'>Periode</Text>
-            <Select
-              allowClear
-              size='large'
-              style={{ width: "100%", marginTop: 6 }}
-              value={periodeId}
-              placeholder='Pilih periode'
-              disabled={!homebaseId}
-              options={periodes.map((item) => ({
-                value: item.id,
-                label: `${item.name}${item.is_active ? " (Aktif)" : ""}`,
-              }))}
-              onChange={(value) => {
-                setLocalPeriodeId(value);
-                setLocalClassId(undefined);
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} md={8} xl={structureFilterSpan}>
-            <Text type='secondary'>Tingkat</Text>
-            <Select
-              allowClear
-              size='large'
-              style={{ width: "100%", marginTop: 6 }}
-              value={gradeId}
-              placeholder='Pilih tingkat'
-              disabled={disableAdminDetailFilter}
-              options={grades.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              onChange={(value) => {
-                setLocalGradeId(value);
-                setLocalClassId(undefined);
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} md={8} xl={structureFilterSpan}>
-            <Text type='secondary'>Kelas</Text>
-            <Select
-              allowClear
-              size='large'
-              style={{ width: "100%", marginTop: 6 }}
-              value={classId}
-              placeholder='Pilih kelas'
-              disabled={disableAdminDetailFilter}
-              options={classes.map((item) => ({
-                value: item.id,
-                label: `${item.grade_name ? `${item.grade_name} - ` : ""}${item.name}`,
-              }))}
-              onChange={(value) => {
-                setLocalClassId(value);
-                setPage(1);
-              }}
-            />
-          </Col>
-        </Row>
-      </div>
-    ) : null;
+      />
+      <Select
+        aria-label='Filter periode'
+        allowClear
+        style={{ width: filterWidth }}
+        value={periodeId}
+        placeholder={homebaseId ? "Pilih periode" : "Pilih satuan dulu"}
+        disabled={!homebaseId}
+        options={periodes.map((item) => ({
+          value: item.id,
+          label: `${item.name}${item.is_active ? " (Aktif)" : ""}`,
+        }))}
+        onChange={(value) => {
+          setLocalPeriodeId(value);
+          setLocalClassId(undefined);
+          setPage(1);
+        }}
+      />
+      <Select
+        aria-label='Filter tingkat'
+        allowClear
+        style={{ width: filterWidth }}
+        value={gradeId}
+        placeholder='Semua tingkat'
+        disabled={disableAdminDetailFilter}
+        options={grades.map((item) => ({ value: item.id, label: item.name }))}
+        onChange={(value) => {
+          setLocalGradeId(value);
+          setLocalClassId(undefined);
+          setPage(1);
+        }}
+      />
+      <Select
+        aria-label='Filter kelas'
+        allowClear
+        style={{ width: filterWidth }}
+        value={classId}
+        placeholder='Semua kelas'
+        disabled={disableAdminDetailFilter}
+        options={classes.map((item) => ({
+          value: item.id,
+          label: `${item.grade_name ? `${item.grade_name} - ` : ""}${item.name}`,
+        }))}
+        onChange={(value) => {
+          setLocalClassId(value);
+          setPage(1);
+        }}
+      />
+    </>
+  ) : null;
+
+  const pagination = {
+    current: page,
+    pageSize,
+    total: recordsMeta.total || 0,
+    showSizeChanger: !isMobile,
+    pageSizeOptions: [10, 20, 50],
+    size: isMobile ? "small" : undefined,
+    align: isMobile ? "center" : undefined,
+    onChange: (nextPage, nextPageSize) => {
+      setPage(nextPage);
+      setPageSize(nextPageSize);
+    },
+  };
+
+  const emptyNode = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        hasActiveFilter
+          ? "Tidak ada setoran pada filter ini."
+          : "Belum ada setoran hafalan. Klik Input Setoran untuk mencatat yang pertama."
+      }
+    />
+  );
+
+  const isRecordsLoading = recordsQuery.isLoading || recordsQuery.isFetching || isFetching;
 
   return (
-    <Space vertical size='large' style={{ width: "100%" }}>
-      <Card
-        variant='borderless'
-        style={{ background: "transparent" }}
-        bodyStyle={{ padding: 0 }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 16,
-            padding: 20,
-            borderRadius: 16,
-            border: "1px solid #f0f0f0",
-            background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)",
-          }}
-        >
-          <Space vertical size={4}>
-            <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-              Pencatatan Hafalan
-            </Text>
-            <Title level={4} style={{ color: "#fff", margin: 0 }}>
-              Catatan Hafalan siswa
-            </Title>
-          </Space>
-          <Button
-            type='primary'
-            size='large'
-            icon={editingId ? <EditOutlined /> : <PlusOutlined />}
-            onClick={openCreateModal}
-            style={{
-              minWidth: 180,
-              background: "#fff",
-              color: "#0f172a",
-              borderColor: "#fff",
-            }}
-          >
-            Input Setoran
-          </Button>
-        </div>
-      </Card>
-
-      <Card
-        title='Riwayat Setoran'
-        extra={
-          <Space size={10} wrap>
-            {actor.user_role === "admin" ? (
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => {
-                  setPage(1);
-                  setDateFrom(null);
-                  setDateTo(null);
-                  setLocalHomebaseId(undefined);
-                  setLocalPeriodeId(undefined);
-                  setLocalGradeId(undefined);
-                  setLocalClassId(undefined);
-                }}
-              >
-                Reset Filter
-              </Button>
-            ) : null}
-            <DatePicker
-              size='middle'
-              value={dateFrom}
-              format='YYYY-MM-DD'
-              placeholder='Tanggal dari'
-              onChange={(value) => {
-                setDateFrom(value);
-                setPage(1);
-              }}
-            />
-            <DatePicker
-              size='middle'
-              value={dateTo}
-              format='YYYY-MM-DD'
-              placeholder='Tanggal sampai'
-              onChange={(value) => {
-                setDateTo(value);
-                setPage(1);
-              }}
-            />
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => {
-                setDateFrom(null);
-                setDateTo(null);
-                setPage(1);
-              }}
-            >
-              Reset Tanggal
+    <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
+      {embedded ? null : (
+        <PageHeader
+          title='Setoran Hafalan'
+          description='Catat dan pantau setoran hafalan siswa per tanggal.'
+          extra={
+            <Button type='primary' icon={<Plus size={16} />} onClick={openCreateModal}>
+              Input Setoran
             </Button>
-          </Space>
+          }
+        />
+      )}
+
+      <MuseCard
+        flush
+        title={
+          <CardTitle
+            icon={<NotebookPen size={18} />}
+            title='Riwayat Setoran'
+            description={`${Number(recordsMeta.total || 0).toLocaleString("id-ID")} setoran`}
+          />
+        }
+        extra={
+          embedded ? (
+            <Button type='primary' icon={<Plus size={16} />} onClick={openCreateModal}>
+              Input Setoran
+            </Button>
+          ) : null
         }
       >
-        {adminStructureFilterContent}
-        <Table
-          rowKey='id'
-          columns={recordColumns}
-          dataSource={records}
-          loading={recordsQuery.isLoading || recordsQuery.isFetching}
-          pagination={{
-            current: page,
-            pageSize,
-            total: recordsMeta.total || 0,
-            showSizeChanger: true,
-            pageSizeOptions: [10, 20, 50],
-            onChange: (nextPage, nextPageSize) => {
-              setPage(nextPage);
-              setPageSize(nextPageSize);
-            },
-          }}
-          scroll={{ x: 940 }}
-        />
-      </Card>
+        <Flex
+          gap={8}
+          wrap
+          style={{ padding: isMobile ? "0 16px 16px" : "0 24px 16px" }}
+        >
+          {adminStructureFilters}
+          <DatePicker.RangePicker
+            aria-label='Rentang tanggal'
+            value={[dateFrom, dateTo]}
+            format='DD MMM YYYY'
+            placeholder={["Dari tanggal", "Sampai tanggal"]}
+            allowEmpty={[true, true]}
+            style={{ width: isMobile ? "100%" : 280 }}
+            onChange={(values) => {
+              setDateFrom(values?.[0] || null);
+              setDateTo(values?.[1] || null);
+              setPage(1);
+            }}
+          />
+          {hasActiveFilter ? (
+            <Button icon={<RotateCcw size={16} />} onClick={resetAllFilters}>
+              Reset Filter
+            </Button>
+          ) : null}
+        </Flex>
+
+        {isAdmin && !adminStructureFilterReady ? (
+          <div style={{ padding: isMobile ? "0 16px 16px" : "0 24px 16px" }}>
+            <Alert
+              type='info'
+              showIcon
+              title='Pilih satuan dan periode untuk memfilter per tingkat atau kelas.'
+            />
+          </div>
+        ) : null}
+
+        {recordsQuery.error ? (
+          <div style={{ padding: isMobile ? "0 16px 16px" : "0 24px 16px" }}>
+            <Alert
+              type='error'
+              showIcon
+              title='Gagal memuat riwayat setoran'
+              description={recordsQuery.error?.data?.message || "Silakan coba lagi."}
+            />
+          </div>
+        ) : null}
+
+        {isMobile ? (
+          <List
+            loading={isRecordsLoading}
+            dataSource={records}
+            locale={{ emptyText: emptyNode }}
+            pagination={records.length ? pagination : false}
+            style={{ padding: "0 12px 12px" }}
+            renderItem={(record) => (
+              <div
+                style={{
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  borderRadius: museRadius.item,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <Flex justify='space-between' align='flex-start' gap={8}>
+                  <div style={{ minWidth: 0 }}>
+                    <Text strong style={{ display: "block" }}>
+                      {record.student_name}
+                    </Text>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      {record.date
+                        ? dayjs(record.date).format("DD MMM YYYY")
+                        : formatDateTime(record.created_at)}{" "}
+                      · {record.recorded_by_name || "-"}
+                    </Text>
+                  </div>
+                  <Flex gap={4}>{renderActions(record)}</Flex>
+                </Flex>
+                <div style={{ marginTop: 8 }}>{renderRange(record)}</div>
+                <Tag color='blue' style={{ marginTop: 8, marginInlineEnd: 0 }}>
+                  {record.activity_name || record.activity_code || "-"}
+                </Tag>
+              </div>
+            )}
+          />
+        ) : (
+          <Table
+            rowKey='id'
+            columns={recordColumns}
+            dataSource={records}
+            loading={isRecordsLoading}
+            locale={{ emptyText: emptyNode }}
+            pagination={pagination}
+            scroll={{ x: true }}
+          />
+        )}
+      </MuseCard>
 
       <DailyReportInputModal
         open={isModalOpen}
@@ -668,7 +667,7 @@ const DailyReport = ({ embedded = false, filters: externalFilters = null }) => {
         endAyatOptions={endAyatOptions}
         loading={creating || updating}
       />
-    </Space>
+    </Flex>
   );
 };
 

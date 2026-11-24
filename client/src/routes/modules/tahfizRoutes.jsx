@@ -1,36 +1,50 @@
 import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
+import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 import RouteProtection from "../../utils/RouteProtection";
 
-const TahfizDashboard = lazy(
+const TahfizDashboardLazy = lazy(
   () => import("../../module/tahfiz/dashboard/TahfizDashboard"),
 );
-const Alquran = lazy(() => import("../../module/tahfiz/alquran/view/Alquran"));
-const Halaqoh = lazy(() => import("../../module/tahfiz/halaqoh/view/Halaqoh"));
-const Target = lazy(() => import("../../module/tahfiz/target/Target"));
-const TahfizAdminReport = lazy(
+const AlquranLazy = lazy(() => import("../../module/tahfiz/alquran/view/Alquran"));
+const HalaqohLazy = lazy(() => import("../../module/tahfiz/halaqoh/view/Halaqoh"));
+const TargetLazy = lazy(() => import("../../module/tahfiz/target/Target"));
+const TahfizAdminReportLazy = lazy(
   () => import("../../module/tahfiz/report/TahfizAdminReport"),
 );
-const TahfizTeacherReport = lazy(
+const TahfizTeacherReportLazy = lazy(
   () => import("../../module/tahfiz/report/TahfizTeacherReport"),
 );
-const TahfizStudentReport = lazy(
+const TahfizStudentReportLazy = lazy(
   () => import("../../module/tahfiz/report/TahfizStudentReport"),
 );
-const TahfizParentReport = lazy(
+const TahfizParentReportLazy = lazy(
   () => import("../../module/tahfiz/report/TahfizParentReport"),
 );
-const DailyReport = lazy(() => import("../../module/tahfiz/report/DailyReport"));
-const MusyrifDash = lazy(
+const DailyReportLazy = lazy(() => import("../../module/tahfiz/report/DailyReport"));
+const MusyrifDashLazy = lazy(
   () => import("../../module/tahfiz/musyrif/MusyrifDash"),
 );
-const MusyrifHalaqoh = lazy(
+const MusyrifHalaqohLazy = lazy(
   () => import("../../module/tahfiz/musyrif/MusyrifHalaqoh"),
 );
-const MusyrifReport = lazy(
+const MusyrifReportLazy = lazy(
   () => import("../../module/tahfiz/musyrif/MusyrifReport"),
 );
+
+const TahfizDashboard = withMuseTheme(TahfizDashboardLazy);
+const Alquran = withMuseTheme(AlquranLazy);
+const Halaqoh = withMuseTheme(HalaqohLazy);
+const Target = withMuseTheme(TargetLazy);
+const TahfizAdminReport = withMuseTheme(TahfizAdminReportLazy);
+const TahfizTeacherReport = withMuseTheme(TahfizTeacherReportLazy);
+const TahfizStudentReport = withMuseTheme(TahfizStudentReportLazy);
+const TahfizParentReport = withMuseTheme(TahfizParentReportLazy);
+const DailyReport = withMuseTheme(DailyReportLazy);
+const MusyrifDash = withMuseTheme(MusyrifDashLazy);
+const MusyrifHalaqoh = withMuseTheme(MusyrifHalaqohLazy);
+const MusyrifReport = withMuseTheme(MusyrifReportLazy);
 
 const renderTahfizAdminRoutes = ({ LazyPage } = {}) =>
   LazyPage ? (

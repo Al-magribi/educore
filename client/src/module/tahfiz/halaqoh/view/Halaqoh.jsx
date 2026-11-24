@@ -1,35 +1,29 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Button,
-  Card,
   Col,
   Drawer,
+  Empty,
   Flex,
   Form,
   Grid,
   Input,
-  Popconfirm,
+  List,
   Row,
   Select,
-  Space,
   Switch,
   Table,
   Tag,
   Typography,
-  message,
+  theme,
 } from "antd";
-import { motion } from "framer-motion";
-import {
-  BookUser,
-  Pencil,
-  Plus,
-  Trash2,
-  Users,
-  UserRound,
-  X,
-  Layers3,
-} from "lucide-react";
+import { BookUser, FileSpreadsheet, Layers3, UserRound, Users } from "lucide-react";
+
+import { CardTitle, MuseCard, PageTabs } from "../../../../components/ui/muse";
+import { DataListCard, EditDeleteActions } from "../../../../components/ui/muse/DataSection";
+import { museRadius } from "../../../../config/theme";
 import {
   useCreateHalaqohMutation,
   useDeleteHalaqohMutation,
@@ -37,19 +31,20 @@ import {
   useGetHalaqohOptionsQuery,
   useUpdateHalaqohMutation,
 } from "../../../../service/tahfiz/ApiHalaqoh";
-import HalaqohTab from "./HalaqohTab";
 import HalaqohImportDrawer from "./HalaqohImportDrawer";
 import Musyrif from "./Musyrif";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
 
 const HalaqohManager = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
+  const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
+  const [search, setSearch] = useState("");
   const [homebaseId, setHomebaseId] = useState();
   const [periodeId, setPeriodeId] = useState();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -193,316 +188,294 @@ const HalaqohManager = () => {
         message.error(error?.data?.message || "Gagal menghapus halaqoh.");
       }
     },
-    [deleteHalaqoh],
+    [deleteHalaqoh, message],
   );
 
-  const columns = useMemo(
-    () => [
-      {
-        title: "Nama Halaqoh",
-        dataIndex: "name",
-        render: (value) => <Text strong>{value}</Text>,
-      },
-      {
-        title: "Periode",
-        dataIndex: "periode_name",
-        width: 210,
-      },
-      {
-        title: "Musyrif",
-        dataIndex: "musyrif_name",
-        width: 220,
-        render: (value) => value || "-",
-      },
-      {
-        title: "Jumlah Siswa",
-        dataIndex: "student_count",
-        width: 130,
-      },
-      {
-        title: "Status",
-        dataIndex: "is_active",
-        width: 110,
-        render: (value) => (
-          <Tag color={value ? "green" : "red"}>
-            {value ? "Aktif" : "Nonaktif"}
-          </Tag>
-        ),
-      },
-      {
-        title: "Aksi",
-        key: "action",
-        width: 120,
-        render: (_, record) => (
-          <Space>
-            <Button
-              type='text'
-              icon={<Pencil size={16} />}
-              onClick={() => openEdit(record)}
-            />
-            <Popconfirm
-              title='Hapus halaqoh ini?'
-              okText='Hapus'
-              cancelText='Batal'
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button
-                type='text'
-                danger
-                icon={<Trash2 size={16} />}
-                loading={deleting}
-              />
-            </Popconfirm>
-          </Space>
-        ),
-      },
-    ],
-    [deleting, handleDelete, openEdit],
+
+  const halaqohList = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    const rows = halaqohQuery.data || [];
+    if (!keyword) return rows;
+    return rows.filter((item) =>
+      [item.name, item.musyrif_name, item.periode_name]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword)),
+    );
+  }, [halaqohQuery.data, search]);
+
+  const renderStatus = (value) => (
+    <Tag color={value ? "success" : "default"} style={{ marginInlineEnd: 0 }}>
+      {value ? "Aktif" : "Nonaktif"}
+    </Tag>
+  );
+
+  const renderActions = (record) => (
+    <EditDeleteActions
+      onEdit={() => openEdit(record)}
+      onDelete={() => handleDelete(record.id)}
+      deleteTitle={`Hapus ${record.name}?`}
+      deleteDescription='Data halaqoh dan penempatan siswanya akan dihapus.'
+      deleting={deleting}
+    />
+  );
+
+  const renderStudents = (record) => (
+    <Flex vertical gap={8}>
+      <Text type='secondary'>Musyrif: {record.musyrif_name || "-"}</Text>
+      <Flex gap={6} wrap>
+        {(record.students || []).length ? (
+          record.students.map((student) => (
+            <Tag key={student.id} icon={<Users size={12} />} style={{ marginInlineEnd: 0 }}>
+              {student.full_name} ({student.nis || "-"})
+            </Tag>
+          ))
+        ) : (
+          <Text type='secondary'>Belum ada siswa di halaqoh ini.</Text>
+        )}
+      </Flex>
+    </Flex>
+  );
+
+  const columns = [
+    {
+      title: "NAMA HALAQOH",
+      dataIndex: "name",
+      render: (value, record) => (
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {value}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.periode_name || "-"}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: "MUSYRIF",
+      dataIndex: "musyrif_name",
+      render: (value) => value || "-",
+    },
+    {
+      title: "JUMLAH SISWA",
+      dataIndex: "student_count",
+      align: "right",
+      width: 150,
+    },
+    {
+      title: "STATUS",
+      dataIndex: "is_active",
+      width: 120,
+      render: renderStatus,
+    },
+    {
+      title: "AKSI",
+      key: "action",
+      width: 110,
+      align: "right",
+      render: (_, record) => <Flex justify='flex-end'>{renderActions(record)}</Flex>,
+    },
+  ];
+
+  const filterControls = (
+    <>
+      <Select
+        aria-label='Pilih homebase'
+        value={displayedHomebaseId}
+        onChange={(value) => {
+          setHomebaseId(value);
+          setPeriodeId(undefined);
+        }}
+        options={homebaseOptions}
+        disabled={isScopedHomebaseUser}
+        placeholder='Pilih homebase'
+        style={{ width: isMobile ? "100%" : 200 }}
+      />
+      <Select
+        aria-label='Filter periode'
+        value={periodeId}
+        onChange={setPeriodeId}
+        options={periodeOptions}
+        allowClear
+        placeholder='Semua periode'
+        style={{ width: isMobile ? "100%" : 200 }}
+      />
+      <Button icon={<FileSpreadsheet size={16} />} onClick={() => setImportOpen(true)}>
+        Import Excel
+      </Button>
+    </>
+  );
+
+  const isListLoading = halaqohQuery.isFetching || optionsQuery.isFetching;
+  const emptyNode = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        search
+          ? "Tidak ada halaqoh yang cocok dengan pencarian."
+          : "Belum ada halaqoh. Tambahkan halaqoh atau impor dari Excel."
+      }
+    />
   );
 
   return (
     <>
-      <Card
-        style={{
-          borderRadius: 22,
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 12px 30px rgba(15, 23, 42, 0.06)",
+      <DataListCard
+        title='Daftar Halaqoh'
+        icon={<BookUser size={18} />}
+        count={halaqohList.length}
+        unit='halaqoh'
+        searchProps={{
+          placeholder: "Cari halaqoh / musyrif",
+          onChange: (event) => setSearch(event.target.value),
         }}
-        styles={{ body: { padding: isMobile ? 14 : 18 } }}
+        extra={filterControls}
+        onAdd={openCreate}
+        addLabel='Tambah Halaqoh'
       >
-        <Flex
-          justify='space-between'
-          align={isMobile ? "stretch" : "center"}
-          vertical={isMobile}
-          gap={10}
-          style={{ marginBottom: 14 }}
-        >
-          <Space>
-            <BookUser size={18} color='#1d4ed8' />
-            <Text strong>Manajemen Halaqoh</Text>
-          </Space>
-
-          <Space wrap>
-            <Select
-              value={displayedHomebaseId}
-              onChange={(value) => {
-                setHomebaseId(value);
-                setPeriodeId(undefined);
-              }}
-              options={homebaseOptions}
-              disabled={isScopedHomebaseUser}
-              placeholder='Pilih Homebase'
-              style={{ width: 220 }}
-            />
-            <Select
-              value={periodeId}
-              onChange={setPeriodeId}
-              options={periodeOptions}
-              allowClear
-              placeholder='Filter Periode'
-              style={{ width: 220 }}
-            />
-            <Button onClick={() => setImportOpen(true)}>Import Excel</Button>
-            <Button
-              type='primary'
-              icon={<Plus size={16} />}
-              onClick={openCreate}
-            >
-              Tambah Halaqoh
-            </Button>
-          </Space>
-        </Flex>
-
         {halaqohQuery.error ? (
-          <Alert
-            type='error'
-            showIcon
-            style={{ marginBottom: 16 }}
-            message='Gagal memuat data halaqoh.'
-            description={
-              halaqohQuery.error?.data?.message || "Silakan coba lagi."
-            }
-          />
+          <div style={{ padding: 16 }}>
+            <Alert
+              type='error'
+              showIcon
+              title='Gagal memuat data halaqoh'
+              description={halaqohQuery.error?.data?.message || "Silakan coba lagi."}
+            />
+          </div>
         ) : null}
 
-        <Table
-          rowKey='id'
-          loading={halaqohQuery.isFetching || optionsQuery.isFetching}
-          columns={columns}
-          dataSource={halaqohQuery.data || []}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          expandable={{
-            expandedRowRender: (record) => (
-              <Space direction='vertical' size={4}>
-                <Text type='secondary'>
-                  Musyrif: {record.musyrif_name || "-"}
-                </Text>
-                <Space wrap>
-                  {(record.students || []).length ? (
-                    record.students.map((student) => (
-                      <Tag key={student.id} icon={<Users size={12} />}>
-                        {student.full_name} ({student.nis || "-"})
-                      </Tag>
-                    ))
-                  ) : (
-                    <Text type='secondary'>
-                      Belum ada siswa di halaqoh ini.
+        {isMobile ? (
+          <List
+            loading={isListLoading}
+            dataSource={halaqohList}
+            locale={{ emptyText: emptyNode }}
+            pagination={
+              halaqohList.length > 10 ? { pageSize: 10, size: "small", align: "center" } : false
+            }
+            style={{ padding: 12 }}
+            renderItem={(record) => (
+              <div
+                style={{
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  borderRadius: museRadius.item,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <Flex justify='space-between' align='flex-start' gap={8}>
+                  <div style={{ minWidth: 0 }}>
+                    <Text strong style={{ display: "block" }}>
+                      {record.name}
                     </Text>
-                  )}
-                </Space>
-              </Space>
-            ),
-          }}
-          scroll={{ x: 1000 }}
-        />
-
-        <Title level={5} style={{ marginTop: 20, marginBottom: 0 }}>
-          Total Halaqoh: {halaqohQuery.data?.length || 0}
-        </Title>
-      </Card>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      {record.periode_name || "-"} · {record.student_count || 0} siswa
+                    </Text>
+                  </div>
+                  <Flex gap={4}>{renderActions(record)}</Flex>
+                </Flex>
+                <Flex gap={6} wrap style={{ marginTop: 8 }}>
+                  {renderStatus(record.is_active)}
+                  <Tag style={{ marginInlineEnd: 0 }}>
+                    {record.musyrif_name || "Tanpa musyrif"}
+                  </Tag>
+                </Flex>
+              </div>
+            )}
+          />
+        ) : (
+          <Table
+            rowKey='id'
+            loading={isListLoading}
+            columns={columns}
+            dataSource={halaqohList}
+            pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+            expandable={{ expandedRowRender: renderStudents }}
+            locale={{ emptyText: emptyNode }}
+            scroll={{ x: true }}
+          />
+        )}
+      </DataListCard>
 
       <Drawer
-        title={null}
+        title={
+          <CardTitle
+            icon={<Layers3 size={18} />}
+            title={editingData ? "Edit Halaqoh" : "Tambah Halaqoh"}
+            description='Atur data halaqoh, musyrif, dan anggota siswa.'
+          />
+        }
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         destroyOnHidden
-        closable={false}
-        width={isMobile ? "100%" : 720}
-        styles={{
-          body: { padding: 0, background: "#f8fafc" },
-          header: { display: "none" },
-        }}
+        width={isMobile ? "100%" : 640}
+        styles={{ body: { background: token.colorBgLayout, padding: isMobile ? 16 : 24 } }}
+        footer={
+          <Flex justify='flex-end' gap={8}>
+            <Button onClick={() => setDrawerOpen(false)}>Batal</Button>
+            <Button type='primary' onClick={form.submit} loading={creating || updating}>
+              Simpan
+            </Button>
+          </Flex>
+        }
       >
-        <MotionDiv
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.22, ease: "easeOut" }}
-          style={{ height: "100%", display: "flex", flexDirection: "column" }}
-        >
-          <div
-            style={{
-              padding: isMobile ? 18 : 22,
-              background:
-                "linear-gradient(135deg, rgba(239,246,255,1), rgba(224,242,254,0.98))",
-              borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-            }}
-          >
-            <Flex justify='space-between' align='flex-start' gap={12}>
-              <Flex align='flex-start' gap={12}>
-                <div
-                  style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 16,
-                    display: "grid",
-                    placeItems: "center",
-                    color: "#fff",
-                    background: "linear-gradient(135deg, #1d4ed8, #0ea5e9)",
-                    boxShadow: "0 14px 28px rgba(29, 78, 216, 0.28)",
-                  }}
-                >
-                  <Layers3 size={22} />
-                </div>
-                <div>
-                  <Title level={4} style={{ margin: 0 }}>
-                    {editingData ? "Edit Halaqoh" : "Tambah Halaqoh"}
-                  </Title>
-                  <Text type='secondary'>
-                    Atur data halaqoh, musyrif, dan anggota siswa.
-                  </Text>
-                </div>
-              </Flex>
-              <Button
-                onClick={() => setDrawerOpen(false)}
-                icon={<X size={16} />}
-              >
-                Tutup
-              </Button>
-            </Flex>
-          </div>
-
-          <div
-            style={{ padding: isMobile ? 14 : 20, overflow: "auto", flex: 1 }}
-          >
-            <Card bordered={false} style={{ borderRadius: 20 }}>
-              <Form form={form} layout='vertical' onFinish={handleSubmit}>
-                <Row gutter={12}>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      label='Periode'
-                      name='periode_id'
-                      rules={[
-                        { required: true, message: "Periode wajib dipilih." },
-                      ]}
-                    >
-                      <Select
-                        options={periodeOptions}
-                        placeholder='Pilih periode'
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      label='Musyrif'
-                      name='musyrif_id'
-                      rules={[
-                        { required: true, message: "Musyrif wajib dipilih." },
-                      ]}
-                    >
-                      <Select
-                        showSearch
-                        optionFilterProp='label'
-                        options={musyrifOptions}
-                        placeholder='Pilih musyrif'
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-
+        <MuseCard>
+          <Form form={form} layout='vertical' onFinish={handleSubmit}>
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
                 <Form.Item
-                  label='Nama Halaqoh'
-                  name='name'
-                  rules={[
-                    { required: true, message: "Nama halaqoh wajib diisi." },
-                  ]}
+                  label='Periode'
+                  name='periode_id'
+                  rules={[{ required: true, message: "Periode wajib dipilih." }]}
                 >
-                  <Input placeholder='Contoh: Halaqoh Al-Fatih' />
+                  <Select options={periodeOptions} placeholder='Pilih periode' />
                 </Form.Item>
-
-                <Form.Item label='Anggota Siswa' name='student_ids'>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label='Musyrif'
+                  name='musyrif_id'
+                  rules={[{ required: true, message: "Musyrif wajib dipilih." }]}
+                >
                   <Select
-                    mode='multiple'
                     showSearch
                     optionFilterProp='label'
-                    virtual={false}
-                    options={studentOptions}
-                    placeholder='Pilih siswa untuk halaqoh'
-                    maxTagCount='responsive'
+                    options={musyrifOptions}
+                    placeholder='Pilih musyrif'
                   />
                 </Form.Item>
+              </Col>
+            </Row>
 
-                <Form.Item
-                  label='Status Aktif'
-                  name='is_active'
-                  valuePropName='checked'
-                >
-                  <Switch />
-                </Form.Item>
+            <Form.Item
+              label='Nama Halaqoh'
+              name='name'
+              rules={[{ required: true, message: "Nama halaqoh wajib diisi." }]}
+            >
+              <Input placeholder='Contoh: Halaqoh Al-Fatih' />
+            </Form.Item>
 
-                <Space>
-                  <Button onClick={() => setDrawerOpen(false)}>Batal</Button>
-                  <Button
-                    type='primary'
-                    htmlType='submit'
-                    loading={creating || updating}
-                  >
-                    Simpan
-                  </Button>
-                </Space>
-              </Form>
-            </Card>
-          </div>
-        </MotionDiv>
+            <Form.Item label='Anggota Siswa' name='student_ids'>
+              <Select
+                mode='multiple'
+                showSearch
+                optionFilterProp='label'
+                virtual={false}
+                options={studentOptions}
+                placeholder='Pilih siswa untuk halaqoh'
+                maxTagCount='responsive'
+              />
+            </Form.Item>
+
+            <Form.Item
+              label='Status Aktif'
+              name='is_active'
+              valuePropName='checked'
+              style={{ marginBottom: 0 }}
+            >
+              <Switch checkedChildren='Aktif' unCheckedChildren='Nonaktif' />
+            </Form.Item>
+          </Form>
+        </MuseCard>
       </Drawer>
 
       <HalaqohImportDrawer
@@ -518,21 +491,25 @@ const HalaqohManager = () => {
   );
 };
 
-const Halaqoh = () => {
-  const items = [
-    {
-      key: "musyrif",
-      label: <UserRound size={16} />,
-      children: <Musyrif />,
-    },
-    {
-      key: "halaqoh",
-      label: <BookUser size={16} />,
-      children: <HalaqohManager />,
-    },
-  ];
-
-  return <HalaqohTab items={items} />;
-};
+const Halaqoh = () => (
+  <PageTabs
+    title='Manajemen Halaqoh'
+    description='Kelola musyrif, kelompok halaqoh, dan penempatan siswa.'
+    items={[
+      {
+        key: "musyrif",
+        label: "Musyrif",
+        icon: <UserRound />,
+        render: () => <Musyrif />,
+      },
+      {
+        key: "halaqoh",
+        label: "Halaqoh",
+        icon: <BookUser />,
+        render: () => <HalaqohManager />,
+      },
+    ]}
+  />
+);
 
 export default Halaqoh;

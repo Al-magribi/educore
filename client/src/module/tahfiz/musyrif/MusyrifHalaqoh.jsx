@@ -1,45 +1,13 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Alert,
-  Badge,
-  Card,
-  Col,
-  Empty,
-  Flex,
-  Grid,
-  Input,
-  Row,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from "antd";
+import { Alert, Empty, Flex, Grid, Input, Select, Skeleton, Table, Tag, Typography } from "antd";
 import { BookOpenCheck, Users } from "lucide-react";
+
+import PageHeader from "../../../components/ui/PageHeader";
+import { CardTitle, MuseCard, StatCard } from "../../../components/ui/muse";
 import { useGetMusyrifHalaqohListQuery } from "../../../service/tahfiz/ApiHalaqoh";
 
 const { useBreakpoint } = Grid;
-const { Title, Text } = Typography;
-const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.32, ease: "easeOut", staggerChildren: 0.08 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: "easeOut" },
-  },
-};
+const { Text } = Typography;
 
 const MusyrifHalaqoh = () => {
   const screens = useBreakpoint();
@@ -86,207 +54,160 @@ const MusyrifHalaqoh = () => {
 
   const columns = [
     {
-      title: "Siswa",
+      title: "SISWA",
       key: "student",
       render: (_, record) => (
-        <Space direction='vertical' size={2}>
-          <Text strong>{record.full_name}</Text>
-          <Text type='secondary'>NIS: {record.nis || "-"}</Text>
-        </Space>
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {record.full_name}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            NIS {record.nis || "-"}
+          </Text>
+        </div>
       ),
     },
     {
-      title: "Kelas",
+      title: "KELAS",
       dataIndex: "class_name",
       width: 170,
       render: (value) => value || "-",
     },
   ];
 
-  if (isError) {
+  const gap = isMobile ? 16 : 24;
+
+  const renderHalaqohCard = (halaqoh) => {
+    const keyword = String(studentSearchByHalaqoh[halaqoh.id] || "").trim().toLowerCase();
+    const studentRows = keyword
+      ? (halaqoh.students || []).filter((student) =>
+          String(student.full_name || "").toLowerCase().includes(keyword),
+        )
+      : halaqoh.students || [];
+
     return (
-      <Alert
-        type='error'
-        showIcon
-        message='Gagal memuat halaqoh musyrif.'
-        description={error?.data?.message || "Silakan coba lagi."}
-      />
+      <MuseCard
+        key={halaqoh.id}
+        flush
+        title={
+          <CardTitle
+            icon={<BookOpenCheck size={18} />}
+            title={halaqoh.name}
+            description={`${Number(halaqoh.student_count || 0)} siswa`}
+          />
+        }
+        extra={
+          <Flex gap={8} align='center' wrap style={{ padding: "8px 0", justifyContent: "flex-end" }}>
+            <Tag color={halaqoh.is_active ? "success" : "default"} style={{ marginInlineEnd: 0 }}>
+              {halaqoh.is_active ? "Aktif" : "Nonaktif"}
+            </Tag>
+            <Input.Search
+              allowClear
+              aria-label={`Cari siswa di ${halaqoh.name}`}
+              placeholder='Cari nama siswa'
+              style={{ width: isMobile ? "100%" : 240 }}
+              value={studentSearchByHalaqoh[halaqoh.id] || ""}
+              onChange={(event) =>
+                setStudentSearchByHalaqoh((prev) => ({
+                  ...prev,
+                  [halaqoh.id]: event.target.value,
+                }))
+              }
+            />
+          </Flex>
+        }
+        styles={isMobile ? { header: { flexWrap: "wrap", paddingBlock: 8 } } : undefined}
+      >
+        <Table
+          rowKey='id'
+          columns={columns}
+          dataSource={studentRows}
+          pagination={false}
+          size={isMobile ? "small" : "middle"}
+          scroll={{ x: true }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={keyword ? "Tidak ada siswa yang cocok." : "Belum ada siswa di halaqoh ini."}
+              />
+            ),
+          }}
+        />
+      </MuseCard>
     );
-  }
+  };
 
   return (
-    <MotionDiv
-      variants={containerVariants}
-      initial='hidden'
-      animate='visible'
-      style={{ display: "flex", flexDirection: "column", gap: 18 }}
-    >
-      <MotionDiv variants={itemVariants}>
-        <Card
-          style={{
-            borderRadius: 22,
-            border: "1px solid #dbeafe",
-            boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
-            background:
-              "radial-gradient(circle at top left, rgba(191,219,254,0.35), transparent 36%), linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0ea5e9 100%)",
-          }}
-          styles={{ body: { padding: isMobile ? 16 : 22 } }}
-        >
-          <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
-            vertical={isMobile}
-            gap={12}
-          >
-            <Space direction='vertical' size={8}>
-              <Space>
-                <BookOpenCheck size={18} color='#dbeafe' />
-                <Text style={{ color: "#e0f2fe", fontWeight: 700 }}>
-                  HALAQOH MUSYRIF
-                </Text>
-              </Space>
-              <Title level={isMobile ? 4 : 3} style={{ margin: 0, color: "#f8fafc" }}>
-                {data?.musyrif?.full_name || "Musyrif"}
-              </Title>
-              <Text style={{ color: "rgba(240,249,255,0.88)" }}>
-                Daftar seluruh halaqoh dan siswa binaan sesuai akun musyrif
-                login. Satu musyrif bisa menangani lebih dari satu halaqoh.
-              </Text>
-            </Space>
+    <Flex vertical gap={gap} style={{ minWidth: 0 }}>
+      <PageHeader
+        title='Halaqoh Saya'
+        description='Daftar halaqoh dan siswa binaan Anda. Satu musyrif bisa menangani lebih dari satu halaqoh.'
+        extra={
+          <>
+            <Select
+              aria-label='Pilih periode'
+              value={selectedPeriodeId}
+              options={periodeOptions}
+              onChange={setPeriodeId}
+              placeholder='Pilih periode'
+              style={{ width: isMobile ? "100%" : 220 }}
+              loading={isFetching}
+            />
+            <Select
+              aria-label='Filter halaqoh'
+              allowClear
+              value={halaqohId}
+              options={halaqohOptions}
+              onChange={setHalaqohId}
+              placeholder='Semua halaqoh'
+              style={{ width: isMobile ? "100%" : 200 }}
+              loading={isFetching}
+            />
+          </>
+        }
+      />
 
-            <Space
-              direction={isMobile ? "vertical" : "horizontal"}
-              size={10}
-              style={{ width: isMobile ? "100%" : "auto" }}
-            >
-              <Select
-                value={selectedPeriodeId}
-                options={periodeOptions}
-                onChange={setPeriodeId}
-                placeholder='Pilih periode'
-                style={{ width: isMobile ? "100%" : 260 }}
-                loading={isFetching}
-              />
-              <Select
-                allowClear
-                value={halaqohId}
-                options={halaqohOptions}
-                onChange={setHalaqohId}
-                placeholder='Semua halaqoh'
-                style={{ width: isMobile ? "100%" : 220 }}
-                loading={isFetching}
-              />
-            </Space>
-          </Flex>
-        </Card>
-      </MotionDiv>
+      {isError ? (
+        <Alert
+          type='error'
+          showIcon
+          title='Gagal memuat halaqoh musyrif'
+          description={error?.data?.message || "Silakan coba lagi."}
+        />
+      ) : null}
 
-      <MotionDiv variants={itemVariants}>
-        <Row gutter={[14, 14]}>
-          <Col xs={24} md={12}>
-            <Card style={{ borderRadius: 18 }}>
-              <Space align='center'>
-                <Badge color='#1d4ed8' />
-                <Text type='secondary'>Total Halaqoh</Text>
-              </Space>
-              <Title level={3} style={{ marginTop: 10, marginBottom: 0 }}>
-                {halaqohRows.length}
-              </Title>
-            </Card>
-          </Col>
-          <Col xs={24} md={12}>
-            <Card style={{ borderRadius: 18 }}>
-              <Space align='center'>
-                <Users size={16} />
-                <Text type='secondary'>Total Siswa Binaan</Text>
-              </Space>
-              <Title level={3} style={{ marginTop: 10, marginBottom: 0 }}>
-                {totalUniqueStudents}
-              </Title>
-            </Card>
-          </Col>
-        </Row>
-      </MotionDiv>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap,
+        }}
+      >
+        <StatCard title='Total Halaqoh' value={halaqohRows.length} icon={<BookOpenCheck size={24} />} />
+        <StatCard
+          title='Total Siswa Binaan'
+          value={totalUniqueStudents}
+          icon={<Users size={24} />}
+          tone='success'
+        />
+      </div>
 
-      <MotionDiv variants={itemVariants}>
-        {isLoading ? (
-          <Card style={{ borderRadius: 20 }} loading />
-        ) : halaqohRows.length ? (
-          <Space direction='vertical' size={14} style={{ width: "100%" }}>
-            {halaqohRows.map((halaqoh) => (
-              <Card
-                key={halaqoh.id}
-                style={{
-                  borderRadius: 20,
-                  border: "1px solid #e2e8f0",
-                  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
-                }}
-                styles={{ body: { padding: isMobile ? 12 : 16 } }}
-              >
-                {(() => {
-                  const keyword = String(studentSearchByHalaqoh[halaqoh.id] || "")
-                    .trim()
-                    .toLowerCase();
-                  const studentRows = keyword
-                    ? (halaqoh.students || []).filter((student) =>
-                        String(student.full_name || "")
-                          .toLowerCase()
-                          .includes(keyword),
-                      )
-                    : halaqoh.students || [];
-
-                  return (
-                    <>
-                <Flex justify='space-between' align='center' wrap='wrap' gap={10}>
-                  <Space direction='vertical' size={0}>
-                    <Text strong style={{ fontSize: 16 }}>
-                      {halaqoh.name}
-                    </Text>
-                    <Text type='secondary'>
-                      {Number(halaqoh.student_count || 0)} siswa
-                    </Text>
-                  </Space>
-                  <Tag color={halaqoh.is_active ? "green" : "default"}>
-                    {halaqoh.is_active ? "Aktif" : "Nonaktif"}
-                  </Tag>
-                </Flex>
-
-                <Input
-                  allowClear
-                  placeholder='Filter nama siswa di halaqoh ini'
-                  style={{ marginTop: 12, maxWidth: 320 }}
-                  value={studentSearchByHalaqoh[halaqoh.id] || ""}
-                  onChange={(event) =>
-                    setStudentSearchByHalaqoh((prev) => ({
-                      ...prev,
-                      [halaqoh.id]: event.target.value,
-                    }))
-                  }
-                />
-
-                <Table
-                  style={{ marginTop: 12 }}
-                  rowKey='id'
-                  columns={columns}
-                  dataSource={studentRows}
-                  pagination={false}
-                  size='small'
-                  scroll={{ x: 520 }}
-                  locale={{ emptyText: <Empty description='Belum ada siswa' /> }}
-                />
-                    </>
-                  );
-                })()}
-              </Card>
-            ))}
-          </Space>
-        ) : (
-          <Card style={{ borderRadius: 20 }}>
-            <Empty description='Belum ada halaqoh untuk periode ini' />
-          </Card>
-        )}
-      </MotionDiv>
-    </MotionDiv>
+      {isLoading ? (
+        <MuseCard>
+          <Skeleton active paragraph={{ rows: 5 }} />
+        </MuseCard>
+      ) : halaqohRows.length ? (
+        halaqohRows.map(renderHalaqohCard)
+      ) : (
+        <MuseCard>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description='Belum ada halaqoh untuk periode ini. Hubungi admin tahfiz untuk penempatan.'
+          />
+        </MuseCard>
+      )}
+    </Flex>
   );
 };
 

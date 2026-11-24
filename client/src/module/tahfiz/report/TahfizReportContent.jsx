@@ -1,22 +1,15 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import * as XLSX from "xlsx";
 import {
   Alert,
-  Badge,
   Button,
-  Card,
-  Col,
   Empty,
   Flex,
   Grid,
-  Input,
   Progress,
-  Row,
   Select,
-  Space,
+  Skeleton,
   Table,
-  Tabs,
   Tag,
   Typography,
   theme,
@@ -32,36 +25,16 @@ import {
   School,
   Users,
 } from "lucide-react";
+import { CardTitle, MuseCard, PageTabs, StatCard } from "../../../components/ui/muse";
+import { DataListCard } from "../../../components/ui/muse/DataSection";
+import { museRadius } from "../../../config/theme";
 import {
   useGetTahfizReportOptionsQuery,
   useGetTahfizReportSummaryQuery,
 } from "../../../service/tahfiz/ApiReport";
 
 const { useBreakpoint } = Grid;
-const { Title, Text } = Typography;
-const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.35,
-      ease: "easeOut",
-      staggerChildren: 0.08,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: "easeOut" },
-  },
-};
+const { Text } = Typography;
 
 const toPercent = (value) => Number(value || 0);
 
@@ -74,8 +47,7 @@ const renderPercent = (value) => {
 const getProgressStatus = (value) => {
   const numericValue = toPercent(value);
   if (numericValue >= 100) return "success";
-  if (numericValue >= 70) return "active";
-  return "exception";
+  return "normal";
 };
 
 const targetItemLabel = (item) => {
@@ -304,724 +276,409 @@ const TahfizReportContent = ({ mode = "admin" }) => {
     classOptions.find((item) => item.value === effectiveClassId)?.label ||
     "Semua kelas";
 
-  const headerCopy = useMemo(
-    () =>
-      mode === "teacher"
-        ? {
-            eyebrow: "LAPORAN WALI KELAS",
-            title: "Pantau Capaian Target Hafalan Siswa",
-            description:
-              "Lihat progres hafalan berdasarkan target yang sudah ditetapkan berdasarkan siswa di kelas binaan Anda.",
-          }
-        : {
-            eyebrow: "LAPORAN TAHFIZ",
-            title: "Rekap Capaian Target Hafalan",
-            description:
-              "Pantau ketercapaian target tahfiz per tingkat, kelas, dan siswa dalam satu panel laporan yang mudah dibaca.",
-          },
-    [mode],
-  );
+  const headerCopy =
+    mode === "teacher"
+      ? {
+          title: "Laporan Tahfiz Kelas",
+          description:
+            "Pantau capaian target hafalan siswa di kelas binaan Anda berdasarkan target yang berlaku.",
+        }
+      : {
+          title: "Laporan Tahfiz",
+          description:
+            "Rekap ketercapaian target tahfiz per tingkat, kelas, dan siswa.",
+        };
+
+  const isSummaryLoading = summaryQuery.isLoading || summaryQuery.isFetching;
 
   const summaryCards = [
+    { title: "Siswa Terpetakan", value: overview.total_students || 0, icon: <Users size={24} />, tone: "primary" },
+    { title: "Target Aktif", value: overview.active_plan_count || 0, icon: <BookOpenCheck size={24} />, tone: "accent" },
     {
-      key: "students",
-      title: "Siswa Terpetakan",
-      value: overview.total_students || 0,
-      icon: <Users size={18} />,
-      bg: "linear-gradient(135deg, #e0f2fe, #dbeafe)",
-      color: "#0369a1",
-    },
-    {
-      key: "plans",
-      title: "Target Aktif",
-      value: overview.active_plan_count || 0,
-      icon: <BookOpenCheck size={18} />,
-      bg: "linear-gradient(135deg, #dcfce7, #d1fae5)",
-      color: "#15803d",
-    },
-    {
-      key: "average",
       title: "Rata-rata Capaian",
       value: renderPercent(overview.average_completion_percentage || 0),
-      icon: <CircleGauge size={18} />,
-      bg: "linear-gradient(135deg, #fef3c7, #fde68a)",
-      color: "#b45309",
+      icon: <CircleGauge size={24} />,
+      tone: "warning",
     },
-    {
-      key: "completed",
-      title: "Siswa Tuntas",
-      value: overview.completed_students || 0,
-      icon: <CheckCircle2 size={18} />,
-      bg: "linear-gradient(135deg, #ede9fe, #ddd6fe)",
-      color: "#6d28d9",
-    },
+    { title: "Siswa Tuntas", value: overview.completed_students || 0, icon: <CheckCircle2 size={24} />, tone: "success" },
   ];
 
-  const createTabLabel = (label, icon, caption) => (
-    <Flex align='center' gap={10}>
-      <span
-        style={{
-          width: 34,
-          height: 34,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: 12,
-          background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
-          color: "#0369a1",
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
-      <Flex vertical gap={0}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
-        {!isMobile && (
-          <span
-            style={{
-              fontSize: 12,
-              color: token.colorTextSecondary,
-              lineHeight: 1.2,
-            }}
-          >
-            {caption}
-          </span>
-        )}
-      </Flex>
-    </Flex>
+  const renderProgress = (value) => (
+    <Progress
+      percent={toPercent(value)}
+      status={getProgressStatus(value)}
+      size='small'
+      format={() => renderPercent(value)}
+      style={{ minWidth: 160, margin: 0 }}
+    />
   );
 
   const gradeColumns = [
     {
-      title: "Tingkat",
+      title: "TINGKAT",
       dataIndex: "grade_name",
       render: (value, record) => (
-        <Space vertical size={2}>
-          <Text strong>{value}</Text>
-          <Text type='secondary'>{record.class_count} kelas terpetakan</Text>
-        </Space>
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {value}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.class_count} kelas terpetakan
+          </Text>
+        </div>
       ),
     },
+    { title: "SISWA", dataIndex: "student_count", width: 110, align: "right" },
     {
-      title: "Siswa",
-      dataIndex: "student_count",
-      width: 110,
-    },
-    {
-      title: "Ayat Tercapai",
+      title: "AYAT TERCAPAI",
       key: "achievement",
-      width: 200,
-      render: (_, record) => (
-        <Text>
-          {record.achieved_ayahs} / {record.target_total_ayahs}
-        </Text>
-      ),
+      width: 180,
+      align: "right",
+      render: (_, record) => `${record.achieved_ayahs} / ${record.target_total_ayahs}`,
     },
-    {
-      title: "Capaian",
-      dataIndex: "completion_percentage",
-      width: 240,
-      render: (value) => (
-        <Progress
-          percent={toPercent(value)}
-          status={getProgressStatus(value)}
-          size='small'
-          format={() => renderPercent(value)}
-        />
-      ),
-    },
+    { title: "CAPAIAN", dataIndex: "completion_percentage", width: 240, render: renderProgress },
   ];
 
   const classColumns = [
     {
-      title: "Kelas",
+      title: "KELAS",
       dataIndex: "class_name",
       render: (value, record) => (
-        <Space vertical size={2}>
-          <Text strong>{value}</Text>
-          <Text type='secondary'>{record.grade_name}</Text>
-        </Space>
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {value}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.grade_name}
+          </Text>
+        </div>
       ),
     },
-    {
-      title: "Siswa",
-      dataIndex: "student_count",
-      width: 110,
-    },
-    {
-      title: "Tuntas",
-      dataIndex: "completed_students",
-      width: 110,
-      render: (value) => <Badge color='#22c55e' text={`${value} siswa`} />,
-    },
-    {
-      title: "Capaian",
-      dataIndex: "completion_percentage",
-      width: 240,
-      render: (value) => (
-        <Progress
-          percent={toPercent(value)}
-          status={getProgressStatus(value)}
-          size='small'
-          format={() => renderPercent(value)}
-        />
-      ),
-    },
+    { title: "SISWA", dataIndex: "student_count", width: 110, align: "right" },
+    { title: "TUNTAS", dataIndex: "completed_students", width: 120, align: "right" },
+    { title: "CAPAIAN", dataIndex: "completion_percentage", width: 240, render: renderProgress },
   ];
 
   const studentColumns = [
     {
-      title: "Siswa",
+      title: "SISWA",
       key: "student",
       render: (_, record) => (
-        <Space vertical size={2}>
-          <Text strong>{record.student_name}</Text>
-          <Text type='secondary'>NIS: {record.nis || "-"}</Text>
-        </Space>
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {record.student_name}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            NIS {record.nis || "-"}
+          </Text>
+        </div>
       ),
     },
     {
-      title: "Kelas",
+      title: "KELAS",
       key: "class",
       render: (_, record) => (
-        <Space vertical size={2}>
-          <Text>{record.class_name}</Text>
-          <Text type='secondary'>{record.grade_name}</Text>
-        </Space>
+        <div>
+          <Text style={{ display: "block" }}>{record.class_name}</Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.grade_name}
+          </Text>
+        </div>
       ),
     },
     {
-      title: "Target",
+      title: "TARGET",
       key: "target",
-      width: 180,
-      render: (_, record) => (
-        <Text>
-          {record.achieved_ayahs} / {record.target_total_ayahs} ayat
-        </Text>
-      ),
+      width: 170,
+      align: "right",
+      render: (_, record) => `${record.achieved_ayahs} / ${record.target_total_ayahs} ayat`,
     },
     {
-      title: "Status",
+      title: "STATUS",
       dataIndex: "is_completed",
       width: 120,
       render: (value) => (
-        <Tag color={value ? "green" : "blue"}>
+        <Tag color={value ? "success" : "processing"} style={{ marginInlineEnd: 0 }}>
           {value ? "Tuntas" : "Proses"}
         </Tag>
       ),
     },
-    {
-      title: "Capaian",
-      dataIndex: "completion_percentage",
-      width: 240,
-      render: (value) => (
-        <Progress
-          percent={toPercent(value)}
-          status={getProgressStatus(value)}
-          size='small'
-          format={() => renderPercent(value)}
-        />
-      ),
-    },
+    { title: "CAPAIAN", dataIndex: "completion_percentage", width: 240, render: renderProgress },
   ];
 
-  const filterContent = (
-    <Card
-      variant='borderless'
-      style={{
-        borderRadius: token.borderRadiusXL,
-        boxShadow: token.boxShadowSecondary,
-      }}
-      styles={{ body: { padding: isMobile ? 14 : 18 } }}
-    >
-      <Row gutter={[12, 12]}>
-        {mode === "admin" ? (
-          <Col xs={24} md={6}>
-            <Select
-              allowClear
-              value={effectiveHomebaseId}
-              placeholder='Pilih satuan'
-              options={homebaseOptions}
-              style={{ width: "100%" }}
-              loading={optionsQuery.isFetching}
-              onChange={(value) => {
-                setHomebaseId(value);
-                setPeriodeId(undefined);
-                setGradeId(undefined);
-                setClassId(undefined);
-              }}
-            />
-          </Col>
-        ) : null}
-        <Col xs={24} md={mode === "admin" ? 6 : 8}>
-          <Select
-            allowClear
-            value={effectivePeriodeId}
-            placeholder='Pilih periode'
-            options={periodeOptions}
-            style={{ width: "100%" }}
-            loading={optionsQuery.isFetching}
-            onChange={(value) => {
-              setPeriodeId(value);
-              setGradeId(undefined);
-              setClassId(undefined);
-            }}
-          />
-        </Col>
-        <Col xs={24} md={mode === "admin" ? 6 : 8}>
-          <Select
-            allowClear
-            value={effectiveGradeId}
-            placeholder='Pilih tingkat'
-            options={gradeOptions}
-            style={{ width: "100%" }}
-            loading={optionsQuery.isFetching}
-            onChange={(value) => {
-              setGradeId(value);
-              setClassId(undefined);
-            }}
-          />
-        </Col>
-        <Col xs={24} md={mode === "admin" ? 6 : 8}>
-          <Select
-            allowClear
-            value={effectiveClassId}
-            placeholder='Pilih kelas'
-            options={classOptions}
-            style={{ width: "100%" }}
-            loading={optionsQuery.isFetching}
-            onChange={setClassId}
-          />
-        </Col>
-      </Row>
-    </Card>
-  );
-
-  const summaryContent = (
-    <Row gutter={[14, 14]}>
-      {summaryCards.map((item) => (
-        <Col xs={24} sm={12} xl={6} key={item.key}>
-          <Card
-            variant='borderless'
-            style={{
-              borderRadius: 20,
-              boxShadow: "0 14px 30px rgba(15, 23, 42, 0.07)",
-              height: "100%",
-            }}
-            styles={{ body: { padding: 18 } }}
-          >
-            <Space
-              align='start'
-              style={{ width: "100%", justifyContent: "space-between" }}
-            >
-              <Space vertical size={4}>
-                <Text type='secondary'>{item.title}</Text>
-                <Title level={3} style={{ margin: 0 }}>
-                  {item.value}
-                </Title>
-              </Space>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  display: "grid",
-                  placeItems: "center",
-                  background: item.bg,
-                  color: item.color,
-                }}
-              >
-                {item.icon}
-              </div>
-            </Space>
-          </Card>
-        </Col>
-      ))}
-    </Row>
-  );
-
-  const targetContent = (
-    <Space vertical size={18} style={{ width: "100%" }}>
-      <Card
-        variant='borderless'
-        styles={{ body: { padding: isMobile ? 14 : 18 } }}
-      >
-        <Flex
-          justify='space-between'
-          align={isMobile ? "stretch" : "center"}
-          vertical={isMobile}
-          gap={12}
-        >
-          <Space vertical size={3}>
-            <Text strong>
-              {mode === "teacher"
-                ? "Target untuk kelas dan tingkat binaan"
-                : "Target yang dipakai pada laporan"}
-            </Text>
-            <Text type='secondary'>
-              {mode === "teacher"
-                ? "Hanya target yang sesuai dengan kelas homeroom dan tingkat yang Anda ampu yang ditampilkan."
-                : "Target aktif dihitung berdasarkan periode dan tingkat yang dipilih."}
-            </Text>
-          </Space>
-          <Badge color='#0ea5e9' text={`${visiblePlans.length} plan aktif`} />
-        </Flex>
-
-        <div style={{ marginTop: 16 }}>
-          {visiblePlans.length ? (
-            <Space size={[8, 10]} wrap>
-              {visiblePlans.map((plan) => (
-                <Card
-                  key={plan.plan_id}
-                  size='small'
-                  style={{
-                    minWidth: isMobile ? "100%" : 280,
-                    borderRadius: 16,
-                    background: "linear-gradient(135deg, #f8fafc, #eff6ff)",
-                    border: "1px solid #dbeafe",
-                  }}
-                >
-                  <Space vertical size={8} style={{ width: "100%" }}>
-                    <div>
-                      <Text strong>
-                        {plan.title || `Target ${plan.grade_name}`}
-                      </Text>
-                      <br />
-                      <Text type='secondary'>
-                        {plan.homebase_name || "Semua satuan"} |{" "}
-                        {plan.grade_name}
-                      </Text>
-                    </div>
-                    <Badge
-                      color='#2563eb'
-                      text={`${plan.target_total_ayahs || 0} ayat target`}
-                    />
-                    <Space size={[6, 6]} wrap>
-                      {(plan.items || []).map((item) => (
-                        <Tag
-                          key={item.id}
-                          color={item.target_type === "juz" ? "gold" : "blue"}
-                        >
-                          {targetItemLabel(item)}
-                        </Tag>
-                      ))}
-                    </Space>
-                  </Space>
-                </Card>
-              ))}
-            </Space>
-          ) : (
-            <Empty description='Belum ada target aktif untuk filter ini' />
-          )}
-        </div>
-      </Card>
-
-      {!visiblePlans.length ? (
-        <Alert
-          type='info'
-          showIcon
-          message='Belum ada target aktif untuk filter yang dipilih'
-          description='Buat atau aktifkan target tahfiz terlebih dahulu agar capaian tingkat, kelas, dan siswa bisa dihitung.'
+  const filterWidth = isMobile ? "100%" : 170;
+  const headerExtra = (
+    <>
+      {mode === "admin" ? (
+        <Select
+          aria-label='Filter satuan'
+          allowClear
+          value={effectiveHomebaseId}
+          placeholder='Semua satuan'
+          options={homebaseOptions}
+          style={{ width: filterWidth }}
+          loading={optionsQuery.isFetching}
+          onChange={(value) => {
+            setHomebaseId(value);
+            setPeriodeId(undefined);
+            setGradeId(undefined);
+            setClassId(undefined);
+          }}
         />
       ) : null}
-    </Space>
+      <Select
+        aria-label='Filter periode'
+        allowClear
+        value={effectivePeriodeId}
+        placeholder='Semua periode'
+        options={periodeOptions}
+        style={{ width: filterWidth }}
+        loading={optionsQuery.isFetching}
+        onChange={(value) => {
+          setPeriodeId(value);
+          setGradeId(undefined);
+          setClassId(undefined);
+        }}
+      />
+      <Select
+        aria-label='Filter tingkat'
+        allowClear
+        value={effectiveGradeId}
+        placeholder='Semua tingkat'
+        options={gradeOptions}
+        style={{ width: filterWidth }}
+        loading={optionsQuery.isFetching}
+        onChange={(value) => {
+          setGradeId(value);
+          setClassId(undefined);
+        }}
+      />
+      <Select
+        aria-label='Filter kelas'
+        allowClear
+        value={effectiveClassId}
+        placeholder='Semua kelas'
+        options={classOptions}
+        style={{ width: filterWidth }}
+        loading={optionsQuery.isFetching}
+        onChange={setClassId}
+      />
+      <Button
+        icon={<Download size={16} />}
+        onClick={handleExportExcel}
+        disabled={isSummaryLoading}
+        block={isMobile}
+      >
+        Unduh Excel
+      </Button>
+    </>
   );
 
-  const gradeContent = (
-    <Card
-      variant='borderless'
-      styles={{ body: { padding: isMobile ? 12 : 16 } }}
-    >
-      <Space vertical size={14} style={{ width: "100%" }}>
-        <Flex align='center' justify='space-between' wrap='wrap' gap={10}>
-          <Text strong>Ringkasan per Tingkat</Text>
-          <Badge color='#22c55e' text={`${gradeRows.length} tingkat`} />
-        </Flex>
-        <Table
-          rowKey='grade_id'
-          columns={gradeColumns}
-          dataSource={gradeRows}
-          loading={summaryQuery.isLoading || summaryQuery.isFetching}
-          pagination={false}
-          scroll={{ x: 760 }}
-          locale={{ emptyText: <Empty description='Belum ada data tingkat' /> }}
-        />
-      </Space>
-    </Card>
-  );
-
-  const classContent = (
-    <Card
-      variant='borderless'
-      styles={{ body: { padding: isMobile ? 12 : 16 } }}
-    >
-      <Space vertical size={14} style={{ width: "100%" }}>
-        <Flex align='center' justify='space-between' wrap='wrap' gap={10}>
-          <Text strong>Ringkasan per Kelas</Text>
-          <Badge color='#0ea5e9' text={`${classRows.length} kelas`} />
-        </Flex>
-        <Table
-          rowKey='class_id'
-          columns={classColumns}
-          dataSource={classRows}
-          loading={summaryQuery.isLoading || summaryQuery.isFetching}
-          pagination={false}
-          scroll={{ x: 760 }}
-          locale={{ emptyText: <Empty description='Belum ada data kelas' /> }}
-        />
-      </Space>
-    </Card>
-  );
-
-  const studentContent = (
-    <Card
-      variant='borderless'
-      styles={{ body: { padding: isMobile ? 12 : 16 } }}
-    >
-      <Space vertical size={14} style={{ width: "100%" }}>
-        <Flex align='center' justify='space-between' wrap='wrap' gap={10}>
-          <Text strong>Ringkasan per Siswa</Text>
-          <Badge color='#f59e0b' text={`${filteredStudentRows.length} siswa`} />
-        </Flex>
-        <Input.Search
-          allowClear
-          placeholder='Cari nama siswa'
-          value={studentSearch}
-          onChange={(event) => setStudentSearch(event.target.value)}
-          style={{ maxWidth: 320 }}
-        />
-        <Table
-          rowKey='student_id'
-          columns={studentColumns}
-          dataSource={filteredStudentRows}
-          loading={summaryQuery.isLoading || summaryQuery.isFetching}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          scroll={{ x: 980 }}
-          locale={{ emptyText: <Empty description='Belum ada data siswa' /> }}
-        />
-      </Space>
-    </Card>
-  );
-
-  if (optionsQuery.isError || summaryQuery.isError) {
-    return (
+  const errorAlert =
+    optionsQuery.isError || summaryQuery.isError ? (
       <Alert
         type='error'
         showIcon
-        message='Gagal memuat laporan tahfiz.'
+        title='Gagal memuat laporan tahfiz'
         description={
           summaryQuery.error?.data?.message ||
           optionsQuery.error?.data?.message ||
-          "Silakan periksa koneksi server atau schema tahfiz terlebih dahulu."
+          "Periksa koneksi server lalu muat ulang halaman."
         }
       />
-    );
-  }
+    ) : null;
 
-  const reportTabItems = [
-    {
-      key: "target",
-      label: createTabLabel(
-        "Target",
-        <BookOpenCheck size={16} />,
-        "Target aktif yang digunakan",
-      ),
-      children: targetContent,
-    },
-    {
-      key: "grade",
-      label: createTabLabel(
-        "Tingkat",
-        <Layers3 size={16} />,
-        "Rekap per tingkat",
-      ),
-      children: gradeContent,
-    },
-    {
-      key: "class",
-      label: createTabLabel("Kelas", <School size={16} />, "Rekap per kelas"),
-      children: classContent,
-    },
-    {
-      key: "student",
-      label: createTabLabel(
-        "Siswa",
-        <ChartNoAxesColumn size={16} />,
-        "Rekap per siswa",
-      ),
-      children: studentContent,
-    },
+  const overviewBlock = (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gap: isMobile ? 16 : 24,
+      }}
+    >
+      {summaryCards.map((item) =>
+        summaryQuery.isLoading ? (
+          <MuseCard key={item.title}>
+            <Skeleton active paragraph={{ rows: 1 }} />
+          </MuseCard>
+        ) : (
+          <StatCard key={item.title} {...item} />
+        ),
+      )}
+    </div>
+  );
+
+  const withOverview = (section) => (
+    <Flex vertical gap={isMobile ? 16 : 24}>
+      {errorAlert}
+      {overviewBlock}
+      {section}
+    </Flex>
+  );
+
+  const targetContent = (
+    <MuseCard
+      title={
+        <CardTitle
+          icon={<BookOpenCheck size={18} />}
+          title={mode === "teacher" ? "Target Kelas Binaan" : "Target yang Dipakai"}
+          description={
+            mode === "teacher"
+              ? "Hanya target untuk tingkat kelas binaan Anda yang ditampilkan."
+              : "Target aktif dihitung dari periode dan tingkat yang dipilih."
+          }
+        />
+      }
+      extra={<Tag style={{ marginInlineEnd: 0 }}>{visiblePlans.length} plan aktif</Tag>}
+    >
+      {isSummaryLoading && !visiblePlans.length ? (
+        <Skeleton active paragraph={{ rows: 3 }} />
+      ) : visiblePlans.length ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: 16,
+          }}
+        >
+          {visiblePlans.map((plan) => (
+            <div
+              key={plan.plan_id}
+              style={{
+                border: `1px solid ${token.colorBorderSecondary}`,
+                borderRadius: museRadius.item,
+                padding: 16,
+              }}
+            >
+              <Text strong style={{ display: "block" }}>
+                {plan.title || `Target ${plan.grade_name}`}
+              </Text>
+              <Text type='secondary' style={{ fontSize: 12, display: "block" }}>
+                {plan.homebase_name || "Semua satuan"} · {plan.grade_name} ·{" "}
+                {plan.target_total_ayahs || 0} ayat
+              </Text>
+              <Flex gap={6} wrap style={{ marginTop: 12 }}>
+                {(plan.items || []).map((item) => (
+                  <Tag
+                    key={item.id}
+                    color={item.target_type === "juz" ? "gold" : "blue"}
+                    style={{ marginInlineEnd: 0 }}
+                  >
+                    {targetItemLabel(item)}
+                  </Tag>
+                ))}
+              </Flex>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description='Belum ada target aktif untuk filter ini. Buat atau aktifkan target tahfiz agar capaian bisa dihitung.'
+        />
+      )}
+    </MuseCard>
+  );
+
+  const gradeContent = (
+    <MuseCard
+      flush
+      title={
+        <CardTitle
+          icon={<Layers3 size={18} />}
+          title='Ringkasan per Tingkat'
+          description={`${gradeRows.length} tingkat`}
+        />
+      }
+    >
+      <Table
+        rowKey='grade_id'
+        columns={gradeColumns}
+        dataSource={gradeRows}
+        loading={isSummaryLoading}
+        pagination={false}
+        scroll={{ x: true }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='Belum ada data tingkat untuk filter ini.' /> }}
+      />
+    </MuseCard>
+  );
+
+  const classContent = (
+    <MuseCard
+      flush
+      title={
+        <CardTitle
+          icon={<School size={18} />}
+          title='Ringkasan per Kelas'
+          description={`${classRows.length} kelas`}
+        />
+      }
+    >
+      <Table
+        rowKey='class_id'
+        columns={classColumns}
+        dataSource={classRows}
+        loading={isSummaryLoading}
+        pagination={false}
+        scroll={{ x: true }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description='Belum ada data kelas untuk filter ini.' /> }}
+      />
+    </MuseCard>
+  );
+
+  const studentContent = (
+    <DataListCard
+      title='Ringkasan per Siswa'
+      icon={<GraduationCap size={18} />}
+      count={filteredStudentRows.length}
+      unit='siswa'
+      searchProps={{
+        placeholder: "Cari nama siswa",
+        value: studentSearch,
+        onChange: (event) => setStudentSearch(event.target.value),
+      }}
+    >
+      <Table
+        rowKey='student_id'
+        columns={studentColumns}
+        dataSource={filteredStudentRows}
+        loading={isSummaryLoading}
+        pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+        scroll={{ x: true }}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                studentSearch
+                  ? "Tidak ada siswa yang cocok dengan pencarian."
+                  : "Belum ada data siswa untuk filter ini."
+              }
+            />
+          ),
+        }}
+      />
+    </DataListCard>
+  );
+
+  const tabItems = [
+    { key: "target", label: "Target", icon: <BookOpenCheck />, render: () => withOverview(targetContent) },
+    mode === "admin"
+      ? { key: "grade", label: "Tingkat", icon: <Layers3 />, render: () => withOverview(gradeContent) }
+      : null,
+    mode === "admin"
+      ? { key: "class", label: "Kelas", icon: <School />, render: () => withOverview(classContent) }
+      : null,
+    { key: "student", label: "Siswa", icon: <ChartNoAxesColumn />, render: () => withOverview(studentContent) },
   ].filter(Boolean);
 
-  const tabItems =
-    mode === "teacher"
-      ? reportTabItems.filter(
-          (item) => item.key !== "grade" && item.key !== "class",
-        )
-      : reportTabItems;
-
   return (
-    <MotionDiv
-      variants={containerVariants}
-      initial='hidden'
-      animate='visible'
-      style={{ display: "flex", flexDirection: "column", gap: 20 }}
-    >
-      <MotionDiv variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: token.borderRadiusXL,
-            overflow: "hidden",
-            position: "relative",
-            background:
-              "radial-gradient(circle at top left, rgba(125,211,252,0.24), transparent 26%), linear-gradient(135deg, #0f172a 0%, #0f766e 48%, #22c55e 100%)",
-            boxShadow: "0 24px 50px rgba(15, 23, 42, 0.18)",
-          }}
-          styles={{ body: { padding: isMobile ? 20 : 26 } }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          <Flex
-            justify='space-between'
-            align={isMobile ? "stretch" : "center"}
-            vertical={isMobile}
-            gap={16}
-            style={{ position: "relative" }}
-          >
-            <Flex vertical gap={10}>
-              <Flex
-                align='center'
-                gap={8}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  color: "#ecfeff",
-                  fontWeight: 700,
-                  letterSpacing: 0.4,
-                }}
-              >
-                <GraduationCap size={16} />
-                <span>{headerCopy.eyebrow}</span>
-              </Flex>
-
-              <Title
-                level={isMobile ? 3 : 2}
-                style={{
-                  margin: 0,
-                  color: "#f8fafc",
-                  lineHeight: 1.15,
-                }}
-              >
-                {headerCopy.title}
-              </Title>
-
-              <Text
-                style={{
-                  maxWidth: 680,
-                  color: "rgba(240,249,255,0.88)",
-                  fontSize: isMobile ? 14 : 15,
-                }}
-              >
-                {headerCopy.description}
-              </Text>
-
-              <Button
-                type='primary'
-                icon={<Download size={16} />}
-                onClick={handleExportExcel}
-                disabled={summaryQuery.isLoading || summaryQuery.isFetching}
-                style={{
-                  width: "fit-content",
-                  background: "#f8fafc",
-                  color: "#0f172a",
-                  borderColor: "#f8fafc",
-                }}
-              >
-                Download Excel
-              </Button>
-            </Flex>
-
-            {!isMobile && (
-              <Card
-                variant='borderless'
-                style={{
-                  minWidth: 250,
-                  borderRadius: 22,
-                  background: "rgba(15, 23, 42, 0.18)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  backdropFilter: "blur(8px)",
-                }}
-                styles={{ body: { padding: 16 } }}
-              >
-                <Flex vertical gap={10}>
-                  <Text
-                    style={{
-                      color: "#d1fae5",
-                      fontWeight: 700,
-                      letterSpacing: 0.3,
-                    }}
-                  >
-                    Fokus Laporan
-                  </Text>
-                  {[
-                    "Target aktif per tingkat",
-                    "Capaian kelas secara agregat",
-                    "Progres siswa sampai tuntas",
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 14,
-                        background: "rgba(255,255,255,0.10)",
-                        color: "#f8fafc",
-                        fontSize: 14,
-                      }}
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </Flex>
-              </Card>
-            )}
-          </Flex>
-        </Card>
-      </MotionDiv>
-
-      <MotionDiv variants={itemVariants}>{filterContent}</MotionDiv>
-
-      <MotionDiv variants={itemVariants}>{summaryContent}</MotionDiv>
-
-      <MotionDiv variants={itemVariants}>
-        <Card
-          variant='borderless'
-          style={{
-            borderRadius: token.borderRadiusXL,
-            boxShadow: token.boxShadowSecondary,
-          }}
-          styles={{ body: { padding: isMobile ? 12 : 16 } }}
-        >
-          <Tabs
-            items={tabItems}
-            defaultActiveKey='target'
-            size={isMobile ? "middle" : "large"}
-            tabBarGutter={12}
-            tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
-          />
-        </Card>
-      </MotionDiv>
-    </MotionDiv>
+    <PageTabs
+      title={headerCopy.title}
+      description={headerCopy.description}
+      extra={headerExtra}
+      items={tabItems}
+    />
   );
 };
 
