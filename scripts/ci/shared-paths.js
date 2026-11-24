@@ -47,6 +47,8 @@ export const MAIN_OWNED_PATHS = [
   "client/src/utils/RouteProtection.jsx",
   "client/src/utils/resolveUserHomePath.js",
   "client/src/utils/staffAssignment.js",
+  // Login inti. Data login per domain: server/router/<domain>/authProfile.js.
+  "server/router/auth/",
 ];
 
 // Milik satu feature. main tidak boleh mengubahnya (sync pasti konflik), dan
@@ -74,7 +76,6 @@ export const FEATURE_OWNED_PATHS = {
     "database/attendance_schema.sql",
     "database/lms_schema.sql",
     "server/middleware/authorize.js",
-    "server/router/auth/RouterAuth.js",
     "server/router/lms/",
     "server/services/telegram/",
     "server/utils/staffAssignment.js",

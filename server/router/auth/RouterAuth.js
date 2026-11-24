@@ -4,32 +4,19 @@ import jwt from "jsonwebtoken";
 import { withTransaction, withQuery } from "../../utils/wrapper.js"; // Sesuaikan path wrapper
 import { authorize } from "../../middleware/authorize.js";
 import {
-  attachAssignmentFlags,
-  fetchTeacherAssignments,
-} from "../../utils/staffAssignment.js";
-import pool from "../../config/connection.js";
-import { isClassAttendanceOfficer } from "../../services/attendance/classAttendanceAccess.js";
+  AuthDeniedError,
+  enrichDomainProfiles,
+  findDomainRole,
+} from "./domainProfiles.js";
 
-const STAFF_WITHOUT_ASSIGNMENT_MESSAGE =
-  "Akun tendik ini belum memiliki penugasan. Hubungi admin satuan.";
-
-const attachOptionalFinanceStaff = async (db, user) => {
-  if (!user || !["teacher", "staff"].includes(user.role)) return user;
-
-  try {
-    const mod = await import("../finance/financeStaffAccess.js");
-    return await mod.attachFinanceStaffFlag(db, user);
-  } catch (error) {
-    const code = error?.code || error?.cause?.code;
-    if (code !== "ERR_MODULE_NOT_FOUND") {
-      console.error("[finance-staff] gagal memuat penugasan", error);
-    }
-    user.can_manage_finance = false;
-    return user;
-  }
-};
+// File ini milik main. Data login khusus domain (tendik, piket, penugasan,
+// musyrif, keuangan) ditambahkan lewat server/router/<domain>/authProfile.js,
+// bukan dengan mengedit file ini. Lihat domainProfiles.js.
 
 const router = Router();
+
+const sendAuthDenied = (res, error) =>
+  res.status(error.status || 403).json({ message: error.message });
 
 // ============================================================================
 // 1. SIGNUP PARENT (Orang Tua mendaftar berdasarkan NIS Siswa)
@@ -155,10 +142,6 @@ router.post(
         [user.id],
       );
       if (studentRes.rowCount > 0) roleData = studentRes.rows[0];
-      roleData.is_attendance_officer = await isClassAttendanceOfficer(
-        pool,
-        user.id,
-      );
 
       // --- GURU ---
     } else if (user.role === "teacher") {
@@ -168,22 +151,6 @@ router.post(
           t.nip, t.phone, t.email, t.is_homeroom,
           t.homebase_id,
           hb.name AS homebase_name,
-          EXISTS (
-            SELECT 1
-            FROM lms.l_duty_assignment d
-            WHERE d.duty_teacher_id = t.user_id
-              AND d.homebase_id = t.homebase_id
-              AND d.date = CURRENT_DATE
-              AND d.status <> 'cancelled'
-          ) AS has_duty_today,
-          (
-            SELECT COUNT(*)
-            FROM lms.l_duty_assignment d
-            WHERE d.duty_teacher_id = t.user_id
-              AND d.homebase_id = t.homebase_id
-              AND d.date = CURRENT_DATE
-              AND d.status <> 'cancelled'
-          )::int AS duty_today_count,
           (
             SELECT COALESCE(json_agg(
               json_build_object(
@@ -248,42 +215,24 @@ router.post(
       // Jika data admin ditemukan, masukkan ke roleData.
       // Frontend akan membaca 'level' dari sini (user.level)
       if (adminRes.rowCount > 0) roleData = adminRes.rows[0];
+    }
 
-      // --- TENDIK ---
-    } else if (user.role === "staff") {
-      const staffRes = await client.query(
-        `
-        SELECT
-          s.id AS staff_id, s.nip, s.phone, s.email, s.is_active AS staff_active,
-          s.homebase_id,
-          hb.name AS homebase_name
-        FROM u_staff s
-        LEFT JOIN a_homebase hb ON s.homebase_id = hb.id
-        WHERE s.user_id = $1
-        LIMIT 1
-      `,
-        [user.id],
-      );
-      const staff = staffRes.rows[0];
-      if (!staff || staff.staff_active === false || !staff.homebase_id) {
-        return res
-          .status(403)
-          .json({ message: "Akun dinonaktifkan. Hubungi admin." });
+    delete user.password;
+
+    // 4b. Role & data khusus domain (lihat domainProfiles.js). Domain boleh
+    // menolak login (mis. tendik tanpa penugasan) sebelum token dibuat.
+    let payload;
+    try {
+      const domainRole = await findDomainRole(user.role);
+      if (domainRole?.loadSigninProfile) {
+        roleData = (await domainRole.loadSigninProfile(client, user.id)) || {};
       }
 
-      const access = await attachOptionalFinanceStaff(client, {
-        id: user.id,
-        role: user.role,
-        homebase_id: staff.homebase_id,
-      });
-      if (access.can_manage_finance !== true) {
-        return res
-          .status(403)
-          .json({ message: STAFF_WITHOUT_ASSIGNMENT_MESSAGE });
-      }
-
-      delete staff.staff_active;
-      roleData = { ...staff, can_manage_finance: true };
+      payload = { ...user, ...roleData };
+      await enrichDomainProfiles({ db: client, user: payload, phase: "signin" });
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
     }
 
     // 5. Generate Token
@@ -307,27 +256,10 @@ router.post(
       user.id,
     ]);
 
-    delete user.password;
-
-    const payload = {
-      ...user,
-      ...roleData,
-    };
-
-    if (user.role === "teacher") {
-      const assignments = await fetchTeacherAssignments(
-        client,
-        user.id,
-        payload.homebase_id,
-      );
-      Object.assign(payload, attachAssignmentFlags(payload, assignments));
-      await attachOptionalFinanceStaff(client, payload);
-    }
-
     // 7. Kirim Response
     return res.status(200).json({
       message: "Login berhasil",
-      user: payload,
+      user: payload, // data user + profil role + data domain
     });
   }),
 );
@@ -375,22 +307,6 @@ router.get(
           t.nip, t.phone, t.email, t.is_homeroom,
           t.homebase_id,
           hb.name AS homebase_name,
-          EXISTS (
-            SELECT 1
-            FROM lms.l_duty_assignment d
-            WHERE d.duty_teacher_id = u.id
-              AND d.homebase_id = t.homebase_id
-              AND d.date = CURRENT_DATE
-              AND d.status <> 'cancelled'
-          ) AS has_duty_today,
-          (
-            SELECT COUNT(*)
-            FROM lms.l_duty_assignment d
-            WHERE d.duty_teacher_id = u.id
-              AND d.homebase_id = t.homebase_id
-              AND d.date = CURRENT_DATE
-              AND d.status <> 'cancelled'
-          )::int AS duty_today_count,
           (
             SELECT COALESCE(json_agg(
               json_build_object(
@@ -447,63 +363,35 @@ router.get(
         LEFT JOIN a_homebase hb ON a.homebase_id = hb.id
         WHERE u.id = $1
       `;
-
-      // --- TENDIK ---
-    } else if (role === "staff") {
-      query = `
-        SELECT
-          u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
-          s.id AS staff_id, s.nip, s.phone, s.email,
-          s.homebase_id,
-          hb.name AS homebase_name
-        FROM u_users u
-        JOIN u_staff s ON s.user_id = u.id
-        LEFT JOIN a_homebase hb ON s.homebase_id = hb.id
-        WHERE u.id = $1
-      `;
     }
 
-    if (!query) {
-      return res
-        .status(403)
-        .json({ message: "Role tidak dikenali atau akses ditolak." });
-    }
+    try {
+      let userData;
 
-    const resData = await pool.query(query, [id]);
-    const userData = resData.rows[0];
-
-    if (!userData) {
-      return res.status(404).json({ message: "Data user tidak ditemukan" });
-    }
-
-    if (role === "student") {
-      userData.is_attendance_officer = await isClassAttendanceOfficer(
-        pool,
-        userData.id,
-      );
-    }
-
-    if (role === "teacher") {
-      const assignments = await fetchTeacherAssignments(
-        pool,
-        userData.id,
-        userData.homebase_id,
-      );
-      const withAssignments = attachAssignmentFlags(userData, assignments);
-      await attachOptionalFinanceStaff(pool, withAssignments);
-      return res.status(200).json(withAssignments);
-    }
-
-    if (role === "staff") {
-      await attachOptionalFinanceStaff(pool, userData);
-      if (userData.can_manage_finance !== true) {
-        return res
-          .status(403)
-          .json({ message: STAFF_WITHOUT_ASSIGNMENT_MESSAGE });
+      if (query) {
+        const resData = await pool.query(query, [id]);
+        userData = resData.rows[0];
+      } else {
+        // Role di luar role inti (mis. staff) disediakan domain.
+        const domainRole = await findDomainRole(role);
+        if (!domainRole?.loadUserProfile) {
+          return res
+            .status(403)
+            .json({ message: "Role tidak dikenali atau akses ditolak." });
+        }
+        userData = await domainRole.loadUserProfile(pool, id);
       }
-    }
 
-    return res.status(200).json(userData);
+      if (!userData) {
+        return res.status(404).json({ message: "Data user tidak ditemukan" });
+      }
+
+      await enrichDomainProfiles({ db: pool, user: userData, phase: "load-user" });
+      return res.status(200).json(userData);
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
+    }
   }),
 );
 
@@ -584,7 +472,7 @@ router.put(
     if (role === "teacher") detailTable = "u_teachers";
     else if (role === "admin") detailTable = "u_admin";
     else if (role === "parent") detailTable = "u_parents";
-    else if (role === "staff") detailTable = "u_staff";
+    else detailTable = (await findDomainRole(role))?.detailTable || "";
 
     if (detailTable) {
       const updates = [];
