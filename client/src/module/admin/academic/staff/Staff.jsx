@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { Button, Card, Flex, Grid, Input, Statistic, message } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
-import { UserPlus } from "lucide-react";
+import { Flex, Grid, message } from "antd";
+import { Briefcase, UserCheck } from "lucide-react";
 import StaffList from "./StaffList";
 import StaffForm from "./StaffForm";
 import {
@@ -10,8 +9,9 @@ import {
   useGetStaffQuery,
   useUpdateStaffMutation,
 } from "../../../../service/academic/ApiStaff";
-import PageHeader from "../../../../components/ui/PageHeader";
 import useDebounced from "../../../../utils/useDebounced";
+import { StatCard } from "../../../../components/ui/muse";
+import { DataListCard } from "../../../../components/ui/muse/DataSection";
 
 const { useBreakpoint } = Grid;
 
@@ -64,46 +64,43 @@ const Staff = () => {
   };
 
   return (
-    <Flex vertical gap={16}>
-      <Flex gap={16} wrap="wrap">
-        <Card style={{ flex: "1 1 180px", borderRadius: 18 }}>
-          <Statistic title="Total Tendik" value={total} />
-        </Card>
-        <Card style={{ flex: "1 1 180px", borderRadius: 18 }}>
-          <Statistic title="Aktif di halaman ini" value={activeCount} />
-        </Card>
-      </Flex>
+    <Flex vertical gap={screens.md ? 24 : 16}>
+      <div
+        style={{
+          display: "grid",
+          gap: screens.md ? 24 : 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        }}
+      >
+        <StatCard title="Total Tendik" value={total} icon={<Briefcase size={24} />} tone="primary" />
+        <StatCard
+          title="Aktif"
+          value={activeCount}
+          note="Pada halaman yang ditampilkan"
+          icon={<UserCheck size={24} />}
+          tone="success"
+        />
+      </div>
 
-      <PageHeader
-        size="section"
-        title="Tenaga kependidikan"
-        description="Data induk tendik satuan ini. Keuangan hanya membaca daftar ini."
-        extra={
-          <>
-            <Input
-              allowClear
-              placeholder="Cari nama / NIP / RFID"
-              prefix={<SearchOutlined />}
-              style={{ width: screens.md ? 260 : "100%" }}
-              onChange={(event) => {
-                setSearchText(event.target.value);
-                setPagination((prev) => ({ ...prev, current: 1 }));
-              }}
-            />
-            <Button
-              type="primary"
-              icon={<UserPlus size={16} />}
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              Tendik
-            </Button>
-          </>
-        }
-      />
-
+      <DataListCard
+        flush={screens.md}
+        title="Tenaga Kependidikan"
+        description={screens.md ? "Keuangan hanya membaca daftar ini" : undefined}
+        count={total}
+        unit="tendik"
+        searchProps={{
+          placeholder: "Cari nama / NIP / RFID",
+          onChange: (event) => {
+            setSearchText(event.target.value);
+            setPagination((prev) => ({ ...prev, current: 1 }));
+          },
+        }}
+        onAdd={() => {
+          setEditing(null);
+          setOpen(true);
+        }}
+        addLabel="Tambah Tendik"
+      >
       <StaffList
         data={items}
         loading={isLoading || isFetching}
@@ -121,6 +118,7 @@ const Staff = () => {
           }))
         }
       />
+      </DataListCard>
 
       <StaffForm
         open={open}

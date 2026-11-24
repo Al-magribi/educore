@@ -1,36 +1,37 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Row,
-  Col,
-  Card,
-  Statistic,
-  Select,
-  Tag,
-  Spin,
-  Empty,
-  Space,
-  Typography,
-  Grid,
-  Progress,
-  Tabs,
+  Breadcrumb,
   Button,
+  Col,
+  Empty,
+  Flex,
+  Grid,
   Input,
+  Progress,
+  Row,
+  Select,
+  Skeleton,
   Table,
+  Tabs,
+  Tag,
+  Typography,
 } from 'antd';
 import {
-  UserOutlined,
-  TeamOutlined,
-  ReadOutlined,
-  BankOutlined,
-  ManOutlined,
-  WomanOutlined,
-  CalendarOutlined,
-  ApartmentOutlined,
-  ArrowLeftOutlined,
-  SearchOutlined,
-  InfoCircleOutlined,
-} from '@ant-design/icons';
+  ArrowLeft,
+  BookOpen,
+  CalendarDays,
+  GraduationCap,
+  LayoutDashboard,
+  Mars,
+  School,
+  Search,
+  UsersRound,
+  Venus,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
+import PageHeader from '../../../components/ui/PageHeader';
+import { CardTitle, IconBox, MuseCard, StatCard } from '../../../components/ui/muse';
+import { museColors, museRadius } from '../../../config/theme';
 import {
   useDetailHomebaseQuery,
   useGetHomebaseClassesQuery,
@@ -38,7 +39,7 @@ import {
 import ModalClassStudents from './ModalClassStudents';
 import HomebaseTeacherTab from './HomebaseTeacherTab';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -119,33 +120,29 @@ const DetailHomebase = ({ homebaseId, activeTab = 'ringkasan', onTabChange, onBa
         key: 'teachers',
         title: 'Total Guru',
         value: Number(stats.teachers?.total || 0),
-        icon: <UserOutlined />,
-        color: '#b45309',
-        bg: 'linear-gradient(135deg, rgba(245,158,11,0.16), rgba(251,191,36,0.1))',
+        icon: <UsersRound size={24} />,
+        tone: 'warning',
       },
       {
         key: 'students',
         title: 'Total Siswa',
         value: Number(stats.students?.total || 0),
-        icon: <TeamOutlined />,
-        color: '#1d4ed8',
-        bg: 'linear-gradient(135deg, rgba(59,130,246,0.16), rgba(14,165,233,0.1))',
+        icon: <GraduationCap size={24} />,
+        tone: 'primary',
       },
       {
         key: 'classes',
         title: 'Total Kelas',
         value: Number(stats.classes?.total || 0),
-        icon: <BankOutlined />,
-        color: '#be123c',
-        bg: 'linear-gradient(135deg, rgba(244,63,94,0.16), rgba(251,113,133,0.1))',
+        icon: <School size={24} />,
+        tone: 'navy',
       },
       {
         key: 'subjects',
         title: 'Total Pelajaran',
         value: Number(stats.subjects?.total || 0),
-        icon: <ReadOutlined />,
-        color: '#15803d',
-        bg: 'linear-gradient(135deg, rgba(34,197,94,0.16), rgba(16,185,129,0.1))',
+        icon: <BookOpen size={24} />,
+        tone: 'success',
       },
     ],
     [stats],
@@ -154,55 +151,57 @@ const DetailHomebase = ({ homebaseId, activeTab = 'ringkasan', onTabChange, onBa
   const classColumns = useMemo(
     () => [
       {
-        title: 'Kelas',
+        title: 'KELAS',
         dataIndex: 'name',
         key: 'name',
         render: (value, record) => (
-          <Space orientation="vertical" size={2}>
-            <Text strong>{value || '-'}</Text>
+          <div>
+            <Text strong style={{ display: 'block' }}>
+              {value || '-'}
+            </Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
               {[record.grade_name, record.major_name].filter(Boolean).join(' · ') || 'Tanpa tingkat/jurusan'}
             </Text>
-          </Space>
+          </div>
         ),
       },
       {
-        title: 'Wali Kelas',
+        title: 'WALI KELAS',
         dataIndex: 'homeroom_teacher',
         key: 'homeroom_teacher',
         render: (value) => value || '-',
       },
       {
-        title: 'Jumlah Siswa',
+        title: 'JUMLAH SISWA',
         dataIndex: 'students_count',
         key: 'students_count',
-        width: 130,
-        render: (value) => <Tag style={{ borderRadius: 999 }}>{Number(value || 0)} siswa</Tag>,
+        width: 140,
+        render: (value) => <Text strong>{Number(value || 0)} siswa</Text>,
       },
       {
-        title: 'Status',
+        title: 'STATUS',
         dataIndex: 'is_active',
         key: 'is_active',
         width: 110,
         render: (value) => (
-          <Tag color={value ? 'success' : 'default'} style={{ borderRadius: 999 }}>
+          <Tag color={value ? 'success' : 'default'} style={{ margin: 0 }}>
             {value ? 'Aktif' : 'Nonaktif'}
           </Tag>
         ),
       },
       {
-        title: 'Aksi',
+        title: 'AKSI',
         key: 'action',
-        width: 130,
+        width: 120,
         render: (_, record) => (
           <Button
             type="link"
-            icon={<TeamOutlined />}
+            icon={<UsersRound size={16} />}
             onClick={() => {
               setSelectedClass(record);
               setIsStudentModalOpen(true);
             }}
-            style={{ fontWeight: 600, paddingInline: 0 }}>
+            style={{ paddingInline: 0 }}>
             Siswa
           </Button>
         ),
@@ -211,446 +210,271 @@ const DetailHomebase = ({ homebaseId, activeTab = 'ringkasan', onTabChange, onBa
     [],
   );
 
+  const periodSelect = (
+    <Select
+      aria-label="Pilih periode"
+      style={{ width: isMobile ? '100%' : 240 }}
+      value={detailSelectedPeriodeId ? Number(detailSelectedPeriodeId) : undefined}
+      onChange={(val) => setPeriodeId(val)}
+      placeholder="Pilih Periode"
+      loading={isDetailFetching}
+      prefix={<CalendarDays size={16} color={museColors.muted} />}
+      options={periods.map((p) => ({
+        value: p.id,
+        label: `${p.name}${p.is_active ? ' · Aktif' : ''}`,
+      }))}
+    />
+  );
+
+  const genderTile = (icon, label, value, tone) => (
+    <Flex align="center" gap={12}>
+      <IconBox icon={icon} tone={tone} size={40} />
+      <div>
+        <Text type="secondary" style={{ display: 'block', fontSize: 12, fontWeight: 600 }}>
+          {label}
+        </Text>
+        <Text strong style={{ fontSize: 20, fontWeight: 700 }}>
+          {value}
+        </Text>
+      </div>
+    </Flex>
+  );
+
   const renderRingkasan = () => {
     if (isDetailLoading) {
       return (
-        <Card variant="borderless" style={{ borderRadius: 24, minHeight: 300 }}>
-          <div style={{ minHeight: 240, display: 'grid', placeItems: 'center' }}>
-            <Spin size="large" />
-          </div>
-        </Card>
+        <Row gutter={[24, 24]}>
+          {[0, 1, 2, 3].map((key) => (
+            <Col xs={24} sm={12} lg={6} key={key}>
+              <MuseCard>
+                <Skeleton active paragraph={{ rows: 1 }} />
+              </MuseCard>
+            </Col>
+          ))}
+        </Row>
       );
     }
 
     return (
-      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: 22,
-            border: '1px solid rgba(148, 163, 184, 0.14)',
-          }}
-          styles={{ body: { padding: 16 } }}>
-          <Space wrap size={[12, 12]} style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Text type="secondary">Pilih periode untuk melihat ringkasan yang relevan.</Text>
-            <Select
-              style={{ width: isMobile ? '100%' : 260 }}
-              value={detailSelectedPeriodeId ? Number(detailSelectedPeriodeId) : undefined}
-              onChange={(val) => setPeriodeId(val)}
-              placeholder="Pilih Periode"
-              loading={isDetailFetching}
-              suffixIcon={<CalendarOutlined style={{ color: '#64748b' }} />}
-              options={periods.map((p) => ({
-                value: p.id,
-                label: `${p.name}${p.is_active ? ' - Aktif' : ''}`,
-              }))}
-            />
-          </Space>
-        </Card>
+      <Flex vertical gap={24}>
+        <Flex justify="space-between" align="center" gap={12} wrap>
+          <Text type="secondary">Pilih periode untuk melihat ringkasan yang relevan.</Text>
+          {periodSelect}
+        </Flex>
 
-        <Row gutter={[16, 16]}>
-          {cards.map((item) => (
-            <Col xs={24} sm={12} lg={6} key={item.key}>
-              <MotionDiv variants={itemVariants} whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
-                <Card
-                  variant="borderless"
-                  style={{
-                    borderRadius: 22,
-                    background: item.bg,
-                    border: '1px solid rgba(148, 163, 184, 0.14)',
-                  }}
-                  styles={{ body: { padding: 18 } }}>
-                  <Statistic
-                    title={<Text style={{ color: '#475569', fontSize: 13 }}>{item.title}</Text>}
-                    value={item.value}
-                    prefix={
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 14,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: 10,
-                          background: 'rgba(255,255,255,0.72)',
-                          color: item.color,
-                        }}>
-                        {item.icon}
-                      </div>
-                    }
-                    valueStyle={{ color: '#0f172a', fontSize: 28 }}
-                  />
-                </Card>
+        <Row gutter={[24, 24]}>
+          {cards.map(({ key, ...item }) => (
+            <Col xs={24} sm={12} lg={6} key={key}>
+              <MotionDiv variants={itemVariants} style={{ height: '100%' }}>
+                <StatCard {...item} />
               </MotionDiv>
             </Col>
           ))}
         </Row>
 
-        <Row gutter={[16, 16]}>
+        <Row gutter={[24, 24]}>
           <Col xs={24} lg={16}>
-            <Card
-              title="Komposisi Siswa per Kelas"
-              variant="borderless"
-              style={{
-                borderRadius: 24,
-                border: '1px solid rgba(148, 163, 184, 0.14)',
-                boxShadow: '0 20px 50px rgba(15, 23, 42, 0.06)',
-              }}
-              styles={{ body: { padding: 20 } }}>
+            <MuseCard
+              title={
+                <CardTitle title="Komposisi Siswa per Kelas" description="Sebaran siswa laki-laki dan perempuan." />
+              }>
               {composition.length === 0 ? (
                 <Empty description="Belum ada kelas atau siswa pada periode ini" />
               ) : (
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: 14,
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))',
+                    gap: 16,
                     maxHeight: 460,
                     overflowY: 'auto',
                     paddingRight: 4,
                   }}>
-                  {composition.map((cls, idx) => (
-                    <MotionDiv
-                      key={`${cls.class_name}-${idx}`}
-                      whileHover={{ y: -3 }}
-                      transition={{ duration: 0.2 }}>
-                      <Card
-                        variant="borderless"
+                  {composition.map((cls, idx) => {
+                    const total = Number(cls.total_students || 0);
+                    const malePct = total ? Math.round((Number(cls.laki || 0) / total) * 100) : 0;
+                    return (
+                      <div
+                        key={`${cls.class_name}-${idx}`}
                         style={{
-                          borderRadius: 20,
-                          background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))',
-                          border: '1px solid rgba(148, 163, 184, 0.16)',
-                        }}
-                        styles={{ body: { padding: 18 } }}>
-                        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                          <div>
-                            <Text style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Kelas</Text>
-                            <Title level={5} style={{ margin: '4px 0 0', color: '#0f172a' }}>
-                              {cls.class_name}
-                            </Title>
-                          </div>
-
-                          <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                              gap: 12,
-                            }}>
-                            <div
-                              style={{
-                                borderRadius: 16,
-                                padding: 14,
-                                background: 'rgba(59,130,246,0.08)',
-                              }}>
-                              <Space align="center" size={10}>
-                                <ManOutlined style={{ color: '#2563eb', fontSize: 18 }} />
-                                <div>
-                                  <Text style={{ fontSize: 12, color: '#64748b' }}>Laki Laki</Text>
-                                  <Title level={4} style={{ margin: 0, color: '#0f172a' }}>
-                                    {cls.laki}
-                                  </Title>
-                                </div>
-                              </Space>
-                            </div>
-
-                            <div
-                              style={{
-                                borderRadius: 16,
-                                padding: 14,
-                                background: 'rgba(236,72,153,0.08)',
-                              }}>
-                              <Space align="center" size={10}>
-                                <WomanOutlined style={{ color: '#db2777', fontSize: 18 }} />
-                                <div>
-                                  <Text style={{ fontSize: 12, color: '#64748b' }}>Perempuan</Text>
-                                  <Title level={4} style={{ margin: 0, color: '#0f172a' }}>
-                                    {cls.perempuan}
-                                  </Title>
-                                </div>
-                              </Space>
-                            </div>
-                          </div>
-
-                          <div
-                            style={{
-                              borderRadius: 14,
-                              padding: '10px 12px',
-                              background: '#f8fafc',
-                              border: '1px solid #e2e8f0',
-                            }}>
-                            <Text style={{ color: '#475569', fontSize: 12 }}>Total siswa</Text>
-                            <Title level={4} style={{ margin: '2px 0 0', color: '#0f172a' }}>
-                              {cls.total_students}
-                            </Title>
-                          </div>
-                        </Space>
-                      </Card>
-                    </MotionDiv>
-                  ))}
+                          borderRadius: museRadius.card,
+                          border: `1px solid ${museColors.divider}`,
+                          padding: 16,
+                        }}>
+                        <Flex justify="space-between" align="baseline" gap={8}>
+                          <Text strong ellipsis style={{ fontSize: 15 }}>
+                            {cls.class_name}
+                          </Text>
+                          <Text strong style={{ fontSize: 20, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {total}
+                            <small
+                              style={{ fontSize: 12, fontWeight: 600, color: museColors.muted, marginLeft: 4 }}>
+                              siswa
+                            </small>
+                          </Text>
+                        </Flex>
+                        <Progress
+                          percent={total ? 100 : 0}
+                          success={{ percent: malePct, strokeColor: museColors.primary }}
+                          strokeColor={museColors.female}
+                          showInfo={false}
+                          size={['100%', 6]}
+                          style={{ margin: '8px 0' }}
+                        />
+                        <Flex justify="space-between" gap={8}>
+                          <Flex align="center" gap={4}>
+                            <Mars size={12} color={museColors.primary} />
+                            <Text type="secondary" style={{ fontSize: 12, fontWeight: 600 }}>
+                              Laki-laki {cls.laki}
+                            </Text>
+                          </Flex>
+                          <Flex align="center" gap={4}>
+                            <Venus size={12} color={museColors.female} />
+                            <Text type="secondary" style={{ fontSize: 12, fontWeight: 600 }}>
+                              Perempuan {cls.perempuan}
+                            </Text>
+                          </Flex>
+                        </Flex>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-            </Card>
+            </MuseCard>
           </Col>
 
           <Col xs={24} lg={8}>
-            <Card
-              title="Komposisi Guru"
-              variant="borderless"
-              style={{
-                borderRadius: 24,
-                border: '1px solid rgba(148, 163, 184, 0.14)',
-                boxShadow: '0 20px 50px rgba(15, 23, 42, 0.06)',
-              }}
-              styles={{ body: { padding: 20 } }}>
-              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                <div
-                  style={{
-                    borderRadius: 20,
-                    padding: 18,
-                    background: 'linear-gradient(135deg, rgba(245,158,11,0.16), rgba(251,191,36,0.08))',
-                  }}>
-                  <Space align="center" size={14}>
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 16,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.75)',
-                        color: '#d97706',
-                        fontSize: 20,
-                      }}>
-                      <ManOutlined />
-                    </div>
-                    <div>
-                      <Text style={{ color: '#92400e', fontSize: 12 }}>
-                        Laki Laki
-                      </Text>
-                      <Title level={3} style={{ margin: 0, color: '#78350f' }}>
-                        {teacherMale}
-                      </Title>
-                    </div>
-                  </Space>
-                </div>
-
-                <div
-                  style={{
-                    borderRadius: 20,
-                    padding: 18,
-                    background: 'linear-gradient(135deg, rgba(236,72,153,0.16), rgba(244,114,182,0.08))',
-                  }}>
-                  <Space align="center" size={14}>
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 16,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.75)',
-                        color: '#db2777',
-                        fontSize: 20,
-                      }}>
-                      <WomanOutlined />
-                    </div>
-                    <div>
-                      <Text style={{ color: '#9d174d', fontSize: 12 }}>
-                        Perempuan
-                      </Text>
-                      <Title level={3} style={{ margin: 0, color: '#831843' }}>
-                        {teacherFemale}
-                      </Title>
-                    </div>
-                  </Space>
-                </div>
-
+            <MuseCard
+              style={{ height: '100%' }}
+              title={<CardTitle title="Komposisi Guru" description="Berdasarkan jenis kelamin." />}>
+              <Flex vertical gap={20}>
+                {genderTile(<Mars size={20} />, 'Laki-laki', teacherMale, 'primary')}
+                {genderTile(<Venus size={20} />, 'Perempuan', teacherFemale, 'female')}
                 <div>
-                  <Text style={{ color: '#64748b', fontSize: 12 }}>Proporsi guru laki-laki</Text>
+                  <Text type="secondary" style={{ fontSize: 12, fontWeight: 600 }}>
+                    Proporsi guru laki-laki
+                  </Text>
                   <Progress
-                    percent={
-                      totalTeacherGender ? Math.round((teacherMale / totalTeacherGender) * 100) : 0
-                    }
-                    strokeColor="#f59e0b"
-                    trailColor="#f1f5f9"
-                    showInfo
+                    percent={totalTeacherGender ? Math.round((teacherMale / totalTeacherGender) * 100) : 0}
+                    size={['100%', 6]}
                   />
                 </div>
-              </Space>
-            </Card>
+              </Flex>
+            </MuseCard>
           </Col>
         </Row>
-      </Space>
+      </Flex>
     );
   };
 
   const renderKelas = () => (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 24,
-        border: '1px solid rgba(148, 163, 184, 0.14)',
-      }}
-      styles={{ body: { padding: 16 } }}>
-      <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-        <Space wrap size={[10, 10]} style={{ width: '100%' }}>
+    <MuseCard
+      flush
+      title={<CardTitle title="Daftar Kelas" description={`${classesTotal} kelas terdaftar`} />}
+      extra={
+        <Flex gap={8} wrap style={{ padding: '8px 0' }}>
           <Input
+            aria-label="Cari kelas"
             allowClear
             placeholder="Cari kelas..."
-            prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+            prefix={<Search size={16} color={museColors.muted} />}
             value={classSearch}
             onChange={(e) => setClassSearch(e.target.value)}
-            style={{ width: isMobile ? '100%' : 280 }}
+            style={{ width: isMobile ? '100%' : 240 }}
           />
           <Select
-            style={{ width: isMobile ? '100%' : 240 }}
+            aria-label="Periode jumlah siswa"
+            style={{ width: isMobile ? '100%' : 220 }}
             value={selectedClassPeriodeId ? Number(selectedClassPeriodeId) : undefined}
             onChange={(val) => {
               setClassPeriodeId(val);
               setClassPage(1);
             }}
             placeholder="Periode (jumlah siswa)"
-            suffixIcon={<CalendarOutlined style={{ color: '#64748b' }} />}
+            prefix={<CalendarDays size={16} color={museColors.muted} />}
             options={classPeriods.map((p) => ({
               value: p.id,
-              label: `${p.name}${p.is_active ? ' - Aktif' : ''}`,
+              label: `${p.name}${p.is_active ? ' · Aktif' : ''}`,
             }))}
           />
-        </Space>
-
-        {isClassesLoading ? (
-          <div style={{ minHeight: 220, display: 'grid', placeItems: 'center' }}>
-            <Spin size="large" />
-          </div>
-        ) : classes.length === 0 ? (
-          <Empty description="Belum ada data kelas pada homebase ini" />
-        ) : (
-          <Table
-            rowKey="id"
-            columns={classColumns}
-            dataSource={classes}
-            loading={isClassesFetching}
-            pagination={{
-              current: classPage,
-              pageSize: 10,
-              total: classesTotal,
-              onChange: (nextPage) => setClassPage(nextPage),
-              showSizeChanger: false,
-              showTotal: (value) => `${value} kelas`,
-            }}
-            scroll={{ x: 760 }}
-          />
-        )}
-      </Space>
-    </Card>
+        </Flex>
+      }>
+      {isClassesLoading ? (
+        <div style={{ padding: 24 }}>
+          <Skeleton active paragraph={{ rows: 4 }} />
+        </div>
+      ) : classes.length === 0 ? (
+        <Empty style={{ padding: 32 }} description="Belum ada data kelas pada satuan ini" />
+      ) : (
+        <Table
+          rowKey="id"
+          columns={classColumns}
+          dataSource={classes}
+          loading={isClassesFetching}
+          pagination={{
+            current: classPage,
+            pageSize: 10,
+            total: classesTotal,
+            onChange: (nextPage) => setClassPage(nextPage),
+            showSizeChanger: false,
+            showTotal: (value) => `${value} kelas`,
+            style: { paddingInline: 24 },
+          }}
+          scroll={{ x: 760 }}
+        />
+      )}
+    </MuseCard>
   );
 
   const tabItems = [
     {
       key: 'ringkasan',
-      label: (
-        <Space size={6}>
-          <InfoCircleOutlined />
-          <span>Ringkasan</span>
-        </Space>
-      ),
+      label: 'Ringkasan',
+      icon: <LayoutDashboard size={16} />,
       children: renderRingkasan(),
     },
     {
       key: 'guru',
-      label: (
-        <Space size={6}>
-          <UserOutlined />
-          <span>Guru</span>
-        </Space>
-      ),
+      label: 'Guru',
+      icon: <UsersRound size={16} />,
       children: <HomebaseTeacherTab homebaseId={homebaseId} />,
     },
     {
       key: 'kelas',
-      label: (
-        <Space size={6}>
-          <BankOutlined />
-          <span>Kelas</span>
-        </Space>
-      ),
+      label: 'Kelas',
+      icon: <School size={16} />,
       children: renderKelas(),
     },
   ];
 
+  const homebaseName = homebase?.name || `Satuan #${homebaseId}`;
+
   return (
     <>
       <MotionDiv initial="hidden" animate="show" variants={itemVariants} style={{ display: 'grid', gap: 16 }}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: 24,
-            background:
-              'radial-gradient(circle at top left, rgba(14,165,233,0.18), transparent 28%), linear-gradient(135deg, #0f172a, #1d4ed8 58%, #0f766e)',
-            boxShadow: '0 24px 60px rgba(15, 23, 42, 0.18)',
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 24 } }}>
-          <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-            <Space wrap size={[10, 10]} style={{ width: '100%', justifyContent: 'space-between' }}>
-              <Tag
-                icon={<ApartmentOutlined />}
-                style={{
-                  width: 'fit-content',
-                  margin: 0,
-                  borderRadius: 999,
-                  background: 'rgba(255,255,255,0.12)',
-                  borderColor: 'rgba(255,255,255,0.2)',
-                  color: '#e0f2fe',
-                  paddingInline: 12,
-                }}>
-                Detail Satuan Pendidikan
-              </Tag>
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={onBack}
-                style={{
-                  borderRadius: 999,
-                  background: 'rgba(255,255,255,0.92)',
-                  borderColor: 'transparent',
-                  fontWeight: 600,
-                }}>
-                Kembali
-              </Button>
-            </Space>
-
-            <div>
-              <Title
-                level={3}
-                style={{
-                  margin: 0,
-                  color: '#f8fafc',
-                  fontSize: isMobile ? 22 : 28,
-                }}>
-                {homebase?.name || `Homebase #${homebaseId}`}
-              </Title>
-              <Text
-                style={{
-                  display: 'block',
-                  marginTop: 8,
-                  color: 'rgba(226, 232, 240, 0.92)',
-                  maxWidth: 760,
-                  lineHeight: 1.75,
-                }}>
-                Lihat ringkasan, daftar guru, dan kelas pada satuan pendidikan yang dipilih.
-              </Text>
-            </div>
-          </Space>
-        </Card>
-
-        <Tabs
-          activeKey={activeTab}
-          onChange={onTabChange}
-          items={tabItems}
-          destroyOnHidden
+        <Breadcrumb
+          items={[
+            {
+              title: (
+                <a href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>
+                  Satuan Pendidikan
+                </a>
+              ),
+            },
+            { title: homebaseName },
+          ]}
         />
+        <PageHeader
+          title={homebaseName}
+          description="Ringkasan, daftar guru, dan kelas pada satuan pendidikan yang dipilih."
+          extra={
+            <Button icon={<ArrowLeft size={16} />} onClick={onBack}>
+              Kembali
+            </Button>
+          }
+        />
+
+        <Tabs activeKey={activeTab} onChange={onTabChange} items={tabItems} destroyOnHidden />
       </MotionDiv>
 
       <ModalClassStudents

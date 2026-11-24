@@ -1,0 +1,90 @@
+/* Sidebar & header shell bergaya Muse. Token warna: client/src/config/theme.js */
+
+.muse-sider {
+  --muse-primary: #3730aa;
+  --muse-navy: #16115e;
+  --muse-muted: #8c8c8c;
+  --muse-shadow-card: 0 20px 27px rgba(0, 0, 0, 0.05);
+  --muse-shadow-icon: 0 4px 6px rgba(0, 0, 0, 0.12);
+}
+
+.muse-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Kotak ikon 32x32 di setiap item menu */
+.muse-sider .muse-menu-icon {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: var(--muse-shadow-icon);
+  color: var(--muse-navy);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.muse-sider .muse-menu-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Item aktif: kartu putih + shadow, kotak ikon jadi warna primary */
+.muse-sider .ant-menu-item-selected {
+  box-shadow: var(--muse-shadow-card);
+  font-weight: 600;
+}
+
+.muse-sider .ant-menu-item-selected .muse-menu-icon,
+.muse-sider .ant-menu-submenu-selected > .ant-menu-submenu-title .muse-menu-icon {
+  background: var(--muse-primary);
+  color: #fff;
+  box-shadow: none;
+}
+
+.muse-sider .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  font-weight: 600;
+  color: var(--muse-navy);
+}
+
+/* Mode rail (collapsed): ikon di tengah */
+.muse-sider .ant-menu-inline-collapsed > .ant-menu-item,
+.muse-sider .ant-menu-inline-collapsed > .ant-menu-submenu > .ant-menu-submenu-title {
+  padding-inline: calc(50% - 16px) !important;
+}
+
+.muse-sider .ant-menu-inline-collapsed .muse-menu-icon + span {
+  display: inline-block;
+  opacity: 0;
+}
+
+.muse-sider .ant-menu-item:focus-visible,
+.muse-sider .ant-menu-submenu-title:focus-visible {
+  outline: 2px solid var(--muse-primary);
+  outline-offset: -2px;
+}
+
+/* Header: transparan, jadi putih saat halaman di-scroll */
+.muse-header {
+  transition:
+    background 0.2s,
+    box-shadow 0.2s,
+    margin 0.2s;
+}
+
+.muse-header.is-scrolled {
+  background: #fff !important;
+  box-shadow: 0 20px 27px rgba(0, 0, 0, 0.05);
+}
+
+.user-dropdown-trigger:hover {
+  background: rgba(0, 0, 0, 0.03);
+}

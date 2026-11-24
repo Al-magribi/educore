@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   Avatar,
   Button,
-  Card,
   Divider,
   Empty,
   Flex,
@@ -19,14 +18,14 @@ import {
   message,
 } from "antd";
 import {
-  PlusOutlined,
-  SearchOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  UserOutlined,
   BookOutlined,
+  DeleteOutlined,
+  EditOutlined,
   MailOutlined,
   PhoneOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import {
@@ -35,8 +34,11 @@ import {
 } from "../../../service/main/ApiTeacher";
 import useDebounced from "../../../utils/useDebounced.jsx";
 import ModalTeacher from "./ModalTeacher";
+import PageHeader from "../../../components/ui/PageHeader";
+import { CardTitle, MuseCard } from "../../../components/ui/muse";
+import { museColors, museRadius } from "../../../config/theme";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -172,7 +174,7 @@ const TeacherList = () => {
 
   const columns = [
     {
-      title: "Nama Guru",
+      title: "NAMA GURU",
       key: "guru",
       dataIndex: "full_name",
       fixed: "left",
@@ -183,12 +185,7 @@ const TeacherList = () => {
             size={44}
             src={item.img_url}
             icon={<UserOutlined />}
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(59,130,246,0.18), rgba(34,197,94,0.18))",
-              color: "#2563eb",
-              flexShrink: 0,
-            }}
+            style={{ background: museColors.primary, flexShrink: 0 }}
           />
           <Flex vertical style={{ minWidth: 0 }}>
             <Text strong ellipsis={{ tooltip: item.full_name }}>
@@ -206,7 +203,7 @@ const TeacherList = () => {
       ),
     },
     {
-      title: "Homebase",
+      title: "SATUAN",
       key: "homebase",
       width: 220,
       render: (_, item) => (
@@ -214,9 +211,9 @@ const TeacherList = () => {
           <Tag
             color='cyan'
             icon={<BookOutlined />}
-            style={{ margin: 0, borderRadius: 999, fontWeight: 600 }}
+            style={{ margin: 0 }}
           >
-            {item.homebase_name || "Belum ada Homebase"}
+            {item.homebase_name || "Belum ada satuan"}
           </Tag>
           <Text type='secondary' style={{ fontSize: 12 }}>
             NIP: {item.nip || "Non-NIP"}
@@ -225,12 +222,12 @@ const TeacherList = () => {
       ),
     },
     {
-      title: "Kontak",
+      title: "KONTAK",
       key: "contact",
       width: 240,
       render: (_, item) => (
         <Flex vertical gap={6}>
-          <Space size={8} style={{ color: "#64748b" }}>
+          <Space size={8} style={{ color: museColors.muted }}>
             <PhoneOutlined />
             <Text
               type='secondary'
@@ -240,7 +237,7 @@ const TeacherList = () => {
               {item.phone || "-"}
             </Text>
           </Space>
-          <Space size={8} style={{ color: "#64748b" }}>
+          <Space size={8} style={{ color: museColors.muted }}>
             <MailOutlined />
             <Text
               type='secondary'
@@ -254,21 +251,21 @@ const TeacherList = () => {
       ),
     },
     {
-      title: "Status",
+      title: "STATUS",
       key: "status",
       dataIndex: "is_active",
       width: 120,
       render: (isActive) => (
         <Tag
           color={isActive ? "success" : "error"}
-          style={{ margin: 0, borderRadius: 999, fontWeight: 600 }}
+          style={{ margin: 0 }}
         >
           {isActive ? "Aktif" : "Nonaktif"}
         </Tag>
       ),
     },
     {
-      title: "Aksi",
+      title: "AKSI",
       key: "action",
       align: "right",
       width: 110,
@@ -312,122 +309,52 @@ const TeacherList = () => {
         animate='show'
         style={{
           display: "grid",
-          gap: 18,
+          gap: 24,
           width: "100%",
           maxWidth: "100%",
           minWidth: 0,
         }}
       >
         <MotionDiv variants={itemVariants}>
-          <Card
-            variant='borderless'
-            style={{
-              borderRadius: 22,
-              overflow: "hidden",
-              border: "1px solid rgba(148, 163, 184, 0.16)",
-              background:
-                "radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 30%), linear-gradient(135deg, #0f172a, #1e3a8a 58%, #0f766e)",
-              boxShadow: "0 22px 50px rgba(15, 23, 42, 0.18)",
-            }}
-            styles={{ body: { padding: isMobile ? 18 : 20 } }}
-          >
-            <Space vertical size={14} style={{ width: "100%" }}>
-              <Tag
-                style={{
-                  width: "fit-content",
-                  margin: 0,
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#e0f2fe",
-                  paddingInline: 12,
-                  fontWeight: 600,
-                }}
-              >
-                Center Teacher
-              </Tag>
-
-              <div>
-                <Title
-                  level={2}
-                  style={{
-                    margin: 0,
-                    color: "#f8fafc",
-                    fontSize: isMobile ? 24 : 28,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  Kelola data guru dengan tampilan yang lebih rapi.
-                </Title>
-                <Text
-                  style={{
-                    display: "block",
-                    marginTop: 8,
-                    color: "rgba(226, 232, 240, 0.9)",
-                    fontSize: 13,
-                    lineHeight: 1.7,
-                    maxWidth: 680,
-                  }}
-                >
-                  Cari guru, perbarui penempatan, dan tambah data guru baru dari
-                  satu workspace yang tetap nyaman dipakai di desktop maupun
-                  mobile.
-                </Text>
-              </div>
-
-              <Space
-                wrap
-                size={[12, 12]}
-                style={{ width: "100%", justifyContent: "space-between" }}
-              >
+          <PageHeader
+            title='Kelola Data Guru'
+            description='Cari guru, perbarui penempatan, dan tambah data guru baru.'
+            extra={
+              <>
                 <Input
+                  aria-label='Cari guru'
                   value={search}
                   placeholder='Cari nama, username, atau NIP...'
-                  prefix={<SearchOutlined style={{ color: "#64748b" }} />}
+                  prefix={<SearchOutlined style={{ color: museColors.muted }} />}
                   allowClear
                   onChange={(e) => {
                     setPage(1);
                     setSearch(e.target.value);
                   }}
-                  style={{
-                    maxWidth: isMobile ? "100%" : 320,
-                    width: "100%",
-                    height: 42,
-                    borderRadius: 999,
-                    background: "rgba(255,255,255,0.96)",
-                  }}
+                  style={{ width: isMobile ? "100%" : 300 }}
                 />
                 <Button
                   type='primary'
                   icon={<PlusOutlined />}
                   onClick={() => openModal(null)}
-                  size='large'
-                  style={{
-                    borderRadius: 999,
-                    height: 42,
-                    paddingInline: 20,
-                    background: "#f8fafc",
-                    color: "#0f172a",
-                    borderColor: "#f8fafc",
-                    fontWeight: 600,
-                  }}
+                  block={isMobile}
                 >
                   Tambah Guru
                 </Button>
-              </Space>
-            </Space>
-          </Card>
+              </>
+            }
+          />
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
-          <Card
-            variant='borderless'
-            styles={{ body: { padding: isMobile ? 12 : 16 } }}
-            style={{
-              borderRadius: 22,
-              border: "1px solid rgba(148, 163, 184, 0.14)",
-              boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-            }}
+          <MuseCard
+            flush={!isMobile}
+            title={
+              <CardTitle
+                title='Daftar Guru'
+                description={`${totalItems} guru terdaftar`}
+              />
+            }
           >
             {isMobile ? (
               <>
@@ -444,9 +371,13 @@ const TeacherList = () => {
                         transition={{ duration: 0.18 }}
                         style={{ width: "100%" }}
                       >
-                        <Card
-                          size='small'
-                          style={{ width: "100%", borderRadius: 18 }}
+                        <div
+                          style={{
+                            width: "100%",
+                            padding: 16,
+                            borderRadius: museRadius.card,
+                            border: `1px solid ${museColors.divider}`,
+                          }}
                         >
                           <Flex justify='space-between' align='start' gap={10}>
                             <Space align='start'>
@@ -499,11 +430,9 @@ const TeacherList = () => {
                               style={{
                                 margin: 0,
                                 width: "fit-content",
-                                borderRadius: 999,
-                                fontWeight: 600,
                               }}
                             >
-                              {item.homebase_name || "Belum ada Homebase"}
+                              {item.homebase_name || "Belum ada satuan"}
                             </Tag>
                             <Text type='secondary' style={{ fontSize: 12 }}>
                               NIP: {item.nip || "Non-NIP"}
@@ -515,14 +444,12 @@ const TeacherList = () => {
                               style={{
                                 margin: 0,
                                 width: "fit-content",
-                                borderRadius: 999,
-                                fontWeight: 600,
                               }}
                             >
                               {item.is_active ? "Aktif" : "Nonaktif"}
                             </Tag>
                           </Flex>
-                        </Card>
+                        </div>
                       </MotionDiv>
                     </List.Item>
                   )}
@@ -560,7 +487,7 @@ const TeacherList = () => {
                 size='middle'
               />
             )}
-          </Card>
+          </MuseCard>
         </MotionDiv>
       </MotionDiv>
 

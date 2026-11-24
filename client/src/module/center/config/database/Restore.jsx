@@ -1,23 +1,13 @@
 import React, { useState } from "react";
-import {
-  Alert,
-  Button,
-  Card,
-  Grid,
-  Popconfirm,
-  Select,
-  Space,
-  Typography,
-  message,
-} from "antd";
+import { Alert, Button, Grid, Popconfirm, Select, Space, message } from "antd";
 import { CloudSyncOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import {
   useGetBackupsQuery,
   useRestoreDataMutation,
 } from "../../../../service/center/ApiDatabase";
+import { CardTitle, MuseCard } from "../../../../components/ui/muse";
 
-const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -51,38 +41,24 @@ const Restore = () => {
 
   return (
     <MotionDiv
-      whileHover={isMobile ? undefined : { y: -3 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       style={{ width: "100%", minWidth: 0 }}
     >
-      <Card
-        variant="borderless"
-        style={{
-          height: "100%",
-          borderRadius: isMobile ? 18 : 22,
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-          boxShadow: "0 20px 50px rgba(15, 23, 42, 0.06)",
-          width: "100%",
-          minWidth: 0,
-          overflow: "hidden",
-        }}
-        styles={{ body: { padding: isMobile ? 12 : 18 } }}
-      >
-        <Space orientation="vertical" size={isMobile ? 12 : 16} style={{ width: "100%" }}>
-          <div style={{ minWidth: 0 }}>
-            <Title
-              level={4}
-              style={{ margin: 0, color: "#0f172a", fontSize: isMobile ? 16 : undefined }}
-            >
-              Restore Database
-            </Title>
-            <Text style={{ color: "#64748b", fontSize: isMobile ? 12 : undefined, display: "block" }}>
-              {isMobile
+      <MuseCard
+        title={
+          <CardTitle
+            title="Restore Database"
+            description={
+              isMobile
                 ? "Pulihkan database & assets dari folder backup."
-                : "Pulihkan semua schema database dan folder assets dari folder backup yang tersimpan di server."}
-            </Text>
-          </div>
-
+                : "Pulihkan semua schema database dan folder assets dari folder backup di server."
+            }
+          />
+        }
+      >
+        <Space orientation="vertical" size={16} style={{ width: "100%" }}>
           <Alert
             title="Perhatian penting"
             description={
@@ -103,8 +79,8 @@ const Restore = () => {
             onChange={setSelectedBackup}
             placeholder="Pilih folder backup"
             optionFilterProp="label"
-            style={{ width: "100%", maxWidth: "100%" }}
-            popupMatchSelectWidth
+            aria-label="Pilih folder backup"
+            style={{ width: "100%", maxWidth: 480 }}
           />
 
           <div style={{ textAlign: isMobile ? "left" : "right", width: "100%" }}>
@@ -124,14 +100,13 @@ const Restore = () => {
                 disabled={!selectedBackup}
                 danger
                 block={isMobile}
-                style={{ borderRadius: 999, fontWeight: 600 }}
               >
                 {isMobile ? "Mulai Restore" : "Mulai Proses Restore"}
               </Button>
             </Popconfirm>
           </div>
         </Space>
-      </Card>
+      </MuseCard>
     </MotionDiv>
   );
 };

@@ -635,30 +635,40 @@ const ensureExamSecuritySchema = () => {
   if (examSecurityReady) return examSecurityReady;
 
   examSecurityReady = (async () => {
-    await pool.query(`
-      ALTER TABLE cbt.c_exam
-      ADD COLUMN IF NOT EXISTS violation_tolerance integer NOT NULL DEFAULT 3
-    `);
-    await pool.query(`
-      ALTER TABLE cbt.c_exam
-      ADD COLUMN IF NOT EXISTS violation_duration_seconds integer NOT NULL DEFAULT 5
-    `);
-    await pool.query(`
-      ALTER TABLE cbt.c_exam_attendance
-      ADD COLUMN IF NOT EXISTS violation_count integer NOT NULL DEFAULT 0
-    `);
-    await pool.query(`
-      ALTER TABLE cbt.c_exam_attendance
-      ADD COLUMN IF NOT EXISTS violation_baseline integer NOT NULL DEFAULT 0
-    `);
-    await pool.query(`
-      ALTER TABLE cbt.c_exam_attendance
-      ADD COLUMN IF NOT EXISTS away_started_at timestamptz
-    `);
-    await pool.query(`
-      ALTER TABLE cbt.c_exam_attendance
-      ADD COLUMN IF NOT EXISTS away_counted boolean NOT NULL DEFAULT false
-    `);
+    const requiredColumns = [
+      ["c_exam", "violation_tolerance", "integer NOT NULL DEFAULT 3"],
+      ["c_exam", "violation_duration_seconds", "integer NOT NULL DEFAULT 5"],
+      ["c_exam_attendance", "violation_count", "integer NOT NULL DEFAULT 0"],
+      ["c_exam_attendance", "violation_baseline", "integer NOT NULL DEFAULT 0"],
+      ["c_exam_attendance", "away_started_at", "timestamptz"],
+      ["c_exam_attendance", "away_counted", "boolean NOT NULL DEFAULT false"],
+    ];
+
+    // ALTER TABLE needs table ownership and an exclusive lock even when the
+    // column already exists, so only run it for columns that are missing.
+    const existing = await pool.query(
+      `
+        SELECT table_name, column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'cbt'
+          AND table_name IN ('c_exam', 'c_exam_attendance')
+      `,
+    );
+    const existingColumns = new Set(
+      existing.rows.map((row) => `${row.table_name}.${row.column_name}`),
+    );
+
+    for (const [table, column, definition] of requiredColumns) {
+      if (existingColumns.has(`${table}.${column}`)) continue;
+      try {
+        await pool.query(
+          `ALTER TABLE cbt.${table} ADD COLUMN IF NOT EXISTS ${column} ${definition}`,
+        );
+      } catch (error) {
+        error.message = `Kolom cbt.${table}.${column} belum ada dan gagal ditambahkan (jalankan database/patches/20261020_exam_violation_rules.sql): ${error.message}`;
+        throw error;
+      }
+    }
   })().catch((error) => {
     examSecurityReady = null;
     throw error;

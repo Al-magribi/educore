@@ -1,22 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Form, Input, message, Popconfirm, Space, Tag, Tooltip, Typography, Grid } from 'antd';
-import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  HomeOutlined,
-  SearchOutlined,
-  InfoCircleOutlined,
-  CalendarOutlined,
-} from '@ant-design/icons';
+import { Button, Flex, Form, Input, message, Popconfirm, Tag, Tooltip, Typography, Grid } from 'antd';
+import { CalendarDays, Eye, Pencil, Plus, School, Search, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { InfiniteScrollList } from '../../../components';
+import PageHeader from '../../../components/ui/PageHeader';
+import { IconBox, MuseCard } from '../../../components/ui/muse';
+import { museColors } from '../../../config/theme';
 import { useLazyGetHomebaseQuery, useDeleteHomebaseMutation } from '../../../service/center/ApiHomebase';
 import ModalHome from './ModalHome';
 import DetailHomebase from './DetailHomebase';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
@@ -196,128 +191,59 @@ const CenterHome = () => {
     <MotionDiv
       key={item.id}
       variants={itemVariants}
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -3 }}
       transition={{ duration: 0.2 }}
-      style={{ marginBottom: 18 }}>
-      <Card
-        variant="borderless"
+      style={{ marginBottom: 24 }}>
+      <MuseCard
         actions={[
           <Tooltip title="Lihat dashboard detail" key="detail">
-            <Button
-              type="link"
-              icon={<InfoCircleOutlined />}
-              onClick={() => openDetailDashboard(item.id)}
-              style={{ fontWeight: 600 }}>
+            <Button type="link" icon={<Eye size={16} />} onClick={() => openDetailDashboard(item.id)}>
               Detail
             </Button>
           </Tooltip>,
-          <Tooltip title="Edit homebase" key="edit">
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => openModal(item)}
-              style={{ color: '#2563eb', fontWeight: 600 }}>
+          <Tooltip title="Edit satuan" key="edit">
+            <Button type="text" icon={<Pencil size={16} />} onClick={() => openModal(item)}>
               Edit
             </Button>
           </Tooltip>,
           <Popconfirm
             key="delete"
-            title="Hapus Homebase ini?"
+            title={`Hapus ${item.name}?`}
             description="Data yang terhubung seperti kelas dan guru bisa terdampak."
             onConfirm={() => handleDelete(item.id)}
             okText="Ya, Hapus"
+            okButtonProps={{ danger: true }}
             cancelText="Batal">
-            <Button type="link" danger icon={<DeleteOutlined />} loading={isDeleting} style={{ fontWeight: 600 }}>
+            <Button type="text" danger icon={<Trash2 size={16} />} loading={isDeleting}>
               Hapus
             </Button>
           </Popconfirm>,
         ]}
         styles={{
-          body: {
-            padding: isMobile ? 18 : 22,
-          },
-          actions: {
-            background: '#fff',
-            borderTop: '1px solid #e2e8f0',
-          },
-        }}
-        style={{
-          borderRadius: 24,
-          overflow: 'hidden',
-          border: '1px solid rgba(148, 163, 184, 0.18)',
-          boxShadow: '0 24px 60px rgba(15, 23, 42, 0.08)',
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94))',
+          body: { padding: isMobile ? 16 : 24 },
+          actions: { borderTop: `1px solid ${museColors.divider}` },
         }}>
-        <Space align="start" size={16} style={{ width: '100%' }}>
-          <div
-            style={{
-              width: 54,
-              height: 54,
-              borderRadius: 18,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'linear-gradient(135deg, rgba(14,165,233,0.18), rgba(59,130,246,0.18))',
-              color: '#1d4ed8',
-              fontSize: 22,
-              flexShrink: 0,
-            }}>
-            <HomeOutlined />
-          </div>
-
+        <Flex align="start" gap={16}>
+          <IconBox icon={<School size={24} />} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <Space vertical size={[10, 10]} style={{ marginBottom: 10, width: '100%' }}>
-              <Title
-                level={4}
-                ellipsis={{ tooltip: item.name }}
-                style={{
-                  margin: 0,
-                  color: '#0f172a',
-                  fontSize: isMobile ? 18 : 20,
-                  lineHeight: 1.25,
-                }}>
-                {item.name?.length > 16 ? `${item.name.slice(0, 16)}...` : item.name}
-              </Title>
-              <Tag
-                color="blue"
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  fontWeight: 600,
-                  marginInlineEnd: 0,
-                }}>
-                {item.level || 'Jenjang belum diatur'}
-              </Tag>
-            </Space>
-
-            <Space wrap size={[12, 10]}>
-              <Tag
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  marginInlineEnd: 0,
-                  color: '#0f172a',
-                  background: '#f8fafc',
-                  borderColor: '#e2e8f0',
-                }}>
-                ID: {item.id}
-              </Tag>
-              <Tag
-                icon={<CalendarOutlined />}
-                style={{
-                  borderRadius: 999,
-                  paddingInline: 10,
-                  marginInlineEnd: 0,
-                  color: '#475569',
-                  background: '#fff',
-                  borderColor: '#e2e8f0',
-                }}>
+            <Text
+              strong
+              ellipsis={{ tooltip: item.name }}
+              style={{ display: 'block', fontSize: 16, fontWeight: 700, color: museColors.text }}>
+              {item.name}
+            </Text>
+            <Text type="secondary" style={{ display: 'block', fontWeight: 600, marginBottom: 12 }}>
+              {item.level || 'Jenjang belum diatur'}
+            </Text>
+            <Flex wrap gap={8}>
+              <Tag style={{ margin: 0 }}>ID {item.id}</Tag>
+              <Tag style={{ margin: 0 }} icon={<CalendarDays size={12} style={{ marginRight: 4 }} />}>
                 Dibuat {formatDate(item.created_at)}
               </Tag>
-            </Space>
+            </Flex>
           </div>
-        </Space>
-      </Card>
+        </Flex>
+      </MuseCard>
     </MotionDiv>
   );
 
@@ -334,99 +260,34 @@ const CenterHome = () => {
 
   return (
     <>
-      <MotionDiv variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gap: 18 }}>
+      <MotionDiv variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gap: 24 }}>
         <MotionDiv variants={itemVariants}>
-          <Card
-            variant="borderless"
-            style={{
-              borderRadius: 22,
-              overflow: 'hidden',
-              border: '1px solid rgba(148, 163, 184, 0.16)',
-              background:
-                'radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 30%), linear-gradient(135deg, #0f172a, #1e3a8a 58%, #0f766e)',
-              boxShadow: '0 22px 50px rgba(15, 23, 42, 0.18)',
-            }}
-            styles={{
-              body: {
-                padding: isMobile ? 18 : 20,
-              },
-            }}>
-            <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-              <Tag
-                style={{
-                  width: 'fit-content',
-                  margin: 0,
-                  borderRadius: 999,
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  background: 'rgba(255,255,255,0.12)',
-                  color: '#e0f2fe',
-                  paddingInline: 12,
-                  fontWeight: 600,
-                }}>
-                Center Homebase
-              </Tag>
-
-              <div>
-                <Title
-                  level={2}
-                  style={{
-                    margin: 0,
-                    color: '#f8fafc',
-                    fontSize: isMobile ? 24 : 28,
-                    lineHeight: 1.2,
-                  }}>
-                  Kelola Satuan Pendidikan
-                </Title>
-                <Text
-                  style={{
-                    display: 'block',
-                    marginTop: 8,
-                    color: 'rgba(226, 232, 240, 0.9)',
-                    fontSize: 13,
-                    lineHeight: 1.7,
-                    maxWidth: 680,
-                  }}>
-                  Cari satuan pendidikan, buka dashboard detail, dan kelola data satuan dari workspace yang tetap
-                  ringkas dan nyaman dipakai.
-                </Text>
-              </div>
-
-              <Space wrap size={[12, 12]} style={{ width: '100%', justifyContent: 'space-between' }}>
+          <PageHeader
+            title="Kelola Satuan Pendidikan"
+            description="Cari satuan pendidikan, buka dashboard detail, dan kelola datanya."
+            extra={
+              <>
                 <Input
-                  placeholder="Cari homebase..."
-                  prefix={<SearchOutlined style={{ color: '#64748b' }} />}
+                  aria-label="Cari satuan pendidikan"
+                  placeholder="Cari satuan..."
+                  prefix={<Search size={16} color={museColors.muted} />}
                   allowClear
                   onChange={(e) => {
                     setPage(1);
                     setSearch(e.target.value);
                   }}
-                  style={{
-                    maxWidth: isMobile ? '100%' : 320,
-                    width: '100%',
-                    height: 42,
-                    borderRadius: 999,
-                    background: 'rgba(255,255,255,0.96)',
-                  }}
+                  style={{ width: isMobile ? '100%' : 280 }}
                 />
                 <Button
                   type="primary"
-                  icon={<PlusOutlined />}
+                  icon={<Plus size={16} />}
                   onClick={() => openModal(null)}
-                  size="large"
-                  style={{
-                    borderRadius: 999,
-                    height: 42,
-                    paddingInline: 20,
-                    background: '#f8fafc',
-                    color: '#0f172a',
-                    borderColor: '#f8fafc',
-                    fontWeight: 600,
-                  }}>
-                  Tambah Homebase
+                  block={isMobile}>
+                  Tambah Satuan
                 </Button>
-              </Space>
-            </Space>
-          </Card>
+              </>
+            }
+          />
         </MotionDiv>
 
         <MotionDiv variants={itemVariants}>
@@ -438,7 +299,7 @@ const CenterHome = () => {
             renderItem={renderHomebaseItem}
             height="68vh"
             emptyText="Belum ada data satuan pendidikan"
-            grid={{ gutter: [16, 16], xs: 24, sm: 24, md: 12, lg: 8 }}
+            grid={{ gutter: [24, 0], xs: 24, sm: 24, md: 12, lg: 8 }}
           />
         </MotionDiv>
       </MotionDiv>
