@@ -1,35 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Input,
-  Button,
-  Typography,
-  message,
-  Flex,
-  Card,
-  Grid,
-  Statistic,
-  Table,
   Avatar,
+  Button,
+  Divider,
+  Empty,
+  Flex,
+  Grid,
+  List,
+  Popconfirm,
+  Table,
   Tag,
   Tooltip,
-  Popconfirm,
-  List,
-  Divider,
-  Space,
-  Empty,
+  Typography,
+  message,
 } from 'antd';
-import {
-  Search as SearchIcon,
-  Plus,
-  Users,
-  UserCheck,
-  Layers3,
-  User,
-  Pencil,
-  Trash2,
-} from 'lucide-react';
-import PageHeader from '../../../../components/ui/PageHeader';
+import { Pencil, Trash2, User, UserCheck, Users } from 'lucide-react';
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import {
   useGetStudentsQuery,
@@ -42,28 +28,13 @@ import {
 import StudentForm from './StudentForm';
 import ImportStudent from './ImportStudent';
 import { downloadStudentExcel } from './studentImportTemplate';
+import { StatCard } from '../../../../components/ui/muse';
+import { DataListCard } from '../../../../components/ui/muse/DataSection';
+import { museColors, museRadius } from '../../../../config/theme';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35, ease: 'easeOut', staggerChildren: 0.08 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: 'easeOut' },
-  },
-};
 
 const getAkademikLabel = (record) => {
   if (record.current_grade && record.current_class) {
@@ -78,11 +49,7 @@ const StudentAvatar = ({ record, size = 40 }) => (
     size={size}
     icon={<User size={size === 40 ? 20 : 18} />}
     style={{
-      background:
-        record.gender === 'P'
-          ? 'linear-gradient(135deg, #fbcfe8, #f9a8d4)'
-          : 'linear-gradient(135deg, #bfdbfe, #93c5fd)',
-      color: record.gender === 'P' ? '#9d174d' : '#1d4ed8',
+      background: record.gender === 'P' ? museColors.female : museColors.primary,
       flexShrink: 0,
     }}
   />
@@ -256,335 +223,207 @@ const StudentPage = ({ screens }) => {
   const totalStudents = apiData?.totalData || 0;
   const activeStudents = accumulatedData.filter((item) => item.is_active).length;
   const loadedStudents = accumulatedData.length;
-  const summaryCards = [
-    {
-      key: 'students',
-      title: 'Total Siswa',
-      value: totalStudents,
-      icon: <Users size={18} />,
-      tint: 'linear-gradient(135deg, #dbeafe, #e0f2fe)',
-      color: '#1d4ed8',
-    },
-    {
-      key: 'active',
-      title: 'Aktif di List',
-      value: activeStudents,
-      icon: <UserCheck size={18} />,
-      tint: 'linear-gradient(135deg, #dcfce7, #ccfbf1)',
-      color: '#047857',
-    },
-    {
-      key: 'loaded',
-      title: 'Data Dimuat',
-      value: loadedStudents,
-      icon: <Layers3 size={18} />,
-      tint: 'linear-gradient(135deg, #ede9fe, #dbeafe)',
-      color: '#5b21b6',
-    },
-  ];
+  const renderActions = (record, size) => (
+    <Flex gap={4} justify="flex-end">
+      <Tooltip title="Edit data">
+        <Button
+          size={size}
+          type="text"
+          aria-label="Edit data siswa"
+          icon={<Pencil size={16} />}
+          onClick={() => handleOpenDrawer(record)}
+        />
+      </Tooltip>
+      <Popconfirm
+        title={`Hapus ${record.full_name}?`}
+        description="Riwayat akademik akan ikut terhapus."
+        onConfirm={() => handleDelete(record.id)}
+        okText="Ya, Hapus"
+        cancelText="Batal"
+        okButtonProps={{ danger: true, loading: isDeleting }}>
+        <Tooltip title="Hapus data">
+          <Button size={size} type="text" danger aria-label="Hapus data siswa" icon={<Trash2 size={16} />} />
+        </Tooltip>
+      </Popconfirm>
+    </Flex>
+  );
+
+  const renderStatusTags = (record) => (
+    <Flex gap={6} wrap="wrap">
+      <Tag color={record.is_active ? 'success' : 'default'} style={{ margin: 0 }}>
+        {record.is_active ? 'Aktif' : 'Nonaktif'}
+      </Tag>
+      <Tag color={record.gender === 'P' ? 'magenta' : 'blue'} style={{ margin: 0 }}>
+        {record.gender === 'P' ? 'Perempuan' : 'Laki-laki'}
+      </Tag>
+    </Flex>
+  );
 
   const columns = [
     {
-      title: 'Profil Siswa',
+      title: 'PROFIL SISWA',
       dataIndex: 'full_name',
       key: 'profil',
       render: (text, record) => (
         <Flex align="center" gap={12}>
           <StudentAvatar record={record} />
           <div style={{ minWidth: 0 }}>
-            <Text strong ellipsis style={{ display: 'block', maxWidth: 220 }}>
+            <Text strong ellipsis style={{ display: 'block', maxWidth: 240 }}>
               {text}
             </Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              NIS : {record.username} | RFID : {record.rfid_no || '-'}
+              NIS {record.username || '-'} · RFID {record.rfid_no || '-'}
             </Text>
           </div>
         </Flex>
       ),
     },
     {
-      title: 'Akademik',
+      title: 'AKADEMIK',
       key: 'akademik',
       render: (_, record) => (
         <div>
-          <Text strong style={{ display: 'block', fontSize: 13 }}>
+          <Text strong style={{ display: 'block' }}>
             {getAkademikLabel(record)}
           </Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            NIS: {record.nis || '-'} {record.nisn ? ` • NISN: ${record.nisn}` : ''}
+            NIS {record.nis || '-'}
+            {record.nisn ? ` · NISN ${record.nisn}` : ''}
           </Text>
         </div>
       ),
     },
     {
-      title: 'Status',
+      title: 'STATUS',
       key: 'status',
-      width: 140,
-      render: (_, record) => (
-        <Flex gap={6} wrap="wrap">
-          <Tag
-            color={record.is_active ? 'success' : 'error'}
-            style={{
-              borderRadius: 999,
-              margin: 0,
-              fontWeight: 600,
-              fontSize: 11,
-            }}>
-            {record.is_active ? 'AKTIF' : 'NONAKTIF'}
-          </Tag>
-          <Tag
-            color={record.gender === 'P' ? 'magenta' : 'blue'}
-            style={{
-              borderRadius: 999,
-              margin: 0,
-              fontWeight: 600,
-              fontSize: 11,
-            }}>
-            {record.gender === 'P' ? 'PR' : 'LK'}
-          </Tag>
-        </Flex>
-      ),
+      width: 190,
+      render: (_, record) => renderStatusTags(record),
     },
     {
-      title: 'Aksi',
+      title: 'AKSI',
       key: 'aksi',
       width: 100,
       align: 'right',
-      render: (_, record) => (
-        <Flex gap={4} justify="flex-end">
-          <Tooltip title="Edit Data">
-            <Button type="text" icon={<Pencil size={16} color="#f59e0b" />} onClick={() => handleOpenDrawer(record)} />
-          </Tooltip>
-          <Popconfirm
-            title="Hapus Siswa?"
-            description="Riwayat akademik akan ikut terhapus."
-            onConfirm={() => handleDelete(record.id)}
-            okButtonProps={{ danger: true, loading: isDeleting }}>
-            <Tooltip title="Hapus Data">
-              <Button type="text" danger icon={<Trash2 size={16} />} />
-            </Tooltip>
-          </Popconfirm>
-        </Flex>
-      ),
+      render: (_, record) => renderActions(record),
     },
   ];
 
   return (
     <>
       <MotionDiv
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <MotionDiv variants={itemVariants}>
-          <PageHeader
-            size="section"
-            title="Kelola data siswa secara lebih tertata dan akurat"
-            description="Lakukan pencarian, unduh Excel, impor pembaruan, dan penambahan siswa."
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 16 : 24 }}>
+        <div
+          style={{
+            display: 'grid',
+            gap: isMobile ? 16 : 24,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          }}>
+          <StatCard title="Total Siswa" value={totalStudents} icon={<Users size={24} />} tone="primary" />
+          <StatCard
+            title="Aktif"
+            value={activeStudents}
+            note="Dari data yang sudah dimuat"
+            icon={<UserCheck size={24} />}
+            tone="success"
           />
-        </MotionDiv>
+        </div>
 
-        <MotionDiv variants={itemVariants}>
-          <Flex gap={16} wrap="wrap">
-            {summaryCards.map((item) => (
-              <MotionDiv
-                key={item.key}
-                whileHover={{ y: -4 }}
-                transition={{ duration: 0.18 }}
-                style={{
-                  flex: activeScreens.md ? '1 1 0' : '1 1 100%',
-                  minWidth: activeScreens.md ? 0 : '100%',
-                }}>
-                <Card
-                  style={{
-                    borderRadius: 22,
-                    boxShadow: '0 12px 24px rgba(15, 23, 42, 0.06)',
-                  }}
-                  styles={{ body: { padding: '18px 20px' } }}
-                  hoverable>
-                  <Flex justify="space-between" align="start">
-                    <Statistic title={item.title} value={item.value} />
-                    <div
-                      style={{
-                        width: 42,
-                        height: 42,
-                        display: 'grid',
-                        placeItems: 'center',
-                        borderRadius: 14,
-                        background: item.tint,
-                        color: item.color,
-                      }}>
-                      {item.icon}
-                    </div>
-                  </Flex>
-                </Card>
-              </MotionDiv>
-            ))}
-          </Flex>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            variant="borderless"
-            styles={{ body: { padding: activeScreens.md ? 20 : 16 } }}
-            hoverable
-            style={{
-              borderRadius: 22,
-              boxShadow: '0 16px 32px rgba(15, 23, 42, 0.06)',
-            }}>
-            <Flex
-              justify="space-between"
-              align={activeScreens.md ? 'center' : 'stretch'}
-              vertical={!activeScreens.md}
-              gap={16}>
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  Pencarian & Aksi Cepat
-                </Title>
-                <Text type="secondary">
-                  Cari berdasarkan nama, NIS, NISN, atau No RFID, lalu unduh, impor, atau tambah data.
-                </Text>
-              </div>
-
-              <Flex gap={10} wrap="wrap" vertical={!activeScreens.md} style={{ width: !activeScreens.md ? '100%' : 'auto' }}>
-                <Input
-                  placeholder="Cari nama, NIS, NISN, atau No RFID..."
-                  prefix={<SearchIcon size={16} color="rgba(0,0,0,.25)" />}
-                  onChange={handleSearch}
-                  style={{ width: !activeScreens.md ? '100%' : 280 }}
-                  size="large"
-                  allowClear
-                />
-                <Button
-                  icon={<DownloadOutlined />}
-                  onClick={handleDownloadExcel}
-                  loading={isDownloading}
-                  size="large">
-                  Download
-                </Button>
-                <Button icon={<UploadOutlined />} onClick={() => setIsImportOpen(true)} size="large">
-                  Import
-                </Button>
-                <Button type="primary" icon={<Plus size={18} />} onClick={() => handleOpenDrawer(null)} size="large">
-                  Tambah Siswa
-                </Button>
-              </Flex>
-            </Flex>
-          </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            variant="borderless"
-            styles={{ body: { padding: isMobile ? 12 : 0 } }}
-            style={{
-              borderRadius: 22,
-              overflow: 'hidden',
-              boxShadow: '0 16px 32px rgba(15, 23, 42, 0.06)',
-              border: '1px solid rgba(148, 163, 184, 0.16)',
-            }}>
-            {isMobile ? (
-              <List
-                dataSource={accumulatedData}
-                loading={isFetching && page === 1}
-                locale={{
-                  emptyText: <Empty description="Belum ada data siswa yang dapat ditampilkan" />,
-                }}
-                renderItem={(record) => (
-                  <List.Item style={{ padding: 0, marginBottom: 10 }}>
-                    <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.18 }} style={{ width: '100%' }}>
-                      <Card size="small" style={{ width: '100%', borderRadius: 18 }}>
-                        <Flex justify="space-between" align="start" gap={10}>
-                          <Space align="start">
-                            <StudentAvatar record={record} size={36} />
-                            <Flex vertical style={{ minWidth: 0 }}>
-                              <Text strong ellipsis>
-                                {record.full_name}
-                              </Text>
-                              <Text type="secondary" style={{ fontSize: 12 }}>
-                                NIS: {record.username || '-'}
-                              </Text>
-                            </Flex>
-                          </Space>
-                          <Space>
-                            <Tooltip title="Edit Data">
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={<Pencil size={15} color="#f59e0b" />}
-                                onClick={() => handleOpenDrawer(record)}
-                              />
-                            </Tooltip>
-                            <Popconfirm
-                              title="Hapus Siswa?"
-                              description="Riwayat akademik akan ikut terhapus."
-                              onConfirm={() => handleDelete(record.id)}
-                              okText="Ya"
-                              cancelText="Batal"
-                              okButtonProps={{ danger: true, loading: isDeleting }}>
-                              <Tooltip title="Hapus Data">
-                                <Button size="small" type="text" danger icon={<Trash2 size={15} />} />
-                              </Tooltip>
-                            </Popconfirm>
-                          </Space>
-                        </Flex>
-                        <Divider style={{ margin: '10px 0' }} />
-                        <Flex vertical gap={8}>
-                          <Text strong style={{ fontSize: 13 }}>
+        <DataListCard
+          flush={!isMobile}
+          title="Daftar Siswa"
+          count={totalStudents}
+          unit="siswa"
+          description={
+            loadedStudents < totalStudents && !isMobile
+              ? `${loadedStudents} dimuat, gulir untuk memuat lagi`
+              : undefined
+          }
+          searchProps={{
+            placeholder: 'Cari nama, NIS, NISN, atau RFID...',
+            onChange: handleSearch,
+          }}
+          extra={
+            <>
+              <Button icon={<DownloadOutlined />} onClick={handleDownloadExcel} loading={isDownloading}>
+                Download
+              </Button>
+              <Button icon={<UploadOutlined />} onClick={() => setIsImportOpen(true)}>
+                Import
+              </Button>
+            </>
+          }
+          onAdd={() => handleOpenDrawer(null)}
+          addLabel="Tambah Siswa">
+          {isMobile ? (
+            <List
+              dataSource={accumulatedData}
+              loading={isFetching && page === 1}
+              locale={{
+                emptyText: <Empty description="Belum ada data siswa. Tambahkan manual atau import Excel." />,
+              }}
+              renderItem={(record) => (
+                <List.Item style={{ padding: 0, marginBottom: 12 }}>
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: 16,
+                      borderRadius: museRadius.card,
+                      border: `1px solid ${museColors.divider}`,
+                    }}>
+                    <Flex justify="space-between" align="start" gap={10}>
+                      <Flex align="center" gap={12} style={{ minWidth: 0 }}>
+                        <StudentAvatar record={record} size={36} />
+                        <div style={{ minWidth: 0 }}>
+                          <Text strong ellipsis style={{ display: 'block' }}>
+                            {record.full_name}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
                             {getAkademikLabel(record)}
                           </Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            NIS: {record.nis || '-'}
-                            {record.nisn ? ` • NISN: ${record.nisn}` : ''}
-                          </Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            RFID: {record.rfid_no || '-'}
-                          </Text>
-                          <Flex gap={6} wrap="wrap">
-                            <Tag
-                              color={record.is_active ? 'success' : 'error'}
-                              style={{ borderRadius: 999, margin: 0, fontWeight: 600, fontSize: 11 }}>
-                              {record.is_active ? 'AKTIF' : 'NONAKTIF'}
-                            </Tag>
-                            <Tag
-                              color={record.gender === 'P' ? 'magenta' : 'blue'}
-                              style={{ borderRadius: 999, margin: 0, fontWeight: 600, fontSize: 11 }}>
-                              {record.gender === 'P' ? 'PR' : 'LK'}
-                            </Tag>
-                          </Flex>
-                        </Flex>
-                      </Card>
-                    </MotionDiv>
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Table
-                dataSource={accumulatedData}
-                columns={columns}
-                pagination={false}
-                rowKey="id"
-                loading={isFetching && page === 1}
-                sticky
-                size="middle"
-                locale={{
-                  emptyText: 'Belum ada data siswa yang dapat ditampilkan',
-                }}
-              />
-            )}
-            <div ref={loadMoreRef} style={{ height: 1, width: '100%' }} aria-hidden />
-            {isFetching && page > 1 ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <Text type="secondary">Memuat data...</Text>
-              </div>
-            ) : null}
-            {!hasMore && accumulatedData.length > 0 ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <Text type="secondary">Semua data siswa telah dimuat</Text>
-              </div>
-            ) : null}
-          </Card>
-        </MotionDiv>
+                        </div>
+                      </Flex>
+                      {renderActions(record, 'small')}
+                    </Flex>
+                    <Divider style={{ margin: '12px 0' }} />
+                    <Flex vertical gap={6}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        NIS {record.nis || '-'}
+                        {record.nisn ? ` · NISN ${record.nisn}` : ''} · RFID {record.rfid_no || '-'}
+                      </Text>
+                      {renderStatusTags(record)}
+                    </Flex>
+                  </div>
+                </List.Item>
+              )}
+            />
+          ) : (
+            <Table
+              dataSource={accumulatedData}
+              columns={columns}
+              pagination={false}
+              rowKey="id"
+              loading={isFetching && page === 1}
+              sticky
+              locale={{
+                emptyText: 'Belum ada data siswa. Tambahkan manual atau import Excel.',
+              }}
+            />
+          )}
+          <div ref={loadMoreRef} style={{ height: 1, width: '100%' }} aria-hidden />
+          {isFetching && page > 1 ? (
+            <div style={{ textAlign: 'center', padding: 16 }}>
+              <Text type="secondary">Memuat data...</Text>
+            </div>
+          ) : null}
+          {!hasMore && accumulatedData.length > 0 ? (
+            <div style={{ textAlign: 'center', padding: 16 }}>
+              <Text type="secondary">Semua data siswa sudah dimuat</Text>
+            </div>
+          ) : null}
+        </DataListCard>
       </MotionDiv>
 
       <StudentForm

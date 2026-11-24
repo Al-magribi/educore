@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Avatar,
   Button,
-  Card,
   Descriptions,
   Divider,
   Dropdown,
@@ -33,6 +32,8 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
+import { CardTitle, MuseCard } from '../../../components/ui/muse';
+import { museColors, museRadius } from '../../../config/theme';
 import TeacherForm from '../../admin/academic/teacher/TeacherForm';
 import {
   useAddHomebaseTeacherMutation,
@@ -81,7 +82,7 @@ const TeachingAllocations = ({ allocations, compact = false }) => {
       <Flex vertical gap="small">
         {groupedData.slice(0, compact ? 1 : 2).map(([subject, classes]) => (
           <Text key={subject} ellipsis>
-            <ReadOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            <ReadOutlined style={{ marginRight: 8, color: museColors.primary }} />
             {subject} ({classes.length} kelas)
           </Text>
         ))}
@@ -118,44 +119,34 @@ const TeacherDetailModal = ({ open, teacher, onCancel }) => {
       width={isMobile ? '100%' : 720}
       destroyOnHidden
       title={null}
-      styles={{
-        body: {
-          padding: isMobile ? 16 : 20,
-          background: '#f8fafc',
-        },
-      }}>
+      styles={{ body: { paddingTop: 8 } }}>
       {!teacher ? (
         <Empty description="Data guru tidak tersedia" />
       ) : (
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-          <Card
-            variant="borderless"
-            style={{
-              borderRadius: 20,
-              background: 'linear-gradient(135deg, #0f172a, #1d4ed8 60%, #0f766e)',
-            }}
-            styles={{ body: { padding: 18 } }}>
-            <Flex align="center" gap={14}>
-              <Avatar
-                size={56}
-                src={teacher.img_url}
-                icon={<UserOutlined />}
-                style={{ background: 'rgba(255,255,255,0.18)', flexShrink: 0 }}
-              />
-              <div style={{ minWidth: 0 }}>
-                <Title level={4} style={{ margin: 0, color: '#f8fafc' }} ellipsis>
-                  {teacher.full_name || '-'}
-                </Title>
-                <Text style={{ color: 'rgba(226,232,240,0.9)' }}>@{teacher.username || '-'}</Text>
-              </div>
-            </Flex>
-          </Card>
+          <Flex align="center" gap={16}>
+            <Avatar
+              size={64}
+              shape="square"
+              src={teacher.img_url}
+              icon={<UserOutlined />}
+              style={{ borderRadius: museRadius.card, background: museColors.primary, flexShrink: 0 }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <Title level={4} style={{ margin: 0 }} ellipsis>
+                {teacher.full_name || '-'}
+              </Title>
+              <Text type="secondary" style={{ fontWeight: 600 }}>
+                @{teacher.username || '-'}
+              </Text>
+            </div>
+          </Flex>
 
-          <Card variant="borderless" style={{ borderRadius: 18 }} styles={{ body: { padding: 16 } }}>
+          <div>
             <Descriptions
               column={isMobile ? 1 : 2}
               size="small"
-              styles={{ label: { color: '#64748b', fontWeight: 600 } }}>
+              styles={{ label: { color: museColors.muted, fontWeight: 600 } }}>
               <Descriptions.Item label="NIP / NIY">{teacher.nip || '-'}</Descriptions.Item>
               <Descriptions.Item label="No RFID">{teacher.rfid_no || '-'}</Descriptions.Item>
               <Descriptions.Item label="Telepon">{teacher.phone || '-'}</Descriptions.Item>
@@ -164,13 +155,13 @@ const TeacherDetailModal = ({ open, teacher, onCancel }) => {
                 {teacher.gender === 'L' ? 'Laki Laki' : teacher.gender === 'P' ? 'Perempuan' : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="Status Akun">
-                <Tag color={teacher.is_active ? 'success' : 'default'} style={{ borderRadius: 999 }}>
+                <Tag color={teacher.is_active ? 'success' : 'default'}>
                   {teacher.is_active ? 'Aktif' : 'Nonaktif'}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Wali Kelas" span={2}>
                 {teacher.is_homeroom || teacher.homeroom_class?.name ? (
-                  <Tag icon={<TeamOutlined />} color="success" style={{ borderRadius: 999 }}>
+                  <Tag icon={<TeamOutlined />} color="success">
                     {teacher.homeroom_class?.name || 'Wali Kelas'}
                   </Tag>
                 ) : (
@@ -178,32 +169,29 @@ const TeacherDetailModal = ({ open, teacher, onCancel }) => {
                 )}
               </Descriptions.Item>
             </Descriptions>
-          </Card>
+          </div>
 
-          <Card
-            variant="borderless"
-            title="Alokasi Mengajar"
-            style={{ borderRadius: 18 }}
-            styles={{ body: { padding: 16 } }}>
+          <div>
+            <Text strong style={{ display: 'block', fontSize: 16, marginBottom: 12 }}>
+              Alokasi Mengajar
+            </Text>
             {allocationGroups.length === 0 ? (
               <Empty description="Belum ada alokasi mengajar" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                 {allocationGroups.map(([subject, classes]) => (
-                  <Card
+                  <div
                     key={subject}
-                    size="small"
-                    style={{ borderRadius: 14, background: '#f8fafc' }}
-                    styles={{ body: { padding: 12 } }}>
+                    style={{ borderRadius: museRadius.item, background: museColors.bgSoft, padding: 12 }}>
                     <Text strong>{subject}</Text>
-                    <div style={{ marginTop: 6 }}>
+                    <div style={{ marginTop: 4 }}>
                       <Text type="secondary">Kelas: {classes.join(', ')}</Text>
                     </div>
-                  </Card>
+                  </div>
                 ))}
               </Space>
             )}
-          </Card>
+          </div>
         </Space>
       )}
     </Modal>
@@ -422,13 +410,13 @@ const HomebaseTeacherTab = ({ homebaseId }) => {
       render: (_, record) => (
         <Space wrap size={[6, 6]}>
           {record.is_homeroom && (
-            <Tag icon={<TeamOutlined />} color="success" style={{ borderRadius: 999 }}>
+            <Tag icon={<TeamOutlined />} color="success">
               Wali Kelas {record.homeroom_class?.name ? `· ${record.homeroom_class.name}` : ''}
             </Tag>
           )}
           <Tag
             color={record.gender === 'L' ? 'blue' : record.gender === 'P' ? 'magenta' : 'default'}
-            style={{ borderRadius: 999 }}>
+           >
             {record.gender === 'L' ? 'Laki Laki' : record.gender === 'P' ? 'Perempuan' : '-'}
           </Tag>
         </Space>
@@ -465,26 +453,24 @@ const HomebaseTeacherTab = ({ homebaseId }) => {
 
   return (
     <>
-      <Card
-        variant="borderless"
-        style={{
-          borderRadius: 24,
-          border: '1px solid rgba(148, 163, 184, 0.14)',
-        }}
-        styles={{ body: { padding: 16 } }}>
-        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+      <MuseCard
+        title={<CardTitle title="Daftar Guru" description={`${total} guru pada satuan ini`} />}
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            Tambah Guru
+          </Button>
+        }>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <Space wrap size={[10, 10]} style={{ width: '100%', justifyContent: 'space-between' }}>
             <Input
+              aria-label="Cari guru"
               allowClear
               placeholder="Cari nama, NIP, RFID, atau kontak..."
-              prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<SearchOutlined style={{ color: museColors.muted }} />}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ maxWidth: isMobile ? '100%' : 360, width: isMobile ? '100%' : 360 }}
             />
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} style={{ borderRadius: 999 }}>
-              Tambah Guru
-            </Button>
           </Space>
 
           <Flex wrap="wrap" gap={10} justify="space-between" align="center">
@@ -524,7 +510,7 @@ const HomebaseTeacherTab = ({ homebaseId }) => {
                 renderItem={(record) => (
                   <List.Item style={{ padding: 0, marginBottom: 10 }}>
                     <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.18 }} style={{ width: '100%' }}>
-                      <Card size="small" style={{ width: '100%', borderRadius: 18 }}>
+                      <MuseCard size="small" style={{ width: '100%', boxShadow: 'none', border: `1px solid ${museColors.divider}` }}>
                         <Flex justify="space-between" align="start" gap={10}>
                           <Space align="start">
                             <Avatar src={record.img_url} icon={<UserOutlined />} />
@@ -548,13 +534,13 @@ const HomebaseTeacherTab = ({ homebaseId }) => {
                             <Tag
                               icon={<TeamOutlined />}
                               color="success"
-                              style={{ width: 'fit-content', borderRadius: 999 }}>
+                              style={{ width: 'fit-content' }}>
                               Wali Kelas {record.homeroom_class?.name ? `· ${record.homeroom_class.name}` : ''}
                             </Tag>
                           )}
                           <TeachingAllocations allocations={record.allocations} compact />
                         </Flex>
-                      </Card>
+                      </MuseCard>
                     </MotionDiv>
                   </List.Item>
                 )}
@@ -595,7 +581,7 @@ const HomebaseTeacherTab = ({ homebaseId }) => {
             />
           )}
         </Space>
-      </Card>
+      </MuseCard>
 
       <TeacherForm
         open={isModalOpen}

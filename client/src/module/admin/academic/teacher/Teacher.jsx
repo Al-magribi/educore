@@ -1,27 +1,8 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Button,
-  Typography,
-  message,
-  Input,
-  Flex,
-  Grid,
-  Card,
-  Statistic,
-} from "antd";
-import {
-  UserPlus,
-  Users,
-  BookOpen,
-  School,
-} from "lucide-react";
-import PageHeader from "../../../../components/ui/PageHeader";
-import {
-  DownloadOutlined,
-  SearchOutlined,
-  UploadOutlined,
-} from "@ant-design/icons";
+import { Button, Grid, message } from "antd";
+import { BookOpen, School, Users } from "lucide-react";
+import { DownloadOutlined, UploadOutlined } from "@ant-design/icons";
 import TeacherList from "./TeacherList";
 import TeacherForm from "./TeacherForm";
 import UploadTeacher from "./UploadTeacher"; // 1. Import UploadTeacher
@@ -36,28 +17,11 @@ import {
   useGetSubjectsListQuery,
 } from "../../../../service/academic/ApiTeacher";
 import useDebounced from "../../../../utils/useDebounced";
+import { StatCard } from "../../../../components/ui/muse";
+import { DataListCard } from "../../../../components/ui/muse/DataSection";
 
-const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
-
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35, ease: "easeOut", staggerChildren: 0.08 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, ease: "easeOut" },
-  },
-};
 
 const Teacher = () => {
   const screens = useBreakpoint();
@@ -194,152 +158,61 @@ const Teacher = () => {
     (total, item) => total + (item.allocations?.length || 0),
     0,
   );
-  const summaryCards = [
-    {
-      key: "teacher",
-      title: "Total Guru",
-      value: totalTeachers,
-      icon: <Users size={18} />,
-    },
-    {
-      key: "homeroom",
-      title: "Wali Kelas",
-      value: homeroomCount,
-      icon: <School size={18} />,
-    },
-    {
-      key: "allocation",
-      title: "Alokasi Tampil",
-      value: allocationCount,
-      icon: <BookOpen size={18} />,
-    },
-  ];
-
   return (
     <>
       <MotionDiv
-        variants={containerVariants}
-        initial='hidden'
-        animate='visible'
-        style={{ display: "flex", flexDirection: "column", gap: 20 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        style={{ display: "flex", flexDirection: "column", gap: screens.md ? 24 : 16 }}
       >
-        <MotionDiv variants={itemVariants}>
-          <PageHeader
-            size='section'
-            title='Kelola data guru, wali kelas, dan alokasi mengajar'
-            description='Cari data guru, impor template, dan atur pengampu mapel.'
+        <div
+          style={{
+            display: "grid",
+            gap: screens.md ? 24 : 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          }}
+        >
+          <StatCard title='Total Guru' value={totalTeachers} icon={<Users size={24} />} tone='primary' />
+          <StatCard title='Wali Kelas' value={homeroomCount} icon={<School size={24} />} tone='accent' />
+          <StatCard
+            title='Alokasi Mengajar'
+            value={allocationCount}
+            note='Pada halaman yang ditampilkan'
+            icon={<BookOpen size={24} />}
+            tone='warning'
           />
-        </MotionDiv>
+        </div>
 
-        <MotionDiv variants={itemVariants}>
-          <Flex gap={16} wrap='wrap'>
-            {summaryCards.map((item) => (
-              <MotionDiv
-                key={item.key}
-                whileHover={{ y: -4 }}
-                transition={{ duration: 0.18 }}
-                style={{
-                  flex: screens.md ? "1 1 0" : "1 1 100%",
-                  minWidth: screens.md ? 0 : "100%",
-                }}
+        <DataListCard
+          flush={screens.md}
+          title='Daftar Guru'
+          count={teachersData?.total ?? teachersData?.totalItems ?? totalTeachers}
+          unit='guru'
+          searchProps={{
+            placeholder: "Cari nama / NIP...",
+            onChange: (e) => {
+              setSearchText(e.target.value);
+              setPagination((prev) => ({ ...prev, current: 1 }));
+            },
+          }}
+          extra={
+            <>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleDownloadTemplate}
+                loading={isDownloadingTemplate}
               >
-                <Card
-                  style={{
-                    borderRadius: 22,
-                    boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
-                  }}
-                  styles={{ body: { padding: "18px 20px" } }}
-                  hoverable
-                >
-                  <Flex justify='space-between' align='start'>
-                    <Statistic title={item.title} value={item.value} />
-                    <div
-                      style={{
-                        width: 42,
-                        height: 42,
-                        display: "grid",
-                        placeItems: "center",
-                        borderRadius: 14,
-                        background: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-                        color: "#1d4ed8",
-                      }}
-                    >
-                      {item.icon}
-                    </div>
-                  </Flex>
-                </Card>
-              </MotionDiv>
-            ))}
-          </Flex>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            bordered={false}
-            styles={{ body: { padding: screens.md ? 20 : 16 } }}
-            hoverable
-            style={{
-              borderRadius: 22,
-              boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
-            }}
-          >
-            <Flex
-              justify='space-between'
-              align={screens.md ? "center" : "stretch"}
-              vertical={!screens.md}
-              gap={16}
-            >
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  Pencarian & Aksi Cepat
-                </Title>
-                <Text type='secondary'>
-                  Temukan guru lebih cepat, lalu lanjutkan tambah, impor, atau
-                  pembaruan data.
-                </Text>
-              </div>
-
-              <Flex
-                gap={10}
-                wrap='wrap'
-                vertical={!screens.md}
-                style={{ width: !screens.md ? "100%" : "auto" }}
-              >
-                <Input
-                  placeholder='Cari Nama / NIP...'
-                  prefix={
-                    <SearchOutlined style={{ color: "rgba(0,0,0,.25)" }} />
-                  }
-                  onChange={(e) => {
-                    setSearchText(e.target.value);
-                    setPagination((prev) => ({ ...prev, current: 1 }));
-                  }}
-                  style={{ width: !screens.md ? "100%" : 260 }}
-                  allowClear
-                />
-                <Button
-                  icon={<DownloadOutlined />}
-                  onClick={handleDownloadTemplate}
-                  loading={isDownloadingTemplate}
-                >
-                  Template
-                </Button>
-                <Button icon={<UploadOutlined />} onClick={showUpload}>
-                  Import
-                </Button>
-                <Button
-                  type='primary'
-                  icon={<UserPlus size={16} />}
-                  onClick={showModal}
-                >
-                  Guru
-                </Button>
-              </Flex>
-            </Flex>
-          </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
+                Template
+              </Button>
+              <Button icon={<UploadOutlined />} onClick={showUpload}>
+                Import
+              </Button>
+            </>
+          }
+          onAdd={showModal}
+          addLabel='Tambah Guru'
+        >
           <TeacherList
             data={teacherItems}
             loading={isLoading || isFetching}
@@ -351,7 +224,7 @@ const Teacher = () => {
             }}
             onPageChange={handleTableChange}
           />
-        </MotionDiv>
+        </DataListCard>
       </MotionDiv>
 
       <TeacherForm

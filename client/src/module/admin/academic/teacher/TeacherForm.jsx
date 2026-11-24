@@ -1,36 +1,12 @@
 import React, { useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
-import {
-  Modal,
-  Form,
-  Input,
-  Select,
-  Divider,
-  Button,
-  Row,
-  Col,
-  Space,
-  Card,
-  Typography,
-  Flex,
-} from "antd";
-import {
-  Plus,
-  Trash2,
-  User,
-  Briefcase,
-  BookOpen,
-  Loader2,
-  School,
-  CheckCircle,
-} from "lucide-react";
+import { Button, Col, Divider, Flex, Form, Input, Row, Select, Space, Tooltip } from "antd";
+import { BookOpen, Briefcase, Plus, Trash2, User } from "lucide-react";
+import { FormModal } from "../../../../components/ui/muse/DataSection";
+import { museColors, museRadius } from "../../../../config/theme";
 import {
   useGetClassesListQuery,
   useGetSubjectsListQuery,
 } from "../../../../service/academic/ApiTeacher"; // Sesuaikan path import
-
-const { Title, Text } = Typography;
-const MotionDiv = motion.div;
 
 const TeacherForm = ({
   open,
@@ -165,33 +141,25 @@ const TeacherForm = ({
     }
   }, [open, initialValues, form, classOrderMap]);
 
+  const sectionTitle = (icon, label) => (
+    <Divider titlePlacement="left" style={{ marginTop: 8 }}>
+      <Space style={{ color: museColors.navy, fontWeight: 600 }}>
+        {icon} {label}
+      </Space>
+    </Divider>
+  );
+
   return (
-    <Modal
+    <FormModal
       open={open}
       onCancel={onCancel}
-      footer={null}
-      width={750} // Sedikit diperlebar agar nyaman
-      centered
-      destroyOnHidden
-      styles={{
-        content: {
-          padding: 0,
-          overflow: "hidden",
-          borderRadius: 28,
-          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
-        },
-        body: { padding: 0 },
-      }}
-      closable={false}
-      modalRender={(modalNode) => (
-        <MotionDiv
-          initial={{ opacity: 0, y: 24, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.24, ease: "easeOut" }}
-        >
-          {modalNode}
-        </MotionDiv>
-      )}
+      onOk={form.submit}
+      confirmLoading={loading}
+      width={760}
+      icon={initialValues ? <User size={16} /> : <Plus size={16} />}
+      title={initialValues ? "Edit Data Guru" : "Tambah Guru Baru"}
+      description="Data pribadi, tugas tambahan, dan alokasi mengajar."
+      okText={initialValues ? "Simpan Perubahan" : "Buat Data Guru"}
     >
       <Form
         form={form}
@@ -199,289 +167,169 @@ const TeacherForm = ({
         onFinish={onSubmit}
         initialValues={{ allocations: [], password: "123456" }}
       >
-        <div
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(239,246,255,1), rgba(236,253,245,0.96))",
-            padding: 28,
-            borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
-          }}
-        >
-          <Flex align="flex-start" gap={16}>
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 18,
-                display: "grid",
-                placeItems: "center",
-                background: "linear-gradient(135deg, #2563eb, #14b8a6)",
-                color: "#fff",
-                boxShadow: "0 16px 30px rgba(37, 99, 235, 0.28)",
-              }}
+        {sectionTitle(<User size={16} />, "Data Pribadi")}
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="full_name"
+              label="Nama Lengkap"
+              rules={[{ required: true, message: "Nama lengkap wajib diisi" }]}
             >
-              {initialValues ? <User size={22} /> : <Plus size={22} />}
-            </div>
-            <div style={{ flex: 1 }}>
-              <Title level={4} style={{ margin: 0 }}>
-                {initialValues ? "Edit Data Guru" : "Tambah Guru Baru"}
-              </Title>
-              <Text type="secondary" style={{ display: "block", marginTop: 6 }}>
-                Simpan data guru, tugas tambahan, dan alokasi mengajar dalam satu form yang lebih rapi.
-              </Text>
-            </div>
-          </Flex>
-        </div>
-
-        <div style={{ padding: 28, maxHeight: "calc(100vh - 180px)", overflowY: "auto" }}>
-          <MotionDiv
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, delay: 0.05 }}
-            style={{ display: "flex", flexDirection: "column", gap: 20 }}
-          >
-            <Card bordered={false} style={{ borderRadius: 20, background: "#fff" }}>
-              <Divider titlePlacement="left">
-                <Space>
-                  <User size={16} /> Data Pribadi
-                </Space>
-              </Divider>
-              <Row gutter={16}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    name="full_name"
-                    label="Nama Lengkap"
-                    rules={[{ required: true }]}
-                  >
-                    <Input placeholder="Nama lengkap dengan gelar" size="large" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    name="username"
-                    label="Username (Login)"
-                    rules={[{ required: true }]}
-                  >
-                    <Input placeholder="Username unik" size="large" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    name="password"
-                    label={initialValues ? "Password Baru" : "Password"}
-                    rules={[
-                      {
-                        validator: (_, value) => {
-                          const next = String(value || "").trim();
-                          if (!next) {
-                            return initialValues
-                              ? Promise.resolve()
-                              : Promise.reject(
-                                  new Error("Password wajib diisi"),
-                                );
-                          }
-                          if (next.length < 6) {
-                            return Promise.reject(
-                              new Error("Minimal 6 karakter"),
-                            );
-                          }
-                          return Promise.resolve();
-                        },
-                      },
-                    ]}
-                    extra={
-                      initialValues
-                        ? "Kosongkan jika tidak ingin mengubah password"
-                        : "Default 123456, bisa diganti sebelum disimpan"
+              <Input placeholder="Nama lengkap dengan gelar" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="username"
+              label="Username (login)"
+              rules={[{ required: true, message: "Username wajib diisi" }]}
+            >
+              <Input placeholder="Username unik" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="password"
+              label={initialValues ? "Password Baru" : "Password"}
+              rules={[
+                {
+                  validator: (_, value) => {
+                    const next = String(value || "").trim();
+                    if (!next) {
+                      return initialValues
+                        ? Promise.resolve()
+                        : Promise.reject(new Error("Password wajib diisi"));
                     }
-                  >
-                    <Input.Password
-                      placeholder={
-                        initialValues
-                          ? "Kosongkan jika tidak diubah"
-                          : "Password login guru"
-                      }
-                      size="large"
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item name="nip" label="NIP / NIY">
-                    <Input placeholder="Nomor Induk Pegawai" size="large" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item name="rfid_no" label="No RFID (Opsional)">
-                    <Input placeholder="Nomor RFID kartu guru" size="large" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item name="phone" label="No. Telepon">
-                    <Input placeholder="08..." size="large" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24}>
-                  <Form.Item name="email" label="Email">
-                    <Input placeholder="email@sekolah.sch.id" size="large" />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Card>
-
-            <Card bordered={false} style={{ borderRadius: 20, background: "#fff" }}>
-              <Divider titlePlacement="left">
-                <Space>
-                  <Briefcase size={16} /> Tugas Tambahan
-                </Space>
-              </Divider>
-              <Form.Item
-                name="homeroom_class_id"
-                label="Wali Kelas (Opsional)"
-                help="Pilih kelas jika guru ini adalah wali kelas"
-              >
-                <Select
-                  allowClear
-                  placeholder="Pilih Kelas"
-                  options={classOptions}
-                  showSearch
-                  optionFilterProp="label"
-                  size="large"
-                  virtual={false}
-                />
-              </Form.Item>
-            </Card>
-
-            <Card bordered={false} style={{ borderRadius: 20, background: "#fff" }}>
-              <Divider titlePlacement="left">
-                <Space>
-                  <BookOpen size={16} /> Mata Pelajaran yang Diampu
-                </Space>
-              </Divider>
-
-              <Form.List name="allocations">
-                {(fields, { add, remove }) => (
-                  <div style={{ display: "flex", flexDirection: "column", rowGap: 16 }}>
-                    {fields.map(({ key, name, ...restField }) => (
-                      <Card
-                        key={key}
-                        size="small"
-                        styles={{ body: { padding: "14px", background: "#f8fafc" } }}
-                        style={{ borderRadius: 18 }}
-                      >
-                        <Row gutter={12} align="top">
-                          <Col xs={24} md={8}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, "subject_id"]}
-                              label="Mata Pelajaran"
-                              rules={[{ required: true, message: "Wajib pilih" }]}
-                            >
-                              <Select
-                                placeholder="Pilih Mapel"
-                                showSearch
-                                optionFilterProp="label"
-                                options={subjectOptions}
-                                allowClear
-                                virtual={false}
-                                size="large"
-                              />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} md={14}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, "class_ids"]}
-                              label="Daftar Kelas Ajar"
-                              rules={[
-                                { required: true, message: "Pilih minimal 1 kelas" },
-                              ]}
-                            >
-                              <Select
-                                mode="multiple"
-                                placeholder="Pilih Kelas (Bisa banyak)"
-                                allowClear
-                                virtual={false}
-                                maxTagCount="responsive"
-                                showSearch
-                                optionFilterProp="label"
-                                options={classOptions}
-                                size="large"
-                              />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} md={2} style={{ textAlign: "right", paddingTop: "30px" }}>
-                            <Button
-                              type="text"
-                              danger
-                              icon={<Trash2 size={18} />}
-                              onClick={() => remove(name)}
-                            />
-                          </Col>
-                        </Row>
-                      </Card>
-                    ))}
-
-                    <Button
-                      type="dashed"
-                      onClick={() => add()}
-                      block
-                      icon={<Plus size={16} />}
-                      size="large"
-                      style={{ borderRadius: 14 }}
-                    >
-                      Tambah Alokasi Mapel
-                    </Button>
-                  </div>
-                )}
-              </Form.List>
-            </Card>
-
-            <Card
-              bordered={false}
-              style={{
-                borderRadius: 20,
-                background: "linear-gradient(135deg, #ecfeff, #eff6ff)",
-                border: "1px solid rgba(14, 165, 233, 0.16)",
-              }}
+                    if (next.length < 6) {
+                      return Promise.reject(new Error("Minimal 6 karakter"));
+                    }
+                    return Promise.resolve();
+                  },
+                },
+              ]}
+              extra={
+                initialValues
+                  ? "Kosongkan jika tidak ingin mengubah password"
+                  : "Default 123456, bisa diganti sebelum disimpan"
+              }
             >
-              <Flex align="flex-start" gap={12}>
-                <CheckCircle size={18} color="#0284c7" style={{ marginTop: 2 }} />
-                <div>
-                  <Text strong style={{ display: "block", marginBottom: 4 }}>
-                    Tips pengisian
-                  </Text>
-                  <Text type="secondary">
-                    Pastikan username unik, wali kelas sesuai referensi kelas, dan alokasi mapel sudah mencakup semua kelas yang diajar.
-                  </Text>
-                </div>
-              </Flex>
-            </Card>
+              <Input.Password
+                placeholder={initialValues ? "Kosongkan jika tidak diubah" : "Password login guru"}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="nip" label="NIP / NIY">
+              <Input placeholder="Nomor Induk Pegawai" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="rfid_no" label="No RFID (opsional)">
+              <Input placeholder="Nomor RFID kartu guru" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="phone" label="No. Telepon">
+              <Input placeholder="08..." />
+            </Form.Item>
+          </Col>
+          <Col xs={24}>
+            <Form.Item name="email" label="Email">
+              <Input placeholder="email@sekolah.sch.id" />
+            </Form.Item>
+          </Col>
+        </Row>
 
-            <Flex justify="flex-end" gap={10}>
-              <Button size="large" onClick={onCancel} style={{ borderRadius: 14, minWidth: 120 }}>
-                Batal
-              </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                size="large"
-                loading={loading}
-                icon={
-                  loading ? <Loader2 className="animate-spin" size={16} /> : <School size={16} />
-                }
-                style={{
-                  borderRadius: 14,
-                  minWidth: 190,
-                  boxShadow: "0 12px 24px rgba(37, 99, 235, 0.22)",
-                }}
-              >
-                {initialValues ? "Simpan Perubahan" : "Buat Data Guru"}
+        {sectionTitle(<Briefcase size={16} />, "Tugas Tambahan")}
+        <Form.Item
+          name="homeroom_class_id"
+          label="Wali Kelas (opsional)"
+          extra="Pilih kelas jika guru ini adalah wali kelas"
+        >
+          <Select
+            allowClear
+            placeholder="Pilih kelas"
+            options={classOptions}
+            showSearch
+            optionFilterProp="label"
+            virtual={false}
+          />
+        </Form.Item>
+
+        {sectionTitle(<BookOpen size={16} />, "Mata Pelajaran yang Diampu")}
+        <Form.List name="allocations">
+          {(fields, { add, remove }) => (
+            <Flex vertical gap={12}>
+              {fields.map(({ key, name, ...restField }) => (
+                <div
+                  key={key}
+                  style={{
+                    padding: "12px 12px 0",
+                    borderRadius: museRadius.item,
+                    background: museColors.bgLayout,
+                    border: `1px solid ${museColors.divider}`,
+                  }}
+                >
+                  <Row gutter={12} align="top">
+                    <Col xs={24} md={9}>
+                      <Form.Item
+                        {...restField}
+                        name={[name, "subject_id"]}
+                        label="Mata Pelajaran"
+                        rules={[{ required: true, message: "Wajib pilih" }]}
+                      >
+                        <Select
+                          placeholder="Pilih mapel"
+                          showSearch
+                          optionFilterProp="label"
+                          options={subjectOptions}
+                          allowClear
+                          virtual={false}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={21} md={13}>
+                      <Form.Item
+                        {...restField}
+                        name={[name, "class_ids"]}
+                        label="Kelas yang diajar"
+                        rules={[{ required: true, message: "Pilih minimal 1 kelas" }]}
+                      >
+                        <Select
+                          mode="multiple"
+                          placeholder="Pilih kelas (bisa banyak)"
+                          allowClear
+                          virtual={false}
+                          maxTagCount="responsive"
+                          showSearch
+                          optionFilterProp="label"
+                          options={classOptions}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={3} md={2} style={{ textAlign: "right", paddingTop: 30 }}>
+                      <Tooltip title="Hapus alokasi">
+                        <Button
+                          type="text"
+                          danger
+                          aria-label="Hapus alokasi"
+                          icon={<Trash2 size={16} />}
+                          onClick={() => remove(name)}
+                        />
+                      </Tooltip>
+                    </Col>
+                  </Row>
+                </div>
+              ))}
+
+              <Button type="dashed" onClick={() => add()} block icon={<Plus size={16} />}>
+                Tambah Alokasi Mapel
               </Button>
             </Flex>
-          </MotionDiv>
-        </div>
+          )}
+        </Form.List>
       </Form>
-    </Modal>
+    </FormModal>
   );
 };
 

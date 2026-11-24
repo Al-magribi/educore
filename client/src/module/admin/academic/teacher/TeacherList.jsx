@@ -1,25 +1,30 @@
 import React, { useMemo } from 'react';
-import { calcGeneratorDuration, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  Table,
-  Button,
-  Popconfirm,
-  Tooltip,
   Avatar,
-  Typography,
-  Tag,
-  Flex,
-  Space,
-  Grid,
-  Popover,
+  Button,
   Divider,
-  Card,
+  Empty,
+  Flex,
+  Grid,
   List,
   Pagination,
-  Empty,
-  Statistic,
+  Popconfirm,
+  Popover,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
 } from 'antd';
-import { EditOutlined, DeleteOutlined, UserOutlined, TeamOutlined, ReadOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  ReadOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import { museColors, museRadius } from '../../../../config/theme';
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -60,7 +65,7 @@ const TeachingAllocations = ({ allocations, compact = false }) => {
       <Flex vertical gap="small">
         {groupedData.slice(0, compact ? 1 : 2).map(([subject, classes]) => (
           <Text key={subject} ellipsis>
-            <ReadOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+            <ReadOutlined style={{ marginRight: 8, color: museColors.primary }} />
             {subject} ({classes.length} kelas)
           </Text>
         ))}
@@ -92,7 +97,7 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
 
   const columns = [
     {
-      title: 'Nama Guru',
+      title: 'NAMA GURU',
       dataIndex: 'full_name',
       key: 'full_name',
       width: 250,
@@ -110,7 +115,7 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
       ),
     },
     {
-      title: 'Status',
+      title: 'STATUS',
       key: 'status',
       width: 150,
       render: (_, record) => (
@@ -124,14 +129,14 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
       ),
     },
     {
-      title: 'Mengajar',
+      title: 'MENGAJAR',
       dataIndex: 'allocations',
       key: 'allocations',
       width: 250,
       render: (allocations) => <TeachingAllocations allocations={allocations} />,
     },
     {
-      title: 'Kontak',
+      title: 'KONTAK',
       key: 'contact',
       width: 200,
       render: (_, record) => (
@@ -144,7 +149,7 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
       ),
     },
     {
-      title: 'Aksi',
+      title: 'AKSI',
       key: 'action',
       align: 'right',
       width: 100,
@@ -170,13 +175,7 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
   ];
 
   return (
-    <Card
-      variant="borderless"
-      styles={{ body: { padding: isMobile ? 12 : 16 } }}
-      style={{
-        borderRadius: 22,
-        boxShadow: '0 16px 34px rgba(15, 23, 42, 0.06)',
-      }}>
+    <>
       {isMobile ? (
         <>
           <List
@@ -188,7 +187,14 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
             renderItem={(record) => (
               <List.Item style={{ padding: 0, marginBottom: 10 }}>
                 <MotionDiv whileHover={{ y: -3 }} transition={{ duration: 0.18 }} style={{ width: '100%' }}>
-                  <Card size="small" style={{ width: '100%', borderRadius: 18 }}>
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: 16,
+                      borderRadius: museRadius.card,
+                      border: `1px solid ${museColors.divider}`,
+                      background: '#fff',
+                    }}>
                     <Flex justify="space-between" align="start" gap={10}>
                       <Space align="start">
                         <Avatar src={record.img_url} icon={<UserOutlined />} />
@@ -202,7 +208,7 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
                           <Button size="small" type="text" icon={<EditOutlined />} onClick={() => onEdit(record)} />
                         </Tooltip>
                         <Popconfirm
-                          title="Hapus Guru?"
+                          title={`Hapus ${record.full_name}?`}
                           description="Aksi ini tidak dapat dibatalkan."
                           onConfirm={() => onDelete(record.id)}
                           okText="Ya"
@@ -224,7 +230,7 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
                       <Text type="secondary">{record.email || '-'}</Text>
                       <TeachingAllocations allocations={record.allocations} compact />
                     </Flex>
-                  </Card>
+                  </div>
                 </MotionDiv>
               </List.Item>
             )}
@@ -252,13 +258,13 @@ const TeacherList = ({ data, loading, onEdit, onDelete, onPageChange, pagination
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
             showTotal: (items, range) => `${range[0]}-${range[1]} dari ${items} guru`,
+            style: { paddingInline: 24 },
           }}
           onChange={handleDesktopChange}
           rowKey="id"
-          size="middle"
         />
       )}
-    </Card>
+    </>
   );
 };
 

@@ -7,15 +7,16 @@ import {
   Space,
   Typography,
   Tag,
-  Spin,
+  Skeleton,
   Empty,
   Grid,
-  Card,
 } from 'antd';
 import { SearchOutlined, CalendarOutlined, TeamOutlined } from '@ant-design/icons';
 import { useGetHomebaseClassStudentsQuery } from '../../../service/center/ApiHomebase';
+import { CardTitle } from '../../../components/ui/muse';
+import { museColors } from '../../../config/theme';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const ModalClassStudents = ({ open, homebaseId, classData, onCancel }) => {
@@ -92,7 +93,7 @@ const ModalClassStudents = ({ open, homebaseId, classData, onCancel }) => {
             <Text strong>{value || '-'}</Text>
             <Tag
               color={record.gender === 'L' ? 'blue' : record.gender === 'P' ? 'magenta' : 'default'}
-              style={{ borderRadius: 999, width: 'fit-content', margin: 0 }}>
+              style={{ width: 'fit-content', margin: 0 }}>
               {record.gender === 'L' ? 'Laki Laki' : record.gender === 'P' ? 'Perempuan' : '-'}
             </Tag>
           </Space>
@@ -104,7 +105,7 @@ const ModalClassStudents = ({ open, homebaseId, classData, onCancel }) => {
         key: 'is_active',
         width: 110,
         render: (value) => (
-          <Tag color={value ? 'success' : 'default'} style={{ borderRadius: 999 }}>
+          <Tag color={value ? 'success' : 'default'} style={{ margin: 0 }}>
             {value ? 'Aktif' : 'Nonaktif'}
           </Tag>
         ),
@@ -120,91 +121,59 @@ const ModalClassStudents = ({ open, homebaseId, classData, onCancel }) => {
       footer={null}
       width={isMobile ? '100%' : 920}
       destroyOnHidden
-      title={null}
-      styles={{
-        body: {
-          padding: isMobile ? 16 : 20,
-          background: '#f8fafc',
-        },
-      }}>
-      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: 20,
-            background: 'linear-gradient(135deg, #0f172a, #1d4ed8 60%, #0f766e)',
-          }}
-          styles={{ body: { padding: 18 } }}>
-          <Space align="start" size={14}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                display: 'grid',
-                placeItems: 'center',
-                background: 'rgba(255,255,255,0.14)',
-                color: '#e0f2fe',
-                fontSize: 18,
-              }}>
-              <TeamOutlined />
-            </div>
-            <div>
-              <Title level={4} style={{ margin: 0, color: '#f8fafc' }}>
-                Siswa Kelas {classData?.name || '-'}
-              </Title>
-              <Text style={{ color: 'rgba(226,232,240,0.9)' }}>
-                Filter berdasarkan nama, NIS, NISN, dan periode ajaran.
-              </Text>
-            </div>
-          </Space>
-        </Card>
-
-        <Card variant="borderless" style={{ borderRadius: 18 }} styles={{ body: { padding: 16 } }}>
-          <Space wrap size={[10, 10]} style={{ width: '100%' }}>
-            <Input
-              allowClear
-              placeholder="Filter nama"
-              prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{ width: isMobile ? '100%' : 180 }}
-            />
-            <Input
-              allowClear
-              placeholder="Filter NIS"
-              value={nis}
-              onChange={(e) => setNis(e.target.value)}
-              style={{ width: isMobile ? '100%' : 140 }}
-            />
-            <Input
-              allowClear
-              placeholder="Filter NISN"
-              value={nisn}
-              onChange={(e) => setNisn(e.target.value)}
-              style={{ width: isMobile ? '100%' : 140 }}
-            />
-            <Select
-              style={{ width: isMobile ? '100%' : 220 }}
-              value={selectedPeriodeId ? Number(selectedPeriodeId) : undefined}
-              onChange={(val) => {
-                setPeriodeId(val);
-                setPage(1);
-              }}
-              placeholder="Pilih Periode"
-              suffixIcon={<CalendarOutlined style={{ color: '#64748b' }} />}
-              options={periods.map((p) => ({
-                value: p.id,
-                label: `${p.name}${p.is_active ? ' - Aktif' : ''}`,
-              }))}
-            />
-          </Space>
-        </Card>
+      title={
+        <CardTitle
+          icon={<TeamOutlined />}
+          title={`Siswa Kelas ${classData?.name || '-'}`}
+          description="Filter berdasarkan nama, NIS, NISN, dan periode ajaran."
+        />
+      }>
+      <Space orientation="vertical" size={16} style={{ width: '100%', marginTop: 8 }}>
+        <Space wrap size={[8, 8]} style={{ width: '100%' }}>
+          <Input
+            aria-label="Filter nama"
+            allowClear
+            placeholder="Filter nama"
+            prefix={<SearchOutlined style={{ color: museColors.muted }} />}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ width: isMobile ? '100%' : 200 }}
+          />
+          <Input
+            aria-label="Filter NIS"
+            allowClear
+            placeholder="Filter NIS"
+            value={nis}
+            onChange={(e) => setNis(e.target.value)}
+            style={{ width: isMobile ? '100%' : 140 }}
+          />
+          <Input
+            aria-label="Filter NISN"
+            allowClear
+            placeholder="Filter NISN"
+            value={nisn}
+            onChange={(e) => setNisn(e.target.value)}
+            style={{ width: isMobile ? '100%' : 140 }}
+          />
+          <Select
+            aria-label="Pilih periode"
+            style={{ width: isMobile ? '100%' : 220 }}
+            value={selectedPeriodeId ? Number(selectedPeriodeId) : undefined}
+            onChange={(val) => {
+              setPeriodeId(val);
+              setPage(1);
+            }}
+            placeholder="Pilih Periode"
+            prefix={<CalendarOutlined style={{ color: museColors.muted }} />}
+            options={periods.map((p) => ({
+              value: p.id,
+              label: `${p.name}${p.is_active ? ' · Aktif' : ''}`,
+            }))}
+          />
+        </Space>
 
         {isLoading ? (
-          <div style={{ minHeight: 220, display: 'grid', placeItems: 'center' }}>
-            <Spin size="large" />
-          </div>
+          <Skeleton active paragraph={{ rows: 5 }} />
         ) : students.length === 0 ? (
           <Empty description="Tidak ada siswa pada filter / periode ini" />
         ) : (
