@@ -16,6 +16,7 @@ import { BanknoteArrowDown } from "lucide-react";
 
 import { rupiahInputProps } from "../constants";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const { TextArea } = Input;
 const MotionDiv = motion.div;
@@ -52,7 +53,7 @@ const ExpenseFormModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 20 : 28,
+          borderRadius: museRadius.card,
         },
         body: { padding: 0 },
         footer: { padding: isMobile ? "0 16px 16px" : "0 24px 22px" },
@@ -70,7 +71,7 @@ const ExpenseFormModal = ({
         style={{
           padding: isMobile ? "18px 16px 8px" : "22px 24px 10px",
           background:
-            "linear-gradient(135deg, rgba(234,88,12,0.1), rgba(251,146,60,0.06))",
+            museColors.bgSoft,
         }}
       >
         <Space align="start" size={12}>
@@ -78,10 +79,10 @@ const ExpenseFormModal = ({
             style={{
               width: 42,
               height: 42,
-              borderRadius: 14,
+              borderRadius: museRadius.card,
               display: "grid",
               placeItems: "center",
-              background: "linear-gradient(135deg, #ea580c, #c2410c)",
+              background: museColors.bgSoft,
               color: "#fff",
             }}
           >

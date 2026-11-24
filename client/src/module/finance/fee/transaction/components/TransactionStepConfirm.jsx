@@ -15,6 +15,7 @@ import { motion } from "framer-motion";
 import { currencyFormatter } from "./transactionFormShared.jsx";
 import ScholarshipAmountCell from "../../ScholarshipAmountCell";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -37,7 +38,7 @@ const TransactionStepConfirm = ({
   return (
     <Flex vertical gap={18}>
       <Card
-        style={{ borderRadius: isMobile ? 16 : 18 }}
+        style={{ borderRadius: museRadius.card }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >
         <Descriptions
@@ -55,11 +56,11 @@ const TransactionStepConfirm = ({
       </Card>
 
       <Card
-        style={{ borderRadius: isMobile ? 16 : 18 }}
+        style={{ borderRadius: museRadius.card }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >
         <Space direction='vertical' size={10} style={{ width: "100%" }}>
-          <Text strong style={{ fontSize: isMobile ? 15 : 16, color: "#0f172a" }}>
+          <Text strong style={{ fontSize: isMobile ? 15 : 16, color: museColors.text }}>
             Rincian Pembayaran
           </Text>
 
@@ -113,7 +114,7 @@ const TransactionStepConfirm = ({
                 >
                   <Card
                     size='small'
-                    style={{ borderRadius: 14, background: "#f8fafc" }}
+                    style={{ borderRadius: museRadius.card, background: museColors.bgLayout }}
                   >
                     <Flex justify='space-between' align='start' gap={12}>
                       <Space direction='vertical' size={2} style={{ minWidth: 0, flex: 1 }}>
@@ -141,7 +142,7 @@ const TransactionStepConfirm = ({
       </Card>
 
       <Card
-        style={{ borderRadius: isMobile ? 16 : 18 }}
+        style={{ borderRadius: museRadius.card }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >
         <Form.Item
@@ -162,8 +163,8 @@ const TransactionStepConfirm = ({
       <Card
         bordered={false}
         style={{
-          borderRadius: isMobile ? 16 : 20,
-          background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+          borderRadius: museRadius.card,
+          background: museColors.navy,
         }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 
 import { cardStyle, currencyFormatter, formatDateTime } from "../constants";
 
+import { museColors } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -137,7 +138,7 @@ const StudentContributionOverviewTab = ({
           title="Status Pembayaran Kelas"
           styles={{ body: { padding: 18 } }}
         >
-          <Paragraph style={{ marginTop: 0, color: "#64748b" }}>
+          <Paragraph style={{ marginTop: 0, color: museColors.muted }}>
             Tabel ini menampilkan siswa di kelas aktif beserta status pembayaran
             kas pada periode berjalan.
           </Paragraph>

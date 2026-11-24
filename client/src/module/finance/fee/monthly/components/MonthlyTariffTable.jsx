@@ -15,6 +15,7 @@ import { ChevronDown, Pencil, Plus, ReceiptText, Trash2 } from "lucide-react";
 
 import { currencyFormatter } from "../constants";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -191,10 +192,10 @@ const MonthlyTariffTable = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 16 : 22,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-          border: "1px solid rgba(148,163,184,0.14)",
-          boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
+          borderRadius: museRadius.card,
+          background: "#ffffff",
+          border: `1px solid ${museColors.divider}`,
+          boxShadow: museShadow.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 10 : 24 } }}
@@ -214,16 +215,16 @@ const MonthlyTariffTable = ({
                 height: isMobile ? 36 : 40,
                 display: "grid",
                 placeItems: "center",
-                borderRadius: 14,
-                background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                color: "#2563eb",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
+                color: museColors.primary,
                 flexShrink: 0,
               }}
             >
               <ReceiptText size={18} />
             </span>
             <div style={{ minWidth: 0 }}>
-              <Text strong style={{ display: "block", color: "#0f172a" }}>
+              <Text strong style={{ display: "block", color: museColors.text }}>
                 Tarif SPP Aktif
               </Text>
               <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>

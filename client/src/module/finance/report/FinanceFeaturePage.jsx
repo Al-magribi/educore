@@ -25,6 +25,7 @@ import { useNavigate } from "react-router-dom";
 
 import PageHeader from "../../../components/ui/PageHeader";
 
+import { museColors, museRadius, museShadow } from "../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -33,9 +34,9 @@ const containerStyle = {
 };
 
 const cardStyle = {
-  borderRadius: 24,
-  border: "1px solid rgba(148, 163, 184, 0.16)",
-  boxShadow: "0 22px 50px rgba(15, 23, 42, 0.08)",
+  borderRadius: museRadius.card,
+  border: `1px solid ${museColors.divider}`,
+  boxShadow: museShadow.card,
 };
 
 const statisticFormatter = (value, prefix = "") =>
@@ -112,7 +113,7 @@ const FinanceFeaturePage = ({
                   style={{
                     ...cardStyle,
                     background:
-                      "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                      "#ffffff",
                   }}
                   bodyStyle={{ padding: 22 }}
                 >
@@ -124,7 +125,7 @@ const FinanceFeaturePage = ({
                           <Tooltip title={item.note}>
                             <Info
                               size={13}
-                              color='#94a3b8'
+                              color={museColors.muted}
                               style={{ cursor: "help", flexShrink: 0 }}
                             />
                           </Tooltip>
@@ -206,11 +207,11 @@ const FinanceFeaturePage = ({
                               <Flex align='flex-start' gap={12}>
                                 {item.type === "document" ? (
                                   <FileTextOutlined
-                                    style={{ color: "#2563eb", marginTop: 4 }}
+                                    style={{ color: museColors.primary, marginTop: 4 }}
                                   />
                                 ) : (
                                   <CheckCircleOutlined
-                                    style={{ color: "#16a34a", marginTop: 4 }}
+                                    style={{ color: museColors.success, marginTop: 4 }}
                                   />
                                 )}
                                 <div>

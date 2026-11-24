@@ -13,6 +13,7 @@ import { CreditCard } from "lucide-react";
 
 import { currencyFormatter } from "../constants";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -50,8 +51,8 @@ const MonthlyPaymentModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 20 : 28,
-          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         },
         body: { padding: 0 },
         footer: { padding: isMobile ? "0 16px 16px" : "0 24px 22px" },
@@ -69,7 +70,7 @@ const MonthlyPaymentModal = ({
       <div
         style={{
           padding: isMobile ? 16 : 24,
-          background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+          background: "#ffffff",
           maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
           overflowY: isMobile ? "auto" : undefined,
         }}
@@ -78,8 +79,8 @@ const MonthlyPaymentModal = ({
           style={{
             marginBottom: 20,
             padding: isMobile ? 16 : 20,
-            borderRadius: isMobile ? 16 : 22,
-            background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
+            borderRadius: museRadius.card,
+            background: museColors.primarySoft,
           }}
         >
           <div
@@ -88,8 +89,8 @@ const MonthlyPaymentModal = ({
               height: isMobile ? 44 : 52,
               display: "grid",
               placeItems: "center",
-              borderRadius: 18,
-              background: "linear-gradient(135deg, #2563eb, #0f766e)",
+              borderRadius: museRadius.card,
+              background: museColors.primary,
               color: "#fff",
               boxShadow: "0 18px 32px rgba(37, 99, 235, 0.22)",
               marginBottom: 14,
@@ -102,7 +103,7 @@ const MonthlyPaymentModal = ({
             style={{
               display: "block",
               fontSize: isMobile ? 20 : 24,
-              color: "#0f172a",
+              color: museColors.text,
               lineHeight: 1.3,
             }}
           >
@@ -180,7 +181,7 @@ const MonthlyPaymentModal = ({
           <Alert
             type={tariffAmount > 0 ? "info" : "warning"}
             showIcon
-            style={{ marginBottom: 16, borderRadius: 16 }}
+            style={{ marginBottom: 16, borderRadius: museRadius.card }}
             message={
               tariffAmount > 0
                 ? `Tarif SPP periode ini ${currencyFormatter.format(tariffAmount)} per bulan`

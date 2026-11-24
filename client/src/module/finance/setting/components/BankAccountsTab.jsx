@@ -19,6 +19,7 @@ import { Landmark, ShieldCheck } from "lucide-react";
 import { BankOutlined, PlusOutlined } from "@ant-design/icons";
 import { cardStyle } from "../../fee/others/constants";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -87,8 +88,8 @@ const BankAccountsTab = ({
         <Card
           style={{
             ...cardStyle,
-            borderRadius: isMobile ? 18 : undefined,
-            background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+            borderRadius: museRadius.card,
+            background: "#ffffff",
             overflow: "hidden",
           }}
           styles={{ body: { padding: isMobile ? 14 : 24 } }}
@@ -97,10 +98,10 @@ const BankAccountsTab = ({
             <div
               style={{
                 padding: isMobile ? 14 : 20,
-                borderRadius: isMobile ? 16 : 22,
+                borderRadius: museRadius.card,
                 border: "1px solid rgba(59,130,246,0.14)",
                 background:
-                  "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(240,253,250,0.94))",
+                  museColors.primarySoft,
               }}
             >
               <Flex
@@ -117,8 +118,8 @@ const BankAccountsTab = ({
                       height: isMobile ? 44 : 52,
                       display: "grid",
                       placeItems: "center",
-                      borderRadius: 18,
-                      background: "linear-gradient(135deg, #1d4ed8, #0f766e)",
+                      borderRadius: museRadius.card,
+                      background: museColors.primary,
                       color: "#fff",
                       flexShrink: 0,
                       boxShadow: "0 18px 30px rgba(29, 78, 216, 0.2)",
@@ -159,9 +160,9 @@ const BankAccountsTab = ({
                   <div
                     style={{
                       padding: "14px 16px",
-                      borderRadius: 18,
+                      borderRadius: museRadius.card,
                       background: "#ffffff",
-                      border: "1px solid rgba(148,163,184,0.14)",
+                      border: `1px solid ${museColors.divider}`,
                     }}
                   >
                     <Text type='secondary'>Total rekening</Text>
@@ -174,13 +175,13 @@ const BankAccountsTab = ({
                   <div
                     style={{
                       padding: "14px 16px",
-                      borderRadius: 18,
+                      borderRadius: museRadius.card,
                       background: "#ffffff",
-                      border: "1px solid rgba(148,163,184,0.14)",
+                      border: `1px solid ${museColors.divider}`,
                     }}
                   >
                     <Flex align='center' gap={8}>
-                      <ShieldCheck size={15} color='#166534' />
+                      <ShieldCheck size={15} color={museColors.success} />
                       <Text type='secondary'>Rekening aktif</Text>
                     </Flex>
                     <Title level={5} style={{ margin: "8px 0 0" }}>
@@ -220,8 +221,8 @@ const BankAccountsTab = ({
           content: {
             padding: 0,
             overflow: "hidden",
-            borderRadius: isMobile ? 20 : 28,
-            boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+            borderRadius: museRadius.card,
+            boxShadow: museShadow.card,
           },
           body: {
             padding: 0,
@@ -242,15 +243,15 @@ const BankAccountsTab = ({
         <div
           style={{
             padding: isMobile ? 16 : 24,
-            background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+            background: "#ffffff",
           }}
         >
           <div
             style={{
               marginBottom: 20,
               padding: isMobile ? 16 : 20,
-              borderRadius: isMobile ? 16 : 22,
-              background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
+              borderRadius: museRadius.card,
+              background: museColors.primarySoft,
             }}
           >
             <div
@@ -259,8 +260,8 @@ const BankAccountsTab = ({
                 height: isMobile ? 44 : 52,
                 display: "grid",
                 placeItems: "center",
-                borderRadius: 18,
-                background: "linear-gradient(135deg, #1d4ed8, #0f766e)",
+                borderRadius: museRadius.card,
+                background: museColors.primary,
                 color: "#fff",
                 boxShadow: "0 18px 32px rgba(29, 78, 216, 0.22)",
                 marginBottom: 14,
@@ -273,7 +274,7 @@ const BankAccountsTab = ({
               style={{
                 display: "block",
                 fontSize: isMobile ? 20 : 24,
-                color: "#0f172a",
+                color: museColors.text,
                 lineHeight: 1.3,
               }}
             >
@@ -355,7 +356,7 @@ export const createBankColumns = ({ onEdit, onDelete, isDeleting }) => [
         <div
           style={{
             fontSize: 12,
-            color: "#64748b",
+            color: museColors.muted,
             marginTop: 2,
             wordBreak: "break-word",
           }}

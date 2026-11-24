@@ -15,6 +15,7 @@ import {
 } from "antd";
 import { Power, Trash2, UserPlus } from "lucide-react";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 
 const SYNC_WARNING =
@@ -211,9 +212,9 @@ const ScholarshipStudentsPanel = ({
         style={{
           width: "100%",
           padding: 12,
-          borderRadius: 16,
-          background: "#f8fafc",
-          border: "1px solid rgba(148,163,184,0.18)",
+          borderRadius: museRadius.card,
+          background: museColors.bgLayout,
+          border: `1px solid ${museColors.divider}`,
           opacity: scholarshipActive ? 1 : 0.7,
         }}
       >

@@ -4,6 +4,7 @@ import { Building2, Sparkles } from "lucide-react";
 
 import { cardBaseStyle, currency } from "./constants";
 
+import { museColors, museRadius } from "../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -20,7 +21,7 @@ const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
       render: (value, record) => (
         <div>
           <Text strong>{value}</Text>
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: museColors.muted, marginTop: 2 }}>
             {record.total_students || 0} siswa • {record.total_classes || 0} kelas
           </div>
         </div>
@@ -86,14 +87,14 @@ const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
       <Alert
         type='info'
         showIcon
-        message='Data per satuan'
+        title='Data per satuan'
         description={
           isFilteredSingleUnit
             ? `Dashboard sedang difilter ke satuan ${selectedHomebase?.homebase_name || "-"} dengan periode aktif ${selectedHomebase?.periode_name || "-"}.`
             : `Dashboard menghitung ${homebases.length || 0} dari ${availableHomebases?.length || homebases.length || 0} satuan berdasarkan periode aktif pada masing-masing unit.`
         }
         style={{
-          borderRadius: 18,
+          borderRadius: museRadius.card,
           border: "1px solid rgba(96,165,250,0.22)",
           boxShadow: "0 12px 24px rgba(37, 99, 235, 0.06)",
         }}
@@ -114,15 +115,15 @@ const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
                     height: 40,
                     display: "grid",
                     placeItems: "center",
-                    borderRadius: 14,
-                    background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                    color: "#2563eb",
+                    borderRadius: museRadius.card,
+                    background: museColors.primarySoft,
+                    color: museColors.primary,
                   }}
                 >
                   <Building2 size={18} />
                 </span>
                 <div>
-                  <Text strong style={{ display: "block", color: "#0f172a" }}>
+                  <Text strong style={{ display: "block", color: museColors.text }}>
                     Performa Keuangan per Satuan
                   </Text>
                   <Text type='secondary'>
@@ -146,7 +147,7 @@ const FinanceDashboardUnitsTab = ({ meta, homebases, availableHomebases }) => {
 
       {meta?.scope_type !== "all_units" && homebases[0] ? (
         <Space align='center' size={8}>
-          <Sparkles size={14} color='#64748b' />
+          <Sparkles size={14} color={museColors.muted} />
           <Text type='secondary'>
             Tampilan ini tetap memakai struktur per satuan agar konsisten saat
             akses diperluas ke banyak unit.

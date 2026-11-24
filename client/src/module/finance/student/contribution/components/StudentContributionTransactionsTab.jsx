@@ -15,6 +15,7 @@ import { SquarePen, Trash } from "lucide-react";
 
 import { cardStyle, currencyFormatter, formatDateTime } from "../constants";
 
+import { museColors } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -70,7 +71,7 @@ const StudentContributionTransactionsTab = ({
         <Text
           style={{
             color:
-              record.transaction_type === "expense" ? "#dc2626" : "#15803d",
+              record.transaction_type === "expense" ? museColors.danger : museColors.success,
             fontWeight: 700,
           }}
         >

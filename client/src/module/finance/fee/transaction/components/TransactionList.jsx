@@ -31,6 +31,7 @@ import {
 import PageHeader from "../../../../../components/ui/PageHeader";
 import { getPeriodeTagColor } from "./transactionFormShared.jsx";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -42,20 +43,20 @@ const currencyFormatter = new Intl.NumberFormat("id-ID", {
 
 const summaryCardStyles = [
   {
-    bg: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-    color: "#2563eb",
+    bg: museColors.primarySoft,
+    color: museColors.primary,
   },
   {
-    bg: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)",
-    color: "#475569",
+    bg: museColors.primarySoft,
+    color: museColors.textBody,
   },
   {
-    bg: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-    color: "#15803d",
+    bg: museColors.bgSoft,
+    color: museColors.success,
   },
   {
-    bg: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
-    color: "#d97706",
+    bg: museColors.accentSoft,
+    color: museColors.accent,
   },
 ];
 
@@ -315,7 +316,7 @@ const TransactionList = ({
           <Text
             strong
             style={{
-              color: "#0f172a",
+              color: museColors.text,
               whiteSpace: "normal",
               wordBreak: "break-word",
             }}
@@ -340,8 +341,8 @@ const TransactionList = ({
             size={40}
             style={{
               background:
-                "linear-gradient(135deg, rgba(59,130,246,0.18), rgba(14,165,233,0.24))",
-              color: "#1d4ed8",
+                museColors.primarySoft,
+              color: museColors.primary,
               fontWeight: 700,
               flexShrink: 0,
             }}
@@ -352,7 +353,7 @@ const TransactionList = ({
             <Text
               strong
               style={{
-                color: "#0f172a",
+                color: museColors.text,
                 fontSize: 15,
                 whiteSpace: "normal",
                 wordBreak: "break-word",
@@ -390,7 +391,7 @@ const TransactionList = ({
       width: 220,
       render: (_, record) => (
         <Space vertical size={1}>
-          <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
+          <Text strong style={{ color: museColors.text, fontSize: 15 }}>
             {currencyFormatter.format(Number(record.amount || 0))}
           </Text>
           <Text type='secondary' style={{ fontSize: 12 }}>
@@ -423,7 +424,7 @@ const TransactionList = ({
                 strong
                 style={{
                   display: "block",
-                  color: "#0f172a",
+                  color: museColors.text,
                   whiteSpace: "normal",
                   wordBreak: "break-word",
                 }}
@@ -468,7 +469,7 @@ const TransactionList = ({
           </div>
 
           <Flex justify='space-between' align='center' gap={8} wrap='wrap'>
-            <Text strong style={{ fontSize: 15, color: "#0f172a" }}>
+            <Text strong style={{ fontSize: 15, color: museColors.text }}>
               {currencyFormatter.format(Number(record.amount || 0))}
             </Text>
             <div style={{ minWidth: 110 }}>{renderActions(record)}</div>
@@ -517,7 +518,7 @@ const TransactionList = ({
                 <Card
                   variant='borderless'
                   style={{
-                    borderRadius: isMobile ? 14 : 18,
+                    borderRadius: museRadius.card,
                     background: summaryCardStyles[index].bg,
                     height: "100%",
                   }}
@@ -549,8 +550,8 @@ const TransactionList = ({
           <div
             style={{
               padding: isMobile ? 12 : 16,
-              borderRadius: isMobile ? 14 : 18,
-              border: "1px solid rgba(148, 163, 184, 0.18)",
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.divider}`,
               background: "rgba(248, 250, 252, 0.9)",
             }}
           >
@@ -562,7 +563,7 @@ const TransactionList = ({
               gap={12}
             >
               <Space vertical size={2} style={{ minWidth: 0, flex: 1 }}>
-                <Text strong style={{ color: "#0f172a" }}>
+                <Text strong style={{ color: museColors.text }}>
                   Filter Transaksi
                 </Text>
                 <Text type='secondary' style={{ fontSize: isMobile ? 12 : 13 }}>
@@ -641,7 +642,7 @@ const TransactionList = ({
               <Input
                 placeholder='Cari nama siswa / NIS'
                 value={transactionFilters.search}
-                prefix={<Search size={16} color='#94a3b8' />}
+                prefix={<Search size={16} color={museColors.muted} />}
                 onChange={(event) =>
                   setTransactionFilters((previous) => ({
                     ...previous,
@@ -721,8 +722,8 @@ const TransactionList = ({
           <Card
             variant='borderless'
             style={{
-              borderRadius: isMobile ? 16 : 22,
-              border: "1px solid rgba(148,163,184,0.14)",
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.divider}`,
               overflow: "hidden",
             }}
             styles={{ body: { padding: isMobile ? 8 : 0 } }}

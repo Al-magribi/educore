@@ -8,6 +8,7 @@ import {
 } from "./parentTransactionShared";
 import ScholarshipAmountCell from "../../../fee/ScholarshipAmountCell";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -25,9 +26,9 @@ const ParentPaymentList = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
-          border: "1px solid rgba(148,163,184,0.14)",
-          boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+          borderRadius: museRadius.card,
+          border: `1px solid ${museColors.divider}`,
+          boxShadow: museShadow.card,
         }}
       >
         <Empty description={emptyTitle} />
@@ -77,10 +78,10 @@ const ParentPaymentList = ({
                 variant='borderless'
                 style={{
                   height: "100%",
-                  borderRadius: 24,
-                  border: "1px solid rgba(148,163,184,0.14)",
-                  boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
-                  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                  borderRadius: museRadius.card,
+                  border: `1px solid ${museColors.divider}`,
+                  boxShadow: museShadow.card,
+                  background: "#ffffff",
                 }}
                 styles={{ body: { padding: 20 } }}
               >
@@ -92,7 +93,7 @@ const ParentPaymentList = ({
                           fontSize: 12,
                           fontWeight: 700,
                           letterSpacing: 0.4,
-                          color: "#0f766e",
+                          color: museColors.success,
                           textTransform: "uppercase",
                         }}
                       >
@@ -113,9 +114,9 @@ const ParentPaymentList = ({
                   <div
                     style={{
                       padding: "14px 16px",
-                      borderRadius: 18,
+                      borderRadius: museRadius.card,
                       background:
-                        "linear-gradient(135deg, rgba(239,246,255,0.9), rgba(240,253,250,0.9))",
+                        museColors.primarySoft,
                       border: "1px solid rgba(59,130,246,0.12)",
                     }}
                   >
@@ -138,7 +139,7 @@ const ParentPaymentList = ({
                             marginTop: 4,
                             fontSize: 18,
                             fontWeight: 700,
-                            color: "#0f766e",
+                            color: museColors.success,
                           }}
                         >
                           {currencyFormatter.format(Number(item.paid_amount || 0))}
@@ -148,8 +149,8 @@ const ParentPaymentList = ({
                     <Progress
                       percent={progressPercent}
                       showInfo={false}
-                      strokeColor='#0f766e'
-                      trailColor='rgba(148,163,184,0.2)'
+                      strokeColor={museColors.success}
+                      trailColor={museColors.divider}
                       style={{ marginTop: 14, marginBottom: 8 }}
                     />
                     <Text type='secondary'>
@@ -165,7 +166,7 @@ const ParentPaymentList = ({
 
                   <Space direction='vertical' size={8} style={{ width: "100%" }}>
                     <Flex align='center' gap={8}>
-                      <CalendarClock size={15} color='#64748b' />
+                      <CalendarClock size={15} color={museColors.muted} />
                       <Text type='secondary'>
                         Pembayaran terakhir: {dateFormatter(item.last_paid_at, true)}
                       </Text>
@@ -174,9 +175,9 @@ const ParentPaymentList = ({
                       <div
                         style={{
                           padding: "12px 14px",
-                          borderRadius: 18,
-                          background: "#f8fafc",
-                          border: "1px dashed rgba(148,163,184,0.26)",
+                          borderRadius: museRadius.card,
+                          background: museColors.bgLayout,
+                          border: `1px dashed ${museColors.border}`,
                         }}
                       >
                         <Text strong style={{ display: "block", marginBottom: 8 }}>

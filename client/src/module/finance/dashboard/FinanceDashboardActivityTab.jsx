@@ -9,6 +9,7 @@ import {
   statusColorMap,
 } from "./constants";
 
+import { museColors, museRadius } from "../../../config/theme";
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -21,7 +22,7 @@ const FinanceDashboardActivityTab = ({ recentTransactions, priorities }) => {
       render: (value, record) => (
         <div>
           <Text strong>{value}</Text>
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: museColors.muted, marginTop: 2 }}>
             {record.channel} • {record.homebase_name || "-"}
           </div>
         </div>
@@ -41,7 +42,7 @@ const FinanceDashboardActivityTab = ({ recentTransactions, priorities }) => {
       width: 150,
       align: "right",
       render: (value) => (
-        <Text strong style={{ color: Number(value) < 0 ? "#b91c1c" : "#15803d" }}>
+        <Text strong style={{ color: Number(value) < 0 ? museColors.danger : museColors.success }}>
           {Number(value) < 0
             ? `- ${currency(Math.abs(Number(value)))}`
             : currency(value)}
@@ -85,15 +86,15 @@ const FinanceDashboardActivityTab = ({ recentTransactions, priorities }) => {
                       height: 40,
                       display: "grid",
                       placeItems: "center",
-                      borderRadius: 14,
-                      background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                      color: "#2563eb",
+                      borderRadius: museRadius.card,
+                      background: museColors.primarySoft,
+                      color: museColors.primary,
                     }}
                   >
                     <Clock3 size={18} />
                   </div>
                   <div>
-                    <Text strong style={{ display: "block", color: "#0f172a" }}>
+                    <Text strong style={{ display: "block", color: museColors.text }}>
                       Transaksi Terbaru
                     </Text>
                     <Text type='secondary' style={{ fontSize: 12 }}>
@@ -139,9 +140,9 @@ const FinanceDashboardActivityTab = ({ recentTransactions, priorities }) => {
                       height: 40,
                       display: "grid",
                       placeItems: "center",
-                      borderRadius: 14,
-                      background: "linear-gradient(135deg, #fef3c7, #fff7ed)",
-                      color: "#d97706",
+                      borderRadius: museRadius.card,
+                      background: museColors.accentSoft,
+                      color: museColors.accent,
                     }}
                   >
                     <BellRing size={18} />
@@ -168,15 +169,15 @@ const FinanceDashboardActivityTab = ({ recentTransactions, priorities }) => {
                       variant='borderless'
                       style={{
                         width: "100%",
-                        borderRadius: 20,
-                        background: "#f8fafc",
-                        boxShadow: "inset 0 0 0 1px rgba(148,163,184,0.12)",
+                        borderRadius: museRadius.card,
+                        background: museColors.bgLayout,
+                        boxShadow: `inset 0 0 0 1px ${museColors.divider}`,
                       }}
                     >
                       <Flex justify='space-between' align='start' gap={16}>
                         <div>
                           <Text strong>{item.title}</Text>
-                          <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
+                          <div style={{ marginTop: 6, fontSize: 12, color: museColors.muted }}>
                             {item.subject}
                           </div>
                           <div
@@ -184,12 +185,12 @@ const FinanceDashboardActivityTab = ({ recentTransactions, priorities }) => {
                               marginTop: 8,
                               fontSize: 22,
                               fontWeight: 700,
-                              color: "#0f172a",
+                              color: museColors.text,
                             }}
                           >
                             {currency(item.amount)}
                           </div>
-                          <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
+                          <div style={{ marginTop: 6, fontSize: 12, color: museColors.muted }}>
                             {item.note}
                           </div>
                         </div>

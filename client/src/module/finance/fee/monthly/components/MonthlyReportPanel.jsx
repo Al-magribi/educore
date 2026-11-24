@@ -34,34 +34,35 @@ import {
   statusLabelMap,
 } from "../constants";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
 const reportCardMeta = {
   target: {
     icon: <Target size={18} />,
-    bg: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-    color: "#2563eb",
+    bg: museColors.primarySoft,
+    color: museColors.primary,
   },
   realization: {
     icon: <CircleDollarSign size={18} />,
-    bg: "linear-gradient(135deg, #dcfce7, #ecfdf5)",
-    color: "#15803d",
+    bg: museColors.bgSoft,
+    color: museColors.success,
   },
   achievement: {
     icon: <BarChart3 size={18} />,
-    bg: "linear-gradient(135deg, #ede9fe, #f5f3ff)",
-    color: "#7c3aed",
+    bg: museColors.primarySoft,
+    color: museColors.purple,
   },
   critical: {
     icon: <AlertTriangle size={18} />,
-    bg: "linear-gradient(135deg, #fef3c7, #fff7ed)",
-    color: "#d97706",
+    bg: museColors.accentSoft,
+    color: museColors.accent,
   },
   scholarship: {
     icon: <Gift size={18} />,
-    bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
-    color: "#1d4ed8",
+    bg: museColors.primarySoft,
+    color: museColors.primary,
   },
 };
 
@@ -591,14 +592,14 @@ const MonthlyReportPanel = ({
         <Card
           variant='borderless'
           style={{
-            borderRadius: 16,
-            border: "1px solid rgba(148,163,184,0.14)",
-            background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+            borderRadius: museRadius.card,
+            border: `1px solid ${museColors.divider}`,
+            background: "#ffffff",
           }}
           styles={{ body: { padding: isMobile ? "10px 12px" : "12px 16px" } }}
         >
           <Space align='start' size={10} wrap>
-            <Filter size={16} color='#64748b' style={{ marginTop: 3 }} />
+            <Filter size={16} color={museColors.muted} style={{ marginTop: 3 }} />
             <div style={{ minWidth: 0 }}>
               <Text type='secondary' style={{ display: "block", marginBottom: 6 }}>
                 Laporan mengikuti filter aktif
@@ -632,8 +633,8 @@ const MonthlyReportPanel = ({
               <Card
                 style={{
                   ...cardStyle,
-                  borderRadius: isMobile ? 18 : 24,
-                  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                  borderRadius: museRadius.card,
+                  background: "#ffffff",
                 }}
                 styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
@@ -644,7 +645,7 @@ const MonthlyReportPanel = ({
                       height: isMobile ? 40 : 44,
                       display: "grid",
                       placeItems: "center",
-                      borderRadius: 16,
+                      borderRadius: museRadius.card,
                       background: meta.bg,
                       color: meta.color,
                       flexShrink: 0,
@@ -660,7 +661,7 @@ const MonthlyReportPanel = ({
                       <Tooltip title={item.note}>
                         <Info
                           size={14}
-                          color='#94a3b8'
+                          color={museColors.muted}
                           style={{ cursor: "help", flexShrink: 0 }}
                         />
                       </Tooltip>
@@ -670,7 +671,7 @@ const MonthlyReportPanel = ({
                         marginTop: 4,
                         fontSize: isMobile ? 18 : 26,
                         fontWeight: 700,
-                        color: "#0f172a",
+                        color: museColors.text,
                         lineHeight: 1.2,
                         wordBreak: "break-word",
                       }}
@@ -689,7 +690,7 @@ const MonthlyReportPanel = ({
         <Card
           style={{
             ...cardStyle,
-            borderRadius: isMobile ? 18 : 24,
+            borderRadius: museRadius.card,
             overflow: "hidden",
           }}
           styles={{ body: { padding: isMobile ? 12 : 24 } }}

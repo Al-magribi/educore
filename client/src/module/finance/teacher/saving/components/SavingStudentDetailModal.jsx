@@ -22,6 +22,7 @@ import {
   transactionTypeMeta,
 } from "../constants";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 
@@ -32,9 +33,9 @@ const typeFilterOptions = [
 ];
 
 const summaryBoxStyle = {
-  borderRadius: 14,
-  border: "1px solid #e2e8f0",
-  background: "#f8fafc",
+  borderRadius: museRadius.card,
+  border: `1px solid ${museColors.divider}`,
+  background: museColors.bgLayout,
   padding: "10px 14px",
 };
 
@@ -138,7 +139,7 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
           strong
           style={{
             color:
-              record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
+              record.transaction_type === "withdrawal" ? museColors.accent : museColors.success,
           }}
         >
           {record.transaction_type === "withdrawal" ? "- " : "+ "}
@@ -190,7 +191,7 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
             strong
             style={{
               color:
-                record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
+                record.transaction_type === "withdrawal" ? museColors.accent : museColors.success,
             }}
           >
             {record.transaction_type === "withdrawal" ? "- " : "+ "}
@@ -284,7 +285,7 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
                 style={{
                   fontWeight: 700,
                   marginTop: 2,
-                  color: "#059669",
+                  color: museColors.success,
                   wordBreak: "break-word",
                 }}
               >
@@ -299,7 +300,7 @@ const SavingStudentDetailModal = ({ open, student, onClose }) => {
                 style={{
                   fontWeight: 700,
                   marginTop: 2,
-                  color: "#d97706",
+                  color: museColors.accent,
                   wordBreak: "break-word",
                 }}
               >

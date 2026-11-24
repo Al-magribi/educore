@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddContributionTransactionMutation,
   useAssignContributionOfficerMutation,
@@ -187,7 +187,7 @@ const Contribution = () => {
   };
 
   if (isBootstrapping) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   const officerCandidates = selectableStudents.filter(

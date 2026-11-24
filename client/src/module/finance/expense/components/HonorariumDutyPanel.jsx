@@ -19,7 +19,7 @@ import {
 import { motion } from "framer-motion";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddHonorRateMutation,
   useDeleteHonorRateMutation,
@@ -28,6 +28,7 @@ import {
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle, currencyFormatter, rupiahInputProps } from "../constants";
 
+import { museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -197,7 +198,7 @@ const HonorariumDutyPanel = ({
   }
 
   if (listQuery.isLoading) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   return (
@@ -230,7 +231,7 @@ const HonorariumDutyPanel = ({
               type='primary'
               icon={<Plus size={16} />}
               onClick={openCreate}
-              style={{ borderRadius: 12 }}
+              style={{ borderRadius: museRadius.item }}
             >
               Tambah Tugas
             </Button>

@@ -1,6 +1,7 @@
 import { Card, Form, Input, Modal, Select, Space, Typography } from "antd";
 import { motion } from "framer-motion";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
@@ -26,7 +27,7 @@ const ContributionOfficerModal = ({
     styles={{
       body: {
         padding: 16,
-        background: "#f8fafc",
+        background: museColors.bgLayout,
       },
     }}
     modalRender={(node) => (
@@ -34,7 +35,7 @@ const ContributionOfficerModal = ({
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.22, ease: "easeOut" }}
-        style={{ borderRadius: 24, overflow: "hidden" }}
+        style={{ borderRadius: museRadius.card, overflow: "hidden" }}
       >
         {node}
       </MotionDiv>
@@ -44,15 +45,15 @@ const ContributionOfficerModal = ({
       <Card
         variant="borderless"
         style={{
-          borderRadius: 20,
+          borderRadius: museRadius.card,
           background:
-            "linear-gradient(135deg, #0f172a, #1d4ed8 58%, #0f766e)",
-          boxShadow: "0 20px 50px rgba(15,23,42,0.16)",
+            museColors.primary,
+          boxShadow: museShadow.card,
         }}
         styles={{ body: { padding: 20 } }}
       >
         <Space orientation="vertical" size={10} style={{ width: "100%" }}>
-          <Title level={4} style={{ margin: 0, color: "#f8fafc" }}>
+          <Title level={4} style={{ margin: 0, color: museColors.bgLayout }}>
             Tentukan Petugas Kas Kelas
           </Title>
           <Text style={{ color: "rgba(255,255,255,0.86)" }}>
@@ -64,8 +65,8 @@ const ContributionOfficerModal = ({
       <Card
         variant="borderless"
         style={{
-          borderRadius: 20,
-          border: "1px solid rgba(148,163,184,0.14)",
+          borderRadius: museRadius.card,
+          border: `1px solid ${museColors.divider}`,
         }}
         styles={{ body: { padding: 18 } }}
       >

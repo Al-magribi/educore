@@ -23,14 +23,15 @@ import {
   useSaveFinanceTendikAssignmentMutation,
 } from "../../../service/finance/ApiFinanceStaff";
 
+import { museColors, museRadius, museShadow } from "../../../config/theme";
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const cardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  border: "none",
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 export const hasFinanceStaffDesk = true;
@@ -204,9 +205,9 @@ const FinanceStaffSlot = () => {
             allowClear
             value={searchText}
             placeholder="Cari nama atau NIP..."
-            prefix={<Search size={16} style={{ color: "#64748b" }} />}
+            prefix={<Search size={16} style={{ color: museColors.muted }} />}
             onChange={(event) => setSearchText(event.target.value)}
-            style={{ width: isMobile ? "100%" : 280, borderRadius: 14 }}
+            style={{ width: isMobile ? "100%" : 280, borderRadius: museRadius.card }}
           />
         </Flex>
 
@@ -225,7 +226,7 @@ const FinanceStaffSlot = () => {
               <List.Item
                 style={{ padding: 0, marginBottom: 10, borderBlockEnd: "none" }}
               >
-                <Card size="small" style={{ width: "100%", borderRadius: 16 }}>
+                <Card size="small" style={{ width: "100%", borderRadius: museRadius.card }}>
                   <Flex vertical gap={8}>
                     <Text strong>{person.full_name}</Text>
                     <Text type="secondary">

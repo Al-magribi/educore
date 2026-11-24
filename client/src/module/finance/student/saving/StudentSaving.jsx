@@ -1,6 +1,6 @@
 import { Grid, Result, Space, Tabs, Typography } from "antd";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import { useGetMySavingOverviewQuery } from "../../../../service/finance/ApiSaving";
 import StudentSavingHeader from "./components/StudentSavingHeader";
 import StudentSavingHistoryTab from "./components/StudentSavingHistoryTab";
@@ -26,7 +26,7 @@ const StudentSaving = () => {
   const transactions = data.transactions || [];
 
   if (isLoading && !response) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   if (isError) {
@@ -51,7 +51,6 @@ const StudentSaving = () => {
 
         <Tabs
           size={screens.xs ? "small" : "middle"}
-          tabBarGutter={screens.xs ? 16 : 24}
           items={[
             {
               key: "overview",

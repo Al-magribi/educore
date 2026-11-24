@@ -32,6 +32,7 @@ import {
   statusMetaMap,
 } from "./parentTransactionShared";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
@@ -66,10 +67,10 @@ const itemVariants = {
 };
 
 const summaryCardStyle = {
-  borderRadius: 22,
+  borderRadius: museRadius.card,
   height: "100%",
-  border: "1px solid rgba(148,163,184,0.14)",
-  boxShadow: "0 18px 34px rgba(15,23,42,0.06)",
+  border: `1px solid ${museColors.divider}`,
+  boxShadow: museShadow.card,
 };
 
 const escapeHtml = (value) =>
@@ -403,8 +404,8 @@ const ParentInvoiceModal = ({
       value: currencyFormatter.format(Number(invoice?.total_due || 0)),
       note: "Akumulasi nominal pada invoice ini.",
       icon: <WalletCards size={18} />,
-      background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-      color: "#1d4ed8",
+      background: museColors.primarySoft,
+      color: museColors.primary,
     },
     {
       key: "total_paid",
@@ -412,8 +413,8 @@ const ParentInvoiceModal = ({
       value: currencyFormatter.format(Number(invoice?.total_paid || 0)),
       note: "Nominal yang sudah dialokasikan.",
       icon: <BadgeCheck size={18} />,
-      background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-      color: "#15803d",
+      background: museColors.bgSoft,
+      color: museColors.success,
     },
     {
       key: "payments",
@@ -421,8 +422,8 @@ const ParentInvoiceModal = ({
       value: payments.length,
       note: "Transaksi yang tercatat pada invoice.",
       icon: <CreditCard size={18} />,
-      background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
-      color: "#c2410c",
+      background: museColors.accentSoft,
+      color: museColors.accent,
     },
   ];
 
@@ -440,7 +441,7 @@ const ParentInvoiceModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: 30,
+          borderRadius: museRadius.card,
         },
       }}
       modalRender={(node) => (
@@ -466,11 +467,11 @@ const ParentInvoiceModal = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: 30,
+                borderRadius: museRadius.card,
                 overflow: "hidden",
                 background:
-                  "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0f766e 100%)",
-                boxShadow: "0 24px 56px rgba(15,23,42,0.18)",
+                  museColors.primary,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: isMobile ? 20 : 28 } }}
             >
@@ -512,7 +513,7 @@ const ParentInvoiceModal = ({
                         borderRadius: 999,
                         background: "rgba(255,255,255,0.12)",
                         border: "1px solid rgba(255,255,255,0.16)",
-                        color: "#dbeafe",
+                        color: museColors.primarySoft,
                         fontWeight: 600,
                       }}
                     >
@@ -578,7 +579,7 @@ const ParentInvoiceModal = ({
                     style={{
                       width: 44,
                       height: 44,
-                      borderRadius: 16,
+                      borderRadius: museRadius.card,
                       display: "grid",
                       placeItems: "center",
                       marginBottom: 16,
@@ -607,9 +608,9 @@ const ParentInvoiceModal = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
-                border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: isMobile ? 16 : 20 } }}
             >
@@ -651,9 +652,9 @@ const ParentInvoiceModal = ({
               title='Rincian Item'
               variant='borderless'
               style={{
-                borderRadius: 24,
-                border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: 0 } }}
             >
@@ -725,9 +726,9 @@ const ParentInvoiceModal = ({
               title='Riwayat Pembayaran'
               variant='borderless'
               style={{
-                borderRadius: 24,
-                border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: 0 } }}
             >
@@ -830,9 +831,9 @@ const ParentInvoiceModal = ({
                 <Card
                   variant='borderless'
                   style={{
-                    borderRadius: 24,
-                    border: "1px solid rgba(148,163,184,0.14)",
-                    boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                    borderRadius: museRadius.card,
+                    border: `1px solid ${museColors.divider}`,
+                    boxShadow: museShadow.card,
                     height: "100%",
                   }}
                 >
@@ -842,12 +843,12 @@ const ParentInvoiceModal = ({
                         style={{
                           width: 38,
                           height: 38,
-                          borderRadius: 14,
+                          borderRadius: museRadius.card,
                           display: "grid",
                           placeItems: "center",
                           background:
-                            "linear-gradient(135deg, #dbeafe, #dcfce7)",
-                          color: "#0f766e",
+                            museColors.primarySoft,
+                          color: museColors.success,
                         }}
                       >
                         <FileSignature size={18} />
@@ -865,7 +866,7 @@ const ParentInvoiceModal = ({
                       <Alert
                         type='info'
                         showIcon
-                        message='Profil petugas invoice belum diisi'
+                        title='Profil petugas invoice belum diisi'
                         description='Nama atau tanda tangan petugas keuangan belum tersedia pada pengaturan keuangan satuan.'
                       />
                     ) : (
@@ -907,12 +908,12 @@ const ParentInvoiceModal = ({
                   <Card
                     variant='borderless'
                     style={{
-                      borderRadius: 24,
-                      border: "1px solid rgba(148,163,184,0.14)",
-                      boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                      borderRadius: museRadius.card,
+                      border: `1px solid ${museColors.divider}`,
+                      boxShadow: museShadow.card,
                       height: "100%",
                       background:
-                        "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                        "#ffffff",
                     }}
                   >
                     <Space

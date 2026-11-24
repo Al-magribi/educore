@@ -23,6 +23,7 @@ import {
   transactionTypeMeta,
 } from "../constants";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -74,7 +75,7 @@ const SavingTransactionModal = ({
         label: (
           <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
             <Space orientation='vertical' size={1} style={{ minWidth: 0 }}>
-              <Text strong style={{ color: "#0f172a" }}>
+              <Text strong style={{ color: museColors.text }}>
                 {item.displayName}
               </Text>
               <Text type='secondary' style={{ fontSize: 12 }}>
@@ -123,12 +124,12 @@ const SavingTransactionModal = ({
       styles={{
         body: {
           padding: isMobile ? 12 : 16,
-          background: "#f8fafc",
+          background: museColors.bgLayout,
           maxHeight: isMobile ? "calc(100vh - 160px)" : undefined,
           overflowY: isMobile ? "auto" : undefined,
         },
         content: {
-          borderRadius: isMobile ? 18 : 24,
+          borderRadius: museRadius.card,
         },
       }}
       modalRender={(node) => (
@@ -136,7 +137,7 @@ const SavingTransactionModal = ({
           initial={{ opacity: 0, y: 16, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
-          style={{ borderRadius: isMobile ? 18 : 24, overflow: "hidden" }}
+          style={{ borderRadius: museRadius.card, overflow: "hidden" }}
         >
           {node}
         </MotionDiv>
@@ -146,19 +147,19 @@ const SavingTransactionModal = ({
         <Card
           variant='borderless'
           style={{
-            borderRadius: isMobile ? 16 : 20,
+            borderRadius: museRadius.card,
             background:
               watchedType === "withdrawal"
-                ? "linear-gradient(135deg, #7f1d1d, #b91c1c 55%, #dc2626)"
-                : "linear-gradient(135deg, #064e3b, #047857 55%, #10b981)",
-            boxShadow: "0 20px 50px rgba(15,23,42,0.16)",
+                ? museColors.danger
+                : museColors.success,
+            boxShadow: museShadow.card,
           }}
           styles={{ body: { padding: isMobile ? 14 : 20 } }}
         >
           <Space orientation='vertical' size={10} style={{ width: "100%" }}>
             <Title
               level={isMobile ? 5 : 4}
-              style={{ margin: 0, color: "#f8fafc", lineHeight: 1.3 }}
+              style={{ margin: 0, color: museColors.bgLayout, lineHeight: 1.3 }}
             >
               {editingTransaction
                 ? "Edit Transaksi Tabungan"
@@ -180,8 +181,8 @@ const SavingTransactionModal = ({
         <Card
           variant='borderless'
           style={{
-            borderRadius: isMobile ? 16 : 20,
-            border: "1px solid rgba(148,163,184,0.14)",
+            borderRadius: museRadius.card,
+            border: `1px solid ${museColors.divider}`,
           }}
           styles={{ body: { padding: isMobile ? 14 : 18 } }}
         >
@@ -206,8 +207,8 @@ const SavingTransactionModal = ({
             <Alert
               showIcon
               type={watchedType === "withdrawal" ? "warning" : "success"}
-              style={{ marginBottom: 16, borderRadius: 14 }}
-              message={
+              style={{ marginBottom: 16, borderRadius: museRadius.card }}
+              title={
                 watchedType === "withdrawal"
                   ? "Pastikan nominal penarikan tidak melebihi saldo siswa."
                   : "Setoran akan langsung menambah saldo tabungan siswa."
@@ -234,7 +235,7 @@ const SavingTransactionModal = ({
                 filterOption={false}
                 searchValue={studentSearchValue}
                 optionLabelProp='plainLabel'
-                suffixIcon={<Search size={16} color='#94a3b8' />}
+                suffixIcon={<Search size={16} color={museColors.muted} />}
                 notFoundContent={
                   !studentSearchValue.trim()
                     ? "Mulai ketik nama siswa atau NIS"
@@ -285,9 +286,9 @@ const SavingTransactionModal = ({
                 variant='borderless'
                 style={{
                   marginBottom: 16,
-                  borderRadius: isMobile ? 16 : 20,
+                  borderRadius: museRadius.card,
                   background:
-                    "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
+                    museColors.navy,
                 }}
                 styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
@@ -300,7 +301,7 @@ const SavingTransactionModal = ({
                   <Space size={14} align='start'>
                     <Avatar
                       size={isMobile ? 44 : 52}
-                      style={{ background: "#2563eb", fontWeight: 700 }}
+                      style={{ background: museColors.primary, fontWeight: 700 }}
                     >
                       {(activeStudent.displayName || "?")
                         .slice(0, 1)

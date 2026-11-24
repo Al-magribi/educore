@@ -5,7 +5,7 @@ import { Alert, Button, Card, Flex, Form, Grid, Input, Select, Space, Tabs, Typo
 import { motion } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 
-import { LoadApp } from '../../../components';
+import FinanceSkeleton from '../shared/FinanceSkeleton';
 import {
   useAddScholarshipBenefitMutation,
   useAddScholarshipMutation,
@@ -31,6 +31,7 @@ import ScholarshipListTable from './components/ScholarshipListTable';
 import ScholarshipStudentsPanel from './components/ScholarshipStudentsPanel';
 import ScholarshipSummaryCards from './components/ScholarshipSummaryCards';
 
+import { museRadius } from "../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -381,7 +382,7 @@ const Scholarship = () => {
   };
 
   if (optionsQuery.isLoading && !optionsQuery.data) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   const tabItems = [
@@ -509,13 +510,13 @@ const Scholarship = () => {
             <Alert
               type="error"
               showIcon
-              message="Gagal memuat data beasiswa"
+              title="Gagal memuat data beasiswa"
               description={listError?.data?.message || listError?.error || 'Terjadi kesalahan'}
             />
           ) : null}
 
           {selectedScholarship ? (
-            <Card size="small" style={{ borderRadius: 16 }}>
+            <Card size="small" style={{ borderRadius: museRadius.card }}>
               <Text type="secondary">Beasiswa terpilih: </Text>
               <Text strong>{selectedScholarship.name}</Text>
             </Card>

@@ -45,13 +45,14 @@ import ReportBudgetTab from "./ReportBudgetTab";
 import ReportCashflowTab from "./ReportCashflowTab";
 import ReportClosingsPanel from "./ReportClosingsPanel";
 
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
 
 const percentColor = (value) => {
-  if (value >= 90) return "#16a34a";
-  if (value >= 75) return "#2563eb";
-  if (value >= 50) return "#d97706";
-  return "#dc2626";
+  if (value >= 90) return museColors.success;
+  if (value >= 75) return museColors.primary;
+  if (value >= 50) return museColors.accent;
+  return museColors.danger;
 };
 
 const paymentStatusColor = (status) => {
@@ -126,7 +127,7 @@ const UnpaidTab = ({ rows = [] }) => {
       render: (value, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{value}</div>
-          <div style={{ color: "#64748b", fontSize: 12 }}>
+          <div style={{ color: museColors.muted, fontSize: 12 }}>
             {row.nis || "-"} · {row.class_name || "-"}
           </div>
         </div>
@@ -150,7 +151,7 @@ const UnpaidTab = ({ rows = [] }) => {
         <div>
           <div>{row.type_name}</div>
           {row.category === "spp" ? (
-            <div style={{ color: "#64748b", fontSize: 12 }}>
+            <div style={{ color: museColors.muted, fontSize: 12 }}>
               {row.billing_period_label}
             </div>
           ) : null}
@@ -177,7 +178,7 @@ const UnpaidTab = ({ rows = [] }) => {
       key: "remaining_amount",
       align: "right",
       render: (value) => (
-        <span style={{ fontWeight: 600, color: "#b45309" }}>
+        <span style={{ fontWeight: 600, color: museColors.accent }}>
           {currencyFormatter.format(value || 0)}
         </span>
       ),
@@ -378,7 +379,7 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
       render: (value, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{value}</div>
-          <div style={{ color: "#64748b", fontSize: 12 }}>
+          <div style={{ color: museColors.muted, fontSize: 12 }}>
             {row.nis || "-"} · {row.class_name || row.grade_name || "-"}
           </div>
         </div>
@@ -392,7 +393,7 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
         <div>
           <div>{value || "-"}</div>
           {row.payment_source_label ? (
-            <div style={{ color: "#64748b", fontSize: 12 }}>
+            <div style={{ color: museColors.muted, fontSize: 12 }}>
               {row.payment_source_label}
             </div>
           ) : null}
@@ -474,7 +475,7 @@ const DailyRevenueTab = ({ homebaseId, enabled = true }) => {
           title='Total pendapatan'
           value={confirmedAmount}
           formatter={(value) => currencyFormatter.format(Number(value || 0))}
-          styles={{ content: { fontSize: 18, color: "#15803d" } }}
+          styles={{ content: { fontSize: 18, color: museColors.success } }}
         />
       </Flex>
 
@@ -644,7 +645,7 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
         <div>
           <div style={{ fontWeight: 600 }}>{value}</div>
           {row.description ? (
-            <div style={{ color: "#64748b", fontSize: 12 }}>
+            <div style={{ color: museColors.muted, fontSize: 12 }}>
               {row.description}
             </div>
           ) : null}
@@ -672,7 +673,7 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
       align: "right",
       width: 160,
       render: (value) => (
-        <span style={{ fontWeight: 600, color: "#dc2626" }}>
+        <span style={{ fontWeight: 600, color: museColors.danger }}>
           {currencyFormatter.format(value || 0)}
         </span>
       ),
@@ -737,7 +738,7 @@ const DailyExpenseTab = ({ homebaseId, enabled = true }) => {
           title='Total pengeluaran'
           value={totalAmount}
           formatter={(value) => currencyFormatter.format(Number(value || 0))}
-          styles={{ content: { fontSize: 18, color: "#dc2626" } }}
+          styles={{ content: { fontSize: 18, color: museColors.danger } }}
         />
       </Flex>
 
@@ -878,7 +879,7 @@ const OtherByTypeTab = ({ rows = [] }) => {
             </div>
           </Tooltip>
           <Tooltip title='Sisa tagihan yang belum tertagih'>
-            <div style={{ color: "#64748b", fontSize: 12, cursor: "help" }}>
+            <div style={{ color: museColors.muted, fontSize: 12, cursor: "help" }}>
               Sisa {currencyFormatter.format(row.remaining || 0)}
             </div>
           </Tooltip>
@@ -943,7 +944,7 @@ const OtherByTypeTab = ({ rows = [] }) => {
       render: (value, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{value}</div>
-          <div style={{ color: "#64748b", fontSize: 12 }}>
+          <div style={{ color: museColors.muted, fontSize: 12 }}>
             {row.nis || "-"} · {row.class_name || "-"}
           </div>
         </div>
@@ -969,7 +970,7 @@ const OtherByTypeTab = ({ rows = [] }) => {
       key: "remaining_amount",
       align: "right",
       render: (value) => (
-        <span style={{ fontWeight: 600, color: "#b45309" }}>
+        <span style={{ fontWeight: 600, color: museColors.accent }}>
           {currencyFormatter.format(value || 0)}
         </span>
       ),
@@ -1075,7 +1076,7 @@ const ReportBreakdown = ({
       render: (value, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{value}</div>
-          <div style={{ color: "#64748b", fontSize: 12 }}>{row.grade_name}</div>
+          <div style={{ color: museColors.muted, fontSize: 12 }}>{row.grade_name}</div>
         </div>
       ),
     },

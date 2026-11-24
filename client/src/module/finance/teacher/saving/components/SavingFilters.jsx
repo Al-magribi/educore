@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 
 import { cardStyle } from "../constants";
 
+import { museRadius } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -30,7 +31,7 @@ const SavingFilters = ({
         variant='borderless'
         style={{
           ...cardStyle,
-          borderRadius: isMobile ? 18 : undefined,
+          borderRadius: museRadius.card,
         }}
         styles={{ body: { padding: isMobile ? 14 : 18 } }}
       >

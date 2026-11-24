@@ -19,6 +19,7 @@ import {
   transactionTypeOptions,
 } from "../constants";
 
+import { museColors } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -78,7 +79,7 @@ const ContributionTransactionsTab = ({
       render: (value, record) => (
         <Text
           style={{
-            color: record.transaction_type === "expense" ? "#dc2626" : "#15803d",
+            color: record.transaction_type === "expense" ? museColors.danger : museColors.success,
             fontWeight: 600,
           }}
         >

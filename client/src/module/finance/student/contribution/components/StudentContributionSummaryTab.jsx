@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 
 import { cardStyle, currencyFormatter, formatDateTime } from "../constants";
 
+import { museColors } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -35,7 +36,7 @@ const StudentContributionSummaryTab = ({
       key: "amount",
       align: "right",
       render: (value) => (
-        <Text strong style={{ color: "#15803d" }}>
+        <Text strong style={{ color: museColors.success }}>
           +{currencyFormatter.format(Number(value || 0))}
         </Text>
       ),
@@ -60,7 +61,7 @@ const StudentContributionSummaryTab = ({
       key: "amount",
       align: "right",
       render: (value) => (
-        <Text strong style={{ color: "#dc2626" }}>
+        <Text strong style={{ color: museColors.danger }}>
           -{currencyFormatter.format(Number(value || 0))}
         </Text>
       ),

@@ -2,9 +2,10 @@ import { Flex, Table, Typography } from "antd";
 
 import { currencyFormatter } from "../constants";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 
-const signColor = (value) => (Number(value || 0) >= 0 ? "#15803d" : "#dc2626");
+const signColor = (value) => (Number(value || 0) >= 0 ? museColors.success : museColors.danger);
 
 const CashflowBars = ({ rows = [] }) => {
   const maxValue = Math.max(
@@ -24,9 +25,9 @@ const CashflowBars = ({ rows = [] }) => {
         gap: 10,
         marginBottom: 16,
         padding: "12px 14px",
-        borderRadius: 14,
-        border: "1px solid rgba(148,163,184,0.18)",
-        background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)",
+        borderRadius: museRadius.card,
+        border: `1px solid ${museColors.divider}`,
+        background: "#ffffff",
       }}
     >
       {rows.map((row) => {
@@ -45,7 +46,7 @@ const CashflowBars = ({ rows = [] }) => {
                 style={{
                   height: 8,
                   borderRadius: 999,
-                  background: "#e2e8f0",
+                  background: museColors.divider,
                   overflow: "hidden",
                 }}
               >
@@ -53,7 +54,7 @@ const CashflowBars = ({ rows = [] }) => {
                   style={{
                     width: `${inPct}%`,
                     height: "100%",
-                    background: "#16a34a",
+                    background: museColors.success,
                   }}
                 />
               </div>
@@ -61,7 +62,7 @@ const CashflowBars = ({ rows = [] }) => {
                 style={{
                   height: 8,
                   borderRadius: 999,
-                  background: "#e2e8f0",
+                  background: museColors.divider,
                   overflow: "hidden",
                 }}
               >
@@ -69,7 +70,7 @@ const CashflowBars = ({ rows = [] }) => {
                   style={{
                     width: `${outPct}%`,
                     height: "100%",
-                    background: "#dc2626",
+                    background: museColors.danger,
                   }}
                 />
               </div>
@@ -79,10 +80,10 @@ const CashflowBars = ({ rows = [] }) => {
       })}
       <Flex gap={16} style={{ marginTop: 4 }}>
         <Text type='secondary' style={{ fontSize: 12 }}>
-          <span style={{ color: "#16a34a" }}>■</span> Kas masuk
+          <span style={{ color: museColors.success }}>■</span> Kas masuk
         </Text>
         <Text type='secondary' style={{ fontSize: 12 }}>
-          <span style={{ color: "#dc2626" }}>■</span> Kas keluar
+          <span style={{ color: museColors.danger }}>■</span> Kas keluar
         </Text>
       </Flex>
     </div>
@@ -103,7 +104,7 @@ const ReportCashflowTab = ({ rows = [] }) => {
       key: "cash_in",
       align: "right",
       render: (value) => (
-        <span style={{ color: "#15803d" }}>
+        <span style={{ color: museColors.success }}>
           {currencyFormatter.format(value || 0)}
         </span>
       ),
@@ -114,7 +115,7 @@ const ReportCashflowTab = ({ rows = [] }) => {
       key: "cash_out",
       align: "right",
       render: (value) => (
-        <span style={{ color: "#dc2626" }}>
+        <span style={{ color: museColors.danger }}>
           {currencyFormatter.format(value || 0)}
         </span>
       ),
@@ -174,12 +175,12 @@ const ReportCashflowTab = ({ rows = [] }) => {
                 <span style={{ fontWeight: 700 }}>Total</span>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={1} align='right'>
-                <span style={{ fontWeight: 700, color: "#15803d" }}>
+                <span style={{ fontWeight: 700, color: museColors.success }}>
                   {currencyFormatter.format(totalIn)}
                 </span>
               </Table.Summary.Cell>
               <Table.Summary.Cell index={2} align='right'>
-                <span style={{ fontWeight: 700, color: "#dc2626" }}>
+                <span style={{ fontWeight: 700, color: museColors.danger }}>
                   {currencyFormatter.format(totalOut)}
                 </span>
               </Table.Summary.Cell>

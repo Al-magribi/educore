@@ -16,6 +16,7 @@ import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
 
 import { currencyFormatter } from "../constants";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 const DEFAULT_PAGE_SIZE = 8;
@@ -319,10 +320,10 @@ const OthersTypesTable = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 16 : 22,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-          border: "1px solid rgba(148,163,184,0.14)",
-          boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
+          borderRadius: museRadius.card,
+          background: "#ffffff",
+          border: `1px solid ${museColors.divider}`,
+          boxShadow: museShadow.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 10 : 24 } }}
@@ -336,7 +337,7 @@ const OthersTypesTable = ({
           style={{ marginBottom: 16 }}
         >
           <div style={{ minWidth: 0 }}>
-            <Text strong style={{ display: "block", color: "#0f172a" }}>
+            <Text strong style={{ display: "block", color: museColors.text }}>
               Master Jenis Biaya
             </Text>
             <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>

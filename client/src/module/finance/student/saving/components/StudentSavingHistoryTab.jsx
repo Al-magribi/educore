@@ -7,6 +7,7 @@ import {
   transactionTypeMeta,
 } from "../constants";
 
+import { museColors } from "../../../../../config/theme";
 const { Text } = Typography;
 
 const StudentSavingHistoryTab = ({ transactions }) => {
@@ -51,8 +52,8 @@ const StudentSavingHistoryTab = ({ transactions }) => {
                 style={{
                   color:
                     item.transaction_type === "withdrawal"
-                      ? "#d97706"
-                      : "#059669",
+                      ? museColors.accent
+                      : museColors.success,
                   fontSize: 16,
                 }}
               >

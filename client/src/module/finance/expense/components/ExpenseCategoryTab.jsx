@@ -21,7 +21,7 @@ import {
 } from "antd";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import {
   useAddExpenseCategoryMutation,
@@ -267,7 +267,7 @@ const ExpenseCategoryTab = () => {
   );
 
   if (optionsQuery.isLoading) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   if (!selectedHomebaseId) {
@@ -275,7 +275,7 @@ const ExpenseCategoryTab = () => {
       <Alert
         type='warning'
         showIcon
-        message='Pilih satuan pendidikan terlebih dahulu untuk mengelola kategori.'
+        title='Pilih satuan pendidikan terlebih dahulu untuk mengelola kategori.'
       />
     );
   }
@@ -285,7 +285,7 @@ const ExpenseCategoryTab = () => {
       <Alert
         type='info'
         showIcon
-        message='Kategori pengeluaran per satuan'
+        title='Kategori pengeluaran per satuan'
         description='Kategori ini dipakai pada pengeluaran harian dan menjadi pos pengeluaran di RAPBS. Hanya admin keuangan dan pusat yang dapat mengubah.'
       />
 
@@ -303,7 +303,7 @@ const ExpenseCategoryTab = () => {
         <Alert
           type='error'
           showIcon
-          message={error?.data?.message || "Gagal memuat kategori"}
+          title={error?.data?.message || "Gagal memuat kategori"}
         />
       ) : null}
 

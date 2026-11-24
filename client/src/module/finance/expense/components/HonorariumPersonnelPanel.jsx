@@ -21,7 +21,7 @@ import { motion } from "framer-motion";
 import dayjs from "dayjs";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddHonorAssignmentMutation,
   useDeleteHonorAssignmentMutation,
@@ -36,6 +36,7 @@ import {
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle, currencyFormatter } from "../constants";
 
+import { museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const { TextArea } = Input;
 const MotionDiv = motion.div;
@@ -587,7 +588,7 @@ const HonorariumPersonnelPanel = ({
     positionsQuery.isLoading ||
     peopleQuery.isLoading
   ) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   return (
@@ -681,7 +682,7 @@ const HonorariumPersonnelPanel = ({
                       icon={<Plus size={16} />}
                       onClick={() => openCreateAssignment()}
                       disabled={positions.length === 0}
-                      style={{ borderRadius: 12 }}
+                      style={{ borderRadius: museRadius.item }}
                       block={isMobile}
                     >
                       Tambah Assignment

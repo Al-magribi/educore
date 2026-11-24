@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { Building2, CreditCard, Settings2, Wallet } from "lucide-react";
 import { cardStyle } from "../../fee/others/constants";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -50,8 +51,8 @@ const PaymentMethodsCard = ({
       <Card
         style={{
           ...cardStyle,
-          borderRadius: isMobile ? 18 : undefined,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          borderRadius: museRadius.card,
+          background: "#ffffff",
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
@@ -60,10 +61,10 @@ const PaymentMethodsCard = ({
           <div
             style={{
               padding: isMobile ? 14 : 20,
-              borderRadius: isMobile ? 16 : 22,
+              borderRadius: museRadius.card,
               border: "1px solid rgba(59,130,246,0.14)",
               background:
-                "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(240,253,250,0.94))",
+                museColors.primarySoft,
             }}
           >
             <Flex justify='space-between' align='flex-start' wrap='wrap' gap={16}>
@@ -74,8 +75,8 @@ const PaymentMethodsCard = ({
                     height: isMobile ? 44 : 52,
                     display: "grid",
                     placeItems: "center",
-                    borderRadius: 18,
-                    background: "linear-gradient(135deg, #1d4ed8, #0f766e)",
+                    borderRadius: museRadius.card,
+                    background: museColors.primary,
                     color: "#fff",
                     flexShrink: 0,
                     boxShadow: "0 18px 30px rgba(29, 78, 216, 0.2)",
@@ -105,9 +106,9 @@ const PaymentMethodsCard = ({
               <div
                 style={{
                   padding: "10px 14px",
-                  borderRadius: 18,
+                  borderRadius: museRadius.card,
                   background: "#ffffff",
-                  border: "1px solid rgba(148,163,184,0.16)",
+                  border: `1px solid ${museColors.divider}`,
                   minWidth: isMobile ? "100%" : 220,
                   width: isMobile ? "100%" : undefined,
                 }}
@@ -116,7 +117,7 @@ const PaymentMethodsCard = ({
                 <Title level={5} style={{ margin: "6px 0 0" }}>
                   {(paymentMethods || []).length} kanal
                 </Title>
-                <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: museColors.muted, marginTop: 4 }}>
                   {(paymentMethods || []).filter((item) => item.is_active).length} aktif
                 </div>
               </div>
@@ -127,9 +128,9 @@ const PaymentMethodsCard = ({
             <Alert
               type='warning'
               showIcon
-              message='Metode pembayaran parent sedang tidak tersedia'
+              title='Metode pembayaran parent sedang tidak tersedia'
               description='Aktifkan Midtrans atau transfer bank agar orang tua dapat melakukan pembayaran dari portal parent.'
-              style={{ borderRadius: 16 }}
+              style={{ borderRadius: museRadius.card }}
             />
           ) : null}
 
@@ -137,9 +138,9 @@ const PaymentMethodsCard = ({
             <Alert
               type='error'
               showIcon
-              message='Transfer bank aktif tanpa rekening bank aktif'
+              title='Transfer bank aktif tanpa rekening bank aktif'
               description='Buka tab Rekening Bank dan aktifkan minimal satu rekening tujuan agar pembayaran transfer manual dapat dipakai orang tua.'
-              style={{ borderRadius: 16 }}
+              style={{ borderRadius: museRadius.card }}
             />
           ) : null}
 
@@ -161,9 +162,9 @@ const PaymentMethodsCard = ({
                   key={item.method_type}
                   size='small'
                   style={{
-                    borderRadius: 18,
-                    border: "1px solid rgba(148,163,184,0.14)",
-                    boxShadow: "0 12px 28px rgba(15,23,42,0.05)",
+                    borderRadius: museRadius.card,
+                    border: `1px solid ${museColors.divider}`,
+                    boxShadow: museShadow.card,
                     background: "#ffffff",
                     height: "100%",
                   }}
@@ -178,10 +179,10 @@ const PaymentMethodsCard = ({
                             height: 42,
                             display: "grid",
                             placeItems: "center",
-                            borderRadius: 14,
+                            borderRadius: museRadius.card,
                             background:
-                              "linear-gradient(135deg, #dbeafe, #dcfce7)",
-                            color: "#0f766e",
+                              museColors.primarySoft,
+                            color: museColors.success,
                             flexShrink: 0,
                           }}
                         >
@@ -194,7 +195,7 @@ const PaymentMethodsCard = ({
                           <div
                             style={{
                               fontSize: 12,
-                              color: "#64748b",
+                              color: museColors.muted,
                               marginTop: 2,
                             }}
                           >
@@ -216,7 +217,7 @@ const PaymentMethodsCard = ({
 
                     {isManualBank ? (
                       <>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                        <div style={{ fontSize: 12, color: museColors.muted }}>
                           {activeBankAccounts.length} rekening aktif tersedia
                         </div>
                         <Flex
@@ -227,7 +228,7 @@ const PaymentMethodsCard = ({
                         >
                           <div style={{ minWidth: 0 }}>
                             <Text strong>Terima transfer bank</Text>
-                            <div style={{ fontSize: 12, color: "#64748b" }}>
+                            <div style={{ fontSize: 12, color: museColors.muted }}>
                               Orang tua upload bukti transfer, lalu admin konfirmasi
                             </div>
                           </div>
@@ -251,7 +252,7 @@ const PaymentMethodsCard = ({
 
                     {isMidtrans ? (
                       <>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                        <div style={{ fontSize: 12, color: museColors.muted }}>
                           {item.is_configured
                             ? "Kredensial Midtrans sudah tersedia"
                             : "Kredensial Midtrans belum lengkap"}
@@ -264,7 +265,7 @@ const PaymentMethodsCard = ({
                         >
                           <div style={{ minWidth: 0 }}>
                             <Text strong>Aktifkan Midtrans</Text>
-                            <div style={{ fontSize: 12, color: "#64748b" }}>
+                            <div style={{ fontSize: 12, color: museColors.muted }}>
                               Parent diarahkan ke checkout Midtrans jika metode ini aktif
                             </div>
                           </div>
@@ -284,9 +285,9 @@ const PaymentMethodsCard = ({
                           <Alert
                             type='warning'
                             showIcon
-                            message='Midtrans belum siap diaktifkan'
+                            title='Midtrans belum siap diaktifkan'
                             description='Lengkapi merchant ID, client key, server key, dan aktifkan Snap di tab Midtrans.'
-                            style={{ borderRadius: 14 }}
+                            style={{ borderRadius: museRadius.card }}
                           />
                         ) : null}
                         <Button type='primary' ghost onClick={onOpenMidtransTab} block>
@@ -299,9 +300,9 @@ const PaymentMethodsCard = ({
                       <Alert
                         type='info'
                         showIcon
-                        message='Metode internal admin'
+                        title='Metode internal admin'
                         description='Metode ini dipakai untuk input pembayaran langsung oleh admin keuangan dan tidak muncul di portal parent.'
-                        style={{ borderRadius: 14 }}
+                        style={{ borderRadius: museRadius.card }}
                       />
                     ) : null}
                   </Flex>

@@ -3,7 +3,7 @@ import { useFinanceScope } from '../../center/finance/FinanceScopeContext';
 import { Alert, Card, Flex, Form, Grid, Button, Space, Typography, message } from 'antd';
 import { motion } from 'framer-motion';
 import { Banknote, Building2, CreditCard, FileBadge2 } from 'lucide-react';
-import { LoadApp } from '../../../components';
+import FinanceSkeleton from '../shared/FinanceSkeleton';
 import {
   useAddBankAccountMutation,
   useDeleteBankAccountMutation,
@@ -21,6 +21,7 @@ import MidtransTab from './components/MidtransTab';
 import PaymentMethodsCard from './components/PaymentMethodsCard';
 import BankAccountsTab, { createBankColumns } from './components/BankAccountsTab';
 
+import { museColors, museRadius, museShadow } from "../../../config/theme";
 const MotionDiv = motion.div;
 
 const containerVariants = {
@@ -334,36 +335,14 @@ const Setting = () => {
   const isSettingsBusy = isLoadingSettings || isFetchingSettings;
 
   if (isLoadingOptions && !optionsResponse) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
-  const createTabLabel = (label, shortLabel, icon, caption) => (
-    <Flex align="center" gap={isMobile ? 8 : 10}>
-      <span
-        style={{
-          width: isMobile ? 28 : 34,
-          height: isMobile ? 28 : 34,
-          display: 'grid',
-          placeItems: 'center',
-          borderRadius: isMobile ? 10 : 12,
-          background: 'linear-gradient(135deg, #dbeafe, #dcfce7)',
-          color: '#0369a1',
-          border: '1px solid rgba(148,163,184,0.14)',
-          flexShrink: 0,
-        }}>
-        {icon}
-      </span>
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontWeight: 600,
-            lineHeight: 1.2,
-            fontSize: isMobile ? 13 : 14,
-          }}>
-          {isMobile ? shortLabel : label}
-        </div>
-        {!isMobile ? <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.2 }}>{caption}</div> : null}
-      </div>
+  // Label tab: ikon 14 + teks satu baris, tanpa caption (CLAUDE.md §4 "Tab").
+  const createTabLabel = (label, shortLabel, icon) => (
+    <Flex align="center" gap={6} style={{ whiteSpace: 'nowrap' }}>
+      {icon}
+      <span>{isMobile ? shortLabel : label}</span>
     </Flex>
   );
 
@@ -373,7 +352,7 @@ const Setting = () => {
       label: createTabLabel(
         'Petugas Invoice',
         'Petugas',
-        <FileBadge2 size={isMobile ? 14 : 16} />,
+        <FileBadge2 size={14} />,
         'Profil penandatangan',
       ),
       children: (
@@ -389,7 +368,7 @@ const Setting = () => {
     },
     {
       key: 'midtrans',
-      label: createTabLabel('Midtrans', 'Midtrans', <CreditCard size={isMobile ? 14 : 16} />, 'Gateway pembayaran'),
+      label: createTabLabel('Midtrans', 'Midtrans', <CreditCard size={14} />, 'Gateway pembayaran'),
       children: (
         <MidtransTab
           form={midtransForm}
@@ -405,7 +384,7 @@ const Setting = () => {
       label: createTabLabel(
         'Rekening Bank',
         'Rekening',
-        <Banknote size={isMobile ? 14 : 16} />,
+        <Banknote size={14} />,
         'Tujuan transfer manual',
       ),
       children: (
@@ -430,7 +409,7 @@ const Setting = () => {
       label: createTabLabel(
         'Metode Pembayaran',
         'Metode',
-        <Building2 size={isMobile ? 14 : 16} />,
+        <Building2 size={14} />,
         'Aktif atau nonaktifkan kanal',
       ),
       children: (
@@ -465,9 +444,9 @@ const Setting = () => {
             <Alert
               type="info"
               showIcon
-              message="Satuan belum dipilih"
+              title="Satuan belum dipilih"
               description="Pilih satuan terlebih dahulu untuk mengatur Midtrans, rekening bank, metode pembayaran, dan profil invoice."
-              style={{ borderRadius: 18 }}
+              style={{ borderRadius: museRadius.card }}
             />
           </MotionDiv>
         ) : null}
@@ -479,10 +458,10 @@ const Setting = () => {
                 variant="borderless"
                 style={{
                   width: '100%',
-                  borderRadius: isMobile ? 20 : 28,
-                  border: '1px solid rgba(148,163,184,0.14)',
-                  boxShadow: '0 24px 60px rgba(15,23,42,0.07)',
-                  background: 'linear-gradient(180deg, rgba(248,250,252,0.96) 0%, #ffffff 100%)',
+                  borderRadius: museRadius.card,
+                  border: `1px solid ${museColors.divider}`,
+                  boxShadow: museShadow.card,
+                  background: "#ffffff",
                   overflow: 'hidden',
                 }}
                 styles={{ body: { padding: isMobile ? 12 : 22 } }}>
@@ -491,18 +470,18 @@ const Setting = () => {
                     <Alert
                       type="info"
                       showIcon
-                      message="Memuat konfigurasi satuan"
+                      title="Memuat konfigurasi satuan"
                       description="Panel tetap tersedia dan akan diperbarui otomatis saat data Midtrans, rekening, dan profil invoice selesai dimuat."
-                      style={{ borderRadius: 18 }}
+                      style={{ borderRadius: museRadius.card }}
                     />
                   ) : null}
 
                   <div
                     style={{
                       padding: isMobile ? 14 : 20,
-                      borderRadius: isMobile ? 16 : 22,
+                      borderRadius: museRadius.card,
                       border: '1px solid rgba(59,130,246,0.12)',
-                      background: 'linear-gradient(135deg, rgba(239,246,255,0.92), rgba(240,253,250,0.88))',
+                      background: museColors.primarySoft,
                     }}>
                     <Title level={isMobile ? 5 : 4} style={{ margin: 0, lineHeight: 1.3 }}>
                       Workspace Pengaturan Pembayaran
@@ -529,10 +508,10 @@ const Setting = () => {
                           key={item.title}
                           style={{
                             padding: isMobile ? '12px 14px' : '14px 16px',
-                            borderRadius: 18,
+                            borderRadius: museRadius.card,
                             background: '#ffffff',
-                            border: '1px solid rgba(148,163,184,0.14)',
-                            boxShadow: '0 10px 24px rgba(15,23,42,0.04)',
+                            border: `1px solid ${museColors.divider}`,
+                            boxShadow: museShadow.card,
                           }}>
                           <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
                             {item.title}
@@ -542,7 +521,7 @@ const Setting = () => {
                               marginTop: 8,
                               fontSize: isMobile ? 14 : 16,
                               fontWeight: 700,
-                              color: '#0f172a',
+                              color: museColors.text,
                               wordBreak: 'break-word',
                             }}>
                             {item.value}
@@ -551,7 +530,7 @@ const Setting = () => {
                             style={{
                               marginTop: 4,
                               fontSize: 12,
-                              color: '#64748b',
+                              color: museColors.muted,
                             }}>
                             {item.caption}
                           </div>
@@ -584,7 +563,7 @@ const Setting = () => {
                               height: 'auto',
                               minHeight: isMobile ? 58 : 74,
                               padding: isMobile ? '10px 12px' : '12px 14px',
-                              borderRadius: 18,
+                              borderRadius: museRadius.card,
                               justifyContent: 'flex-start',
                               textAlign: 'left',
                               whiteSpace: 'normal',

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useSelector } from "react-redux";
 import { useFinanceScope } from "../../center/finance/FinanceScopeContext";
 
-import { LoadApp } from "../../../components";
+import FinanceSkeleton from "../shared/FinanceSkeleton";
 import {
   useGetMySavingOverviewQuery,
   useGetSavingStudentsQuery,
@@ -47,7 +47,7 @@ const SavingReport = () => {
   }
 
   if ((isParent && isLoadingMySaving) || (!isParent && isLoadingStudents)) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   const columns = [

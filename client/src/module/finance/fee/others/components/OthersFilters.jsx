@@ -2,6 +2,7 @@ import { Button, Flex, Grid, Input, Select, Space, Tag, Typography } from "antd"
 import { motion } from "framer-motion";
 import { RotateCcw, Search } from "lucide-react";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -23,8 +24,8 @@ const OthersFilters = ({
       <div
         style={{
           padding: isMobile ? 12 : 16,
-          borderRadius: isMobile ? 14 : 18,
-          border: "1px solid rgba(148, 163, 184, 0.18)",
+          borderRadius: museRadius.card,
+          border: `1px solid ${museColors.divider}`,
           background: "rgba(248, 250, 252, 0.9)",
         }}
       >
@@ -36,7 +37,7 @@ const OthersFilters = ({
           gap={12}
         >
           <Space vertical size={2} style={{ minWidth: 0, flex: 1 }}>
-            <Text strong style={{ color: "#0f172a" }}>
+            <Text strong style={{ color: museColors.text }}>
               Filter Pembayaran Lainnya
             </Text>
             <Text type='secondary' style={{ fontSize: isMobile ? 12 : 13 }}>
@@ -199,7 +200,7 @@ const OthersFilters = ({
           <Input
             placeholder='Cari nama siswa / NIS / NISN'
             value={filters.student_search}
-            prefix={<Search size={16} color='#94a3b8' />}
+            prefix={<Search size={16} color={museColors.muted} />}
             onChange={(event) =>
               setFilters((previous) => ({
                 ...previous,

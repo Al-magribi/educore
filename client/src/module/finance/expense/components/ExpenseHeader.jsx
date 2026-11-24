@@ -9,7 +9,8 @@ const MotionDiv = motion.div;
 const ExpenseHeader = ({ onCreate }) => (
   <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
     <PageHeader
-      title='Pengelolaan Pengeluaran'
+      size='section'
+      title='Pengeluaran Harian'
       description='Catat pengeluaran satuan, filter per periode, dan pantau total biaya.'
       extra={
         <Button type='primary' icon={<Plus size={16} />} onClick={onCreate}>

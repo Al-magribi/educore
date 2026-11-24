@@ -14,6 +14,7 @@ import { motion } from "framer-motion";
 
 import { cardStyle, currencyFormatter, formatDateTime } from "../constants";
 
+import { museColors } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -159,7 +160,7 @@ const ContributionStudentsTab = ({
           </Space>
 
           {unpaidStudents.length > 0 ? (
-            <Paragraph style={{ margin: 0, color: "#64748b" }}>
+            <Paragraph style={{ margin: 0, color: museColors.muted }}>
               Prioritas tindak lanjut:{" "}
               <Text strong>
                 {unpaidStudents

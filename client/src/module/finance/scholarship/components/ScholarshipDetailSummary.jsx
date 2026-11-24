@@ -8,6 +8,7 @@ import {
   currencyFormatter,
 } from "../constants";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const ScholarshipDetailSummary = ({
@@ -34,21 +35,21 @@ const ScholarshipDetailSummary = ({
       label: "Total Cover",
       value: impact.total_cover || 0,
       note: `${impact.covered_item_count || 0} item · ${impact.covered_student_count || 0} siswa`,
-      color: "#1d4ed8",
+      color: museColors.primary,
     },
     {
       key: "spp",
       label: "Cover SPP",
       value: impact.spp_cover || 0,
       note: "Potongan pada tagihan SPP",
-      color: "#2563eb",
+      color: museColors.primary,
     },
     {
       key: "other",
       label: "Cover Lainnya",
       value: impact.other_cover || 0,
       note: "Potongan pembayaran lainnya",
-      color: "#0f766e",
+      color: museColors.success,
     },
   ];
 
@@ -60,11 +61,11 @@ const ScholarshipDetailSummary = ({
             style={{
               width: 48,
               height: 48,
-              borderRadius: 16,
+              borderRadius: museRadius.card,
               display: "grid",
               placeItems: "center",
-              background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-              color: "#2563eb",
+              background: museColors.primarySoft,
+              color: museColors.primary,
             }}
           >
             <Award size={22} />
@@ -108,7 +109,7 @@ const ScholarshipDetailSummary = ({
       <Flex gap={12} wrap="wrap">
         <Card style={{ ...cardStyle, flex: 1, minWidth: 180 }}>
           <Flex align="center" gap={10}>
-            <Users size={18} color="#7c3aed" />
+            <Users size={18} color={museColors.purple} />
             <div>
               <Text type="secondary">Penerima aktif</Text>
               <div style={{ fontSize: 22, fontWeight: 700 }}>
@@ -119,7 +120,7 @@ const ScholarshipDetailSummary = ({
         </Card>
         <Card style={{ ...cardStyle, flex: 1, minWidth: 180 }}>
           <Flex align="center" gap={10}>
-            <Wand2 size={18} color="#2563eb" />
+            <Wand2 size={18} color={museColors.primary} />
             <div>
               <Text type="secondary">Aturan SPP</Text>
               <div style={{ fontSize: 22, fontWeight: 700 }}>
@@ -130,7 +131,7 @@ const ScholarshipDetailSummary = ({
         </Card>
         <Card style={{ ...cardStyle, flex: 1, minWidth: 180 }}>
           <Flex align="center" gap={10}>
-            <Wand2 size={18} color="#0f766e" />
+            <Wand2 size={18} color={museColors.success} />
             <div>
               <Text type="secondary">Aturan Lainnya</Text>
               <div style={{ fontSize: 22, fontWeight: 700 }}>
@@ -154,9 +155,9 @@ const ScholarshipDetailSummary = ({
                 wrap="wrap"
                 style={{
                   padding: 12,
-                  borderRadius: 14,
-                  background: "#f8fafc",
-                  border: "1px solid rgba(148,163,184,0.16)",
+                  borderRadius: museRadius.card,
+                  background: museColors.bgLayout,
+                  border: `1px solid ${museColors.divider}`,
                 }}
               >
                 <Space direction="vertical" size={2}>

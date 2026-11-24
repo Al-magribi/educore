@@ -1,19 +1,9 @@
-import {
-  Alert,
-  Button,
-  Card,
-  Flex,
-  Grid,
-  Select,
-  Space,
-  Tabs,
-  Typography,
-} from "antd";
-import { motion } from "framer-motion";
+import { Alert, Button, Flex, Grid, Select, Skeleton, Tabs } from "antd";
 import { Building2, LayoutDashboard, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
-import { LoadApp } from "../../../components";
+import { MuseCard } from "../../../components/ui/muse";
 import { useGetFinanceDashboardQuery } from "../../../service/finance/ApiDash";
 import FinanceDashboardActivityTab from "./FinanceDashboardActivityTab";
 import FinanceDashboardHero from "./FinanceDashboardHero";
@@ -21,50 +11,20 @@ import FinanceDashboardOverviewTab from "./FinanceDashboardOverviewTab";
 import FinanceDashboardUnitsTab from "./FinanceDashboardUnitsTab";
 
 const { useBreakpoint } = Grid;
-const { Text } = Typography;
-const MotionDiv = motion.div;
-
-const pageVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      duration: 0.35,
-      staggerChildren: 0.08,
-      delayChildren: 0.05,
-    },
-  },
-};
-
-const sectionVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.4,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const tabsVariants = {
-  hidden: { opacity: 0, y: 22, scale: 0.99 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      duration: 0.45,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
+const TAB_KEYS = ["overview", "units", "activity"];
 
 const FinanceDashPage = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [selectedHomebaseId, setSelectedHomebaseId] = useState();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = TAB_KEYS.includes(requestedTab) ? requestedTab : "overview";
+  const handleTabChange = (key) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", key);
+    setSearchParams(next, { replace: true });
+  };
   const queryParams = useMemo(
     () =>
       selectedHomebaseId ? { homebase_id: selectedHomebaseId } : undefined,
@@ -97,22 +57,34 @@ const FinanceDashPage = () => {
   }, [data?.meta?.available_homebases, selectedHomebaseId]);
 
   if (isLoading && !data) {
-    return <LoadApp />;
+    return (
+      <Flex vertical gap={24}>
+        <Skeleton active title paragraph={{ rows: 1 }} />
+        <MuseCard>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </MuseCard>
+      </Flex>
+    );
   }
 
   if (error && !data) {
     return (
-      <Alert
-        type='error'
-        showIcon
-        title='Dashboard keuangan gagal dimuat'
-        description='Data dashboard tidak dapat diambil dari server.'
-        action={
-          <Button size='small' onClick={refetch}>
-            Muat ulang
-          </Button>
-        }
-      />
+      <MuseCard>
+        <Alert
+          type='error'
+          showIcon
+          title='Dashboard keuangan gagal dimuat'
+          description={
+            error?.data?.message ||
+            "Data dashboard tidak dapat diambil dari server."
+          }
+          action={
+            <Button size='small' onClick={refetch}>
+              Muat ulang
+            </Button>
+          }
+        />
+      </MuseCard>
     );
   }
 
@@ -166,171 +138,75 @@ const FinanceDashPage = () => {
     },
   ];
 
-  const createTabLabel = (label, icon) => (
-    <Flex align='center' gap={isMobile ? 8 : 10}>
-      <span
-        style={{
-          width: isMobile ? 28 : 32,
-          height: isMobile ? 28 : 32,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: 10,
-          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
-          color: "#0369a1",
-          border: "1px solid rgba(148,163,184,0.14)",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
-      <span style={{ fontWeight: 600, lineHeight: 1.2, whiteSpace: "nowrap" }}>
-        {label}
-      </span>
+  const tabLabel = (label, icon) => (
+    <Flex align='center' gap={6} style={{ whiteSpace: "nowrap" }}>
+      {icon}
+      <span>{label}</span>
     </Flex>
   );
 
+  const homebaseFilter = showHomebaseFilter ? (
+    <Select
+      allowClear
+      aria-label='Filter satuan'
+      placeholder='Semua satuan'
+      suffixIcon={<Building2 size={14} />}
+      style={{ width: isMobile ? "100%" : 260 }}
+      value={selectedHomebaseId}
+      onChange={setSelectedHomebaseId}
+      options={availableHomebases.map((item) => ({
+        value: item.homebase_id,
+        label: item.homebase_name,
+      }))}
+    />
+  ) : null;
+
   return (
-    <MotionDiv
-      initial='hidden'
-      animate='visible'
-      variants={pageVariants}
-      style={{ width: "100%" }}
-    >
-      <Space
-        vertical
-        size={isMobile ? 12 : 16}
-        style={{ width: "100%", display: "flex" }}
-      >
-        <MotionDiv variants={sectionVariants}>
-          <FinanceDashboardHero meta={meta} spp={spp} isMobile={isMobile} />
-        </MotionDiv>
+    <Flex vertical gap={isMobile ? 16 : 24} style={{ width: "100%", minWidth: 0 }}>
+      <FinanceDashboardHero meta={meta} spp={spp} extra={homebaseFilter} />
 
-        {showHomebaseFilter ? (
-          <MotionDiv variants={sectionVariants}>
-            <Card
-              variant='borderless'
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 12px 28px rgba(15,23,42,0.05)",
-              }}
-              styles={{ body: { padding: isMobile ? 12 : 14 } }}
-            >
-              <Flex
-                justify='space-between'
-                align={isMobile ? "stretch" : "center"}
-                vertical={isMobile}
-                gap={12}
-              >
-                <Flex align='center' gap={10}>
-                  <span
-                    style={{
-                      width: 34,
-                      height: 34,
-                      display: "grid",
-                      placeItems: "center",
-                      borderRadius: 12,
-                      background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                      color: "#2563eb",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Building2 size={16} />
-                  </span>
-                  <div style={{ minWidth: 0 }}>
-                    <Text strong style={{ display: "block", color: "#0f172a" }}>
-                      Filter satuan
-                    </Text>
-                    {!isMobile ? (
-                      <Text type='secondary' style={{ fontSize: 12 }}>
-                        Fokuskan dashboard ke satuan tertentu.
-                      </Text>
-                    ) : null}
-                  </div>
-                </Flex>
-                <Select
-                  allowClear
-                  placeholder='Semua satuan'
-                  style={{ width: isMobile ? "100%" : 280 }}
-                  value={selectedHomebaseId}
-                  onChange={setSelectedHomebaseId}
-                  options={availableHomebases.map((item) => ({
-                    value: item.homebase_id,
-                    label: item.homebase_name,
-                  }))}
-                />
-              </Flex>
-            </Card>
-          </MotionDiv>
-        ) : null}
-
-        <MotionDiv variants={tabsVariants}>
-          <Card
-            variant='borderless'
-            style={{
-              borderRadius: isMobile ? 18 : 22,
-              border: "1px solid rgba(148,163,184,0.14)",
-              boxShadow: "0 16px 40px rgba(15,23,42,0.06)",
-            }}
-            styles={{ body: { padding: isMobile ? 10 : 14 } }}
-          >
-            <Tabs
-              size={isMobile ? "small" : "middle"}
-              tabBarGutter={isMobile ? 8 : 16}
-              tabBarStyle={{
-                marginBottom: isMobile ? 12 : 16,
-                paddingBottom: 4,
-              }}
-              items={[
-                {
-                  key: "overview",
-                  label: createTabLabel(
-                    "Ringkasan",
-                    <LayoutDashboard size={isMobile ? 14 : 15} />,
-                  ),
-                  children: (
-                    <FinanceDashboardOverviewTab
-                      summaryCards={summaryCards}
-                      summary={summary}
-                      meta={meta}
-                      spp={spp}
-                      expense={expense}
-                    />
-                  ),
-                },
-                {
-                  key: "units",
-                  label: createTabLabel(
-                    `Satuan (${homebases.length})`,
-                    <Building2 size={isMobile ? 14 : 15} />,
-                  ),
-                  children: (
-                    <FinanceDashboardUnitsTab
-                      meta={meta}
-                      homebases={homebases}
-                      availableHomebases={availableHomebases}
-                    />
-                  ),
-                },
-                {
-                  key: "activity",
-                  label: createTabLabel(
-                    `Aktivitas (${recentTransactions.length})`,
-                    <Sparkles size={isMobile ? 14 : 15} />,
-                  ),
-                  children: (
-                    <FinanceDashboardActivityTab
-                      recentTransactions={recentTransactions}
-                      priorities={priorities}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </Card>
-        </MotionDiv>
-      </Space>
-    </MotionDiv>
+      <Tabs
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        size={isMobile ? "small" : "middle"}
+        items={[
+          {
+            key: "overview",
+            label: tabLabel("Ringkasan", <LayoutDashboard size={14} />),
+            children: (
+              <FinanceDashboardOverviewTab
+                summaryCards={summaryCards}
+                summary={summary}
+                meta={meta}
+                spp={spp}
+                expense={expense}
+              />
+            ),
+          },
+          {
+            key: "units",
+            label: tabLabel(`Satuan (${homebases.length})`, <Building2 size={14} />),
+            children: (
+              <FinanceDashboardUnitsTab
+                meta={meta}
+                homebases={homebases}
+                availableHomebases={availableHomebases}
+              />
+            ),
+          },
+          {
+            key: "activity",
+            label: tabLabel(`Aktivitas (${recentTransactions.length})`, <Sparkles size={14} />),
+            children: (
+              <FinanceDashboardActivityTab
+                recentTransactions={recentTransactions}
+                priorities={priorities}
+              />
+            ),
+          },
+        ]}
+      />
+    </Flex>
   );
 };
 

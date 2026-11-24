@@ -19,6 +19,7 @@ import {
 } from "./transactionFormShared.jsx";
 import ScholarshipAmountCell from "../../ScholarshipAmountCell";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -34,7 +35,7 @@ const TransactionStepOther = ({
 
   if (loading) {
     return (
-      <Card style={{ borderRadius: 18 }}>
+      <Card style={{ borderRadius: museRadius.card }}>
         <Skeleton active paragraph={{ rows: 4 }} />
       </Card>
     );
@@ -42,7 +43,7 @@ const TransactionStepOther = ({
 
   if (otherCharges.length === 0) {
     return (
-      <Card style={{ borderRadius: 18 }}>
+      <Card style={{ borderRadius: museRadius.card }}>
         <Empty description='Belum ada pembayaran lainnya untuk siswa ini' />
       </Card>
     );
@@ -86,8 +87,8 @@ const TransactionStepOther = ({
           >
             <Card
               style={{
-                borderRadius: isMobile ? 16 : 18,
-                border: "1px solid rgba(148, 163, 184, 0.18)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
                 background: "#fff",
                 height: "100%",
               }}
@@ -102,9 +103,9 @@ const TransactionStepOther = ({
                         height: 40,
                         display: "grid",
                         placeItems: "center",
-                        borderRadius: 14,
-                        background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                        color: "#2563eb",
+                        borderRadius: museRadius.card,
+                        background: museColors.primarySoft,
+                        color: museColors.primary,
                         flexShrink: 0,
                       }}
                     >
@@ -114,7 +115,7 @@ const TransactionStepOther = ({
                       <Text
                         strong
                         style={{
-                          color: "#0f172a",
+                          color: museColors.text,
                           fontSize: 15,
                           wordBreak: "break-word",
                         }}

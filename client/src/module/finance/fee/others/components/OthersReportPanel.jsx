@@ -34,6 +34,7 @@ import {
   currencyFormatter,
 } from "../constants";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -50,7 +51,7 @@ const ColumnTitleWithTip = ({ label, tip }) => (
   <Space size={4}>
     <span>{label}</span>
     <Tooltip title={tip}>
-      <Info size={13} color='#94a3b8' style={{ cursor: "help", display: "block" }} />
+      <Info size={13} color={museColors.muted} style={{ cursor: "help", display: "block" }} />
     </Tooltip>
   </Space>
 );
@@ -58,28 +59,28 @@ const ColumnTitleWithTip = ({ label, tip }) => (
 const reportCardMeta = {
   target: {
     icon: <Target size={18} />,
-    bg: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-    color: "#2563eb",
+    bg: museColors.primarySoft,
+    color: museColors.primary,
   },
   realization: {
     icon: <CircleDollarSign size={18} />,
-    bg: "linear-gradient(135deg, #dcfce7, #ecfdf5)",
-    color: "#15803d",
+    bg: museColors.bgSoft,
+    color: museColors.success,
   },
   remaining: {
     icon: <BarChart3 size={18} />,
-    bg: "linear-gradient(135deg, #ede9fe, #f5f3ff)",
-    color: "#7c3aed",
+    bg: museColors.primarySoft,
+    color: museColors.purple,
   },
   coverage: {
     icon: <Layers3 size={18} />,
-    bg: "linear-gradient(135deg, #fef3c7, #fff7ed)",
-    color: "#d97706",
+    bg: museColors.accentSoft,
+    color: museColors.accent,
   },
   scholarship: {
     icon: <Gift size={18} />,
-    bg: "linear-gradient(135deg, #dbeafe, #e0e7ff)",
-    color: "#1d4ed8",
+    bg: museColors.primarySoft,
+    color: museColors.primary,
   },
 };
 
@@ -668,8 +669,8 @@ const OthersReportPanel = ({ charges = [] }) => {
               <Card
                 style={{
                   ...cardStyle,
-                  borderRadius: isMobile ? 18 : 24,
-                  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                  borderRadius: museRadius.card,
+                  background: "#ffffff",
                 }}
                 styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
@@ -680,7 +681,7 @@ const OthersReportPanel = ({ charges = [] }) => {
                       height: isMobile ? 40 : 44,
                       display: "grid",
                       placeItems: "center",
-                      borderRadius: 16,
+                      borderRadius: museRadius.card,
                       background: meta.bg,
                       color: meta.color,
                       flexShrink: 0,
@@ -697,7 +698,7 @@ const OthersReportPanel = ({ charges = [] }) => {
                         marginTop: 4,
                         fontSize: isMobile ? 18 : 26,
                         fontWeight: 700,
-                        color: "#0f172a",
+                        color: museColors.text,
                         lineHeight: 1.2,
                         wordBreak: "break-word",
                       }}
@@ -719,7 +720,7 @@ const OthersReportPanel = ({ charges = [] }) => {
         <Card
           style={{
             ...cardStyle,
-            borderRadius: isMobile ? 18 : 24,
+            borderRadius: museRadius.card,
             overflow: "hidden",
           }}
           styles={{ body: { padding: isMobile ? 12 : 24 } }}
@@ -804,14 +805,14 @@ const OthersReportPanel = ({ charges = [] }) => {
           <Card
             variant='borderless'
             style={{
-              borderRadius: 16,
-              border: "1px solid rgba(148,163,184,0.14)",
-              background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.divider}`,
+              background: "#ffffff",
             }}
             styles={{ body: { padding: isMobile ? "10px 12px" : 16 } }}
           >
             <Flex align='flex-start' gap={10}>
-              <Users size={16} color='#64748b' style={{ marginTop: 2, flexShrink: 0 }} />
+              <Users size={16} color={museColors.muted} style={{ marginTop: 2, flexShrink: 0 }} />
               <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
                 Tip: gunakan filter periode untuk fokus satu tahun ajaran, atau
                 kosongkan periode untuk melihat seluruh gelombang/jenis di semua

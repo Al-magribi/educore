@@ -3,7 +3,7 @@ import { Flex, Form, Tabs, message } from "antd";
 import { motion } from "framer-motion";
 import dayjs from "dayjs";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddStudentContributionTransactionMutation,
   useDeleteStudentContributionTransactionMutation,
@@ -193,7 +193,7 @@ const StudentContribution = () => {
   };
 
   if (isBootstrapping) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   return (

@@ -3,6 +3,7 @@ import { Card, Flex, Grid, Table, Typography } from "antd";
 
 import { currencyFormatter } from "../constants";
 
+import { museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 
 const OthersInstallmentHistory = ({ charge }) => {
@@ -78,7 +79,7 @@ const OthersInstallmentHistory = ({ charge }) => {
     <Card
       size='small'
       title='Riwayat Pembayaran'
-      style={{ borderRadius: 18 }}
+      style={{ borderRadius: museRadius.card }}
       styles={{ body: { padding: isMobile ? 8 : 12 } }}
     >
       <Table

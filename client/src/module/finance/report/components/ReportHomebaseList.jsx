@@ -21,6 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { useGetReportHomebasesQuery } from "../../../../service/finance/ApiReport";
 import { cardStyle, pageStyle } from "../constants";
 
+import { museColors } from "../../../../config/theme";
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
@@ -158,7 +159,7 @@ const ReportHomebaseList = ({
                           width: 40,
                           height: 40,
                           borderRadius: 8,
-                          background: "#e6f4ff",
+                          background: museColors.primarySoft,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -166,7 +167,7 @@ const ReportHomebaseList = ({
                         }}
                       >
                         <BankOutlined
-                          style={{ fontSize: 18, color: "#1677ff" }}
+                          style={{ fontSize: 18, color: museColors.primary }}
                         />
                       </div>
 
@@ -193,7 +194,7 @@ const ReportHomebaseList = ({
                       </div>
 
                       <ArrowRightOutlined
-                        style={{ color: "#1677ff", flexShrink: 0 }}
+                        style={{ color: museColors.primary, flexShrink: 0 }}
                       />
                     </div>
                   </Card>

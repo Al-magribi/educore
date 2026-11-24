@@ -28,7 +28,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useDeleteHonorPayrollMutation,
   useGenerateHonorPayrollMutation,
@@ -49,6 +49,7 @@ import {
   isSuspiciousJam,
 } from "../utils/honorDateJam";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text, Title } = Typography;
 const { TextArea } = Input;
 const MotionDiv = motion.div;
@@ -486,7 +487,7 @@ const HonorariumPayrollPreviewPanel = ({
         render: (value, record) => {
           if (record.row_type === "unit") {
             return (
-              <Text strong style={{ color: "#9a3412" }}>
+              <Text strong style={{ color: museColors.accent }}>
                 {String(record.unit_name || "").toUpperCase()}
               </Text>
             );
@@ -539,7 +540,7 @@ const HonorariumPayrollPreviewPanel = ({
           return (
             <Text
               strong={suspicious}
-              style={{ color: suspicious ? "#b91c1c" : undefined }}
+              style={{ color: suspicious ? museColors.danger : undefined }}
               title={`mati ${record.jam_mati} / hidup ${record.jam_hidup}`}
             >
               {Number(value || 0)}
@@ -684,7 +685,7 @@ const HonorariumPayrollPreviewPanel = ({
             <Text
               strong
               style={{
-                color: record.row_type === "subtotal" ? "#9a3412" : undefined,
+                color: record.row_type === "subtotal" ? museColors.accent : undefined,
               }}
             >
               {money(value)}
@@ -749,7 +750,7 @@ const HonorariumPayrollPreviewPanel = ({
                 icon={<WandSparkles size={16} />}
                 onClick={() => runGenerate(false)}
                 loading={generateState.isLoading}
-                style={{ borderRadius: 12 }}
+                style={{ borderRadius: museRadius.item }}
               >
                 Generate
               </Button>
@@ -758,7 +759,7 @@ const HonorariumPayrollPreviewPanel = ({
                 onClick={handleRecalc}
                 disabled={!selectedPayrollId || isLocked}
                 loading={recalcState.isLoading}
-                style={{ borderRadius: 12 }}
+                style={{ borderRadius: museRadius.item }}
               >
                 Recalc
               </Button>
@@ -767,7 +768,7 @@ const HonorariumPayrollPreviewPanel = ({
                 onClick={handleExportExcel}
                 disabled={!selectedPayrollId || !detail}
                 loading={exporting}
-                style={{ borderRadius: 12 }}
+                style={{ borderRadius: museRadius.item }}
               >
                 Excel
               </Button>
@@ -776,7 +777,7 @@ const HonorariumPayrollPreviewPanel = ({
                 onClick={handleLockToggle}
                 disabled={!selectedPayrollId}
                 loading={lockState.isLoading || unlockState.isLoading}
-                style={{ borderRadius: 12 }}
+                style={{ borderRadius: museRadius.item }}
               >
                 {isLocked ? "Unlock" : "Lock"}
               </Button>
@@ -786,7 +787,7 @@ const HonorariumPayrollPreviewPanel = ({
                 onClick={handleDelete}
                 disabled={!selectedPayrollId || isLocked}
                 loading={deleteState.isLoading}
-                style={{ borderRadius: 12 }}
+                style={{ borderRadius: museRadius.item }}
               >
                 Hapus
               </Button>
@@ -847,7 +848,7 @@ const HonorariumPayrollPreviewPanel = ({
       </Card>
 
       {listQuery.isLoading || (selectedPayrollId && detailQuery.isLoading) ? (
-        <LoadApp />
+        <FinanceSkeleton />
       ) : !selectedPayrollId ? (
         <Card style={cardStyle}>
           <Empty
@@ -899,7 +900,7 @@ const HonorariumPayrollPreviewPanel = ({
                   {formatHonorDateRange(detail.start_date, detail.end_date)}
                 </Tag>
               </Space>
-              <Title level={5} style={{ margin: 0, color: "#9a3412" }}>
+              <Title level={5} style={{ margin: 0, color: museColors.accent }}>
                 Total{" "}
                 {currencyFormatter.format(detail.summary?.grand_total || 0)}
               </Title>
@@ -910,7 +911,7 @@ const HonorariumPayrollPreviewPanel = ({
                 type='warning'
                 showIcon
                 style={{ marginBottom: 12 }}
-                message={`Ada ${suspiciousLines.length} baris dengan jam di luar kewajaran`}
+                title={`Ada ${suspiciousLines.length} baris dengan jam di luar kewajaran`}
                 description={
                   <span>
                     Ambang{" "}
@@ -933,7 +934,7 @@ const HonorariumPayrollPreviewPanel = ({
               <Alert
                 type='info'
                 showIcon
-                message='Payroll kosong'
+                title='Payroll kosong'
                 description='Tidak ada assignment aktif saat generate. Tambah di tab Personel, lalu Generate ulang.'
               />
             ) : (

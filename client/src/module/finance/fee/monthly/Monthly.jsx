@@ -26,7 +26,7 @@ import {
   useUpdateMonthlyPaymentMutation,
   useUpdateMonthlyTariffMutation,
 } from '../../../../service/finance/ApiMonthly';
-import { LoadApp } from '../../../../components';
+import FinanceSkeleton from '../../shared/FinanceSkeleton';
 import { currentMonth } from './constants';
 import MonthlyHeader from './components/MonthlyHeader';
 import MonthlyPaymentModal from './components/MonthlyPaymentModal';
@@ -37,6 +37,7 @@ import MonthlyTariffTable from './components/MonthlyTariffTable';
 import MonthlyReportPanel from './components/MonthlyReportPanel';
 import MonthlyTariffModal from './components/MonthlyTariffModal';
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -69,7 +70,6 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
   const { user } = useSelector((state) => state.auth);
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
-  const isCompact = !screens.lg;
   const financeScope = useFinanceScope();
   const scopedHomebaseId = financeScope?.homebaseId || undefined;
 
@@ -302,8 +302,8 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
       prefix: '',
       note: 'Jumlah siswa sesuai filter yang dipilih',
       icon: <Users size={18} />,
-      bg: 'linear-gradient(135deg, #dbeafe, #eff6ff)',
-      color: '#2563eb',
+      bg: museColors.primarySoft,
+      color: museColors.primary,
     },
     {
       key: 'paid',
@@ -312,8 +312,8 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
       prefix: '',
       note: 'Siswa yang sudah melunasi bulan terpilih',
       icon: <CheckCircle2 size={18} />,
-      bg: 'linear-gradient(135deg, #dcfce7, #ecfdf5)',
-      color: '#15803d',
+      bg: museColors.bgSoft,
+      color: museColors.success,
     },
     {
       key: 'unpaid',
@@ -322,8 +322,8 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
       prefix: '',
       note: 'Siswa yang belum melunasi bulan terpilih',
       icon: <AlertTriangle size={18} />,
-      bg: 'linear-gradient(135deg, #fef3c7, #fff7ed)',
-      color: '#d97706',
+      bg: museColors.accentSoft,
+      color: museColors.accent,
     },
     {
       key: 'bruto',
@@ -332,8 +332,8 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
       prefix: 'Rp',
       note: 'Tarif penuh sebelum beasiswa',
       icon: <BarChart3 size={18} />,
-      bg: 'linear-gradient(135deg, #e0e7ff, #eef2ff)',
-      color: '#4338ca',
+      bg: museColors.primarySoft,
+      color: museColors.primary,
     },
     {
       key: 'scholarship',
@@ -342,8 +342,8 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
       prefix: 'Rp',
       note: 'Potongan beasiswa (bukan kas masuk)',
       icon: <Gift size={18} />,
-      bg: 'linear-gradient(135deg, #dbeafe, #e0e7ff)',
-      color: '#1d4ed8',
+      bg: museColors.primarySoft,
+      color: museColors.primary,
     },
     {
       key: 'amount',
@@ -352,8 +352,8 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
       prefix: 'Rp',
       note: `Target netto ${Number(paymentSummary.total_amount || 0).toLocaleString('id-ID')}`,
       icon: <Wallet size={18} />,
-      bg: 'linear-gradient(135deg, #e0f2fe, #ecfeff)',
-      color: '#0369a1',
+      bg: museColors.primarySoft,
+      color: museColors.primary,
     },
   ];
 
@@ -606,7 +606,7 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
       !periodeInitialized);
 
   if (isPageBootstrapping) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   const activeHomebaseName =
@@ -623,34 +623,11 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
     : undefined;
   const activeMonthLabel = months.find((item) => Number(item.value) === Number(filters.bill_month))?.label;
 
-  const createTabLabel = (label, icon, count, caption) => (
-    <Flex align="center" gap={isMobile ? 8 : 10}>
-      <span
-        style={{
-          width: isMobile ? 28 : 34,
-          height: isMobile ? 28 : 34,
-          display: 'grid',
-          placeItems: 'center',
-          borderRadius: isMobile ? 10 : 12,
-          background: 'linear-gradient(135deg, #dbeafe, #dcfce7)',
-          color: '#0369a1',
-          border: '1px solid rgba(148,163,184,0.14)',
-          flexShrink: 0,
-        }}>
-        {icon}
-      </span>
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontWeight: 600,
-            lineHeight: 1.2,
-            fontSize: isMobile ? 13 : 14,
-            whiteSpace: 'nowrap',
-          }}>
-          {label} {count !== undefined ? `(${count})` : ''}
-        </div>
-        {!isCompact ? <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.2 }}>{caption}</div> : null}
-      </div>
+  // Label tab: ikon 14 + teks satu baris, tanpa caption (CLAUDE.md §4 "Tab").
+  const createTabLabel = (label, icon, count) => (
+    <Flex align="center" gap={6} style={{ whiteSpace: 'nowrap' }}>
+      {icon}
+      <span>{label}{count !== undefined ? ` (${count})` : ''}</span>
     </Flex>
   );
 
@@ -686,9 +663,9 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
           <Card
             variant="borderless"
             style={{
-              borderRadius: isMobile ? 20 : 28,
-              border: '1px solid rgba(148, 163, 184, 0.14)',
-              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.07)',
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.divider}`,
+              boxShadow: museShadow.card,
               overflow: 'hidden',
             }}
             styles={{ body: { padding: isMobile ? 8 : 12 } }}>
@@ -696,17 +673,12 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
               activeKey={activeTab}
               onChange={setActiveTab}
               size={isMobile ? 'small' : 'middle'}
-              tabBarGutter={isMobile ? 8 : 14}
-              tabBarStyle={{
-                marginBottom: isMobile ? 12 : 20,
-                paddingBottom: 8,
-              }}
               items={[
                 {
                   key: 'tariffs',
                   label: createTabLabel(
                     'Tarif SPP',
-                    <ReceiptText size={isMobile ? 14 : 16} />,
+                    <ReceiptText size={14} />,
                     tariffs.length,
                     'Pengaturan tarif per periode',
                   ),
@@ -725,7 +697,7 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
                   key: 'payments',
                   label: createTabLabel(
                     isMobile ? 'Pembayaran' : 'Pembayaran SPP',
-                    <CreditCard size={isMobile ? 14 : 16} />,
+                    <CreditCard size={14} />,
                     payments.length,
                     'Monitoring status pelunasan',
                   ),
@@ -749,7 +721,7 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
                   key: 'report',
                   label: createTabLabel(
                     isMobile ? 'Laporan' : 'Laporan SPP',
-                    <BarChart3 size={isMobile ? 14 : 16} />,
+                    <BarChart3 size={14} />,
                     undefined,
                     'Ringkasan capaian per kelas',
                   ),
@@ -777,13 +749,13 @@ const Monthly = ({ initialTab = 'tariffs' }) => {
           <Card
             variant="borderless"
             style={{
-              borderRadius: 20,
-              border: '1px solid rgba(148,163,184,0.14)',
-              background: 'linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)',
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.divider}`,
+              background: "#ffffff",
             }}
             styles={{ body: { padding: isMobile ? '12px 14px' : '14px 16px' } }}>
             <Flex align="flex-start" gap={8}>
-              <Sparkles size={14} color="#64748b" style={{ flexShrink: 0, marginTop: 3 }} />
+              <Sparkles size={14} color={museColors.muted} style={{ flexShrink: 0, marginTop: 3 }} />
               <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
                 Tampilan saat ini: {activeHomebaseName} · {activePeriodeName}. Default: periode aktif. Kosongkan filter
                 periode untuk melihat semua periode, lalu bisa dipersempit berdasarkan tingkat, kelas, dan siswa.

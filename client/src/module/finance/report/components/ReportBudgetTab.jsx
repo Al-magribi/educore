@@ -16,6 +16,7 @@ import { Save } from "lucide-react";
 import { useSaveBudgetsMutation } from "../../../../service/finance/ApiReport";
 import { currencyFormatter } from "../constants";
 
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
 
 const rupiahInputProps = {
@@ -34,10 +35,10 @@ const kindTag = (kind) =>
   );
 
 const percentColor = (value) => {
-  if (value === null || value === undefined) return "#94a3b8";
-  if (value > 100) return "#dc2626";
-  if (value >= 75) return "#d97706";
-  return "#16a34a";
+  if (value === null || value === undefined) return museColors.muted;
+  if (value > 100) return museColors.danger;
+  if (value >= 75) return museColors.accent;
+  return museColors.success;
 };
 
 const ReportBudgetTab = ({
@@ -146,7 +147,7 @@ const ReportBudgetTab = ({
         const variance = Number(row.realized_amount || 0) - budget;
         const good = row.kind === "income" ? variance >= 0 : variance <= 0;
         return (
-          <span style={{ fontWeight: 600, color: good ? "#15803d" : "#dc2626" }}>
+          <span style={{ fontWeight: 600, color: good ? museColors.success : museColors.danger }}>
             {currencyFormatter.format(variance)}
           </span>
         );
@@ -168,7 +169,7 @@ const ReportBudgetTab = ({
             percent={Math.min(percent, 100)}
             size='small'
             strokeColor={
-              row.kind === "income" ? "#16a34a" : percentColor(percent)
+              row.kind === "income" ? museColors.success : percentColor(percent)
             }
             format={() => `${percent}%`}
           />
@@ -179,7 +180,7 @@ const ReportBudgetTab = ({
 
   if (!periodeId) {
     return (
-      <Alert type='info' showIcon message={emptyMessage} />
+      <Alert type='info' showIcon title={emptyMessage} />
     );
   }
 

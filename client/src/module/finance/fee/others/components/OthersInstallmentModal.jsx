@@ -12,6 +12,7 @@ import {
 
 import { currencyFormatter, rupiahInputProps } from "../constants";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 
 const OthersInstallmentModal = ({
@@ -37,7 +38,7 @@ const OthersInstallmentModal = ({
       destroyOnClose
       centered
       styles={{
-        content: { borderRadius: isMobile ? 16 : 12 },
+        content: { borderRadius: museRadius.card },
         body: {
           maxHeight: isMobile ? "calc(100vh - 160px)" : undefined,
           overflowY: isMobile ? "auto" : undefined,
@@ -47,7 +48,7 @@ const OthersInstallmentModal = ({
       <Form form={form} layout='vertical' onFinish={onSubmit}>
         <Card
           size='small'
-          style={{ marginBottom: 16, borderRadius: 16, background: "#f8fafc" }}
+          style={{ marginBottom: 16, borderRadius: museRadius.card, background: museColors.bgLayout }}
         >
           <Space direction='vertical' size={2}>
             <Text strong style={{ wordBreak: "break-word" }}>

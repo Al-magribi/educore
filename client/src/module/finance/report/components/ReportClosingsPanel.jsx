@@ -23,6 +23,7 @@ import {
 } from "../../../../service/finance/ApiReport";
 import { cardStyle } from "../constants";
 
+import { museColors } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const ReportClosingsPanel = ({ homebaseId, embedded = false }) => {
@@ -121,7 +122,7 @@ const ReportClosingsPanel = ({ homebaseId, embedded = false }) => {
         row.locked ? (
           <div>
             <div>{row.locked_by_name || "-"}</div>
-            <div style={{ color: "#64748b", fontSize: 12 }}>
+            <div style={{ color: museColors.muted, fontSize: 12 }}>
               {row.locked_at
                 ? dayjs(row.locked_at).format("DD MMM YYYY HH:mm")
                 : "-"}
@@ -208,7 +209,7 @@ const ReportClosingsPanel = ({ homebaseId, embedded = false }) => {
         type='info'
         showIcon
         style={{ marginBottom: 14 }}
-        message='Alur koreksi: Buka kunci tutup buku → Unlock honorarium (jika terkunci) → perbaiki data → Lock honorarium → Tutup buku kembali.'
+        title='Alur koreksi: Buka kunci tutup buku → Unlock honorarium (jika terkunci) → perbaiki data → Lock honorarium → Tutup buku kembali.'
       />
 
       <Table

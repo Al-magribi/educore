@@ -2,6 +2,7 @@ import { Alert, DatePicker, Form, InputNumber, Modal, Select } from "antd";
 
 import { rupiahInputProps, transactionTypeOptions } from "../constants";
 
+import { museRadius } from "../../../../../config/theme";
 const ContributionTransactionModal = ({
   open,
   form,
@@ -28,8 +29,8 @@ const ContributionTransactionModal = ({
       <Alert
         showIcon
         type={transactionType === "expense" ? "warning" : "success"}
-        style={{ marginBottom: 16, borderRadius: 14 }}
-        message={
+        style={{ marginBottom: 16, borderRadius: museRadius.card }}
+        title={
           transactionType === "expense"
             ? "Pengeluaran akan mengurangi saldo kas kelas."
             : "Pemasukan akan menandai siswa sebagai sudah membayar pada periode aktif."

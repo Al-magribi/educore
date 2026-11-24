@@ -21,7 +21,7 @@ import {
   WalletCards,
 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import { useGetHonorariumOptionsQuery } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle } from "../constants";
@@ -34,6 +34,7 @@ import HonorariumRatePanel from "./HonorariumRatePanel";
 import HonorariumUnitPanel from "./HonorariumUnitPanel";
 import PageHeader from "../../../../components/ui/PageHeader";
 
+import { museRadius } from "../../../../config/theme";
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -76,37 +77,11 @@ const ExpenseHonorariumTab = () => {
     setSelectedHomebaseId(value);
   };
 
-  const createSetupLabel = (label, icon, caption) => (
-    <Flex align='center' gap={isMobile ? 8 : 10}>
-      <span
-        style={{
-          width: isMobile ? 28 : 34,
-          height: isMobile ? 28 : 34,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: isMobile ? 10 : 12,
-          background: "linear-gradient(135deg, #ffedd5, #fff7ed)",
-          color: "#c2410c",
-          border: "1px solid rgba(148,163,184,0.14)",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
-      <Flex vertical gap={0} style={{ minWidth: 0 }}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
-        {!isMobile && (
-          <span
-            style={{
-              fontSize: 12,
-              color: "rgba(100,116,139,0.9)",
-              lineHeight: 1.2,
-            }}
-          >
-            {caption}
-          </span>
-        )}
-      </Flex>
+  // Label tab: ikon 14 + teks satu baris (CLAUDE.md §4 "Tab").
+  const createSetupLabel = (label, icon) => (
+    <Flex align='center' gap={6} style={{ whiteSpace: "nowrap" }}>
+      {icon}
+      <span>{label}</span>
     </Flex>
   );
 
@@ -114,7 +89,8 @@ const ExpenseHonorariumTab = () => {
     <Flex vertical gap={isMobile ? 12 : 16}>
       <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
         <PageHeader
-          title='Pengelolaan Honorarium'
+          size='section'
+          title='Honorarium'
           description='Setup unit section (Yayasan, Guru, Tata Usaha) dan jabatan per unit. Payroll bulanan menyusul di tahap berikutnya.'
           extra={
             !lockHomebase && homebases.length > 0 ? (
@@ -135,7 +111,7 @@ const ExpenseHonorariumTab = () => {
       </MotionDiv>
 
       {optionsQuery.isLoading ? (
-        <LoadApp />
+        <FinanceSkeleton />
       ) : optionsQuery.isError ? (
         <Card style={cardStyle}>
           <Empty
@@ -149,7 +125,7 @@ const ExpenseHonorariumTab = () => {
         <Card
           style={{
             ...cardStyle,
-            borderRadius: isMobile ? 18 : 24,
+            borderRadius: museRadius.card,
           }}
           styles={{ body: { padding: isMobile ? 10 : 16 } }}
         >
@@ -157,13 +133,12 @@ const ExpenseHonorariumTab = () => {
             activeKey={setupTab}
             onChange={setSetupTab}
             size={isMobile ? "small" : "middle"}
-            tabBarGutter={isMobile ? 8 : 18}
             items={[
               {
                 key: "unit",
                 label: createSetupLabel(
                   "Unit",
-                  <Layers3 size={isMobile ? 14 : 16} />,
+                  <Layers3 size={14} />,
                   "Section slip gaji",
                 ),
                 children: (
@@ -179,7 +154,7 @@ const ExpenseHonorariumTab = () => {
                 key: "jabatan",
                 label: createSetupLabel(
                   "Jabatan",
-                  <BriefcaseBusiness size={isMobile ? 14 : 16} />,
+                  <BriefcaseBusiness size={14} />,
                   "Posisi & tunjangan",
                 ),
                 children: (
@@ -195,7 +170,7 @@ const ExpenseHonorariumTab = () => {
                 key: "tugas",
                 label: createSetupLabel(
                   "Tugas Tambahan",
-                  <ClipboardList size={isMobile ? 14 : 16} />,
+                  <ClipboardList size={14} />,
                   "Insentif di luar jabatan",
                 ),
                 children: (
@@ -211,7 +186,7 @@ const ExpenseHonorariumTab = () => {
                 key: "eskul",
                 label: createSetupLabel(
                   "Eskul",
-                  <Medal size={isMobile ? 14 : 16} />,
+                  <Medal size={14} />,
                   "Rate & penugasan",
                 ),
                 children: (
@@ -227,7 +202,7 @@ const ExpenseHonorariumTab = () => {
                 key: "rate",
                 label: createSetupLabel(
                   "Item Honor",
-                  <Coins size={isMobile ? 14 : 16} />,
+                  <Coins size={14} />,
                   "Rate & tunjangan",
                 ),
                 children: (
@@ -243,7 +218,7 @@ const ExpenseHonorariumTab = () => {
                 key: "personel",
                 label: createSetupLabel(
                   "Personel",
-                  <UsersRound size={isMobile ? 14 : 16} />,
+                  <UsersRound size={14} />,
                   "Tendik & jabatan",
                 ),
                 children: (
@@ -259,7 +234,7 @@ const ExpenseHonorariumTab = () => {
                 key: "payroll",
                 label: createSetupLabel(
                   "Payroll",
-                  <WalletCards size={isMobile ? 14 : 16} />,
+                  <WalletCards size={14} />,
                   "Draft & edit",
                 ),
                 children: (

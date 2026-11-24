@@ -21,7 +21,7 @@ import { motion } from "framer-motion";
 import dayjs from "dayjs";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddHonorRateMutation,
   useDeleteHonorRateMutation,
@@ -30,6 +30,7 @@ import {
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle, currencyFormatter, rupiahInputProps } from "../constants";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const { TextArea } = Input;
 const MotionDiv = motion.div;
@@ -201,7 +202,7 @@ const HonorariumRatePanel = ({
         width: 150,
         align: "right",
         render: (value) => (
-          <Text strong style={{ color: "#9a3412" }}>
+          <Text strong style={{ color: museColors.accent }}>
             {currencyFormatter.format(Number(value || 0))}
           </Text>
         ),
@@ -271,7 +272,7 @@ const HonorariumRatePanel = ({
   }
 
   if (listQuery.isLoading) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   return (
@@ -311,7 +312,7 @@ const HonorariumRatePanel = ({
               icon={<Plus size={16} />}
               onClick={openCreate}
               block={isMobile}
-              style={{ borderRadius: 12 }}
+              style={{ borderRadius: museRadius.item }}
             >
               Tambah Item
             </Button>

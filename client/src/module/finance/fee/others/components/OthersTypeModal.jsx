@@ -14,6 +14,7 @@ import { ReceiptText } from "lucide-react";
 
 import { rupiahInputProps } from "../constants";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -71,8 +72,8 @@ const OthersTypeModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 20 : 28,
-          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         },
         body: { padding: 0 },
         footer: { padding: isMobile ? "0 16px 16px" : "0 24px 22px" },
@@ -97,8 +98,8 @@ const OthersTypeModal = ({
           style={{
             marginBottom: 20,
             padding: isMobile ? 16 : 20,
-            borderRadius: isMobile ? 16 : 22,
-            background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
+            borderRadius: museRadius.card,
+            background: museColors.primarySoft,
           }}
         >
           <div
@@ -107,8 +108,8 @@ const OthersTypeModal = ({
               height: isMobile ? 44 : 52,
               display: "grid",
               placeItems: "center",
-              borderRadius: 18,
-              background: "linear-gradient(135deg, #0f766e, #2563eb)",
+              borderRadius: museRadius.card,
+              background: museColors.primary,
               color: "#fff",
               boxShadow: "0 18px 32px rgba(15, 118, 110, 0.22)",
               marginBottom: 14,
@@ -121,7 +122,7 @@ const OthersTypeModal = ({
             style={{
               display: "block",
               fontSize: isMobile ? 20 : 24,
-              color: "#0f172a",
+              color: museColors.text,
               lineHeight: 1.3,
             }}
           >
@@ -377,8 +378,8 @@ const OthersTypeModal = ({
                           marginInlineEnd: 4,
                           padding: "2px 8px",
                           borderRadius: 999,
-                          background: "#eff6ff",
-                          border: "1px solid #bfdbfe",
+                          background: museColors.bgLayout,
+                          border: `1px solid ${museColors.primarySoft}`,
                           fontSize: 12,
                           lineHeight: "20px",
                           maxWidth: "100%",
@@ -396,7 +397,7 @@ const OthersTypeModal = ({
                                 onClose?.(event);
                               }
                             }}
-                            style={{ cursor: "pointer", color: "#64748b" }}
+                            style={{ cursor: "pointer", color: museColors.muted }}
                           >
                             ×
                           </span>

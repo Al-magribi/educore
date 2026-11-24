@@ -19,7 +19,7 @@ import {
 import { motion } from "framer-motion";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddHonorPositionMutation,
   useDeleteHonorPositionMutation,
@@ -29,6 +29,7 @@ import {
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle, currencyFormatter, rupiahInputProps } from "../constants";
 
+import { museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -231,7 +232,7 @@ const HonorariumPositionPanel = ({
   }
 
   if (unitsQuery.isLoading || listQuery.isLoading) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   return (
@@ -286,7 +287,7 @@ const HonorariumPositionPanel = ({
               onClick={openCreate}
               disabled={units.length === 0}
               block={isMobile}
-              style={{ borderRadius: 12 }}
+              style={{ borderRadius: museRadius.item }}
             >
               Tambah Jabatan
             </Button>

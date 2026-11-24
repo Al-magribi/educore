@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { CalendarRange, GraduationCap, UsersRound } from "lucide-react";
 import { getPeriodeTagColor } from "../../../fee/transaction/components/transactionFormShared.jsx";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -44,10 +45,10 @@ const ParentStudentSelector = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 26,
-          border: "1px solid rgba(148,163,184,0.14)",
-          boxShadow: "0 20px 42px rgba(15,23,42,0.06)",
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          borderRadius: museRadius.card,
+          border: `1px solid ${museColors.divider}`,
+          boxShadow: museShadow.card,
+          background: "#ffffff",
         }}
         styles={{ body: { padding: 22 } }}
       >
@@ -57,17 +58,17 @@ const ParentStudentSelector = ({
               style={{
                 width: 40,
                 height: 40,
-                borderRadius: 14,
+                borderRadius: museRadius.card,
                 display: "grid",
                 placeItems: "center",
-                background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
-                color: "#0f766e",
+                background: museColors.primarySoft,
+                color: museColors.success,
               }}
             >
               <UsersRound size={18} />
             </span>
             <div>
-              <div style={{ fontWeight: 700, color: "#0f172a" }}>
+              <div style={{ fontWeight: 700, color: museColors.text }}>
                 Pilih Anak dan Periode
               </div>
               <Text type='secondary'>

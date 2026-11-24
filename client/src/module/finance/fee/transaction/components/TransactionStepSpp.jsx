@@ -16,6 +16,7 @@ import { CreditCard } from "lucide-react";
 import { currencyFormatter } from "./transactionFormShared.jsx";
 import ScholarshipAmountCell from "../../ScholarshipAmountCell";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -42,7 +43,7 @@ const TransactionStepSpp = ({
 
   if (loading) {
     return (
-      <Card style={{ borderRadius: 18 }}>
+      <Card style={{ borderRadius: museRadius.card }}>
         <Skeleton active paragraph={{ rows: 4 }} />
       </Card>
     );
@@ -50,7 +51,7 @@ const TransactionStepSpp = ({
 
   if (displayedMonths.length === 0) {
     return (
-      <Card style={{ borderRadius: 18 }}>
+      <Card style={{ borderRadius: museRadius.card }}>
         <Empty description='Tidak ada tagihan SPP yang belum dibayar' />
       </Card>
     );
@@ -61,8 +62,8 @@ const TransactionStepSpp = ({
       <Card
         bordered={false}
         style={{
-          borderRadius: isMobile ? 16 : 18,
-          background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+          borderRadius: museRadius.card,
+          background: museColors.primarySoft,
         }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >
@@ -80,8 +81,8 @@ const TransactionStepSpp = ({
                 height: isMobile ? 38 : 42,
                 display: "grid",
                 placeItems: "center",
-                borderRadius: 15,
-                background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                borderRadius: museRadius.card,
+                background: museColors.primary,
                 color: "#fff",
                 flexShrink: 0,
               }}
@@ -89,7 +90,7 @@ const TransactionStepSpp = ({
               <CreditCard size={18} />
             </div>
             <Space direction='vertical' size={2} style={{ minWidth: 0 }}>
-              <Text strong style={{ color: "#0f172a", fontSize: isMobile ? 15 : 16 }}>
+              <Text strong style={{ color: museColors.text, fontSize: isMobile ? 15 : 16 }}>
                 Pembayaran SPP
               </Text>
               <Text type='secondary' style={{ fontSize: isMobile ? 12 : 14 }}>
@@ -128,12 +129,12 @@ const TransactionStepSpp = ({
                   <Card
                     hoverable
                     style={{
-                      borderRadius: 18,
+                      borderRadius: museRadius.card,
                       border: active
                         ? "1px solid rgba(37, 99, 235, 0.42)"
-                        : "1px solid rgba(148, 163, 184, 0.18)",
+                        : `1px solid ${museColors.divider}`,
                       background: active
-                        ? "linear-gradient(135deg, rgba(219, 234, 254, 0.94), rgba(239, 246, 255, 0.96))"
+                        ? museColors.bgSoft
                         : "#ffffff",
                       height: "100%",
                     }}

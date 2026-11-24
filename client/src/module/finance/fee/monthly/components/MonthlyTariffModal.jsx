@@ -11,6 +11,7 @@ import {
 import { motion } from "framer-motion";
 import { ReceiptText } from "lucide-react";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -74,8 +75,8 @@ const MonthlyTariffModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 20 : 28,
-          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         },
         body: { padding: 0 },
         footer: { padding: isMobile ? "0 16px 16px" : "0 24px 22px" },
@@ -93,7 +94,7 @@ const MonthlyTariffModal = ({
       <div
         style={{
           padding: isMobile ? 16 : 24,
-          background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+          background: "#ffffff",
           maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
           overflowY: isMobile ? "auto" : undefined,
         }}
@@ -102,8 +103,8 @@ const MonthlyTariffModal = ({
           style={{
             marginBottom: 20,
             padding: isMobile ? 16 : 20,
-            borderRadius: isMobile ? 16 : 22,
-            background: "linear-gradient(135deg, #eef2ff, #eff6ff)",
+            borderRadius: museRadius.card,
+            background: museColors.primarySoft,
           }}
         >
           <div
@@ -112,8 +113,8 @@ const MonthlyTariffModal = ({
               height: isMobile ? 44 : 52,
               display: "grid",
               placeItems: "center",
-              borderRadius: 18,
-              background: "linear-gradient(135deg, #4f46e5, #2563eb)",
+              borderRadius: museRadius.card,
+              background: museColors.primary,
               color: "#fff",
               boxShadow: "0 18px 32px rgba(79, 70, 229, 0.22)",
               marginBottom: 14,
@@ -126,7 +127,7 @@ const MonthlyTariffModal = ({
             style={{
               display: "block",
               fontSize: isMobile ? 20 : 24,
-              color: "#0f172a",
+              color: museColors.text,
               lineHeight: 1.3,
             }}
           >

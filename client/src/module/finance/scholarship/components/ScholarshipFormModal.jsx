@@ -11,6 +11,7 @@ import {
 import { motion } from "framer-motion";
 import { Award } from "lucide-react";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 const { TextArea } = Input;
@@ -42,7 +43,7 @@ const ScholarshipFormModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 20 : 28,
+          borderRadius: museRadius.card,
         },
         body: { padding: 0 },
         footer: { padding: isMobile ? "0 16px 16px" : "0 24px 22px" },
@@ -60,7 +61,7 @@ const ScholarshipFormModal = ({
         style={{
           padding: isMobile ? "18px 16px 8px" : "22px 24px 10px",
           background:
-            "linear-gradient(135deg, rgba(37,99,235,0.08), rgba(56,189,248,0.06))",
+            museColors.primarySoft,
         }}
       >
         <Space align='start' size={12}>
@@ -68,10 +69,10 @@ const ScholarshipFormModal = ({
             style={{
               width: 42,
               height: 42,
-              borderRadius: 14,
+              borderRadius: museRadius.card,
               display: "grid",
               placeItems: "center",
-              background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+              background: museColors.primary,
               color: "#fff",
             }}
           >

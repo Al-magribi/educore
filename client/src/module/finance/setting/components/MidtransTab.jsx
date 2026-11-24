@@ -19,6 +19,7 @@ import { Activity, CreditCard, ShieldCheck } from "lucide-react";
 import { LinkOutlined } from "@ant-design/icons";
 import { cardStyle, rupiahInputProps } from "../../fee/others/constants";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -37,8 +38,8 @@ const MidtransTab = ({
       <Card
         style={{
           ...cardStyle,
-          borderRadius: isMobile ? 18 : undefined,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          borderRadius: museRadius.card,
+          background: "#ffffff",
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
@@ -47,10 +48,10 @@ const MidtransTab = ({
           <div
             style={{
               padding: isMobile ? 14 : 20,
-              borderRadius: isMobile ? 16 : 22,
+              borderRadius: museRadius.card,
               border: "1px solid rgba(59,130,246,0.14)",
               background:
-                "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(238,242,255,0.94))",
+                museColors.primarySoft,
             }}
           >
             <Flex justify='space-between' align='flex-start' wrap='wrap' gap={16}>
@@ -61,8 +62,8 @@ const MidtransTab = ({
                     height: isMobile ? 44 : 52,
                     display: "grid",
                     placeItems: "center",
-                    borderRadius: 18,
-                    background: "linear-gradient(135deg, #1d4ed8, #2563eb)",
+                    borderRadius: museRadius.card,
+                    background: museColors.primary,
                     color: "#fff",
                     boxShadow: "0 18px 30px rgba(37, 99, 235, 0.2)",
                     flexShrink: 0,
@@ -120,12 +121,12 @@ const MidtransTab = ({
                   <div
                     style={{
                       padding: "14px 16px",
-                      borderRadius: 18,
-                      border: "1px solid rgba(148,163,184,0.14)",
+                      borderRadius: museRadius.card,
+                      border: `1px solid ${museColors.divider}`,
                       background: item.tone,
                     }}
                   >
-                    <Flex align='center' gap={8} style={{ color: "#475569" }}>
+                    <Flex align='center' gap={8} style={{ color: museColors.textBody }}>
                       {item.icon}
                       <Text type='secondary'>{item.title}</Text>
                     </Flex>
@@ -144,9 +145,9 @@ const MidtransTab = ({
           <Alert
             type='info'
             showIcon
-            message={`Satuan: ${selectedHomebaseName || "-"}`}
+            title={`Satuan: ${selectedHomebaseName || "-"}`}
             description='Client key dapat ditampilkan kembali. Server key tidak ditampilkan dan hanya diganti jika diisi ulang.'
-            style={{ borderRadius: 16 }}
+            style={{ borderRadius: museRadius.card }}
           />
 
           <Form form={form} layout='vertical' onFinish={onSubmit}>
@@ -210,15 +211,15 @@ const MidtransTab = ({
                   <Card
                     size='small'
                     style={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(148,163,184,0.14)",
+                      borderRadius: museRadius.card,
+                      border: `1px solid ${museColors.divider}`,
                       boxShadow: "none",
                     }}
                   >
                     <Flex justify='space-between' align='center' gap={12}>
                       <div style={{ minWidth: 0 }}>
                         <Text strong>Production</Text>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                        <div style={{ fontSize: 12, color: museColors.muted }}>
                           Gunakan kredensial live
                         </div>
                       </div>
@@ -232,15 +233,15 @@ const MidtransTab = ({
                   <Card
                     size='small'
                     style={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(148,163,184,0.14)",
+                      borderRadius: museRadius.card,
+                      border: `1px solid ${museColors.divider}`,
                       boxShadow: "none",
                     }}
                   >
                     <Flex justify='space-between' align='center' gap={12}>
                       <div style={{ minWidth: 0 }}>
                         <Text strong>Aktifkan gateway</Text>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                        <div style={{ fontSize: 12, color: museColors.muted }}>
                           Tampilkan sebagai kanal online
                         </div>
                       </div>
@@ -258,15 +259,15 @@ const MidtransTab = ({
                   <Card
                     size='small'
                     style={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(148,163,184,0.14)",
+                      borderRadius: museRadius.card,
+                      border: `1px solid ${museColors.divider}`,
                       boxShadow: "none",
                     }}
                   >
                     <Flex justify='space-between' align='center' gap={12}>
                       <div style={{ minWidth: 0 }}>
                         <Text strong>Gunakan Snap</Text>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                        <div style={{ fontSize: 12, color: museColors.muted }}>
                           Aktifkan checkout Midtrans Snap
                         </div>
                       </div>

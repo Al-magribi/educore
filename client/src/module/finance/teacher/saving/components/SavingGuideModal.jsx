@@ -11,6 +11,7 @@ import {
   UserRoundSearch,
 } from "lucide-react";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -18,7 +19,7 @@ const guideSteps = [
   {
     key: "scope",
     icon: SlidersHorizontal,
-    color: "#0ea5e9",
+    color: museColors.primary,
     background: "rgba(14, 165, 233, 0.12)",
     title: "Tentukan cakupan data",
     description:
@@ -27,7 +28,7 @@ const guideSteps = [
   {
     key: "verify",
     icon: UserRoundSearch,
-    color: "#8b5cf6",
+    color: museColors.purple,
     background: "rgba(139, 92, 246, 0.12)",
     title: "Pilih siswa dan periksa saldo",
     description:
@@ -36,7 +37,7 @@ const guideSteps = [
   {
     key: "deposit",
     icon: ArrowDownCircle,
-    color: "#059669",
+    color: museColors.success,
     background: "rgba(5, 150, 105, 0.12)",
     title: "Catat setoran",
     description:
@@ -45,7 +46,7 @@ const guideSteps = [
   {
     key: "withdrawal",
     icon: ArrowUpCircle,
-    color: "#d97706",
+    color: museColors.accent,
     background: "rgba(217, 119, 6, 0.12)",
     title: "Catat penarikan",
     description:
@@ -54,7 +55,7 @@ const guideSteps = [
   {
     key: "history",
     icon: History,
-    color: "#2563eb",
+    color: museColors.primary,
     background: "rgba(37, 99, 235, 0.12)",
     title: "Tinjau dan lacak riwayat",
     description:
@@ -95,20 +96,20 @@ const SavingGuideModal = ({ open, onClose }) => {
       styles={{
         body: {
           padding: 0,
-          background: "#f8fafc",
+          background: museColors.bgLayout,
           maxHeight: isMobile ? "calc(100vh - 140px)" : undefined,
           overflowY: isMobile ? "auto" : undefined,
         },
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 18 : 24,
+          borderRadius: museRadius.card,
         },
         footer: {
           display: "flex",
           justifyContent: isMobile ? "stretch" : "flex-end",
           padding: isMobile ? "12px 16px 16px" : "12px 24px 20px",
-          background: "#f8fafc",
+          background: museColors.bgLayout,
           margin: 0,
         },
       }}
@@ -117,7 +118,7 @@ const SavingGuideModal = ({ open, onClose }) => {
           initial={{ opacity: 0, y: 16, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
-          style={{ borderRadius: isMobile ? 18 : 24, overflow: "hidden" }}
+          style={{ borderRadius: museRadius.card, overflow: "hidden" }}
         >
           {node}
         </MotionDiv>
@@ -127,7 +128,7 @@ const SavingGuideModal = ({ open, onClose }) => {
         style={{
           padding: isMobile ? "20px 16px" : "28px 24px",
           background:
-            "radial-gradient(circle at top left, rgba(16,185,129,0.25), transparent 32%), linear-gradient(135deg, #0f172a, #166534 62%, #0f766e)",
+            museColors.success,
         }}
       >
         <Space orientation='vertical' size={8}>
@@ -136,14 +137,14 @@ const SavingGuideModal = ({ open, onClose }) => {
               style={{
                 width: 40,
                 height: 40,
-                borderRadius: 14,
+                borderRadius: museRadius.card,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 background: "rgba(255,255,255,0.14)",
               }}
             >
-              <BookOpen size={20} color='#f8fafc' />
+              <BookOpen size={20} color={museColors.bgLayout} />
             </div>
             <Tag
               color='green'
@@ -154,7 +155,7 @@ const SavingGuideModal = ({ open, onClose }) => {
           </Space>
           <Title
             level={isMobile ? 5 : 4}
-            style={{ margin: 0, color: "#f8fafc", lineHeight: 1.3 }}
+            style={{ margin: 0, color: museColors.bgLayout, lineHeight: 1.3 }}
           >
             Panduan Mencatat Tabungan Siswa
           </Title>
@@ -180,9 +181,9 @@ const SavingGuideModal = ({ open, onClose }) => {
                 key={step.key}
                 variant='borderless'
                 style={{
-                  borderRadius: 18,
-                  border: "1px solid rgba(148, 163, 184, 0.18)",
-                  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
+                  borderRadius: museRadius.card,
+                  border: `1px solid ${museColors.divider}`,
+                  boxShadow: museShadow.card,
                 }}
                 styles={{ body: { padding: isMobile ? 12 : 16 } }}
               >
@@ -191,7 +192,7 @@ const SavingGuideModal = ({ open, onClose }) => {
                     style={{
                       width: isMobile ? 40 : 44,
                       height: isMobile ? 40 : 44,
-                      borderRadius: 14,
+                      borderRadius: museRadius.card,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -227,17 +228,17 @@ const SavingGuideModal = ({ open, onClose }) => {
           <Card
             variant='borderless'
             style={{
-              borderRadius: 18,
+              borderRadius: museRadius.card,
               background:
-                "linear-gradient(135deg, rgba(5,150,105,0.08), rgba(14,165,233,0.06))",
+                museColors.primarySoft,
               border: "1px solid rgba(5, 150, 105, 0.18)",
             }}
             styles={{ body: { padding: isMobile ? 12 : 16 } }}
           >
             <Space orientation='vertical' size={10} style={{ width: "100%" }}>
               <Space align='center' size={8}>
-                <ShieldCheck size={18} color='#059669' />
-                <Text strong style={{ color: "#065f46" }}>
+                <ShieldCheck size={18} color={museColors.success} />
+                <Text strong style={{ color: museColors.success }}>
                   Ketentuan Penting
                 </Text>
               </Space>
@@ -248,12 +249,12 @@ const SavingGuideModal = ({ open, onClose }) => {
                       width: 6,
                       height: 6,
                       borderRadius: 999,
-                      background: "#059669",
+                      background: museColors.success,
                       marginTop: 8,
                       flexShrink: 0,
                     }}
                   />
-                  <Text style={{ color: "#334155", fontSize: isMobile ? 13 : 14 }}>
+                  <Text style={{ color: museColors.textBody, fontSize: isMobile ? 13 : 14 }}>
                     {rule}
                   </Text>
                 </Space>

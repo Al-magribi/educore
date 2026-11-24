@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { currencyFormatter } from "./parentTransactionShared";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 
 const ParentPaymentCheckoutModal = ({
@@ -91,10 +92,10 @@ const ParentPaymentCheckoutModal = ({
           <Card
             variant='borderless'
             style={{
-              borderRadius: 24,
-              border: "1px solid rgba(148,163,184,0.14)",
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.divider}`,
               background:
-                "radial-gradient(circle at top left, rgba(56,189,248,0.12), transparent 22%), linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                museColors.primarySoft,
             }}
           >
             <Flex justify='space-between' gap={16} wrap='wrap'>
@@ -116,7 +117,7 @@ const ParentPaymentCheckoutModal = ({
                     marginTop: 6,
                     fontSize: 24,
                     fontWeight: 800,
-                    color: "#0f172a",
+                    color: museColors.text,
                   }}
                 >
                   {currencyFormatter.format(Number(item.remaining_amount || 0))}
@@ -129,10 +130,10 @@ const ParentPaymentCheckoutModal = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: museRadius.card,
                 border: "1px solid rgba(16,185,129,0.16)",
                 background:
-                  "linear-gradient(135deg, rgba(236,253,245,0.9), rgba(239,246,255,0.9))",
+                  museColors.primarySoft,
               }}
             >
               <Space vertical size={12} style={{ width: "100%" }}>
@@ -141,17 +142,17 @@ const ParentPaymentCheckoutModal = ({
                     style={{
                       width: 42,
                       height: 42,
-                      borderRadius: 14,
+                      borderRadius: museRadius.card,
                       display: "grid",
                       placeItems: "center",
                       background: "rgba(15,118,110,0.12)",
-                      color: "#0f766e",
+                      color: museColors.success,
                     }}
                   >
                     <CreditCard size={20} />
                   </span>
                     <div>
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                      <div style={{ fontWeight: 700, color: museColors.text }}>
                         Pembayaran Online dengan Midtrans
                       </div>
                       <Text type='secondary'>
@@ -164,7 +165,7 @@ const ParentPaymentCheckoutModal = ({
                 <Alert
                   type='success'
                   showIcon
-                  message='Checkout Midtrans siap digunakan'
+                  title='Checkout Midtrans siap digunakan'
                   description='Setelah menekan tombol bayar, Anda akan diarahkan ke halaman Midtrans. Status tagihan akan menunggu verifikasi Midtrans sampai notifikasi pembayaran diterima sistem.'
                 />
               </Space>
@@ -176,7 +177,7 @@ const ParentPaymentCheckoutModal = ({
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: 24,
+                  borderRadius: museRadius.card,
                   border: "1px solid rgba(59,130,246,0.14)",
                 }}
               >
@@ -186,17 +187,17 @@ const ParentPaymentCheckoutModal = ({
                       style={{
                         width: 42,
                         height: 42,
-                        borderRadius: 14,
+                        borderRadius: museRadius.card,
                         display: "grid",
                         placeItems: "center",
                         background: "rgba(59,130,246,0.12)",
-                        color: "#1d4ed8",
+                        color: museColors.primary,
                       }}
                     >
                       <Landmark size={20} />
                     </span>
                     <div>
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                      <div style={{ fontWeight: 700, color: museColors.text }}>
                         Transfer ke Rekening Satuan
                       </div>
                       <Text type='secondary'>
@@ -225,8 +226,8 @@ const ParentPaymentCheckoutModal = ({
                             width: "100%",
                             marginInlineStart: 0,
                             padding: 14,
-                            borderRadius: 18,
-                            border: "1px solid rgba(148,163,184,0.18)",
+                            borderRadius: museRadius.card,
+                            border: `1px solid ${museColors.divider}`,
                           }}
                         >
                           <Flex justify='space-between' gap={12} wrap='wrap'>
@@ -238,7 +239,7 @@ const ParentPaymentCheckoutModal = ({
                               </Text>
                             </Space>
                             <Space size={8}>
-                              <Building2 size={16} color='#64748b' />
+                              <Building2 size={16} color={museColors.muted} />
                               <Text type='secondary'>
                                 {account.branch || "-"}
                               </Text>
@@ -254,13 +255,13 @@ const ParentPaymentCheckoutModal = ({
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: 24,
-                  border: "1px dashed rgba(148,163,184,0.3)",
+                  borderRadius: museRadius.card,
+                  border: `1px dashed ${museColors.border}`,
                 }}
               >
                 <Space vertical size={12} style={{ width: "100%" }}>
                   <div>
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                    <div style={{ fontWeight: 700, color: museColors.text }}>
                       Upload Bukti Transfer
                     </div>
                     <Text type='secondary'>
@@ -288,7 +289,7 @@ const ParentPaymentCheckoutModal = ({
             <Alert
               type='warning'
               showIcon
-              message='Metode pembayaran belum tersedia'
+              title='Metode pembayaran belum tersedia'
               description='Midtrans dan transfer bank sedang nonaktif atau belum lengkap pada satuan siswa ini.'
             />
           ) : null}
@@ -297,13 +298,13 @@ const ParentPaymentCheckoutModal = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
-                border: "1px solid rgba(148,163,184,0.14)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
               }}
             >
               <Space vertical size={10} style={{ width: "100%" }}>
                 <Space align='center' size={10}>
-                  <ShieldCheck size={18} color='#0f766e' />
+                  <ShieldCheck size={18} color={museColors.success} />
                   <Text strong>Nominal yang Akan Dibayar</Text>
                 </Space>
                 <Text type='secondary'>
@@ -330,7 +331,7 @@ const ParentPaymentCheckoutModal = ({
                   <Alert
                     type='warning'
                     showIcon
-                    message='Nominal cicilan belum valid'
+                    title='Nominal cicilan belum valid'
                     description={`Masukkan nominal lebih dari Rp 0 dan tidak melebihi ${currencyFormatter.format(
                       Number(item?.remaining_amount || 0),
                     )}.`}

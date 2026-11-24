@@ -15,7 +15,7 @@ import {
 import { skipToken } from "@reduxjs/toolkit/query";
 import { BookOpen } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddSavingTransactionMutation,
   useDeleteSavingTransactionMutation,
@@ -34,6 +34,7 @@ import { mapSavingFormValues } from "./formHelpers";
 import { cardStyle, currencyFormatter } from "./constants";
 import FinanceFeaturePage from "../../report/FinanceFeaturePage";
 
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
 const EMPTY_ARRAY = [];
 const EMPTY_OBJECT = {};
@@ -473,7 +474,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
   const isBootstrapping = isLoadingOptions;
 
   if (isBootstrapping) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   if (isAdminWorkspace) {
@@ -533,7 +534,7 @@ const Saving = ({ pageVariant = "teacher", scopedHomebaseId }) => {
                     style={{
                       fontSize: isMobile ? 20 : 24,
                       fontWeight: 700,
-                      color: "#0f766e",
+                      color: museColors.success,
                       wordBreak: "break-word",
                     }}
                   >

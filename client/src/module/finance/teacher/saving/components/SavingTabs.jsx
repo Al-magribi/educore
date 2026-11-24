@@ -6,6 +6,7 @@ import { cardStyle } from "../constants";
 import SavingStudentsList from "./SavingStudentsList";
 import SavingTransactionTable from "./SavingTransactionTable";
 
+import { museRadius } from "../../../../../config/theme";
 const MotionDiv = motion.div;
 
 const SavingTabs = ({
@@ -82,7 +83,7 @@ const SavingTabs = ({
         variant='borderless'
         style={{
           ...cardStyle,
-          borderRadius: isMobile ? 18 : undefined,
+          borderRadius: museRadius.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 8 : undefined, paddingTop: 12 } }}
@@ -93,7 +94,6 @@ const SavingTabs = ({
           items={items}
           onChange={handleActiveKeyChange}
           size={isMobile ? "small" : "middle"}
-          tabBarGutter={isMobile ? 8 : 16}
         />
       </Card>
     </MotionDiv>

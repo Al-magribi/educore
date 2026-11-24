@@ -7,6 +7,7 @@ import {
   formatSavingDate,
 } from "../constants";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 
 const StudentSavingOverviewTab = ({ student, summary }) => {
@@ -32,10 +33,10 @@ const StudentSavingOverviewTab = ({ student, summary }) => {
 
             <Row gutter={[12, 12]}>
               <Col xs={24} sm={12}>
-                <Card size='small' style={{ borderRadius: 16 }}>
+                <Card size='small' style={{ borderRadius: museRadius.card }}>
                   <Space direction='vertical' size={2}>
                     <Space align='center'>
-                      <IdCard size={16} color='#2563eb' />
+                      <IdCard size={16} color={museColors.primary} />
                       <Text strong>NIS</Text>
                     </Space>
                     <Text>{student.nis || "-"}</Text>
@@ -43,10 +44,10 @@ const StudentSavingOverviewTab = ({ student, summary }) => {
                 </Card>
               </Col>
               <Col xs={24} sm={12}>
-                <Card size='small' style={{ borderRadius: 16 }}>
+                <Card size='small' style={{ borderRadius: museRadius.card }}>
                   <Space direction='vertical' size={2}>
                     <Space align='center'>
-                      <Landmark size={16} color='#0891b2' />
+                      <Landmark size={16} color={museColors.cyan} />
                       <Text strong>Kelas</Text>
                     </Space>
                     <Text>{student.class_name || "-"}</Text>
@@ -58,8 +59,8 @@ const StudentSavingOverviewTab = ({ student, summary }) => {
             <Card
               size='small'
               style={{
-                borderRadius: 18,
-                background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
               }}
             >
               <Text type='secondary'>Saldo terakhir</Text>
@@ -81,9 +82,9 @@ const StudentSavingOverviewTab = ({ student, summary }) => {
               </Title>
             </div>
 
-            <Card size='small' style={{ borderRadius: 16 }}>
+            <Card size='small' style={{ borderRadius: museRadius.card }}>
               <Space align='center'>
-                <Clock3 size={16} color='#7c3aed' />
+                <Clock3 size={16} color={museColors.purple} />
                 <Space direction='vertical' size={0}>
                   <Text strong>Transaksi terakhir</Text>
                   <Text type='secondary'>
@@ -93,12 +94,12 @@ const StudentSavingOverviewTab = ({ student, summary }) => {
               </Space>
             </Card>
 
-            <Card size='small' style={{ borderRadius: 16 }}>
+            <Card size='small' style={{ borderRadius: museRadius.card }}>
               <Text strong>Jumlah setoran</Text>
               <div>{summary?.deposit_count || 0} transaksi</div>
             </Card>
 
-            <Card size='small' style={{ borderRadius: 16 }}>
+            <Card size='small' style={{ borderRadius: museRadius.card }}>
               <Text strong>Jumlah penarikan</Text>
               <div>{summary?.withdrawal_count || 0} transaksi</div>
             </Card>

@@ -16,7 +16,7 @@ import { motion } from "framer-motion";
 import dayjs from "dayjs";
 import { RefreshCw } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import { useFinanceScope } from "../../../center/finance/FinanceScopeContext";
 import {
   useAddExpenseMutation,
@@ -31,6 +31,7 @@ import ExpenseHeader from "./ExpenseHeader";
 import ExpenseListTable from "./ExpenseListTable";
 import ExpenseSummaryCards from "./ExpenseSummaryCards";
 
+import { museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -246,7 +247,7 @@ const ExpenseDailyTab = () => {
   };
 
   if (optionsQuery.isLoading) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   return (
@@ -263,7 +264,7 @@ const ExpenseDailyTab = () => {
           <Card
             style={{
               ...cardStyle,
-              borderRadius: isMobile ? 18 : 24,
+              borderRadius: museRadius.card,
             }}
             styles={{ body: { padding: isMobile ? 14 : 20 } }}
           >
@@ -333,7 +334,7 @@ const ExpenseDailyTab = () => {
                 <Alert
                   type='error'
                   showIcon
-                  message={
+                  title={
                     listError?.data?.message ||
                     "Gagal memuat daftar pengeluaran"
                   }

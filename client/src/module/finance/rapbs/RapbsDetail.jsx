@@ -8,6 +8,7 @@ import { useGetBudgetsQuery, useGetReportOptionsQuery } from '../../../service/f
 import ReportBudgetTab from '../report/components/ReportBudgetTab';
 import { cardStyle, currencyFormatter, pageStyle } from '../report/constants';
 
+import { museColors } from "../../../config/theme";
 const { Title, Text } = Typography;
 
 const RapbsDetail = ({ listPath = '/finance/rapbs', showBack = true, scopedHomebaseId }) => {
@@ -78,7 +79,7 @@ const RapbsDetail = ({ listPath = '/finance/rapbs', showBack = true, scopedHomeb
         <Alert
           type="error"
           showIcon
-          message="Homebase tidak valid"
+          title="Homebase tidak valid"
           action={<Button onClick={() => navigate(listPath)}>Kembali</Button>}
         />
       </div>
@@ -99,7 +100,7 @@ const RapbsDetail = ({ listPath = '/finance/rapbs', showBack = true, scopedHomeb
         <Alert
           type="error"
           showIcon
-          message="Gagal memuat opsi RAPBS"
+          title="Gagal memuat opsi RAPBS"
           action={showBack ? <Button onClick={() => navigate(listPath)}>Kembali</Button> : null}
         />
       </div>
@@ -121,7 +122,7 @@ const RapbsDetail = ({ listPath = '/finance/rapbs', showBack = true, scopedHomeb
               </Button>
             ) : null}
             <Flex align="center" gap={10}>
-              <Calculator style={{ color: '#1677ff' }} size={22} />
+              <Calculator style={{ color: museColors.primary }} size={22} />
               <div>
                 <Title level={4} style={{ margin: 0 }}>
                   RAPBS / Anggaran
@@ -151,12 +152,12 @@ const RapbsDetail = ({ listPath = '/finance/rapbs', showBack = true, scopedHomeb
         <Alert
           type="info"
           showIcon
-          message="Kelola anggaran per periode ajaran"
+          title="Kelola anggaran per periode ajaran"
           description="Pos pengeluaran RAPBS mengikuti kategori di menu Pengeluaran → Kategori. Hanya admin keuangan dan pusat yang dapat mengubah nominal maupun kategori."
         />
 
         {isBudgetError ? (
-          <Alert type="error" showIcon message={budgetError?.data?.message || 'Gagal memuat data anggaran RAPBS'} />
+          <Alert type="error" showIcon title={budgetError?.data?.message || 'Gagal memuat data anggaran RAPBS'} />
         ) : null}
 
         {isFetchingBudgets && !budgetData ? (

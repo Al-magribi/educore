@@ -24,6 +24,7 @@ import TransactionStepSpp from "./TransactionStepSpp.jsx";
 import TransactionStepStudent from "./TransactionStepStudent.jsx";
 import { currencyFormatter } from "./transactionFormShared.jsx";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -166,8 +167,8 @@ const TransactionFormModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 20 : 30,
-          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
           maxHeight: isMobile ? "calc(100vh - 16px)" : undefined,
         },
         body: {
@@ -189,7 +190,7 @@ const TransactionFormModal = ({
       <div
         style={{
           padding: isMobile ? 14 : 24,
-          background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+          background: "#ffffff",
         }}
       >
         <Spin spinning={loadingOpen}>
@@ -198,11 +199,11 @@ const TransactionFormModal = ({
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: isMobile ? 18 : 24,
+                  borderRadius: museRadius.card,
                   overflow: "hidden",
                   position: "relative",
                   background:
-                    "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0f766e 100%)",
+                    museColors.primary,
                 }}
                 styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
@@ -211,7 +212,7 @@ const TransactionFormModal = ({
                     position: "absolute",
                     inset: 0,
                     background:
-                      "linear-gradient(135deg, rgba(255,255,255,0.06), transparent 42%)",
+                      "#ffffff",
                     pointerEvents: "none",
                   }}
                 />
@@ -268,8 +269,8 @@ const TransactionFormModal = ({
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: isMobile ? 16 : 20,
-                  border: "1px solid rgba(148,163,184,0.14)",
+                  borderRadius: museRadius.card,
+                  border: `1px solid ${museColors.divider}`,
                 }}
                 styles={{ body: { padding: isMobile ? 10 : 24 } }}
               >
@@ -286,9 +287,9 @@ const TransactionFormModal = ({
                 <Alert
                   type='info'
                   showIcon
-                  message='Memuat konteks tagihan siswa'
+                  title='Memuat konteks tagihan siswa'
                   description='Sistem sedang mengambil data SPP dan pembayaran lainnya untuk siswa terpilih.'
-                  style={{ borderRadius: 16 }}
+                  style={{ borderRadius: museRadius.card }}
                 />
               ) : null}
 
@@ -296,9 +297,9 @@ const TransactionFormModal = ({
                 <Card
                   variant='borderless'
                   style={{
-                    borderRadius: isMobile ? 16 : 20,
+                    borderRadius: museRadius.card,
                     background:
-                      "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
+                      museColors.navy,
                   }}
                   styles={{ body: { padding: isMobile ? 14 : 18 } }}
                 >
@@ -311,7 +312,7 @@ const TransactionFormModal = ({
                     <Space size={14} align='start'>
                       <Avatar
                         size={isMobile ? 40 : 48}
-                        style={{ background: "#2563eb", fontWeight: 700 }}
+                        style={{ background: museColors.primary, fontWeight: 700 }}
                       >
                         {(student.student_name || student.full_name || "?")
                           .slice(0, 1)

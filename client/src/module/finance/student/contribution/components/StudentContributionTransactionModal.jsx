@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 
 import { rupiahInputProps } from "../constants";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Title, Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -41,7 +42,7 @@ const StudentContributionTransactionModal = ({
     styles={{
       body: {
         padding: 16,
-        background: "#f8fafc",
+        background: museColors.bgLayout,
       },
     }}
     modalRender={(node) => (
@@ -49,7 +50,7 @@ const StudentContributionTransactionModal = ({
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.22, ease: "easeOut" }}
-        style={{ borderRadius: 24, overflow: "hidden" }}
+        style={{ borderRadius: museRadius.card, overflow: "hidden" }}
       >
         {node}
       </MotionDiv>
@@ -59,17 +60,17 @@ const StudentContributionTransactionModal = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 20,
+          borderRadius: museRadius.card,
           background:
             mode === "expense"
-              ? "linear-gradient(135deg, #7f1d1d, #b91c1c 55%, #dc2626)"
-              : "linear-gradient(135deg, #064e3b, #047857 55%, #10b981)",
-          boxShadow: "0 20px 50px rgba(15,23,42,0.16)",
+              ? museColors.danger
+              : museColors.success,
+          boxShadow: museShadow.card,
         }}
         styles={{ body: { padding: 20 } }}
       >
         <Space orientation='vertical' size={10} style={{ width: "100%" }}>
-          <Title level={4} style={{ margin: 0, color: "#f8fafc" }}>
+          <Title level={4} style={{ margin: 0, color: museColors.bgLayout }}>
             {editingTransaction
               ? mode === "expense"
                 ? "Edit Pengeluaran Kas Kelas"
@@ -89,8 +90,8 @@ const StudentContributionTransactionModal = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 20,
-          border: "1px solid rgba(148,163,184,0.14)",
+          borderRadius: museRadius.card,
+          border: `1px solid ${museColors.divider}`,
         }}
         styles={{ body: { padding: 18 } }}
       >
@@ -98,7 +99,7 @@ const StudentContributionTransactionModal = ({
           <Alert
             showIcon
             type={mode === "expense" ? "warning" : "success"}
-            style={{ marginBottom: 16, borderRadius: 14 }}
+            style={{ marginBottom: 16, borderRadius: museRadius.card }}
             title={
               mode === "expense"
                 ? "Pengeluaran akan mengurangi saldo kas kelas."

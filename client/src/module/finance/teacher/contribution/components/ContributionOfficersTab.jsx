@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 
 import { cardStyle, formatDateTime } from "../constants";
 
+import { museColors } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -107,7 +108,7 @@ const ContributionOfficersTab = ({
               <Title level={5} style={{ margin: 0 }}>
                 Petugas Kas Kelas
               </Title>
-              <Paragraph style={{ margin: 0, color: "#64748b" }}>
+              <Paragraph style={{ margin: 0, color: museColors.muted }}>
                 Petugas aktif dapat membantu pencatatan kas kelas pada periode
                 aktif ini.
               </Paragraph>

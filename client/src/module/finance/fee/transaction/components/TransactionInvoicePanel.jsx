@@ -30,6 +30,7 @@ import {
   statusMetaMap,
 } from "../../../parent/transaction/components/parentTransactionShared";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -56,10 +57,10 @@ const itemVariants = {
 };
 
 const summaryCardStyle = {
-  borderRadius: 22,
+  borderRadius: museRadius.card,
   height: "100%",
-  border: "1px solid rgba(148,163,184,0.14)",
-  boxShadow: "0 18px 34px rgba(15,23,42,0.06)",
+  border: `1px solid ${museColors.divider}`,
+  boxShadow: museShadow.card,
 };
 
 const TransactionInvoicePanel = ({
@@ -83,8 +84,8 @@ const TransactionInvoicePanel = ({
       value: currencyFormatter.format(Number(invoice?.total_due || 0)),
       note: "Akumulasi nominal pada invoice ini.",
       icon: <WalletCards size={18} />,
-      background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-      color: "#1d4ed8",
+      background: museColors.primarySoft,
+      color: museColors.primary,
     },
     {
       key: "total_paid",
@@ -92,8 +93,8 @@ const TransactionInvoicePanel = ({
       value: currencyFormatter.format(Number(invoice?.total_paid || 0)),
       note: "Nominal yang sudah dialokasikan.",
       icon: <BadgeCheck size={18} />,
-      background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-      color: "#15803d",
+      background: museColors.bgSoft,
+      color: museColors.success,
     },
     {
       key: "payments",
@@ -101,8 +102,8 @@ const TransactionInvoicePanel = ({
       value: payments.length,
       note: "Transaksi yang tercatat pada invoice.",
       icon: <ReceiptText size={18} />,
-      background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
-      color: "#c2410c",
+      background: museColors.accentSoft,
+      color: museColors.accent,
     },
   ];
 
@@ -312,10 +313,10 @@ const TransactionInvoicePanel = ({
     <Card
       variant='borderless'
       style={{
-        borderRadius: isMobile ? 20 : 30,
-        border: "1px solid rgba(148,163,184,0.14)",
-        boxShadow: "0 24px 56px rgba(15,23,42,0.08)",
-        background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+        borderRadius: museRadius.card,
+        border: `1px solid ${museColors.divider}`,
+        boxShadow: museShadow.card,
+        background: "#ffffff",
         overflow: "hidden",
       }}
       styles={{ body: { padding: isMobile ? 12 : 20 } }}
@@ -337,11 +338,11 @@ const TransactionInvoicePanel = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: isMobile ? 18 : 24,
+                borderRadius: museRadius.card,
                 overflow: "hidden",
                 background:
-                  "radial-gradient(circle at top left, rgba(56,189,248,0.22), transparent 26%), radial-gradient(circle at right center, rgba(255,255,255,0.12), transparent 18%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #0f766e 100%)",
-                boxShadow: "0 24px 56px rgba(15,23,42,0.18)",
+                  museColors.primary,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: isMobile ? 14 : 20 } }}
             >
@@ -431,7 +432,7 @@ const TransactionInvoicePanel = ({
                   style={{
                     width: isMobile ? "100%" : 280,
                     maxWidth: "100%",
-                    borderRadius: 20,
+                    borderRadius: museRadius.card,
                     background: "rgba(255,255,255,0.14)",
                     border: "1px solid rgba(255,255,255,0.14)",
                     backdropFilter: "blur(10px)",
@@ -440,7 +441,7 @@ const TransactionInvoicePanel = ({
                 >
                   <Space vertical size={10} style={{ width: "100%" }}>
                     <Flex align='center' gap={8}>
-                      <CalendarClock size={16} color='#bfdbfe' />
+                      <CalendarClock size={16} color={museColors.primarySoft} />
                       <Text style={{ color: "rgba(255,255,255,0.72)" }}>
                         Ringkasan invoice
                       </Text>
@@ -484,7 +485,7 @@ const TransactionInvoicePanel = ({
                   variant='borderless'
                   style={{
                     ...summaryCardStyle,
-                    borderRadius: isMobile ? 16 : 22,
+                    borderRadius: museRadius.card,
                   }}
                   styles={{ body: { padding: isMobile ? 14 : 20 } }}
                 >
@@ -493,7 +494,7 @@ const TransactionInvoicePanel = ({
                       style={{
                         width: isMobile ? 40 : 44,
                         height: isMobile ? 40 : 44,
-                        borderRadius: 16,
+                        borderRadius: museRadius.card,
                         display: "grid",
                         placeItems: "center",
                         background: item.background,
@@ -529,9 +530,9 @@ const TransactionInvoicePanel = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: isMobile ? 16 : 24,
-                border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: isMobile ? 12 : 20 } }}
             >
@@ -574,9 +575,9 @@ const TransactionInvoicePanel = ({
               title='Rincian Item'
               variant='borderless'
               style={{
-                borderRadius: isMobile ? 16 : 24,
-                border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
+                boxShadow: museShadow.card,
                 overflow: "hidden",
               }}
               styles={{ body: { padding: isMobile ? 8 : 0 } }}
@@ -600,9 +601,9 @@ const TransactionInvoicePanel = ({
               title='Riwayat Pembayaran'
               variant='borderless'
               style={{
-                borderRadius: isMobile ? 16 : 24,
-                border: "1px solid rgba(148,163,184,0.14)",
-                boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
+                boxShadow: museShadow.card,
                 overflow: "hidden",
               }}
               styles={{ body: { padding: isMobile ? 8 : 0 } }}
@@ -625,9 +626,9 @@ const TransactionInvoicePanel = ({
                 <Card
                   variant='borderless'
                   style={{
-                    borderRadius: isMobile ? 16 : 24,
-                    border: "1px solid rgba(148,163,184,0.14)",
-                    boxShadow: "0 18px 34px rgba(15,23,42,0.05)",
+                    borderRadius: museRadius.card,
+                    border: `1px solid ${museColors.divider}`,
+                    boxShadow: museShadow.card,
                     height: "100%",
                   }}
                   styles={{ body: { padding: isMobile ? 14 : 24 } }}
@@ -638,11 +639,11 @@ const TransactionInvoicePanel = ({
                         style={{
                           width: 38,
                           height: 38,
-                          borderRadius: 14,
+                          borderRadius: museRadius.card,
                           display: "grid",
                           placeItems: "center",
-                          background: "linear-gradient(135deg, #dbeafe, #dcfce7)",
-                          color: "#0f766e",
+                          background: museColors.primarySoft,
+                          color: museColors.success,
                           flexShrink: 0,
                         }}
                       >
@@ -660,7 +661,7 @@ const TransactionInvoicePanel = ({
                       <Alert
                         type='info'
                         showIcon
-                        message='Profil petugas invoice belum diisi'
+                        title='Profil petugas invoice belum diisi'
                         description='Nama atau tanda tangan petugas keuangan belum tersedia pada pengaturan keuangan satuan.'
                       />
                     ) : (

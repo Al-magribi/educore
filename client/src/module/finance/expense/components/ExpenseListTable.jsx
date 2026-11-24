@@ -10,6 +10,7 @@ import {
   paymentMethodLabel,
 } from "../constants";
 
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -85,7 +86,7 @@ const ExpenseListTable = ({
       width: 140,
       align: "right",
       render: (value) => (
-        <Text strong style={{ color: "#be123c" }}>
+        <Text strong style={{ color: museColors.danger }}>
           {currencyFormatter.format(Number(value || 0))}
         </Text>
       ),
@@ -146,7 +147,7 @@ const ExpenseListTable = ({
                   record.payment_method}
                 {record.reference_no ? ` · ${record.reference_no}` : ""}
               </Text>
-              <Text strong style={{ color: "#be123c", fontSize: 16 }}>
+              <Text strong style={{ color: museColors.danger, fontSize: 16 }}>
                 {currencyFormatter.format(Number(record.amount || 0))}
               </Text>
             </div>

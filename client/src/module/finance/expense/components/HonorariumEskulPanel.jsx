@@ -19,7 +19,7 @@ import {
 import { motion } from "framer-motion";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddHonorRateMutation,
   useDeleteHonorRateMutation,
@@ -28,6 +28,7 @@ import {
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle, currencyFormatter, rupiahInputProps } from "../constants";
 
+import { museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -178,7 +179,7 @@ const HonorariumEskulPanel = ({
   }
 
   if (listQuery.isLoading) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   return (
@@ -202,7 +203,7 @@ const HonorariumEskulPanel = ({
                 virtual={false}
               />
             ) : null}
-            <Button type='primary' icon={<Plus size={16} />} onClick={openCreate} style={{ borderRadius: 12 }}>
+            <Button type='primary' icon={<Plus size={16} />} onClick={openCreate} style={{ borderRadius: museRadius.item }}>
               Tambah Eskul
             </Button>
           </Flex>

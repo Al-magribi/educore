@@ -22,6 +22,7 @@ import {
 import ScholarshipAmountCell from "../../ScholarshipAmountCell";
 import OthersInstallmentHistory from "./OthersInstallmentHistory";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -362,10 +363,10 @@ const OthersChargesTable = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 16 : 22,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-          border: "1px solid rgba(148,163,184,0.14)",
-          boxShadow: "0 18px 36px rgba(15,23,42,0.05)",
+          borderRadius: museRadius.card,
+          background: "#ffffff",
+          border: `1px solid ${museColors.divider}`,
+          boxShadow: museShadow.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 10 : 24 } }}

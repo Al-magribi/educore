@@ -16,6 +16,7 @@ import { Search, UserRound } from "lucide-react";
 
 import { getPeriodeTagColor } from "./transactionFormShared.jsx";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -93,7 +94,7 @@ const TransactionStepStudent = ({
     label: (
       <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
         <Space direction='vertical' size={1}>
-          <Text strong style={{ color: "#0f172a" }}>
+          <Text strong style={{ color: museColors.text }}>
             {item.full_name}
           </Text>
           <Text type='secondary'>
@@ -119,7 +120,7 @@ const TransactionStepStudent = ({
             label: (
               <Flex justify='space-between' align='center' gap={12} wrap='wrap'>
                 <Space direction='vertical' size={1}>
-                  <Text strong style={{ color: "#0f172a" }}>
+                  <Text strong style={{ color: museColors.text }}>
                     {currentStudentOption.full_name}
                   </Text>
                   <Text type='secondary'>
@@ -203,9 +204,9 @@ const TransactionStepStudent = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 16 : 20,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-          border: "1px solid rgba(148,163,184,0.14)",
+          borderRadius: museRadius.card,
+          background: "#ffffff",
+          border: `1px solid ${museColors.divider}`,
         }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
       >
@@ -269,7 +270,7 @@ const TransactionStepStudent = ({
             filterOption={false}
             searchValue={studentSearchValue}
             optionLabelProp='plainLabel'
-            suffixIcon={<Search size={16} color='#94a3b8' />}
+            suffixIcon={<Search size={16} color={museColors.muted} />}
             notFoundContent={
               !canSearchStudent
                 ? "Pilih satuan dan periode terlebih dahulu"
@@ -322,9 +323,9 @@ const TransactionStepStudent = ({
           <Card
             bordered={false}
             style={{
-              borderRadius: isMobile ? 16 : 20,
+              borderRadius: museRadius.card,
               background:
-                "linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95))",
+                museColors.navy,
               color: "#ffffff",
             }}
             styles={{ body: { padding: isMobile ? 14 : 20 } }}
@@ -333,7 +334,7 @@ const TransactionStepStudent = ({
               <Space size={14} align='start'>
                 <Avatar
                   size={isMobile ? 44 : 52}
-                  style={{ background: "#2563eb", fontWeight: 700 }}
+                  style={{ background: museColors.primary, fontWeight: 700 }}
                 >
                   {(student.student_name || student.full_name || "?")
                     .slice(0, 1)
@@ -374,9 +375,9 @@ const TransactionStepStudent = ({
         <Card
           bordered={false}
           style={{
-            borderRadius: 18,
-            background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
-            border: "1px dashed rgba(148,163,184,0.28)",
+            borderRadius: museRadius.card,
+            background: "#ffffff",
+            border: `1px dashed ${museColors.border}`,
           }}
         >
           <Space align='center' size={10}>
@@ -386,9 +387,9 @@ const TransactionStepStudent = ({
                 height: 40,
                 display: "grid",
                 placeItems: "center",
-                borderRadius: 14,
-                background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                color: "#2563eb",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
+                color: museColors.primary,
               }}
             >
               <UserRound size={18} />

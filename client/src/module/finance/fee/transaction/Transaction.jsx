@@ -21,7 +21,7 @@ import {
 } from 'antd';
 import { motion } from 'framer-motion';
 
-import { LoadApp } from '../../../../components';
+import FinanceSkeleton from '../../shared/FinanceSkeleton';
 import {
   useCreateTransactionMutation,
   useConfirmTransactionPaymentMutation,
@@ -36,6 +36,7 @@ import TransactionInvoicePanel from './components/TransactionInvoicePanel.jsx';
 import TransactionList from './components/TransactionList';
 import { buildOtherPaymentValue, getOtherPaymentSelectionKey } from './components/transactionFormShared.jsx';
 
+import { museColors, museRadius } from "../../../../config/theme";
 const MotionDiv = motion.div;
 const { Text } = Typography;
 
@@ -758,7 +759,7 @@ const Transaction = () => {
   };
 
   if (isLoadingOptions && !optionResponse) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   const isInvoiceOpen = Boolean(activeInvoiceId);
@@ -928,7 +929,7 @@ const Transaction = () => {
               <Alert
                 type={confirmationState.action === 'approve' ? 'info' : 'warning'}
                 showIcon
-                message={
+                title={
                   confirmationState.action === 'approve'
                     ? 'Periksa bukti transfer sebelum mengonfirmasi'
                     : confirmationState.action === 'reject'
@@ -947,8 +948,8 @@ const Transaction = () => {
               <Card
                 size="small"
                 style={{
-                  borderRadius: 18,
-                  border: '1px solid rgba(148,163,184,0.14)',
+                  borderRadius: museRadius.card,
+                  border: `1px solid ${museColors.divider}`,
                 }}>
                 <Descriptions
                   column={1}
@@ -1000,8 +1001,8 @@ const Transaction = () => {
                   size="small"
                   title="Preview Bukti Transfer"
                   style={{
-                    borderRadius: 18,
-                    border: '1px solid rgba(148,163,184,0.14)',
+                    borderRadius: museRadius.card,
+                    border: `1px solid ${museColors.divider}`,
                   }}>
                   {/\.(png|jpe?g|webp|gif)$/i.test(confirmationState.record.proof_url) ? (
                     <Image
@@ -1023,7 +1024,7 @@ const Transaction = () => {
                 <Alert
                   type="warning"
                   showIcon
-                  message="Bukti transfer tidak tersedia"
+                  title="Bukti transfer tidak tersedia"
                   description="Tidak ditemukan file bukti transfer pada pembayaran ini."
                 />
               )}

@@ -18,6 +18,7 @@ import { FileSignature, ShieldCheck } from "lucide-react";
 import { UploadOutlined, UserOutlined } from "@ant-design/icons";
 import { cardStyle } from "../../fee/others/constants";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -37,8 +38,8 @@ const FinanceProfileTab = ({
       <Card
         style={{
           ...cardStyle,
-          borderRadius: isMobile ? 18 : undefined,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          borderRadius: museRadius.card,
+          background: "#ffffff",
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 14 : 24 } }}
@@ -47,10 +48,10 @@ const FinanceProfileTab = ({
           <div
             style={{
               padding: isMobile ? 14 : 20,
-              borderRadius: isMobile ? 16 : 22,
+              borderRadius: museRadius.card,
               border: "1px solid rgba(59,130,246,0.14)",
               background:
-                "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(240,253,250,0.95))",
+                museColors.primarySoft,
             }}
           >
             <Flex justify='space-between' align='flex-start' wrap='wrap' gap={16}>
@@ -61,8 +62,8 @@ const FinanceProfileTab = ({
                     height: isMobile ? 44 : 52,
                     display: "grid",
                     placeItems: "center",
-                    borderRadius: 18,
-                    background: "linear-gradient(135deg, #2563eb, #0f766e)",
+                    borderRadius: museRadius.card,
+                    background: museColors.primary,
                     color: "#fff",
                     flexShrink: 0,
                     boxShadow: "0 18px 30px rgba(37, 99, 235, 0.2)",
@@ -92,9 +93,9 @@ const FinanceProfileTab = ({
               <div
                 style={{
                   padding: "10px 14px",
-                  borderRadius: 18,
+                  borderRadius: museRadius.card,
                   background: "#ffffff",
-                  border: "1px solid rgba(148,163,184,0.16)",
+                  border: `1px solid ${museColors.divider}`,
                   minWidth: isMobile ? "100%" : 220,
                   width: isMobile ? "100%" : undefined,
                 }}
@@ -113,9 +114,9 @@ const FinanceProfileTab = ({
           <Alert
             type='info'
             showIcon
-            message={`Satuan: ${selectedHomebaseName || "-"}`}
+            title={`Satuan: ${selectedHomebaseName || "-"}`}
             description='Nama petugas dan tanda tangan ini akan dipakai pada invoice satuan.'
-            style={{ borderRadius: 16 }}
+            style={{ borderRadius: museRadius.card }}
           />
 
           <Form form={form} layout='vertical'>
@@ -182,8 +183,8 @@ const FinanceProfileTab = ({
                     <Card
                       size='small'
                       style={{
-                        borderRadius: 20,
-                        border: "1px solid rgba(148,163,184,0.16)",
+                        borderRadius: museRadius.card,
+                        border: `1px solid ${museColors.divider}`,
                         background: "#ffffff",
                       }}
                       styles={{ body: { padding: isMobile ? 14 : 18 } }}
@@ -199,7 +200,7 @@ const FinanceProfileTab = ({
                           <div
                             style={{
                               marginTop: 4,
-                              color: "#64748b",
+                              color: museColors.muted,
                               fontSize: 13,
                             }}
                           >
@@ -214,7 +215,7 @@ const FinanceProfileTab = ({
                             borderRadius: 999,
                             background: "rgba(240,253,244,0.9)",
                             border: "1px solid rgba(34,197,94,0.14)",
-                            color: "#166534",
+                            color: museColors.success,
                           }}
                         >
                           <ShieldCheck size={14} />
@@ -227,8 +228,8 @@ const FinanceProfileTab = ({
                           alt='Tanda tangan petugas'
                           width={isMobile ? "100%" : 220}
                           style={{
-                            borderRadius: 12,
-                            border: "1px solid rgba(148,163,184,0.2)",
+                            borderRadius: museRadius.item,
+                            border: `1px solid ${museColors.divider}`,
                             padding: 8,
                             background: "#fff",
                             maxWidth: isMobile ? 220 : undefined,

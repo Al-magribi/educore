@@ -19,7 +19,7 @@ import {
 import { motion } from "framer-motion";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useAddHonorUnitMutation,
   useDeleteHonorUnitMutation,
@@ -28,6 +28,7 @@ import {
 } from "../../../../service/finance/ApiHonorarium";
 import { cardStyle } from "../constants";
 
+import { museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -206,7 +207,7 @@ const HonorariumUnitPanel = ({
   }
 
   if (listQuery.isLoading) {
-    return <LoadApp />;
+    return <FinanceSkeleton />;
   }
 
   return (
@@ -246,7 +247,7 @@ const HonorariumUnitPanel = ({
               icon={<Plus size={16} />}
               onClick={openCreate}
               block={isMobile}
-              style={{ borderRadius: 12 }}
+              style={{ borderRadius: museRadius.item }}
             >
               Tambah Unit
             </Button>

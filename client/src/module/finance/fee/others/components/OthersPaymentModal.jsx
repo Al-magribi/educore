@@ -19,6 +19,7 @@ import TransactionStepConfirm from "../../transaction/components/TransactionStep
 import TransactionStepOther from "../../transaction/components/TransactionStepOther.jsx";
 import { currencyFormatter } from "../../transaction/components/transactionFormShared.jsx";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text } = Typography;
 const MotionDiv = motion.div;
 
@@ -99,8 +100,8 @@ const OthersPaymentModal = ({
         content: {
           padding: 0,
           overflow: "hidden",
-          borderRadius: isMobile ? 20 : 28,
-          boxShadow: "0 28px 70px rgba(15, 23, 42, 0.18)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         },
         body: {
           padding: 0,
@@ -121,7 +122,7 @@ const OthersPaymentModal = ({
       <div
         style={{
           padding: isMobile ? 14 : 22,
-          background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+          background: "#ffffff",
         }}
       >
         <Form form={form} layout='vertical' preserve>
@@ -129,8 +130,8 @@ const OthersPaymentModal = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: isMobile ? 16 : 20,
-                background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+                borderRadius: museRadius.card,
+                background: museColors.navy,
               }}
               styles={{ body: { padding: isMobile ? 14 : 18 } }}
             >

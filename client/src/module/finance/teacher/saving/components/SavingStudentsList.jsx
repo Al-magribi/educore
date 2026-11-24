@@ -26,6 +26,7 @@ import * as XLSX from "xlsx";
 import { cardStyle, currencyFormatter, formatSavingDate } from "../constants";
 import SavingStudentDetailModal from "./SavingStudentDetailModal";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 const PAGE_SIZE_OPTIONS = [12, 24, 48, 96];
@@ -109,7 +110,7 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
                 variant='borderless'
                 style={{
                   ...cardStyle,
-                  borderRadius: isMobile ? 18 : undefined,
+                  borderRadius: museRadius.card,
                   height: "100%",
                 }}
                 styles={{ body: { padding: isMobile ? 14 : 18 } }}
@@ -160,9 +161,9 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
 
                   <div
                     style={{
-                      borderRadius: 18,
+                      borderRadius: museRadius.card,
                       background:
-                        "linear-gradient(135deg, #eff6ff 0%, #dcfce7 100%)",
+                        museColors.primarySoft,
                       border: "1px solid rgba(59, 130, 246, 0.12)",
                       padding: isMobile ? 12 : 16,
                     }}
@@ -170,7 +171,7 @@ const SavingStudentsList = ({ students, loading, onCreate }) => {
                     <Space orientation='vertical' size={2}>
                       <Text type='secondary'>Saldo Saat Ini</Text>
                       <Space align='center'>
-                        <PiggyBank size={18} color='#059669' />
+                        <PiggyBank size={18} color={museColors.success} />
                         <Title
                           level={4}
                           style={{

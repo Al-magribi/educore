@@ -25,13 +25,14 @@ import {
   transactionTypeMeta,
 } from "../constants";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
 const summaryBoxStyle = {
-  borderRadius: 14,
-  border: "1px solid rgba(148, 163, 184, 0.16)",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+  borderRadius: museRadius.card,
+  border: `1px solid ${museColors.divider}`,
+  background: "#ffffff",
   padding: "10px 12px",
   minWidth: 0,
 };
@@ -179,7 +180,7 @@ const SavingTransactionTable = ({
               strong
               style={{
                 color:
-                  record.transaction_type === "withdrawal" ? "#d97706" : "#059669",
+                  record.transaction_type === "withdrawal" ? museColors.accent : museColors.success,
                 whiteSpace: "nowrap",
               }}
             >
@@ -267,8 +268,8 @@ const SavingTransactionTable = ({
                 style={{
                   color:
                     record.transaction_type === "withdrawal"
-                      ? "#d97706"
-                      : "#059669",
+                      ? museColors.accent
+                      : museColors.success,
                   fontSize: 15,
                   wordBreak: "break-word",
                 }}
@@ -326,7 +327,7 @@ const SavingTransactionTable = ({
         variant='borderless'
         style={{
           ...cardStyle,
-          borderRadius: isMobile ? 16 : undefined,
+          borderRadius: museRadius.card,
           overflow: "hidden",
           width: "100%",
           maxWidth: "100%",
@@ -393,7 +394,7 @@ const SavingTransactionTable = ({
                   style={{
                     fontWeight: 700,
                     marginTop: 2,
-                    color: "#059669",
+                    color: museColors.success,
                     wordBreak: "break-word",
                   }}
                 >
@@ -410,7 +411,7 @@ const SavingTransactionTable = ({
                   style={{
                     fontWeight: 700,
                     marginTop: 2,
-                    color: "#d97706",
+                    color: museColors.accent,
                     wordBreak: "break-word",
                   }}
                 >

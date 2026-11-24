@@ -11,6 +11,7 @@ import ReportSummaryCards from './components/ReportSummaryCards';
 import { pageStyle } from './constants';
 import { exportFullFinanceReportExcel, printFullFinanceReport } from './utils/exportFullFinanceReport';
 
+import { museColors } from "../../../config/theme";
 const { Title, Text } = Typography;
 
 const buildAppliedFilters = (draft) => {
@@ -165,7 +166,7 @@ const ReportDetail = ({ listPath = '/finance/laporan', showBack = true, scopedHo
         <Alert
           type="error"
           showIcon
-          message="Homebase tidak valid"
+          title="Homebase tidak valid"
           action={<Button onClick={() => navigate(listPath)}>Kembali</Button>}
         />
       </div>
@@ -186,7 +187,7 @@ const ReportDetail = ({ listPath = '/finance/laporan', showBack = true, scopedHo
         <Alert
           type="error"
           showIcon
-          message="Gagal memuat opsi laporan"
+          title="Gagal memuat opsi laporan"
           action={showBack ? <Button onClick={() => navigate(listPath)}>Kembali</Button> : null}
         />
       </div>
@@ -208,7 +209,7 @@ const ReportDetail = ({ listPath = '/finance/laporan', showBack = true, scopedHo
               </Button>
             ) : null}
             <Flex align="center" gap={10}>
-              <BankOutlined style={{ color: '#1677ff', fontSize: 20 }} />
+              <BankOutlined style={{ color: museColors.primary, fontSize: 20 }} />
               <div>
                 <Title level={4} style={{ margin: 0 }}>
                   Laporan Keuangan
@@ -251,11 +252,11 @@ const ReportDetail = ({ listPath = '/finance/laporan', showBack = true, scopedHo
         />
 
         {isReportError ? (
-          <Alert type="error" showIcon message={reportError?.data?.message || 'Gagal memuat laporan keuangan'} />
+          <Alert type="error" showIcon title={reportError?.data?.message || 'Gagal memuat laporan keuangan'} />
         ) : null}
 
         {!queryArgs ? (
-          <Alert type="info" showIcon message="Pilih periode lalu terapkan filter untuk menampilkan laporan." />
+          <Alert type="info" showIcon title="Pilih periode lalu terapkan filter untuk menampilkan laporan." />
         ) : isFetchingReport && !report ? (
           <div style={{ textAlign: 'center', padding: 48 }}>
             <Spin size="large" />

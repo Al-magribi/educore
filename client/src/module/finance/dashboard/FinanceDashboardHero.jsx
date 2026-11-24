@@ -6,7 +6,7 @@ import PageHeader from "../../../components/ui/PageHeader";
 const { Text } = Typography;
 const tagStyle = { margin: 0 };
 
-const FinanceDashboardHero = ({ meta, spp }) => {
+const FinanceDashboardHero = ({ meta, spp, extra }) => {
   const activeScope = meta?.active_scope || [];
   const isMultiUnit = meta?.scope_type === "all_units";
   const periodeName =
@@ -22,6 +22,7 @@ const FinanceDashboardHero = ({ meta, spp }) => {
   return (
     <PageHeader
       title='Ringkasan keuangan sekolah'
+      extra={extra}
       description={
         isMultiUnit
           ? "KPI periode aktif antar satuan: pendapatan fee, pengeluaran, dan sisa tagihan."
@@ -35,7 +36,7 @@ const FinanceDashboardHero = ({ meta, spp }) => {
           >
             {meta?.current_month_label || "-"}
           </Tag>
-          <Tag color='blue' style={tagStyle}>
+          <Tag color='processing' style={tagStyle}>
             SPP {spp?.collection_rate_current_month || 0}%
           </Tag>
           {isMultiUnit ? (

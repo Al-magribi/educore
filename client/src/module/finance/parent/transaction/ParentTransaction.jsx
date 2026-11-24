@@ -3,7 +3,7 @@ import { Alert, Card, Space, Tabs, Typography, message } from "antd";
 import { motion } from "framer-motion";
 import { Building2, CreditCard, Landmark, ReceiptText } from "lucide-react";
 
-import { LoadApp } from "../../../../components";
+import FinanceSkeleton from "../../shared/FinanceSkeleton";
 import {
   useCreateParentTransactionPaymentMutation,
   useGetParentTransactionInvoiceQuery,
@@ -16,6 +16,7 @@ import ParentStudentSelector from "./components/ParentStudentSelector";
 import ParentSummaryCards from "./components/ParentSummaryCards";
 import ParentTransactionHero from "./components/ParentTransactionHero";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Paragraph } = Typography;
 const MotionDiv = motion.div;
 
@@ -221,7 +222,7 @@ const ParentTransaction = () => {
   };
 
   if (isLoading && !overviewResponse) {
-    return <LoadApp />;
+    return <FinanceSkeleton withHeader />;
   }
 
   return (
@@ -250,7 +251,7 @@ const ParentTransaction = () => {
             icon={paymentSetupAlert.icon}
             title={paymentSetupAlert.title}
             description={paymentSetupAlert.description}
-            style={{ borderRadius: 20 }}
+            style={{ borderRadius: museRadius.card }}
           />
 
           {error ? (
@@ -262,7 +263,7 @@ const ParentTransaction = () => {
                 error?.data?.message ||
                 "Terjadi kendala saat mengambil data transaksi orang tua."
               }
-              style={{ borderRadius: 20 }}
+              style={{ borderRadius: museRadius.card }}
             />
           ) : null}
 
@@ -272,7 +273,7 @@ const ParentTransaction = () => {
               showIcon
               title='Memperbarui data pembayaran'
               description='Ringkasan, daftar SPP, dan pembayaran lainnya sedang disegarkan sesuai anak atau periode yang dipilih.'
-              style={{ borderRadius: 20 }}
+              style={{ borderRadius: museRadius.card }}
             />
           ) : null}
 
@@ -281,10 +282,10 @@ const ParentTransaction = () => {
           <Card
             variant='borderless'
             style={{
-              borderRadius: 28,
-              border: "1px solid rgba(148,163,184,0.14)",
-              boxShadow: "0 22px 48px rgba(15,23,42,0.06)",
-              background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.divider}`,
+              boxShadow: museShadow.card,
+              background: "#ffffff",
             }}
             styles={{ body: { padding: 22 } }}
           >
@@ -296,7 +297,7 @@ const ParentTransaction = () => {
                     alignItems: "center",
                     gap: 10,
                     marginBottom: 8,
-                    color: "#0f766e",
+                    color: museColors.success,
                     fontWeight: 700,
                   }}
                 >

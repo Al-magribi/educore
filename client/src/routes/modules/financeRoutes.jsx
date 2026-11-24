@@ -2,61 +2,86 @@ import { lazy } from "react";
 import { Navigate, Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
+import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 import FinanceDeskAccess from "../../module/finance/access/FinanceDeskAccess";
-import FinanceStaffSlot from "../../module/finance/assignment/FinanceStaffSlot";
+import FinanceStaffSlotRaw from "../../module/finance/assignment/FinanceStaffSlot";
 
-const FinanceDash = lazy(
+const FinanceDashRaw = lazy(
   () => import("../../module/finance/dashboard/FinanceDash"),
 );
-const Monthly = lazy(() => import("../../module/finance/fee/monthly/Monthly"));
-const Others = lazy(() => import("../../module/finance/fee/others/Others"));
-const Transaction = lazy(
+const MonthlyRaw = lazy(() => import("../../module/finance/fee/monthly/Monthly"));
+const OthersRaw = lazy(() => import("../../module/finance/fee/others/Others"));
+const TransactionRaw = lazy(
   () => import("../../module/finance/fee/transaction/Transaction"),
 );
-const Scholarship = lazy(
+const ScholarshipRaw = lazy(
   () => import("../../module/finance/scholarship/Scholarship"),
 );
-const Expense = lazy(
+const ExpenseRaw = lazy(
   () => import("../../module/finance/expense/Expense"),
 );
-const SavingReport = lazy(
+const SavingReportRaw = lazy(
   () => import("../../module/finance/report/SavingReport"),
 );
-const FinanceReport = lazy(
+const FinanceReportRaw = lazy(
   () => import("../../module/finance/report/FinanceReport"),
 );
-const Rapbs = lazy(() => import("../../module/finance/rapbs/Rapbs"));
-const CashReport = lazy(() => import("../../module/finance/report/CashReport"));
-const Setting = lazy(() => import("../../module/finance/setting/Setting"));
-const TeacherContribution = lazy(
+const RapbsRaw = lazy(() => import("../../module/finance/rapbs/Rapbs"));
+const CashReportRaw = lazy(() => import("../../module/finance/report/CashReport"));
+const SettingRaw = lazy(() => import("../../module/finance/setting/Setting"));
+const TeacherContributionRaw = lazy(
   () => import("../../module/finance/teacher/contribution/Contribution"),
 );
-const TeacherSaving = lazy(
+const TeacherSavingRaw = lazy(
   () => import("../../module/finance/teacher/saving/Saving"),
 );
-const StudentContribution = lazy(
+const StudentContributionRaw = lazy(
   () => import("../../module/finance/student/contribution/StudentContribution"),
 );
-const ParentPayment = lazy(
+const ParentPaymentRaw = lazy(
   () => import("../../module/finance/parent/transaction/ParentTransaction"),
 );
-const ParentSavingReport = lazy(
+const ParentSavingReportRaw = lazy(
   () => import("../../module/finance/report/SavingReport"),
 );
 
 // Keuangan Pusat (admin level pusat): daftar homebase lalu shell per homebase.
-const CenterFinanceHome = lazy(
+const CenterFinanceHomeRaw = lazy(
   () => import("../../module/center/finance/CenterFinanceHome"),
 );
-const CenterFinanceShell = lazy(
+const CenterFinanceShellRaw = lazy(
   () => import("../../module/center/finance/CenterFinanceShell"),
 );
-const CenterFinanceReport = lazy(
+const CenterFinanceReportRaw = lazy(
   () => import("../../module/finance/report/CenterFinanceReport"),
 );
-const StudentSaving = lazy(
+const StudentSavingRaw = lazy(
   () => import("../../module/finance/student/saving/StudentSaving"),
 );
+
+
+// Module finance memakai theme Muse (lihat CLAUDE.md).
+const FinanceDash = withMuseTheme(FinanceDashRaw);
+const Monthly = withMuseTheme(MonthlyRaw);
+const Others = withMuseTheme(OthersRaw);
+const Transaction = withMuseTheme(TransactionRaw);
+const Scholarship = withMuseTheme(ScholarshipRaw);
+const Expense = withMuseTheme(ExpenseRaw);
+const SavingReport = withMuseTheme(SavingReportRaw);
+const FinanceReport = withMuseTheme(FinanceReportRaw);
+const Rapbs = withMuseTheme(RapbsRaw);
+const CashReport = withMuseTheme(CashReportRaw);
+const Setting = withMuseTheme(SettingRaw);
+const TeacherContribution = withMuseTheme(TeacherContributionRaw);
+const TeacherSaving = withMuseTheme(TeacherSavingRaw);
+const StudentContribution = withMuseTheme(StudentContributionRaw);
+const ParentPayment = withMuseTheme(ParentPaymentRaw);
+const ParentSavingReport = withMuseTheme(ParentSavingReportRaw);
+const CenterFinanceHome = withMuseTheme(CenterFinanceHomeRaw);
+const CenterFinanceShell = withMuseTheme(CenterFinanceShellRaw);
+const CenterFinanceReport = withMuseTheme(CenterFinanceReportRaw);
+const StudentSaving = withMuseTheme(StudentSavingRaw);
+const FinanceStaffSlot = withMuseTheme(FinanceStaffSlotRaw);
 
 const renderFinanceRoutes = ({ LazyPage }) => {
   const Page = LazyPage;
