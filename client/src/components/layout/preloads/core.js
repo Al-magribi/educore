@@ -18,6 +18,8 @@ const corePreloads = {
     import("../../../module/admin/academic/AdminAcademinc"),
   "/siswa-dashboard": () =>
     import("../../../module/student/dashboard/StudentDash"),
+  "/orangtua-dashboard": () =>
+    import("../../../module/parent/dashboard/ParentDash"),
   "/guru-dashboard": () =>
     import("../../../module/teacher/dashboard/TeacherDash"),
 };

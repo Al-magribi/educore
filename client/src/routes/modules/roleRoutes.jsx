@@ -1,7 +1,6 @@
 import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
-import { AppLayout } from "../../components";
 import RouteProtection from "../../utils/RouteProtection";
 import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 
@@ -11,6 +10,9 @@ const StudentDash = withMuseTheme(
 );
 const TeacherDash = withMuseTheme(
   lazy(() => import("../../module/teacher/dashboard/TeacherDash")),
+);
+const ParentDash = withMuseTheme(
+  lazy(() => import("../../module/parent/dashboard/ParentDash")),
 );
 const StudentExamList = lazy(
   () => import("../../module/cbt/student/view/StudentExamList"),
@@ -55,11 +57,10 @@ const renderRoleRoutes = ({ LazyPage, NotFoundRedirect, isCbtEnabled }) => (
     <Route element={<RouteProtection allowedRoles={["parent"]} />}>
       <Route
         path="/orangtua-dashboard"
-        element={
-          <AppLayout title="Dashboard Orang Tua">
-            <div>Halaman Orang Tua</div>
-          </AppLayout>
-        }
+        element={createElement(LazyPage, {
+          title: "Dashboard Orang Tua",
+          Component: ParentDash,
+        })}
       />
     </Route>
 

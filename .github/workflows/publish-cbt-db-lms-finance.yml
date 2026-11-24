@@ -56,7 +56,11 @@ jobs:
 
             for path in "$@"; do
               if git ls-tree -r --name-only "${source_ref}" -- "${path}" | grep -q .; then
-                git checkout "${source_ref}" -- "${path}"
+                # restore (bukan checkout) agar folder sama persis dengan sumber:
+                # file yang tidak ada di source_ref ikut dihapus. checkout hanya
+                # menimpa/menambah, sehingga file sisa main tertinggal dan cek
+                # "git diff --quiet origin/feature/lms" di akhir gagal.
+                git restore --source="${source_ref}" --staged --worktree -- "${path}"
               else
                 echo "Skipping missing path on ${source_ref}: ${path}"
               fi
@@ -68,7 +72,7 @@ jobs:
               client/src/components/layout/menus/lmsMenus.jsx \
               client/src/components/layout/preloads/lms.js \
               client/src/module/lms \
-              client/src/module/parent/dashboard/ParentDash.jsx \
+              client/src/module/parent \
               client/src/module/teacher/dashboard/TeacherDash.jsx \
               client/src/module/student/dashboard \
               client/src/routes/modules/lmsRoutes.jsx \
@@ -87,7 +91,7 @@ jobs:
 
           ensure_parent_report_components() {
             checkout_owned_paths origin/feature/lms \
-              client/src/module/parent/dashboard/ParentDash.jsx \
+              client/src/module/parent \
               client/src/module/teacher/dashboard/TeacherDash.jsx \
               client/src/module/student/dashboard \
               client/src/module/lms/report/AcademicReport.jsx
@@ -182,7 +186,7 @@ jobs:
           fi
 
           git diff --quiet origin/feature/lms -- \
-            client/src/module/parent/dashboard/ParentDash.jsx \
+            client/src/module/parent \
             client/src/module/teacher/dashboard/TeacherDash.jsx \
             client/src/module/student/dashboard \
             client/src/module/lms/report/AcademicReport.jsx
