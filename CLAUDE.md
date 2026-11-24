@@ -12,6 +12,24 @@ Nilai di bawah diambil dari stylesheet Muse versi open source (`src/assets/style
 - Jangan pernah kerja manual di `release/*` atau `product/*`. Lihat [GIT-WORKFLOW.md](GIT-WORKFLOW.md).
 - Perubahan **shared UI** (theme, `AppLayout`, `components/ui/*`, `index.css`) masuk lewat `main`. UI khusus modul (CBT, LMS, Finance, Tahfiz, DB) dikerjakan di `feature/*` masing-masing.
 
+### Kepemilikan file (supaya sync main → feature tidak konflik)
+
+Sync konflik bila `main` dan `feature/*` mengedit file yang sama. Karena itu shell punya titik sambung per domain, dan feature **hanya mengisi file domainnya**:
+
+| Kebutuhan feature | Edit file ini (milik feature) | Jangan edit (milik `main`) |
+|---|---|---|
+| Menu sidebar | `components/layout/menus/<domain>Menus.jsx` | `AppLayout.jsx`, `menus/index.js`, `menus/menuAccess.js`, `coreMenus.jsx` |
+| Menu hanya untuk user tertentu | properti `visible: (user) => ...` di item menu | `filterMenuItemsByUser` |
+| Preload saat hover menu | `components/layout/preloads/<domain>.js` | `preloads/index.js`, `preloads/core.js` |
+| Route halaman | `routes/modules/<domain>Routes.jsx` (satu default export, terima `routeContext`, pasang `RouteProtection` sendiri) | `App.jsx`, `centerRoutes`, `adminRoutes`, `roleRoutes`, `publicRoutes` |
+| Halaman domain di area pusat/guru/siswa | route di `<domain>Routes.jsx` dengan `allowedRoles`/`allowedLevels` yang sesuai | route file milik role lain |
+| Halaman & service | `module/<domain>/`, `service/<domain>/` | `module/auth/` |
+
+- Daftar lengkap file milik `main` ada di [scripts/ci/shared-paths.js](scripts/ci/shared-paths.js). Workflow `guard-shared-paths.yml` **gagal** kalau `feature/*` mengubahnya, dan compose release memulihkannya dari `main`.
+- Butuh perubahan di file milik `main` (prop baru di `RouteProtection`, komponen `ui/` baru, role baru)? Kerjakan di `main` dulu, tunggu sync, baru pakai di feature.
+- `module/admin` dan `module/center` dirapikan UI-nya di `main`. Feature boleh mengubah logikanya, tapi merge `main` dulu sebelum mulai agar tidak konflik.
+- Restyle module domain (CBT, LMS, Finance, Tahfiz, DB) dikerjakan di branch pemiliknya, bukan di `main`.
+
 ## 1. Stack UI
 
 - React 19 + Vite, **Ant Design v6** (`antd`), `@ant-design/plots` untuk grafik, `lucide-react` untuk ikon.

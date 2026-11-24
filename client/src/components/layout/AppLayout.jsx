@@ -30,6 +30,12 @@ import {
 } from "@ant-design/icons";
 
 import { getCombinedMenus } from "./menus/index.js";
+import {
+  filterMenuItemsByUser,
+  resolveMenuRole,
+  resolveSelectedMenuKey,
+} from "./menus/menuAccess";
+import routePreloaders from "./preloads";
 import { useDoLogoutMutation } from "../../service/auth/ApiAuth";
 import LoadApp from "../loader/LoadApp";
 import {
@@ -45,37 +51,10 @@ const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const LayoutShellContext = createContext(null);
 
-const routePreloaders = {
-  "/profile": () => import("../profile/Profile"),
-  "/center-dashboard": () => import("../../module/center/dashboard/CenterDash"),
-  "/center-homebase": () => import("../../module/center/homebase/CenterHome"),
-  "/center-admin": () => import("../../module/center/admin/CenterAdmin"),
-  "/center-teacher": () => import("../../module/center/teacher/CenterTeacher"),
-  "/center-market": () => import("../../module/center/market/CenterMarket"),
-  "/center-config": () => import("../../module/center/config/CenterConfig"),
-  "/admin-dashboard": () => import("../../module/admin/dashboard/AdminDash"),
-  "/admin-data-pokok": () => import("../../module/admin/main/AdminMain"),
-  "/admin-data-akademik": () =>
-    import("../../module/admin/academic/AdminAcademinc"),
-  "/finance-dashboard": () =>
-    import("../../module/finance/dashboard/FinanceDash"),
-  "/computer-based-test/bank": () =>
-    import("../../module/cbt/bank/view/BankList"),
-  "/computer-based-test/jadwal-ujian": () =>
-    import("../../module/cbt/exam/view/ExamList"),
-  "/guru/ai-config": () => import("../../module/teacher/ai/AiConfig"),
-  "/siswa-dashboard": () =>
-    import("../../module/student/dashboard/StudentDash"),
-  "/siswa/jadwal-ujian": () =>
-    import("../../module/cbt/student/view/StudentExamList"),
-  "/computer-based-test/start": () =>
-    import("../../module/cbt/student/view/ExamInterface"),
-  "/guru-dashboard": () =>
-    import("../../module/teacher/dashboard/TeacherDash"),
-};
-
-const isFinanceLevel = (level) => level === "finance" || level === "keuangan";
-
+// Shell ini milik `main` dan tidak berisi aturan domain.
+// - Menu: components/layout/menus/<domain>Menus.jsx (visibilitas lewat `visible(user)`)
+// - Preload: components/layout/preloads/<domain>.js
+// - Route: routes/modules/<domain>Routes.jsx
 const AppLayout = ({ children, title, asShell = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -112,37 +91,6 @@ const AppLayout = ({ children, title, asShell = false }) => {
     });
   }, []);
 
-  const filterMenuItemsByUser = (items, currentUser) => {
-    return items
-      .map((item) => {
-        if (item.requiresHomeroom && !currentUser?.is_homeroom) {
-          return null;
-        }
-
-        if (
-          currentUser?.role === "teacher" &&
-          item.key === "/manajemen-piket" &&
-          !currentUser?.has_duty_today
-        ) {
-          return null;
-        }
-
-        if (Array.isArray(item.children)) {
-          const nextChildren = filterMenuItemsByUser(item.children, currentUser);
-          if (nextChildren.length === 0) {
-            return null;
-          }
-          return {
-            ...item,
-            children: nextChildren,
-          };
-        }
-
-        return item;
-      })
-      .filter(Boolean);
-  };
-
   const enhanceMenuItems = (items) =>
     items.map((item) => {
       const nextItem = { ...item };
@@ -170,39 +118,15 @@ const AppLayout = ({ children, title, asShell = false }) => {
       return nextItem;
     });
 
-  const menuItems = (() => {
-    const combinedMenus = getCombinedMenus(user);
-    let items = [];
-    switch (user?.role) {
-      case "student":
-        items = combinedMenus.student;
-        break;
-      case "teacher":
-        items = combinedMenus.teacher;
-        break;
-      case "parent":
-        items = combinedMenus.parent;
-        break;
-      case "center":
-        items = combinedMenus.center;
-        break;
-      case "admin":
-        if (user.level === "pusat") {
-          items = combinedMenus.center;
-        } else if (user.level === "tahfiz") {
-          items = combinedMenus.tahfiz;
-        } else if (isFinanceLevel(user.level)) {
-          items = combinedMenus.finance;
-        } else {
-          items = combinedMenus.admin;
-        }
-        break;
-      default:
-        items = [];
-    }
-
-    return enhanceMenuItems(filterMenuItemsByUser(items, user));
-  })();
+  const roleMenuItems = filterMenuItemsByUser(
+    getCombinedMenus(user)[resolveMenuRole(user)] || [],
+    user,
+  );
+  const menuItems = enhanceMenuItems(roleMenuItems);
+  const selectedMenuKey = resolveSelectedMenuKey(
+    roleMenuItems,
+    location.pathname,
+  );
 
   useEffect(() => {
     if (effectiveTitle) {
@@ -351,7 +275,7 @@ const AppLayout = ({ children, title, asShell = false }) => {
 
           <Menu
             mode='inline'
-            selectedKeys={[location.pathname]}
+            selectedKeys={[selectedMenuKey]}
             items={menuItems}
             onClick={handleMenuClick}
             style={{ borderInlineEnd: 0, background: "transparent", flex: 1 }}

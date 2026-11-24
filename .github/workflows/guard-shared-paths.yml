@@ -1,0 +1,39 @@
+name: Guard Shared Paths
+
+# Gagal jika feature/* mengubah file shell milik main (AppLayout, App.jsx,
+# theme, components/ui, route inti, dst). File seperti itu yang membuat
+# sync-main-to-features konflik. Daftar lengkap: scripts/ci/shared-paths.js.
+
+on:
+  push:
+    branches:
+      - "feature/**"
+  pull_request:
+    branches:
+      - "feature/**"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    # Commit sync dari bot berisi isi main; tidak perlu dicek.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Check main-owned files
+        run: node scripts/ci/shared-paths.js --check --base origin/main
