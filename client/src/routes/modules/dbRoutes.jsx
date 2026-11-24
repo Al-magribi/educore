@@ -1,7 +1,9 @@
-import { lazy } from "react";
+import { createElement, lazy } from "react";
+import { App } from "antd";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
+import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 
 const DatabaseManager = lazy(
   () => import("../../module/database/manager/DatabaseManager"),
@@ -16,6 +18,18 @@ const ParentStudentDatabase = lazy(
   () => import("../../module/database/view/ParentStudentDatabase"),
 );
 
+// Module database memakai theme Muse (lihat CLAUDE.md). App antd dipasang agar
+// App.useApp() (message/modal) ikut theme yang sama.
+const withDbTheme = (Component) =>
+  withMuseTheme((props) =>
+    createElement(App, { component: false }, createElement(Component, props)),
+  );
+
+const DatabaseManagerPage = withDbTheme(DatabaseManager);
+const ClassDbManagerPage = withDbTheme(ClassDbManager);
+const StudentDatabasePage = withDbTheme(StudentDatabase);
+const ParentStudentDatabasePage = withDbTheme(ParentStudentDatabase);
+
 const renderDbRoutes = ({ LazyPage }) => (
   <>
     <Route
@@ -25,30 +39,28 @@ const renderDbRoutes = ({ LazyPage }) => (
     >
       <Route
         path="/admin-database"
-        element={<LazyPage title="Database Siswa" Component={DatabaseManager} />}
+        element={createElement(LazyPage, { title: "Database Siswa", Component: DatabaseManagerPage })}
       />
     </Route>
 
     <Route element={<RouteProtection allowedRoles={["teacher"]} />}>
       <Route
         path="/guru-database-kelas"
-        element={<LazyPage title="Database Kelas" Component={ClassDbManager} />}
+        element={createElement(LazyPage, { title: "Database Kelas", Component: ClassDbManagerPage })}
       />
     </Route>
 
     <Route element={<RouteProtection allowedRoles={["student"]} />}>
       <Route
         path="/siswa-database"
-        element={<LazyPage title="Database Siswa" Component={StudentDatabase} />}
+        element={createElement(LazyPage, { title: "Database Siswa", Component: StudentDatabasePage })}
       />
     </Route>
 
     <Route element={<RouteProtection allowedRoles={["parent"]} />}>
       <Route
         path="/orangtua-database-siswa"
-        element={
-          <LazyPage title="Database Data Siswa" Component={ParentStudentDatabase} />
-        }
+        element={createElement(LazyPage, { title: "Database Anak", Component: ParentStudentDatabasePage })}
       />
     </Route>
   </>

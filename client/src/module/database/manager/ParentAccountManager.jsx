@@ -1,37 +1,22 @@
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
+  App,
+  Avatar,
   Button,
-  Card,
-  Col,
+  Divider,
+  Empty,
   Flex,
   Grid,
-  Input,
-  Popconfirm,
-  Row,
-  Space,
-  Statistic,
+  List,
+  Pagination,
   Table,
   Tag,
+  Tooltip,
   Typography,
-  message,
-  theme,
 } from "antd";
-import {
-  DownloadOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  UploadOutlined,
-} from "@ant-design/icons";
-import { motion } from "framer-motion";
-import {
-  Database,
-  Link2,
-  Pencil,
-  ShieldCheck,
-  Trash2,
-  UserRoundCheck,
-  Users,
-} from "lucide-react";
+import { DownloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { Link2, Mail, Phone, UserRound, UserRoundCheck, Users, UsersRound } from "lucide-react";
 import useDebounced from "../../../utils/useDebounced";
 import {
   useCreateParentAccountMutation,
@@ -40,94 +25,61 @@ import {
   useGetParentReferenceStudentsQuery,
   useUpdateParentAccountMutation,
 } from "../../../service/database/ApiDatabase";
+import { StatCard } from "../../../components/ui/muse";
+import { DataListCard, EditDeleteActions } from "../../../components/ui/muse/DataSection";
+import { museColors, museRadius } from "../../../config/theme";
 import ParentAccountForm from "./ParentAccountForm";
 import ParentImportDrawer from "./ParentImportDrawer";
 import { downloadParentTemplate } from "./parentImportTemplate";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-const { useToken } = theme;
 
-const MotionDiv = motion.div;
+const PAGE_SIZE = 10;
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.04,
-    },
-  },
+const ParentAvatar = ({ size = 40 }) => (
+  <Avatar
+    size={size}
+    icon={<UserRound size={Math.round(size / 2)} />}
+    style={{ background: museColors.navy, flexShrink: 0 }}
+  />
+);
+
+const LinkedStudents = ({ students = [], max = 2 }) => {
+  if (!students.length) {
+    return <Text type='secondary'>Belum terhubung</Text>;
+  }
+
+  const visible = students.slice(0, max);
+  const rest = students.slice(max);
+
+  return (
+    <Flex gap={6} wrap>
+      {visible.map((item) => (
+        <Tag key={item.student_id} color='blue' style={{ margin: 0 }}>
+          {item.full_name}
+          {item.class_name ? ` · ${item.class_name}` : ""}
+        </Tag>
+      ))}
+      {rest.length ? (
+        <Tooltip title={rest.map((item) => item.full_name).join(", ")}>
+          <Tag style={{ margin: 0, cursor: "help" }}>+{rest.length} lainnya</Tag>
+        </Tooltip>
+      ) : null}
+    </Flex>
+  );
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.36,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const surfaceCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e6eef8",
-  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-  overflow: "hidden",
-};
-
-const heroCardStyle = {
-  ...surfaceCardStyle,
-  background:
-    "radial-gradient(circle at top right, rgba(255,255,255,0.18), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 48%, #38bdf8 100%)",
-  color: "#fff",
-  boxShadow: "0 24px 54px rgba(15, 23, 42, 0.18)",
-};
-
-const statCardStyle = {
-  ...surfaceCardStyle,
-  background: "linear-gradient(180deg, #ffffff 0%, #f7fbff 100%)",
-  height: "100%",
-};
-
-const filterCardStyle = {
-  ...surfaceCardStyle,
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-};
-
-const panelCardStyle = {
-  ...surfaceCardStyle,
-  background: "#ffffff",
-};
-
-const detailCardStyle = {
-  borderRadius: 18,
-  border: "1px solid #eef2f7",
-  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-};
-
-const iconWrapStyle = (background, color) => ({
-  width: 46,
-  height: 46,
-  borderRadius: 16,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background,
-  color,
-  flexShrink: 0,
-});
+const StatusTag = ({ active }) => (
+  <Tag color={active ? "success" : "default"} style={{ margin: 0 }}>
+    {active ? "Aktif" : "Nonaktif"}
+  </Tag>
+);
 
 const ParentAccountManager = ({ scope = "all" }) => {
   const screens = useBreakpoint();
-  const { token } = useToken();
   const isMobile = !screens.md;
-  const isSmallMobile = !screens.sm;
+  const { message } = App.useApp();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -135,674 +87,316 @@ const ParentAccountManager = ({ scope = "all" }) => {
   const [selectedParent, setSelectedParent] = useState(null);
   const debouncedSearch = useDebounced(search, 400);
 
-  const { data, isLoading, isFetching } = useGetParentAccountsQuery({
+  const { data, isLoading, isFetching, error } = useGetParentAccountsQuery({
     page,
-    limit: 10,
+    limit: PAGE_SIZE,
     search: debouncedSearch,
     scope,
   });
   const { data: referenceData, isFetching: isFetchingStudents } =
     useGetParentReferenceStudentsQuery({ scope });
-  const [createParentAccount, { isLoading: isCreating }] =
-    useCreateParentAccountMutation();
-  const [updateParentAccount, { isLoading: isUpdating }] =
-    useUpdateParentAccountMutation();
-  const [deleteParentAccount, { isLoading: isDeleting }] =
-    useDeleteParentAccountMutation();
+  const [createParentAccount, { isLoading: isCreating }] = useCreateParentAccountMutation();
+  const [updateParentAccount, { isLoading: isUpdating }] = useUpdateParentAccountMutation();
+  const [deleteParentAccount, { isLoading: isDeleting }] = useDeleteParentAccountMutation();
 
-  const isSaving = isCreating || isUpdating;
   const parentItems = data?.data || [];
-  const summary = data?.summary || {
-    total_parents: 0,
-    active_parents: 0,
-    total_student_links: 0,
-    parents_with_multiple_students: 0,
-  };
-  const studentOptions = useMemo(
-    () => referenceData?.data || [],
-    [referenceData],
-  );
+  const totalData = data?.meta?.total_data || 0;
+  const summary = data?.summary || {};
+  const studentOptions = useMemo(() => referenceData?.data || [], [referenceData]);
 
   const mappedStudentOptions = useMemo(() => {
-    const selectedStudentMap = new Map(
-      (selectedParent?.students || []).map((item) => [
-        item.student_id,
-        {
-          student_id: item.student_id,
-          full_name: item.full_name,
-          nis: item.nis,
-          class_name: item.class_name,
-        },
-      ]),
-    );
-    const mergedStudents = [...studentOptions];
-
-    selectedStudentMap.forEach((value, key) => {
-      if (!mergedStudents.some((item) => item.student_id === key)) {
-        mergedStudents.push(value);
+    const merged = [...studentOptions];
+    (selectedParent?.students || []).forEach((item) => {
+      if (!merged.some((option) => option.student_id === item.student_id)) {
+        merged.push(item);
       }
     });
 
-    return mergedStudents.map((item) => ({
+    return merged.map((item) => ({
       value: item.student_id,
-      label: `${item.full_name} (${item.nis || "-"})`,
-      searchLabel: `${item.full_name} ${item.nis || ""} ${item.class_name || ""}`,
+      label: `${item.full_name} (${item.nis || "-"})${item.class_name ? ` · ${item.class_name}` : ""}`,
     }));
   }, [selectedParent, studentOptions]);
 
-  const handleOpenCreate = () => {
-    setSelectedParent(null);
+  const openForm = (record = null) => {
+    setSelectedParent(record);
     setIsFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setSelectedParent(null);
   };
 
   const handleSubmit = async (values) => {
     try {
       if (selectedParent) {
-        await updateParentAccount({
-          id: selectedParent.parent_user_id,
-          scope,
-          ...values,
-        }).unwrap();
-        message.success("Akun orang tua berhasil diperbarui.");
+        await updateParentAccount({ id: selectedParent.parent_user_id, scope, ...values }).unwrap();
+        message.success("Akun orang tua berhasil diperbarui");
       } else {
         await createParentAccount({ ...values, scope }).unwrap();
-        message.success("Akun orang tua berhasil dibuat.");
+        message.success("Akun orang tua berhasil dibuat");
       }
-
-      setIsFormOpen(false);
-      setSelectedParent(null);
-    } catch (error) {
-      message.error(error?.data?.message || "Akun orang tua gagal disimpan.");
+      closeForm();
+    } catch (err) {
+      message.error(err?.data?.message || "Akun orang tua gagal disimpan");
     }
   };
 
   const handleDelete = async (id) => {
     try {
       await deleteParentAccount({ id, scope }).unwrap();
-      message.success("Akun orang tua berhasil dihapus.");
-    } catch (error) {
-      message.error(error?.data?.message || "Akun orang tua gagal dihapus.");
+      message.success("Akun orang tua berhasil dihapus");
+    } catch (err) {
+      message.error(err?.data?.message || "Akun orang tua gagal dihapus");
     }
   };
 
+  const renderActions = (record) => (
+    <Flex gap={4} justify='flex-end'>
+      <EditDeleteActions
+        onEdit={() => openForm(record)}
+        onDelete={() => handleDelete(record.parent_user_id)}
+        deleteTitle={`Hapus akun ${record.full_name}?`}
+        deleteDescription='Akun login dan seluruh relasi siswa akan dihapus.'
+        deleting={isDeleting}
+      />
+    </Flex>
+  );
+
   const columns = [
     {
-      title: "Nama Akun",
+      title: "AKUN ORANG TUA",
       key: "parent",
-      ellipsis: true,
       render: (_, record) => (
-        <Space vertical size={0}>
-          <Text strong>{record.full_name}</Text>
-          <Text type='secondary' style={{ fontSize: 12 }}>
-            Username: {record.username || "-"}
-          </Text>
-        </Space>
+        <Flex align='center' gap={12}>
+          <ParentAvatar />
+          <div style={{ minWidth: 0 }}>
+            <Text strong ellipsis style={{ display: "block", maxWidth: 240 }}>
+              {record.full_name}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              @{record.username || "-"}
+            </Text>
+          </div>
+        </Flex>
       ),
     },
     {
-      title: "Kontak",
+      title: "KONTAK",
       key: "contact",
-      responsive: ["md"],
       render: (_, record) => (
-        <Space vertical size={0}>
-          <Text>{record.phone || "-"}</Text>
-          <Text type='secondary'>{record.email || "-"}</Text>
-        </Space>
-      ),
-    },
-    {
-      title: "Relasi Siswa",
-      key: "students",
-      width: 280,
-      render: (_, record) => (
-        <Space vertical size={4}>
-          <Tag color='blue'>{record.total_students} siswa</Tag>
+        <div>
+          <Text style={{ display: "block" }}>{record.phone || "-"}</Text>
           <Text type='secondary' style={{ fontSize: 12 }}>
-            {(record.students || [])
-              .slice(0, 2)
-              .map(
-                (item) =>
-                  `${item.full_name} (${item.class_name || item.nis || "-"})`,
-              )
-              .join(", ") || "-"}
-            {record.total_students > 2
-              ? ` +${record.total_students - 2} lainnya`
-              : ""}
+            {record.email || "-"}
           </Text>
-        </Space>
+        </div>
       ),
     },
     {
-      title: "Status",
+      title: "SISWA TERHUBUNG",
+      key: "students",
+      render: (_, record) => <LinkedStudents students={record.students} />,
+    },
+    {
+      title: "STATUS",
       dataIndex: "is_active",
       key: "is_active",
       width: 110,
-      align: "center",
-      responsive: ["sm"],
-      render: (value) => (
-        <Tag color={value ? "green" : "default"}>
-          {value ? "Aktif" : "Nonaktif"}
-        </Tag>
-      ),
+      render: (value) => <StatusTag active={value} />,
     },
     {
-      title: "Aksi",
+      title: "AKSI",
       key: "action",
-      width: 120,
-      align: "center",
-      render: (_, record) => (
-        <Space size={4}>
-          <Button
-            type='text'
-            icon={<Pencil size={14} />}
-            onClick={() => {
-              setSelectedParent(record);
-              setIsFormOpen(true);
-            }}
-          />
-          <Popconfirm
-            title='Hapus akun orang tua?'
-            description='Akun login dan seluruh relasi siswa akan dihapus.'
-            onConfirm={() => handleDelete(record.parent_user_id)}
-          >
-            <Button
-              type='text'
-              danger
-              loading={isDeleting}
-              icon={<Trash2 size={14} />}
-            />
-          </Popconfirm>
-        </Space>
-      ),
+      width: 100,
+      align: "right",
+      render: (_, record) => renderActions(record),
     },
   ];
 
-  const stats = [
-    {
-      key: "total",
-      title: "Total Akun",
-      value: summary.total_parents,
-      icon: <Users size={18} />,
-      iconBg: "#dbeafe",
-      iconColor: "#1d4ed8",
-      accent: "#1d4ed8",
-      helper: "Seluruh akun orang tua terdaftar",
-    },
-    {
-      key: "active",
-      title: "Akun Aktif",
-      value: summary.active_parents,
-      icon: <UserRoundCheck size={18} />,
-      iconBg: "#dcfce7",
-      iconColor: "#15803d",
-      accent: "#15803d",
-      helper: "Siap digunakan untuk login",
-    },
-    {
-      key: "links",
-      title: "Total Relasi",
-      value: summary.total_student_links,
-      icon: <Link2 size={18} />,
-      iconBg: "#e0f2fe",
-      iconColor: "#0369a1",
-      accent: "#0369a1",
-      helper: "Koneksi akun orang tua ke siswa",
-    },
-    {
-      key: "multi",
-      title: "Akun Multi-Siswa",
-      value: summary.parents_with_multiple_students,
-      icon: <Database size={18} />,
-      iconBg: "#ffedd5",
-      iconColor: "#c2410c",
-      accent: "#c2410c",
-      helper: "Akun terhubung ke lebih dari satu siswa",
-    },
-  ];
+  const paginationProps = {
+    current: page,
+    pageSize: PAGE_SIZE,
+    total: totalData,
+    showSizeChanger: false,
+    showLessItems: isMobile,
+    size: isMobile ? "small" : "default",
+    showTotal: isMobile ? undefined : (total, range) => `${range[0]}-${range[1]} dari ${total} akun`,
+    onChange: setPage,
+  };
 
-  const scopeLabel =
-    scope === "homeroom"
-      ? "Akun orang tua Wali Kelas"
-      : "Akun orang tua seluruh siswa";
-
-  const heroTitle =
-    scope === "homeroom" ? "Kelola akun orang tua" : "Manajemen akun orang tua";
-
-  const heroDescription =
-    "Atur akun login orang tua, hubungan ke siswa, dan proses impor data dari satu panel yang lebih mudah dipakai untuk kebutuhan administrasi harian.";
+  const emptyText = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        debouncedSearch
+          ? "Tidak ada akun yang cocok dengan pencarian."
+          : "Belum ada akun orang tua. Tambahkan manual atau import dari Excel."
+      }
+    />
+  );
 
   return (
-    <MotionDiv
-      variants={containerVariants}
-      initial='hidden'
-      animate='show'
-      style={{ width: "100%" }}
-    >
-      <Space vertical size={isMobile ? 16 : 20} style={{ width: "100%" }}>
-        <MotionDiv variants={itemVariants}>
-          <Card
-            style={heroCardStyle}
-            bodyStyle={{ padding: isSmallMobile ? 16 : isMobile ? 20 : 28 }}
-          >
-            <Row gutter={[20, 20]} align='middle'>
-              <Col xs={24} lg={15}>
-                <Flex vertical gap={12} style={{ width: "100%" }}>
-                  <Flex align='center' gap={10} wrap='wrap'>
-                    <Flex
-                      align='center'
-                      gap={8}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 999,
-                        background: "rgba(255,255,255,0.12)",
-                        border: "1px solid rgba(255,255,255,0.16)",
-                        color: "#f8fafc",
-                        fontWeight: 700,
-                        letterSpacing: 0.4,
-                      }}
-                    >
-                      <Users size={16} />
-                      <span>AKUN ORANG TUA</span>
-                    </Flex>
-                    <Flex
-                      align='center'
-                      gap={6}
-                      style={{
-                        padding: "7px 12px",
-                        borderRadius: 999,
-                        background: "rgba(15,23,42,0.18)",
-                        color: "#e0f2fe",
-                      }}
-                    >
-                      <Link2 size={14} />
-                      <span>{scopeLabel}</span>
-                    </Flex>
-                  </Flex>
+    <>
+      <Flex vertical gap={isMobile ? 16 : 24}>
+        <div
+          style={{
+            display: "grid",
+            gap: isMobile ? 16 : 24,
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          }}
+        >
+          <StatCard title='Total Akun' value={summary.total_parents || 0} icon={<Users size={24} />} />
+          <StatCard
+            title='Akun Aktif'
+            value={summary.active_parents || 0}
+            note='Dapat dipakai untuk login'
+            icon={<UserRoundCheck size={24} />}
+            tone='success'
+          />
+          <StatCard
+            title='Relasi Siswa'
+            value={summary.total_student_links || 0}
+            note='Koneksi akun ke siswa'
+            icon={<Link2 size={24} />}
+            tone='cyan'
+          />
+          <StatCard
+            title='Akun Multi-Siswa'
+            value={summary.parents_with_multiple_students || 0}
+            note='Terhubung ke lebih dari 1 siswa'
+            icon={<UsersRound size={24} />}
+            tone='purple'
+          />
+        </div>
 
-                  <div>
-                    <Title
-                      level={isSmallMobile ? 4 : 3}
-                      style={{
-                        color: "#ffffff",
-                        margin: 0,
-                        marginBottom: 6,
-                        fontSize: isSmallMobile ? 18 : undefined,
-                        lineHeight: 1.15,
-                      }}
-                    >
-                      {heroTitle}
-                    </Title>
-                    <Text
-                      style={{
-                        color: "rgba(255,255,255,0.82)",
-                        fontSize: isSmallMobile ? 13 : 14,
-                        display: "block",
-                        maxWidth: 640,
-                      }}
-                    >
-                      {heroDescription}
-                    </Text>
-                  </div>
-                </Flex>
-              </Col>
-              <Col xs={24} lg={9}>
-                <div
-                  style={{
-                    padding: isSmallMobile ? 14 : isMobile ? 16 : 18,
-                    borderRadius: 20,
-                    background: "rgba(255,255,255,0.12)",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    backdropFilter: "blur(10px)",
-                  }}
-                >
-                  <Text
-                    style={{
-                      display: "block",
-                      color: "rgba(255,255,255,0.72)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Ringkasan relasi siswa
-                  </Text>
-                  <Title
-                    level={isSmallMobile ? 3 : 2}
-                    style={{
-                      color: "#ffffff",
-                      margin: 0,
-                      marginBottom: 8,
-                      fontSize: isSmallMobile ? 26 : undefined,
-                    }}
-                  >
-                    {summary.total_student_links || 0}
-                  </Title>
-                  <Text style={{ color: "rgba(255,255,255,0.8)" }}>
-                    {summary.parents_with_multiple_students || 0} akun terhubung
-                    ke lebih dari satu siswa.
-                  </Text>
-                </div>
-              </Col>
-            </Row>
-          </Card>
-        </MotionDiv>
-
-        <Row gutter={[16, 16]}>
-          {stats.map((item) => (
-            <Col xs={24} sm={12} lg={6} key={item.key}>
-              <MotionDiv
-                variants={itemVariants}
-                whileHover={{ y: -4 }}
-                transition={{ duration: 0.2 }}
-                style={{ height: "100%" }}
+        <DataListCard
+          icon={<Users size={16} />}
+          title='Akun Orang Tua'
+          count={totalData}
+          unit='akun'
+          searchProps={{
+            placeholder: "Cari nama, username, kontak, atau siswa",
+            value: search,
+            onChange: (event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            },
+          }}
+          extra={
+            <>
+              <Button
+                icon={<DownloadOutlined />}
+                loading={isFetchingStudents}
+                onClick={() => downloadParentTemplate({ students: studentOptions })}
               >
-                <Card
-                  style={statCardStyle}
-                  bodyStyle={{
-                    padding: isSmallMobile ? 16 : 20,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: isSmallMobile ? 12 : 14,
-                    height: "100%",
-                  }}
-                >
-                  <Space align='start' size={14} style={{ width: "100%" }}>
-                    <div style={iconWrapStyle(item.iconBg, item.iconColor)}>
-                      {item.icon}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <Text
-                        type='secondary'
-                        style={{
-                          fontSize: 13,
-                          display: "block",
-                          marginBottom: 4,
-                          whiteSpace: "normal",
-                        }}
-                      >
-                        {item.title}
-                      </Text>
-                      <Statistic
-                        value={item.value}
-                        styles={{ content: { color: item.accent } }}
-                      />
-                    </div>
-                  </Space>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    {item.helper}
-                  </Text>
-                </Card>
-              </MotionDiv>
-            </Col>
-          ))}
-        </Row>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            style={filterCardStyle}
-            styles={{
-              body: { padding: isSmallMobile ? 14 : isMobile ? 18 : 22 },
-            }}
-            title={
-              <Space
-                align='center'
-                direction={isSmallMobile ? "vertical" : "horizontal"}
-                size={isSmallMobile ? 8 : 12}
-                style={{
-                  width: "100%",
-                  alignItems: isSmallMobile ? "flex-start" : "center",
-                }}
-              >
-                <span style={iconWrapStyle("#dbeafe", "#1d4ed8")}>
-                  <SearchOutlined />
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700 }}>Pencarian dan Aksi</div>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    Temukan akun orang tua dengan cepat lalu lakukan aksi yang
-                    dibutuhkan.
-                  </Text>
-                </div>
-              </Space>
-            }
-          >
-            <Flex
-              vertical={isSmallMobile ? true : false}
-              justify='space-between'
-              align={isSmallMobile ? "stretch" : "center"}
-              gap={"middle"}
-            >
-              <Input
-                allowClear
-                prefix={<SearchOutlined />}
-                size='large'
-                placeholder='Cari nama, username, telepon, email, nama siswa, atau NIS'
-                style={{ width: "100%" }}
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
+                Template
+              </Button>
+              <Button icon={<UploadOutlined />} onClick={() => setIsImportOpen(true)}>
+                Import
+              </Button>
+            </>
+          }
+          onAdd={() => openForm(null)}
+          addLabel='Tambah Akun'
+        >
+          {error ? (
+            <div style={{ padding: isMobile ? 16 : 24 }}>
+              <Alert
+                type='error'
+                showIcon
+                title='Gagal memuat akun orang tua'
+                description={error?.data?.message || "Coba muat ulang halaman."}
               />
-
-              <Flex
-                vertical={isSmallMobile ? true : false}
-                justify='center'
-                gap={"middle"}
-                style={{ width: isSmallMobile ? "100%" : "auto" }}
-              >
-                <Button
-                  icon={<DownloadOutlined />}
-                  onClick={() =>
-                    downloadParentTemplate({ students: studentOptions })
-                  }
-                  loading={isFetchingStudents}
-                  style={{ width: isSmallMobile ? "100%" : undefined }}
-                >
-                  Template
-                </Button>
-                <Button
-                  icon={<UploadOutlined />}
-                  onClick={() => setIsImportOpen(true)}
-                  style={{ width: isSmallMobile ? "100%" : undefined }}
-                >
-                  Import Excel
-                </Button>
-                <Button
-                  type='primary'
-                  icon={<PlusOutlined />}
-                  onClick={handleOpenCreate}
-                  style={{ width: isSmallMobile ? "100%" : undefined }}
-                >
-                  Tambah Orang Tua
-                </Button>
-              </Flex>
-            </Flex>
-            <Flex
-              justify='space-between'
-              align={isSmallMobile ? "flex-start" : "center"}
-              vertical={isSmallMobile}
-              gap={10}
-              style={{
-                marginTop: 14,
-                padding: "12px 14px",
-                borderRadius: 16,
-                background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
-                border: "1px solid #edf2f7",
-              }}
-            >
-              <div>
-                <Text strong style={{ color: "#0f172a", display: "block" }}>
-                  Workspace akun orang tua
-                </Text>
-                <Text type='secondary' style={{ fontSize: 12 }}>
-                  Gunakan pencarian untuk menemukan akun lebih cepat, lalu
-                  lanjutkan ke edit, impor, atau penambahan akun baru.
-                </Text>
-              </div>
-              <Tag
-                color='blue'
-                style={{
-                  margin: 0,
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  fontWeight: 600,
-                }}
-              >
-                {data?.meta?.total_data || 0} akun
-              </Tag>
-            </Flex>
-          </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <Card
-            title={
-              <Flex
-                justify='space-between'
-                align={isSmallMobile ? "flex-start" : "center"}
-                vertical={isSmallMobile}
-                gap={12}
-              >
-                <Space vertical size={2} style={{ width: "100%" }}>
-                  <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
-                    Daftar Akun Orang Tua
-                  </Text>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    Lihat relasi siswa, ubah akun, atau hapus akun yang tidak
-                    lagi digunakan.
-                  </Text>
-                </Space>
-                <Tag
-                  color='geekblue'
-                  style={{
-                    margin: 0,
-                    borderRadius: 999,
-                    paddingInline: 12,
-                    fontWeight: 600,
-                  }}
-                >
-                  Halaman {page}
-                </Tag>
-              </Flex>
-            }
-            style={panelCardStyle}
-            styles={{
-              body: {
-                overflowX: "hidden",
-                padding: isSmallMobile ? 12 : isMobile ? 16 : 24,
-              },
-              header: {
-                borderBottom: `1px solid ${token.colorBorderSecondary}`,
-              },
-            }}
-          >
+            </div>
+          ) : isMobile ? (
+            <div style={{ padding: 16 }}>
+              <List
+                dataSource={parentItems}
+                loading={isLoading || isFetching}
+                locale={{ emptyText }}
+                renderItem={(record) => (
+                  <List.Item style={{ padding: 0, marginBottom: 12, border: 0 }}>
+                    <div
+                      style={{
+                        width: "100%",
+                        padding: 16,
+                        borderRadius: museRadius.card,
+                        border: `1px solid ${museColors.divider}`,
+                      }}
+                    >
+                      <Flex justify='space-between' align='start' gap={8}>
+                        <Flex align='center' gap={12} style={{ minWidth: 0 }}>
+                          <ParentAvatar size={36} />
+                          <div style={{ minWidth: 0 }}>
+                            <Text strong ellipsis style={{ display: "block" }}>
+                              {record.full_name}
+                            </Text>
+                            <Text type='secondary' style={{ fontSize: 12 }}>
+                              @{record.username || "-"}
+                            </Text>
+                          </div>
+                        </Flex>
+                        {renderActions(record)}
+                      </Flex>
+                      <Divider style={{ margin: "12px 0" }} />
+                      <Flex vertical gap={8}>
+                        <Flex gap={12} wrap>
+                          <Text type='secondary' style={{ fontSize: 12 }}>
+                            <Phone size={12} style={{ marginRight: 4, verticalAlign: -1 }} />
+                            {record.phone || "-"}
+                          </Text>
+                          <Text type='secondary' style={{ fontSize: 12 }} ellipsis>
+                            <Mail size={12} style={{ marginRight: 4, verticalAlign: -1 }} />
+                            {record.email || "-"}
+                          </Text>
+                        </Flex>
+                        <LinkedStudents students={record.students} />
+                        <div>
+                          <StatusTag active={record.is_active} />
+                        </div>
+                      </Flex>
+                    </div>
+                  </List.Item>
+                )}
+              />
+              {totalData > PAGE_SIZE ? (
+                <Flex justify='center'>
+                  <Pagination {...paginationProps} />
+                </Flex>
+              ) : null}
+            </div>
+          ) : (
             <Table
               rowKey='parent_user_id'
               loading={isLoading || isFetching}
               dataSource={parentItems}
               columns={columns}
-              scroll={isMobile ? { x: 760 } : { x: 960 }}
-              expandable={{
-                expandedRowRender: (record) => (
-                  <Space vertical size={12} style={{ width: "100%" }}>
-                    <Flex align='center' gap={10}>
-                      <div
-                        style={{
-                          ...iconWrapStyle(
-                            "linear-gradient(135deg, #dbeafe, #eff6ff)",
-                            "#1d4ed8",
-                          ),
-                          width: 40,
-                          height: 40,
-                          borderRadius: 14,
-                        }}
-                      >
-                        <Link2 size={18} />
-                      </div>
-                      <div>
-                        <Text
-                          strong
-                          style={{ display: "block", color: "#0f172a" }}
-                        >
-                          Siswa Terhubung
-                        </Text>
-                        <Text type='secondary' style={{ fontSize: 12 }}>
-                          Siswa terhubung pada periode aktif saja
-                        </Text>
-                      </div>
-                    </Flex>
-                    <Row gutter={[12, 12]}>
-                      {(record.students || []).map((item) => (
-                        <Col xs={24} md={12} xl={8} key={item.student_id}>
-                          <Card
-                            size='small'
-                            style={detailCardStyle}
-                            bodyStyle={{ background: "#fcfdff" }}
-                          >
-                            <Space vertical size={4}>
-                              <Text strong style={{ color: "#0f172a" }}>
-                                {item.full_name}
-                              </Text>
-                              <Text type='secondary' style={{ fontSize: 12 }}>
-                                NIS: {item.nis || "-"}
-                              </Text>
-                              <Text type='secondary' style={{ fontSize: 12 }}>
-                                {item.grade_name || "-"} |{" "}
-                                {item.class_name || "-"}
-                              </Text>
-                              <Tag
-                                color='blue'
-                                style={{
-                                  width: "fit-content",
-                                  marginTop: 4,
-                                  borderRadius: 999,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Terhubung
-                              </Tag>
-                            </Space>
-                          </Card>
-                        </Col>
-                      ))}
-                    </Row>
-                  </Space>
-                ),
-              }}
-              locale={{ emptyText: "Akun orang tua belum tersedia." }}
-              rowClassName={() => "parent-account-row"}
-              pagination={{
-                current: page,
-                pageSize: 10,
-                total: data?.meta?.total_data || 0,
-                showSizeChanger: false,
-                size: isMobile ? "small" : "default",
-                showLessItems: isMobile,
-                onChange: (nextPage) => setPage(nextPage),
-              }}
+              scroll={{ x: 960 }}
+              locale={{ emptyText }}
+              pagination={{ ...paginationProps, style: { padding: "0 24px" } }}
             />
-          </Card>
-        </MotionDiv>
+          )}
+        </DataListCard>
+      </Flex>
 
-        <ParentAccountForm
-          open={isFormOpen}
-          onCancel={() => {
-            setIsFormOpen(false);
-            setSelectedParent(null);
-          }}
-          onSubmit={handleSubmit}
-          loading={isSaving}
-          parentRecord={selectedParent}
-          studentOptions={mappedStudentOptions}
-        />
+      <ParentAccountForm
+        open={isFormOpen}
+        onCancel={closeForm}
+        onSubmit={handleSubmit}
+        loading={isCreating || isUpdating}
+        parentRecord={selectedParent}
+        studentOptions={mappedStudentOptions}
+      />
 
-        <ParentImportDrawer
-          open={isImportOpen}
-          onClose={() => setIsImportOpen(false)}
-          studentOptions={studentOptions}
-          scope={scope}
-        />
-      </Space>
-    </MotionDiv>
+      <ParentImportDrawer
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        studentOptions={studentOptions}
+        scope={scope}
+      />
+    </>
   );
 };
 

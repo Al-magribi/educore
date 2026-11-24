@@ -1,28 +1,27 @@
 import React, { useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Button,
-  Drawer,
-  Space,
+  Collapse,
+  Flex,
+  Grid,
   Table,
+  Tag,
+  Tooltip,
   Typography,
-  Upload,
-  message,
 } from "antd";
-import {
-  CheckCircleOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  FileExcelOutlined,
-  InboxOutlined,
-  WarningOutlined,
-} from "@ant-design/icons";
+import { DownloadOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { RotateCcw, Trash2, UploadCloud } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useImportParentAccountsMutation } from "../../../service/database/ApiDatabase";
+import { CardTitle, MuseCard } from "../../../components/ui/muse";
+import { ImportDrawer, ImportStats, UploadDropzone } from "../../../components/ui/muse/ImportKit";
+import { museColors } from "../../../config/theme";
 import { downloadParentTemplate } from "./parentImportTemplate";
 
-const { Dragger } = Upload;
-const { Text, Title } = Typography;
+const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const normalizeText = (value) => value?.toString().trim() || "";
 const normalizeKey = (value) => normalizeText(value).toLowerCase();
@@ -49,6 +48,9 @@ const pickValue = (row, keys) => {
 
 const ParentImportDrawer = ({ open, onClose, studentOptions = [], scope = "all" }) => {
   const [rows, setRows] = useState([]);
+  const { message } = App.useApp();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [importParents, { isLoading: isImporting }] =
     useImportParentAccountsMutation();
 
@@ -135,7 +137,7 @@ const ParentImportDrawer = ({ open, onClose, studentOptions = [], scope = "all" 
 
         setRows(parsedRows);
         message.success(`Berhasil membaca ${parsedRows.length} baris data.`);
-      } catch (error) {
+      } catch {
         message.error("File Excel gagal diproses.");
       }
     };
@@ -176,144 +178,188 @@ const ParentImportDrawer = ({ open, onClose, studentOptions = [], scope = "all" 
   };
 
   const validCount = rows.filter((item) => item.errors.length === 0).length;
+  const errorCount = rows.length - validCount;
+  const statusLabel = rows.length === 0 ? "Menunggu file" : errorCount > 0 ? "Perlu review" : "Siap impor";
+
+  const columns = [
+    {
+      title: "AKUN",
+      dataIndex: "username",
+      key: "username",
+      render: (value, record) => (
+        <div>
+          <Text strong style={{ display: "block" }}>
+            {record.full_name || "-"}
+          </Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            @{value || "-"}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: "KONTAK",
+      key: "contact",
+      render: (_, record) => (
+        <div>
+          <Text style={{ display: "block" }}>{record.phone || "-"}</Text>
+          <Text type='secondary' style={{ fontSize: 12 }}>
+            {record.email || "-"}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: "SISWA TERKAIT",
+      key: "students",
+      render: (_, record) =>
+        record.matchedStudents.length ? (
+          <Flex gap={6} wrap style={{ maxWidth: 320 }}>
+            {record.matchedStudents.map((item) => (
+              <Tag key={item.student_id} color='blue' style={{ margin: 0 }}>
+                {item.full_name} ({item.nis || "-"})
+              </Tag>
+            ))}
+          </Flex>
+        ) : (
+          "-"
+        ),
+    },
+    {
+      title: "STATUS",
+      key: "status",
+      render: (_, record) =>
+        record.errors.length === 0 ? (
+          <Tag color='success' style={{ margin: 0 }}>
+            Siap diimpor
+          </Tag>
+        ) : (
+          <Flex vertical gap={4} align='flex-start'>
+            <Tag color='error' style={{ margin: 0 }}>
+              Perlu perbaikan
+            </Tag>
+            <Text type='danger' style={{ fontSize: 12, whiteSpace: "normal", maxWidth: 260, display: "block" }}>
+              {record.errors.join("; ")}
+            </Text>
+          </Flex>
+        ),
+    },
+    {
+      title: "AKSI",
+      key: "action",
+      width: 70,
+      align: "right",
+      render: (_, record) => (
+        <Tooltip title='Hapus baris'>
+          <Button
+            type='text'
+            danger
+            aria-label={`Hapus baris ${record.username || "-"}`}
+            icon={<Trash2 size={16} />}
+            onClick={() => setRows((current) => current.filter((item) => item.key !== record.key))}
+          />
+        </Tooltip>
+      ),
+    },
+  ];
 
   return (
-    <Drawer
+    <ImportDrawer
       open={open}
       onClose={onClose}
-      title="Import Akun Orang Tua"
-      width={960}
-      destroyOnHidden
-      extra={
-        <Space wrap>
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={() => downloadParentTemplate({ students: studentOptions })}
-          >
+      width={1000}
+      icon={<UploadCloud size={16} />}
+      title='Import Akun Orang Tua'
+      description='Buat atau perbarui akun orang tua berdasarkan username.'
+      status={statusLabel}
+      statusColor={errorCount > 0 ? "warning" : rows.length > 0 ? "success" : "processing"}
+      actions={
+        <>
+          <Button icon={<DownloadOutlined />} onClick={() => downloadParentTemplate({ students: studentOptions })}>
             Template
           </Button>
-          <Button onClick={handleReset}>Reset</Button>
-          <Button
-            type="primary"
-            icon={<FileExcelOutlined />}
-            loading={isImporting}
-            onClick={handleSubmit}
-          >
-            Import {validCount > 0 ? `(${validCount})` : ""}
+          {rows.length > 0 ? (
+            <Button icon={<RotateCcw size={16} />} onClick={handleReset}>
+              Ganti File
+            </Button>
+          ) : null}
+          <Button type='primary' loading={isImporting} disabled={validCount === 0} onClick={handleSubmit}>
+            Impor {validCount > 0 ? `(${validCount})` : ""}
           </Button>
-        </Space>
+        </>
       }
     >
-      <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        <Alert
-          type="info"
-          showIcon
-          message="Import akan membuat atau memperbarui akun orang tua berdasarkan username."
-          description="Kolom NIS Siswa dapat diisi lebih dari satu NIS dengan pemisah | atau koma."
-        />
-
-        <Dragger
-          accept=".xlsx,.xls"
-          beforeUpload={handleFile}
-          showUploadList={false}
-          maxCount={1}
-          style={{ padding: 24 }}
-        >
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <Title level={5} style={{ marginBottom: 8 }}>
-            Tarik file Excel ke sini atau klik untuk memilih file
-          </Title>
-          <Text type="secondary">
-            Gunakan template sistem agar format username dan daftar NIS sesuai.
-          </Text>
-        </Dragger>
-
-        <Table
-          rowKey="key"
-          dataSource={rows}
-          scroll={{ x: 980 }}
-          pagination={{ pageSize: 8, hideOnSinglePage: true }}
-          locale={{ emptyText: "Belum ada file import yang dipilih." }}
-          columns={[
-            {
-              title: "Username",
-              dataIndex: "username",
-              key: "username",
-              width: 180,
-              render: (value, record) => (
-                <Space direction="vertical" size={0}>
-                  <Text strong>{value || "-"}</Text>
-                  <Text type="secondary">{record.full_name || "-"}</Text>
-                </Space>
-              ),
-            },
-            {
-              title: "Kontak",
-              key: "contact",
-              width: 220,
-              render: (_, record) => (
-                <Space direction="vertical" size={0}>
-                  <Text>{record.phone || "-"}</Text>
-                  <Text type="secondary">{record.email || "-"}</Text>
-                </Space>
-              ),
-            },
-            {
-              title: "Siswa Terkait",
-              key: "students",
-              width: 280,
-              render: (_, record) => (
-                <Text>
-                  {record.matchedStudents.length > 0
-                    ? record.matchedStudents
-                        .map((item) => `${item.full_name} (${item.nis || "-"})`)
-                        .join(", ")
-                    : "-"}
-                </Text>
-              ),
-            },
-            {
-              title: "Status",
-              key: "status",
-              width: 220,
-              render: (_, record) =>
-                record.errors.length === 0 ? (
-                  <Space>
-                    <CheckCircleOutlined style={{ color: "#389e0d" }} />
-                    <Text type="success">Siap diimport</Text>
-                  </Space>
-                ) : (
-                  <Space direction="vertical" size={0}>
-                    <Space>
-                      <WarningOutlined style={{ color: "#d46b08" }} />
-                      <Text type="warning">Perlu perbaikan</Text>
-                    </Space>
-                    <Text type="secondary">{record.errors.join("; ")}</Text>
-                  </Space>
-                ),
-            },
-            {
-              title: "Aksi",
-              key: "action",
-              width: 80,
-              align: "center",
-              render: (_, record) => (
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() =>
-                    setRows((current) => current.filter((item) => item.key !== record.key))
-                  }
-                />
-              ),
-            },
+      {rows.length > 0 ? (
+        <ImportStats
+          items={[
+            { label: "Total baris", value: rows.length },
+            { label: "Siap impor", value: validCount, color: museColors.success },
+            { label: "Perlu cek", value: errorCount, color: museColors.danger },
           ]}
         />
-      </Space>
-    </Drawer>
+      ) : null}
+
+      <Collapse
+        size='small'
+        defaultActiveKey={rows.length === 0 ? ["guide"] : []}
+        style={{ background: "#fff" }}
+        items={[
+          {
+            key: "guide",
+            label: (
+              <Flex gap={8} align='center'>
+                <InfoCircleOutlined />
+                <span>Panduan import Excel</span>
+              </Flex>
+            ),
+            children: (
+              <Alert
+                type='info'
+                showIcon
+                title='Langkah pengisian'
+                description={
+                  <ol style={{ paddingLeft: 20, margin: 0 }}>
+                    <li>
+                      Klik <strong>Template</strong>, lalu isi sheet akun orang tua.
+                    </li>
+                    <li>
+                      <strong>Username</strong> dipakai sebagai kunci: username yang sudah ada akan diperbarui.
+                    </li>
+                    <li>
+                      Kolom <strong>NIS Siswa</strong> boleh berisi beberapa NIS, dipisah <code>|</code> atau koma.
+                    </li>
+                    <li>Unggah file, tinjau status tiap baris, lalu klik Impor.</li>
+                  </ol>
+                }
+              />
+            ),
+          },
+        ]}
+      />
+
+      {rows.length === 0 ? (
+        <UploadDropzone
+          beforeUpload={handleFile}
+          maxCount={1}
+          hint='Gunakan template sistem agar format username dan daftar NIS sesuai.'
+          note='Satu akun bisa terhubung ke beberapa siswa'
+        />
+      ) : (
+        <MuseCard
+          flush
+          title={<CardTitle title='Review Data' description='Hapus baris yang tidak ingin diimpor.' />}
+        >
+          <Table
+            rowKey='key'
+            dataSource={rows}
+            columns={columns}
+            size={isMobile ? "small" : "middle"}
+            scroll={{ x: 900 }}
+            pagination={{ pageSize: 8, hideOnSinglePage: true, style: { padding: "0 16px" } }}
+          />
+        </MuseCard>
+      )}
+    </ImportDrawer>
   );
 };
 
