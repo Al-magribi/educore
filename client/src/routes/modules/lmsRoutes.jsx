@@ -45,7 +45,7 @@ const TeachingModuleMonitoring = lazyMuse(
     import("../../module/lms/teachingModule/monitoring/TeachingModuleMonitoring"),
 );
 
-const ParentDash = lazy(
+const ParentDash = lazyMuse(
   () => import("../../module/parent/dashboard/ParentDash"),
 );
 const AcademicReport = lazyMuse(

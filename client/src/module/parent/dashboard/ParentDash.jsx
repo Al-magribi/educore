@@ -1,353 +1,471 @@
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  Avatar,
   Button,
-  Card,
   Col,
+  Descriptions,
   Empty,
+  Flex,
+  Grid,
+  Progress,
   Row,
   Select,
   Skeleton,
-  Space,
   Tag,
   Typography,
 } from "antd";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  MessageCircle,
-  Sparkles,
+  Award,
+  BookOpen,
+  CalendarCheck,
+  FileBarChart,
+  FileText,
+  KeyRound,
+  LayoutGrid,
+  PiggyBank,
   UserRound,
   UsersRound,
 } from "lucide-react";
-import {
-  useGetParentDashboardQuery,
-  useGetParentTelegramQuery,
-} from "../../../service/lms/ApiParent";
-import PageHeader from "../../../components/ui/PageHeader";
 
-const { Title, Text } = Typography;
+import { useGetParentDashboardQuery, useGetParentTelegramQuery } from "../../../service/lms/ApiParent";
+import { CardTitle, MuseCard, PageTabs, StatCard } from "../../../components/ui/muse";
+import { DataRow } from "../../../components/ui/muse/DataSection";
+import { museColors } from "../../../config/theme";
+import { FEATURES, hasFeature } from "../../../config/productFeatures";
+import QuickLinksCard from "../../lms/dashboard/QuickLinksCard";
+import TelegramBindCard from "../../lms/dashboard/TelegramBindCard";
+import useNow, { getGreeting } from "../../lms/dashboard/useNow";
 
-const fadeUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.45, ease: "easeOut" },
+const { Text } = Typography;
+const { useBreakpoint } = Grid;
+
+const isFinanceEnabled = hasFeature(FEATURES.FINANCE);
+const MATERIAL_PREVIEW = 4;
+
+const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "-"
+    : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-const cardSurface = {
-  borderRadius: 24,
-  border: "1px solid rgba(15, 23, 42, 0.08)",
-  boxShadow: "0 18px 45px rgba(15, 23, 42, 0.08)",
-  overflow: "hidden",
+const getAttendance = (student) => {
+  const total = Number(student?.lms?.attendance?.total_sessions || 0);
+  const hadir = Number(student?.lms?.attendance?.hadir_sessions || 0);
+  return { total, hadir, rate: total ? Math.round((hadir / total) * 100) : null };
 };
+
+const attendanceColor = (rate) =>
+  rate == null ? museColors.border : rate >= 90 ? museColors.success : rate >= 75 ? museColors.warning : museColors.danger;
+
+const descriptionStyles = {
+  label: { color: museColors.muted, fontSize: 12, fontWeight: 600, paddingBottom: 2 },
+  content: { color: museColors.text, fontWeight: 600 },
+};
+
+const AttendanceBar = ({ student }) => {
+  const { total, hadir, rate } = getAttendance(student);
+  return (
+    <div style={{ minWidth: 0 }}>
+      <Flex justify='space-between' gap={8}>
+        <Text type='secondary' style={{ fontSize: 12 }}>
+          Kehadiran di kelas
+        </Text>
+        <Text strong style={{ fontSize: 12 }}>
+          {rate == null ? "Belum ada data" : `${rate}% · ${hadir}/${total} sesi`}
+        </Text>
+      </Flex>
+      <Progress
+        percent={rate ?? 0}
+        showInfo={false}
+        strokeColor={attendanceColor(rate)}
+        size={["100%", 3]}
+        style={{ margin: 0 }}
+        aria-label={`Kehadiran ${student.student_name}`}
+      />
+    </div>
+  );
+};
+
+/** Kartu lengkap satu anak (tab "Anak"). */
+const ChildCard = ({ student, onNavigate }) => {
+  const savings = student?.finance?.savings;
+  const classCash = student?.finance?.class_cash;
+
+  return (
+    <MuseCard style={{ height: "100%" }}>
+      <Flex vertical gap={16}>
+        <Flex gap={12} align='center' style={{ minWidth: 0 }}>
+          <Avatar size={48} style={{ background: museColors.primary, fontWeight: 700, flexShrink: 0 }}>
+            {student.student_name?.trim()?.[0]?.toUpperCase() || "S"}
+          </Avatar>
+          <div style={{ minWidth: 0 }}>
+            <Text strong style={{ display: "block", fontSize: 16, wordBreak: "break-word" }}>
+              {student.student_name}
+            </Text>
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              NIS {student.nis || "-"}
+            </Text>
+          </div>
+        </Flex>
+
+        <Descriptions
+          layout='vertical'
+          colon={false}
+          column={{ xs: 2, sm: 3 }}
+          styles={descriptionStyles}
+          items={[
+            { key: "class", label: "Kelas", children: student.class_name || "-" },
+            { key: "grade", label: "Tingkat", children: student.grade_name || "-" },
+            { key: "homebase", label: "Satuan", children: student.homebase_name || "-" },
+            { key: "subjects", label: "Mapel", children: student?.lms?.subjects_total || 0 },
+            { key: "materials", label: "Materi", children: student?.lms?.materials_total || 0 },
+            ...(isFinanceEnabled
+              ? [
+                  { key: "savings", label: "Tabungan", children: rupiah.format(savings?.balance || 0) },
+                  { key: "cash", label: "Kas Kelas", children: rupiah.format(classCash?.balance || 0) },
+                ]
+              : []),
+          ]}
+        />
+
+        <AttendanceBar student={student} />
+
+        <Flex gap={8} wrap>
+          <Button icon={<FileBarChart size={16} />} onClick={() => onNavigate("/laporan-akademik")}>
+            Laporan Akademik
+          </Button>
+          <Button icon={<Award size={16} />} onClick={() => onNavigate("/poin-anak")}>
+            Poin
+          </Button>
+        </Flex>
+      </Flex>
+    </MuseCard>
+  );
+};
+
+const materialRow = (item, last) => (
+  <DataRow
+    key={item.id}
+    last={last}
+    icon={<FileText size={18} />}
+    tone='primarySoft'
+    title={item.title}
+    subtitle={[item.subject_name, item.chapter_title].filter(Boolean).join(" · ")}
+    tags={<Tag style={{ margin: 0 }}>{formatDate(item.created_at)}</Tag>}
+  />
+);
+
+const DashSkeleton = () => (
+  <Flex vertical gap={24}>
+    <Skeleton active title paragraph={{ rows: 1 }} />
+    <div style={{ display: "grid", gap: 24, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+      {[0, 1, 2].map((key) => (
+        <MuseCard key={key}>
+          <Skeleton active paragraph={{ rows: 1 }} />
+        </MuseCard>
+      ))}
+    </div>
+    <MuseCard>
+      <Skeleton active avatar paragraph={{ rows: 4 }} />
+    </MuseCard>
+  </Flex>
+);
 
 const ParentDash = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const screens = useBreakpoint();
+  const gutter = screens.md ? 24 : 16;
+  const now = useNow();
   const { data, isLoading, isError, error } = useGetParentDashboardQuery();
   const { data: telegramRes } = useGetParentTelegramQuery();
-  const [selectedStudentId, setSelectedStudentId] = useState("all");
+  const [selectedId, setSelectedId] = useState("all");
 
   const payload = data?.data;
-  const telegram = telegramRes?.data;
-  const summary = payload?.summary || {};
-  const students = Array.isArray(payload?.students)
-    ? payload.students.filter(Boolean)
-    : [];
+  const rawStudents = payload?.students;
+  const rawMaterials = payload?.recent_lms;
+  const students = useMemo(() => (Array.isArray(rawStudents) ? rawStudents.filter(Boolean) : []), [rawStudents]);
+  const materials = useMemo(() => rawMaterials || [], [rawMaterials]);
 
-  const studentTitle = useMemo(() => {
-    const total = Number(summary.students_total || 0);
-    if (total === 1) return "1 Anak Terhubung";
-    return `${total} Anak Terhubung`;
-  }, [summary.students_total]);
+  // Pilihan yang sudah tidak ada (mis. anak dipindah) kembali ke "Semua".
+  const effectiveId = students.some((s) => String(s.student_id) === selectedId) ? selectedId : "all";
+  const visible = useMemo(
+    () => (effectiveId === "all" ? students : students.filter((s) => String(s.student_id) === effectiveId)),
+    [students, effectiveId],
+  );
 
-  useEffect(() => {
-    if (!students.length) {
-      setSelectedStudentId("all");
-      return;
-    }
+  const totals = useMemo(
+    () =>
+      visible.reduce(
+        (acc, student) => {
+          const { total, hadir } = getAttendance(student);
+          acc.sessions += total;
+          acc.hadir += hadir;
+          acc.subjects += Number(student?.lms?.subjects_total || 0);
+          acc.materials += Number(student?.lms?.materials_total || 0);
+          acc.savings += Number(student?.finance?.savings?.balance || 0);
+          return acc;
+        },
+        { sessions: 0, hadir: 0, subjects: 0, materials: 0, savings: 0 },
+      ),
+    [visible],
+  );
 
-    setSelectedStudentId((current) => {
-      if (students.length === 1) {
-        return String(students[0].student_id);
-      }
+  const goToTab = useCallback(
+    (tab) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", tab);
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
-      if (current === "all") return current;
-
-      const isStillValid = students.some(
-        (student) => String(student?.student_id) === String(current),
-      );
-
-      return isStillValid ? current : "all";
-    });
-  }, [students]);
-
-  const studentOptions = useMemo(() => {
-    const mapped = students.map((student) => ({
-      label: `${student.student_name}${student.class_name ? ` - ${student.class_name}` : ""}`,
-      value: String(student.student_id),
-    }));
-
-    if (students.length > 1) {
-      return [{ label: "Semua Siswa", value: "all" }, ...mapped];
-    }
-
-    return mapped;
-  }, [students]);
-
-  const filteredStudents = useMemo(() => {
-    if (selectedStudentId === "all") return students;
-    return students.filter(
-      (student) => String(student?.student_id) === String(selectedStudentId),
-    );
-  }, [selectedStudentId, students]);
-
-  const selectedStudent = useMemo(() => {
-    if (selectedStudentId === "all") return null;
-    return (
-      students.find(
-        (student) => String(student?.student_id) === String(selectedStudentId),
-      ) || null
-    );
-  }, [selectedStudentId, students]);
-
-  if (isLoading) {
-    return (
-      <Card style={{ ...cardSurface, borderRadius: 24 }}>
-        <Skeleton active paragraph={{ rows: 12 }} />
-      </Card>
-    );
-  }
+  if (isLoading) return <DashSkeleton />;
 
   if (isError) {
     return (
       <Alert
         type='error'
         showIcon
-        message='Gagal memuat dashboard orang tua.'
-        description={error?.data?.message || "Silakan coba beberapa saat lagi."}
+        title='Gagal memuat dashboard orang tua'
+        description={error?.data?.message || "Periksa koneksi lalu muat ulang halaman."}
       />
     );
   }
 
-  return (
-    <Space direction='vertical' size={20} style={{ width: "100%" }}>
-      <motion.div {...fadeUp}>
-        <Card style={cardSurface}>
-          <Space align='start' size={14} style={{ width: "100%" }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                display: "grid",
-                placeItems: "center",
-                background: "linear-gradient(135deg, #dbeafe, #ccfbf1)",
-                color: "#0f766e",
-                flexShrink: 0,
-              }}
-            >
-              <MessageCircle size={20} />
-            </div>
-            <Space direction='vertical' size={8} style={{ flex: 1, width: "100%" }}>
-              <Space wrap>
-                <Text strong style={{ fontSize: 16 }}>
-                  Notifikasi Absensi Telegram
-                </Text>
-                {telegram?.is_bound ? (
-                  <Tag color='success'>Terhubung</Tag>
-                ) : (
-                  <Tag>Belum terhubung</Tag>
-                )}
-              </Space>
-              <Text type='secondary'>
-                {telegram?.is_bound
-                  ? "Akun Telegram Anda sudah terhubung. Notifikasi datang/pulang anak akan dikirim ke chat bot sekolah setiap kali anak tap kartu."
-                  : "Hubungkan Telegram agar menerima notifikasi datang/pulang anak setiap kali anak tap kartu di mesin absensi."}
-              </Text>
-              {telegram?.bind_link ? (
-                <Button
-                  type={telegram?.is_bound ? "default" : "primary"}
-                  href={telegram.bind_link}
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {telegram?.is_bound ? "Buka Bot Lagi" : "Hubungkan Telegram"}
-                </Button>
-              ) : (
-                <Alert
-                  type='warning'
-                  showIcon
-                  message='Bot Telegram sekolah belum dikonfigurasi. Hubungi admin sekolah.'
-                />
-              )}
-            </Space>
-          </Space>
-        </Card>
-      </motion.div>
+  const attendanceRate = totals.sessions ? Math.round((totals.hadir / totals.sessions) * 100) : null;
 
-      <motion.div {...fadeUp}>
-        <PageHeader
-          title='Dashboard Orang Tua'
-          description='Pantau ringkasan akademik dan keuangan siswa.'
-          meta={
-            <Space size={[8, 8]} wrap>
-              <Tag>{payload?.parent?.full_name || "Orang tua"}</Tag>
-              <Tag>{payload?.active_periode?.name || "Periode belum aktif"}</Tag>
-              <Tag>
-                {selectedStudent
-                  ? `Fokus: ${selectedStudent.student_name}`
-                  : studentTitle}
-              </Tag>
-            </Space>
-          }
-        />
-      </motion.div>
+  const stats = [
+    {
+      key: "attendance",
+      title: "Kehadiran di Kelas",
+      value: attendanceRate == null ? "-" : `${attendanceRate}%`,
+      note: totals.sessions ? `${totals.hadir} dari ${totals.sessions} sesi` : "Belum ada data presensi",
+      icon: <CalendarCheck size={24} />,
+      tone: "success",
+    },
+    { key: "subjects", title: "Mata Pelajaran", value: totals.subjects, icon: <BookOpen size={24} />, tone: "primary" },
+    { key: "materials", title: "Materi Tersedia", value: totals.materials, icon: <FileText size={24} />, tone: "accent" },
+    isFinanceEnabled && {
+      key: "savings",
+      title: "Saldo Tabungan",
+      value: rupiah.format(totals.savings),
+      icon: <PiggyBank size={24} />,
+      tone: "warning",
+    },
+  ].filter(Boolean);
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-      >
-        <Card
-          title={
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <Space size={8}>
-                <UsersRound size={18} />
-                <span>Ringkasan Siswa</span>
-              </Space>
-              <Select
-                value={selectedStudentId}
-                onChange={setSelectedStudentId}
-                options={studentOptions}
-                size='middle'
-                placeholder='Pilih siswa'
-                style={{ width: "100%", maxWidth: 320 }}
-              />
-            </div>
-          }
-          style={cardSurface}
-        >
-          {filteredStudents.length === 0 ? (
-            <Empty description='Belum ada data siswa terhubung.' />
-          ) : (
-            <Row gutter={[16, 16]}>
-              {filteredStudents.map((student, index) => (
-                <Col
-                  xs={24}
-                  lg={selectedStudentId === "all" ? 12 : 24}
-                  key={student?.student_id ?? `student-${index}`}
+  const quickLinks = [
+    { key: "report", label: "Laporan akademik", description: "Nilai dan capaian belajar", to: "/laporan-akademik", icon: <FileBarChart size={16} /> },
+    { key: "points", label: "Poin anak", description: "Prestasi dan pelanggaran", to: "/poin-anak", icon: <Award size={16} /> },
+    { key: "profile", label: "Profil saya", description: "Email dan nomor telepon", to: "/profile?tab=data-diri", icon: <UserRound size={16} /> },
+    { key: "password", label: "Ganti password", to: "/profile?tab=keamanan", icon: <KeyRound size={16} /> },
+  ];
+
+  const noStudentAlert = (
+    <Alert
+      type='warning'
+      showIcon
+      title='Belum ada anak yang terhubung'
+      description='Hubungi admin sekolah agar akun Anda ditautkan ke data siswa pada periode aktif.'
+    />
+  );
+
+  const items = [
+    {
+      key: "ringkasan",
+      label: "Ringkasan",
+      icon: <LayoutGrid />,
+      render: () => (
+        <Flex vertical gap={gutter}>
+          {students.length ? null : noStudentAlert}
+          <div style={{ display: "grid", gap: gutter, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            {stats.map(({ key, ...item }) => (
+              <StatCard key={key} {...item} />
+            ))}
+          </div>
+          <Row gutter={[gutter, gutter]}>
+            <Col xs={24} lg={15}>
+              <Flex vertical gap={gutter}>
+                <MuseCard
+                  flush
+                  title={
+                    <CardTitle
+                      icon={<UsersRound size={16} />}
+                      title='Anak Saya'
+                      description={`${students.length} anak terhubung`}
+                    />
+                  }
+                  extra={
+                    students.length ? (
+                      <Button type='link' onClick={() => goToTab("anak")} style={{ paddingInline: 0 }}>
+                        Detail
+                      </Button>
+                    ) : null
+                  }
                 >
-                  <motion.div
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.35,
-                      delay: 0.18 + index * 0.06,
-                      ease: "easeOut",
-                    }}
-                  >
-                    <Card
-                      bodyStyle={{ padding: 20 }}
-                      style={{
-                        borderRadius: 22,
-                        border: "1px solid rgba(15, 23, 42, 0.08)",
-                        background:
-                          "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-                      }}
-                    >
-                      <Space
-                        direction='vertical'
-                        size={14}
-                        style={{ width: "100%" }}
+                  {visible.length ? (
+                    visible.map((student, index) => (
+                      <Flex
+                        key={student.student_id}
+                        vertical
+                        gap={10}
+                        style={{
+                          padding: screens.md ? "14px 24px" : "12px 16px",
+                          borderTop: index === 0 ? 0 : `1px solid ${museColors.divider}`,
+                        }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 12,
-                            alignItems: "flex-start",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <div>
-                            <Text strong style={{ color: "#0f172a" }}>
+                        <Flex gap={12} align='center' style={{ minWidth: 0 }}>
+                          <Avatar style={{ background: museColors.primary, fontWeight: 700, flexShrink: 0 }}>
+                            {student.student_name?.trim()?.[0]?.toUpperCase() || "S"}
+                          </Avatar>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <Text strong ellipsis style={{ display: "block" }}>
                               {student.student_name}
                             </Text>
-                            <div>
-                              <Text type='secondary'>
-                                NIS {student.nis || "-"} |{" "}
-                                {student.class_name || "-"}
-                              </Text>
-                            </div>
+                            <Text type='secondary' ellipsis style={{ display: "block", fontSize: 12 }}>
+                              {[student.class_name, student.homebase_name].filter(Boolean).join(" · ") || "Kelas belum diatur"}
+                            </Text>
                           </div>
-                          <Space size={[8, 8]} wrap>
-                            <Tag color='geekblue'>
-                              {student.grade_name || "Tanpa tingkat"}
-                            </Tag>
-                            <Tag color='cyan'>
-                              {student.homebase_name || "Sekolah"}
-                            </Tag>
-                          </Space>
-                        </div>
+                        </Flex>
+                        <AttendanceBar student={student} />
+                      </Flex>
+                    ))
+                  ) : (
+                    <Text type='secondary' style={{ display: "block", padding: "8px 24px 24px" }}>
+                      Data anak akan tampil setelah akun ditautkan.
+                    </Text>
+                  )}
+                </MuseCard>
 
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} sm={12}>
-                            <Card
-                              size='small'
-                              bodyStyle={{ padding: 14 }}
-                              style={{
-                                borderRadius: 16,
-                                background: "#eff6ff",
-                                borderColor: "#dbeafe",
-                              }}
-                            >
-                              <Text type='secondary' style={{ fontSize: 12 }}>
-                                Mapel LMS
-                              </Text>
-                              <div>
-                                <Text strong style={{ fontSize: 18 }}>
-                                  {student?.lms?.subjects_total || 0}
-                                </Text>
-                              </div>
-                            </Card>
-                          </Col>
-                          <Col xs={24} sm={12}>
-                            <Card
-                              size='small'
-                              bodyStyle={{ padding: 14 }}
-                              style={{
-                                borderRadius: 16,
-                                background: "#ecfeff",
-                                borderColor: "#cffafe",
-                              }}
-                            >
-                              <Text type='secondary' style={{ fontSize: 12 }}>
-                                Materi LMS
-                              </Text>
-                              <div>
-                                <Text strong style={{ fontSize: 18 }}>
-                                  {student?.lms?.materials_total || 0}
-                                </Text>
-                              </div>
-                            </Card>
-                          </Col>
-                        </Row>
-                      </Space>
-                    </Card>
-                  </motion.div>
-                </Col>
-              ))}
-            </Row>
+                <MuseCard
+                  flush
+                  title={
+                    <CardTitle
+                      icon={<FileText size={16} />}
+                      title='Materi Terbaru'
+                      description='Materi yang baru diunggah guru di kelas anak.'
+                    />
+                  }
+                  extra={
+                    materials.length > MATERIAL_PREVIEW ? (
+                      <Button type='link' onClick={() => goToTab("materi")} style={{ paddingInline: 0 }}>
+                        Lihat semua
+                      </Button>
+                    ) : null
+                  }
+                >
+                  {materials.length ? (
+                    materials
+                      .slice(0, MATERIAL_PREVIEW)
+                      .map((item, index, list) => materialRow(item, index === list.length - 1))
+                  ) : (
+                    <Text type='secondary' style={{ display: "block", padding: "8px 24px 24px" }}>
+                      Belum ada materi baru.
+                    </Text>
+                  )}
+                </MuseCard>
+              </Flex>
+            </Col>
+            <Col xs={24} lg={9}>
+              <Flex vertical gap={gutter}>
+                <QuickLinksCard links={quickLinks} />
+                <TelegramBindCard
+                  telegram={telegramRes?.data}
+                  boundText='Notifikasi datang/pulang anak dikirim ke chat bot sekolah setiap kali anak tap kartu.'
+                  unboundText='Hubungkan Telegram agar menerima kabar saat anak tap kartu datang dan pulang di mesin absensi.'
+                />
+              </Flex>
+            </Col>
+          </Row>
+        </Flex>
+      ),
+    },
+    {
+      key: "anak",
+      label: "Anak",
+      icon: <UsersRound />,
+      render: () =>
+        visible.length ? (
+          <Row gutter={[gutter, gutter]}>
+            {visible.map((student) => (
+              <Col key={student.student_id} xs={24} xl={visible.length > 1 ? 12 : 24}>
+                <ChildCard student={student} onNavigate={navigate} />
+              </Col>
+            ))}
+          </Row>
+        ) : (
+          <MuseCard>
+            <Empty description='Belum ada anak yang terhubung. Hubungi admin sekolah untuk menautkan akun.' />
+          </MuseCard>
+        ),
+    },
+    {
+      key: "materi",
+      label: "Materi",
+      icon: <FileText />,
+      render: () => (
+        <MuseCard
+          flush
+          title={
+            <CardTitle
+              icon={<FileText size={16} />}
+              title='Materi Terbaru'
+              description={`${materials.length} materi terakhir di kelas anak`}
+            />
+          }
+        >
+          {materials.length ? (
+            materials.map((item, index) => materialRow(item, index === materials.length - 1))
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description='Belum ada materi baru.'
+              style={{ padding: "16px 24px 24px" }}
+            />
           )}
-        </Card>
-      </motion.div>
-    </Space>
+        </MuseCard>
+      ),
+    },
+  ];
+
+  const studentOptions = [
+    { value: "all", label: "Semua anak" },
+    ...students.map((s) => ({
+      value: String(s.student_id),
+      label: `${s.student_name}${s.class_name ? ` · ${s.class_name}` : ""}`,
+    })),
+  ];
+
+  return (
+    <PageTabs
+      title={`${getGreeting(now)}, ${payload?.parent?.full_name || "Orang Tua"}`}
+      description='Pantau kehadiran, belajar, dan tabungan anak Anda.'
+      extra={
+        <Flex gap={8} wrap align='center' style={{ width: screens.md ? "auto" : "100%" }}>
+          <Tag color={payload?.active_periode ? "green" : "volcano"} style={{ margin: 0 }}>
+            {payload?.active_periode?.name ? `Periode: ${payload.active_periode.name}` : "Periode belum aktif"}
+          </Tag>
+          {students.length > 1 ? (
+            <Select
+              aria-label='Pilih anak'
+              value={effectiveId}
+              onChange={setSelectedId}
+              options={studentOptions}
+              prefix={<UsersRound size={16} color={museColors.muted} />}
+              style={{ width: screens.md ? 260 : "100%" }}
+            />
+          ) : null}
+        </Flex>
+      }
+      items={items}
+    />
   );
 };
 

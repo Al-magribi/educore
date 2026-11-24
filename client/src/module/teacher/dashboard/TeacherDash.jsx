@@ -1,720 +1,557 @@
-import React from "react";
+import { useCallback, useMemo } from "react";
 import {
   Alert,
-  Avatar,
   Button,
-  Card,
   Col,
   Flex,
   Grid,
-  Pagination,
   Row,
   Skeleton,
-  Space,
-  Statistic,
   Tag,
   Typography,
 } from "antd";
-import { motion } from "framer-motion";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   BookOpen,
   CalendarCheck,
+  CalendarRange,
+  ClipboardCheck,
   ClipboardList,
   FileText,
+  LayoutGrid,
   Layers,
-  MessageCircle,
+  UserRound,
 } from "lucide-react";
+
 import { useGetTeacherDashQuery } from "../../../service/main/ApiDash";
 import { useGetTeacherTelegramQuery } from "../../../service/lms/ApiAttendance";
-import PageHeader from "../../../components/ui/PageHeader";
+import { useGetScheduleBootstrapQuery } from "../../../service/lms/ApiSchedule";
+import {
+  CardTitle,
+  MuseCard,
+  PageTabs,
+  StatCard,
+} from "../../../components/ui/muse";
+import { DataRow } from "../../../components/ui/muse/DataSection";
+import { FEATURES, hasFeature } from "../../../config/productFeatures";
+import QuickLinksCard from "../../lms/dashboard/QuickLinksCard";
+import SearchableListCard from "../../lms/dashboard/SearchableListCard";
+import TelegramBindCard from "../../lms/dashboard/TelegramBindCard";
+import TodayScheduleCard from "../../lms/dashboard/TodayScheduleCard";
+import useNow, { getGreeting } from "../../lms/dashboard/useNow";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
-const CARD_PAGE_SIZE = 3;
-const SECTION_CARD_HEIGHT = 560;
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.05,
-    },
-  },
-};
+const isLmsEnabled = hasFeature(FEATURES.LMS);
+const isCbtEnabled = hasFeature(FEATURES.CBT);
+const PREVIEW_LIMIT = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.38,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const cardStyle = {
-  borderRadius: 24,
-  border: "1px solid #eef2f7",
-  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.07)",
-  overflow: "hidden",
-};
-
-const heroStyle = {
-  ...cardStyle,
-  background: "transparent",
-  boxShadow: "none",
-};
-
-const statCardStyle = {
-  borderRadius: 18,
-  border: "1px solid #e5edf8",
-  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  height: "100%",
-  width: "100%",
-};
-
-const sectionCardStyle = {
-  ...cardStyle,
-  display: "flex",
-  flexDirection: "column",
-  height: "100%",
-  width: "100%",
-};
-
-const getSectionCardStyle = (isMobile) => ({
-  ...sectionCardStyle,
-  height: isMobile ? "100%" : SECTION_CARD_HEIGHT,
-});
-
-const equalHeightColStyle = {
-  display: "flex",
-  flexDirection: "column",
-};
-
-const equalHeightWrapStyle = {
-  height: "100%",
-  width: "100%",
-};
-
-const getSectionBodyStyle = (isMobile) => ({
-  paddingTop: 8,
-  paddingInline: isMobile ? 12 : 24,
-  display: "flex",
-  flex: 1,
-  flexDirection: "column",
-  minHeight: 0,
-  overflow: "hidden",
-});
-
-const tableCardHeadStyle = {
-  borderBottom: "1px solid #f1f5f9",
-  minHeight: 64,
-};
-
-const listItemStyle = {
-  borderRadius: 18,
-  border: "1px solid #edf2f7",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  padding: 16,
-};
-
-const iconStyle = (color) => ({ color, width: 20, height: 20 });
-
-const iconWrapStyle = (background, color) => ({
-  width: 42,
-  height: 42,
-  borderRadius: 14,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background,
-  color,
-  flexShrink: 0,
-});
-
-const formatDate = (value) => {
+const formatDate = (value, withTime = false) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-
-  return date.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const formatDateTime = (value) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-
   return date.toLocaleString("id-ID", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    ...(withTime ? { hour: "2-digit", minute: "2-digit" } : null),
   });
 };
 
-const renderSectionTitle = (icon, title, subtitle) => (
-  <Space align='center' size={10} wrap={false} style={{ width: "100%" }}>
-    {icon}
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontWeight: 700 }}>{title}</div>
-      <Text
-        type='secondary'
-        style={{
-          fontSize: 12,
-          whiteSpace: "normal",
-          display: "block",
-        }}
-      >
-        {subtitle}
-      </Text>
-    </div>
-  </Space>
-);
+const joinNames = (items = [], emptyText = "Belum ada kelas") =>
+  items.length ? items.map((item) => item.name).join(", ") : emptyText;
 
-const renderTagList = (items = [], emptyText = "Belum ada data") =>
-  items.length ? (
-    <Space wrap size={[6, 6]}>
-      {items.map((item) => (
-        <Tag key={item.id}>{item.name}</Tag>
-      ))}
-    </Space>
-  ) : (
-    <Text type='secondary'>{emptyText}</Text>
+const deadlineTag = (value) => {
+  const time = value ? new Date(value).getTime() : NaN;
+  if (Number.isNaN(time)) return <Tag style={{ margin: 0 }}>Tanpa tenggat</Tag>;
+  const diff = time - Date.now();
+  if (diff < 0)
+    return <Tag style={{ margin: 0 }}>Ditutup {formatDate(value)}</Tag>;
+  return (
+    <Tag
+      color={diff < DAY_MS ? "red" : diff < 3 * DAY_MS ? "orange" : "blue"}
+      style={{ margin: 0 }}
+    >
+      Tenggat {formatDate(value, true)}
+    </Tag>
   );
-
-const getLastPage = (total) => Math.max(1, Math.ceil(total / CARD_PAGE_SIZE));
-
-const clampPage = (page, total) =>
-  Math.min(Math.max(page, 1), getLastPage(total));
-
-const getPagedItems = (items, page) => {
-  const safePage = clampPage(page, items.length);
-  const start = (safePage - 1) * CARD_PAGE_SIZE;
-  return items.slice(start, start + CARD_PAGE_SIZE);
 };
 
-const renderPaginatedList = ({
+const subjectRow = (subject, last) => (
+  <DataRow
+    key={subject.id}
+    last={last}
+    icon={<BookOpen size={18} />}
+    title={subject.name}
+    subtitle={`${subject.code || "Tanpa kode"} · ${joinNames(subject.classes)}`}
+    tags={<Tag style={{ margin: 0 }}>{subject.class_count || 0} kelas</Tag>}
+  />
+);
+
+const taskRow = (task, last) => (
+  <DataRow
+    key={task.id}
+    last={last}
+    icon={<FileText size={18} />}
+    tone="accentSoft"
+    title={task.title}
+    subtitle={[
+      task.subject_name || "Tanpa mapel",
+      task.chapter_title,
+      joinNames(task.classes),
+    ]
+      .filter(Boolean)
+      .join(" · ")}
+    tags={
+      <>
+        {deadlineTag(task.deadline_at)}
+        <Tag color="green" style={{ margin: 0 }}>
+          {task.submission_count || 0} terkumpul
+        </Tag>
+      </>
+    }
+  />
+);
+
+const bankRow = (bank, last) => (
+  <DataRow
+    key={bank.id}
+    last={last}
+    icon={<Layers size={18} />}
+    tone="bgSoft"
+    title={bank.title}
+    subtitle={`${bank.subject_name || "Tanpa mapel"} · Dibuat ${formatDate(bank.created_at)}`}
+    tags={
+      <>
+        {bank.type ? <Tag style={{ margin: 0 }}>{bank.type}</Tag> : null}
+        <Tag color="geekblue" style={{ margin: 0 }}>
+          {bank.question_count || 0} soal
+        </Tag>
+      </>
+    }
+  />
+);
+
+const examRow = (exam, last) => (
+  <DataRow
+    key={exam.id}
+    last={last}
+    icon={<CalendarCheck size={18} />}
+    tone={exam.is_active ? "primarySoft" : "bgSoft"}
+    title={exam.name}
+    subtitle={`${exam.subject_name || "Tanpa mapel"} · ${joinNames(exam.classes)}`}
+    tags={
+      <>
+        <Tag color={exam.is_active ? "green" : "default"} style={{ margin: 0 }}>
+          {exam.is_active ? "Aktif" : "Nonaktif"}
+        </Tag>
+        <Tag style={{ margin: 0 }}>{exam.duration_minutes || 0} menit</Tag>
+      </>
+    }
+  />
+);
+
+/** Card ringkas berisi beberapa baris pertama + tautan ke tab lengkapnya. */
+const PreviewCard = ({
+  icon,
+  title,
+  description,
   items,
-  page,
-  onPageChange,
+  renderRow,
   emptyText,
-  renderItem,
-  isMobile,
+  onSeeAll,
 }) => (
-  <div
-    style={{
-      display: "flex",
-      flex: 1,
-      flexDirection: "column",
-      minHeight: 0,
-      width: "100%",
-    }}
+  <MuseCard
+    flush
+    title={<CardTitle icon={icon} title={title} description={description} />}
+    extra={
+      onSeeAll ? (
+        <Button type="link" onClick={onSeeAll} style={{ paddingInline: 0 }}>
+          Lihat semua
+        </Button>
+      ) : null
+    }
   >
+    {items.length ? (
+      items.map((item, index) => renderRow(item, index === items.length - 1))
+    ) : (
+      <Text
+        type="secondary"
+        style={{ display: "block", padding: "8px 24px 24px" }}
+      >
+        {emptyText}
+      </Text>
+    )}
+  </MuseCard>
+);
+
+const DashSkeleton = () => (
+  <Flex vertical gap={24}>
+    <Skeleton active title paragraph={{ rows: 1 }} />
     <div
       style={{
-        display: "flex",
-        flex: 1,
-        flexDirection: "column",
-        gap: 12,
-        minHeight: 0,
-        overflowY: "auto",
-        paddingRight: 2,
+        display: "grid",
+        gap: 24,
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
       }}
     >
-      {items.length ? (
-        getPagedItems(items, page).map(renderItem)
-      ) : (
-        <Text type='secondary'>{emptyText}</Text>
-      )}
+      {[0, 1, 2, 3].map((key) => (
+        <MuseCard key={key}>
+          <Skeleton active paragraph={{ rows: 1 }} />
+        </MuseCard>
+      ))}
     </div>
-
-    {items.length > CARD_PAGE_SIZE ? (
-      <Flex justify='center' style={{ width: "100%", paddingTop: 4 }}>
-        <Pagination
-          current={clampPage(page, items.length)}
-          pageSize={CARD_PAGE_SIZE}
-          total={items.length}
-          onChange={onPageChange}
-          showSizeChanger={false}
-          size={isMobile ? "small" : "default"}
-        />
-      </Flex>
-    ) : null}
-  </div>
+    <MuseCard>
+      <Skeleton active paragraph={{ rows: 5 }} />
+    </MuseCard>
+  </Flex>
 );
 
+const subjectSearch = (item) =>
+  `${item.name} ${item.code || ""} ${joinNames(item.classes, "")}`;
+const taskSearch = (item) =>
+  `${item.title} ${item.subject_name || ""} ${item.chapter_title || ""}`;
+const bankSearch = (item) =>
+  `${item.title} ${item.subject_name || ""} ${item.type || ""}`;
+const examSearch = (item) =>
+  `${item.name} ${item.subject_name || ""} ${joinNames(item.classes, "")}`;
+
 const TeacherDash = () => {
-  const { data, isLoading, isError } = useGetTeacherDashQuery();
-  const { data: telegramRes } = useGetTeacherTelegramQuery();
-  const telegram = telegramRes?.data;
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const screens = useBreakpoint();
-  const isMobile = !screens.md;
-  const subjects = data?.subjects || [];
-  const tasks = data?.tasks || [];
-  const banks = data?.banks || [];
-  const exams = data?.exams || [];
-  const [pageBySection, setPageBySection] = React.useState({
-    subjects: 1,
-    tasks: 1,
-    banks: 1,
-    exams: 1,
-  });
-
-  React.useEffect(() => {
-    setPageBySection((previous) => {
-      const next = {
-        subjects: clampPage(previous.subjects, subjects.length),
-        tasks: clampPage(previous.tasks, tasks.length),
-        banks: clampPage(previous.banks, banks.length),
-        exams: clampPage(previous.exams, exams.length),
-      };
-
-      return Object.keys(next).some((key) => next[key] !== previous[key])
-        ? next
-        : previous;
+  const gutter = screens.md ? 24 : 16;
+  const { data, isLoading, isError, error, fulfilledTimeStamp } =
+    useGetTeacherDashQuery();
+  const { data: telegramRes } = useGetTeacherTelegramQuery();
+  // Server sudah memfilter entri jadwal milik guru yang login (semua grup jadwal).
+  const { data: scheduleRes, isLoading: scheduleLoading } =
+    useGetScheduleBootstrapQuery(undefined, {
+      skip: !isLmsEnabled,
     });
-  }, [subjects.length, tasks.length, banks.length, exams.length]);
+  const now = useNow();
+  const scheduleEntries = useMemo(
+    () => scheduleRes?.data?.entries || [],
+    [scheduleRes],
+  );
 
-  const handlePageChange = (section) => (page) => {
-    setPageBySection((previous) => ({
-      ...previous,
-      [section]: page,
-    }));
-  };
+  const subjects = useMemo(() => data?.subjects || [], [data?.subjects]);
+  const tasks = useMemo(() => data?.tasks || [], [data?.tasks]);
+  const banks = useMemo(() => data?.banks || [], [data?.banks]);
+  const exams = useMemo(() => data?.exams || [], [data?.exams]);
+
+  // Acuan "sekarang" = waktu data terakhir diambil, agar render tetap murni.
+  const upcomingTasks = useMemo(
+    () =>
+      tasks
+        .filter(
+          (task) =>
+            task.deadline_at &&
+            new Date(task.deadline_at).getTime() >= (fulfilledTimeStamp || 0),
+        )
+        .sort((a, b) => new Date(a.deadline_at) - new Date(b.deadline_at))
+        .slice(0, PREVIEW_LIMIT),
+    [tasks, fulfilledTimeStamp],
+  );
+  const activeExams = useMemo(
+    () => exams.filter((exam) => exam.is_active).slice(0, PREVIEW_LIMIT),
+    [exams],
+  );
+
+  const goToTab = useCallback(
+    (tab) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", tab);
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  if (isLoading) return <DashSkeleton />;
+
+  if (isError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        title="Gagal memuat dashboard guru"
+        description={
+          error?.data?.message || "Periksa koneksi lalu muat ulang halaman."
+        }
+      />
+    );
+  }
+
+  const homebaseSummary = [data?.homebase?.name, data?.homebase?.level]
+    .filter(Boolean)
+    .join(" · ");
+  const manageButton = (label, to) => (
+    <Button onClick={() => navigate(to)}>{label}</Button>
+  );
 
   const stats = [
     {
       key: "subjects",
       title: "Mata Pelajaran",
       value: data?.stats?.subjects || 0,
-      icon: <BookOpen style={iconStyle("#1d4ed8")} />,
-      bg: "#dbeafe",
-      color: "#1d4ed8",
+      icon: <BookOpen size={24} />,
+      tone: "primary",
     },
     {
       key: "tasks",
       title: "Penugasan",
       value: data?.stats?.tasks || 0,
-      icon: <ClipboardList style={iconStyle("#a16207")} />,
-      bg: "#fef3c7",
-      color: "#a16207",
+      icon: <ClipboardList size={24} />,
+      tone: "accent",
     },
     {
       key: "banks",
       title: "Bank Soal",
       value: data?.stats?.banks || 0,
-      icon: <Layers style={iconStyle("#0f766e")} />,
-      bg: "#ccfbf1",
-      color: "#0f766e",
+      icon: <Layers size={24} />,
+      tone: "navy",
     },
     {
       key: "exams",
       title: "Jadwal Ujian",
       value: data?.stats?.examsTotal || 0,
-      icon: <CalendarCheck style={iconStyle("#c2410c")} />,
-      bg: "#ffedd5",
-      color: "#c2410c",
+      icon: <CalendarCheck size={24} />,
+      tone: "warning",
     },
   ];
 
-  if (isLoading) {
-    return (
-      <Space vertical size={16} style={{ width: "100%" }}>
-        <Card style={heroStyle} bodyStyle={{ padding: isMobile ? 20 : 28 }}>
-          <Skeleton
-            active
-            avatar
-            paragraph={{ rows: 2 }}
-            title={{ width: "40%" }}
-          />
-        </Card>
+  const quickLinks = [
+    isLmsEnabled && {
+      key: "subjects",
+      label: "Mata pelajaran & tugas",
+      description: "Materi, bab, dan penugasan",
+      to: "/manajemen-mata-pelajaran",
+      icon: <BookOpen size={16} />,
+    },
+    isLmsEnabled && {
+      key: "attendance",
+      label: "Presensi kelas",
+      description: "Catat kehadiran per pertemuan",
+      to: "/presensi-kelas",
+      icon: <ClipboardCheck size={16} />,
+    },
+    isLmsEnabled && {
+      key: "schedule",
+      label: "Jadwal mengajar",
+      description: "Jadwal sepekan",
+      to: "/jadwal-guru",
+      icon: <CalendarRange size={16} />,
+    },
+    isCbtEnabled && {
+      key: "exams",
+      label: "Jadwal ujian",
+      description: "Kelola ujian CBT",
+      to: "/computer-based-test/jadwal-ujian",
+      icon: <CalendarCheck size={16} />,
+    },
+    {
+      key: "profile",
+      label: "Profil saya",
+      description: "Data diri dan password",
+      to: "/profile",
+      icon: <UserRound size={16} />,
+    },
+  ];
 
-        <Row gutter={[16, 16]}>
-          {stats.map((item) => (
-            <Col xs={24} sm={12} xl={6} key={item.key}>
-              <Card style={statCardStyle}>
-                <Skeleton
-                  active
-                  paragraph={{ rows: 1 }}
-                  title={{ width: "50%" }}
+  const items = [
+    {
+      key: "ringkasan",
+      label: "Ringkasan",
+      icon: <LayoutGrid />,
+      render: () => (
+        <Flex vertical gap={gutter}>
+          <div
+            style={{
+              display: "grid",
+              gap: gutter,
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            }}
+          >
+            {stats.map(({ key, ...item }) => (
+              <StatCard key={key} {...item} />
+            ))}
+          </div>
+          <Row gutter={[gutter, gutter]}>
+            <Col xs={24} lg={15}>
+              <Flex vertical gap={gutter}>
+                {isLmsEnabled ? (
+                  <TodayScheduleCard
+                    title="Jadwal Mengajar Hari Ini"
+                    entries={scheduleEntries}
+                    now={now}
+                    loading={scheduleLoading}
+                    getTitle={(entry) => entry.subject_name}
+                    getSubtitle={(entry) =>
+                      [
+                        entry.class_name,
+                        entry.slot_nos?.length
+                          ? `Jam ke-${entry.slot_nos.join(", ")}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
+                    }
+                    emptyText="Tidak ada jadwal mengajar hari ini."
+                    onSeeAll={() => navigate("/jadwal-guru")}
+                  />
+                ) : null}
+                <PreviewCard
+                  icon={<ClipboardList size={16} />}
+                  title="Tenggat Terdekat"
+                  description="Penugasan yang tenggatnya belum lewat."
+                  items={upcomingTasks}
+                  renderRow={taskRow}
+                  emptyText="Tidak ada penugasan dengan tenggat mendatang."
+                  onSeeAll={
+                    tasks.length ? () => goToTab("penugasan") : undefined
+                  }
                 />
-              </Card>
+                <PreviewCard
+                  icon={<CalendarCheck size={16} />}
+                  title="Ujian Aktif"
+                  description="Ujian yang sedang bisa dikerjakan siswa."
+                  items={activeExams}
+                  renderRow={examRow}
+                  emptyText="Tidak ada ujian yang sedang aktif."
+                  onSeeAll={exams.length ? () => goToTab("ujian") : undefined}
+                />
+              </Flex>
             </Col>
-          ))}
-        </Row>
-
-        <Card style={sectionCardStyle}>
-          <Skeleton active paragraph={{ rows: 6 }} />
-        </Card>
-      </Space>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Alert
-        message='Gagal memuat data dashboard guru.'
-        type='error'
-        showIcon
-      />
-    );
-  }
-
-  const teacherName = data?.teacher?.full_name || "Guru";
-  const teacherInitial = teacherName?.[0]?.toUpperCase() || "G";
-  const homebaseSummary = [
-    data?.homebase?.name || "Homebase",
-    data?.homebase?.level || "Satuan",
-  ].join(" / ");
-
-  return (
-    <MotionDiv
-      initial='hidden'
-      animate='show'
-      variants={containerVariants}
-      style={{
-        padding: isMobile ? "0 0 12px" : "0 8px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-      }}
-    >
-      <MotionDiv variants={itemVariants}>
-        <PageHeader
-          title={teacherName}
-          description={homebaseSummary}
-          meta={
-            <Space wrap size={[8, 8]}>
-              <Tag>NIP: {data?.teacher?.nip || "-"}</Tag>
-              <Tag color={data?.activePeriode ? "green" : "default"}>
-                {data?.activePeriode
-                  ? `Periode Aktif: ${data.activePeriode.name}`
-                  : "Belum ada periode aktif"}
-              </Tag>
-            </Space>
+            <Col xs={24} lg={9}>
+              <Flex vertical gap={gutter}>
+                <QuickLinksCard links={quickLinks} />
+                <TelegramBindCard
+                  telegram={telegramRes?.data}
+                  boundText="Tap datang/pulang Anda dikirim ke chat bot. Jika chat ini sama dengan akun orang tua, notifikasi anak juga masuk ke sini."
+                  unboundText="Hubungkan Telegram untuk menerima jam datang dan pulang saat tap di mesin absensi. Pakai Telegram yang sama dengan akun orang tua jika Anda juga orang tua siswa."
+                />
+              </Flex>
+            </Col>
+          </Row>
+        </Flex>
+      ),
+    },
+    {
+      key: "mapel",
+      label: "Mapel",
+      icon: <BookOpen />,
+      render: () => (
+        <SearchableListCard
+          title="Mata Pelajaran"
+          icon={<BookOpen size={16} />}
+          unit="mapel"
+          items={subjects}
+          getSearchText={subjectSearch}
+          searchPlaceholder="Cari mapel atau kelas"
+          renderRow={subjectRow}
+          emptyText="Belum ada mapel yang Anda ampu. Hubungi admin satuan untuk pembagian mengajar."
+          extra={
+            isLmsEnabled
+              ? manageButton("Kelola Mapel", "/manajemen-mata-pelajaran")
+              : null
           }
         />
-      </MotionDiv>
+      ),
+    },
+    {
+      key: "penugasan",
+      label: "Penugasan",
+      icon: <ClipboardList />,
+      render: () => (
+        <SearchableListCard
+          title="Penugasan"
+          icon={<FileText size={16} />}
+          unit="tugas"
+          items={tasks}
+          getSearchText={taskSearch}
+          searchPlaceholder="Cari judul tugas atau mapel"
+          renderRow={taskRow}
+          emptyText="Belum ada penugasan. Buat tugas dari halaman mata pelajaran."
+          extra={
+            isLmsEnabled
+              ? manageButton("Buat Tugas", "/manajemen-mata-pelajaran")
+              : null
+          }
+        />
+      ),
+    },
+    {
+      key: "bank-soal",
+      label: "Bank Soal",
+      icon: <Layers />,
+      render: () => (
+        <SearchableListCard
+          title="Bank Soal"
+          icon={<Layers size={16} />}
+          unit="bank soal"
+          items={banks}
+          getSearchText={bankSearch}
+          searchPlaceholder="Cari bank soal"
+          renderRow={bankRow}
+          emptyText="Belum ada bank soal."
+          extra={
+            isCbtEnabled
+              ? manageButton("Kelola Bank Soal", "/computer-based-test/bank")
+              : null
+          }
+        />
+      ),
+    },
+    {
+      key: "ujian",
+      label: "Ujian",
+      icon: <CalendarCheck />,
+      render: () => (
+        <SearchableListCard
+          title="Jadwal Ujian"
+          icon={<CalendarCheck size={16} />}
+          unit="ujian"
+          items={exams}
+          getSearchText={examSearch}
+          searchPlaceholder="Cari ujian, mapel, atau kelas"
+          renderRow={examRow}
+          emptyText="Belum ada jadwal ujian."
+          extra={
+            isCbtEnabled
+              ? manageButton(
+                  "Kelola Jadwal",
+                  "/computer-based-test/jadwal-ujian",
+                )
+              : null
+          }
+        />
+      ),
+    },
+  ];
 
-      <MotionDiv variants={itemVariants}>
-        <Card style={cardStyle} bodyStyle={{ padding: isMobile ? 16 : 20 }}>
-          <Flex align='start' gap={14} wrap='wrap'>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                display: "grid",
-                placeItems: "center",
-                background: "linear-gradient(135deg, #dbeafe, #ccfbf1)",
-                color: "#0f766e",
-                flexShrink: 0,
-              }}
-            >
-              <MessageCircle size={20} />
-            </div>
-            <Space direction='vertical' size={8} style={{ flex: 1, minWidth: 220 }}>
-              <Space wrap>
-                <Text strong style={{ fontSize: 16 }}>
-                  Notifikasi Absensi Telegram
-                </Text>
-                {telegram?.is_bound ? (
-                  <Tag color='success'>Terhubung</Tag>
-                ) : (
-                  <Tag>Belum terhubung</Tag>
-                )}
-              </Space>
-              <Text type='secondary'>
-                {telegram?.is_bound
-                  ? "Akun Telegram Anda sudah terhubung. Tap datang/pulang Anda sendiri akan dikirim ke chat bot. Jika chat Telegram ini sama dengan akun orang tua, notifikasi datang/pulang anak juga masuk ke sini."
-                  : "Hubungkan Telegram agar menerima notifikasi jam datang dan pulang saat tap di mesin absensi. Pakai Telegram yang sama dengan akun orang tua jika Anda juga orang tua siswa."}
-              </Text>
-              {telegram?.bind_link ? (
-                <Button
-                  type={telegram?.is_bound ? "default" : "primary"}
-                  href={telegram.bind_link}
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  {telegram?.is_bound ? "Buka Bot Lagi" : "Hubungkan Telegram"}
-                </Button>
-              ) : (
-                <Alert
-                  type='warning'
-                  showIcon
-                  message='Bot Telegram sekolah belum dikonfigurasi. Hubungi admin sekolah.'
-                />
-              )}
-            </Space>
-          </Flex>
-        </Card>
-      </MotionDiv>
-
-      <MotionDiv variants={itemVariants}>
-        <Row gutter={[16, 16]} align='stretch'>
-          {stats.map((item) => (
-            <Col
-              xs={24}
-              sm={12}
-              xl={6}
-              key={item.key}
-              style={equalHeightColStyle}
-            >
-              <MotionDiv
-                whileHover={isMobile ? undefined : { y: -4 }}
-                transition={{ duration: 0.18 }}
-                style={equalHeightWrapStyle}
-              >
-                <Card style={statCardStyle} bodyStyle={{ padding: 20 }}>
-                  <Space
-                    align='start'
-                    size={14}
-                    style={{ width: "100%", justifyContent: "space-between" }}
-                  >
-                    <Space size={14} style={{ width: "100%" }}>
-                      <span style={iconWrapStyle(item.bg, item.color)}>
-                        {item.icon}
-                      </span>
-                      <Space vertical size={2} style={{ minWidth: 0 }}>
-                        <Text type='secondary'>{item.title}</Text>
-                        <Statistic
-                          value={item.value}
-                          valueStyle={{ fontSize: isMobile ? 24 : 28 }}
-                        />
-                      </Space>
-                    </Space>
-                  </Space>
-                </Card>
-              </MotionDiv>
-            </Col>
-          ))}
-        </Row>
-      </MotionDiv>
-
-      <MotionDiv variants={itemVariants}>
-        <Row gutter={[16, 16]} align='stretch'>
-          <Col xs={24} lg={12} style={equalHeightColStyle}>
-            <Card
-              title={renderSectionTitle(
-                <span style={iconWrapStyle("#dbeafe", "#1d4ed8")}>
-                  <BookOpen style={iconStyle("#1d4ed8")} />
-                </span>,
-                "Mata Pelajaran",
-                "Daftar mapel dan kelas yang diampu",
-              )}
-              style={getSectionCardStyle(isMobile)}
-              headStyle={tableCardHeadStyle}
-              bodyStyle={getSectionBodyStyle(isMobile)}
-            >
-              {renderPaginatedList({
-                items: subjects,
-                page: pageBySection.subjects,
-                onPageChange: handlePageChange("subjects"),
-                emptyText: "Belum ada data mata pelajaran",
-                isMobile,
-                renderItem: (subject) => (
-                  <div key={subject.id} style={listItemStyle}>
-                    <Space vertical size={10} style={{ width: "100%" }}>
-                      <div>
-                        <Text strong style={{ fontSize: 15 }}>
-                          {subject.name}
-                        </Text>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginTop: 2,
-                          }}
-                        >
-                          {subject.code || "Tanpa kode"}
-                        </div>
-                      </div>
-                      <Space wrap size={[8, 8]}>
-                        <Tag color='blue'>
-                          Kelas: {subject.class_count || 0}
-                        </Tag>
-                      </Space>
-                      {renderTagList(subject.classes, "Belum ada kelas")}
-                    </Space>
-                  </div>
-                ),
-              })}
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={12} style={equalHeightColStyle}>
-            <Card
-              title={renderSectionTitle(
-                <span style={iconWrapStyle("#fef3c7", "#a16207")}>
-                  <FileText style={iconStyle("#a16207")} />
-                </span>,
-                "Penugasan",
-                "Tugas yang dibuat sesuai akun guru",
-              )}
-              style={getSectionCardStyle(isMobile)}
-              headStyle={tableCardHeadStyle}
-              bodyStyle={getSectionBodyStyle(isMobile)}
-            >
-              {renderPaginatedList({
-                items: tasks,
-                page: pageBySection.tasks,
-                onPageChange: handlePageChange("tasks"),
-                emptyText: "Belum ada penugasan",
-                isMobile,
-                renderItem: (task) => (
-                  <div key={task.id} style={listItemStyle}>
-                    <Space vertical size={10} style={{ width: "100%" }}>
-                      <div>
-                        <Text strong style={{ fontSize: 15 }}>
-                          {task.title}
-                        </Text>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginTop: 2,
-                          }}
-                        >
-                          {task.subject_name || "Tanpa mapel"}
-                        </div>
-                      </div>
-                      <Space wrap size={[8, 8]}>
-                        <Tag color='gold'>
-                          {task.chapter_title || "Tanpa bab"}
-                        </Tag>
-                        <Tag color='volcano'>
-                          Deadline: {formatDateTime(task.deadline_at)}
-                        </Tag>
-                        <Tag color='blue'>Kelas: {task.class_count || 0}</Tag>
-                        <Tag color='green'>
-                          Terkumpul: {task.submission_count || 0}
-                        </Tag>
-                      </Space>
-                      {renderTagList(task.classes, "Belum ada kelas")}
-                    </Space>
-                  </div>
-                ),
-              })}
-            </Card>
-          </Col>
-        </Row>
-      </MotionDiv>
-
-      <MotionDiv variants={itemVariants}>
-        <Row gutter={[16, 16]} align='stretch'>
-          <Col xs={24} lg={12} style={equalHeightColStyle}>
-            <Card
-              title={renderSectionTitle(
-                <span style={iconWrapStyle("#ccfbf1", "#0f766e")}>
-                  <Layers style={iconStyle("#0f766e")} />
-                </span>,
-                "Bank Soal",
-                "Kumpulan soal per mata pelajaran",
-              )}
-              style={getSectionCardStyle(isMobile)}
-              headStyle={tableCardHeadStyle}
-              bodyStyle={getSectionBodyStyle(isMobile)}
-            >
-              {renderPaginatedList({
-                items: banks,
-                page: pageBySection.banks,
-                onPageChange: handlePageChange("banks"),
-                emptyText: "Belum ada bank soal",
-                isMobile,
-                renderItem: (bank) => (
-                  <div key={bank.id} style={listItemStyle}>
-                    <Space vertical size={10} style={{ width: "100%" }}>
-                      <div>
-                        <Text strong style={{ fontSize: 15 }}>
-                          {bank.title}
-                        </Text>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginTop: 2,
-                          }}
-                        >
-                          {bank.subject_name || "Tanpa mapel"}
-                        </div>
-                      </div>
-                      <Space wrap size={[8, 8]}>
-                        <Tag color='geekblue'>{bank.type || "-"}</Tag>
-                        <Tag color='cyan'>Soal: {bank.question_count || 0}</Tag>
-                        <Tag>{formatDate(bank.created_at)}</Tag>
-                      </Space>
-                    </Space>
-                  </div>
-                ),
-              })}
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={12} style={equalHeightColStyle}>
-            <Card
-              title={renderSectionTitle(
-                <span style={iconWrapStyle("#ffedd5", "#c2410c")}>
-                  <CalendarCheck style={iconStyle("#c2410c")} />
-                </span>,
-                "Jadwal Ujian",
-                "Pantau ujian aktif dan distribusi kelasnya",
-              )}
-              style={getSectionCardStyle(isMobile)}
-              headStyle={tableCardHeadStyle}
-              bodyStyle={getSectionBodyStyle(isMobile)}
-            >
-              {renderPaginatedList({
-                items: exams,
-                page: pageBySection.exams,
-                onPageChange: handlePageChange("exams"),
-                emptyText: "Belum ada jadwal ujian",
-                isMobile,
-                renderItem: (exam) => (
-                  <div key={exam.id} style={listItemStyle}>
-                    <Space vertical size={10} style={{ width: "100%" }}>
-                      <div>
-                        <Text strong style={{ fontSize: 15 }}>
-                          {exam.name}
-                        </Text>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            marginTop: 2,
-                          }}
-                        >
-                          {exam.subject_name || "Tanpa mapel"} |{" "}
-                          {renderTagList(exam.classes, "Belum ada kelas")}
-                        </div>
-                      </div>
-                      <Space wrap size={[8, 8]}>
-                        <Tag color={exam.is_active ? "green" : "default"}>
-                          {exam.is_active ? "Aktif" : "Nonaktif"}
-                        </Tag>
-                        <Tag color='blue'>{`${exam.duration_minutes || 0} mnt`}</Tag>
-                        <Tag>{formatDate(exam.created_at)}</Tag>
-                      </Space>
-                    </Space>
-                  </div>
-                ),
-              })}
-            </Card>
-          </Col>
-        </Row>
-      </MotionDiv>
-    </MotionDiv>
+  return (
+    <PageTabs
+      title={`${getGreeting(now)}, ${data?.teacher?.full_name || "Guru"}`}
+      description={
+        homebaseSummary || "Ringkasan mengajar, penugasan, dan ujian Anda."
+      }
+      extra={
+        <Flex gap={8} wrap>
+          <Tag style={{ margin: 0 }}>NIP: {data?.teacher?.nip || "-"}</Tag>
+          <Tag
+            color={data?.activePeriode ? "green" : "volcano"}
+            style={{ margin: 0 }}
+          >
+            {data?.activePeriode
+              ? `Periode aktif: ${data.activePeriode.name}`
+              : "Belum ada periode aktif"}
+          </Tag>
+        </Flex>
+      }
+      items={items}
+    />
   );
 };
 
