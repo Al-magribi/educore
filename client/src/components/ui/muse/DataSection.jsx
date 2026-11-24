@@ -63,42 +63,52 @@ export const DataListCard = ({
   );
 };
 
-/** Satu baris data: ikon, judul, subjudul, tag, aksi di kanan. */
-export const DataRow = ({ icon, tone = "primarySoft", title, subtitle, tags, actions, onClick, last }) => (
-  <Flex
-    align='center'
-    gap={16}
-    onClick={onClick}
-    style={{
-      padding: "14px 24px",
-      borderBottom: last ? 0 : `1px solid ${museColors.divider}`,
-      cursor: onClick ? "pointer" : undefined,
-      minWidth: 0,
-    }}
-  >
-    {icon ? <IconBox icon={icon} tone={tone} size={40} /> : null}
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <Text strong ellipsis={{ tooltip: title }} style={{ display: "block", fontSize: 15 }}>
-        {title}
-      </Text>
-      {subtitle ? (
-        <Text type='secondary' style={{ fontSize: 12 }} ellipsis>
-          {subtitle}
+/**
+ * Satu baris data: ikon, judul, subjudul, tag, aksi di kanan.
+ * Di bawah 768px tag pindah ke bawah judul agar baris tidak meluber.
+ */
+export const DataRow = ({ icon, tone = "primarySoft", title, subtitle, tags, actions, onClick, last }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const tagList = tags ? (
+    <Flex gap={6} wrap style={isMobile ? { marginTop: 8 } : { flexShrink: 0 }}>
+      {tags}
+    </Flex>
+  ) : null;
+
+  return (
+    <Flex
+      align={isMobile ? "flex-start" : "center"}
+      gap={isMobile ? 12 : 16}
+      onClick={onClick}
+      style={{
+        padding: isMobile ? "12px 16px" : "14px 24px",
+        borderBottom: last ? 0 : `1px solid ${museColors.divider}`,
+        cursor: onClick ? "pointer" : undefined,
+        minWidth: 0,
+      }}
+    >
+      {icon ? <IconBox icon={icon} tone={tone} size={isMobile ? 36 : 40} /> : null}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Text strong ellipsis={{ tooltip: title }} style={{ display: "block", fontSize: isMobile ? 14 : 15 }}>
+          {title}
         </Text>
+        {subtitle ? (
+          <Text type='secondary' style={{ fontSize: 12, display: "block" }} ellipsis={{ tooltip: subtitle }}>
+            {subtitle}
+          </Text>
+        ) : null}
+        {isMobile ? tagList : null}
+      </div>
+      {isMobile ? null : tagList}
+      {actions ? (
+        <Flex gap={4} style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+          {actions}
+        </Flex>
       ) : null}
-    </div>
-    {tags ? (
-      <Flex gap={6} wrap style={{ flexShrink: 0 }}>
-        {tags}
-      </Flex>
-    ) : null}
-    {actions ? (
-      <Flex gap={4} style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-        {actions}
-      </Flex>
-    ) : null}
-  </Flex>
-);
+    </Flex>
+  );
+};
 
 /** Tombol edit + hapus standar untuk DataRow. */
 export const EditDeleteActions = ({

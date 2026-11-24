@@ -12,7 +12,6 @@ import {
   Row,
   Select,
   Table,
-  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -28,7 +27,7 @@ import {
   UserX,
   Users,
 } from 'lucide-react';
-import { CardTitle, MuseCard, StatCard } from '../../../components/ui/muse';
+import { MuseCard, StatCard } from '../../../components/ui/muse';
 import { museColors } from '../../../config/theme';
 import {
   useGetCenterStudentAttendanceReportQuery,
@@ -556,92 +555,21 @@ const TeacherAttendancePanel = ({ homebaseId, periodeId, pollingInterval = 0 }) 
   );
 };
 
-const CenterAttendanceReports = ({
-  homebaseId,
-  periodeId,
-  pollingInterval = 300_000,
-  autoRefreshMs,
-  onAutoRefreshChange,
-}) => {
-  const { isMobile, isCompact } = useResponsiveFlags();
-  const reportKey = `${homebaseId || 'none'}-${periodeId || 'all'}-${autoRefreshMs}`;
+/** Satu laporan presensi (siswa atau guru) di dalam card, dipakai per tab halaman. */
+const CenterAttendanceReports = ({ type = 'students', homebaseId, periodeId, pollingInterval = 300_000 }) => {
+  const { isMobile } = useResponsiveFlags();
+  const Panel = type === 'teachers' ? TeacherAttendancePanel : StudentAttendancePanel;
 
   return (
-    <MuseCard
-      styles={{
-        header: { padding: isMobile ? '12px 16px' : '16px 24px' },
-        body: { padding: isMobile ? 16 : 24, paddingTop: 0 },
-      }}
-      title={
-        <Flex
-          justify="space-between"
-          align={isCompact ? 'stretch' : 'center'}
-          vertical={isCompact}
-          gap={12}
-          style={{ width: '100%', minWidth: 0 }}>
-          <CardTitle
-            icon={<CalendarRange size={16} />}
-            title="Laporan Presensi"
-            description={
-              isMobile
-                ? 'Presensi harian seluruh siswa & guru.'
-                : 'Presensi harian seluruh siswa & guru aktif (tap gerbang RFID).'
-            }
-          />
-          <Flex
-            align="center"
-            gap={8}
-            style={{ width: isCompact ? '100%' : 'auto', flexShrink: 0 }}>
-            <Text type="secondary" style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
-              Update otomatis
-            </Text>
-            <Select
-              aria-label="Interval update otomatis"
-              value={autoRefreshMs}
-              onChange={onAutoRefreshChange}
-              options={[
-                { value: 0, label: 'Off' },
-                { value: 60_000, label: '1 menit' },
-                { value: 300_000, label: '5 menit' },
-              ]}
-              style={{ width: isCompact ? '100%' : 120 }}
-            />
-          </Flex>
-        </Flex>
-      }>
+    <MuseCard styles={{ body: { padding: isMobile ? 16 : 24 } }}>
       {!homebaseId ? (
         <Empty description="Pilih satuan terlebih dahulu untuk melihat laporan presensi." />
       ) : (
-        <Tabs
-          key={reportKey}
-          defaultActiveKey="students"
-          size={isMobile ? 'small' : 'middle'}
-          tabBarGutter={isMobile ? 12 : 24}
-          style={{ width: '100%', minWidth: 0 }}
-          items={[
-            {
-              key: 'students',
-              label: isMobile ? 'Siswa' : 'Presensi Siswa',
-              children: (
-                <StudentAttendancePanel
-                  homebaseId={homebaseId}
-                  periodeId={periodeId}
-                  pollingInterval={pollingInterval}
-                />
-              ),
-            },
-            {
-              key: 'teachers',
-              label: isMobile ? 'Guru' : 'Presensi Guru',
-              children: (
-                <TeacherAttendancePanel
-                  homebaseId={homebaseId}
-                  periodeId={periodeId}
-                  pollingInterval={pollingInterval}
-                />
-              ),
-            },
-          ]}
+        <Panel
+          key={`${homebaseId}-${periodeId || 'all'}`}
+          homebaseId={homebaseId}
+          periodeId={periodeId}
+          pollingInterval={pollingInterval}
         />
       )}
     </MuseCard>
