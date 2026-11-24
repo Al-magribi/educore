@@ -1,15 +1,20 @@
 name: Guard Shared Paths
 
-# Gagal jika feature/* mengubah file shell milik main (AppLayout, App.jsx,
-# theme, components/ui, route inti, dst). File seperti itu yang membuat
-# sync-main-to-features konflik. Daftar lengkap: scripts/ci/shared-paths.js.
+# Setiap file punya satu pemilik (scripts/ci/shared-paths.js):
+# - feature/* gagal jika mengubah file shell milik main (AppLayout, App.jsx,
+#   theme, components/ui, route inti, dst) dan diberi peringatan jika mengubah
+#   file milik feature lain.
+# - main gagal jika mengubah file milik feature/* (dashboard LMS, module domain,
+#   dst), karena sync main -> feature/* pasti konflik.
 
 on:
   push:
     branches:
+      - main
       - "feature/**"
   pull_request:
     branches:
+      - main
       - "feature/**"
   workflow_dispatch:
 
@@ -20,9 +25,11 @@ permissions:
   contents: read
 
 jobs:
-  guard:
+  guard-feature:
     # Commit sync dari bot berisi isi main; tidak perlu dicek.
-    if: github.actor != 'github-actions[bot]'
+    if: |
+      github.actor != 'github-actions[bot]' &&
+      startsWith(github.event.pull_request.base.ref || github.ref_name, 'feature/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -35,5 +42,32 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check main-owned files
-        run: node scripts/ci/shared-paths.js --check --base origin/main
+      - name: Check ownership
+        env:
+          BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
+        run: node scripts/ci/shared-paths.js --check --base origin/main --feature "${BRANCH#feature/}"
+
+  guard-main:
+    if: (github.event.pull_request.base.ref || github.ref_name) == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Check main does not edit feature-owned files
+        env:
+          BEFORE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          # Push pertama / force push: tidak ada commit sebelumnya yang bisa dibandingkan.
+          if [ -z "${BEFORE}" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            BEFORE="$(git rev-parse HEAD~1)"
+          fi
+          node scripts/ci/shared-paths.js --check-main --base "${BEFORE}"

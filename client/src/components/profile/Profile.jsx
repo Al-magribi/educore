@@ -230,6 +230,16 @@ const getRoleDetails = (user) => {
           { key: "homebase", label: "Satuan", children: user?.homebase_name },
         ],
       };
+    case "staff":
+      return {
+        title: "Data Kepegawaian",
+        description: "Identitas tenaga kependidikan di satuan pendidikan.",
+        icon: <UserCog size={16} />,
+        items: [
+          { key: "nip", label: "NIP", children: user?.nip },
+          { key: "homebase", label: "Satuan", children: user?.homebase_name },
+        ],
+      };
     case "admin":
       return {
         title: "Hak Akses",
