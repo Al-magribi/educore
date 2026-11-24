@@ -3,9 +3,20 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { withTransaction, withQuery } from "../../utils/wrapper.js"; // Sesuaikan path wrapper
 import { authorize } from "../../middleware/authorize.js";
-import { attachFinanceStaffFlag } from "../finance/financeStaffAccess.js";
+import {
+  AuthDeniedError,
+  enrichDomainProfiles,
+  findDomainRole,
+} from "./domainProfiles.js";
+
+// File ini milik main. Data login khusus domain (tendik, piket, penugasan,
+// musyrif, keuangan) ditambahkan lewat server/router/<domain>/authProfile.js,
+// bukan dengan mengedit file ini. Lihat domainProfiles.js.
 
 const router = Router();
+
+const sendAuthDenied = (res, error) =>
+  res.status(error.status || 403).json({ message: error.message });
 
 // ============================================================================
 // 1. SIGNUP PARENT (Orang Tua mendaftar berdasarkan NIS Siswa)
@@ -18,7 +29,7 @@ router.post(
 
     // 1. Cari Siswa berdasarkan NIS
     const checkStudent = await client.query(
-      `SELECT user_id, full_name, homebase_id FROM u_students WHERE nis = $1`,
+      `SELECT user_id, full_name FROM u_students WHERE nis = $1`,
       [nis],
     );
 
@@ -27,7 +38,6 @@ router.post(
     }
 
     const studentId = checkStudent.rows[0].user_id;
-    const studentHomebaseId = checkStudent.rows[0].homebase_id;
 
     // 2. Cek apakah email sudah terdaftar
     const checkExisting = await client.query(
@@ -49,118 +59,11 @@ router.post(
 
     const newUserId = newUser.rows[0].id;
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS public.u_parent_students (
-        id SERIAL PRIMARY KEY,
-        parent_user_id INT NOT NULL REFERENCES public.u_users(id) ON DELETE CASCADE,
-        homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-        student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
-        relationship VARCHAR(50),
-        is_primary BOOLEAN NOT NULL DEFAULT false,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await client.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM pg_constraint
-          WHERE conname = 'uq_parent_student_owner'
-            AND conrelid = 'public.u_parent_students'::regclass
-        ) THEN
-          ALTER TABLE public.u_parent_students
-          DROP CONSTRAINT uq_parent_student_owner;
-        END IF;
-      END $$;
-    `);
-
-    await client.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM pg_constraint
-          WHERE conname = 'uq_parent_student'
-            AND conrelid = 'public.u_parent_students'::regclass
-        ) THEN
-          ALTER TABLE public.u_parent_students
-          DROP CONSTRAINT uq_parent_student;
-        END IF;
-      END $$;
-    `);
-
-    await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS uq_u_parent_students_parent_student
-      ON public.u_parent_students(parent_user_id, student_id)
-    `);
-
-    await client.query(`
-      ALTER TABLE public.u_parent_students
-      ADD COLUMN IF NOT EXISTS homebase_id INT REFERENCES public.a_homebase(id) ON DELETE CASCADE
-    `);
-
-    await client.query(`
-      ALTER TABLE public.u_parent_students
-      ADD COLUMN IF NOT EXISTS relationship VARCHAR(50)
-    `);
-
-    await client.query(`
-      ALTER TABLE public.u_parent_students
-      ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT false
-    `);
-
-    await client.query(`
-      ALTER TABLE public.u_parent_students
-      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    `);
-
-    await client.query(`
-      ALTER TABLE public.u_parent_students
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    `);
-
     // 4. Buat Profil di u_parents
     await client.query(
       `INSERT INTO u_parents (user_id, student_id, email, phone) 
      VALUES ($1, $2, $3, $4)`,
       [newUserId, studentId, email, phone || null],
-    );
-
-    await client.query(
-      `
-        UPDATE public.u_parent_students
-        SET
-          homebase_id = $2,
-          relationship = COALESCE(relationship, 'wali'),
-          is_primary = is_primary OR true,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE parent_user_id = $1
-          AND student_id = $3
-      `,
-      [newUserId, studentHomebaseId, studentId],
-    );
-
-    await client.query(
-      `
-        INSERT INTO public.u_parent_students (
-          parent_user_id,
-          homebase_id,
-          student_id,
-          relationship,
-          is_primary
-        )
-        SELECT $1, $2, $3, 'wali', true
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM public.u_parent_students
-          WHERE parent_user_id = $1
-            AND student_id = $3
-        )
-      `,
-      [newUserId, studentHomebaseId, studentId],
     );
 
     // Commit ditangani otomatis oleh wrapper jika tidak ada error
@@ -246,6 +149,7 @@ router.post(
         `
         SELECT 
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           (
             SELECT COALESCE(json_agg(
@@ -273,94 +177,19 @@ router.post(
     } else if (user.role === "parent") {
       const parentRes = await client.query(
         `
-        WITH linked_children AS (
-          SELECT
-            ups.parent_user_id,
-            ups.student_id,
-            ups.is_primary
-          FROM public.u_parent_students ups
-          WHERE ups.parent_user_id = $1
-
-          UNION
-
-          SELECT
-            p.user_id AS parent_user_id,
-            p.student_id,
-            true AS is_primary
-          FROM public.u_parents p
-          WHERE p.user_id = $1
-            AND p.student_id IS NOT NULL
-        )
-        SELECT
-          p.phone,
-          p.email,
-          primary_child.student_name,
-          primary_child.student_id,
-          primary_child.student_nis,
-          primary_child.class_name,
-          primary_child.homebase_name,
-          COALESCE(
-            JSON_AGG(
-              DISTINCT JSONB_BUILD_OBJECT(
-                'student_id', child.student_id,
-                'student_name', child.student_name,
-                'student_nis', child.student_nis,
-                'class_name', child.class_name,
-                'homebase_name', child.homebase_name,
-                'is_primary', child.is_primary
-              )
-            ) FILTER (WHERE child.student_id IS NOT NULL),
-            '[]'::json
-          ) AS children
-        FROM u_users parent_user
-        LEFT JOIN u_parents p ON p.user_id = parent_user.id
-        LEFT JOIN LATERAL (
-          SELECT
-            s.user_id AS student_id,
-            su.full_name AS student_name,
-            s.nis AS student_nis,
-            c.name AS class_name,
-            h.name AS homebase_name,
-            lc.is_primary
-          FROM linked_children lc
-          LEFT JOIN u_students s ON lc.student_id = s.user_id
-          LEFT JOIN u_users su ON s.user_id = su.id
-          LEFT JOIN a_class c ON s.current_class_id = c.id
-          LEFT JOIN a_homebase h ON s.homebase_id = h.id
-        ) AS child ON true
-        LEFT JOIN LATERAL (
-          SELECT
-            child2.student_name,
-            child2.student_id,
-            child2.student_nis,
-            child2.class_name,
-            child2.homebase_name
-          FROM (
-            SELECT
-              s.user_id AS student_id,
-              su.full_name AS student_name,
-              s.nis AS student_nis,
-              c.name AS class_name,
-              h.name AS homebase_name,
-              lc.is_primary
-            FROM linked_children lc
-            LEFT JOIN u_students s ON lc.student_id = s.user_id
-            LEFT JOIN u_users su ON s.user_id = su.id
-            LEFT JOIN a_class c ON s.current_class_id = c.id
-            LEFT JOIN a_homebase h ON s.homebase_id = h.id
-            ORDER BY lc.is_primary DESC, s.user_id ASC
-            LIMIT 1
-          ) AS child2
-        ) AS primary_child ON true
-        WHERE parent_user.id = $1
-        GROUP BY
-          p.phone,
-          p.email,
-          primary_child.student_name,
-          primary_child.student_id,
-          primary_child.student_nis,
-          primary_child.class_name,
-          primary_child.homebase_name
+        SELECT 
+          p.phone, p.email,
+          su.full_name AS student_name,
+          s.user_id AS student_id,
+          s.nis AS student_nis,
+          c.name AS class_name,
+          h.name AS homebase_name
+        FROM u_parents p
+        LEFT JOIN u_students s ON p.student_id = s.user_id
+        LEFT JOIN u_users su ON s.user_id = su.id
+        LEFT JOIN a_class c ON s.current_class_id = c.id
+        LEFT JOIN a_homebase h ON s.homebase_id = h.id
+        WHERE p.user_id = $1
       `,
         [user.id],
       );
@@ -388,6 +217,24 @@ router.post(
       if (adminRes.rowCount > 0) roleData = adminRes.rows[0];
     }
 
+    delete user.password;
+
+    // 4b. Role & data khusus domain (lihat domainProfiles.js). Domain boleh
+    // menolak login (mis. tendik tanpa penugasan) sebelum token dibuat.
+    let payload;
+    try {
+      const domainRole = await findDomainRole(user.role);
+      if (domainRole?.loadSigninProfile) {
+        roleData = (await domainRole.loadSigninProfile(client, user.id)) || {};
+      }
+
+      payload = { ...user, ...roleData };
+      await enrichDomainProfiles({ db: client, user: payload, phase: "signin" });
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
+    }
+
     // 5. Generate Token
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT, {
       expiresIn: "7d",
@@ -409,21 +256,10 @@ router.post(
       user.id,
     ]);
 
-    delete user.password;
-
-    const payload = {
-      ...user,
-      ...roleData,
-    };
-
-    if (payload.role === "teacher") {
-      await attachFinanceStaffFlag(client, payload);
-    }
-
     // 7. Kirim Response
     return res.status(200).json({
       message: "Login berhasil",
-      user: payload,
+      user: payload, // data user + profil role + data domain
     });
   }),
 );
@@ -434,7 +270,7 @@ router.post(
 router.get(
   "/load-user",
   // Pastikan middleware authorize mengizinkan semua role ini
-  authorize("admin", "student", "teacher", "parent", "tahfiz"),
+  authorize("admin", "student", "teacher", "parent", "tahfiz", "staff"),
   withQuery(async (req, res, pool) => {
     const { id, role } = req.user;
 
@@ -469,6 +305,7 @@ router.get(
         SELECT 
           u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           (
             SELECT COALESCE(json_agg(
@@ -493,78 +330,21 @@ router.get(
       // --- ORANG TUA ---
     } else if (role === "parent") {
       query = `
-        WITH linked_children AS (
-          SELECT
-            ups.parent_user_id,
-            ups.student_id,
-            ups.is_primary
-          FROM public.u_parent_students ups
-          WHERE ups.parent_user_id = $1
-
-          UNION
-
-          SELECT
-            p.user_id AS parent_user_id,
-            p.student_id,
-            true AS is_primary
-          FROM public.u_parents p
-          WHERE p.user_id = $1
-            AND p.student_id IS NOT NULL
-        ),
-        parent_children AS (
-          SELECT
-            s.user_id AS student_id,
-            su.full_name AS student_name,
-            s.nis AS student_nis,
-            c.name AS class_name,
-            h.name AS homebase_name,
-            lc.is_primary
-          FROM linked_children lc
-          LEFT JOIN u_students s ON lc.student_id = s.user_id
-          LEFT JOIN u_users su ON s.user_id = su.id
-          LEFT JOIN a_class c ON s.current_class_id = c.id
-          LEFT JOIN a_homebase h ON s.homebase_id = h.id
-        ),
-        primary_child AS (
-          SELECT *
-          FROM parent_children
-          ORDER BY is_primary DESC, student_id ASC
-          LIMIT 1
-        )
-        SELECT
+        SELECT 
           u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
           p.phone, p.email,
-          pc.student_name,
-          pc.student_id,
-          pc.student_nis,
-          pc.class_name,
-          pc.homebase_name,
-          COALESCE(
-            JSON_AGG(
-              DISTINCT JSONB_BUILD_OBJECT(
-                'student_id', child.student_id,
-                'student_name', child.student_name,
-                'student_nis', child.student_nis,
-                'class_name', child.class_name,
-                'homebase_name', child.homebase_name,
-                'is_primary', child.is_primary
-              )
-            ) FILTER (WHERE child.student_id IS NOT NULL),
-            '[]'::json
-          ) AS children
+          su.full_name AS student_name,
+          s.user_id AS student_id,
+          s.nis AS student_nis,
+          c.name AS class_name,
+          h.name AS homebase_name
         FROM u_users u
-        LEFT JOIN u_parents p ON u.id = p.user_id
-        LEFT JOIN primary_child pc ON true
-        LEFT JOIN parent_children child ON true
+        JOIN u_parents p ON u.id = p.user_id
+        LEFT JOIN u_students s ON p.student_id = s.user_id
+        LEFT JOIN u_users su ON s.user_id = su.id
+        LEFT JOIN a_class c ON s.current_class_id = c.id
+        LEFT JOIN a_homebase h ON s.homebase_id = h.id
         WHERE u.id = $1
-        GROUP BY
-          u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
-          p.phone, p.email,
-          pc.student_name,
-          pc.student_id,
-          pc.student_nis,
-          pc.class_name,
-          pc.homebase_name
       `;
 
       // --- ADMIN / CENTER / TAHFIZ ---
@@ -585,24 +365,33 @@ router.get(
       `;
     }
 
-    if (!query) {
-      return res
-        .status(403)
-        .json({ message: "Role tidak dikenali atau akses ditolak." });
+    try {
+      let userData;
+
+      if (query) {
+        const resData = await pool.query(query, [id]);
+        userData = resData.rows[0];
+      } else {
+        // Role di luar role inti (mis. staff) disediakan domain.
+        const domainRole = await findDomainRole(role);
+        if (!domainRole?.loadUserProfile) {
+          return res
+            .status(403)
+            .json({ message: "Role tidak dikenali atau akses ditolak." });
+        }
+        userData = await domainRole.loadUserProfile(pool, id);
+      }
+
+      if (!userData) {
+        return res.status(404).json({ message: "Data user tidak ditemukan" });
+      }
+
+      await enrichDomainProfiles({ db: pool, user: userData, phase: "load-user" });
+      return res.status(200).json(userData);
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
     }
-
-    const resData = await pool.query(query, [id]);
-    const userData = resData.rows[0];
-
-    if (!userData) {
-      return res.status(404).json({ message: "Data user tidak ditemukan" });
-    }
-
-    if (role === "teacher") {
-      await attachFinanceStaffFlag(pool, userData);
-    }
-
-    return res.status(200).json(userData);
   }),
 );
 
@@ -683,6 +472,7 @@ router.put(
     if (role === "teacher") detailTable = "u_teachers";
     else if (role === "admin") detailTable = "u_admin";
     else if (role === "parent") detailTable = "u_parents";
+    else detailTable = (await findDomainRole(role))?.detailTable || "";
 
     if (detailTable) {
       const updates = [];

@@ -83,7 +83,6 @@ jobs:
               database/lms_schema.sql \
               docs/esp32_rfid_attendance_mfrc522.ino \
               server/middleware/authorize.js \
-              server/router/auth/RouterAuth.js \
               server/router/lms \
               server/services/telegram \
               server/utils/staffAssignment.js
