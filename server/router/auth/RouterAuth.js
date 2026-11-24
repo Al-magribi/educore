@@ -3,65 +3,20 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { withTransaction, withQuery } from "../../utils/wrapper.js"; // Sesuaikan path wrapper
 import { authorize } from "../../middleware/authorize.js";
+import {
+  AuthDeniedError,
+  enrichDomainProfiles,
+  findDomainRole,
+} from "./domainProfiles.js";
+
+// File ini milik main. Data login khusus domain (tendik, piket, penugasan,
+// musyrif, keuangan) ditambahkan lewat server/router/<domain>/authProfile.js,
+// bukan dengan mengedit file ini. Lihat domainProfiles.js.
 
 const router = Router();
 
-const normalizeRequestedRole = (value) => {
-  const requestedRole = String(value || "")
-    .trim()
-    .toLowerCase();
-
-  if (!requestedRole) return null;
-
-  const roleAliases = {
-    wali: "parent",
-    orangtua: "parent",
-    parent: "parent",
-    guru: "teacher",
-    teacher: "teacher",
-    siswa: "student",
-    student: "student",
-    admin: "admin",
-    center: "pusat",
-    pusat: "pusat",
-    tahfiz: "tahfiz",
-    musyrif: "musyrif",
-    finance: "finance",
-    keuangan: "keuangan",
-  };
-
-  return roleAliases[requestedRole] || requestedRole;
-};
-
-const isRequestedRoleAllowed = ({ requestedRole, userRole, level, isMusyrif }) => {
-  if (!requestedRole) return true;
-
-  if (["student", "teacher", "parent"].includes(requestedRole)) {
-    return userRole === requestedRole;
-  }
-
-  if (requestedRole === "admin") {
-    return userRole === "admin";
-  }
-
-  if (requestedRole === "pusat") {
-    return userRole === "admin" && level === "pusat";
-  }
-
-  if (requestedRole === "tahfiz") {
-    return userRole === "admin" && level === "tahfiz";
-  }
-
-  if (requestedRole === "musyrif") {
-    return userRole === "admin" && level === "tahfiz" && Boolean(isMusyrif);
-  }
-
-  if (requestedRole === "finance" || requestedRole === "keuangan") {
-    return userRole === "admin" && ["finance", "keuangan"].includes(level);
-  }
-
-  return false;
-};
+const sendAuthDenied = (res, error) =>
+  res.status(error.status || 403).json({ message: error.message });
 
 // ============================================================================
 // 1. SIGNUP PARENT (Orang Tua mendaftar berdasarkan NIS Siswa)
@@ -126,7 +81,6 @@ router.post(
   withTransaction(async (req, res, client) => {
     const username = String(req.body?.username || "").trim();
     const password = String(req.body?.password || "").trim();
-    const requestedRole = normalizeRequestedRole(req.body?.role);
 
     // 1. Validasi Input
     if (!username || !password) {
@@ -159,40 +113,6 @@ router.post(
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(401).json({ message: "Password salah." });
-    }
-
-    let authProfile = { level: null, is_musyrif: false };
-
-    if (user.role === "admin") {
-      const authProfileRes = await client.query(
-        `
-        SELECT
-          a.level,
-          (m.id IS NOT NULL) AS is_musyrif
-        FROM u_admin a
-        LEFT JOIN tahfiz.t_musyrif m ON m.user_id = a.user_id
-        WHERE a.user_id = $1
-        LIMIT 1
-      `,
-        [user.id],
-      );
-
-      if (authProfileRes.rowCount > 0) {
-        authProfile = authProfileRes.rows[0];
-      }
-    }
-
-    if (
-      !isRequestedRoleAllowed({
-        requestedRole,
-        userRole: user.role,
-        level: authProfile.level,
-        isMusyrif: authProfile.is_musyrif,
-      })
-    ) {
-      return res.status(403).json({
-        message: "Role login tidak sesuai dengan akun yang digunakan.",
-      });
     }
 
     // 4. Ambil Data Spesifik Berdasarkan Role
@@ -229,6 +149,7 @@ router.post(
         `
         SELECT 
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           (
             SELECT COALESCE(json_agg(
@@ -283,25 +204,35 @@ router.post(
             a.email, 
             a.homebase_id,
             a.level AS level, -- Level admin (misal: 'superadmin')
-            hb.name AS homebase_name, 
-            m.id AS musyrif_id,
-            (m.id IS NOT NULL) AS is_musyrif,
+            hb.name AS homebase_name,
             hb.level AS unit_level -- Level satuan (SD/SMP/SMA) dari a_homebase
         FROM u_admin a
         LEFT JOIN a_homebase hb ON a.homebase_id = hb.id
-        LEFT JOIN tahfiz.t_musyrif m ON m.user_id = a.user_id
         WHERE a.user_id = $1
       `,
         [user.id],
       );
       // Jika data admin ditemukan, masukkan ke roleData.
       // Frontend akan membaca 'level' dari sini (user.level)
-      if (adminRes.rowCount > 0) {
-        roleData = {
-          ...authProfile,
-          ...adminRes.rows[0],
-        };
+      if (adminRes.rowCount > 0) roleData = adminRes.rows[0];
+    }
+
+    delete user.password;
+
+    // 4b. Role & data khusus domain (lihat domainProfiles.js). Domain boleh
+    // menolak login (mis. tendik tanpa penugasan) sebelum token dibuat.
+    let payload;
+    try {
+      const domainRole = await findDomainRole(user.role);
+      if (domainRole?.loadSigninProfile) {
+        roleData = (await domainRole.loadSigninProfile(client, user.id)) || {};
       }
+
+      payload = { ...user, ...roleData };
+      await enrichDomainProfiles({ db: client, user: payload, phase: "signin" });
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
     }
 
     // 5. Generate Token
@@ -325,15 +256,10 @@ router.post(
       user.id,
     ]);
 
-    delete user.password;
-
     // 7. Kirim Response
     return res.status(200).json({
       message: "Login berhasil",
-      user: {
-        ...user, // id, role, username...
-        ...roleData, // level (jika admin), nis (jika siswa), dll
-      },
+      user: payload, // data user + profil role + data domain
     });
   }),
 );
@@ -344,7 +270,7 @@ router.post(
 router.get(
   "/load-user",
   // Pastikan middleware authorize mengizinkan semua role ini
-  authorize("admin", "student", "teacher", "parent", "tahfiz"),
+  authorize("admin", "student", "teacher", "parent", "tahfiz", "staff"),
   withQuery(async (req, res, pool) => {
     const { id, role } = req.user;
 
@@ -379,6 +305,7 @@ router.get(
         SELECT 
           u.id, u.username, u.full_name, u.role, u.img_url, u.gender,
           t.nip, t.phone, t.email, t.is_homeroom,
+          t.homebase_id,
           hb.name AS homebase_name,
           (
             SELECT COALESCE(json_agg(
@@ -430,31 +357,41 @@ router.get(
           a.level AS level,
           hb.name AS homebase_name,
           hb.id AS homebase_id,
-          m.id AS musyrif_id,
-          (m.id IS NOT NULL) AS is_musyrif,
           hb.level AS unit_level -- Tambahkan ini agar FE tahu ini SD/SMP/SMA
         FROM u_users u
         LEFT JOIN u_admin a ON u.id = a.user_id
         LEFT JOIN a_homebase hb ON a.homebase_id = hb.id
-        LEFT JOIN tahfiz.t_musyrif m ON m.user_id = u.id
         WHERE u.id = $1
       `;
     }
 
-    if (!query) {
-      return res
-        .status(403)
-        .json({ message: "Role tidak dikenali atau akses ditolak." });
+    try {
+      let userData;
+
+      if (query) {
+        const resData = await pool.query(query, [id]);
+        userData = resData.rows[0];
+      } else {
+        // Role di luar role inti (mis. staff) disediakan domain.
+        const domainRole = await findDomainRole(role);
+        if (!domainRole?.loadUserProfile) {
+          return res
+            .status(403)
+            .json({ message: "Role tidak dikenali atau akses ditolak." });
+        }
+        userData = await domainRole.loadUserProfile(pool, id);
+      }
+
+      if (!userData) {
+        return res.status(404).json({ message: "Data user tidak ditemukan" });
+      }
+
+      await enrichDomainProfiles({ db: pool, user: userData, phase: "load-user" });
+      return res.status(200).json(userData);
+    } catch (error) {
+      if (error instanceof AuthDeniedError) return sendAuthDenied(res, error);
+      throw error;
     }
-
-    const resData = await pool.query(query, [id]);
-    const userData = resData.rows[0];
-
-    if (!userData) {
-      return res.status(404).json({ message: "Data user tidak ditemukan" });
-    }
-
-    return res.status(200).json(userData);
   }),
 );
 
@@ -535,6 +472,7 @@ router.put(
     if (role === "teacher") detailTable = "u_teachers";
     else if (role === "admin") detailTable = "u_admin";
     else if (role === "parent") detailTable = "u_parents";
+    else detailTable = (await findDomainRole(role))?.detailTable || "";
 
     if (detailTable) {
       const updates = [];
