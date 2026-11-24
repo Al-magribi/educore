@@ -11,7 +11,6 @@ env:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
   group: sync-main-to-features
@@ -43,8 +42,6 @@ jobs:
       - name: Merge main into ${{ matrix.branch }}
         id: merge
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ matrix.branch }}"
@@ -61,17 +58,22 @@ jobs:
             CONFLICTED="$(git diff --name-only --diff-filter=U)"
             git merge --abort
             echo "::error::main conflicts with ${TARGET_BRANCH}; resolve manually. Files: $(echo ${CONFLICTED})"
+            # Actions tidak diizinkan membuat PR di repo ini, jadi cara resolve
+            # ditulis di summary. Lihat CLAUDE.md §0 "Kalau sync main gagal".
             {
-              echo "### main -> ${TARGET_BRANCH}: manual merge required"
-              echo "${CONFLICTED}" | sed 's/^/- /'
+              echo "### main -> ${TARGET_BRANCH}: perlu merge manual"
+              echo
+              echo "File konflik:"
+              echo "${CONFLICTED}" | sed 's/^/- `/; s/$/`/'
+              echo
+              echo '```bash'
+              echo "git fetch origin && git checkout ${TARGET_BRANCH} && git pull"
+              echo "git merge origin/main   # resolve: pertahankan perubahan kedua sisi"
+              echo "git push origin ${TARGET_BRANCH}"
+              echo '```'
+              echo
+              echo "Push ke ${TARGET_BRANCH} otomatis menjalankan publish produk."
             } >> "${GITHUB_STEP_SUMMARY}"
-
-            if [ -z "$(gh pr list --base "${TARGET_BRANCH}" --head main --state open --json number --jq '.[].number')" ]; then
-              gh pr create --base "${TARGET_BRANCH}" --head main \
-                --title "Sync main into ${TARGET_BRANCH} (conflicts)" \
-                --body "Automatic sync stopped because these files conflict:"$'\n\n'"$(echo "${CONFLICTED}" | sed 's/^/- /')"$'\n\n'"Merge main into ${TARGET_BRANCH} locally, keep both sides' changes, and push." \
-                || echo "::warning::Could not open a pull request; resolve the merge locally."
-            fi
             exit 1
           fi
 
