@@ -1,15 +1,16 @@
 import React, { useMemo } from "react";
 import { Card, Flex, Grid, Typography } from "antd";
+import { museColors, museRadius } from "../../../../config/theme";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const QUESTION_TYPE_META = {
-  1: { short: "PG", label: "PG Tunggal", color: "#2563eb" },
-  2: { short: "PM", label: "PG Multi", color: "#0891b2" },
+  1: { short: "PG", label: "PG Tunggal", color: museColors.primary },
+  2: { short: "PM", label: "PG Multi", color: museColors.cyan },
   3: { short: "EU", label: "Essay Uraian", color: "#9333ea" },
   4: { short: "ES", label: "Essay Singkat", color: "#4f46e5" },
-  5: { short: "BS", label: "Benar / Salah", color: "#ea580c" },
+  5: { short: "BS", label: "Benar / Salah", color: museColors.accent },
   6: { short: "MC", label: "Mencocokkan", color: "#db2777" },
 };
 
@@ -17,7 +18,7 @@ const getQuestionTypeMeta = (type) =>
   QUESTION_TYPE_META[type] || {
     short: "?",
     label: "Unknown",
-    color: "#64748b",
+    color: museColors.muted,
   };
 
 const QuestionNavigator = ({ questions, activeIndex, onSelect }) => {
@@ -45,9 +46,9 @@ const QuestionNavigator = ({ questions, activeIndex, onSelect }) => {
         width: "100%",
         maxWidth: isMobile ? "100%" : 280,
         flexShrink: 0,
-        borderRadius: isMobile ? 16 : 18,
+        borderRadius: museRadius.card,
         border: "1px solid rgba(226, 232, 240, 0.92)",
-        background: "linear-gradient(180deg, #ffffff, #f8fafc)",
+        background: "#fff",
       }}
       styles={{ body: { padding: isMobile ? 14 : 16 } }}
     >
@@ -126,7 +127,7 @@ const QuestionNavigator = ({ questions, activeIndex, onSelect }) => {
                 border: isActive
                   ? "2px solid #fff"
                   : "1px solid rgba(255,255,255,0.15)",
-                outline: isActive ? "2px solid #0f172a" : "none",
+                outline: isActive ? `2px solid ${museColors.text}` : "none",
                 borderRadius: 8,
                 background: typeMeta.color,
                 color: "#fff",

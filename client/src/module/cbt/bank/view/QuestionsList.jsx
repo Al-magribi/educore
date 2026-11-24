@@ -35,6 +35,7 @@ import QuestionNavigator from './QuestionNavigator';
 import { exportQuestionsToDocx } from './questionDocxExport';
 import QuestionGroupModal from './QuestionGroupModal';
 import RichContentViewer from '../../components/RichContentViewer';
+import { museColors, museRadius, museShadow } from '../../../../config/theme';
 
 const QuestionForm = lazy(() => import('../components/question/QuestionForm'));
 const ImportExcelModal = lazy(() => import('./ImportExcelModal'));
@@ -313,10 +314,10 @@ const QuestionsList = () => {
       <Card
         variant="borderless"
         style={{
-          borderRadius: isMobile ? 16 : 22,
+          borderRadius: museRadius.card,
           border: isSelected ? '1px solid rgba(59, 130, 246, 0.24)' : '1px solid rgba(226, 232, 240, 0.92)',
           boxShadow: isSelected ? '0 20px 36px rgba(37, 99, 235, 0.12)' : '0 10px 24px rgba(15, 23, 42, 0.05)',
-          background: 'linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,0.94))',
+          background: "#fff",
         }}
         styles={{ body: { padding: isMobile ? 12 : 20 } }}>
         <Flex vertical gap={isMobile ? 12 : 16}>
@@ -355,7 +356,7 @@ const QuestionsList = () => {
                       borderRadius: 999,
                       paddingInline: 10,
                       borderColor: 'rgba(37, 99, 235, 0.18)',
-                      color: '#1e3a8a',
+                      color: museColors.primary,
                       background: 'rgba(219, 234, 254, 0.55)',
                     }}>
                     {question.score_point} Pts
@@ -368,7 +369,7 @@ const QuestionsList = () => {
                         borderRadius: 999,
                         paddingInline: 10,
                         borderColor: 'rgba(124, 58, 237, 0.2)',
-                        color: '#6d28d9',
+                        color: museColors.purple,
                         background: 'rgba(245, 243, 255, 0.9)',
                       }}>
                       {question.group_title || 'Grup soal'}
@@ -550,7 +551,7 @@ const QuestionsList = () => {
                         percent={Math.max(0, Math.min(aiProgressPercent, 100))}
                         status="active"
                         size="small"
-                        strokeColor="#1677ff"
+                        strokeColor={museColors.primary}
                       />
                     </>
                   ) : latestAiJob.total_generated ? (
@@ -576,7 +577,7 @@ const QuestionsList = () => {
                 </Space>
               </Flex>
             }
-            style={{ borderRadius: 18 }}
+            style={{ borderRadius: museRadius.card }}
           />
         )}
 
@@ -591,8 +592,8 @@ const QuestionsList = () => {
           <Card
             variant="borderless"
             style={{
-              borderRadius: 24,
-              boxShadow: '0 18px 40px rgba(15, 23, 42, 0.06)',
+              borderRadius: museRadius.card,
+              boxShadow: museShadow.card,
             }}>
             <Flex vertical justify="center" align="center" gap={14} style={{ minHeight: 320, textAlign: 'center' }}>
               <Spin size="large" />
@@ -603,8 +604,8 @@ const QuestionsList = () => {
           <Card
             variant="borderless"
             style={{
-              borderRadius: 24,
-              boxShadow: '0 18px 40px rgba(15, 23, 42, 0.06)',
+              borderRadius: museRadius.card,
+              boxShadow: museShadow.card,
             }}
             styles={{ body: { padding: isMobile ? 20 : 28 } }}>
             <Flex
@@ -615,8 +616,8 @@ const QuestionsList = () => {
               style={{
                 minHeight: 300,
                 textAlign: 'center',
-                background: 'linear-gradient(135deg, rgba(248,250,252,0.96), rgba(239,246,255,0.86))',
-                borderRadius: 20,
+                background: museColors.bgSoft,
+                borderRadius: museRadius.card,
                 border: '1px dashed rgba(148, 163, 184, 0.35)',
                 padding: isMobile ? 20 : 32,
               }}>
@@ -633,7 +634,7 @@ const QuestionsList = () => {
                 onClick={openCreateForm}
                 style={{
                   marginTop: 8,
-                  borderRadius: 14,
+                  borderRadius: museRadius.item,
                   boxShadow: '0 14px 28px rgba(37, 99, 235, 0.22)',
                 }}>
                 Tambah Soal Pertama
@@ -644,9 +645,9 @@ const QuestionsList = () => {
           <Card
             variant="borderless"
             style={{
-              borderRadius: isMobile ? 16 : 24,
-              boxShadow: '0 18px 40px rgba(15, 23, 42, 0.06)',
-              background: 'linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,0.94))',
+              borderRadius: museRadius.card,
+              boxShadow: museShadow.card,
+              background: "#fff",
             }}
             styles={{ body: { padding: isMobile ? 12 : 16 } }}>
             <Flex
@@ -655,7 +656,7 @@ const QuestionsList = () => {
               gap={8}
               vertical={isMobile}
               style={{ marginBottom: isMobile ? 14 : 18, padding: isMobile ? '4px 2px' : '8px' }}>
-              <Text strong style={{ fontSize: isMobile ? 14 : 16, color: '#0f172a' }}>
+              <Text strong style={{ fontSize: isMobile ? 14 : 16, color: museColors.text }}>
                 Daftar Soal - {questions.length} soal
               </Text>
               <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>

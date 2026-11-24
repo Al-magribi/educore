@@ -6,6 +6,7 @@ import {
   useUpdateQuestionGroupMutation,
 } from "../../../../service/cbt/ApiQuestion";
 import TextEditor from "../components/question/TextEditor";
+import { museColors } from "../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -136,7 +137,7 @@ const QuestionGroupModal = ({ open, bankId, questions, editor, onClose }) => {
                 justify="space-between"
                 gap={8}
                 style={{
-                  border: "1px solid #e6edf7",
+                  border: `1px solid ${museColors.divider}`,
                   borderRadius: 12,
                   padding: "8px 10px",
                 }}

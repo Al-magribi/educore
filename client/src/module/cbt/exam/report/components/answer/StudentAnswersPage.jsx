@@ -30,6 +30,7 @@ import StudentAnswersHero from "./StudentAnswersHero";
 import StudentAnswersManualAction from "./StudentAnswersManualAction";
 import StudentAnswersMetrics from "./StudentAnswersMetrics";
 import RichContentViewer from "../../../../components/RichContentViewer";
+import { museColors, museRadius, museShadow } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -320,9 +321,9 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
       size='small'
       variant='borderless'
       style={{
-        borderRadius: 18,
-        boxShadow: "0 14px 28px rgba(15, 23, 42, 0.05)",
-        background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+        borderRadius: museRadius.card,
+        boxShadow: museShadow.card,
+        background: "#fff",
       }}
     >
       <Flex justify='space-between' align='center' wrap='wrap' gap={8}>
@@ -408,13 +409,13 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
       {normalizedType === "essay" && (
         <Space vertical size={10} style={{ width: "100%" }}>
           <Text>Jawaban Siswa:</Text>
-          <Card size='small' style={{ background: "#fafafa" }}>
+          <Card size='small' style={{ background: museColors.bgSoft }}>
             {renderHtmlBlock(item.answer || "-")}
           </Card>
           {rubricRows.length > 0 ? (
             <Card
               size='small'
-              style={{ background: "#f8fafc", borderRadius: 14 }}
+              style={{ background: museColors.bgSoft, borderRadius: museRadius.item }}
             >
               <Space vertical size={10} style={{ width: "100%" }}>
                 <Flex
@@ -576,9 +577,9 @@ const AnswerCard = ({ item, onPointChange, maxAllow, saveState, isMobile }) => {
                     </div>
                   </Tag>
                   {pair.correct ? (
-                    <CheckCircle2 size={14} color='#16a34a' />
+                    <CheckCircle2 size={14} color={museColors.success} />
                   ) : (
-                    <XCircle size={14} color='#ef4444' />
+                    <XCircle size={14} color={museColors.danger} />
                   )}
                 </Flex>
               ))}
@@ -1210,8 +1211,8 @@ const StudentAnswersPage = () => {
         <Card
           variant='borderless'
           style={{
-            borderRadius: 24,
-            boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
+            borderRadius: museRadius.card,
+            boxShadow: museShadow.card,
           }}
           styles={{ body: { padding: isMobile ? 24 : 32 } }}
         >
@@ -1247,8 +1248,8 @@ const StudentAnswersPage = () => {
               <Card
                 variant='borderless'
                 style={{
-                  borderRadius: 24,
-                  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+                  borderRadius: museRadius.card,
+                  boxShadow: museShadow.card,
                 }}
               >
                 <Flex
@@ -1288,7 +1289,7 @@ const StudentAnswersPage = () => {
                     style={{
                       marginBottom: 12,
                       padding: 12,
-                      borderRadius: 16,
+                      borderRadius: museRadius.item,
                       background: "rgba(14, 165, 233, 0.06)",
                       border: "1px solid rgba(14, 165, 233, 0.22)",
                     }}

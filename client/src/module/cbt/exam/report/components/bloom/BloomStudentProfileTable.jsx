@@ -6,6 +6,7 @@ import {
   StudentProfileTags,
 } from "./BloomPrimitives";
 import { formatPercent, sectionStyle } from "./bloomUtils";
+import { museColors, museRadius } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -17,8 +18,8 @@ const MobileStudentCards = ({ isLoading, perStudentAnalysis }) => (
         loading={isLoading}
         size='small'
         style={{
-          borderRadius: 16,
-          border: "1px solid rgba(148, 163, 184, 0.18)",
+          borderRadius: museRadius.item,
+          border: `1px solid ${museColors.divider}`,
         }}
         styles={{ body: { padding: 14 } }}
       >
@@ -50,7 +51,7 @@ const MobileStudentCards = ({ isLoading, perStudentAnalysis }) => (
 
           <BloomProgress
             value={record.correct_percentage}
-            strokeColor='#0f766e'
+            strokeColor={museColors.cyan}
           />
 
           <div
@@ -64,8 +65,8 @@ const MobileStudentCards = ({ isLoading, perStudentAnalysis }) => (
               style={{
                 padding: "8px 10px",
                 borderRadius: 12,
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
+                background: museColors.bgSoft,
+                border: `1px solid ${museColors.divider}`,
                 minWidth: 0,
               }}
             >
@@ -87,8 +88,8 @@ const MobileStudentCards = ({ isLoading, perStudentAnalysis }) => (
               style={{
                 padding: "8px 10px",
                 borderRadius: 12,
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
+                background: museColors.bgSoft,
+                border: `1px solid ${museColors.divider}`,
                 minWidth: 0,
               }}
             >
@@ -140,7 +141,7 @@ const BloomStudentProfileTable = ({
       dataIndex: "correct_percentage",
       key: "correct_percentage",
       width: 180,
-      render: (value) => <BloomProgress value={value} strokeColor='#0f766e' />,
+      render: (value) => <BloomProgress value={value} strokeColor={museColors.cyan} />,
     },
     {
       title: "Status",

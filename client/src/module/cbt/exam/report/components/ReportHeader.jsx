@@ -1,10 +1,11 @@
-import { Button, Card, Flex, Tag, Typography } from "antd";
+import { Button, Flex, Tag, Typography } from "antd";
 import PageHeader from "../../../../../components/ui/PageHeader";
-import { motion } from "framer-motion";
+import { StatCard } from "../../../../../components/ui/muse";
+import { museColors } from "../../../../../config/theme";
 import {
   ArrowLeft,
   Copy,
-  ShieldCheck,
+  KeyRound,
   Timer,
   TriangleAlert,
   UserRoundCheck,
@@ -12,8 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const { Title, Text } = Typography;
-const MotionDiv = motion.div;
+const { Text } = Typography;
 
 const ReportHeader = ({ examName, stats, isMobile = false, examToken }) => {
   const navigate = useNavigate();
@@ -21,64 +21,69 @@ const ReportHeader = ({ examName, stats, isMobile = false, examToken }) => {
   const statItems = [
     {
       key: "total",
-      label: "Total Peserta",
+      title: "Total Peserta",
       value: stats?.total ?? 0,
-      icon: <Users size={16} />,
-      color: "#2563eb",
-      soft: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
+      icon: <Users size={isMobile ? 18 : 24} />,
+      tone: "primary",
     },
     {
       key: "ongoing",
-      label: "Mengerjakan",
+      title: "Mengerjakan",
       value: stats?.ongoing ?? 0,
-      icon: <UserRoundCheck size={16} />,
-      color: "#0891b2",
-      soft: "linear-gradient(135deg, #cffafe 0%, #e0f2fe 100%)",
+      icon: <UserRoundCheck size={isMobile ? 18 : 24} />,
+      tone: "cyan",
     },
     {
       key: "waiting",
-      label: "Belum Masuk",
+      title: "Belum Masuk",
       value: stats?.waiting ?? 0,
-      icon: <Timer size={16} />,
-      color: "#64748b",
-      soft: "linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%)",
+      icon: <Timer size={isMobile ? 18 : 24} />,
+      tone: "warning",
     },
     {
       key: "violations",
-      label: "Pelanggaran",
+      title: "Pelanggaran",
       value: stats?.violations ?? 0,
-      icon: <TriangleAlert size={16} />,
-      color: "#dc2626",
-      soft: "linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%)",
+      icon: <TriangleAlert size={isMobile ? 18 : 24} />,
+      tone: "danger",
     },
   ];
 
   return (
-    <MotionDiv initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
-      <Flex vertical gap={isMobile ? 12 : 16}>
-        <Flex vertical gap={8}>
-          <Button
-            type='link'
-            icon={<ArrowLeft size={16} />}
-            onClick={() => navigate("/computer-based-test/jadwal-ujian")}
-            style={{ width: "fit-content", paddingInline: 0 }}
-          >
-            Kembali
-          </Button>
-          <PageHeader
-            title={examName || "Ujian CBT"}
-            description='Laporan ujian'
-            meta={
-              <Flex gap={8} wrap='wrap' align='center'>
-                <Tag icon={<ShieldCheck size={12} />}>Laporan Ujian</Tag>
-                {!!stats?.duration && (
-                  <Tag icon={<Timer size={12} />}>{stats.duration} menit</Tag>
-                )}
-              </Flex>
-            }
-            extra={
-              <Flex vertical gap={2}>
-                <Text type='secondary' style={{ fontSize: 12 }}>
+    <Flex vertical gap={isMobile ? 16 : 24}>
+      <Flex vertical gap={4}>
+        <Button
+          type='link'
+          icon={<ArrowLeft size={16} />}
+          onClick={() => navigate("/computer-based-test/jadwal-ujian")}
+          style={{ width: "fit-content", paddingInline: 0, color: museColors.muted }}
+        >
+          Jadwal Ujian
+        </Button>
+        <PageHeader
+          title={examName || "Laporan Ujian"}
+          description='Pantau kehadiran, koreksi jawaban, dan analisis hasil ujian.'
+          meta={
+            stats?.duration ? (
+              <Tag icon={<Timer size={12} />} style={{ margin: 0 }}>
+                {stats.duration} menit
+              </Tag>
+            ) : null
+          }
+          extra={
+            <Flex
+              align='center'
+              gap={10}
+              style={{
+                padding: "8px 14px",
+                background: "#fff",
+                borderRadius: 8,
+                border: `1px solid ${museColors.divider}`,
+              }}
+            >
+              <KeyRound size={16} color={museColors.muted} />
+              <div>
+                <Text type='secondary' style={{ fontSize: 12, display: "block", lineHeight: 1.2 }}>
                   Token Ujian
                 </Text>
                 <Text
@@ -90,89 +95,39 @@ const ReportHeader = ({ examName, stats, isMobile = false, examToken }) => {
                             <Copy key='copy' size={14} />,
                             <Copy key='copied' size={14} />,
                           ],
+                          tooltips: ["Salin token", "Token disalin"],
                         }
                       : false
                   }
                   style={{
-                    fontSize: isMobile ? 18 : 20,
+                    fontSize: 18,
                     fontWeight: 700,
                     letterSpacing: 1,
+                    fontFamily: "monospace",
                   }}
                 >
                   {examToken || "-"}
                 </Text>
-              </Flex>
-            }
-          />
-        </Flex>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
-            gap: isMobile ? 10 : 12,
-          }}
-        >
-          {statItems.map((item) => (
-            <Card
-              key={item.key}
-              variant='borderless'
-              style={{
-                borderRadius: isMobile ? 16 : 20,
-                height: "100%",
-                border: "1px solid rgba(148, 163, 184, 0.14)",
-                boxShadow: "0 14px 28px rgba(15, 23, 42, 0.05)",
-                background: "#fff",
-              }}
-              styles={{ body: { padding: isMobile ? 12 : 16 } }}
-            >
-              <Flex align='center' gap={isMobile ? 10 : 12}>
-                <div
-                  style={{
-                    width: isMobile ? 36 : 42,
-                    height: isMobile ? 36 : 42,
-                    borderRadius: 14,
-                    display: "grid",
-                    placeItems: "center",
-                    background: item.soft,
-                    color: item.color,
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.icon}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <Text
-                    type='secondary'
-                    style={{
-                      fontSize: isMobile ? 11 : 12,
-                      display: "block",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {item.label}
-                  </Text>
-                  <Title
-                    level={isMobile ? 4 : 3}
-                    style={{
-                      margin: "2px 0 0",
-                      color: item.color,
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    {item.value}
-                  </Title>
-                </div>
-              </Flex>
-            </Card>
-          ))}
-        </div>
+              </div>
+            </Flex>
+          }
+        />
       </Flex>
-    </MotionDiv>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile
+            ? "repeat(2, minmax(0, 1fr))"
+            : "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: isMobile ? 12 : 24,
+        }}
+      >
+        {statItems.map(({ key, ...item }) => (
+          <StatCard key={key} {...item} compact={isMobile} />
+        ))}
+      </div>
+    </Flex>
   );
 };
 

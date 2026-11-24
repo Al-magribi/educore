@@ -3,6 +3,7 @@ import { Card, Empty, Grid, Space, Typography } from "antd";
 import { motion } from "framer-motion";
 import { Settings2, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import PageHeader from "../../../../components/ui/PageHeader";
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -33,14 +34,14 @@ const ExamSetting = () => {
               label: "Keamanan",
               note: "Kontrol akses, token, dan validasi peserta.",
               icon: <ShieldCheck size={18} />,
-              color: "#1d4ed8",
+              color: museColors.primary,
             },
             {
               key: "behavior",
               label: "Perilaku Ujian",
               note: "Aturan durasi, pengacakan, dan batas pengerjaan.",
               icon: <SlidersHorizontal size={18} />,
-              color: "#15803d",
+              color: museColors.success,
             },
             {
               key: "system",
@@ -54,8 +55,8 @@ const ExamSetting = () => {
               key={item.key}
               variant='borderless'
               style={{
-                borderRadius: 20,
-                boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
+                borderRadius: museRadius.card,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: 18 } }}
             >
@@ -63,12 +64,12 @@ const ExamSetting = () => {
                 style={{
                   width: 44,
                   height: 44,
-                  borderRadius: 16,
+                  borderRadius: museRadius.item,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   marginBottom: 12,
-                  background: "#f8fafc",
+                  background: museColors.bgSoft,
                   color: item.color,
                 }}
               >
@@ -85,8 +86,8 @@ const ExamSetting = () => {
         <Card
           variant='borderless'
           style={{
-            borderRadius: 24,
-            boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
+            borderRadius: museRadius.card,
+            boxShadow: museShadow.card,
           }}
           styles={{ body: { padding: isMobile ? 24 : 32 } }}
         >
