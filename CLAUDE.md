@@ -30,6 +30,46 @@ Sync konflik bila `main` dan `feature/*` mengedit file yang sama. Karena itu she
 - `module/admin` dan `module/center` dirapikan UI-nya di `main`. Feature boleh mengubah logikanya, tapi merge `main` dulu sebelum mulai agar tidak konflik.
 - Restyle module domain (CBT, LMS, Finance, Tahfiz, DB) dikerjakan di branch pemiliknya, bukan di `main`.
 
+### Kepemilikan antar branch (supaya sync dan compose tidak rusak)
+
+Setiap file punya **satu pemilik**. Petanya ada di [scripts/ci/shared-paths.js](scripts/ci/shared-paths.js): `MAIN_OWNED_PATHS` untuk `main`, `FEATURE_OWNED_PATHS` untuk tiap feature. Yang paling sering terlewat:
+
+| File | Pemilik | Akibat kalau diedit branch lain |
+|---|---|---|
+| `module/parent/`, `module/student/dashboard/`, `module/teacher/dashboard/` | `feature/lms` | Diedit di `main` → sync `main → feature/lms` konflik. Diedit di feature lain → ditimpa versi lms saat compose. |
+| `server/router/auth/RouterAuth.js`, `server/middleware/authorize.js` | `feature/lms` | Perubahan dari tahfiz/finance **hilang di produk** (compose memakai versi lms). |
+| `components/profile/` | `main` | Guard feature gagal. |
+| `module/<domain>/`, `service/<domain>/`, `server/router/<domain>/`, `<domain>Menus.jsx`, `<domain>Routes.jsx` | `feature/<domain>` | Diedit di `main` → guard main gagal. |
+
+Aturan kerja:
+
+1. **Di `main`**: jangan mengedit file milik feature, termasuk untuk restyle. `guard-shared-paths.yml` gagal (job `guard-main`) bila itu terjadi. Restyle dashboard guru/siswa/orang tua dikerjakan di `feature/lms`.
+2. **Di `feature/*`**: jangan mengedit file milik `main` (guard gagal) atau milik feature lain (guard memberi peringatan, dan perubahannya tidak sampai ke produk). Kerjakan di branch pemiliknya.
+3. **Satu perubahan, satu branch.** Jangan mengerjakan hal yang sama di `main` dan di feature secara paralel (misalnya restyle dashboard di keduanya), karena pasti konflik.
+4. **Butuh file baru yang dipakai lintas feature?** Taruh di `main` lalu tambahkan ke `MAIN_OWNED_PATHS`. Path milik feature baru harus ditambahkan ke `FEATURE_OWNED_PATHS` **dan** ke fungsi `restore_<domain>_owned_paths` di ketiga `publish-*.yml`, dengan isi yang sama.
+5. **Mengubah `.github/workflows/`**: edit di `main`, lalu merge `main` ke keempat `feature/*` secara manual dan push. Bot sync tidak boleh mendorong file workflow (batasan `GITHUB_TOKEN`), jadi perubahan workflow tidak ikut sync otomatis.
+
+### Kalau sync main gagal
+
+Job `sync (feature/x)` merah artinya `main` dan `feature/x` mengedit file yang sama. File konflik dan perintahnya ada di summary run. Selesaikan secara lokal:
+
+```bash
+git fetch origin && git checkout feature/x && git pull
+git merge origin/main
+# resolve: file milik main → ambil versi main; file milik feature/x → ambil versi feature,
+# lalu bawa perubahan main yang masih dibutuhkan. Jangan memakai -X ours/theirs untuk semua file.
+npm run lint --prefix client && npm run build --prefix client
+git push origin feature/x
+```
+
+Push ke `feature/x` otomatis menjalankan publish produk. Selama sync sebuah feature masih merah, workflow publish yang menunggu sync tidak berjalan untuk branch mana pun.
+
+### Kalau publish (compose) gagal
+
+- **`Compose integration branch` gagal di `git diff --quiet origin/feature/lms`**: isi release untuk path milik lms berbeda dari `feature/lms`. Biasanya karena `main` menambah atau mengedit file di folder milik lms. Pindahkan perubahan itu ke `feature/lms`.
+- **`Auto-resolving conflicts from feature/x`** di log: dua feature mengedit file yang sama. Compose memilih versi feature terakhir, dan file milik feature lain dipulihkan dari pemiliknya, jadi perubahan non-pemilik hilang. Pindahkan perubahan ke branch pemilik file.
+- **`check-undefined-identifiers` gagal**: ada pemanggilan yang import-nya hilang akibat merge. Perbaiki di branch pemilik file.
+
 ## 1. Stack UI
 
 - React 19 + Vite, **Ant Design v6** (`antd`), `@ant-design/plots` untuk grafik, `lucide-react` untuk ikon.
