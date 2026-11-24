@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from "react";
+import { Suspense, cloneElement, isValidElement, useMemo } from "react";
 import { Card, ConfigProvider, Flex, Grid, Segmented, Skeleton, Typography } from "antd";
 import { useSearchParams } from "react-router-dom";
 
@@ -21,6 +21,12 @@ export const MuseThemeProvider = ({ children }) => (
 
 const { useBreakpoint } = Grid;
 
+// Ukuran tab halaman (lihat CLAUDE.md §4 "Tab"): Segmented middle (32px), ikon 14, teks 14/600.
+const PAGE_TAB_ICON_SIZE = 14;
+
+const sizeTabIcon = (icon) =>
+  isValidElement(icon) ? cloneElement(icon, { size: PAGE_TAB_ICON_SIZE }) : icon;
+
 /**
  * Halaman dengan beberapa sub-bagian: judul + navigasi Segmented di bawahnya.
  * Tab aktif disimpan di query `?tab=` agar bertahan saat refresh / dibagikan.
@@ -38,13 +44,13 @@ export const PageTabs = ({ title, description, items, extra, paramName = "tab" }
       items.map((item) => ({
         value: item.key,
         label: (
-          <Flex align='center' gap={8} style={{ padding: isMobile ? "4px 2px" : "6px 8px" }}>
-            {item.icon}
-            <span style={{ fontWeight: 600 }}>{item.label}</span>
+          <Flex align='center' gap={6} style={{ padding: "0 4px", whiteSpace: "nowrap" }}>
+            {sizeTabIcon(item.icon)}
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{item.label}</span>
           </Flex>
         ),
       })),
-    [items, isMobile],
+    [items],
   );
 
   const handleChange = (value) => {
@@ -62,8 +68,8 @@ export const PageTabs = ({ title, description, items, extra, paramName = "tab" }
           value={active?.key}
           onChange={handleChange}
           options={options}
-          size={isMobile ? "middle" : "large"}
-          style={{ background: "#fff", boxShadow: museCardStyle.boxShadow, padding: 4 }}
+          size='middle'
+          style={{ background: "#fff", boxShadow: museCardStyle.boxShadow, padding: 3 }}
         />
       </div>
       {active?.description ? (

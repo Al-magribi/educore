@@ -348,9 +348,8 @@ const AiConfig = () => {
                 activeKey={activeTab}
                 onChange={setActiveTab}
                 items={usageTabItems}
-                size={isMobile ? "middle" : "large"}
-                tabBarGutter={12}
-                tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
+                size={isMobile ? "small" : "middle"}
+                tabBarStyle={{ marginBottom: 16 }}
                 destroyInactiveTabPane={false}
               />
 
