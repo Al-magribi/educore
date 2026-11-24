@@ -3,6 +3,7 @@ import { Button, Card, Flex, Grid, Space, Tag, Typography } from "antd";
 import { FileText, Link2, PlayCircle, Youtube } from "lucide-react";
 import YouTubePlayer from "../../../player/YouTubePlayer";
 
+import { museColors } from "../../../../../config/theme";
 const { Paragraph, Text } = Typography;
 
 const stripHtml = (value = "") =>
@@ -53,7 +54,7 @@ const LearningContentCard = ({ content, index }) => {
   return (
     <Card
       size="small"
-      style={{ borderRadius: 12, borderColor: "#f0f0f0" }}
+      style={{ borderRadius: 12, borderColor: museColors.divider }}
       styles={{ body: { padding: isMobile ? 12 : 14 } }}
     >
       <YouTubePlayer
@@ -66,7 +67,7 @@ const LearningContentCard = ({ content, index }) => {
       <Flex vertical gap={10}>
         <Flex justify="space-between" align="flex-start" wrap="wrap" gap={10}>
           <Flex align="center" gap={8} wrap style={{ minWidth: 0 }}>
-            <Tag color="purple" style={{ marginRight: 0, borderRadius: 999 }}>
+            <Tag color="purple" style={{ marginRight: 0, }}>
               Subbab {index + 1}
             </Tag>
             <Text strong ellipsis={{ tooltip: content.title }} style={{ maxWidth: isMobile ? "100%" : 360 }}>
@@ -99,8 +100,8 @@ const LearningContentCard = ({ content, index }) => {
         {content.body ? (
           <div
             style={{
-              background: "#fafafa",
-              border: "1px solid #f0f0f0",
+              background: museColors.bgLayout,
+              border: `1px solid ${museColors.divider}`,
               borderRadius: 10,
               padding: isMobile ? 10 : 12,
             }}

@@ -40,6 +40,7 @@ import {
 } from '../configShared';
 import { CardGridView, ReportMetricGrid, ReportRecordCard } from '../../report/reportMobile';
 
+import { museColors } from "../../../../../config/theme";
 dayjs.extend(customParseFormat);
 
 const { Text } = Typography;
@@ -521,7 +522,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
-              message="Policy tendik berlaku otomatis untuk semua tendik"
+              title="Policy tendik berlaku otomatis untuk semua tendik"
               description="Tidak perlu assignment. Tendik cukup punya No RFID di menu Tendik dan tap di device gerbang. Jika ada lebih dari satu policy tendik aktif, yang terakhir disimpan yang dipakai."
             />
           )}
@@ -536,7 +537,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
           <Card
             size="small"
             title="Template jam (isi sekali, terapkan ke banyak hari)"
-            style={{ borderRadius: 12, marginBottom: 12, background: '#f8fafc' }}>
+            style={{ borderRadius: 12, marginBottom: 12, background: museColors.bgLayout }}>
             <Form form={templateForm} layout="vertical" initialValues={emptyRuleTemplate()}>
               <Flex gap={12} wrap="wrap">
                 <Form.Item
@@ -672,7 +673,7 @@ const PolicySettingsTab = ({ fallbackPolicies = [], loadingFallback = false }) =
                           onClick={() => handleDuplicateDayRule(index)}>
                           Duplikat ke semua hari
                         </Button>
-                        <FileText size={14} color="#475569" />
+                        <FileText size={14} color={museColors.muted} />
                       </Space>
                     }
                     style={{ borderRadius: 12 }}>

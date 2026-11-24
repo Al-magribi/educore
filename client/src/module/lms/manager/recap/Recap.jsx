@@ -1,9 +1,11 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import { Card, Grid, Skeleton, Tabs } from "antd";
+import { Grid, Skeleton, Tabs } from "antd";
+import { useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { useGetClassesQuery } from "../../../../service/lms/ApiLms";
 import { useGetGradingMetaQuery } from "../../../../service/lms/ApiGrading";
 import { useGetRecapTeachersQuery } from "../../../../service/lms/ApiRecap";
+import { MuseCard } from "../../../../components/ui/muse";
 
 const RecapAttendance = lazy(() => import("./components/RecapAttendance"));
 const RecapFormative = lazy(() => import("./components/RecapFormative"));
@@ -18,9 +20,9 @@ const RecapJournal = lazy(() => import("./components/RecapJournal"));
 const { useBreakpoint } = Grid;
 
 const recapFallback = (
-  <Card style={{ borderRadius: 12 }}>
+  <MuseCard>
     <Skeleton active paragraph={{ rows: 4 }} />
-  </Card>
+  </MuseCard>
 );
 
 const Recap = ({ subjectId, subject, isAdminView = false }) => {
@@ -30,7 +32,8 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
   });
   const activePeriode = metaRes?.data?.activePeriode || null;
 
-  const [activeTab, setActiveTab] = useState("attendance");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("sub");
   const [semester, setSemester] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [teacherId, setTeacherId] = useState(null);
@@ -153,6 +156,16 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
     teacherId: normalizedTeacherId,
   };
 
+  const tabKeys = [
+    "attendance",
+    "score",
+    "summative",
+    "final",
+    "nilai-raport",
+    ...(isAdminView ? ["learning-summary", "journal-summary"] : []),
+  ];
+  const activeTab = tabKeys.includes(requestedTab) ? requestedTab : "attendance";
+
   const tabItems = [
     {
       key: "attendance",
@@ -241,13 +254,18 @@ const Recap = ({ subjectId, subject, isAdminView = false }) => {
     });
   }
 
+  const setActiveTab = (key) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sub", key);
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <Tabs
       activeKey={activeTab}
       onChange={setActiveTab}
       items={tabItems}
-      size={isMobile ? "small" : "large"}
-      tabBarGutter={isCompact ? 6 : isMobile ? 8 : 16}
+      size={isMobile ? "small" : "middle"}
       style={{ width: "100%", minWidth: 0 }}
       tabBarStyle={{ marginBottom: isMobile ? 12 : 16 }}
     />

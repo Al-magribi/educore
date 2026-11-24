@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { useSaveClassAttendanceOfficersMutation } from '../../../../service/lms/ApiAttendance';
 import { modalWidth } from '../report/reportShared';
 
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
 
 const OfficerAssignmentModal = ({ onClose, className, students, isMobile }) => {
@@ -76,8 +77,8 @@ const OfficerAssignmentModal = ({ onClose, className, students, isMobile }) => {
                 style={{
                   padding: '8px 10px',
                   borderRadius: 10,
-                  border: '1px solid #eef2f7',
-                  background: '#f8fafc',
+                  border: `1px solid ${museColors.divider}`,
+                  background: museColors.bgLayout,
                   marginInlineStart: 0,
                 }}>
                 <span style={{ wordBreak: 'break-word' }}>

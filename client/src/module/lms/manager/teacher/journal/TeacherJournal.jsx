@@ -37,14 +37,14 @@ import {
 import JournalFormDrawer from "./components/JournalFormDrawer";
 import ResponsiveTable from "../../../../../components/ui/ResponsiveTable";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
 const statCardStyle = {
-  borderRadius: 18,
-  border: "1px solid rgba(148, 163, 184, 0.14)",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 16px 32px rgba(15, 23, 42, 0.05)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
   height: "100%",
 };
 
@@ -302,12 +302,12 @@ const TeacherJournal = ({ subjectId, subject }) => {
       <Alert
         type="error"
         showIcon
-        message="Gagal memuat daftar kelas"
+        title="Gagal memuat daftar kelas"
         description={
           classError?.data?.message ||
           "Data kelas untuk jurnal mengajar belum bisa dimuat."
         }
-        style={{ borderRadius: 18 }}
+        style={{ borderRadius: museRadius.card }}
       />
     );
   }
@@ -315,7 +315,7 @@ const TeacherJournal = ({ subjectId, subject }) => {
   return (
     <Flex vertical gap={16}>
       <Card
-        style={{ borderRadius: 20 }}
+        style={{ borderRadius: museRadius.card }}
         styles={{ body: { padding: isMobile ? 16 : 20 } }}
       >
         <Flex vertical gap={16}>
@@ -435,12 +435,12 @@ const TeacherJournal = ({ subjectId, subject }) => {
                 style={{
                   width: 44,
                   height: 44,
-                  borderRadius: 14,
+                  borderRadius: museRadius.card,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "#e0f2fe",
-                  color: "#0369a1",
+                  background: museColors.primarySoft,
+                  color: museColors.primary,
                   flexShrink: 0,
                 }}
               >
@@ -461,7 +461,7 @@ const TeacherJournal = ({ subjectId, subject }) => {
         <Col xs={24} sm={12} md={8}>
           <Card size='small' style={statCardStyle}>
             <Text type='secondary'>Total Jurnal</Text>
-            <Title level={4} style={{ margin: "6px 0 0", color: "#1d4ed8" }}>
+            <Title level={4} style={{ margin: "6px 0 0", color: museColors.primary }}>
               {journals.length}
             </Title>
           </Card>
@@ -469,7 +469,7 @@ const TeacherJournal = ({ subjectId, subject }) => {
         <Col xs={24} sm={12} md={8}>
           <Card size='small' style={statCardStyle}>
             <Text type='secondary'>Kelas Tersedia</Text>
-            <Title level={4} style={{ margin: "6px 0 0", color: "#15803d" }}>
+            <Title level={4} style={{ margin: "6px 0 0", color: museColors.success }}>
               {classOptions.length || meta.total_classes || 0}
             </Title>
           </Card>
@@ -480,15 +480,15 @@ const TeacherJournal = ({ subjectId, subject }) => {
         <Alert
           type='error'
           showIcon
-          message='Gagal memuat jurnal pembelajaran'
+          title='Gagal memuat jurnal pembelajaran'
           description={
             journalError?.data?.message ||
             "Terjadi kendala saat mengambil data jurnal."
           }
-          style={{ borderRadius: 18 }}
+          style={{ borderRadius: museRadius.card }}
         />
       ) : (
-        <Card style={{ borderRadius: 20 }} styles={{ body: { padding: isMobile ? 12 : 0 } }}>
+        <Card style={{ borderRadius: museRadius.card }} styles={{ body: { padding: isMobile ? 12 : 0 } }}>
           <ResponsiveTable
             rowKey='id'
             columns={columns}

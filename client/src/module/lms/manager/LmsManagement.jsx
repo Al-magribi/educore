@@ -1,33 +1,7 @@
 import React, { Suspense, lazy, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import {
-  Avatar,
-  Card,
-  Col,
-  Empty,
-  Flex,
-  Grid,
-  Input,
-  Row,
-  Skeleton,
-  Space,
-  Button,
-  Statistic,
-  Tag,
-  Typography,
-} from "antd";
-import {
-  BookCopy,
-  BookOpen,
-  Layers,
-  Search,
-  Users,
-  GraduationCap,
-  ArrowLeft,
-  Sparkles,
-  Target,
-} from "lucide-react";
-import { motion } from "framer-motion";
+import { Button, Col, Empty, Flex, Grid, Row, Skeleton, Tag, Typography } from "antd";
+import { ArrowLeft, BookOpen, Layers, Library, Users } from "lucide-react";
 import { useGetSubjectsQuery } from "../../../service/lms/ApiLms";
 import {
   canManageKurikulum,
@@ -35,71 +9,21 @@ import {
 } from "../../../utils/staffAssignment";
 import { useSearchParams } from "react-router-dom";
 import PageHeader from "../../../components/ui/PageHeader";
+import { IconBox, MuseCard } from "../../../components/ui/muse";
+import { DataListCard } from "../../../components/ui/muse/DataSection";
+import { museColors, museRadius } from "../../../config/theme";
+
 const TeacherView = lazy(() => import("./teacher/TeacherView"));
 const AdminView = lazy(() => import("./admin/AdminView"));
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.04,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.38,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const statCardStyle = {
-  borderRadius: 22,
-  border: "1px solid #e2e8f0",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-  height: "100%",
-};
-
-const sectionCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 16px 34px rgba(15, 23, 42, 0.05)",
-};
-
 const subjectCardStyle = {
-  borderRadius: 22,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
   height: "100%",
-  cursor: "pointer",
+  borderRadius: museRadius.item,
+  border: `1px solid ${museColors.divider}`,
 };
-
-const iconWrapStyle = (background, color) => ({
-  width: 48,
-  height: 48,
-  borderRadius: 16,
-  background,
-  color,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.45)",
-});
 
 const LmsManagement = () => {
   const { user } = useSelector((state) => state.auth);
@@ -116,7 +40,7 @@ const LmsManagement = () => {
 
   const [searchText, setSearchText] = useState("");
   const { data: subjectsRes, isLoading } = useGetSubjectsQuery();
-  const subjects = subjectsRes?.data || [];
+  const subjects = useMemo(() => subjectsRes?.data || [], [subjectsRes]);
 
   const filteredSubjects = useMemo(() => {
     if (!searchText) return subjects;
@@ -144,339 +68,164 @@ const LmsManagement = () => {
   const activeSubject = subjects.find(
     (item) => String(item.id) === String(subject_id),
   );
+  const isDetail = Boolean(view && subject_id);
 
-  const summaryStats = useMemo(() => {
-    const categoryCount = new Set(
-      subjects.map((item) => item?.category_name).filter(Boolean),
-    ).size;
-    const branchCount = new Set(
-      subjects.map((item) => item?.branch_name).filter(Boolean),
-    ).size;
-    const classCount = new Set(
-      subjects.flatMap((item) => item?.class_names || []).filter(Boolean),
-    ).size;
-
-    return [
-      {
-        key: "subjects",
-        title: "Total Pelajaran",
-        value: subjects.length,
-        suffix: "mapel",
-        icon: <BookCopy size={20} />,
-        bg: "#dbeafe",
-        color: "#1d4ed8",
-      },
-      {
-        key: "categories",
-        title: "Kategori",
-        value: categoryCount,
-        suffix: "kategori",
-        icon: <Layers size={20} />,
-        bg: "#dcfce7",
-        color: "#15803d",
-      },
-      {
-        key: "search",
-        title: "Hasil Tersaring",
-        value: filteredSubjects.length,
-        suffix: "mapel",
-        icon: <Target size={20} />,
-        bg: "#fef3c7",
-        color: "#b45309",
-      },
-      {
-        key: isTeacher ? "classes" : "branches",
-        title: isTeacher ? "Cakupan Kelas" : "Cabang",
-        value: isTeacher ? classCount : branchCount,
-        suffix: isTeacher ? "kelas" : "cabang",
-        icon: isTeacher ? <Users size={20} /> : <Sparkles size={20} />,
-        bg: isTeacher ? "#ede9fe" : "#fae8ff",
-        color: isTeacher ? "#6d28d9" : "#a21caf",
-      },
-    ];
-  }, [filteredSubjects.length, isTeacher, subjects]);
-
-  const handleDetail = (view, subject_id) => {
-    setSearchParams({ view: view, subject_id });
+  const handleDetail = (nextView, nextSubjectId) => {
+    setSearchParams({ view: nextView, subject_id: nextSubjectId });
   };
 
   const handleReset = () => setSearchParams({});
 
-  return (
-    <motion.div
-      initial='hidden'
-      animate='show'
-      variants={containerVariants}
-      style={{ display: "flex", flexDirection: "column", gap: 20 }}
-    >
-      <title>Daftar Pelajaran</title>
-      <motion.div variants={itemVariants}>
-        <PageHeader
-          title={
-            view && subject_id
-              ? activeSubject?.name || "Detail Pelajaran"
-              : "Kelola Mata Pelajaran"
-          }
-          description={roleHint}
-          meta={
-            <Flex gap={8} wrap='wrap'>
-              <Tag>Akses {roleLabel}</Tag>
-              <Tag>
-                {view && subject_id
-                  ? "Detail pelajaran"
-                  : `${subjects.length} pelajaran tersedia`}
-              </Tag>
-            </Flex>
-          }
-          extra={
-            <>
-              {view && subject_id ? (
-                <Button icon={<ArrowLeft size={16} />} onClick={handleReset}>
-                  Kembali
-                </Button>
-              ) : null}
-              <Input
-                allowClear
-                value={searchText}
-                placeholder='Cari pelajaran, kategori, atau cabang...'
-                prefix={<Search size={16} />}
-                onChange={(e) => setSearchText(e.target.value)}
-                style={{ width: isMobile ? "100%" : 320 }}
-              />
-            </>
+  const renderCatalog = () => {
+    if (isLoading) {
+      return (
+        <Row gutter={[16, 16]} style={{ padding: 16 }}>
+          {[1, 2, 3, 4, 5, 6].map((key) => (
+            <Col xs={24} sm={12} lg={8} xl={6} key={key}>
+              <Skeleton active paragraph={{ rows: 3 }} />
+            </Col>
+          ))}
+        </Row>
+      );
+    }
+
+    if (filteredSubjects.length === 0) {
+      return (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          style={{ padding: "32px 16px" }}
+          description={
+            searchText
+              ? `Tidak ada pelajaran yang cocok dengan "${searchText}". Coba kata kunci lain.`
+              : isTeacher
+                ? "Belum ada pelajaran yang Anda ampu. Hubungi bagian kurikulum untuk penugasan mapel."
+                : "Belum ada pelajaran terdaftar. Tambahkan mapel di menu Data Akademik."
           }
         />
-      </motion.div>
+      );
+    }
 
-      {view && subject_id ? (
-        <motion.div variants={itemVariants}>
-          <Suspense
-            fallback={
-              <Card variant='borderless' style={sectionCardStyle}>
-                <Skeleton active paragraph={{ rows: 4 }} />
-              </Card>
-            }
-          >
-            {isTeacher &&
-            (!canKurikulum ||
-              teacherOwnsSubject(user, subject_id) ||
-              activeSubject?.taught_by_me) ? (
-              <TeacherView subjectId={subject_id} subject={activeSubject} />
-            ) : (
-              <AdminView subjectId={subject_id} subject={activeSubject} />
-            )}
-          </Suspense>
-        </motion.div>
-      ) : isLoading ? (
-        <motion.div variants={itemVariants}>
-          <Row gutter={[16, 16]}>
-            {[1, 2, 3, 4, 5, 6].map((key) => (
-              <Col xs={24} sm={12} lg={8} xl={6} key={key}>
-                <Card variant='borderless' style={subjectCardStyle}>
-                  <Skeleton active paragraph={{ rows: 3 }} />
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </motion.div>
-      ) : filteredSubjects.length === 0 ? (
-        <motion.div variants={itemVariants}>
-          <Card variant='borderless' style={sectionCardStyle}>
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                searchText
-                  ? `Tidak ada pelajaran yang cocok dengan pencarian "${searchText}".`
-                  : isTeacher
-                    ? "Belum ada pelajaran yang Anda ampu."
-                    : "Belum ada pelajaran terdaftar."
-              }
-            />
-          </Card>
-        </motion.div>
-      ) : (
-        <motion.div variants={itemVariants}>
-          <Card
-            variant='borderless'
-            style={sectionCardStyle}
-            styles={{ body: { padding: isMobile ? 18 : 22 } }}
-          >
-            <Flex
-              justify='space-between'
-              align={isMobile ? "flex-start" : "center"}
-              wrap='wrap'
-              gap={12}
-              style={{ marginBottom: 18 }}
+    return (
+      <Row gutter={[16, 16]} style={{ padding: isMobile ? 12 : 16 }}>
+        {filteredSubjects.map((item) => (
+          <Col xs={24} sm={12} lg={8} xl={6} key={item.id}>
+            <MuseCard
+              hoverable
+              onClick={() => handleDetail(isTeacher ? "teacher" : "admin", item.id)}
+              style={{ ...subjectCardStyle, boxShadow: "none" }}
             >
-              <div>
-                <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
-                  Katalog Pelajaran
-                </Title>
-                <Text type='secondary'>
-                  Pilih pelajaran untuk membuka ringkasan, rekap, dan
-                  pengelolaan detail.
-                </Text>
-              </div>
-              <Tag
-                style={{
-                  marginRight: 0,
-                  borderRadius: 999,
-                  paddingInline: 12,
-                  background: "#eff6ff",
-                  borderColor: "#bfdbfe",
-                  color: "#1d4ed8",
-                }}
-              >
-                {filteredSubjects.length} ditampilkan
-              </Tag>
-            </Flex>
-
-            <Row gutter={[16, 16]}>
-              {filteredSubjects.map((item) => (
-                <Col xs={24} sm={12} lg={8} xl={6} key={item.id}>
-                  <motion.div
-                    variants={itemVariants}
-                    whileHover={{ y: -6 }}
-                    transition={{ duration: 0.22, ease: "easeOut" }}
-                    style={{ height: "100%" }}
-                  >
-                    <Card
-                      hoverable
-                      variant='borderless'
-                      onClick={() =>
-                        handleDetail(isTeacher ? "teacher" : "admin", item.id)
-                      }
-                      style={{
-                        ...subjectCardStyle,
-                        borderRadius: isMobile ? 18 : 22,
-                      }}
-                      styles={{ body: { padding: isMobile ? 16 : 18 } }}
+              <Flex vertical gap={12}>
+                <Flex align='center' gap={12}>
+                  <IconBox icon={<BookOpen size={20} />} size={40} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                      strong
+                      ellipsis={{ tooltip: item.name }}
+                      style={{ display: "block", fontSize: 14 }}
                     >
-                      <Flex vertical justify='space-between' gap={16}>
-                        <Flex align='start' gap={14}>
-                          <div style={iconWrapStyle("#dcfce7", "#15803d")}>
-                            <BookOpen size={20} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <Text
-                              strong
-                              style={{
-                                fontSize: 15,
-                                color: "#0f172a",
-                                display: "block",
-                                lineHeight: 1.45,
-                              }}
-                              title={item.name}
-                            >
-                              {item.name}
-                            </Text>
-                            <Text
-                              type='secondary'
-                              style={{
-                                fontSize: 12,
-                                display: "block",
-                                marginTop: 4,
-                              }}
-                            >
-                              Kode: {item.code || "-"}
-                            </Text>
-                          </div>
-                        </Flex>
+                      {item.name}
+                    </Text>
+                    <Text type='secondary' style={{ fontSize: 12 }}>
+                      Kode: {item.code || "-"} · KKM {item.kkm ?? "-"}
+                    </Text>
+                  </div>
+                </Flex>
 
-                        <Space size={[8, 8]} wrap>
-                          <Tag
-                            style={{
-                              borderRadius: 999,
-                              marginRight: 0,
-                              background: "#eff6ff",
-                              borderColor: "#bfdbfe",
-                              color: "#1d4ed8",
-                            }}
-                            icon={<Layers size={13} />}
-                          >
-                            {item.category_name || "Umum"}
-                          </Tag>
-                          {item.branch_name ? (
-                            <Tag
-                              style={{
-                                borderRadius: 999,
-                                marginRight: 0,
-                                background: "#ecfeff",
-                                borderColor: "#a5f3fc",
-                                color: "#0f766e",
-                              }}
-                            >
-                              {item.branch_name}
-                            </Tag>
-                          ) : null}
-                        </Space>
+                <Flex gap={6} wrap>
+                  <Tag icon={<Layers size={12} />} style={{ marginRight: 0 }}>
+                    {item.category_name || "Umum"}
+                  </Tag>
+                  {item.branch_name ? (
+                    <Tag color='cyan' style={{ marginRight: 0 }}>
+                      {item.branch_name}
+                    </Tag>
+                  ) : null}
+                  {isTeacher && item.class_names?.length > 0 ? (
+                    <Tag color='green' icon={<Users size={12} />} style={{ marginRight: 0 }}>
+                      {item.class_names.length} Kelas
+                    </Tag>
+                  ) : null}
+                </Flex>
 
-                        <Flex
-                          justify='space-between'
-                          align={isMobile ? "flex-start" : "center"}
-                          wrap='wrap'
-                          gap={10}
-                          style={{
-                            padding: "12px 14px",
-                            borderRadius: 16,
-                            background: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                          }}
-                        >
-                          <div>
-                            <Text
-                              type='secondary'
-                              style={{ fontSize: 12, display: "block" }}
-                            >
-                              Target KKM
-                            </Text>
-                            <Text strong style={{ color: "#0f172a" }}>
-                              {item.kkm ?? "-"}
-                            </Text>
-                          </div>
-                          {isTeacher && item.class_names?.length > 0 ? (
-                            <Tag
-                              style={{
-                                borderRadius: 999,
-                                marginRight: 0,
-                                background: "#f0fdf4",
-                                borderColor: "#bbf7d0",
-                                color: "#15803d",
-                              }}
-                              icon={<Users size={13} />}
-                            >
-                              {item.class_names.length} Kelas
-                            </Tag>
-                          ) : (
-                            <Text type='secondary' style={{ fontSize: 12 }}>
-                              Siap dibuka
-                            </Text>
-                          )}
-                        </Flex>
+                {isTeacher && item.class_names?.length > 0 ? (
+                  <Text type='secondary' ellipsis={{ tooltip: item.class_names.join(", ") }} style={{ fontSize: 12 }}>
+                    {item.class_names.join(", ")}
+                  </Text>
+                ) : null}
+              </Flex>
+            </MuseCard>
+          </Col>
+        ))}
+      </Row>
+    );
+  };
 
-                        <Text
-                          type='secondary'
-                          style={{
-                            fontSize: 12,
-                            minHeight: isMobile ? "auto" : 34,
-                            display: "block",
-                            lineHeight: 1.45,
-                          }}
-                        >
-                          {isTeacher && item.class_names?.length > 0
-                            ? item.class_names.join(", ")
-                            : "Buka pelajaran ini untuk melihat pengelolaan dan rekap terkait."}
-                        </Text>
-                      </Flex>
-                    </Card>
-                  </motion.div>
-                </Col>
-              ))}
-            </Row>
-          </Card>
-        </motion.div>
+  const showTeacherView =
+    isTeacher &&
+    (!canKurikulum ||
+      teacherOwnsSubject(user, subject_id) ||
+      activeSubject?.taught_by_me);
+
+  const headerTitle = isDetail
+    ? activeSubject?.name || "Detail Pelajaran"
+    : "Kelola Mata Pelajaran";
+  const backButton = isDetail ? (
+    <Button icon={<ArrowLeft size={16} />} onClick={handleReset}>
+      Kembali ke Katalog
+    </Button>
+  ) : null;
+  const detailFallback = (
+    <MuseCard>
+      <Skeleton active paragraph={{ rows: 4 }} />
+    </MuseCard>
+  );
+
+  if (isDetail && showTeacherView) {
+    return (
+      <Suspense fallback={detailFallback}>
+        <title>{headerTitle}</title>
+        <TeacherView
+          subjectId={subject_id}
+          subject={activeSubject}
+          title={headerTitle}
+          description={roleHint}
+          extra={backButton}
+        />
+      </Suspense>
+    );
+  }
+
+  return (
+    <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
+      <title>{isDetail ? headerTitle : "Daftar Pelajaran"}</title>
+      <PageHeader
+        title={headerTitle}
+        description={roleHint}
+        meta={<Tag>Akses {roleLabel}</Tag>}
+        extra={backButton}
+      />
+
+      {isDetail ? (
+        <Suspense fallback={detailFallback}>
+          <AdminView subjectId={subject_id} subject={activeSubject} />
+        </Suspense>
+      ) : (
+        <DataListCard
+          title='Katalog Pelajaran'
+          icon={<Library size={18} />}
+          count={filteredSubjects.length}
+          unit='mapel'
+          description='Pilih pelajaran untuk membuka ringkasan, rekap, dan pengelolaan detail.'
+          searchProps={{
+            placeholder: "Cari pelajaran, kategori, atau cabang",
+            value: searchText,
+            onChange: (e) => setSearchText(e.target.value),
+          }}
+        >
+          {renderCatalog()}
+        </DataListCard>
       )}
-    </motion.div>
+    </Flex>
   );
 };
 

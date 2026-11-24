@@ -1,33 +1,33 @@
 import dayjs from 'dayjs';
-import { Button, Card, Col, Dropdown, Flex, Grid, Row, Statistic, Tag, Tooltip, Typography } from 'antd';
+import { Button, Col, Dropdown, Flex, Grid, Row, Tag, Tooltip, Typography } from 'antd';
 import { MoreVertical } from 'lucide-react';
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
+import { StatCard } from "../../../../components/ui/muse";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
 export const PAGE_SIZE_OPTIONS = ['12', '24', '48', '96'];
 
 export const surfaceCardStyle = {
-  borderRadius: 22,
-  border: '1px solid #e5edf6',
-  background: 'linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)',
-  boxShadow: '0 18px 36px rgba(15, 23, 42, 0.06)',
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
   width: '100%',
   minWidth: 0,
 };
 
 export const statCardStyle = {
-  borderRadius: 18,
-  border: '1px solid #e2ebf5',
+  borderRadius: museRadius.card,
   background: '#ffffff',
-  boxShadow: '0 12px 28px rgba(15, 23, 42, 0.05)',
+  boxShadow: museShadow.card,
   height: '100%',
   minWidth: 0,
 };
 
 /** Tighter card padding on phones so cards keep more usable width. */
 export const surfaceCardBodyStyles = (isMobile) => ({
-  body: { padding: isMobile ? 14 : 24 },
+  body: { padding: isMobile ? 12 : 16 },
 });
 
 export const useResponsiveFlags = () => {
@@ -124,7 +124,7 @@ export const ReportHeader = ({ title, description, isMobile, extra }) => (
     gap={12}
     style={{ width: '100%', minWidth: 0 }}>
     <Flex vertical gap={isMobile ? 8 : 10} style={{ minWidth: 0, flex: 1 }}>
-      <Text strong style={{ color: '#0f172a', fontSize: isMobile ? 15 : 16 }}>
+      <Text strong style={{ color: museColors.text, fontSize: isMobile ? 15 : 16 }}>
         {title}
       </Text>
       {description ? (
@@ -145,40 +145,15 @@ export const ReportHeader = ({ title, description, isMobile, extra }) => (
 );
 
 export const SummaryStatCard = ({ item, isMobile }) => (
-  <Card variant="borderless" style={statCardStyle} styles={{ body: { padding: isMobile ? 12 : 18 } }}>
-    <Flex justify="space-between" align="center" gap={8} style={{ minWidth: 0 }}>
-      <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
-        <Statistic
-          title={<span style={{ fontSize: isMobile ? 11 : 13 }}>{item.title}</span>}
-          value={item.value}
-          suffix={item.suffix}
-          styles={{
-            content: {
-              fontSize: isMobile ? 18 : 24,
-              lineHeight: 1.2,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            },
-            suffix: { fontSize: isMobile ? 11 : 13 },
-          }}
-        />
-      </div>
-      <span
-        style={{
-          width: isMobile ? 34 : 42,
-          height: isMobile ? 34 : 42,
-          borderRadius: 12,
-          display: 'grid',
-          placeItems: 'center',
-          background: item.bg,
-          color: item.color,
-          flexShrink: 0,
-        }}>
-        {item.icon}
-      </span>
-    </Flex>
-  </Card>
+  <StatCard
+    title={item.title}
+    value={item.value}
+    suffix={item.suffix}
+    note={item.note}
+    icon={item.icon}
+    tone={item.tone}
+    compact={isMobile}
+  />
 );
 
 export const StatCardGrid = ({ items, isMobile }) => {
@@ -187,7 +162,7 @@ export const StatCardGrid = ({ items, isMobile }) => {
     items.length === 5 ? { flex: '20%' } : items.length >= 4 ? 6 : items.length === 3 ? 8 : 12;
 
   return (
-    <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]} style={{ margin: 0, width: '100%' }}>
+    <Row gutter={[isMobile ? 16 : 24, isMobile ? 16 : 24]} style={{ width: '100%' }}>
       {items.map((item) => (
         <Col key={item.key} xs={12} sm={12} md={mdSpan} style={{ minWidth: 0 }}>
           <SummaryStatCard item={item} isMobile={isMobile} />

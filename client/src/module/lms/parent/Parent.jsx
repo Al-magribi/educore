@@ -14,6 +14,7 @@ import ParentCard from "./components/ParentCard";
 import ParentFilterBar from "./components/ParentFilterBar";
 import ParentFormDrawer from "./components/ParentFormDrawer";
 
+import { museRadius } from "../../../config/theme";
 const { Text } = Typography;
 
 const Parent = () => {
@@ -416,7 +417,7 @@ const Parent = () => {
 
   return (
     <Flex vertical gap={16} style={{ overflowX: "hidden" }}>
-      <Card variant="borderless" style={{ borderRadius: 14, overflow: "hidden" }}>
+      <Card variant="borderless" style={{ borderRadius: museRadius.card, overflow: "hidden" }}>
         <ParentFilterBar
           screens={screens}
           searchText={searchText}

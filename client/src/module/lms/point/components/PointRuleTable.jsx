@@ -21,13 +21,13 @@ import {
 } from "lucide-react";
 import { POINT_TYPE_LABELS } from "../utils/pointCatalog";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 
 const tableCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const TypeTag = ({ value }) => {
@@ -38,11 +38,10 @@ const TypeTag = ({ value }) => {
     <Tag
       style={{
         margin: 0,
-        borderRadius: 999,
         paddingInline: 10,
         borderColor: isReward ? "#fcd34d" : "#fecaca",
         background: isReward ? "#fffbeb" : "#fef2f2",
-        color: isReward ? "#a16207" : "#b91c1c",
+        color: isReward ? "#a16207" : museColors.danger,
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
@@ -58,11 +57,10 @@ const StatusTag = ({ active }) => (
   <Tag
     style={{
       margin: 0,
-      borderRadius: 999,
       paddingInline: 10,
-      borderColor: active ? "#bfdbfe" : "#e5e7eb",
-      background: active ? "#eff6ff" : "#f8fafc",
-      color: active ? "#1d4ed8" : "#64748b",
+      borderColor: active ? museColors.primarySoft : museColors.divider,
+      background: active ? museColors.primarySoft : museColors.bgLayout,
+      color: active ? museColors.primary : museColors.muted,
     }}
   >
     {active ? "Aktif" : "Nonaktif"}
@@ -157,10 +155,10 @@ const PointRuleTable = ({ dataSource, loading, isMobile, onEdit, onDelete }) => 
       dataIndex: "name",
       render: (_, record) => (
         <Flex vertical gap={4}>
-          <Text strong style={{ color: "#0f172a" }}>
+          <Text strong style={{ color: museColors.text }}>
             {record.name}
           </Text>
-          <Text style={{ color: "#64748b" }}>
+          <Text style={{ color: museColors.muted }}>
             {record.description || "Tidak ada deskripsi tambahan."}
           </Text>
         </Flex>
@@ -181,7 +179,7 @@ const PointRuleTable = ({ dataSource, loading, isMobile, onEdit, onDelete }) => 
         <Text
           strong
           style={{
-            color: record.point_type === "reward" ? "#a16207" : "#b91c1c",
+            color: record.point_type === "reward" ? "#a16207" : museColors.danger,
             fontSize: 16,
           }}
         >
@@ -228,7 +226,6 @@ const PointRuleTable = ({ dataSource, loading, isMobile, onEdit, onDelete }) => 
                   <Tag
                     style={{
                       margin: 0,
-                      borderRadius: 999,
                       fontWeight: 700,
                     }}
                   >
@@ -236,7 +233,7 @@ const PointRuleTable = ({ dataSource, loading, isMobile, onEdit, onDelete }) => 
                   </Tag>
                   <TypeTag value={group.point_type} />
                 </Space>
-                <Text style={{ color: "#64748b" }}>
+                <Text style={{ color: museColors.muted }}>
                   {group.rules.length} rule
                 </Text>
               </Flex>
@@ -247,8 +244,8 @@ const PointRuleTable = ({ dataSource, loading, isMobile, onEdit, onDelete }) => 
                     <Card
                       key={item.id}
                       style={{
-                        borderRadius: 16,
-                        border: "1px solid #e5edf6",
+                        borderRadius: museRadius.card,
+                        border: `1px solid ${museColors.divider}`,
                         boxShadow: "none",
                       }}
                       styles={{ body: { padding: 14 } }}
@@ -268,22 +265,22 @@ const PointRuleTable = ({ dataSource, loading, isMobile, onEdit, onDelete }) => 
                               color:
                                 item.point_type === "reward"
                                   ? "#a16207"
-                                  : "#b91c1c",
+                                  : museColors.danger,
                             }}
                           >
                             {item.point_value}
                           </Title>
                         </Flex>
                         <Paragraph
-                          style={{ margin: 0, color: "#64748b" }}
+                          style={{ margin: 0, color: museColors.muted }}
                           ellipsis={{ rows: 2 }}
                         >
                           {item.description || "Tidak ada deskripsi tambahan."}
                         </Paragraph>
                         <Flex justify='space-between' align='center'>
                           <Space size={8}>
-                            <BadgeInfo size={15} color='#64748b' />
-                            <Text style={{ color: "#64748b" }}>
+                            <BadgeInfo size={15} color={museColors.muted} />
+                            <Text style={{ color: museColors.muted }}>
                               Dipakai {item.usage_count || 0} transaksi
                             </Text>
                           </Space>

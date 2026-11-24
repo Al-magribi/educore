@@ -20,6 +20,7 @@ import {
   getScheduleInnerCardBody,
 } from "./scheduleAdminStyles";
 
+import { museColors } from "../../../../config/theme";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -110,7 +111,7 @@ const ScheduleReviewCard = ({
       <Alert
         showIcon
         type="warning"
-        message="Belum ada versi jadwal yang dipilih"
+        title="Belum ada versi jadwal yang dipilih"
       />
     );
   }
@@ -166,7 +167,7 @@ const ScheduleReviewCard = ({
             <Flex key={item.key} align="flex-start" gap={8}>
               <span style={{ flexShrink: 0, marginTop: 2 }}>
                 {item.ok ? (
-                  <CircleCheck size={16} color="#52c41a" />
+                  <CircleCheck size={16} color={museColors.success} />
                 ) : (
                   <CircleAlert size={16} color="#faad14" />
                 )}
@@ -182,7 +183,7 @@ const ScheduleReviewCard = ({
           <Alert
             showIcon
             type="success"
-            message="Versi ini adalah jadwal operasional"
+            title="Versi ini adalah jadwal operasional"
             description="Entri final berstatus published dan dipakai absensi RFID serta operasional sekolah. Perubahan yang Anda simpan langsung berlaku."
           />
         ) : (
@@ -190,7 +191,7 @@ const ScheduleReviewCard = ({
             <Alert
               showIcon
               type={failedChecks.length > 0 ? "warning" : "info"}
-              message={
+              title={
                 failedChecks.length > 0
                   ? "Masih ada catatan sebelum aktivasi"
                   : "Versi ini siap diaktifkan"
@@ -211,7 +212,7 @@ const ScheduleReviewCard = ({
               >
                 <Button
                   type="primary"
-                  size={isNarrow ? "middle" : "large"}
+                  size={isNarrow ? "small" : "middle"}
                   icon={<Rocket size={16} />}
                   loading={activatingConfig}
                   block={isNarrow}

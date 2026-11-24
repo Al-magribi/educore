@@ -35,6 +35,7 @@ import useTeachingModuleActions from "../useTeachingModuleActions";
 import { SOURCE_META } from "../sourceMeta";
 import ResponsiveTable from "../../../../components/ui/ResponsiveTable";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -107,7 +108,7 @@ const ModuleItem = ({ module, actions }) => {
         padding: "8px 12px",
         borderRadius: 10,
         background: "#fff",
-        border: "1px solid #e2e8f0",
+        border: `1px solid ${museColors.divider}`,
       }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -239,8 +240,8 @@ const TeachingModuleMonitoring = () => {
         title: "Total Guru",
         value: teachers.length,
         icon: <Users size={18} />,
-        bg: "#dbeafe",
-        color: "#1d4ed8",
+        bg: museColors.primarySoft,
+        color: museColors.primary,
       },
       {
         key: "created",
@@ -248,7 +249,7 @@ const TeachingModuleMonitoring = () => {
         value: teachers.filter((item) => item.created_count > 0).length,
         icon: <FilePen size={18} />,
         bg: "#dcfce7",
-        color: "#15803d",
+        color: museColors.success,
       },
       {
         key: "uploaded",
@@ -256,7 +257,7 @@ const TeachingModuleMonitoring = () => {
         value: teachers.filter((item) => item.uploaded_count > 0).length,
         icon: <FileUp size={18} />,
         bg: "#ede9fe",
-        color: "#6d28d9",
+        color: museColors.purple,
       },
       {
         key: "empty",
@@ -264,7 +265,7 @@ const TeachingModuleMonitoring = () => {
         value: teachers.length - withModule,
         icon: <CircleAlert size={18} />,
         bg: "#fee2e2",
-        color: "#b91c1c",
+        color: museColors.danger,
       },
     ];
   }, [teachers]);
@@ -340,15 +341,15 @@ const TeachingModuleMonitoring = () => {
   return (
     <Flex vertical gap={16}>
       <title>Monitoring Modul Ajar</title>
-      <Card style={{ borderRadius: 16 }}>
+      <Card style={{ borderRadius: museRadius.card }}>
         <Flex align='center' gap={12}>
           <div
             style={{
               width: 44,
               height: 44,
               borderRadius: 12,
-              background: "#e0f2fe",
-              color: "#0369a1",
+              background: museColors.primarySoft,
+              color: museColors.primary,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -372,7 +373,7 @@ const TeachingModuleMonitoring = () => {
       <Row gutter={[12, 12]}>
         {stats.map((item) => (
           <Col xs={12} lg={6} key={item.key}>
-            <Card style={{ borderRadius: 14, height: "100%" }}>
+            <Card style={{ borderRadius: museRadius.card, height: "100%" }}>
               <Flex align='center' gap={12}>
                 <div
                   style={{
@@ -400,12 +401,12 @@ const TeachingModuleMonitoring = () => {
         ))}
       </Row>
 
-      <Card style={{ borderRadius: 16 }}>
+      <Card style={{ borderRadius: museRadius.card }}>
         <Flex vertical gap={14}>
           <Flex gap={12} wrap='wrap' vertical={isMobile}>
             <Input
               allowClear
-              prefix={<Search size={15} color='#64748b' />}
+              prefix={<Search size={15} color={museColors.muted} />}
               placeholder='Cari nama atau NIP guru'
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}

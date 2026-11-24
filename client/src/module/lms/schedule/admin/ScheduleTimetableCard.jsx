@@ -31,6 +31,7 @@ import {
   getScheduleModalWidth,
 } from "./scheduleAdminStyles";
 
+import { museColors } from "../../../../config/theme";
 const DAY_OPTIONS = [
   { value: 1, label: "Senin" },
   { value: 2, label: "Selasa" },
@@ -757,7 +758,7 @@ const ScheduleTimetableCard = ({
           <Alert
             showIcon
             type="warning"
-            message="Anda melihat master jadwal yang tidak aktif"
+            title="Anda melihat master jadwal yang tidak aktif"
             description={
               activeConfigName
                 ? `Absensi RFID dan operasional sekolah memakai master aktif: "${activeConfigName}". Entri di master ini belum menjadi jadwal operasional sampai diaktifkan.`
@@ -787,8 +788,8 @@ const ScheduleTimetableCard = ({
             style={SCHEDULE_INNER_CARD_STYLE}
             styles={{
               header: {
-                background: "#f8fbff",
-                borderBottom: "1px solid #e2e8f0",
+                background: museColors.bgLayout,
+                borderBottom: `1px solid ${museColors.divider}`,
               },
               body: { padding: 0, overflow: "hidden" },
             }}
@@ -936,14 +937,14 @@ const ScheduleTimetableCard = ({
             <Alert
               type='warning'
               showIcon
-              message={`${editing.class_name} | ${editing.subject_name}`}
+              title={`${editing.class_name} | ${editing.subject_name}`}
               description={`Guru: ${editing.teacher_name}. Perubahan pada jadwal ini akan dicatat sebagai penyesuaian manual.`}
             />
           ) : modalMode === "create" ? (
             <Alert
               type='info'
               showIcon
-              message='Tambahkan jadwal final secara manual'
+              title='Tambahkan jadwal final secara manual'
               description='Pilih guru, mapel, dan kelas dari alokasi mengajar, lalu tentukan hari, slot mulai, dan jumlah sesi.'
             />
           ) : null}

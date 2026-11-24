@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Button, Card, Flex, Grid, Skeleton, Tabs, Typography, theme } from "antd";
-import { motion } from "framer-motion";
+import { Button, Flex, Skeleton } from "antd";
 import {
   BookOpenCheck,
   CalendarClock,
@@ -14,17 +13,14 @@ import PolicySettingsTab from "./tabs/PolicySettingsTab";
 import DeviceSettingsTab from "./tabs/DeviceSettingsTab";
 import AssignmentPolicyTab from "./tabs/AssignmentPolicyTab";
 import AttendanceGuideModal from "./AttendanceGuideModal";
-import { containerVariants, itemVariants } from "./configShared";
 import PageHeader from "../../../../components/ui/PageHeader";
+import { MuseCard, PageTabs } from "../../../../components/ui/muse";
 
-const { Text, Title } = Typography;
-const { useBreakpoint } = Grid;
-const MotionDiv = motion.div;
+const PAGE_TITLE = "Konfigurasi Presensi RFID";
+const PAGE_DESCRIPTION =
+  "Kelola fitur, policy absensi harian, dan perangkat RFID dalam satu workspace.";
 
 const AttendanceConfig = () => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
-  const { token } = theme.useToken();
   const [guideOpen, setGuideOpen] = useState(false);
 
   const {
@@ -34,7 +30,14 @@ const AttendanceConfig = () => {
   } = useGetAttendanceConfigQuery();
 
   if (loadingBootstrap) {
-    return <Skeleton active paragraph={{ rows: 8 }} />;
+    return (
+      <Flex vertical gap={24}>
+        <PageHeader title={PAGE_TITLE} description={PAGE_DESCRIPTION} />
+        <MuseCard>
+          <Skeleton active paragraph={{ rows: 8 }} />
+        </MuseCard>
+      </Flex>
+    );
   }
 
   const featureRows = bootstrap?.data?.features || [];
@@ -42,58 +45,20 @@ const AttendanceConfig = () => {
   const deviceRows = bootstrap?.data?.devices || [];
   const classRows = bootstrap?.data?.classes || [];
 
-  const createTabLabel = (label, icon, caption) => (
-    <Flex align='center' gap={10}>
-      <span
-        style={{
-          width: 34,
-          height: 34,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: 12,
-          background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
-          color: "#0369a1",
-          border: "1px solid rgba(148, 163, 184, 0.14)",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
-      <Flex vertical gap={0}>
-        <span style={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</span>
-        {!isMobile && (
-          <span
-            style={{
-              fontSize: 12,
-              color: token.colorTextSecondary,
-              lineHeight: 1.2,
-            }}
-          >
-            {caption}
-          </span>
-        )}
-      </Flex>
-    </Flex>
-  );
-
   const items = [
     {
-      label: createTabLabel(
-        "Fitur",
-        <Settings2 size={16} />,
-        "Konfigurasi aktif",
-      ),
       key: "fitur",
-      children: <FeatureSettingsTab featureRows={featureRows} />,
+      label: "Fitur",
+      icon: <Settings2 />,
+      description: "Aktifkan fitur presensi, kalender libur, dan notifikasi Telegram.",
+      render: () => <FeatureSettingsTab featureRows={featureRows} />,
     },
     {
-      label: createTabLabel(
-        "Policy",
-        <CalendarClock size={16} />,
-        "Aturan absensi",
-      ),
       key: "policy",
-      children: (
+      label: "Policy",
+      icon: <CalendarClock />,
+      description: "Atur jam masuk, toleransi telat, dan jam pulang per hari.",
+      render: () => (
         <PolicySettingsTab
           fallbackPolicies={policyRows}
           loadingFallback={fetchingBootstrap}
@@ -101,9 +66,11 @@ const AttendanceConfig = () => {
       ),
     },
     {
-      label: createTabLabel("Device RFID", <Cpu size={16} />, "Manajemen alat"),
       key: "device",
-      children: (
+      label: "Device RFID",
+      icon: <Cpu />,
+      description: "Daftarkan dan pantau alat RFID di gerbang atau kelas.",
+      render: () => (
         <DeviceSettingsTab
           fallbackDevices={deviceRows}
           classRows={classRows}
@@ -112,64 +79,31 @@ const AttendanceConfig = () => {
       ),
     },
     {
-      label: createTabLabel(
-        "Assignment",
-        <Network size={16} />,
-        "Pemetaan policy",
-      ),
       key: "assignment",
-      children: <AssignmentPolicyTab />,
+      label: "Assignment",
+      icon: <Network />,
+      description: "Petakan policy ke siswa, guru, atau tendik.",
+      render: () => <AssignmentPolicyTab />,
     },
   ];
 
   return (
-    <MotionDiv
-      initial='hidden'
-      animate='show'
-      variants={containerVariants}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-        padding: isMobile ? 0 : "0 4px 12px",
-      }}
-    >
-      <MotionDiv variants={itemVariants}>
-        <PageHeader
-          title='Konfigurasi Presensi RFID'
-          description='Kelola fitur, policy absensi harian, dan perangkat RFID dalam satu workspace.'
-          extra={
-            <Button
-              icon={<BookOpenCheck size={16} />}
-              onClick={() => setGuideOpen(true)}
-            >
-              Panduan Presensi
-            </Button>
-          }
-        />
-      </MotionDiv>
-
-      <MotionDiv variants={itemVariants}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: token.borderRadiusXL,
-            boxShadow: token.boxShadowSecondary,
-          }}
-          styles={{ body: { padding: isMobile ? 12 : 16 } }}
-        >
-          <Tabs
-            items={items}
-            defaultActiveKey='fitur'
-            size={isMobile ? "middle" : "large"}
-            tabBarGutter={8}
-            tabBarStyle={{ marginBottom: 20, paddingBottom: 8 }}
-          />
-        </Card>
-      </MotionDiv>
-
+    <>
+      <PageTabs
+        title={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
+        items={items}
+        extra={
+          <Button
+            icon={<BookOpenCheck size={16} />}
+            onClick={() => setGuideOpen(true)}
+          >
+            Panduan Presensi
+          </Button>
+        }
+      />
       <AttendanceGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
-    </MotionDiv>
+    </>
   );
 };
 

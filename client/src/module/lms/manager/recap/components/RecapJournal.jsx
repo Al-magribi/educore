@@ -36,13 +36,13 @@ import {
   useRecapLayout,
 } from "./recapStyles";
 
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 const { Title, Text } = Typography;
 
 const statCardStyle = {
-  borderRadius: 18,
-  border: "1px solid rgba(148, 163, 184, 0.14)",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 16px 32px rgba(15, 23, 42, 0.05)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
   height: "100%",
   minWidth: 0,
 };
@@ -210,14 +210,14 @@ const RecapJournal = ({
       label: "Total Jurnal",
       value: summaryData?.meta?.total_journals || 0,
       level: 4,
-      color: "#1d4ed8",
+      color: museColors.primary,
     },
     {
       key: "teachers",
       label: "Guru Pengisi",
       value: summaryData?.meta?.total_teachers || 0,
       level: 4,
-      color: "#15803d",
+      color: museColors.success,
     },
   ];
 

@@ -33,6 +33,7 @@ import {
   useSubmitAttendanceMutation,
 } from "../../../../../service/lms/ApiAttendance";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const EMPTY_LIST = [];
@@ -43,12 +44,12 @@ const STATUS_OPTIONS = [
     label: "Hadir",
     short: "H",
     color: "green",
-    hex: "#16a34a",
+    hex: museColors.success,
   },
   { value: "Telat", label: "Telat", short: "T", color: "gold", hex: "#ca8a04" },
-  { value: "Sakit", label: "Sakit", short: "S", color: "cyan", hex: "#0891b2" },
-  { value: "Izin", label: "Izin", short: "I", color: "blue", hex: "#2563eb" },
-  { value: "Alpa", label: "Alpa", short: "A", color: "red", hex: "#dc2626" },
+  { value: "Sakit", label: "Sakit", short: "S", color: "cyan", hex: museColors.cyan },
+  { value: "Izin", label: "Izin", short: "I", color: "blue", hex: museColors.primary },
+  { value: "Alpa", label: "Alpa", short: "A", color: "red", hex: museColors.danger },
 ];
 
 const normalizeStatus = (status) => {
@@ -111,7 +112,7 @@ const StatusHeader = ({ option, onClick, disabled, compact = false }) => (
       {option.short}
     </span>
     {!compact ? (
-      <span style={{ fontSize: 12, color: "#475569", fontWeight: 500 }}>
+      <span style={{ fontSize: 12, color: museColors.muted, fontWeight: 500 }}>
         {option.label}
       </span>
     ) : null}
@@ -463,7 +464,7 @@ const Attendance = ({ subjectId, subject }) => {
             <Text strong style={{ overflowWrap: "anywhere" }}>
               {record.full_name}
             </Text>
-            <div style={{ color: "#667085", fontSize: 12 }}>
+            <div style={{ color: museColors.muted, fontSize: 12 }}>
               NIS {record.nis || "-"}
             </div>
             {record.daily_leave ? (
@@ -534,8 +535,8 @@ const Attendance = ({ subjectId, subject }) => {
       <div
         style={{
           padding: "10px 12px",
-          borderBottom: "1px solid #f0f0f0",
-          background: "#fafafa",
+          borderBottom: `1px solid ${museColors.divider}`,
+          background: museColors.bgLayout,
         }}
       >
         <Flex align='center' justify='space-between' gap={8} wrap='wrap'>
@@ -586,8 +587,8 @@ const Attendance = ({ subjectId, subject }) => {
               key={record.student_id}
               style={{
                 padding: "12px 12px 14px",
-                borderBottom: "1px solid #f0f0f0",
-                background: checked ? "#f8fbff" : "#fff",
+                borderBottom: `1px solid ${museColors.divider}`,
+                background: checked ? museColors.bgLayout : "#fff",
               }}
             >
               <Flex align='flex-start' gap={10}>
@@ -694,12 +695,12 @@ const Attendance = ({ subjectId, subject }) => {
       <Alert
         type='error'
         showIcon
-        message='Gagal memuat daftar kelas'
+        title='Gagal memuat daftar kelas'
         description={
           classError?.data?.message ||
           "Data kelas untuk absensi belum bisa dimuat."
         }
-        style={{ borderRadius: 16 }}
+        style={{ borderRadius: museRadius.card }}
       />
     );
   }
@@ -707,7 +708,7 @@ const Attendance = ({ subjectId, subject }) => {
   return (
     <Flex vertical gap={isMobile ? 12 : 16} style={{ width: "100%", minWidth: 0 }}>
       <Card
-        style={{ borderRadius: 16, width: "100%" }}
+        style={{ borderRadius: museRadius.card, width: "100%" }}
         styles={{ body: { padding: isMobile ? 12 : 20 } }}
       >
         <Flex
@@ -848,19 +849,19 @@ const Attendance = ({ subjectId, subject }) => {
         <Alert
           type='info'
           showIcon
-          message='Pilih kelas untuk mulai mengisi absensi.'
-          style={{ borderRadius: 16 }}
+          title='Pilih kelas untuk mulai mengisi absensi.'
+          style={{ borderRadius: museRadius.card }}
         />
       ) : isAttendanceError ? (
         <Alert
           type='error'
           showIcon
-          message='Gagal memuat data absensi'
+          title='Gagal memuat data absensi'
           description={
             attendanceError?.data?.message ||
             "Terjadi kendala saat mengambil daftar siswa."
           }
-          style={{ borderRadius: 16 }}
+          style={{ borderRadius: museRadius.card }}
           action={
             <Button size='small' onClick={() => refetch()}>
               Coba lagi
@@ -869,14 +870,14 @@ const Attendance = ({ subjectId, subject }) => {
         />
       ) : (
         <Card
-          style={{ borderRadius: 16, width: "100%", overflow: "hidden" }}
+          style={{ borderRadius: museRadius.card, width: "100%", overflow: "hidden" }}
           styles={{ body: { padding: 0 } }}
           loading={isFetching && !filteredRows.length}
         >
           <Alert
             type='info'
             showIcon={!isCompact}
-            message={
+            title={
               isCompact
                 ? "Status tersimpan otomatis saat dipilih."
                 : "Perubahan status langsung tersimpan otomatis. Tidak perlu menekan tombol simpan."
@@ -884,7 +885,7 @@ const Attendance = ({ subjectId, subject }) => {
             style={{
               borderRadius: 0,
               border: "none",
-              borderBottom: "1px solid #f0f0f0",
+              borderBottom: `1px solid ${museColors.divider}`,
             }}
           />
           {isMobile ? (

@@ -1,3 +1,5 @@
+import { museCardStyle, museColors, museRadius } from "../../../../config/theme";
+
 export const DAY_OPTIONS = [
   { label: "Senin", value: 1 },
   { label: "Selasa", value: 2 },
@@ -108,16 +110,11 @@ export const itemVariants = {
   },
 };
 
-export const shellCardStyle = {
-  borderRadius: 20,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
-};
+export const shellCardStyle = museCardStyle;
 
 export const innerCardStyle = {
-  borderRadius: 16,
-  border: "1px solid #e8eef6",
+  borderRadius: museRadius.item,
+  border: `1px solid ${museColors.divider}`,
   background: "#ffffff",
 };
 

@@ -2,6 +2,7 @@ import React from "react";
 import { Card, Empty, Flex, List, Tag, Typography } from "antd";
 import { recordCardStyle } from "./recapStyles";
 
+import { museColors } from "../../../../../config/theme";
 const { Text, Title } = Typography;
 
 export const RecapSectionHeader = ({ title, description, tags, isMobile }) => (
@@ -94,8 +95,8 @@ export const RecordCard = ({ index, title, subtitle, extra, children }) => (
                 borderRadius: 8,
                 display: "grid",
                 placeItems: "center",
-                background: "#f1f5fb",
-                color: "#475569",
+                background: museColors.bgLayout,
+                color: museColors.muted,
                 fontSize: 12,
                 fontWeight: 700,
               }}
@@ -145,8 +146,8 @@ export const MetricGrid = ({ items = [], columns = 2 }) => {
           key={item.key}
           style={{
             borderRadius: 10,
-            border: "1px solid #eef2f7",
-            background: "#f8fafc",
+            border: `1px solid ${museColors.divider}`,
+            background: museColors.bgLayout,
             padding: "8px 10px",
             minWidth: 0,
           }}
@@ -162,7 +163,7 @@ export const MetricGrid = ({ items = [], columns = 2 }) => {
               marginTop: 3,
               fontSize: 13,
               fontWeight: 600,
-              color: "#0f172a",
+              color: museColors.text,
               lineHeight: 1.3,
             }}
           >

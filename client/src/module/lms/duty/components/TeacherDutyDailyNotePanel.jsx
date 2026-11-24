@@ -3,14 +3,15 @@ import { Button, Card, Flex, Input, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
 import { FileText, Save } from "lucide-react";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
+import { IconBox } from "../../../../components/ui/muse";
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 
 const panelCardStyle = {
-  borderRadius: 22,
-  border: "1px solid #e7eef6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.05)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const statPillStyle = {
@@ -58,23 +59,9 @@ const TeacherDutyDailyNotePanel = ({
             >
               <div>
                 <Space size={10} align='center'>
-                  <div
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 14,
-                      background: "linear-gradient(135deg, #2563eb, #38bdf8)",
-                      color: "#fff",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <FileText size={18} />
-                  </div>
+                  <IconBox icon={<FileText size={20} />} size={40} />
                   <div>
-                    <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+                    <Title level={5} style={{ margin: 0, color: museColors.text }}>
                       Editor Catatan Harian
                     </Title>
                     <Text type='secondary'>
@@ -90,10 +77,9 @@ const TeacherDutyDailyNotePanel = ({
                 icon={<Save size={14} />}
                 onClick={onSave}
                 loading={saving}
-                size='large'
                 style={{
                   width: isMobile ? "100%" : "auto",
-                  borderRadius: 14,
+                  borderRadius: museRadius.card,
                   boxShadow: "0 12px 28px rgba(37, 99, 235, 0.18)",
                 }}
               >
@@ -104,14 +90,14 @@ const TeacherDutyDailyNotePanel = ({
             <Card
               size='small'
               style={{
-                borderRadius: 18,
-                border: "1px solid #e6eef7",
-                background: "#f8fbff",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
+                background: museColors.bgLayout,
               }}
               styles={{ body: { padding: 16 } }}
             >
               <Flex vertical gap={8}>
-                <Text strong style={{ color: "#0f172a" }}>
+                <Text strong style={{ color: museColors.text }}>
                   Panduan isi catatan
                 </Text>
                 <Text type='secondary'>
@@ -129,7 +115,7 @@ const TeacherDutyDailyNotePanel = ({
               maxLength={2000}
               showCount
               style={{
-                borderRadius: 18,
+                borderRadius: museRadius.card,
                 padding: 16,
                 resize: "vertical",
                 fontSize: 14,

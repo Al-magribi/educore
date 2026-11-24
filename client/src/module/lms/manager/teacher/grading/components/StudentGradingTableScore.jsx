@@ -1,7 +1,14 @@
 ﻿import React from "react";
-import { Card, InputNumber, Space, Table, Typography } from "antd";
-import LoadApp from "../../../../../../components/loader/LoadApp";
+import {
+  Card,
+  InputNumber,
+  Space,
+  Table,
+  Typography,
+  Skeleton,
+} from "antd";
 
+import { museColors } from "../../../../../../config/theme";
 const { Text } = Typography;
 
 const StudentGradingTableScore = ({
@@ -65,7 +72,7 @@ const StudentGradingTableScore = ({
     <Card
       key={student.id}
       size="small"
-      style={{ borderRadius: 12, border: "1px solid #f0f0f0" }}
+      style={{ borderRadius: 12, border: `1px solid ${museColors.divider}` }}
       styles={{ body: { padding: 12 } }}
     >
       <Space orientation="vertical" size={8} style={{ width: "100%" }}>
@@ -94,7 +101,7 @@ const StudentGradingTableScore = ({
   );
 
   if (isFilterReady && isLoading) {
-    return <LoadApp />;
+    return <Skeleton active paragraph={{ rows: 6 }} />;
   }
 
   return isMobile ? (

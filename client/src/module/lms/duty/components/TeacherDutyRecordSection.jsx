@@ -1,13 +1,13 @@
 import React from "react";
 import { Button, Card, Empty, Flex, Table, Typography } from "antd";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const sectionCardStyle = {
-  borderRadius: 22,
-  border: "1px solid #e7eef6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.05)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const TeacherDutyRecordSection = ({
@@ -39,8 +39,8 @@ const TeacherDutyRecordSection = ({
       <div
         style={{
           padding: isMobile ? 16 : 20,
-          borderBottom: "1px solid #edf2f7",
-          background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+          borderBottom: `1px solid ${museColors.divider}`,
+          background: "#ffffff",
         }}
       >
         <Flex
@@ -50,7 +50,7 @@ const TeacherDutyRecordSection = ({
           gap={12}
         >
           <div style={{ minWidth: 0 }}>
-            <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+            <Title level={5} style={{ margin: 0, color: museColors.text }}>
               {title}
             </Title>
             <Text type='secondary'>{description}</Text>

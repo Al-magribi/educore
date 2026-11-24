@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 
+import { museRadius, museShadow } from "../../../../../config/theme";
+import { IconBox } from "../../../../../components/ui/muse";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -41,7 +43,7 @@ const StudentTaskList = ({
     return (
       <Card
         variant='borderless'
-        style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
+        style={{ borderRadius: museRadius.card, boxShadow: museShadow.card }}
         styles={{ body: { padding: isMobile ? 18 : 22 } }}
       >
         <Skeleton active paragraph={{ rows: 6 }} />
@@ -53,7 +55,7 @@ const StudentTaskList = ({
     return (
       <Card
         variant='borderless'
-        style={{ borderRadius: 24, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)" }}
+        style={{ borderRadius: museRadius.card, boxShadow: museShadow.card }}
         styles={{ body: { padding: isMobile ? 24 : 32 } }}
       >
         <Empty
@@ -87,31 +89,16 @@ const StudentTaskList = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: museRadius.card,
                 height: "100%",
-                boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
-                border: "1px solid rgba(148, 163, 184, 0.14)",
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: 20 } }}
             >
               <Flex vertical gap={16} style={{ height: "100%" }}>
                 <Flex justify='space-between' align='start' gap={12}>
                   <Space align='start' size={12}>
-                    <div
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 16,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-                        color: "#1d4ed8",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <ClipboardList size={20} />
-                    </div>
+                    <IconBox icon={<ClipboardList size={20} />} size={40} tone="primarySoft" />
                     <div style={{ minWidth: 0 }}>
                       <Title level={5} style={{ margin: 0, overflowWrap: "anywhere" }}>
                         {task.title}
@@ -123,7 +110,7 @@ const StudentTaskList = ({
                     color={
                       isSubmitted ? "success" : isOverdue ? "error" : "processing"
                     }
-                    style={{ marginRight: 0, borderRadius: 999 }}
+                    style={{ marginRight: 0, }}
                   >
                     {isSubmitted
                       ? "Sudah dikumpulkan"
@@ -137,14 +124,14 @@ const StudentTaskList = ({
                   <Tag
                     icon={<CalendarClock size={12} />}
                     color='blue'
-                    style={{ marginRight: 0, borderRadius: 999 }}
+                    style={{ marginRight: 0, }}
                   >
                     {dayjs(task.deadline_at).format("DD MMM YYYY, HH:mm")}
                   </Tag>
                   <Tag
                     icon={<BookMarked size={12} />}
                     color='cyan'
-                    style={{ marginRight: 0, borderRadius: 999 }}
+                    style={{ marginRight: 0, }}
                   >
                     {task.active_class_name || "-"}
                   </Tag>
@@ -152,7 +139,7 @@ const StudentTaskList = ({
                     <Tag
                       icon={<CheckCheck size={12} />}
                       color='green'
-                      style={{ marginRight: 0, borderRadius: 999 }}
+                      style={{ marginRight: 0, }}
                     >
                       {task.submitted_at
                         ? `Masuk ${dayjs(task.submitted_at).format("DD MMM YYYY")}`
@@ -189,7 +176,7 @@ const StudentTaskList = ({
                       <Tag
                         icon={<FileText size={12} />}
                         color='green'
-                        style={{ marginRight: 0, borderRadius: 999 }}
+                        style={{ marginRight: 0, }}
                       >
                         {task.submission_file_name}
                       </Tag>

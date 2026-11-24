@@ -22,31 +22,30 @@ import {
 import { useFinanceAssignmentColumn } from "../../finance/assignment/FinanceStaffSlot";
 import PageHeader from "../../../components/ui/PageHeader";
 
+import { museColors, museRadius, museShadow } from "../../../config/theme";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const tableCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
   width: "100%",
   minWidth: 0,
 };
 
 const recordCardStyle = {
-  borderRadius: 14,
-  border: "1px solid #e8eef6",
+  borderRadius: museRadius.card,
   background: "#ffffff",
-  boxShadow: "0 6px 16px rgba(15, 23, 42, 0.04)",
+  boxShadow: museShadow.card,
   width: "100%",
   minWidth: 0,
 };
 
 const assignmentTileStyle = {
   borderRadius: 10,
-  border: "1px solid #eef2f7",
-  background: "#f8fafc",
+  border: `1px solid ${museColors.divider}`,
+  background: museColors.bgLayout,
   padding: "10px 12px",
   minWidth: 0,
 };
@@ -264,12 +263,12 @@ const StaffAssignment = () => {
             allowClear
             value={searchText}
             placeholder="Cari nama atau NIP..."
-            prefix={<Search size={16} style={{ color: "#64748b" }} />}
+            prefix={<Search size={16} style={{ color: museColors.muted }} />}
             onChange={(event) => setSearchText(event.target.value)}
             style={{
               width: isMobile ? "100%" : undefined,
               maxWidth: isMobile ? "100%" : 280,
-              borderRadius: 14,
+              borderRadius: museRadius.card,
             }}
           />
         </Flex>

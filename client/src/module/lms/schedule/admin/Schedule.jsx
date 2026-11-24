@@ -37,7 +37,7 @@ import { SCHEDULE_TAG_STYLE } from './scheduleAdminStyles';
 import PageHeader from '../../../../components/ui/PageHeader';
 
 const { useBreakpoint } = Grid;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const MotionDiv = motion.div;
 
 const STEP_SHIFTS = 0;
@@ -515,7 +515,7 @@ const Schedule = () => {
         <Alert
           showIcon
           type="warning"
-          message="Versi jadwal tidak ditemukan"
+          title="Versi jadwal tidak ditemukan"
           description="Kembali ke daftar versi dan pilih versi jadwal yang akan disusun."
         />
       );
@@ -710,7 +710,7 @@ const Schedule = () => {
                 <Alert
                   showIcon
                   type="info"
-                  message="Anda sedang menyusun versi draft"
+                  title="Anda sedang menyusun versi draft"
                   description={`Perubahan pada versi ini tidak memengaruhi jadwal operasional. Absensi RFID memakai versi aktif: ${
                     scheduleConfigs.find((item) => Number(item.id) === activeConfigId)?.name || 'belum ditentukan'
                   }.`}

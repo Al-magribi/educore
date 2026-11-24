@@ -63,6 +63,7 @@ import {
 } from './reportShared';
 import { CardGridView, ReportDetailGrid, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
+import { museColors } from "../../../../config/theme";
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
 
@@ -240,8 +241,8 @@ const TeacherAttendanceGuideModal = ({ open, onClose, isMobile }) => (
                   width: 24,
                   height: 24,
                   borderRadius: '50%',
-                  background: '#eff6ff',
-                  color: '#1d4ed8',
+                  background: museColors.primarySoft,
+                  color: museColors.primary,
                   display: 'grid',
                   placeItems: 'center',
                   fontSize: 12,
@@ -432,36 +433,32 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
             title: 'Hadir',
             value: Number(summary.present_teachers || 0),
             suffix: 'guru',
-            icon: <UserCheck size={isMobile ? 14 : 18} />,
-            color: '#15803d',
-            bg: '#f0fdf4',
+            icon: <UserCheck size={isMobile ? 18 : 24} />,
+            tone: 'success',
           },
           {
             key: 'absent',
             title: 'Absent',
             value: Number(summary.absent_teachers || 0),
             suffix: 'guru',
-            icon: <UserX size={isMobile ? 14 : 18} />,
-            color: '#b91c1c',
-            bg: '#fef2f2',
+            icon: <UserX size={isMobile ? 18 : 24} />,
+            tone: 'danger',
           },
           {
             key: 'sick',
             title: 'Sakit',
             value: Number(summary.sick_count || 0),
             suffix: 'hari',
-            icon: <Thermometer size={isMobile ? 14 : 18} />,
-            color: '#0e7490',
-            bg: '#ecfeff',
+            icon: <Thermometer size={isMobile ? 18 : 24} />,
+            tone: 'cyan',
           },
           {
             key: 'permit',
             title: 'Izin',
             value: Number(summary.permit_count || 0),
             suffix: 'hari',
-            icon: <MailCheck size={isMobile ? 14 : 18} />,
-            color: '#1d4ed8',
-            bg: '#eff6ff',
+            icon: <MailCheck size={isMobile ? 18 : 24} />,
+            tone: 'primary',
           },
         ]
       : activeTab === 'mengajar'
@@ -471,36 +468,32 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
               title: 'Hadir',
               value: Number(sessionSummary.present_teachers || 0),
               suffix: 'guru',
-              icon: <UserCheck size={isMobile ? 14 : 18} />,
-              color: '#15803d',
-              bg: '#f0fdf4',
+              icon: <UserCheck size={isMobile ? 18 : 24} />,
+              tone: 'success',
             },
             {
               key: 'absent',
               title: 'Absent',
               value: Number(sessionSummary.absent_teachers || 0),
               suffix: 'guru',
-              icon: <UserX size={isMobile ? 14 : 18} />,
-              color: '#b91c1c',
-              bg: '#fef2f2',
+              icon: <UserX size={isMobile ? 18 : 24} />,
+              tone: 'danger',
             },
             {
               key: 'sick',
               title: 'Sakit',
               value: Number(sessionSummary.sick_sessions || 0),
               suffix: 'sesi',
-              icon: <Thermometer size={isMobile ? 14 : 18} />,
-              color: '#0e7490',
-              bg: '#ecfeff',
+              icon: <Thermometer size={isMobile ? 18 : 24} />,
+              tone: 'cyan',
             },
             {
               key: 'permit',
               title: 'Izin',
               value: Number(sessionSummary.permit_sessions || 0),
               suffix: 'sesi',
-              icon: <MailCheck size={isMobile ? 14 : 18} />,
-              color: '#1d4ed8',
-              bg: '#eff6ff',
+              icon: <MailCheck size={isMobile ? 18 : 24} />,
+              tone: 'primary',
             },
           ]
         : [];
@@ -814,7 +807,6 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
           activeKey={activeTab}
           onChange={setActiveTab}
           size={isMobile ? 'small' : 'middle'}
-          tabBarGutter={isMobile ? 12 : 24}
           items={[
             {
               key: 'kehadiran',
@@ -838,7 +830,9 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
                   )}
                   <CardGridView
                     loading={isLoading || (isFetching && rows.length > 0)}
-                    dataSource={rows}                    emptyText="Belum ada data presensi guru pada rentang ini."                    pagination={buildPagination({
+                    dataSource={rows}
+                    emptyText="Belum ada data presensi guru pada rentang ini."
+                    pagination={buildPagination({
                       pageSize,
                       setPageSize,
                       isMobile,
@@ -911,7 +905,9 @@ const TeacherReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
                   )}
                   <CardGridView
                     loading={isLoading || (isFetching && sessionRows.length > 0)}
-                    dataSource={sessionRows}                    emptyText="Belum ada data sesi mengajar pada rentang ini."                    pagination={buildPagination({
+                    dataSource={sessionRows}
+                    emptyText="Belum ada data sesi mengajar pada rentang ini."
+                    pagination={buildPagination({
                       pageSize: sessionPageSize,
                       setPageSize: setSessionPageSize,
                       isMobile,

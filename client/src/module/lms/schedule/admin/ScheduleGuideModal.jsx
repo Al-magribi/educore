@@ -71,7 +71,7 @@ const ScheduleGuideModal = ({ open, onClose }) => {
       <Alert
         showIcon
         type="info"
-        message="Satu periode bisa punya beberapa versi jadwal (misal Jadwal Reguler dan Jadwal Ramadhan), tetapi hanya satu yang aktif sebagai jadwal operasional."
+        title="Satu periode bisa punya beberapa versi jadwal (misal Jadwal Reguler dan Jadwal Ramadhan), tetapi hanya satu yang aktif sebagai jadwal operasional."
         description='Mulai dari daftar Versi Jadwal: buat atau duplikat versi, tekan "Buka" untuk menyusun isinya langkah demi langkah, lalu aktifkan di langkah terakhir. Anda selalu bisa mundur ke langkah sebelumnya tanpa mengubah data.'
         style={{ marginBottom: 16 }}
       />

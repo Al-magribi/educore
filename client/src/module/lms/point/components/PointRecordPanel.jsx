@@ -3,19 +3,19 @@ import { Card, Empty, Flex, Space, Table, Tag, Typography } from "antd";
 import { ShieldAlert, Trophy } from "lucide-react";
 import { formatPointDate, POINT_TYPE_LABELS } from "../utils/pointCatalog";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const panelStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const StatCard = ({ label, value, color, background, borderColor, icon: Icon }) => (
   <Card
     style={{
-      borderRadius: 18,
+      borderRadius: museRadius.card,
       border: `1px solid ${borderColor}`,
       boxShadow: "none",
       background,
@@ -25,7 +25,7 @@ const StatCard = ({ label, value, color, background, borderColor, icon: Icon }) 
     <Space>
       <Icon size={18} color={color} />
       <div>
-        <Text style={{ color: "#64748b", fontSize: 12 }}>{label}</Text>
+        <Text style={{ color: museColors.muted, fontSize: 12 }}>{label}</Text>
         <Title level={4} style={{ margin: "2px 0 0", color }}>
           {value}
         </Title>
@@ -58,18 +58,17 @@ const PointRecordPanel = ({
             <Tag
               style={{
                 margin: 0,
-                borderRadius: 999,
                 background:
                   record.point_type === "reward" ? "#fffbeb" : "#fef2f2",
                 borderColor:
                   record.point_type === "reward" ? "#fcd34d" : "#fecaca",
-                color: record.point_type === "reward" ? "#a16207" : "#b91c1c",
+                color: record.point_type === "reward" ? "#a16207" : museColors.danger,
               }}
             >
               {POINT_TYPE_LABELS[record.point_type] || record.point_type}
             </Tag>
             {record.category_name ? (
-              <Tag style={{ margin: 0, borderRadius: 999 }}>
+              <Tag style={{ margin: 0, }}>
                 {record.category_name}
               </Tag>
             ) : null}
@@ -86,7 +85,7 @@ const PointRecordPanel = ({
         <Text
           strong
           style={{
-            color: record.point_type === "reward" ? "#a16207" : "#b91c1c",
+            color: record.point_type === "reward" ? "#a16207" : museColors.danger,
           }}
         >
           {value}
@@ -97,7 +96,7 @@ const PointRecordPanel = ({
       title: "Catatan",
       dataIndex: "description",
       render: (value) => (
-        <Text style={{ color: "#64748b" }}>{value || "-"}</Text>
+        <Text style={{ color: museColors.muted }}>{value || "-"}</Text>
       ),
     },
   ];
@@ -126,7 +125,7 @@ const PointRecordPanel = ({
         <StatCard
           label='Pelanggaran'
           value={student?.total_punishment || 0}
-          color='#b91c1c'
+          color={museColors.danger}
           background='#fef2f2'
           borderColor='#fecaca'
           icon={ShieldAlert}
@@ -135,9 +134,9 @@ const PointRecordPanel = ({
           <StatCard
             label='Poin Bersih'
             value={student?.balance || 0}
-            color='#1d4ed8'
-            background='#eff6ff'
-            borderColor='#bfdbfe'
+            color={museColors.primary}
+            background={museColors.primarySoft}
+            borderColor={museColors.primarySoft}
             icon={Trophy}
           />
         ) : null}
@@ -149,7 +148,7 @@ const PointRecordPanel = ({
             <Title level={4} style={{ margin: 0 }}>
               Riwayat Poin
             </Title>
-            <Text style={{ color: "#64748b" }}>
+            <Text style={{ color: museColors.muted }}>
               {student?.student_name
                 ? `Catatan poin ${student.student_name}.`
                 : "Catatan poin siswa."}
@@ -161,12 +160,12 @@ const PointRecordPanel = ({
                 {entries.map((item) => (
                   <Card
                     key={item.id}
-                    style={{ borderRadius: 16, border: "1px solid #e5edf6" }}
+                    style={{ borderRadius: museRadius.card, border: `1px solid ${museColors.divider}` }}
                     styles={{ body: { padding: 14 } }}
                   >
                     <Flex vertical gap={8}>
                       <Flex justify='space-between' gap={8}>
-                        <Text style={{ color: "#64748b" }}>
+                        <Text style={{ color: museColors.muted }}>
                           {formatPointDate(item.entry_date)}
                         </Text>
                         <Text
@@ -175,14 +174,14 @@ const PointRecordPanel = ({
                             color:
                               item.point_type === "reward"
                                 ? "#a16207"
-                                : "#b91c1c",
+                                : museColors.danger,
                           }}
                         >
                           {item.point_value}
                         </Text>
                       </Flex>
                       <Text strong>{item.title_snapshot}</Text>
-                      <Text style={{ color: "#64748b" }}>
+                      <Text style={{ color: museColors.muted }}>
                         {item.category_name || "Tanpa kategori"}
                       </Text>
                     </Flex>

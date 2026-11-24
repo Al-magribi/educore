@@ -4,6 +4,7 @@ import { BookOpenText } from "lucide-react";
 import { useGetContentsQuery } from "../../../../../service/lms/ApiLms";
 import LearningContentCard from "./LearningContentCard";
 
+import { museColors } from "../../../../../config/theme";
 const { Paragraph } = Typography;
 
 const LearningChapterList = ({ chapter }) => {
@@ -40,7 +41,7 @@ const LearningChapterList = ({ chapter }) => {
       {chapter.description ? (
         <Card
           size='small'
-          style={{ borderRadius: 10, borderColor: "#f0f0f0", background: "#fafafa" }}
+          style={{ borderRadius: 10, borderColor: museColors.divider, background: museColors.bgLayout }}
           styles={{ body: { padding: isMobile ? 10 : 12 } }}
         >
           <div

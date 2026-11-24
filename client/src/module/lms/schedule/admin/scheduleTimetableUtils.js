@@ -1,3 +1,5 @@
+import { museColors } from "../../../../config/theme";
+
 export const HEADER_BG = "#e7c1a3";
 export const HEADER_SUB_BG = "#f3d8c2";
 export const SLOT_BG = "#f8f1c7";
@@ -7,9 +9,9 @@ export const STRONG_BORDER = `2px solid ${BORDER_COLOR}`;
 
 const SUBJECT_COLOR_PALETTE = [
   { bg: "#fde68a", text: "#7c2d12", border: "#f59e0b" },
-  { bg: "#bfdbfe", text: "#1e3a8a", border: "#60a5fa" },
+  { bg: museColors.primarySoft, text: "#1e3a8a", border: "#60a5fa" },
   { bg: "#fecaca", text: "#991b1b", border: "#f87171" },
-  { bg: "#c7f9cc", text: "#166534", border: "#4ade80" },
+  { bg: "#c7f9cc", text: museColors.success, border: "#4ade80" },
   { bg: "#e9d5ff", text: "#6b21a8", border: "#c084fc" },
   { bg: "#fed7aa", text: "#9a3412", border: "#fb923c" },
   { bg: "#ddd6fe", text: "#5b21b6", border: "#8b5cf6" },

@@ -270,7 +270,7 @@ const ParentFormDrawer = ({
             style={{ marginTop: 12 }}
             type="info"
             showIcon
-            message="Panduan Pengisian Template"
+            title="Panduan Pengisian Template"
             description={
               <div>
                 <div>1. Kolom wajib: username, full_name, password, nis_list.</div>

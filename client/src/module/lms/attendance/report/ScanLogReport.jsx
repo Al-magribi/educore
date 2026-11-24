@@ -40,6 +40,7 @@ import {
 } from './reportShared';
 import { CardGridView, ReportDetailGrid, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
+import { museColors } from "../../../../config/theme";
 const { RangePicker } = DatePicker;
 const { Text, Title, Paragraph } = Typography;
 
@@ -190,8 +191,8 @@ const ScanLogGuideModal = ({ open, onClose, isMobile }) => (
                   width: 24,
                   height: 24,
                   borderRadius: '50%',
-                  background: '#eff6ff',
-                  color: '#1d4ed8',
+                  background: museColors.primarySoft,
+                  color: museColors.primary,
                   display: 'grid',
                   placeItems: 'center',
                   fontSize: 12,
@@ -408,9 +409,8 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
       key: 'accepted',
       title: 'Accepted',
       value: Number(summary.accepted_count || 0),
-      icon: <ClipboardX size={isMobile ? 14 : 18} />,
-      color: '#166534',
-      bg: '#f0fdf4',
+      icon: <ClipboardX size={isMobile ? 18 : 24} />,
+      tone: 'success',
     },
     {
       key: 'follow-up',
@@ -423,9 +423,8 @@ const ScanLogReport = ({ homebaseId, periodeId, pollingInterval = 0 } = {}) => {
         Number(summary.card_inactive_count || 0) +
         Number(summary.user_inactive_count || 0) +
         Number(summary.policy_missing_count || 0),
-      icon: <AlertTriangle size={isMobile ? 14 : 18} />,
-      color: '#b91c1c',
-      bg: '#fef2f2',
+      icon: <AlertTriangle size={isMobile ? 18 : 24} />,
+      tone: 'danger',
     },
   ];
 

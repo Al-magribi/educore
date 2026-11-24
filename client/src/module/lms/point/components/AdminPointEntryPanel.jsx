@@ -29,13 +29,13 @@ import {
   useUpdateAdminPointEntryMutation,
 } from "../../../../service/lms/ApiPoint";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const panelCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
@@ -266,7 +266,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                 <Title level={4} style={{ margin: 0 }}>
                   Input Poin Siswa
                 </Title>
-                <Text style={{ color: "#64748b" }}>
+                <Text style={{ color: museColors.muted }}>
                   Pilih kelas dan siswa, lalu tambahkan penghargaan atau
                   pelanggaran sesuai rule yang aktif.
                 </Text>
@@ -278,8 +278,8 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                 disabled={!students.length}
                 style={{
                   borderRadius: 12,
-                  background: "#0f172a",
-                  borderColor: "#0f172a",
+                  background: museColors.text,
+                  borderColor: museColors.text,
                   fontWeight: 700,
                   width: isMobile ? "100%" : "auto",
                 }}
@@ -299,15 +299,15 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
             >
               <Card
                 style={{
-                  borderRadius: 18,
-                  border: "1px solid #e5edf6",
+                  borderRadius: museRadius.card,
+                  border: `1px solid ${museColors.divider}`,
                   boxShadow: "none",
                 }}
               >
                 <Space>
-                  <Users size={18} color='#1d4ed8' />
+                  <Users size={18} color={museColors.primary} />
                   <div>
-                    <Text style={{ color: "#64748b", fontSize: 12 }}>Siswa</Text>
+                    <Text style={{ color: museColors.muted, fontSize: 12 }}>Siswa</Text>
                     <Title level={4} style={{ margin: "2px 0 0" }}>
                       {summaryStats.totalStudents}
                     </Title>
@@ -316,7 +316,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
               </Card>
               <Card
                 style={{
-                  borderRadius: 18,
+                  borderRadius: museRadius.card,
                   border: "1px solid #fef3c7",
                   boxShadow: "none",
                 }}
@@ -324,7 +324,7 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                 <Space>
                   <Trophy size={18} color='#a16207' />
                   <div>
-                    <Text style={{ color: "#64748b", fontSize: 12 }}>
+                    <Text style={{ color: museColors.muted, fontSize: 12 }}>
                       Penghargaan
                     </Text>
                     <Title
@@ -338,20 +338,20 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
               </Card>
               <Card
                 style={{
-                  borderRadius: 18,
+                  borderRadius: museRadius.card,
                   border: "1px solid #fecaca",
                   boxShadow: "none",
                 }}
               >
                 <Space>
-                  <ShieldAlert size={18} color='#b91c1c' />
+                  <ShieldAlert size={18} color={museColors.danger} />
                   <div>
-                    <Text style={{ color: "#64748b", fontSize: 12 }}>
+                    <Text style={{ color: museColors.muted, fontSize: 12 }}>
                       Pelanggaran
                     </Text>
                     <Title
                       level={4}
-                      style={{ margin: "2px 0 0", color: "#b91c1c" }}
+                      style={{ margin: "2px 0 0", color: museColors.danger }}
                     >
                       {summaryStats.totalPunishment}
                     </Title>
@@ -360,20 +360,20 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
               </Card>
               <Card
                 style={{
-                  borderRadius: 18,
-                  border: "1px solid #dbeafe",
+                  borderRadius: museRadius.card,
+                  border: `1px solid ${museColors.primarySoft}`,
                   boxShadow: "none",
                 }}
               >
                 <Space>
-                  <Plus size={18} color='#2563eb' />
+                  <Plus size={18} color={museColors.primary} />
                   <div>
-                    <Text style={{ color: "#64748b", fontSize: 12 }}>
+                    <Text style={{ color: museColors.muted, fontSize: 12 }}>
                       Total Entri
                     </Text>
                     <Title
                       level={4}
-                      style={{ margin: "2px 0 0", color: "#2563eb" }}
+                      style={{ margin: "2px 0 0", color: museColors.primary }}
                     >
                       {summaryStats.totalEntries}
                     </Title>
@@ -387,9 +387,9 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                 allowClear
                 value={searchStudent}
                 onChange={(event) => setSearchStudent(event.target.value)}
-                prefix={<Search size={16} color='#64748b' />}
+                prefix={<Search size={16} color={museColors.muted} />}
                 placeholder='Cari siswa berdasarkan nama atau NIS'
-                style={{ borderRadius: 14, height: 42 }}
+                style={{ borderRadius: museRadius.card, height: 42 }}
               />
             </div>
 
@@ -418,26 +418,20 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                         )
                       }
                       style={{
-                        borderRadius: 20,
-                        border: isActive
-                          ? "1px solid #93c5fd"
-                          : "1px solid #e5edf6",
-                        background: isActive
-                          ? "linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)"
-                          : "#fff",
-                        boxShadow: isActive
-                          ? "0 16px 30px rgba(37, 99, 235, 0.12)"
-                          : "0 10px 24px rgba(15, 23, 42, 0.05)",
+                        borderRadius: museRadius.card,
+                        border: `1px solid ${isActive ? museColors.primary : museColors.divider}`,
+                        background: isActive ? museColors.primarySoft : "#ffffff",
+                        boxShadow: museShadow.card,
                       }}
                       styles={{ body: { padding: 18 } }}
                     >
                       <Flex vertical gap={12}>
                         <div>
-                          <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
+                          <Text strong style={{ color: museColors.text, fontSize: 15 }}>
                             {student.student_name}
                           </Text>
                           <div>
-                            <Text style={{ color: "#64748b" }}>
+                            <Text style={{ color: museColors.muted }}>
                               NIS {student.nis || "-"}
                             </Text>
                           </div>
@@ -446,7 +440,6 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                           <Tag
                             style={{
                               margin: 0,
-                              borderRadius: 999,
                               borderColor: "#fcd34d",
                               background: "#fffbeb",
                               color: "#a16207",
@@ -457,10 +450,9 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                           <Tag
                             style={{
                               margin: 0,
-                              borderRadius: 999,
                               borderColor: "#fecaca",
                               background: "#fef2f2",
-                              color: "#b91c1c",
+                              color: museColors.danger,
                             }}
                           >
                             Pelanggaran {student.total_punishment || 0}
@@ -470,10 +462,9 @@ const AdminPointEntryPanel = ({ isMobile = false, activePeriode }) => {
                           <Tag
                             style={{
                               margin: 0,
-                              borderRadius: 999,
-                              borderColor: "#bfdbfe",
-                              background: "#eff6ff",
-                              color: "#1d4ed8",
+                              borderColor: museColors.primarySoft,
+                              background: museColors.primarySoft,
+                              color: museColors.primary,
                               width: "fit-content",
                             }}
                           >

@@ -3,6 +3,7 @@ import { Button, Card, Flex, Select, Space, Tag, Typography } from "antd";
 import { BookOpenCheck, CalendarDays, Filter, RefreshCcw } from "lucide-react";
 import { SEMESTER_OPTIONS } from "./constants";
 
+import { museColors, museRadius } from "../../../../../../config/theme";
 const { Title, Text } = Typography;
 
 const ReportHeader = ({
@@ -17,10 +18,10 @@ const ReportHeader = ({
   onRefresh,
 }) => {
   return (
-    <Card style={{ borderRadius: 14 }} styles={{ body: { padding: 20 } }}>
+    <Card style={{ borderRadius: museRadius.card }} styles={{ body: { padding: 20 } }}>
       <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
         <Space align="center">
-          <BookOpenCheck size={18} color="#1677ff" />
+          <BookOpenCheck size={18} color={museColors.primary} />
           <div>
             <Title level={5} style={{ margin: 0 }}>
               Laporan Pembelajaran Siswa

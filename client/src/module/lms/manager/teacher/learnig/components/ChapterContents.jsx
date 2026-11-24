@@ -27,6 +27,7 @@ import {
 } from "../../../../../../service/lms/ApiLms";
 import YouTubePlayer from "../../../../player/YouTubePlayer";
 
+import { museColors } from "../../../../../../config/theme";
 const { Text } = Typography;
 const EMPTY_LIST = [];
 
@@ -154,7 +155,7 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
                       >
                         <Card
                           size='small'
-                          style={{ borderRadius: 12, borderColor: "#f0f0f0" }}
+                          style={{ borderRadius: 12, borderColor: museColors.divider }}
                           styles={{ body: { padding: isMobile ? 12 : 16 } }}
                         >
                           <Flex vertical gap={12}>
@@ -175,7 +176,7 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
                                   style={{
                                     display: "inline-flex",
                                     alignItems: "center",
-                                    color: "#8c8c8c",
+                                    color: museColors.muted,
                                     cursor: "grab",
                                     marginTop: 2,
                                   }}
@@ -250,8 +251,8 @@ const ChapterContents = ({ chapterId, onEdit, onDelete }) => {
                             {item.body ? (
                               <div
                                 style={{
-                                  background: "#fafafa",
-                                  border: "1px solid #f0f0f0",
+                                  background: museColors.bgLayout,
+                                  border: `1px solid ${museColors.divider}`,
                                   borderRadius: 10,
                                   padding: isMobile ? 10 : 12,
                                   overflowWrap: "anywhere",

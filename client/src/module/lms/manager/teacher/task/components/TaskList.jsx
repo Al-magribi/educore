@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 
+import { museRadius, museShadow } from "../../../../../../config/theme";
+import { IconBox } from "../../../../../../components/ui/muse";
 const { Paragraph, Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -43,8 +45,8 @@ const TaskList = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
-          boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         }}
         styles={{ body: { padding: isMobile ? 18 : 22 } }}
       >
@@ -58,8 +60,8 @@ const TaskList = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: 24,
-          boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         }}
         styles={{ body: { padding: isMobile ? 28 : 36 } }}
       >
@@ -91,10 +93,9 @@ const TaskList = ({
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
+                borderRadius: museRadius.card,
                 height: "100%",
-                boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
-                border: "1px solid rgba(148, 163, 184, 0.14)",
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: 20 } }}
             >
@@ -107,22 +108,7 @@ const TaskList = ({
                   vertical={isMobile}
                 >
                   <Space align='start' size={12} style={{ minWidth: 0, flex: 1 }}>
-                    <div
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 16,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background:
-                          "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-                        color: "#1d4ed8",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <ClipboardList size={20} />
-                    </div>
+                    <IconBox icon={<ClipboardList size={20} />} size={40} tone="primarySoft" />
                     <div style={{ minWidth: 0 }}>
                       <Title
                         level={5}
@@ -141,7 +127,7 @@ const TaskList = ({
                         ? "error"
                         : "processing"
                     }
-                    style={{ marginRight: 0, borderRadius: 999 }}
+                    style={{ marginRight: 0, }}
                   >
                     {dayjs(task.deadline_at).format("DD MMM YYYY, HH:mm")}
                   </Tag>
@@ -151,7 +137,7 @@ const TaskList = ({
                   <Tag
                     icon={<CalendarClock size={12} />}
                     color='blue'
-                    style={{ marginRight: 0, borderRadius: 999 }}
+                    style={{ marginRight: 0, }}
                   >
                     Deadline
                   </Tag>
@@ -160,7 +146,7 @@ const TaskList = ({
                       key={`${task.id}-${className}`}
                       icon={<GraduationCap size={12} />}
                       color='green'
-                      style={{ marginRight: 0, borderRadius: 999 }}
+                      style={{ marginRight: 0, }}
                     >
                       {className}
                     </Tag>

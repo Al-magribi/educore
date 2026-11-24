@@ -15,6 +15,7 @@ import dayjs from "dayjs";
 import { Save, UserRoundPen } from "lucide-react";
 import { buildRuleSelectOptions } from "../utils/pointCatalog";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text, Title } = Typography;
 const { TextArea } = Input;
 
@@ -81,9 +82,8 @@ const AdminPointEntryDrawer = ({
         <div
           style={{
             padding: 24,
-            borderBottom: "1px solid #e5edf6",
-            background:
-              "linear-gradient(180deg, rgba(239,246,255,0.9) 0%, rgba(255,255,255,1) 100%)",
+            borderBottom: `1px solid ${museColors.divider}`,
+            background: "#ffffff",
           }}
         >
           <Space align='start'>
@@ -91,9 +91,9 @@ const AdminPointEntryDrawer = ({
               style={{
                 width: 46,
                 height: 46,
-                borderRadius: 16,
-                background: "#dbeafe",
-                color: "#1d4ed8",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
+                color: museColors.primary,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -105,7 +105,7 @@ const AdminPointEntryDrawer = ({
               <Title level={4} style={{ margin: 0 }}>
                 {isEdit ? "Perbarui Poin Siswa" : "Tambah Poin Siswa"}
               </Title>
-              <Text style={{ color: "#64748b" }}>
+              <Text style={{ color: museColors.muted }}>
                 Pilih siswa dan rule poin sesuai kategori penghargaan atau
                 pelanggaran.
               </Text>
@@ -162,7 +162,7 @@ const AdminPointEntryDrawer = ({
               maxLength={240}
               showCount
               placeholder='Tambahkan konteks kejadian atau tindak lanjut jika diperlukan.'
-              style={{ borderRadius: 14 }}
+              style={{ borderRadius: museRadius.card }}
             />
           </Form.Item>
 
@@ -172,7 +172,7 @@ const AdminPointEntryDrawer = ({
         <div
           style={{
             padding: 20,
-            borderTop: "1px solid #e5edf6",
+            borderTop: `1px solid ${museColors.divider}`,
             background: "#fff",
           }}
         >
@@ -188,8 +188,8 @@ const AdminPointEntryDrawer = ({
               onClick={() => form.submit()}
               style={{
                 borderRadius: 12,
-                background: "#0f172a",
-                borderColor: "#0f172a",
+                background: museColors.text,
+                borderColor: museColors.text,
                 fontWeight: 700,
               }}
             >

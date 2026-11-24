@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  Button,
   Card,
   Empty,
   Flex,
@@ -7,7 +8,7 @@ import {
   Skeleton,
   Space,
   Switch,
-  Tabs,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -17,9 +18,9 @@ import {
   FolderTree,
   ListOrdered,
   NotebookPen,
+  Plus,
   SlidersHorizontal,
 } from "lucide-react";
-import PointAdminHero from "../components/PointAdminHero";
 import PointRuleStats from "../components/PointRuleStats";
 import PointRuleToolbar from "../components/PointRuleToolbar";
 import PointRuleFormDrawer from "../components/PointRuleFormDrawer";
@@ -38,58 +39,30 @@ import {
   useUpdateAdminPointRuleMutation,
 } from "../../../../service/lms/ApiPoint";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
+import { IconBox, PageTabs } from "../../../../components/ui/muse";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.04,
-    },
-  },
-};
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.36,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
 
 const emptyCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
-const tabsCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
-};
 
 const settingCardStyle = {
-  borderRadius: 20,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 12px 28px rgba(15, 23, 42, 0.05)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const AdminPointView = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const [activeTab, setActiveTab] = useState("categories");
   const [search, setSearch] = useState("");
   const [pointType, setPointType] = useState("");
   const [isActive, setIsActive] = useState("");
@@ -261,13 +234,10 @@ const AdminPointView = () => {
   const tabItems = [
     {
       key: "categories",
-      label: (
-        <Space size={8}>
-          <FolderTree size={15} />
-          Kategori
-        </Space>
-      ),
-      children: (
+      description: tabSummary.categories.description,
+      label: "Kategori",
+      icon: <FolderTree />,
+      render: () => (
         <motion.div
           key='admin-point-categories'
           initial={{ opacity: 0, y: 16 }}
@@ -293,13 +263,10 @@ const AdminPointView = () => {
     },
     {
       key: "rules",
-      label: (
-        <Space size={8}>
-          <FileText size={15} />
-          Peraturan
-        </Space>
-      ),
-      children: (
+      description: tabSummary.rules.description,
+      label: "Peraturan",
+      icon: <FileText />,
+      render: () => (
         <motion.div
           key='admin-point-rules'
           initial={{ opacity: 0, y: 16 }}
@@ -335,7 +302,7 @@ const AdminPointView = () => {
                 <Title level={4} style={{ margin: 0 }}>
                   Periode aktif belum tersedia
                 </Title>
-                <Text style={{ color: "#64748b", textAlign: "center" }}>
+                <Text style={{ color: museColors.muted, textAlign: "center" }}>
                   Aktifkan periode sekolah terlebih dahulu sebelum membuat rule
                   poin penghargaan dan pelanggaran.
                 </Text>
@@ -357,13 +324,10 @@ const AdminPointView = () => {
 
     {
       key: "entries",
-      label: (
-        <Space size={8}>
-          <NotebookPen size={15} />
-          Input Poin
-        </Space>
-      ),
-      children: (
+      description: tabSummary.entries.description,
+      label: "Input Poin",
+      icon: <NotebookPen />,
+      render: () => (
         <AdminPointEntryPanel
           isMobile={isMobile}
           activePeriode={activePeriode}
@@ -372,13 +336,10 @@ const AdminPointView = () => {
     },
     {
       key: "summary",
-      label: (
-        <Space size={8}>
-          <ListOrdered size={15} />
-          Rangkuman
-        </Space>
-      ),
-      children: (
+      description: tabSummary.summary.description,
+      label: "Rangkuman",
+      icon: <ListOrdered />,
+      render: () => (
         <motion.div
           key='admin-point-summary'
           initial={{ opacity: 0, y: 16 }}
@@ -394,25 +355,12 @@ const AdminPointView = () => {
               gap={14}
             >
               <Space align='start' size={12}>
-                <span
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 14,
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <SlidersHorizontal size={18} />
-                </span>
+                <IconBox icon={<SlidersHorizontal size={20} />} size={40} tone="primarySoft" />
                 <div>
-                  <Text strong style={{ color: "#0f172a", display: "block" }}>
+                  <Text strong style={{ color: museColors.text, display: "block" }}>
                     Tampilkan Akumulasi Poin
                   </Text>
-                  <Text style={{ color: "#64748b" }}>
+                  <Text style={{ color: museColors.muted }}>
                     Saat aktif, Poin prestasi dikurangi pelanggaran. Saat
                     nonaktif, akumulasi prestasi dan pelanggaran.
                   </Text>
@@ -424,7 +372,7 @@ const AdminPointView = () => {
                 gap={10}
                 style={{ width: isMobile ? "100%" : "auto" }}
               >
-                <Text style={{ color: showBalance ? "#1d4ed8" : "#64748b" }}>
+                <Text style={{ color: showBalance ? museColors.primary : museColors.muted }}>
                   {showBalance ? "On" : "Off"}
                 </Text>
                 <Switch
@@ -450,59 +398,19 @@ const AdminPointView = () => {
 
   return (
     <>
-      <motion.div
-        initial='hidden'
-        animate='show'
-        variants={containerVariants}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          padding: isMobile ? 0 : "0 4px 12px",
-        }}
-      >
-        <motion.div variants={itemVariants}>
-          <PointAdminHero
-            isMobile={isMobile}
-            activePeriode={activePeriode}
-            pointConfig={pointConfig}
-            onCreate={handleCreate}
-          />
-        </motion.div>
-
-        <motion.div variants={itemVariants}>
-          <Card
-            style={tabsCardStyle}
-            styles={{ body: { padding: isMobile ? 16 : 20 } }}
-          >
-            <Flex
-              vertical={isMobile}
-              justify='space-between'
-              align={isMobile ? "flex-start" : "center"}
-              gap={12}
-              style={{ marginBottom: 14 }}
-            >
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  {tabSummary[activeTab].title}
-                </Title>
-                <Text style={{ color: "#64748b" }}>
-                  {tabSummary[activeTab].description}
-                </Text>
-              </div>
-            </Flex>
-
-            <Tabs
-              activeKey={activeTab}
-              onChange={setActiveTab}
-              items={tabItems}
-              size={isMobile ? "middle" : "large"}
-              tabBarGutter={8}
-              animated
-            />
-          </Card>
-        </motion.div>
-      </motion.div>
+      <PageTabs
+        title='Kelola Poin Peraturan'
+        description='Susun rule poin, lalu berikan prestasi dan pelanggaran kepada siswa. Hanya admin dan kesiswaan yang dapat menambah atau mengubah poin.'
+        items={tabItems}
+        extra={
+          <>
+            <Tag>{activePeriode?.name || "Periode belum aktif"}</Tag>
+            <Button type='primary' icon={<Plus size={16} />} onClick={handleCreate}>
+              Tambah Rule Baru
+            </Button>
+          </>
+        }
+      />
 
       <PointRuleFormDrawer
         open={drawerOpen}

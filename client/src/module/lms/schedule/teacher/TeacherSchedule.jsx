@@ -23,6 +23,7 @@ import { useGetScheduleBootstrapQuery } from "../../../../service/lms/ApiSchedul
 import { formatTime } from "../admin/scheduleTimetableUtils";
 import TeacherScheduleBoard from "./TeacherScheduleBoard";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -714,7 +715,7 @@ const TeacherSchedule = () => {
             <Card
               size='small'
               bordered={false}
-              style={{ background: "#f5f9ff", borderRadius: isMobile ? 14 : 18 }}
+              style={{ background: museColors.primarySoft, borderRadius: isMobile ? 14 : 18 }}
               styles={{ body: { padding: isMobile ? 10 : 16 } }}
             >
               <Space align='start' size={isMobile ? 6 : 8}>
@@ -776,7 +777,7 @@ const TeacherSchedule = () => {
           <Alert
             showIcon
             type='warning'
-            message='Masih ada alokasi mengajar yang belum terpenuhi'
+            title='Masih ada alokasi mengajar yang belum terpenuhi'
             description={
               isNarrow ? (
                 <Flex vertical gap={4}>
@@ -820,9 +821,9 @@ const TeacherSchedule = () => {
                     key={item.key}
                     size='small'
                     style={{
-                      borderRadius: 14,
-                      background: "#f8fafc",
-                      border: "1px solid #e2e8f0",
+                      borderRadius: museRadius.card,
+                      background: museColors.bgLayout,
+                      border: `1px solid ${museColors.divider}`,
                     }}
                   >
                     <Flex justify='space-between' align='start' gap={8}>
@@ -868,7 +869,7 @@ const TeacherSchedule = () => {
           <Alert
             showIcon
             type='info'
-            message='Tidak ada jam mengajar pada shift ini. Pilih shift lain untuk melihat jadwal Anda.'
+            title='Tidak ada jam mengajar pada shift ini. Pilih shift lain untuk melihat jadwal Anda.'
           />
         ) : null}
 

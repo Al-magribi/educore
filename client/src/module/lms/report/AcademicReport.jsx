@@ -34,6 +34,8 @@ import {
   SEMESTER_MONTHS,
 } from "../student/subject/components/report/constants";
 
+import { museColors, museRadius, museShadow } from "../../../config/theme";
+import { IconBox } from "../../../components/ui/muse";
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
@@ -62,9 +64,8 @@ const itemVariants = {
 };
 
 const panelCardStyle = {
-  borderRadius: 24,
-  border: "1px solid rgba(148, 163, 184, 0.18)",
-  boxShadow: "0 20px 44px rgba(15, 23, 42, 0.08)",
+  borderRadius: museRadius.card,
+  boxShadow: museShadow.card,
   overflow: "hidden",
 };
 
@@ -142,7 +143,7 @@ const getAttendanceCaption = (attendance) => {
 };
 
 const detailCardStyle = {
-  borderRadius: 14,
+  borderRadius: museRadius.card,
   padding: "10px 12px",
   border: "1px solid rgba(148, 163, 184, 0.16)",
   background: "rgba(255,255,255,0.76)",
@@ -177,7 +178,7 @@ const renderAttitudeDetail = (attitude) => {
       {metrics.length ? (
         <Flex gap={8} wrap='wrap'>
           {metrics.map((item) => (
-            <Tag key={item.key} style={{ marginRight: 0, borderRadius: 999 }}>
+            <Tag key={item.key} style={{ marginRight: 0, }}>
               {item.label}: {toFixedOrDash(item.value)}
             </Tag>
           ))}
@@ -215,7 +216,7 @@ const renderFormativeDetail = (details = EMPTY_LIST) => {
                 {detail.type || "Formatif"}
               </Text>
             </Space>
-            <Tag color='gold' style={{ marginRight: 0, borderRadius: 999 }}>
+            <Tag color='gold' style={{ marginRight: 0, }}>
               {detail.score ?? "-"}
             </Tag>
           </Flex>
@@ -251,16 +252,16 @@ const renderSummativeDetail = (details = EMPTY_LIST) => {
                   {detail.type || "Sumatif"}
                 </Text>
               </Space>
-              <Tag color='blue' style={{ marginRight: 0, borderRadius: 999 }}>
+              <Tag color='blue' style={{ marginRight: 0, }}>
                 Akhir {detail.final_score ?? "-"}
               </Tag>
             </Flex>
 
             <Flex gap={8} wrap='wrap'>
-              <Tag style={{ marginRight: 0, borderRadius: 999 }}>
+              <Tag style={{ marginRight: 0, }}>
                 Tulis {detail.score_written ?? "-"}
               </Tag>
-              <Tag style={{ marginRight: 0, borderRadius: 999 }}>
+              <Tag style={{ marginRight: 0, }}>
                 Praktik {detail.score_skill ?? "-"}
               </Tag>
             </Flex>
@@ -383,22 +384,7 @@ const AcademicReport = () => {
             wrap='wrap'
           >
             <Space align='start' size={14}>
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 16,
-                  background:
-                    "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-                  color: "#1d4ed8",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Filter size={18} />
-              </div>
+              <IconBox icon={<Filter size={24} />} size={48} />
               <Space vertical size={2} style={{ minWidth: 0 }}>
                 <Title level={5} style={{ margin: 0 }}>
                   Filter Tampilan Laporan
@@ -424,7 +410,6 @@ const AcademicReport = () => {
               <Text type='secondary'>Siswa</Text>
               <Select
                 style={{ width: "100%", marginTop: 8 }}
-                size='large'
                 value={effectiveStudentId || undefined}
                 onChange={(value) => setStudentId(String(value || ""))}
                 placeholder='Pilih siswa'
@@ -438,7 +423,6 @@ const AcademicReport = () => {
               <Text type='secondary'>Semester</Text>
               <Select
                 style={{ width: "100%", marginTop: 8 }}
-                size='large'
                 value={selectedSemester}
                 onChange={(value) => setSelectedSemester(Number(value))}
                 options={[
@@ -451,7 +435,6 @@ const AcademicReport = () => {
               <Text type='secondary'>Bulan</Text>
               <Select
                 style={{ width: "100%", marginTop: 8 }}
-                size='large'
                 value={safeSelectedMonth}
                 onChange={(value) => setSelectedMonth(Number(value))}
                 options={monthOptions}
@@ -461,11 +444,10 @@ const AcademicReport = () => {
               <Text type='secondary'>Cari Mata Pelajaran</Text>
               <Input
                 allowClear
-                size='large'
                 value={subjectKeyword}
                 onChange={(event) => setSubjectKeyword(event.target.value)}
                 placeholder='Cari nama atau kode mapel'
-                prefix={<Search size={16} style={{ color: "#64748b" }} />}
+                prefix={<Search size={16} style={{ color: museColors.muted }} />}
                 style={{ marginTop: 8 }}
               />
             </Col>
@@ -484,12 +466,12 @@ const AcademicReport = () => {
             <Alert
               type='error'
               showIcon
-              message='Gagal memuat laporan akademik'
+              title='Gagal memuat laporan akademik'
               description={
                 error?.data?.message ||
                 "Terjadi kendala saat mengambil data laporan."
               }
-              style={{ borderRadius: 18 }}
+              style={{ borderRadius: museRadius.card }}
             />
           </MotionDiv>
         ) : !students.length && !isLoading ? (
@@ -598,7 +580,7 @@ const AcademicReport = () => {
                 {isFetching ? (
                   <Tag
                     color='processing'
-                    style={{ marginRight: 0, borderRadius: 999 }}
+                    style={{ marginRight: 0, }}
                   >
                     Memperbarui data...
                   </Tag>
@@ -623,22 +605,7 @@ const AcademicReport = () => {
                           wrap='wrap'
                         >
                           <Space align='start' size={12}>
-                            <div
-                              style={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 16,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                background:
-                                  "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-                                color: "#1d4ed8",
-                                flexShrink: 0,
-                              }}
-                            >
-                              <BookOpenText size={20} />
-                            </div>
+                            <IconBox icon={<BookOpenText size={24} />} size={48} />
                             <Space vertical size={2} style={{ minWidth: 0 }}>
                               <Title level={5} style={{ margin: 0 }}>
                                 {item.subject_name}
@@ -654,7 +621,6 @@ const AcademicReport = () => {
                             color='blue'
                             style={{
                               marginRight: 0,
-                              borderRadius: 999,
                               paddingInline: 12,
                             }}
                           >
@@ -668,9 +634,9 @@ const AcademicReport = () => {
                               size='small'
                               variant='borderless'
                               style={{
-                                borderRadius: 18,
-                                background:
-                                  "linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)",
+                                borderRadius: museRadius.item,
+                                border: `1px solid ${museColors.divider}`,
+                                background: museColors.bgLayout,
                               }}
                               styles={{ body: { padding: 16 } }}
                             >
@@ -693,9 +659,9 @@ const AcademicReport = () => {
                               size='small'
                               variant='borderless'
                               style={{
-                                borderRadius: 18,
-                                background:
-                                  "linear-gradient(135deg, #faf5ff 0%, #f5f3ff 100%)",
+                                borderRadius: museRadius.item,
+                                border: `1px solid ${museColors.divider}`,
+                                background: museColors.bgLayout,
                               }}
                               styles={{ body: { padding: 16 } }}
                             >
@@ -722,9 +688,9 @@ const AcademicReport = () => {
                               size='small'
                               variant='borderless'
                               style={{
-                                borderRadius: 18,
-                                background:
-                                  "linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%)",
+                                borderRadius: museRadius.item,
+                                border: `1px solid ${museColors.divider}`,
+                                background: museColors.bgLayout,
                               }}
                               styles={{ body: { padding: 16 } }}
                             >
@@ -747,9 +713,9 @@ const AcademicReport = () => {
                               size='small'
                               variant='borderless'
                               style={{
-                                borderRadius: 18,
-                                background:
-                                  "linear-gradient(135deg, #ecfeff 0%, #eff6ff 100%)",
+                                borderRadius: museRadius.item,
+                                border: `1px solid ${museColors.divider}`,
+                                background: museColors.bgLayout,
                               }}
                               styles={{ body: { padding: 16 } }}
                             >

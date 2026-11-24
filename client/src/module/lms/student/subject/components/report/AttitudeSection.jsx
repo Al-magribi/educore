@@ -3,13 +3,14 @@ import { Card, Col, Row, Space, Statistic, Tag, Typography } from "antd";
 import { ShieldCheck } from "lucide-react";
 import { round2 } from "./utils";
 
+import { museColors, museRadius } from "../../../../../../config/theme";
 const { Title, Paragraph } = Typography;
 
 const AttitudeSection = ({ attitude }) => {
   return (
-    <Card style={{ borderRadius: 14 }} styles={{ body: { padding: 16 } }}>
+    <Card style={{ borderRadius: museRadius.card }} styles={{ body: { padding: 16 } }}>
       <Space align="center" size={10} style={{ marginBottom: 12 }}>
-        <ShieldCheck size={16} color="#1677ff" />
+        <ShieldCheck size={16} color={museColors.primary} />
         <Title level={5} style={{ margin: 0 }}>
           Sikap
         </Title>

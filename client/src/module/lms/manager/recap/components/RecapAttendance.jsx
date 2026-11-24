@@ -33,6 +33,7 @@ import {
   useRecapLayout,
 } from "./recapStyles";
 
+import { museColors } from "../../../../../config/theme";
 const { Text } = Typography;
 
 const MONTH_OPTIONS = [
@@ -59,17 +60,17 @@ const STATUS_LEGEND = [
 ];
 
 const STATUS_PALETTE = {
-  H: { background: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
+  H: { background: "#ecfdf5", color: museColors.success, border: "#a7f3d0" },
   T: { background: "#fffbeb", color: "#b45309", border: "#fde68a" },
-  S: { background: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  I: { background: "#f5f3ff", color: "#6d28d9", border: "#ddd6fe" },
-  A: { background: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
+  S: { background: museColors.primarySoft, color: museColors.primary, border: museColors.primarySoft },
+  I: { background: "#f5f3ff", color: museColors.purple, border: "#ddd6fe" },
+  A: { background: "#fef2f2", color: museColors.danger, border: "#fecaca" },
 };
 
 const NEUTRAL_PALETTE = {
-  background: "#f8fafc",
-  color: "#94a3b8",
-  border: "#e2e8f0",
+  background: museColors.bgLayout,
+  color: museColors.muted,
+  border: museColors.divider,
 };
 
 const statusPalette = (code) => STATUS_PALETTE[code] || NEUTRAL_PALETTE;
@@ -433,7 +434,7 @@ const RecapAttendance = ({
             },
           ]}
           styles={{ header: { paddingInline: 0 }, body: { paddingInline: 0 } }}
-          style={{ borderTop: "1px solid #f1f5f9" }}
+          style={{ borderTop: `1px solid ${museColors.bgSoft}` }}
         />
       ) : null}
     </RecordCard>

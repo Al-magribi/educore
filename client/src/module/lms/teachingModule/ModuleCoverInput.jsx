@@ -3,6 +3,7 @@ import { Button, Flex, Spin, Typography, Upload, message } from "antd";
 import { ImagePlus, RefreshCw, Trash2 } from "lucide-react";
 import { useUploadTeachingModuleCoverMutation } from "../../../service/lms/ApiTeachingModule";
 
+import { museColors } from "../../../config/theme";
 const { Text } = Typography;
 
 const MAX_COVER_SIZE = 5 * 1024 * 1024;
@@ -14,7 +15,7 @@ const frameStyle = {
   aspectRatio: "210 / 297",
   borderRadius: 10,
   overflow: "hidden",
-  background: "#f1f5f9",
+  background: museColors.bgSoft,
 };
 
 const ModuleCoverInput = ({ value, onChange }) => {
@@ -57,7 +58,7 @@ const ModuleCoverInput = ({ value, onChange }) => {
     <Flex vertical gap={8} align='flex-start'>
       <Spin spinning={isLoading}>
         {value ? (
-          <div style={{ ...frameStyle, border: "1px solid #e2e8f0" }}>
+          <div style={{ ...frameStyle, border: `1px solid ${museColors.divider}` }}>
             <img
               src={value}
               alt='Cover modul ajar'
@@ -74,13 +75,13 @@ const ModuleCoverInput = ({ value, onChange }) => {
               style={{
                 ...frameStyle,
                 width: 180,
-                border: "1px dashed #94a3b8",
+                border: `1px dashed ${museColors.muted}`,
                 cursor: "pointer",
                 padding: 12,
                 textAlign: "center",
               }}
             >
-              <ImagePlus size={26} color='#64748b' />
+              <ImagePlus size={26} color={museColors.muted} />
               <Text strong>Upload Cover</Text>
               <Text type='secondary' style={{ fontSize: 12 }}>
                 PNG, JPG, atau WEBP, maks 5 MB

@@ -2,6 +2,7 @@ import React from "react";
 import { Card, Flex, Modal, Typography } from "antd";
 import { motion } from "framer-motion";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 
 const modalMotionProps = {
@@ -14,7 +15,7 @@ const modalStyles = {
   header: {
     paddingBottom: 18,
     marginBottom: 0,
-    borderBottom: "1px solid #eef2f7",
+    borderBottom: `1px solid ${museColors.divider}`,
   },
   body: {
     paddingTop: 20,
@@ -22,7 +23,7 @@ const modalStyles = {
     overflow: "visible",
   },
   footer: {
-    borderTop: "1px solid #eef2f7",
+    borderTop: `1px solid ${museColors.divider}`,
     paddingTop: 16,
     marginTop: 0,
   },
@@ -30,7 +31,7 @@ const modalStyles = {
 
 const renderModalTitle = (title, subtitle) => (
   <Flex vertical gap={4}>
-    <Text strong style={{ fontSize: 18, color: "#0f172a" }}>
+    <Text strong style={{ fontSize: 18, color: museColors.text }}>
       {title}
     </Text>
     <Text type='secondary' style={{ fontSize: 13 }}>
@@ -80,14 +81,14 @@ const TeacherDutyFormModal = ({
       <Card
         size='small'
         style={{
-          borderRadius: 18,
-          border: "1px solid #e6eef7",
-          background: "#f8fbff",
+          borderRadius: museRadius.card,
+          border: `1px solid ${museColors.divider}`,
+          background: museColors.bgLayout,
         }}
         styles={{ body: { padding: 16 } }}
       >
         <Flex vertical gap={8}>
-          <Text strong style={{ color: "#0f172a" }}>
+          <Text strong style={{ color: museColors.text }}>
             {helperTitle}
           </Text>
           <Text type='secondary' style={{ fontSize: 13 }}>

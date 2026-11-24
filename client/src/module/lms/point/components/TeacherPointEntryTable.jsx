@@ -22,11 +22,12 @@ import {
   Trophy,
 } from "lucide-react";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const tableCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
+  borderRadius: museRadius.card,
+  border: `1px solid ${museColors.divider}`,
 };
 
 const TypeTag = ({ value }) => {
@@ -37,11 +38,10 @@ const TypeTag = ({ value }) => {
     <Tag
       style={{
         margin: 0,
-        borderRadius: 999,
         padding: "4px 10px",
         border: "none",
         background: isReward ? "#fff7d6" : "#fee2e2",
-        color: isReward ? "#92400e" : "#b91c1c",
+        color: isReward ? "#92400e" : museColors.danger,
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
@@ -108,7 +108,7 @@ const TeacherPointEntryTable = ({
       render: (_, record) => (
         <Flex vertical gap={2}>
           <Text strong>{record.student_name}</Text>
-          <Text style={{ color: "#64748b" }}>NIS {record.nis || "-"}</Text>
+          <Text style={{ color: museColors.muted }}>NIS {record.nis || "-"}</Text>
         </Flex>
       ),
     },
@@ -118,12 +118,12 @@ const TeacherPointEntryTable = ({
       key: "title_snapshot",
       render: (_, record) => (
         <Flex vertical gap={6}>
-          <Text strong style={{ color: "#0f172a" }}>
+          <Text strong style={{ color: museColors.text }}>
             {record.title_snapshot}
           </Text>
           <TypeTag value={record.point_type} />
           {record.category_name ? (
-            <Text style={{ color: "#64748b" }}>{record.category_name}</Text>
+            <Text style={{ color: museColors.muted }}>{record.category_name}</Text>
           ) : null}
         </Flex>
       ),
@@ -138,7 +138,7 @@ const TeacherPointEntryTable = ({
         <Text
           strong
           style={{
-            color: record.point_type === "reward" ? "#a16207" : "#b91c1c",
+            color: record.point_type === "reward" ? "#a16207" : museColors.danger,
           }}
         >
           {value}
@@ -150,7 +150,7 @@ const TeacherPointEntryTable = ({
       dataIndex: "description",
       key: "description",
       render: (value) => (
-        <Text style={{ color: "#64748b" }}>{value || "Tanpa catatan"}</Text>
+        <Text style={{ color: museColors.muted }}>{value || "Tanpa catatan"}</Text>
       ),
     },
     {
@@ -159,7 +159,7 @@ const TeacherPointEntryTable = ({
       key: "given_by_name",
       width: 180,
       render: (value) => (
-        <Text style={{ color: "#64748b" }}>{value || "-"}</Text>
+        <Text style={{ color: museColors.muted }}>{value || "-"}</Text>
       ),
     },
   ];
@@ -207,9 +207,8 @@ const TeacherPointEntryTable = ({
           <Card
             key={item.id}
             style={{
-              borderRadius: 18,
-              border: "1px solid #e5edf6",
-              boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
+              borderRadius: museRadius.card,
+              boxShadow: museShadow.card,
             }}
             styles={{ body: { padding: 16 } }}
           >
@@ -218,7 +217,7 @@ const TeacherPointEntryTable = ({
                 <div>
                   <Text strong>{item.student_name}</Text>
                   <div>
-                    <Text style={{ color: "#64748b" }}>
+                    <Text style={{ color: museColors.muted }}>
                       {formatEntryDate(item.entry_date)}
                     </Text>
                   </div>
@@ -227,11 +226,11 @@ const TeacherPointEntryTable = ({
               </Flex>
 
               <div>
-                <Text strong style={{ color: "#0f172a" }}>
+                <Text strong style={{ color: museColors.text }}>
                   {item.title_snapshot}
                 </Text>
                 <div>
-                  <Text style={{ color: "#64748b" }}>
+                  <Text style={{ color: museColors.muted }}>
                     {item.description || "Tanpa catatan"}
                   </Text>
                 </div>
@@ -241,14 +240,14 @@ const TeacherPointEntryTable = ({
                 <Text
                   strong
                   style={{
-                    color: item.point_type === "reward" ? "#a16207" : "#b91c1c",
+                    color: item.point_type === "reward" ? "#a16207" : museColors.danger,
                     fontSize: 18,
                   }}
                 >
                   {item.point_value} poin
                 </Text>
                 {readOnly ? (
-                  <Text style={{ color: "#64748b" }}>
+                  <Text style={{ color: museColors.muted }}>
                     {item.given_by_name || "-"}
                   </Text>
                 ) : (
@@ -303,7 +302,7 @@ const TeacherPointEntryTable = ({
               <Title level={4} style={{ margin: 0 }}>
                 Riwayat Poin Siswa
               </Title>
-              <Text style={{ color: "#64748b" }}>
+              <Text style={{ color: museColors.muted }}>
                 {selectedStudent
                   ? `Siswa ${selectedStudent.student_name} sedang dipilih pada ringkasan kelas, tetapi tabel ini tetap menampilkan seluruh riwayat sesuai filter.`
                   : readOnly
@@ -319,8 +318,8 @@ const TeacherPointEntryTable = ({
                 onClick={onCreate}
                 style={{
                   borderRadius: 12,
-                  background: "#0f172a",
-                  borderColor: "#0f172a",
+                  background: museColors.text,
+                  borderColor: museColors.text,
                   fontWeight: 700,
                   width: isMobile ? "100%" : "auto",
                 }}
@@ -341,9 +340,9 @@ const TeacherPointEntryTable = ({
               allowClear
               value={nameFilter}
               onChange={(event) => setNameFilter(event.target.value)}
-              prefix={<Search size={16} color='#64748b' />}
+              prefix={<Search size={16} color={museColors.muted} />}
               placeholder='Filter nama siswa'
-              style={{ borderRadius: 14, height: 42 }}
+              style={{ borderRadius: museRadius.card, height: 42 }}
             />
             <Select
               allowClear

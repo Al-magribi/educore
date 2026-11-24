@@ -2,41 +2,45 @@ import { createElement, lazy } from "react";
 import { Route } from "react-router-dom";
 
 import RouteProtection from "../../utils/RouteProtection";
+import withMuseTheme from "../../components/ui/muse/withMuseTheme";
 
-const LmsManagement = lazy(
+// Module LMS memakai theme Muse (lihat CLAUDE.md).
+const lazyMuse = (loader) => withMuseTheme(lazy(loader));
+
+const LmsManagement = lazyMuse(
   () => import("../../module/lms/manager/LmsManagement"),
 );
-const Schedule = lazy(() => import("../../module/lms/schedule/admin/Schedule"));
-const TeacherSchedule = lazy(
+const Schedule = lazyMuse(() => import("../../module/lms/schedule/admin/Schedule"));
+const TeacherSchedule = lazyMuse(
   () => import("../../module/lms/schedule/teacher/TeacherSchedule"),
 );
-const Duty = lazy(() => import("../../module/lms/duty/Duty"));
-const AdminPointView = lazy(
+const Duty = lazyMuse(() => import("../../module/lms/duty/Duty"));
+const AdminPointView = lazyMuse(
   () => import("../../module/lms/point/view/AdminPointView"),
 );
-const StaffAssignment = lazy(
+const StaffAssignment = lazyMuse(
   () => import("../../module/lms/assignment/StaffAssignment"),
 );
-const BukuIndukList = lazy(() => import("../../module/lms/tu/BukuIndukList"));
-const BukuIndukDetail = lazy(
+const BukuIndukList = lazyMuse(() => import("../../module/lms/tu/BukuIndukList"));
+const BukuIndukDetail = lazyMuse(
   () => import("../../module/lms/tu/BukuIndukDetail"),
 );
-const MutasiSiswa = lazy(() => import("../../module/lms/tu/MutasiSiswa"));
-const AlumniPage = lazy(() => import("../../module/lms/tu/AlumniPage"));
-const IjazahPage = lazy(() => import("../../module/lms/tu/IjazahPage"));
-const SuratPage = lazy(() => import("../../module/lms/tu/SuratPage"));
-const SaranaPage = lazy(() => import("../../module/lms/tu/SaranaPage"));
-const TeacherPointView = lazy(
+const MutasiSiswa = lazyMuse(() => import("../../module/lms/tu/MutasiSiswa"));
+const AlumniPage = lazyMuse(() => import("../../module/lms/tu/AlumniPage"));
+const IjazahPage = lazyMuse(() => import("../../module/lms/tu/IjazahPage"));
+const SuratPage = lazyMuse(() => import("../../module/lms/tu/SuratPage"));
+const SaranaPage = lazyMuse(() => import("../../module/lms/tu/SaranaPage"));
+const TeacherPointView = lazyMuse(
   () => import("../../module/lms/point/view/TeacherPointView"),
 );
-const StudentPointView = lazy(
+const StudentPointView = lazyMuse(
   () => import("../../module/lms/point/view/StudentPointView"),
 );
-const ParentPointView = lazy(
+const ParentPointView = lazyMuse(
   () => import("../../module/lms/point/view/ParentPointView"),
 );
-const SubjectList = lazy(() => import("../../module/lms/student/SubjectList"));
-const TeachingModuleMonitoring = lazy(
+const SubjectList = lazyMuse(() => import("../../module/lms/student/SubjectList"));
+const TeachingModuleMonitoring = lazyMuse(
   () =>
     import("../../module/lms/teachingModule/monitoring/TeachingModuleMonitoring"),
 );
@@ -44,19 +48,19 @@ const TeachingModuleMonitoring = lazy(
 const ParentDash = lazy(
   () => import("../../module/parent/dashboard/ParentDash"),
 );
-const AcademicReport = lazy(
+const AcademicReport = lazyMuse(
   () => import("../../module/lms/report/AcademicReport"),
 );
 
 // Attendace
-const AttendanceConfig = lazy(
+const AttendanceConfig = lazyMuse(
   () => import("../../module/lms/attendance/config/AttendanceConfig"),
 );
-const AttendanceReport = lazy(
+const AttendanceReport = lazyMuse(
   () => import("../../module/lms/attendance/report/AttendanceReport"),
 );
 
-const ClassAttendance = lazy(
+const ClassAttendance = lazyMuse(
   () => import("../../module/lms/attendance/class/ClassAttendance"),
 );
 

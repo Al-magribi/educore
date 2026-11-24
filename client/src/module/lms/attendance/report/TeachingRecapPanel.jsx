@@ -13,6 +13,7 @@ import {
 } from './reportShared';
 import { CardGridView, ReportMetricGrid, ReportRecordCard } from './reportMobile';
 
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
 
 const sanitizeSheetName = (name) => {
@@ -25,9 +26,9 @@ const sanitizeSheetName = (name) => {
 
 const recapRateColor = (value) => {
   const rate = Number(value || 0);
-  if (rate >= 90) return '#15803d';
+  if (rate >= 90) return museColors.success;
   if (rate >= 70) return '#a16207';
-  return '#b91c1c';
+  return museColors.danger;
 };
 
 const TeachingRecapPanel = ({
@@ -150,7 +151,9 @@ const TeachingRecapPanel = ({
 
       <CardGridView
         loading={isLoading || (isFetching && rows.length > 0)}
-        dataSource={rows}        emptyText="Belum ada data rekapitulasi mengajar pada bulan ini."        pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'baris' })}
+        dataSource={rows}
+        emptyText="Belum ada data rekapitulasi mengajar pada bulan ini."
+        pagination={buildPagination({ pageSize, setPageSize, isMobile, unit: 'baris' })}
         rowKey={(row) => `${row.class_id}-${row.teacher_id}-${row.subject_id || 'none'}`}
         renderCard={(row) => {
           const rate = Number(row.attendance_rate || 0);

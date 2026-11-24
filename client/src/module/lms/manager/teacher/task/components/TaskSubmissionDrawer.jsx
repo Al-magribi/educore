@@ -24,13 +24,14 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 
+import { museColors, museRadius } from "../../../../../../config/theme";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
 const summaryCardStyle = {
-  borderRadius: 18,
+  borderRadius: museRadius.card,
   border: "1px solid rgba(148, 163, 184, 0.16)",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+  background: "#ffffff",
   padding: 16,
 };
 
@@ -94,7 +95,7 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                 <Text type='secondary'>Sudah Mengumpulkan</Text>
                 <Title
                   level={5}
-                  style={{ margin: "6px 0 0", color: "#15803d" }}
+                  style={{ margin: "6px 0 0", color: museColors.success }}
                 >
                   {submittedCount}
                 </Title>
@@ -119,10 +120,9 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                     <div
                       style={{
                         width: "100%",
-                        borderRadius: 18,
+                        borderRadius: museRadius.card,
                         border: "1px solid rgba(148, 163, 184, 0.14)",
-                        background:
-                          "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                        background: "#ffffff",
                         padding: isMobile ? 12 : 16,
                       }}
                     >
@@ -138,12 +138,12 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                             style={{
                               width: 42,
                               height: 42,
-                              borderRadius: 14,
+                              borderRadius: museRadius.card,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              background: "#eff6ff",
-                              color: "#1d4ed8",
+                              background: museColors.primarySoft,
+                              color: museColors.primary,
                               flexShrink: 0,
                             }}
                           >
@@ -171,7 +171,6 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                                     color='green'
                                     style={{
                                       marginRight: 0,
-                                      borderRadius: 999,
                                       maxWidth: "100%",
                                       whiteSpace: "normal",
                                       height: "auto",
@@ -271,7 +270,7 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
                     key={name}
                     icon={<GraduationCap size={12} />}
                     color='green'
-                    style={{ marginRight: 0, borderRadius: 999 }}
+                    style={{ marginRight: 0, }}
                   >
                     {name}
                   </Tag>
@@ -289,7 +288,7 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
             </div>
             <div style={summaryCardStyle}>
               <Text type='secondary'>Sudah Mengumpulkan</Text>
-              <Title level={4} style={{ margin: "6px 0 0", color: "#15803d" }}>
+              <Title level={4} style={{ margin: "6px 0 0", color: museColors.success }}>
                 {summary?.submitted || 0}
               </Title>
             </div>
@@ -314,8 +313,7 @@ const TaskSubmissionDrawer = ({ open, onClose, data, isLoading }) => {
             <Tabs
               items={classTabs}
               defaultActiveKey={classTabs[0]?.key}
-              tabBarGutter={8}
-              size={isMobile ? "middle" : "large"}
+              size={isMobile ? "small" : "middle"}
             />
           ) : (
             <Empty description='Tidak ada siswa yang cocok dengan filter nama.' />

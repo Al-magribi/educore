@@ -4,6 +4,7 @@ import { ClipboardCheck } from "lucide-react";
 import ResponsiveTable from "../../../../../../components/ui/ResponsiveTable";
 import { round2 } from "./utils";
 
+import { museRadius } from "../../../../../../config/theme";
 const { Title } = Typography;
 
 const ScoreSectionCard = ({
@@ -17,7 +18,7 @@ const ScoreSectionCard = ({
   emptyText,
 }) => {
   return (
-    <Card style={{ borderRadius: 14 }} styles={{ body: { padding: 16 } }}>
+    <Card style={{ borderRadius: museRadius.card }} styles={{ body: { padding: 16 } }}>
       <Space align="center" size={10} wrap style={{ marginBottom: 12 }}>
         <ClipboardCheck size={16} color={color} />
         <Title level={5} style={{ margin: 0 }}>

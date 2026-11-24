@@ -451,7 +451,7 @@ const ScheduleActivity = ({
             showIcon
             type='info'
             style={{ marginBottom: 16 }}
-            message={`Form kegiatan untuk ${shiftLabel}`}
+            title={`Form kegiatan untuk ${shiftLabel}`}
             description='Hari dan slot yang dapat dipilih mengikuti konfigurasi pada jadwal ini.'
           />
           <Form.Item name='id' hidden>

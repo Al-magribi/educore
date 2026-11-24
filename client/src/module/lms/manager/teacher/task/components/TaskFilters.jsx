@@ -2,6 +2,7 @@ import React from "react";
 import { Card, Flex, Grid, Select, Space, Typography } from "antd";
 import { Filter } from "lucide-react";
 
+import { museRadius, museShadow } from "../../../../../../config/theme";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -23,8 +24,8 @@ const TaskFilters = ({
     <Card
       variant='borderless'
       style={{
-        borderRadius: 22,
-        boxShadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+        borderRadius: museRadius.card,
+        boxShadow: museShadow.card,
       }}
       styles={{ body: { padding: isMobile ? 14 : 18 } }}
     >

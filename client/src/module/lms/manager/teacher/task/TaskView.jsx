@@ -38,10 +38,10 @@ import TaskList from "./components/TaskList";
 import TaskModal from "./components/TaskModal";
 import TaskSubmissionDrawer from "./components/TaskSubmissionDrawer";
 
+import { museRadius } from "../../../../../config/theme";
 const MotionDiv = motion.div;
 const { useBreakpoint } = Grid;
 const EMPTY_LIST = [];
-const { Text, Title } = Typography;
 
 const TaskView = ({ subjectId }) => {
   const screens = useBreakpoint();
@@ -142,27 +142,24 @@ const TaskView = ({ subjectId }) => {
       label: "Total Penugasan",
       value: tasks.length,
       caption: "Tugas aktif pada filter yang dipilih",
-      icon: <FolderKanban size={18} />,
-      background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-      color: "#1d4ed8",
+      icon: <FolderKanban size={24} />,
+      tone: "primary",
     },
     {
       key: "class",
       label: "Target Kelas",
       value: totalTargetClasses,
       caption: "Akumulasi kelas target dari semua tugas",
-      icon: <GraduationCap size={18} />,
-      background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-      color: "#15803d",
+      icon: <GraduationCap size={24} />,
+      tone: "success",
     },
     {
       key: "deadline",
       label: "Deadline Terdekat",
       value: nearestDeadline,
       caption: "Urutan daftar mengikuti deadline paling dekat",
-      icon: <CalendarRange size={18} />,
-      background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-      color: "#b45309",
+      icon: <CalendarRange size={24} />,
+      tone: "warning",
     },
   ];
 
@@ -243,12 +240,12 @@ const TaskView = ({ subjectId }) => {
       <Alert
         type='error'
         showIcon
-        message='Gagal memuat referensi chapter'
+        title='Gagal memuat referensi chapter'
         description={
           chapterError?.data?.message ||
           "Data chapter tidak dapat dimuat untuk modul penugasan."
         }
-        style={{ borderRadius: 18 }}
+        style={{ borderRadius: museRadius.card }}
       />
     );
   }
@@ -286,12 +283,12 @@ const TaskView = ({ subjectId }) => {
         <Alert
           type='error'
           showIcon
-          message='Gagal memuat daftar penugasan'
+          title='Gagal memuat daftar penugasan'
           description={
             taskError?.data?.message ||
             "Terjadi kendala saat mengambil data penugasan."
           }
-          style={{ borderRadius: 18 }}
+          style={{ borderRadius: museRadius.card }}
         />
       ) : null}
 

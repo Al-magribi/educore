@@ -37,6 +37,7 @@ import {
   normalizeContent,
 } from "./moduleSchema";
 
+import { museColors } from "../../../config/theme";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -308,7 +309,7 @@ const TeachingModuleFormDrawer = ({
                     <Card
                       key={field.key}
                       size='small'
-                      style={{ background: "#f8fafc", borderRadius: 10 }}
+                      style={{ background: museColors.bgLayout, borderRadius: 10 }}
                       title={
                         <Form.Item
                           name={[field.name, "title"]}
@@ -476,7 +477,7 @@ const TeachingModuleFormDrawer = ({
       width={isMobile ? "100%" : 980}
       destroyOnHidden
       maskClosable={false}
-      styles={{ body: { background: "#f8fafc", paddingTop: 16 } }}
+      styles={{ body: { background: museColors.bgLayout, paddingTop: 16 } }}
       extra={
         <Space>
           <Button onClick={onClose}>Batal</Button>
@@ -550,7 +551,7 @@ const TeachingModuleFormDrawer = ({
               type='warning'
               showIcon
               style={{ marginBottom: 12 }}
-              message='Belum ada tingkat yang Anda ampu pada mata pelajaran ini.'
+              title='Belum ada tingkat yang Anda ampu pada mata pelajaran ini.'
             />
           ) : null}
           <Tabs

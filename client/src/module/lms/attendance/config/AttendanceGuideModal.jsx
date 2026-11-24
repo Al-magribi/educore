@@ -50,7 +50,7 @@ const AttendanceGuideModal = ({ open, onClose }) => {
       <Alert
         showIcon
         type='info'
-        message='Urutan wajib: aktifkan Fitur → buat Policy → daftarkan Device RFID → petakan Assignment → pantau Laporan.'
+        title='Urutan wajib: aktifkan Fitur → buat Policy → daftarkan Device RFID → petakan Assignment → pantau Laporan.'
         style={{ marginBottom: 16 }}
       />
 

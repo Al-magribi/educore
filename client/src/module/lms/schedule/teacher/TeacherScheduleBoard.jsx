@@ -7,6 +7,7 @@ import {
   getSubjectColor,
 } from "../admin/scheduleTimetableUtils";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { useBreakpoint } = Grid;
 
 const TeacherScheduleBoard = ({ days, todayKey }) => {
@@ -59,7 +60,7 @@ const TeacherScheduleBoard = ({ days, todayKey }) => {
                   body: { padding: 0, overflow: "hidden" },
                 }}
                 style={{
-                  borderRadius: 16,
+                  borderRadius: museRadius.card,
                   border: `1px solid ${BORDER_COLOR}`,
                   height: "100%",
                   overflow: "hidden",
@@ -176,7 +177,7 @@ const TeacherScheduleBoard = ({ days, todayKey }) => {
                                 style={{
                                   fontWeight: 700,
                                   fontSize: 12,
-                                  color: "#64748b",
+                                  color: museColors.muted,
                                 }}
                               >
                                 {row.time_label}
@@ -253,7 +254,7 @@ const TeacherScheduleBoard = ({ days, todayKey }) => {
                                 ) : !activities.length ? (
                                   <span
                                     style={{
-                                      color: "#cbd5e1",
+                                      color: museColors.border,
                                       fontWeight: 600,
                                     }}
                                   >
@@ -377,7 +378,7 @@ const TeacherScheduleBoard = ({ days, todayKey }) => {
                               </Tooltip>
                             ) : !activities.length ? (
                               <span
-                                style={{ color: "#cbd5e1", fontWeight: 600 }}
+                                style={{ color: museColors.border, fontWeight: 600 }}
                               >
                                 —
                               </span>

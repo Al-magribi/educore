@@ -22,13 +22,13 @@ import {
   Zap,
 } from "lucide-react";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Paragraph, Text, Title } = Typography;
 
 const cardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const getInitials = (name) =>
@@ -44,11 +44,10 @@ const ScoreTag = ({ value, showBalance = false }) => (
   <Tag
     style={{
       margin: 0,
-      borderRadius: 999,
       paddingInline: 10,
-      borderColor: showBalance ? "#bfdbfe" : "#d1fae5",
-      background: showBalance ? "#eff6ff" : "#ecfdf5",
-      color: showBalance ? "#1d4ed8" : "#047857",
+      borderColor: showBalance ? museColors.primarySoft : "#d1fae5",
+      background: showBalance ? museColors.primarySoft : "#ecfdf5",
+      color: showBalance ? museColors.primary : museColors.success,
       fontWeight: 700,
     }}
   >
@@ -67,7 +66,7 @@ const MetricCard = ({
 }) => (
   <div
     style={{
-      borderRadius: 16,
+      borderRadius: museRadius.card,
       border: `1px solid ${borderColor}`,
       background,
       padding: 12,
@@ -105,8 +104,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
             <Avatar
               size={52}
               style={{
-                background:
-                  "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(37,99,235,0.84))",
+                background: museColors.primary,
                 color: "#fff",
                 fontWeight: 700,
               }}
@@ -117,7 +115,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
               <Title level={4} style={{ margin: 0 }}>
                 {student.student_name}
               </Title>
-              <Text style={{ color: "#64748b" }}>
+              <Text style={{ color: museColors.muted }}>
                 NIS {student.nis || "-"} • {student.grade_name || "-"} /{" "}
                 {student.class_name || "-"}
               </Text>
@@ -147,7 +145,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
             label='Total Poin Pelanggaran'
             value={student.total_punishment}
             percent={100}
-            color='#b91c1c'
+            color={museColors.danger}
             background='#fef2f2'
             borderColor='#fecaca'
             trailColor='#fca5a5'
@@ -163,7 +161,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
         >
           <Card
             style={{
-              borderRadius: 18,
+              borderRadius: museRadius.card,
               border: "1px solid #fef3c7",
               background: "#fffdf7",
               boxShadow: "none",
@@ -186,7 +184,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
                 <Zap size={16} />
               </span>
               <div>
-                <Text style={{ color: "#64748b", fontSize: 12 }}>
+                <Text style={{ color: museColors.muted, fontSize: 12 }}>
                   Entri Penghargaan
                 </Text>
                 <Title level={4} style={{ margin: "2px 0 0", color: "#a16207" }}>
@@ -198,7 +196,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
 
           <Card
             style={{
-              borderRadius: 18,
+              borderRadius: museRadius.card,
               border: "1px solid #fecaca",
               background: "#fff8f8",
               boxShadow: "none",
@@ -212,7 +210,7 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
                   height: 36,
                   borderRadius: 12,
                   background: "#fecaca",
-                  color: "#b91c1c",
+                  color: museColors.danger,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -221,10 +219,10 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
                 <ShieldAlert size={16} />
               </span>
               <div>
-                <Text style={{ color: "#64748b", fontSize: 12 }}>
+                <Text style={{ color: museColors.muted, fontSize: 12 }}>
                   Entri Pelanggaran
                 </Text>
-                <Title level={4} style={{ margin: "2px 0 0", color: "#b91c1c" }}>
+                <Title level={4} style={{ margin: "2px 0 0", color: museColors.danger }}>
                   {student.punishment_entries || 0}
                 </Title>
               </div>
@@ -233,9 +231,9 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
 
           <Card
             style={{
-              borderRadius: 18,
-              border: "1px solid #dbeafe",
-              background: "#f8fbff",
+              borderRadius: museRadius.card,
+              border: `1px solid ${museColors.primarySoft}`,
+              background: museColors.bgLayout,
               boxShadow: "none",
             }}
             styles={{ body: { padding: 16 } }}
@@ -246,8 +244,8 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
                   width: 36,
                   height: 36,
                   borderRadius: 12,
-                  background: "#dbeafe",
-                  color: "#1d4ed8",
+                  background: museColors.primarySoft,
+                  color: museColors.primary,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -256,10 +254,10 @@ const StudentDetailModal = ({ open, onClose, student, showBalance }) => {
                 <Award size={16} />
               </span>
               <div>
-                <Text style={{ color: "#64748b", fontSize: 12 }}>
+                <Text style={{ color: museColors.muted, fontSize: 12 }}>
                   Total Semua Entri
                 </Text>
-                <Title level={4} style={{ margin: "2px 0 0", color: "#1d4ed8" }}>
+                <Title level={4} style={{ margin: "2px 0 0", color: museColors.primary }}>
                   {student.total_entries || 0}
                 </Title>
               </div>
@@ -281,9 +279,8 @@ const StudentCard = ({
 }) => (
   <Card
     style={{
-      borderRadius: 20,
-      border: "1px solid #e5edf6",
-      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
+      borderRadius: museRadius.card,
+      boxShadow: museShadow.card,
     }}
     styles={{ body: { padding: 18 } }}
   >
@@ -293,8 +290,7 @@ const StudentCard = ({
           <Avatar
             size={44}
             style={{
-              background:
-                "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(37,99,235,0.84))",
+              background: museColors.primary,
               color: "#fff",
               fontWeight: 700,
             }}
@@ -302,11 +298,11 @@ const StudentCard = ({
             {getInitials(item.student_name)}
           </Avatar>
           <div>
-            <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
+            <Text strong style={{ color: museColors.text, fontSize: 15 }}>
               #{rank} {item.student_name}
             </Text>
             <div>
-              <Text style={{ color: "#64748b" }}>
+              <Text style={{ color: museColors.muted }}>
                 NIS {item.nis || "-"} • {item.class_name || "-"}
               </Text>
             </div>
@@ -341,7 +337,7 @@ const StudentCard = ({
           label='Pelanggaran'
           value={item.total_punishment}
           percent={punishmentPercent}
-          color='#b91c1c'
+          color={museColors.danger}
           background='#fef2f2'
           borderColor='#fecaca'
           trailColor='#fca5a5'
@@ -380,7 +376,7 @@ const PointStudentLeaderboard = ({
       width: 92,
       align: "center",
       render: (_, __, index) => (
-        <Text strong style={{ color: "#0f172a" }}>
+        <Text strong style={{ color: museColors.text }}>
           #{index + 1}
         </Text>
       ),
@@ -394,8 +390,7 @@ const PointStudentLeaderboard = ({
           <Avatar
             size={42}
             style={{
-              background:
-                "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(37,99,235,0.84))",
+              background: museColors.primary,
               color: "#fff",
               fontWeight: 700,
             }}
@@ -403,11 +398,11 @@ const PointStudentLeaderboard = ({
             {getInitials(record.student_name)}
           </Avatar>
           <div>
-            <Text strong style={{ color: "#0f172a" }}>
+            <Text strong style={{ color: museColors.text }}>
               {record.student_name}
             </Text>
             <div>
-              <Text style={{ color: "#64748b" }}>NIS {record.nis || "-"}</Text>
+              <Text style={{ color: museColors.muted }}>NIS {record.nis || "-"}</Text>
             </div>
           </div>
         </Space>
@@ -418,7 +413,7 @@ const PointStudentLeaderboard = ({
       key: "class",
       width: 120,
       render: (_, record) => (
-        <Text style={{ color: "#0f172a" }}>
+        <Text style={{ color: museColors.text }}>
           {record.grade_name || "-"} / {record.class_name || "-"}
         </Text>
       ),
@@ -433,7 +428,6 @@ const PointStudentLeaderboard = ({
           <Tag
             style={{
               margin: 0,
-              borderRadius: 999,
               paddingInline: 10,
               borderColor: "#fcd34d",
               background: "#fffbeb",
@@ -468,11 +462,10 @@ const PointStudentLeaderboard = ({
           <Tag
             style={{
               margin: 0,
-              borderRadius: 999,
               paddingInline: 10,
               borderColor: "#fecaca",
               background: "#fef2f2",
-              color: "#b91c1c",
+              color: museColors.danger,
               fontWeight: 700,
               width: "fit-content",
             }}
@@ -490,7 +483,7 @@ const PointStudentLeaderboard = ({
             }
             size='small'
             showInfo={false}
-            strokeColor='#b91c1c'
+            strokeColor={museColors.danger}
             trailColor='#fca5a5'
           />
         </Space>
@@ -542,9 +535,9 @@ const PointStudentLeaderboard = ({
                 style={{
                   width: 44,
                   height: 44,
-                  borderRadius: 16,
-                  background: "#eff6ff",
-                  color: "#2563eb",
+                  borderRadius: museRadius.card,
+                  background: museColors.primarySoft,
+                  color: museColors.primary,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -556,7 +549,7 @@ const PointStudentLeaderboard = ({
                 <Title level={4} style={{ margin: 0 }}>
                   Daftar Siswa dan Poin
                 </Title>
-                <Paragraph style={{ margin: "4px 0 0", color: "#64748b" }}>
+                <Paragraph style={{ margin: "4px 0 0", color: museColors.muted }}>
                   Diurutkan berdasarkan skor poin tertinggi. Jika nilainya sama,
                   urutan ditentukan oleh tingkat 7, 8, 9 lalu kelas 7A, 7B,
                   dan seterusnya.
@@ -568,11 +561,10 @@ const PointStudentLeaderboard = ({
               <Tag
                 style={{
                   margin: 0,
-                  borderRadius: 999,
                   paddingInline: 10,
-                  borderColor: "#dbeafe",
-                  background: "#eff6ff",
-                  color: "#1d4ed8",
+                  borderColor: museColors.primarySoft,
+                  background: museColors.primarySoft,
+                  color: museColors.primary,
                 }}
               >
                 <Award size={13} style={{ marginRight: 6 }} />
@@ -581,11 +573,10 @@ const PointStudentLeaderboard = ({
               <Tag
                 style={{
                   margin: 0,
-                  borderRadius: 999,
                   paddingInline: 10,
-                  borderColor: showBalance ? "#bfdbfe" : "#d1fae5",
-                  background: showBalance ? "#eff6ff" : "#ecfdf5",
-                  color: showBalance ? "#1d4ed8" : "#047857",
+                  borderColor: showBalance ? museColors.primarySoft : "#d1fae5",
+                  background: showBalance ? museColors.primarySoft : "#ecfdf5",
+                  color: showBalance ? museColors.primary : museColors.success,
                 }}
               >
                 <Trophy size={13} style={{ marginRight: 6 }} />

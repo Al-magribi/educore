@@ -9,6 +9,7 @@ import {
   UserSquare2,
 } from "lucide-react";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { Text } = Typography;
 
 const Subject = ({ subject, onClick }) => {
@@ -17,7 +18,7 @@ const Subject = ({ subject, onClick }) => {
       <Card
         hoverable
         onClick={onClick}
-        style={{ borderRadius: 14, height: "100%" }}
+        style={{ borderRadius: museRadius.card, height: "100%" }}
         styles={{ body: { padding: 16 } }}
       >
         <Flex vertical gap={12} style={{ height: "100%" }}>
@@ -31,7 +32,7 @@ const Subject = ({ subject, onClick }) => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#52c41a",
+                color: museColors.success,
               }}
             >
               <BookOpen size={18} />
@@ -53,21 +54,21 @@ const Subject = ({ subject, onClick }) => {
                 KKM: {subject.kkm ?? "-"}
               </Text>
             </div>
-            <MoveRight size={16} color='#8c8c8c' />
+            <MoveRight size={16} color={museColors.muted} />
           </Flex>
 
           <Space size={[8, 8]} wrap>
             <Tag
               icon={<Hash size={12} />}
               color='geekblue'
-              style={{ marginRight: 0, borderRadius: 999 }}
+              style={{ marginRight: 0, }}
             >
               {subject.code || "Tanpa Kode"}
             </Tag>
             <Tag
               icon={<Layers3 size={12} />}
               color='blue'
-              style={{ marginRight: 0, borderRadius: 999 }}
+              style={{ marginRight: 0, }}
             >
               {subject.category_name || "Umum"}
             </Tag>
@@ -75,7 +76,7 @@ const Subject = ({ subject, onClick }) => {
               <Tag
                 icon={<Building2 size={12} />}
                 color='cyan'
-                style={{ marginRight: 0, borderRadius: 999 }}
+                style={{ marginRight: 0, }}
               >
                 {subject.branch_name}
               </Tag>
@@ -100,7 +101,7 @@ const Subject = ({ subject, onClick }) => {
 Subject.Skeleton = function SubjectSkeleton() {
   return (
     <Col xs={24} sm={12} lg={8} xl={6}>
-      <Card style={{ borderRadius: 14 }} loading />
+      <Card style={{ borderRadius: museRadius.card }} loading />
     </Col>
   );
 };

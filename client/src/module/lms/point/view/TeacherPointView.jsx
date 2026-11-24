@@ -7,9 +7,9 @@ import {
   Input,
   Select,
   Space,
-  Tabs,
   Tag,
   Typography,
+  Skeleton,
 } from "antd";
 import { motion } from "framer-motion";
 import {
@@ -22,67 +22,37 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import TeacherPointHero from "../components/TeacherPointHero";
 import TeacherPointEntryTable from "../components/TeacherPointEntryTable";
 import PointCatalogPanel from "../components/PointCatalogPanel";
-import LoadApp from "../../../../components/loader/LoadApp";
 import {
   useGetTeacherPointBootstrapQuery,
   useGetTeacherPointEntriesQuery,
 } from "../../../../service/lms/ApiPoint";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
+import { PageTabs } from "../../../../components/ui/muse";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.04,
-    },
-  },
-};
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.36,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
 
 const emptyCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const panelCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
-const tabsCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
-};
 
 const TeacherPointView = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const [activeTab, setActiveTab] = useState("summary");
   const [searchStudent, setSearchStudent] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [classId, setClassId] = useState(null);
@@ -186,26 +156,20 @@ const TeacherPointView = () => {
                 )
               }
               style={{
-                borderRadius: 20,
-                border: isActive
-                  ? "1px solid #93c5fd"
-                  : "1px solid #e5edf6",
-                background: isActive
-                  ? "linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)"
-                  : "#fff",
-                boxShadow: isActive
-                  ? "0 16px 30px rgba(37, 99, 235, 0.12)"
-                  : "0 10px 24px rgba(15, 23, 42, 0.05)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${isActive ? museColors.primary : museColors.divider}`,
+                background: isActive ? museColors.primarySoft : "#ffffff",
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: 18 } }}
             >
               <Flex vertical gap={12}>
                 <div>
-                  <Text strong style={{ color: "#0f172a", fontSize: 15 }}>
+                  <Text strong style={{ color: museColors.text, fontSize: 15 }}>
                     {student.student_name}
                   </Text>
                   <div>
-                    <Text style={{ color: "#64748b" }}>
+                    <Text style={{ color: museColors.muted }}>
                       NIS {student.nis || "-"}
                     </Text>
                   </div>
@@ -215,7 +179,6 @@ const TeacherPointView = () => {
                   <Tag
                     style={{
                       margin: 0,
-                      borderRadius: 999,
                       borderColor: "#fcd34d",
                       background: "#fffbeb",
                       color: "#a16207",
@@ -226,10 +189,9 @@ const TeacherPointView = () => {
                   <Tag
                     style={{
                       margin: 0,
-                      borderRadius: 999,
                       borderColor: "#fecaca",
                       background: "#fef2f2",
-                      color: "#b91c1c",
+                      color: museColors.danger,
                     }}
                   >
                     Pelanggaran {student.total_punishment || 0}
@@ -239,10 +201,9 @@ const TeacherPointView = () => {
                   <Tag
                     style={{
                       margin: 0,
-                      borderRadius: 999,
-                      borderColor: "#bfdbfe",
-                      background: "#eff6ff",
-                      color: "#1d4ed8",
+                      borderColor: museColors.primarySoft,
+                      background: museColors.primarySoft,
+                      color: museColors.primary,
                       width: "fit-content",
                     }}
                   >
@@ -278,13 +239,10 @@ const TeacherPointView = () => {
   const tabItems = [
     {
       key: "summary",
-      label: (
-        <Space size={8}>
-          <LayoutGrid size={15} />
-          Ringkasan Kelas
-        </Space>
-      ),
-      children: (
+      description: tabSummary.summary.description,
+      label: "Ringkasan Kelas",
+      icon: <LayoutGrid />,
+      render: () => (
         <motion.div
           key='teacher-point-summary'
           initial={{ opacity: 0, y: 16 }}
@@ -306,7 +264,7 @@ const TeacherPointView = () => {
                   <Title level={4} style={{ margin: 0 }}>
                     Ringkasan Kelas
                   </Title>
-                  <Text style={{ color: "#64748b" }}>
+                  <Text style={{ color: museColors.muted }}>
                     Gunakan panel ini untuk melihat akumulasi poin per siswa di
                     kelas wali Anda.
                   </Text>
@@ -322,22 +280,22 @@ const TeacherPointView = () => {
                   gap: 12,
                 }}
               >
-                <Card style={{ borderRadius: 18, border: "1px solid #e5edf6", boxShadow: "none" }}>
+                <Card style={{ borderRadius: museRadius.card, border: `1px solid ${museColors.divider}`, boxShadow: "none" }}>
                   <Space>
-                    <Users size={18} color='#1d4ed8' />
+                    <Users size={18} color={museColors.primary} />
                     <div>
-                      <Text style={{ color: "#64748b", fontSize: 12 }}>Siswa</Text>
+                      <Text style={{ color: museColors.muted, fontSize: 12 }}>Siswa</Text>
                       <Title level={4} style={{ margin: "2px 0 0" }}>
                         {summaryStats.totalStudents}
                       </Title>
                     </div>
                   </Space>
                 </Card>
-                <Card style={{ borderRadius: 18, border: "1px solid #fef3c7", boxShadow: "none" }}>
+                <Card style={{ borderRadius: museRadius.card, border: "1px solid #fef3c7", boxShadow: "none" }}>
                   <Space>
                     <Trophy size={18} color='#a16207' />
                     <div>
-                      <Text style={{ color: "#64748b", fontSize: 12 }}>
+                      <Text style={{ color: museColors.muted, fontSize: 12 }}>
                         Penghargaan
                       </Text>
                       <Title level={4} style={{ margin: "2px 0 0", color: "#a16207" }}>
@@ -346,27 +304,27 @@ const TeacherPointView = () => {
                     </div>
                   </Space>
                 </Card>
-                <Card style={{ borderRadius: 18, border: "1px solid #fecaca", boxShadow: "none" }}>
+                <Card style={{ borderRadius: museRadius.card, border: "1px solid #fecaca", boxShadow: "none" }}>
                   <Space>
-                    <ShieldAlert size={18} color='#b91c1c' />
+                    <ShieldAlert size={18} color={museColors.danger} />
                     <div>
-                      <Text style={{ color: "#64748b", fontSize: 12 }}>
+                      <Text style={{ color: museColors.muted, fontSize: 12 }}>
                         Pelanggaran
                       </Text>
-                      <Title level={4} style={{ margin: "2px 0 0", color: "#b91c1c" }}>
+                      <Title level={4} style={{ margin: "2px 0 0", color: museColors.danger }}>
                         {summaryStats.totalPunishment}
                       </Title>
                     </div>
                   </Space>
                 </Card>
-                <Card style={{ borderRadius: 18, border: "1px solid #dbeafe", boxShadow: "none" }}>
+                <Card style={{ borderRadius: museRadius.card, border: `1px solid ${museColors.primarySoft}`, boxShadow: "none" }}>
                   <Space>
-                    <Plus size={18} color='#2563eb' />
+                    <Plus size={18} color={museColors.primary} />
                     <div>
-                      <Text style={{ color: "#64748b", fontSize: 12 }}>
+                      <Text style={{ color: museColors.muted, fontSize: 12 }}>
                         Total Entri
                       </Text>
-                      <Title level={4} style={{ margin: "2px 0 0", color: "#2563eb" }}>
+                      <Title level={4} style={{ margin: "2px 0 0", color: museColors.primary }}>
                         {summaryStats.totalEntries}
                       </Title>
                     </div>
@@ -383,9 +341,9 @@ const TeacherPointView = () => {
                   allowClear
                   value={searchStudent}
                   onChange={(event) => setSearchStudent(event.target.value)}
-                  prefix={<Search size={16} color='#64748b' />}
+                  prefix={<Search size={16} color={museColors.muted} />}
                   placeholder='Cari siswa berdasarkan nama atau NIS'
-                  style={{ borderRadius: 14, height: 42 }}
+                  style={{ borderRadius: museRadius.card, height: 42 }}
                 />
               </div>
 
@@ -404,13 +362,10 @@ const TeacherPointView = () => {
     },
     {
       key: "history",
-      label: (
-        <Space size={8}>
-          <FileClock size={15} />
-          Riwayat Poin Siswa
-        </Space>
-      ),
-      children: (
+      description: tabSummary.history.description,
+      label: "Riwayat Poin Siswa",
+      icon: <FileClock />,
+      render: () => (
         <motion.div
           key='teacher-point-history'
           initial={{ opacity: 0, y: 16 }}
@@ -429,13 +384,10 @@ const TeacherPointView = () => {
     },
     {
       key: "catalog",
-      label: (
-        <Space size={8}>
-          <Scale size={15} />
-          Bobot Poin
-        </Space>
-      ),
-      children: (
+      description: tabSummary.catalog.description,
+      label: "Bobot Poin",
+      icon: <Scale />,
+      render: () => (
         <motion.div
           key='teacher-point-catalog'
           initial={{ opacity: 0, y: 16 }}
@@ -451,7 +403,7 @@ const TeacherPointView = () => {
   const isPageLoading =
     isBootstrapLoading || (!!activePeriode?.id && isEntriesLoading);
 
-  if (isPageLoading) return <LoadApp />;
+  if (isPageLoading) return <Skeleton active paragraph={{ rows: 6 }} />;
 
   if (isBootstrapError) {
     return (
@@ -460,7 +412,7 @@ const TeacherPointView = () => {
           <Title level={4} style={{ margin: 0 }}>
             Akses poin tidak tersedia
           </Title>
-          <Text style={{ color: "#64748b", textAlign: "center" }}>
+          <Text style={{ color: museColors.muted, textAlign: "center" }}>
             {bootstrapError?.data?.message ||
               "Halaman ini hanya bisa diakses wali kelas."}
           </Text>
@@ -469,81 +421,34 @@ const TeacherPointView = () => {
     );
   }
 
-  return (
-    <>
-      <motion.div
-        initial='hidden'
-        animate='show'
-        variants={containerVariants}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          padding: isMobile ? 0 : "0 4px 12px",
+  const classPicker =
+    canPickClass && classOptions.length > 0 ? (
+      <Select
+        aria-label='Pilih kelas'
+        value={classId || homeroomClass?.id}
+        options={classOptions.map((item) => ({
+          value: item.id,
+          label: item.grade_name ? `${item.name} · ${item.grade_name}` : item.name,
+        }))}
+        onChange={(value) => {
+          setClassId(value);
+          setSelectedStudentId(null);
         }}
-      >
-        <motion.div variants={itemVariants}>
-          <TeacherPointHero
-            isMobile={isMobile}
-            periode={activePeriode}
-            homeroomClass={homeroomClass}
-            pointConfig={pointConfig}
-          />
-        </motion.div>
+        style={{ minWidth: isMobile ? "100%" : 280 }}
+      />
+    ) : (
+      <Tag>Kelas: {homeroomClass?.name || "-"}</Tag>
+    );
 
-        {canPickClass && classOptions.length > 0 ? (
-          <motion.div variants={itemVariants}>
-            <Card style={panelCardStyle} styles={{ body: { padding: 16 } }}>
-              <Flex
-                align={isMobile ? "stretch" : "center"}
-                gap={12}
-                vertical={isMobile}
-              >
-                <Text strong>Kelas</Text>
-                <Select
-                  value={classId || homeroomClass?.id}
-                  options={classOptions.map((item) => ({
-                    value: item.id,
-                    label: item.grade_name
-                      ? `${item.name} · ${item.grade_name}`
-                      : item.name,
-                  }))}
-                  onChange={(value) => {
-                    setClassId(value);
-                    setSelectedStudentId(null);
-                  }}
-                  style={{ minWidth: isMobile ? "100%" : 280 }}
-                />
-              </Flex>
-            </Card>
-          </motion.div>
-        ) : null}
-
-        <motion.div variants={itemVariants}>
-          <Card style={tabsCardStyle} styles={{ body: { padding: isMobile ? 16 : 20 } }}>
-            <Flex vertical gap={16}>
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  {tabSummary[activeTab].title}
-                </Title>
-                <Text style={{ color: "#64748b" }}>
-                  {tabSummary[activeTab].description}
-                </Text>
-              </div>
-
-              <Tabs
-                activeKey={activeTab}
-                onChange={setActiveTab}
-                items={tabItems}
-                size={isMobile ? "middle" : "large"}
-                tabBarGutter={8}
-                animated
-              />
-            </Flex>
-          </Card>
-        </motion.div>
-      </motion.div>
-    </>
+  return (
+    <PageTabs
+      title='Poin Siswa'
+      description={`${activePeriode?.name || "Periode belum aktif"} · ${
+        pointConfig?.show_balance ? "Poin bersih aktif" : "Rangkuman prestasi dan pelanggaran"
+      }. Pemberian dan perubahan poin dilakukan oleh admin atau kesiswaan.`}
+      items={tabItems}
+      extra={classPicker}
+    />
   );
 };
 

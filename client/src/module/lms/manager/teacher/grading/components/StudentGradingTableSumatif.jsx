@@ -9,13 +9,14 @@ import {
   Table,
   Tooltip,
   Typography,
+  Skeleton,
 } from "antd";
-import LoadApp from "../../../../../../components/loader/LoadApp";
 import {
   buildScoreColumnLabel,
   buildScoreColumnTooltip,
 } from "./StudentGradingTableFormatif";
 
+import { museColors } from "../../../../../../config/theme";
 const { Text } = Typography;
 
 const StudentGradingTableSumatif = ({
@@ -239,7 +240,7 @@ const StudentGradingTableSumatif = ({
     <Card
       key={student.id}
       size="small"
-      style={{ borderRadius: 12, border: "1px solid #f0f0f0" }}
+      style={{ borderRadius: 12, border: `1px solid ${museColors.divider}` }}
       styles={{ body: { padding: 12 } }}
     >
       <Space vertical size={8} style={{ width: "100%" }}>
@@ -270,7 +271,7 @@ const StudentGradingTableSumatif = ({
   );
 
   if (isLoading) {
-    return <LoadApp />;
+    return <Skeleton active paragraph={{ rows: 6 }} />;
   }
 
   return isMobile ? (

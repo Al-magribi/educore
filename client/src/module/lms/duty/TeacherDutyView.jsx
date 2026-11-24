@@ -23,7 +23,9 @@ import { useGetTeacherDutyBootstrapQuery } from "../../../service/lms/ApiDuty";
 import PageHeader from "../../../components/ui/PageHeader";
 import TeacherDutyWorkspace from "./TeacherDutyWorkspace";
 
-const { Text, Title } = Typography;
+import { museColors, museRadius, museShadow } from "../../../config/theme";
+import { StatCard } from "../../../components/ui/muse";
+const { Title } = Typography;
 const { useBreakpoint } = Grid;
 
 const containerVariants = {
@@ -49,32 +51,13 @@ const itemVariants = {
   },
 };
 
-const statCardStyle = {
-  height: "100%",
-  borderRadius: 22,
-  border: "1px solid #dbe7f3",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-};
 
 const surfaceCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
-const iconWrapStyle = (background) => ({
-  width: 46,
-  height: 46,
-  borderRadius: 16,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background,
-  color: "#fff",
-  flexShrink: 0,
-});
 
 const toIsoDayOfWeek = (value) => {
   const day = dayjs(value).day();
@@ -157,8 +140,8 @@ const TeacherDutyView = () => {
       title: "Tanggal Dipilih",
       value: selectedDate.format("DD MMM"),
       subtitle: selectedDate.format("YYYY"),
-      icon: <CalendarClock size={20} />,
-      background: "linear-gradient(135deg, #0f766e, #14b8a6)",
+      icon: <CalendarClock size={24} />,
+      tone: "cyan",
     },
     {
       key: "schedule",
@@ -167,8 +150,8 @@ const TeacherDutyView = () => {
       subtitle: scheduleDayLabels.length
         ? "Berulang setiap minggu"
         : "Belum ada jadwal",
-      icon: <ClipboardCheck size={20} />,
-      background: "linear-gradient(135deg, #2563eb, #38bdf8)",
+      icon: <ClipboardCheck size={24} />,
+      tone: "primary",
     },
     {
       key: "status",
@@ -177,8 +160,8 @@ const TeacherDutyView = () => {
       subtitle: payload.assigned
         ? activeAssignmentDateLabel
         : "Di luar jadwal piket Anda",
-      icon: <ShieldCheck size={20} />,
-      background: "linear-gradient(135deg, #7c3aed, #a855f7)",
+      icon: <ShieldCheck size={24} />,
+      tone: "purple",
     },
   ];
 
@@ -214,33 +197,24 @@ const TeacherDutyView = () => {
       </motion.div>
 
       <motion.div variants={itemVariants}>
-        <Flex gap={16} wrap='wrap'>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: isMobile ? 16 : 24,
+          }}
+        >
           {statItems.map((item) => (
-            <Card
+            <StatCard
               key={item.key}
-              style={{
-                ...statCardStyle,
-                flex: "1 1 220px",
-                minWidth: isMobile ? "100%" : 220,
-              }}
-              styles={{ body: { padding: 20 } }}
-            >
-              <Flex align='center' gap={14}>
-                <div style={iconWrapStyle(item.background)}>{item.icon}</div>
-                <div style={{ minWidth: 0 }}>
-                  <Text type='secondary'>{item.title}</Text>
-                  <Title
-                    level={4}
-                    style={{ margin: "4px 0 0", color: "#0f172a" }}
-                  >
-                    {item.value}
-                  </Title>
-                  <Text style={{ color: "#64748b" }}>{item.subtitle}</Text>
-                </div>
-              </Flex>
-            </Card>
+              title={item.title}
+              value={item.value}
+              note={item.subtitle}
+              icon={item.icon}
+              tone={item.tone}
+            />
           ))}
-        </Flex>
+        </div>
       </motion.div>
 
       <motion.div variants={itemVariants}>
@@ -256,7 +230,7 @@ const TeacherDutyView = () => {
               gap={14}
             >
               <div style={{ minWidth: 0 }}>
-                <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+                <Title level={5} style={{ margin: 0, color: museColors.text }}>
                   Kontrol Tugas Piket
                 </Title>
               </div>
@@ -302,13 +276,13 @@ const TeacherDutyView = () => {
                   <Alert
                     showIcon
                     type='warning'
-                    message='Tidak ada penugasan piket pada tanggal ini.'
+                    title='Tidak ada penugasan piket pada tanggal ini.'
                     description={
                       scheduleDays.length
                         ? `Pilih tanggal ${scheduleDayLabels.join("/")} lewat kalender. Jadwal berulang otomatis setiap minggu.`
                         : "Anda belum masuk jadwal piket mingguan (Senin–Jumat)."
                     }
-                    style={{ borderRadius: 16 }}
+                    style={{ borderRadius: museRadius.card }}
                   />
                 </motion.div>
               ) : (

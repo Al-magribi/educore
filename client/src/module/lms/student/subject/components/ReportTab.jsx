@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Card, Col, Empty, Flex, Grid, Row, Space, Tag, Typography } from "antd";
+import {
+  Alert,
+  Card,
+  Col,
+  Empty,
+  Grid,
+  Row,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
@@ -18,7 +28,9 @@ import ScoreSectionCard from "./report/ScoreSectionCard";
 import { formatDateDisplay } from "./report/utils";
 import PageHeader from "../../../../../components/ui/PageHeader";
 
-const { Title, Text } = Typography;
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
+import { StatCard } from "../../../../../components/ui/muse";
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 const EMPTY_LIST = [];
@@ -45,12 +57,6 @@ const itemVariants = {
   },
 };
 
-const infoCardStyle = {
-  borderRadius: 22,
-  height: "100%",
-  border: "1px solid rgba(148, 163, 184, 0.16)",
-  boxShadow: "0 16px 36px rgba(15, 23, 42, 0.08)",
-};
 
 const ReportTab = ({ subject, classId }) => {
   const screens = useBreakpoint();
@@ -200,7 +206,7 @@ const ReportTab = ({ subject, classId }) => {
       width: 88,
       align: "center",
       render: (value) => (
-        <Tag color='blue' style={{ marginRight: 0, borderRadius: 999 }}>
+        <Tag color='blue' style={{ marginRight: 0, }}>
           {value ?? "-"}
         </Tag>
       ),
@@ -218,27 +224,24 @@ const ReportTab = ({ subject, classId }) => {
       caption:
         monthOptions.find((item) => Number(item.value) === Number(safeSelectedMonth))?.label ||
         "Bulan belum tersedia",
-      icon: <CalendarRange size={18} />,
-      background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-      color: "#1d4ed8",
+      icon: <CalendarRange size={24} />,
+      tone: "primary",
     },
     {
       key: "attendance",
       label: "Presensi Tercatat",
       value: attendanceRows.length,
       caption: "Entri kehadiran pada periode ini",
-      icon: <ClipboardCheck size={18} />,
-      background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-      color: "#15803d",
+      icon: <ClipboardCheck size={24} />,
+      tone: "success",
     },
     {
       key: "assessment",
       label: "Penilaian Tersedia",
       value: formativeRows.length + summativeRows.length,
       caption: "Gabungan data formatif dan sumatif",
-      icon: <ChartColumnBig size={18} />,
-      background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-      color: "#b45309",
+      icon: <ChartColumnBig size={24} />,
+      tone: "warning",
     },
   ];
 
@@ -278,34 +281,13 @@ const ReportTab = ({ subject, classId }) => {
         <Row gutter={[16, 16]}>
           {infoCards.map((item) => (
             <Col key={item.key} xs={24} sm={12} xl={8}>
-              <Card bordered={false} style={infoCardStyle} styles={{ body: { padding: 18 } }}>
-                <Flex align='center' justify='space-between' gap={16}>
-                  <Space direction='vertical' size={4} style={{ minWidth: 0 }}>
-                    <Text type='secondary'>{item.label}</Text>
-                    <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
-                      {item.value}
-                    </Title>
-                    <Text type='secondary' style={{ fontSize: 12 }}>
-                      {item.caption}
-                    </Text>
-                  </Space>
-                  <div
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 16,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: item.background,
-                      color: item.color,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.icon}
-                  </div>
-                </Flex>
-              </Card>
+              <StatCard
+                title={item.label}
+                value={item.value}
+                note={item.caption}
+                icon={item.icon}
+                tone={item.tone}
+              />
             </Col>
           ))}
         </Row>
@@ -322,9 +304,9 @@ const ReportTab = ({ subject, classId }) => {
             <Alert
               type='error'
               showIcon
-              message='Gagal memuat laporan pembelajaran'
+              title='Gagal memuat laporan pembelajaran'
               description={error?.data?.message || "Terjadi kendala saat mengambil laporan belajar."}
-              style={{ borderRadius: 18 }}
+              style={{ borderRadius: museRadius.card }}
             />
           </MotionDiv>
         ) : !isFetching && !hasAnyData ? (
@@ -337,8 +319,8 @@ const ReportTab = ({ subject, classId }) => {
             <Card
               bordered={false}
               style={{
-                borderRadius: 24,
-                boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+                borderRadius: museRadius.card,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: isMobile ? 24 : 32 } }}
             >
@@ -406,7 +388,7 @@ const ReportTab = ({ subject, classId }) => {
                 <Col xs={24} lg={12}>
                   <ScoreSectionCard
                     title='Sumatif'
-                    color='#2563eb'
+                    color={museColors.primary}
                     average={summative.average_score}
                     columns={summativeColumns}
                     dataSource={summativeRows}

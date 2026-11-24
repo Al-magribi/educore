@@ -346,7 +346,7 @@ const SyncFormativeFromExamModal = ({
           <Alert
             type="info"
             showIcon
-            message={
+            title={
               meta.createsNewColumn
                 ? `Sync selalu membuat kolom ${meta.label} baru.`
                 : "Sync akan menimpa nilai Ujian Akhir siswa yang punya hasil ujian."
@@ -379,7 +379,7 @@ const SyncFormativeFromExamModal = ({
           <Alert
             type="success"
             showIcon
-            message={
+            title={
               preview
                 ? isFinal
                   ? `Akan sync ke Nilai Ujian Akhir dari "${preview.exam?.name || "-"}"`

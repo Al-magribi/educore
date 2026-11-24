@@ -1,5 +1,7 @@
 import { Grid } from "antd";
 
+import { museCardStyle, museColors, museRadius } from "../../../../../config/theme";
+
 const { useBreakpoint } = Grid;
 
 /** Prefers the breakpoints passed down by Recap, falls back to a local probe. */
@@ -18,16 +20,13 @@ export const useRecapLayout = (screensProp) => {
 };
 
 export const surfaceCardStyle = {
-  borderRadius: 16,
-  border: "1px solid #e5edf6",
-  background: "#ffffff",
-  boxShadow: "0 12px 28px rgba(15, 23, 42, 0.05)",
+  ...museCardStyle,
   width: "100%",
   minWidth: 0,
 };
 
 export const surfaceCardBody = (isMobile) => ({
-  body: { padding: isMobile ? 14 : 20 },
+  body: { padding: isMobile ? 12 : 16 },
 });
 
 /** Clips the table's horizontal scroll to the card instead of the page. */
@@ -39,10 +38,9 @@ export const tableCardStyle = {
 export const tableCardBody = { body: { padding: 0 } };
 
 export const recordCardStyle = {
-  borderRadius: 14,
-  border: "1px solid #e8eef6",
+  borderRadius: museRadius.item,
+  border: `1px solid ${museColors.divider}`,
   background: "#ffffff",
-  boxShadow: "0 6px 16px rgba(15, 23, 42, 0.04)",
   width: "100%",
   minWidth: 0,
 };

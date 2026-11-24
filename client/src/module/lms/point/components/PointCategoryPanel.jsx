@@ -22,13 +22,13 @@ import {
   useUpdateAdminPointCategoryMutation,
 } from "../../../../service/lms/ApiPoint";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const panelStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const typeOptions = [
@@ -58,9 +58,9 @@ const CategoryList = ({
               hoverable
               onClick={() => onSelect(item)}
               style={{
-                borderRadius: 16,
-                border: active ? "1px solid #93c5fd" : "1px solid #e5edf6",
-                background: active ? "#eff6ff" : "#fff",
+                borderRadius: museRadius.card,
+                border: `1px solid ${active ? museColors.primary : museColors.divider}`,
+                background: active ? museColors.primarySoft : "#fff",
                 boxShadow: "none",
               }}
               styles={{ body: { padding: 14 } }}
@@ -71,7 +71,7 @@ const CategoryList = ({
                     {String.fromCharCode(65 + index)}. {item.name}
                   </Text>
                   <div>
-                    <Text style={{ color: "#64748b", fontSize: 12 }}>
+                    <Text style={{ color: museColors.muted, fontSize: 12 }}>
                       Urutan {item.sort_order} ·{" "}
                       {item.is_active ? "Aktif" : "Nonaktif"}
                     </Text>
@@ -217,9 +217,9 @@ const PointCategoryPanel = ({
               style={{
                 width: 42,
                 height: 42,
-                borderRadius: 14,
-                background: "#eff6ff",
-                color: "#2563eb",
+                borderRadius: museRadius.card,
+                background: museColors.primarySoft,
+                color: museColors.primary,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -231,7 +231,7 @@ const PointCategoryPanel = ({
               <Title level={4} style={{ margin: 0 }}>
                 {selected ? "Perbarui Kategori" : "Tambah Kategori"}
               </Title>
-              <Text style={{ color: "#64748b" }}>
+              <Text style={{ color: museColors.muted }}>
                 Kelompokkan rule seperti KEHADIRAN atau KEPRIBADIAN untuk{" "}
                 {POINT_TYPE_LABELS[watchedType]?.toLowerCase() || "poin"}.
               </Text>
@@ -251,7 +251,7 @@ const PointCategoryPanel = ({
             >
               <Input
                 placeholder='Contoh: Kehadiran, Kepribadian'
-                style={{ borderRadius: 14, height: 44 }}
+                style={{ borderRadius: museRadius.card, height: 44 }}
                 maxLength={80}
               />
             </Form.Item>
@@ -293,8 +293,8 @@ const PointCategoryPanel = ({
                 icon={<Save size={16} />}
                 style={{
                   borderRadius: 12,
-                  background: "#0f172a",
-                  borderColor: "#0f172a",
+                  background: museColors.text,
+                  borderColor: museColors.text,
                   fontWeight: 700,
                 }}
               >

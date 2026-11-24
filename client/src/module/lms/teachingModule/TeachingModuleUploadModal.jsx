@@ -7,6 +7,7 @@ import {
 } from "../../../service/lms/ApiTeachingModule";
 import { formatFileSize } from "./moduleSchema";
 
+import { museColors } from "../../../config/theme";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -131,7 +132,7 @@ const TeachingModuleUploadModal = ({
             fileList={file ? [{ uid: "selected", name: file.name }] : []}
           >
             <p className='ant-upload-drag-icon'>
-              <FileUp size={32} color='#2563eb' />
+              <FileUp size={32} color={museColors.primary} />
             </p>
             <p className='ant-upload-text'>
               Klik atau seret file ke area ini

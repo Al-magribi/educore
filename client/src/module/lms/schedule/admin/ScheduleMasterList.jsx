@@ -24,6 +24,7 @@ import {
   getScheduleModalWidth,
 } from './scheduleAdminStyles';
 
+import { museColors } from "../../../../config/theme";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -260,7 +261,7 @@ const ScheduleMasterList = ({
                   setPagination((prev) => ({ ...prev, current: 1 }));
                 }}
                 placeholder="Cari versi jadwal berdasarkan nama"
-                prefix={<Search size={14} style={{ color: '#94a3b8' }} />}
+                prefix={<Search size={14} style={{ color: museColors.muted }} />}
                 style={{ maxWidth: isMobile ? '100%' : 360 }}
               />
 
@@ -302,7 +303,7 @@ const ScheduleMasterList = ({
             <Alert
               showIcon
               type="warning"
-              message="Belum ada versi jadwal"
+              title="Belum ada versi jadwal"
               description="Buat versi jadwal pertama untuk mulai menyusun shift, struktur waktu, kegiatan, dan jadwal final."
               action={
                 canManage ? (
@@ -354,7 +355,7 @@ const ScheduleMasterList = ({
           <Alert
             showIcon
             type="info"
-            message="Seluruh isi versi ini akan disalin"
+            title="Seluruh isi versi ini akan disalin"
             description="Shift beserta kelasnya, struktur waktu (hari, jam, istirahat), kegiatan, dan entri jadwal final ikut tersalin. Salinan berstatus draft dan tidak memengaruhi jadwal yang sedang berjalan."
           />
           <Form form={duplicateForm} layout="vertical">

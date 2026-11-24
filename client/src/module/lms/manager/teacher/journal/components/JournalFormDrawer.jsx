@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
-  Card,
   Col,
   DatePicker,
   Drawer,
@@ -13,12 +12,13 @@ import {
   Select,
   Space,
   Tag,
-  Typography,
 } from "antd";
+import { NotebookPen } from "lucide-react";
 import { useGetChaptersQuery } from "../../../../../../service/lms/ApiLms";
 import { useGetTeacherJournalsQuery } from "../../../../../../service/lms/ApiJournal";
 
-const { Text, Title } = Typography;
+import { museColors } from "../../../../../../config/theme";
+import { CardTitle, MuseCard } from "../../../../../../components/ui/muse";
 const { TextArea } = Input;
 
 const JournalFormDrawer = ({
@@ -171,69 +171,36 @@ const JournalFormDrawer = ({
 
   return (
     <Drawer
-      title={editingJournal ? "Ubah Jurnal Mengajar" : "Input Jurnal Mengajar"}
+      title={
+        <CardTitle
+          icon={<NotebookPen size={18} />}
+          title={editingJournal ? "Ubah Jurnal Mengajar" : "Input Jurnal Mengajar"}
+          description="Pilih kelas terlebih dahulu. Nomor pertemuan dihitung otomatis dari jurnal kelas tersebut."
+        />
+      }
+      extra={subjectName ? <Tag color="blue">{subjectName}</Tag> : null}
       open={open}
       onClose={onClose}
       width={isMobile ? "100%" : 720}
       destroyOnHidden
       styles={{
-        header: {
-          padding: isMobile ? "16px 16px 0" : "20px 24px 0",
-        },
         body: {
           padding: isMobile ? 16 : 24,
-          background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+          background: museColors.bgLayout,
         },
       }}
+      footer={
+        <Flex justify="end" gap={8} wrap="wrap">
+          <Button onClick={onClose}>Batal</Button>
+          <Button onClick={handleReset}>Reset Form</Button>
+          <Button type="primary" onClick={onSubmit} loading={isSaving}>
+            {editingJournal ? "Simpan Perubahan" : "Simpan Jurnal"}
+          </Button>
+        </Flex>
+      }
     >
       <Space direction="vertical" size={18} style={{ width: "100%" }}>
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: 18,
-            background:
-              "linear-gradient(135deg, #eff6ff 0%, #f8fbff 55%, #ffffff 100%)",
-            border: "1px solid rgba(191, 219, 254, 0.7)",
-            boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-          }}
-          styles={{ body: { padding: isMobile ? 16 : 18 } }}
-        >
-          <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-            <div>
-              <Text type="secondary">Form Jurnal</Text>
-              <Title level={5} style={{ margin: "4px 0 2px" }}>
-                {editingJournal
-                  ? "Perbarui catatan pembelajaran"
-                  : "Buat catatan pembelajaran baru"}
-              </Title>
-              <Text type="secondary">
-                Pilih kelas terlebih dahulu. Nomor pertemuan dihitung otomatis dari jurnal kelas tersebut.
-              </Text>
-            </div>
-            <Tag
-              color="blue"
-              style={{
-                marginRight: 0,
-                borderRadius: 999,
-                paddingInline: 12,
-                height: 34,
-                lineHeight: "32px",
-              }}
-            >
-              {subjectName || "-"}
-            </Tag>
-          </Flex>
-        </Card>
-
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: 18,
-            border: "1px solid rgba(148, 163, 184, 0.14)",
-            boxShadow: "0 16px 34px rgba(15, 23, 42, 0.05)",
-          }}
-          styles={{ body: { padding: isMobile ? 16 : 20 } }}
-        >
+        <MuseCard>
           <Form form={form} layout="vertical">
             <Row gutter={[12, 4]}>
               <Col xs={24} md={12}>
@@ -347,34 +314,8 @@ const JournalFormDrawer = ({
               </Col>
             </Row>
 
-            <Flex
-              justify={isMobile ? "stretch" : "end"}
-              gap={8}
-              wrap='wrap'
-              vertical={isMobile}
-            >
-              <Button onClick={onClose} block={isMobile}>
-                Batal
-              </Button>
-              <Button onClick={handleReset} block={isMobile}>
-                Reset Form
-              </Button>
-              <Button
-                type='primary'
-                onClick={onSubmit}
-                loading={isSaving}
-                block={isMobile}
-                style={{
-                  borderRadius: 12,
-                  minWidth: isMobile ? undefined : 190,
-                  boxShadow: "0 12px 24px rgba(37, 99, 235, 0.18)",
-                }}
-              >
-                {editingJournal ? "Simpan Perubahan" : "Simpan Jurnal"}
-              </Button>
-            </Flex>
           </Form>
-        </Card>
+        </MuseCard>
       </Space>
     </Drawer>
   );

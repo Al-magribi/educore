@@ -37,17 +37,18 @@ import TeacherDutyDailyNotePanel from "./components/TeacherDutyDailyNotePanel";
 import TeacherDutyFormModal from "./components/TeacherDutyFormModal";
 import TeacherDutyRecordSection from "./components/TeacherDutyRecordSection";
 
+import { museColors, museRadius } from "../../../config/theme";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const modalInputStyle = {
-  borderRadius: 14,
+  borderRadius: museRadius.card,
 };
 
 const mobileItemCardStyle = {
-  borderRadius: 16,
-  border: "1px solid #e8eef5",
-  background: "#f8fbff",
+  borderRadius: museRadius.card,
+  border: `1px solid ${museColors.divider}`,
+  background: museColors.bgLayout,
 };
 
 const createEmptySessionForm = (dateValue) => ({
@@ -727,7 +728,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
         return (
           <div>
             <Text strong>{student?.full_name || "-"}</Text>
-            <div style={{ color: "#667085", fontSize: 12 }}>
+            <div style={{ color: museColors.muted, fontSize: 12 }}>
               {student?.class_name || "-"} - NIS {student?.nis || "-"}
             </div>
           </div>
@@ -770,26 +771,26 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
   const renderAttendanceStatusTag = (value) => {
     if (value === "masuk") {
       return (
-        <Tag color='green' style={{ margin: 0, borderRadius: 999 }}>
+        <Tag color='green' style={{ margin: 0, }}>
           Masuk
         </Tag>
       );
     }
     if (value === "izin") {
       return (
-        <Tag color='orange' style={{ margin: 0, borderRadius: 999 }}>
+        <Tag color='orange' style={{ margin: 0, }}>
           Izin
         </Tag>
       );
     }
     if (value === "tidak_masuk") {
       return (
-        <Tag color='red' style={{ margin: 0, borderRadius: 999 }}>
+        <Tag color='red' style={{ margin: 0, }}>
           Tidak Masuk
         </Tag>
       );
     }
-    return <Tag style={{ margin: 0, borderRadius: 999 }}>Belum</Tag>;
+    return <Tag style={{ margin: 0, }}>Belum</Tag>;
   };
 
   const renderGuruMasukActions = (record) => (
@@ -843,7 +844,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       render: (value, record) => (
         <div>
           <Text>{value || formatScheduleJamLabel(record.slot_nos)}</Text>
-          <div style={{ color: "#667085", fontSize: 12 }}>
+          <div style={{ color: museColors.muted, fontSize: 12 }}>
             {formatScheduleTime(record.start_time)} -{" "}
             {formatScheduleTime(record.end_time)}
           </div>
@@ -888,7 +889,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
       <Flex vertical gap={12}>
         <Flex justify='space-between' align='flex-start' gap={10}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <Text strong style={{ display: "block", color: "#0f172a" }}>
+            <Text strong style={{ display: "block", color: museColors.text }}>
               {record.teacher_name || "-"}
             </Text>
             <Text type='secondary' style={{ fontSize: 12 }}>
@@ -931,7 +932,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
         <Flex vertical gap={10}>
           <Flex justify='space-between' align='flex-start' gap={10}>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <Text strong style={{ display: "block", color: "#0f172a" }}>
+              <Text strong style={{ display: "block", color: museColors.text }}>
                 {student?.full_name || "-"}
               </Text>
               <Text type='secondary' style={{ fontSize: 12 }}>
@@ -983,7 +984,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
           <Flex justify='space-between' align='flex-start' gap={10}>
             <Text
               strong
-              style={{ color: "#0f172a", minWidth: 0, flex: 1 }}
+              style={{ color: museColors.text, minWidth: 0, flex: 1 }}
             >
               {teacher?.full_name || "-"}
             </Text>
@@ -1071,7 +1072,7 @@ const TeacherDutyWorkspace = ({ payload, dateValue, onRefresh }) => {
         <Alert
           showIcon
           type='info'
-          message='Catatan Admin'
+          title='Catatan Admin'
           description={payload.assignment.note}
         />
       ) : null}

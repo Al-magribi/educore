@@ -29,6 +29,8 @@ import {
   useSaveDutyScheduleMutation,
 } from "../../../service/lms/ApiDuty";
 
+import { museColors, museRadius, museShadow } from "../../../config/theme";
+import { StatCard } from "../../../components/ui/muse";
 const { Text, Title } = Typography;
 const { TextArea } = Input;
 const { useBreakpoint } = Grid;
@@ -64,39 +66,20 @@ const itemVariants = {
   },
 };
 
-const statCardStyle = {
-  height: "100%",
-  borderRadius: 22,
-  border: "1px solid #dbe7f3",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-};
 
 const surfaceCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const dayCardStyle = {
-  borderRadius: 20,
-  border: "1px solid #e8eef5",
-  background: "#f8fbff",
+  borderRadius: museRadius.card,
+  border: `1px solid ${museColors.divider}`,
+  background: museColors.bgLayout,
   height: "100%",
 };
 
-const iconWrapStyle = (background) => ({
-  width: 46,
-  height: 46,
-  borderRadius: 16,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background,
-  color: "#fff",
-  flexShrink: 0,
-});
 
 const buildEmptyDraft = () =>
   WEEKDAYS.reduce((acc, day) => {
@@ -183,24 +166,24 @@ const AdminDutyAssignmentTab = () => {
       title: "Hari Terisi",
       value: `${summary.filledDays}/5`,
       subtitle: "Senin sampai Jumat",
-      icon: <CalendarDays size={20} />,
-      background: "linear-gradient(135deg, #2563eb, #38bdf8)",
+      icon: <CalendarDays size={24} />,
+      tone: "primary",
     },
     {
       key: "slots",
       title: "Slot Piket",
       value: summary.totalSlots,
       subtitle: `${summary.uniqueTeachers} guru unik`,
-      icon: <Users size={20} />,
-      background: "linear-gradient(135deg, #0f766e, #2dd4bf)",
+      icon: <Users size={24} />,
+      tone: "cyan",
     },
     {
       key: "today",
       title: "Piket Hari Ini",
       value: summary.todayCount,
       subtitle: payload.today || "-",
-      icon: <ShieldCheck size={20} />,
-      background: "linear-gradient(135deg, #7c3aed, #a855f7)",
+      icon: <ShieldCheck size={24} />,
+      tone: "purple",
     },
   ];
 
@@ -259,33 +242,24 @@ const AdminDutyAssignmentTab = () => {
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
       <motion.div variants={itemVariants}>
-        <Flex gap={16} wrap='wrap'>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: isMobile ? 16 : 24,
+          }}
+        >
           {statItems.map((item) => (
-            <Card
+            <StatCard
               key={item.key}
-              style={{
-                ...statCardStyle,
-                flex: "1 1 220px",
-                minWidth: isMobile ? "100%" : 220,
-              }}
-              styles={{ body: { padding: 20 } }}
-            >
-              <Flex align='center' gap={14}>
-                <div style={iconWrapStyle(item.background)}>{item.icon}</div>
-                <div style={{ minWidth: 0 }}>
-                  <Text type='secondary'>{item.title}</Text>
-                  <Title
-                    level={4}
-                    style={{ margin: "4px 0 0", color: "#0f172a" }}
-                  >
-                    {item.value}
-                  </Title>
-                  <Text style={{ color: "#64748b" }}>{item.subtitle}</Text>
-                </div>
-              </Flex>
-            </Card>
+              title={item.title}
+              value={item.value}
+              note={item.subtitle}
+              icon={item.icon}
+              tone={item.tone}
+            />
           ))}
-        </Flex>
+        </div>
       </motion.div>
 
       <motion.div variants={itemVariants}>
@@ -301,7 +275,7 @@ const AdminDutyAssignmentTab = () => {
               gap={14}
             >
               <div style={{ minWidth: 0 }}>
-                <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+                <Title level={5} style={{ margin: 0, color: museColors.text }}>
                   Jadwal Piket Mingguan
                 </Title>
                 <Text type='secondary'>
@@ -328,10 +302,9 @@ const AdminDutyAssignmentTab = () => {
                   icon={<Save size={14} />}
                   onClick={handleSave}
                   loading={saving}
-                  size='large'
                   style={{
                     width: isMobile ? "100%" : "auto",
-                    borderRadius: 14,
+                    borderRadius: museRadius.card,
                     boxShadow: "0 12px 28px rgba(37, 99, 235, 0.18)",
                   }}
                 >
@@ -366,7 +339,7 @@ const AdminDutyAssignmentTab = () => {
                         <div>
                           <Text
                             strong
-                            style={{ color: "#0f172a", display: "block" }}
+                            style={{ color: museColors.text, display: "block" }}
                           >
                             {day.day_label}
                           </Text>
@@ -376,7 +349,7 @@ const AdminDutyAssignmentTab = () => {
                         </div>
                         <Tag
                           color={draft.teacher_ids.length ? "blue" : "default"}
-                          style={{ margin: 0, borderRadius: 999 }}
+                          style={{ margin: 0, }}
                         >
                           Hari {day.day_of_week}
                         </Tag>
@@ -420,7 +393,6 @@ const AdminDutyAssignmentTab = () => {
                               key={teacher.id}
                               style={{
                                 margin: 0,
-                                borderRadius: 999,
                                 paddingInline: 10,
                               }}
                             >
@@ -473,7 +445,7 @@ const AdminDutyAssignmentTab = () => {
           styles={{ body: { padding: isMobile ? 16 : 20 } }}
         >
           <Flex vertical gap={12}>
-            <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+            <Title level={5} style={{ margin: 0, color: museColors.text }}>
               Piket Hari Ini
             </Title>
             <Text type='secondary'>
@@ -482,7 +454,7 @@ const AdminDutyAssignmentTab = () => {
             </Text>
             <Space wrap size={[8, 8]}>
               {todayAssignments.length === 0 ? (
-                <Tag style={{ margin: 0, borderRadius: 999 }}>
+                <Tag style={{ margin: 0, }}>
                   Tidak ada guru piket hari ini
                 </Tag>
               ) : (
@@ -490,7 +462,7 @@ const AdminDutyAssignmentTab = () => {
                   <Tag
                     key={item.id}
                     color='blue'
-                    style={{ margin: 0, borderRadius: 999, paddingInline: 12 }}
+                    style={{ margin: 0, paddingInline: 12 }}
                   >
                     {item.duty_teacher_name}
                   </Tag>

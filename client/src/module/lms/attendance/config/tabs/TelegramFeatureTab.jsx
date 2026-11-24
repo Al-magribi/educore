@@ -23,6 +23,7 @@ import {
 } from '../../../../../service/lms/ApiAttendance';
 import { innerCardStyle, itemVariants } from '../configShared';
 
+import { museColors } from "../../../../../config/theme";
 const { Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
@@ -306,7 +307,7 @@ const TelegramFeatureTab = () => {
             </Button>
           }>
           <Flex vertical gap={16}>
-            <Card size="small" style={{ borderRadius: 12, background: '#f8fafc' }}>
+            <Card size="small" style={{ borderRadius: 12, background: museColors.bgLayout }}>
               <Flex vertical gap={10}>
                 <StatusRow label="Status">
                   <Tag color={botMeta.color} style={{ marginInlineEnd: 0 }}>
@@ -335,14 +336,14 @@ const TelegramFeatureTab = () => {
               <Alert
                 type="success"
                 showIcon
-                message="Bot siap mengirim notifikasi."
+                title="Bot siap mengirim notifikasi."
                 description="Orang tua, guru, dan siswa menghubungkan Telegram lewat tombol di portal masing-masing, lalu tekan Start."
               />
             ) : (
               <Alert
                 type="warning"
                 showIcon
-                message="Bot belum siap"
+                title="Bot belum siap"
                 description="Simpan bot token dari BotFather, lalu verifikasi."
               />
             )}

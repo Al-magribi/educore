@@ -5,6 +5,7 @@ import { Save, ShieldCheck } from "lucide-react";
 import { useUpdateAttendanceFeaturesMutation } from "../../../../../service/lms/ApiAttendance";
 import { FEATURE_META, innerCardStyle, itemVariants } from "../configShared";
 
+import { museColors } from "../../../../../config/theme";
 const MotionDiv = motion.div;
 
 const AttendanceFeaturePanel = ({ featureRows = [] }) => {
@@ -69,7 +70,7 @@ const AttendanceFeaturePanel = ({ featureRows = [] }) => {
               <Card
                 size="small"
                 title={FEATURE_META[item.feature_code]?.title || item.feature_code}
-                extra={<ShieldCheck size={16} color="#2563eb" />}
+                extra={<ShieldCheck size={16} color={museColors.primary} />}
                 style={{ borderRadius: 12 }}
               >
                 <Typography.Paragraph type="secondary">

@@ -22,6 +22,8 @@ import {
 import { useGetChaptersQuery } from "../../../../../service/lms/ApiLms";
 import LearningChapterList from "./LearningChapterList";
 
+import { museCardStyle, museColors, museRadius, museShadow } from "../../../../../config/theme";
+import { IconBox, StatCard } from "../../../../../components/ui/muse";
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
@@ -48,12 +50,6 @@ const itemVariants = {
   },
 };
 
-const summaryCardStyle = {
-  borderRadius: 20,
-  height: "100%",
-  border: "1px solid rgba(148, 163, 184, 0.16)",
-  boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
-};
 
 const LearningTab = ({ subjectId, classId }) => {
   const screens = useBreakpoint();
@@ -91,9 +87,8 @@ const LearningTab = ({ subjectId, classId }) => {
       label: "Total Bab",
       value: chapters.length,
       caption: "Materi yang tersedia",
-      icon: <BookOpenText size={18} />,
-      background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-      color: "#1d4ed8",
+      icon: <BookOpenText size={24} />,
+      tone: "primary",
     },
     {
       key: "class",
@@ -102,18 +97,16 @@ const LearningTab = ({ subjectId, classId }) => {
       caption: classId
         ? "Mengikuti kelas yang dipilih"
         : "Belum spesifik kelas",
-      icon: <GraduationCap size={18} />,
-      background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-      color: "#15803d",
+      icon: <GraduationCap size={24} />,
+      tone: "success",
     },
     {
       key: "scope",
       label: "Bab Multi Kelas",
       value: multiClassCount,
       caption: "Materi dengan cakupan beberapa kelas",
-      icon: <FolderKanban size={18} />,
-      background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-      color: "#b45309",
+      icon: <FolderKanban size={24} />,
+      tone: "warning",
     },
   ];
 
@@ -123,8 +116,8 @@ const LearningTab = ({ subjectId, classId }) => {
         <Card
           variant='borderless'
           style={{
-            borderRadius: 24,
-            boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+            borderRadius: museRadius.card,
+            boxShadow: museShadow.card,
           }}
           styles={{ body: { padding: isMobile ? 18 : 24 } }}
         >
@@ -146,12 +139,12 @@ const LearningTab = ({ subjectId, classId }) => {
         <Alert
           type='error'
           showIcon
-          message='Gagal memuat daftar materi'
+          title='Gagal memuat daftar materi'
           description={
             error?.data?.message ||
             "Terjadi kendala saat mengambil data bab pembelajaran."
           }
-          style={{ borderRadius: 18 }}
+          style={{ borderRadius: museRadius.card }}
         />
       </MotionDiv>
     );
@@ -163,8 +156,8 @@ const LearningTab = ({ subjectId, classId }) => {
         <Card
           variant='borderless'
           style={{
-            borderRadius: 24,
-            boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+            borderRadius: museRadius.card,
+            boxShadow: museShadow.card,
           }}
           styles={{ body: { padding: isMobile ? 24 : 32 } }}
         >
@@ -197,12 +190,8 @@ const LearningTab = ({ subjectId, classId }) => {
       <MotionDiv variants={itemVariants}>
         <Card
           variant='borderless'
-          style={{
-            borderRadius: 24,
-            background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%)",
-            border: "1px solid #dbeafe",
-          }}
-          styles={{ body: { padding: isMobile ? 18 : 22 } }}
+          style={museCardStyle}
+          styles={{ body: { padding: 16 } }}
         >
           <Flex
             justify='space-between'
@@ -211,23 +200,7 @@ const LearningTab = ({ subjectId, classId }) => {
             wrap='wrap'
           >
             <Space align='start' size={14}>
-              <div
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background:
-                    "linear-gradient(135deg, #1d4ed8 0%, #38bdf8 100%)",
-                  color: "#fff",
-                  flexShrink: 0,
-                  boxShadow: "0 14px 30px rgba(29, 78, 216, 0.22)",
-                }}
-              >
-                <LibraryBig size={24} />
-              </div>
+              <IconBox icon={<LibraryBig size={24} />} size={48} />
 
               <Space vertical size={4} style={{ minWidth: 0 }}>
                 <Text type='secondary'>Workspace Materi</Text>
@@ -246,7 +219,6 @@ const LearningTab = ({ subjectId, classId }) => {
               icon={<BookOpenText size={12} />}
               style={{
                 marginRight: 0,
-                borderRadius: 999,
                 paddingInline: 12,
                 height: 32,
                 lineHeight: "30px",
@@ -266,8 +238,8 @@ const LearningTab = ({ subjectId, classId }) => {
         <Card
           variant='borderless'
           style={{
-            borderRadius: 24,
-            boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+            borderRadius: museRadius.card,
+            boxShadow: museShadow.card,
           }}
           styles={{ body: { padding: isMobile ? 14 : 18 } }}
         >
@@ -294,8 +266,8 @@ const LearningTab = ({ subjectId, classId }) => {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        background: "#eff6ff",
-                        color: "#1d4ed8",
+                        background: museColors.primarySoft,
+                        color: museColors.primary,
                         fontWeight: 700,
                       }}
                     >
@@ -313,7 +285,7 @@ const LearningTab = ({ subjectId, classId }) => {
                           <Tag
                             color='green'
                             icon={<Layers3 size={12} />}
-                            style={{ marginRight: 0, borderRadius: 999 }}
+                            style={{ marginRight: 0, }}
                           >
                             {chapter.class_name}
                           </Tag>
@@ -323,7 +295,7 @@ const LearningTab = ({ subjectId, classId }) => {
                           <Tag
                             color='cyan'
                             icon={<FolderKanban size={12} />}
-                            style={{ marginRight: 0, borderRadius: 999 }}
+                            style={{ marginRight: 0, }}
                           >
                             {chapter.class_names.join(", ")}
                           </Tag>
@@ -342,7 +314,7 @@ const LearningTab = ({ subjectId, classId }) => {
               styles: {
                 header: {
                   padding: isMobile ? "14px 8px" : "16px 12px",
-                  borderRadius: 16,
+                  borderRadius: museRadius.card,
                   background: "#fff",
                 },
                 body: {
@@ -368,42 +340,14 @@ const GridContent = ({ isMobile, summaryItems }) => {
       }}
     >
       {summaryItems.map((item) => (
-        <Card
+        <StatCard
           key={item.key}
-          variant='borderless'
-          style={summaryCardStyle}
-          styles={{ body: { padding: 18 } }}
-        >
-          <Flex align='center' justify='space-between' gap={16}>
-            <Space vertical size={4} style={{ minWidth: 0 }}>
-              <Text type='secondary'>{item.label}</Text>
-              <Title
-                level={isMobile ? 5 : 4}
-                style={{ margin: 0, overflowWrap: "anywhere" }}
-              >
-                {item.value}
-              </Title>
-              <Text type='secondary' style={{ fontSize: 12 }}>
-                {item.caption}
-              </Text>
-            </Space>
-            <div
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: item.background,
-                color: item.color,
-                flexShrink: 0,
-              }}
-            >
-              {item.icon}
-            </div>
-          </Flex>
-        </Card>
+          title={item.label}
+          value={item.value}
+          note={item.caption}
+          icon={item.icon}
+          tone={item.tone}
+        />
       ))}
     </div>
   );

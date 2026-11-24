@@ -3,13 +3,13 @@ import { Card, Empty, Flex, Table, Tag, Typography } from "antd";
 import { ShieldAlert, Trophy } from "lucide-react";
 import { POINT_TYPE_LABELS } from "../utils/pointCatalog";
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text, Title } = Typography;
 
 const panelStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const TypeHeading = ({ type }) => {
@@ -26,7 +26,7 @@ const TypeHeading = ({ type }) => {
           alignItems: "center",
           justifyContent: "center",
           background: isReward ? "#fffbeb" : "#fef2f2",
-          color: isReward ? "#a16207" : "#b91c1c",
+          color: isReward ? "#a16207" : museColors.danger,
         }}
       >
         <Icon size={16} />
@@ -52,7 +52,7 @@ const CategoryBlock = ({ category, index, isMobile }) => {
         <Flex vertical gap={2}>
           <Text strong>{value}</Text>
           {record.description ? (
-            <Text style={{ color: "#64748b" }}>{record.description}</Text>
+            <Text style={{ color: museColors.muted }}>{record.description}</Text>
           ) : null}
         </Flex>
       ),
@@ -71,11 +71,10 @@ const CategoryBlock = ({ category, index, isMobile }) => {
       <Tag
         style={{
           marginBottom: 10,
-          borderRadius: 999,
           paddingInline: 12,
-          background: "#f8fafc",
-          borderColor: "#e2e8f0",
-          color: "#0f172a",
+          background: museColors.bgLayout,
+          borderColor: museColors.divider,
+          color: museColors.text,
           fontWeight: 700,
         }}
       >
@@ -86,7 +85,7 @@ const CategoryBlock = ({ category, index, isMobile }) => {
           {(category.rules || []).map((rule, ruleIndex) => (
             <Card
               key={rule.id}
-              style={{ borderRadius: 14, border: "1px solid #e5edf6" }}
+              style={{ borderRadius: museRadius.card, border: `1px solid ${museColors.divider}` }}
               styles={{ body: { padding: 12 } }}
             >
               <Flex justify='space-between' gap={10}>

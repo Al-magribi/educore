@@ -1,13 +1,13 @@
 import { Card, Checkbox, Empty, Flex, Grid, List, Typography } from 'antd';
 
+import { museColors, museRadius, museShadow } from "../../../../config/theme";
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const recordCardStyle = {
-  borderRadius: 14,
-  border: '1px solid #e8eef6',
+  borderRadius: museRadius.card,
   background: '#ffffff',
-  boxShadow: '0 6px 16px rgba(15, 23, 42, 0.04)',
+  boxShadow: museShadow.card,
   width: '100%',
   height: '100%',
   minWidth: 0,
@@ -15,8 +15,8 @@ const recordCardStyle = {
 
 const tileStyle = {
   borderRadius: 10,
-  border: '1px solid #eef2f7',
-  background: '#f8fafc',
+  border: `1px solid ${museColors.divider}`,
+  background: museColors.bgLayout,
   padding: '8px 10px',
   minWidth: 0,
 };
@@ -80,7 +80,7 @@ const TileValue = ({ children }) => (
       marginTop: 3,
       fontSize: 13,
       fontWeight: 600,
-      color: '#0f172a',
+      color: museColors.text,
       lineHeight: 1.3,
       wordBreak: 'break-word',
     }}>

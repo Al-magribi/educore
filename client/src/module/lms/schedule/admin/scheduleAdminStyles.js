@@ -1,17 +1,16 @@
-export const SCHEDULE_SURFACE_BORDER = "1px solid rgba(148, 163, 184, 0.16)";
+import { museCardStyle, museColors, museRadius } from "../../../../config/theme";
+
+export const SCHEDULE_SURFACE_BORDER = `1px solid ${museColors.divider}`;
 
 export const SCHEDULE_CARD_STYLE = {
-  borderRadius: 24,
-  border: SCHEDULE_SURFACE_BORDER,
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+  ...museCardStyle,
   width: "100%",
   maxWidth: "100%",
   overflow: "hidden",
 };
 
 export const SCHEDULE_CARD_BODY = {
-  padding: 20,
+  padding: 16,
 };
 
 export const SCHEDULE_CARD_BODY_MOBILE = {
@@ -19,10 +18,9 @@ export const SCHEDULE_CARD_BODY_MOBILE = {
 };
 
 export const SCHEDULE_INNER_CARD_STYLE = {
-  borderRadius: 18,
-  border: "1px solid rgba(226, 232, 240, 0.95)",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 12px 28px rgba(15, 23, 42, 0.04)",
+  borderRadius: museRadius.item,
+  border: SCHEDULE_SURFACE_BORDER,
+  background: "#ffffff",
   width: "100%",
   maxWidth: "100%",
 };
@@ -36,27 +34,26 @@ export const SCHEDULE_INNER_CARD_BODY_MOBILE = {
 };
 
 export const SCHEDULE_MUTED_PANEL_STYLE = {
-  borderRadius: 18,
-  border: "1px solid #e2e8f0",
-  background: "#f8fafc",
+  borderRadius: museRadius.item,
+  border: SCHEDULE_SURFACE_BORDER,
+  background: museColors.bgLayout,
 };
 
 export const SCHEDULE_TAG_STYLE = {
   margin: 0,
-  borderRadius: 999,
-  paddingInline: 12,
+  borderRadius: museRadius.base,
+  paddingInline: 10,
   fontWeight: 600,
 };
 
 export const SCHEDULE_ICON_BOX = {
-  width: 38,
-  height: 38,
+  width: 32,
+  height: 32,
   display: "grid",
   placeItems: "center",
-  borderRadius: 14,
-  background: "linear-gradient(135deg, #e0f2fe, #dcfce7)",
-  color: "#0369a1",
-  border: "1px solid rgba(148, 163, 184, 0.14)",
+  borderRadius: museRadius.base,
+  background: museColors.primary,
+  color: "#ffffff",
   flexShrink: 0,
 };
 

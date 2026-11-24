@@ -21,6 +21,7 @@ import {
   getSubjectColor,
 } from "./scheduleTimetableUtils";
 
+import { museColors, museRadius } from "../../../../config/theme";
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
 
@@ -61,7 +62,7 @@ const MobileSlotRow = ({ row, cell, canManage, onEditEntry }) => {
       style={{
         padding: "8px 10px",
         borderRadius: 10,
-        border: "1px solid #eef2f7",
+        border: `1px solid ${museColors.divider}`,
         background: SURFACE_BG,
         cursor: editable ? "pointer" : undefined,
         minWidth: 0,
@@ -683,7 +684,7 @@ const ScheduleTimetableBoard = ({
                   key={day.key}
                   size="small"
                   title={day.label}
-                  style={{ borderRadius: 14, border: "1px solid #e8eef6" }}
+                  style={{ borderRadius: museRadius.card, border: `1px solid ${museColors.divider}` }}
                   styles={{ body: { padding: 10 } }}
                 >
                   <Flex vertical gap={8}>

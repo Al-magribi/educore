@@ -31,6 +31,8 @@ import {
 } from "../../../service/lms/ApiDuty";
 import ResponsiveTable from "../../../components/ui/ResponsiveTable";
 
+import { museColors, museRadius, museShadow } from "../../../config/theme";
+import { StatCard } from "../../../components/ui/muse";
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
@@ -57,39 +59,19 @@ const itemVariants = {
   },
 };
 
-const statCardStyle = {
-  height: "100%",
-  borderRadius: 22,
-  border: "1px solid #dbe7f3",
-  background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-  boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
-};
 
 const surfaceCardStyle = {
-  borderRadius: 24,
-  border: "1px solid #e5edf6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
 const tableCardStyle = {
-  borderRadius: 22,
-  border: "1px solid #e7eef6",
-  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.05)",
+  borderRadius: museRadius.card,
+  background: "#ffffff",
+  boxShadow: museShadow.card,
 };
 
-const iconWrapStyle = (background) => ({
-  width: 46,
-  height: 46,
-  borderRadius: 16,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background,
-  color: "#fff",
-  flexShrink: 0,
-});
 
 const statusColorMap = {
   done: "green",
@@ -143,8 +125,8 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       title: "Tanggal Laporan",
       value: selectedDate.format("DD MMM"),
       subtitle: selectedDate.format("YYYY"),
-      icon: <CalendarDays size={20} />,
-      background: "linear-gradient(135deg, #2563eb, #38bdf8)",
+      icon: <CalendarDays size={24} />,
+      tone: "primary",
     },
     {
       key: "student-absences",
@@ -153,8 +135,8 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
         summary.student_absence_count ??
         studentAbsences.length,
       subtitle: "Ketidakhadiran siswa",
-      icon: <Users size={20} />,
-      background: "linear-gradient(135deg, #0f766e, #2dd4bf)",
+      icon: <Users size={24} />,
+      tone: "cyan",
     },
     {
       key: "teacher-absences",
@@ -163,8 +145,8 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
         summary.teacher_absence_count ??
         teacherAbsences.length,
       subtitle: "Guru tidak hadir",
-      icon: <UserRoundX size={20} />,
-      background: "linear-gradient(135deg, #7c3aed, #a855f7)",
+      icon: <UserRoundX size={24} />,
+      tone: "purple",
     },
     {
       key: "daily-notes",
@@ -173,8 +155,8 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
         summary.daily_note_count ??
         dailyNotes.length,
       subtitle: "Ringkasan guru piket",
-      icon: <FileText size={20} />,
-      background: "linear-gradient(135deg, #ea580c, #fb923c)",
+      icon: <FileText size={24} />,
+      tone: "accent",
     },
   ];
 
@@ -184,7 +166,7 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       dataIndex: "student_name",
       render: (_, record) => (
         <Flex vertical gap={2}>
-          <Text strong style={{ color: "#0f172a" }}>
+          <Text strong style={{ color: museColors.text }}>
             {record.student_name}
           </Text>
           <Text type='secondary' style={{ fontSize: 12 }}>
@@ -214,7 +196,7 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
     {
       title: "Guru",
       dataIndex: "teacher_name",
-      render: (value) => <Text strong style={{ color: "#0f172a" }}>{value}</Text>,
+      render: (value) => <Text strong style={{ color: museColors.text }}>{value}</Text>,
     },
     {
       title: "Alasan",
@@ -239,7 +221,7 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       dataIndex: "teacher_name",
       render: (_, record) => (
         <Flex vertical gap={2}>
-          <Text strong style={{ color: "#0f172a" }}>
+          <Text strong style={{ color: museColors.text }}>
             {record.teacher_name}
           </Text>
           <Text type='secondary' style={{ fontSize: 12 }}>
@@ -281,7 +263,7 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       dataIndex: "duty_teacher_name",
       render: (_, record) => (
         <Flex vertical gap={2}>
-          <Text strong style={{ color: "#0f172a" }}>
+          <Text strong style={{ color: museColors.text }}>
             {record.duty_teacher_name}
           </Text>
           <Text type='secondary' style={{ fontSize: 12 }}>
@@ -306,7 +288,7 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       render: (value) => (
         <Tag
           color={statusColorMap[value] || "blue"}
-          style={{ margin: 0, borderRadius: 999, paddingInline: 12 }}
+          style={{ margin: 0, paddingInline: 12 }}
         >
           {value || "assigned"}
         </Tag>
@@ -341,8 +323,8 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       <div
         style={{
           padding: isMobile ? 16 : 20,
-          borderBottom: "1px solid #edf2f7",
-          background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+          borderBottom: `1px solid ${museColors.divider}`,
+          background: "#ffffff",
         }}
       >
         <Text type='secondary'>{description}</Text>
@@ -485,30 +467,24 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
       style={{ display: "flex", flexDirection: "column", gap: 16 }}
     >
       <motion.div variants={itemVariants}>
-        <Flex gap={16} wrap='wrap'>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: isMobile ? 16 : 24,
+          }}
+        >
           {statItems.map((item) => (
-            <Card
+            <StatCard
               key={item.key}
-              style={{
-                ...statCardStyle,
-                flex: "1 1 220px",
-                minWidth: isMobile ? "100%" : 220,
-              }}
-              styles={{ body: { padding: 20 } }}
-            >
-              <Flex align='center' gap={14}>
-                <div style={iconWrapStyle(item.background)}>{item.icon}</div>
-                <div style={{ minWidth: 0 }}>
-                  <Text type='secondary'>{item.title}</Text>
-                  <Title level={4} style={{ margin: "4px 0 0", color: "#0f172a" }}>
-                    {item.value}
-                  </Title>
-                  <Text style={{ color: "#64748b" }}>{item.subtitle}</Text>
-                </div>
-              </Flex>
-            </Card>
+              title={item.title}
+              value={item.value}
+              note={item.subtitle}
+              icon={item.icon}
+              tone={item.tone}
+            />
           ))}
-        </Flex>
+        </div>
       </motion.div>
 
       <motion.div variants={itemVariants}>
@@ -524,7 +500,7 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
               gap={14}
             >
               <div style={{ minWidth: 0 }}>
-                <Title level={5} style={{ margin: 0, color: "#0f172a" }}>
+                <Title level={5} style={{ margin: 0, color: museColors.text }}>
                   Laporan Piket Harian
                 </Title>
                 <Text type='secondary'>
@@ -556,8 +532,7 @@ const AdminDutyReportTab = ({ selectedDate, onChangeDate }) => {
               activeKey={activeTab}
               onChange={setActiveTab}
               items={tabItems}
-              size={isMobile ? "middle" : "large"}
-              tabBarGutter={8}
+              size={isMobile ? "small" : "middle"}
               animated
             />
           </Flex>

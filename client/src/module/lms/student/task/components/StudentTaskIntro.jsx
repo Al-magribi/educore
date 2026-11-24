@@ -3,6 +3,8 @@ import { Card, Flex, Space, Tag, Typography } from "antd";
 import { motion } from "framer-motion";
 import { CalendarRange, FileClock, ListTodo } from "lucide-react";
 
+import { museCardStyle } from "../../../../../config/theme";
+import { IconBox } from "../../../../../components/ui/muse";
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
 
@@ -11,12 +13,8 @@ const StudentTaskIntro = ({ totalTasks, nearestDeadline, isMobile }) => {
     <MotionDiv initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <Card
         variant='borderless'
-        style={{
-          borderRadius: 24,
-          background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%)",
-          border: "1px solid #dbeafe",
-        }}
-        styles={{ body: { padding: isMobile ? 18 : 22 } }}
+        style={museCardStyle}
+        styles={{ body: { padding: 16 } }}
       >
         <Flex
           justify='space-between'
@@ -25,22 +23,7 @@ const StudentTaskIntro = ({ totalTasks, nearestDeadline, isMobile }) => {
           wrap='wrap'
         >
           <Space align='start' size={14}>
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 18,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "linear-gradient(135deg, #1d4ed8 0%, #38bdf8 100%)",
-                color: "#fff",
-                flexShrink: 0,
-                boxShadow: "0 14px 30px rgba(29, 78, 216, 0.18)",
-              }}
-            >
-              <ListTodo size={24} />
-            </div>
+            <IconBox icon={<ListTodo size={24} />} size={48} />
             <Space direction='vertical' size={4} style={{ minWidth: 0 }}>
               <Text type='secondary'>Workspace Tugas</Text>
               <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
@@ -57,14 +40,14 @@ const StudentTaskIntro = ({ totalTasks, nearestDeadline, isMobile }) => {
             <Tag
               color='blue'
               icon={<FileClock size={12} />}
-              style={{ marginRight: 0, borderRadius: 999, paddingInline: 12 }}
+              style={{ marginRight: 0, paddingInline: 12 }}
             >
               Total Tugas: {totalTasks}
             </Tag>
             <Tag
               color='gold'
               icon={<CalendarRange size={12} />}
-              style={{ marginRight: 0, borderRadius: 999, paddingInline: 12 }}
+              style={{ marginRight: 0, paddingInline: 12 }}
             >
               Deadline Terdekat: {nearestDeadline}
             </Tag>

@@ -16,6 +16,7 @@ import StudentTaskIntro from "./components/StudentTaskIntro";
 import StudentTaskStats from "./components/StudentTaskStats";
 import StudentTaskList from "./components/StudentTaskList";
 
+import { museRadius } from "../../../../config/theme";
 const MotionDiv = motion.div;
 const { useBreakpoint } = Grid;
 const EMPTY_LIST = [];
@@ -70,27 +71,24 @@ const StudentTaskView = ({ subjectId, classId }) => {
       label: "Menunggu Dikerjakan",
       value: pendingCount,
       caption: "Tugas yang belum memiliki pengumpulan",
-      icon: <Clock3 size={18} />,
-      background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-      color: "#b45309",
+      icon: <Clock3 size={24} />,
+      tone: "warning",
     },
     {
       key: "submitted",
       label: "Sudah Dikumpulkan",
       value: submittedCount,
       caption: "Tugas yang sudah masuk ke sistem",
-      icon: <CheckCheck size={18} />,
-      background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-      color: "#15803d",
+      icon: <CheckCheck size={24} />,
+      tone: "success",
     },
     {
       key: "deadline",
       label: "Deadline Terdekat",
       value: nearestDeadline,
       caption: "Daftar tugas diurutkan dari tenggat paling dekat",
-      icon: <CalendarRange size={18} />,
-      background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-      color: "#1d4ed8",
+      icon: <CalendarRange size={24} />,
+      tone: "primary",
     },
   ];
 
@@ -99,12 +97,12 @@ const StudentTaskView = ({ subjectId, classId }) => {
       <Alert
         type='error'
         showIcon
-        message='Gagal memuat daftar tugas'
+        title='Gagal memuat daftar tugas'
         description={
           error?.data?.message ||
           "Terjadi kendala saat mengambil data tugas siswa."
         }
-        style={{ borderRadius: 18 }}
+        style={{ borderRadius: museRadius.card }}
       />
     );
   }

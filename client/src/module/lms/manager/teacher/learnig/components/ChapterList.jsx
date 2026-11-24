@@ -14,6 +14,7 @@ import {
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
+import { museColors } from "../../../../../../config/theme";
 const ChapterContents = lazy(() => import("./ChapterContents"));
 
 const { Text } = Typography;
@@ -95,7 +96,7 @@ const ChapterList = ({
                                       style={{
                                         display: "inline-flex",
                                         alignItems: "center",
-                                        color: "#8c8c8c",
+                                        color: museColors.muted,
                                         cursor: "grab",
                                         flexShrink: 0,
                                       }}

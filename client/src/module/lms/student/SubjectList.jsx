@@ -19,6 +19,8 @@ import PageHeader from "../../../components/ui/PageHeader";
 import Detail from "./subject/Detail";
 import Subject from "./subject/Subject";
 
+import { museRadius, museShadow } from "../../../config/theme";
+import { StatCard } from "../../../components/ui/muse";
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 const EMPTY_LIST = [];
@@ -46,12 +48,6 @@ const itemVariants = {
   },
 };
 
-const statCardStyle = {
-  borderRadius: 22,
-  height: "100%",
-  border: "1px solid rgba(148, 163, 184, 0.18)",
-  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-};
 
 const SubjectList = () => {
   const { user } = useSelector((state) => state.auth);
@@ -104,29 +100,16 @@ const SubjectList = () => {
       label: "Total Mata Pelajaran",
       value: subjects.length,
       caption: "Terdaftar di kelas Anda",
-      icon: <BookOpen size={18} />,
-      background: "linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)",
-      color: "#1d4ed8",
-    },
-    {
-      key: "visible",
-      label: "Hasil Ditampilkan",
-      value: filteredSubjects.length,
-      caption: keyword.trim()
-        ? "Sesuai pencarian aktif"
-        : "Semua mapel terlihat",
-      icon: <Search size={18} />,
-      background: "linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)",
-      color: "#15803d",
+      icon: <BookOpen size={24} />,
+      tone: "primary",
     },
     {
       key: "teacher",
       label: "Pengampu Terlibat",
       value: teacherCount,
       caption: "Guru yang tercatat di data",
-      icon: <Users size={18} />,
-      background: "linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%)",
-      color: "#b45309",
+      icon: <Users size={24} />,
+      tone: "warning",
     },
   ];
 
@@ -189,39 +172,14 @@ const SubjectList = () => {
         <MotionDiv variants={itemVariants}>
           <Row gutter={[16, 16]}>
             {stats.map((stat) => (
-              <Col key={stat.key} xs={24} sm={12} xl={8}>
-                <Card
-                  variant='borderless'
-                  style={statCardStyle}
-                  styles={{ body: { padding: 18 } }}
-                >
-                  <Flex align='center' justify='space-between' gap={16}>
-                    <Space vertical size={4} style={{ minWidth: 0 }}>
-                      <Text type='secondary'>{stat.label}</Text>
-                      <Title level={isMobile ? 4 : 3} style={{ margin: 0 }}>
-                        {stat.value}
-                      </Title>
-                      <Text type='secondary' style={{ fontSize: 12 }}>
-                        {stat.caption}
-                      </Text>
-                    </Space>
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 16,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: stat.background,
-                        color: stat.color,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {stat.icon}
-                    </div>
-                  </Flex>
-                </Card>
+              <Col key={stat.key} xs={24} sm={12}>
+                <StatCard
+                  title={stat.label}
+                  value={stat.value}
+                  note={stat.caption}
+                  icon={stat.icon}
+                  tone={stat.tone}
+                />
               </Col>
             ))}
           </Row>
@@ -240,9 +198,9 @@ const SubjectList = () => {
             <Alert
               type='error'
               showIcon
-              message='Terjadi kendala saat memuat mata pelajaran'
+              title='Terjadi kendala saat memuat mata pelajaran'
               description={errorMessage}
-              style={{ borderRadius: 18 }}
+              
             />
           </MotionDiv>
         ) : isLoading ? (
@@ -270,8 +228,8 @@ const SubjectList = () => {
             <Card
               variant='borderless'
               style={{
-                borderRadius: 24,
-                boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+                borderRadius: museRadius.card,
+                boxShadow: museShadow.card,
               }}
               styles={{ body: { padding: isMobile ? 24 : 32 } }}
             >

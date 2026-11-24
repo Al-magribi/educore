@@ -4,6 +4,7 @@ import { BadgeCheck } from "lucide-react";
 import ResponsiveTable from "../../../../../../components/ui/ResponsiveTable";
 import { statusTagColor } from "./utils";
 
+import { museColors, museRadius } from "../../../../../../config/theme";
 const { Title } = Typography;
 
 const columns = [
@@ -25,9 +26,9 @@ const columns = [
 
 const AttendanceSection = ({ dataSource, attendance, loading, tableSize }) => {
   return (
-    <Card style={{ borderRadius: 14 }} styles={{ body: { padding: 16 } }}>
+    <Card style={{ borderRadius: museRadius.card }} styles={{ body: { padding: 16 } }}>
       <Space align="center" size={10} wrap style={{ marginBottom: 12 }}>
-        <BadgeCheck size={16} color="#52c41a" />
+        <BadgeCheck size={16} color={museColors.success} />
         <Title level={5} style={{ margin: 0 }}>
           Absen
         </Title>

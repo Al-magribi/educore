@@ -11,6 +11,7 @@ import {
   message,
   Upload,
   Modal,
+  Skeleton,
 } from "antd";
 import { Download, Plus, RefreshCw, Save, Upload as UploadIcon } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -43,8 +44,8 @@ import {
   useGetChaptersQuery,
   useGetContentsQuery,
 } from "../../../../../service/lms/ApiLms";
-import LoadApp from "../../../../../components/loader/LoadApp";
 
+import { museColors, museRadius } from "../../../../../config/theme";
 const GradingHeader = lazy(() => import("./components/GradingHeader"));
 const StudentGradingTable = lazy(() =>
   import("./components/StudentGradingTable"),
@@ -2583,7 +2584,7 @@ const handleDownloadFinalTemplate = () => {
   );
 
   return (
-    <Suspense fallback={<LoadApp />}>
+    <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
       <Flex vertical gap='middle' style={{ width: "100%", minWidth: 0 }}>
       <GradingHeader
         subject={subject}
@@ -2598,7 +2599,7 @@ const handleDownloadFinalTemplate = () => {
       {unitId && periodId && classId ? (
         <Flex vertical gap={16} style={{ width: "100%", minWidth: 0 }}>
           <Card
-            style={{ borderRadius: 14, border: "1px solid #f0f0f0" }}
+            style={{ borderRadius: museRadius.card, border: `1px solid ${museColors.divider}` }}
             styles={{ body: { padding: 0 } }}
           >
             <Flex
@@ -2901,8 +2902,7 @@ const handleDownloadFinalTemplate = () => {
                 children: renderGradingContent(tab.key),
               }))}
               onChange={setGradingTab}
-              size={isMobile ? "middle" : "large"}
-              tabBarGutter={isMobile ? 8 : 16}
+              size={isMobile ? "small" : "middle"}
               style={{
                 padding: isMobile ? "0 12px 12px" : "0 16px 16px",
                 width: "100%",
@@ -2912,7 +2912,7 @@ const handleDownloadFinalTemplate = () => {
         </Flex>
       ) : (
         <Card
-          style={{ borderRadius: 14, border: "1px solid #f0f0f0" }}
+          style={{ borderRadius: museRadius.card, border: `1px solid ${museColors.divider}` }}
           styles={{ body: { padding: 24 } }}
         >
           <Empty description='Belum ada data penilaian pada semester ini.' />

@@ -8,10 +8,11 @@ import {
   Table,
   Tooltip,
   Typography,
+  Skeleton,
 } from "antd";
 import { Trash2 } from "lucide-react";
-import LoadApp from "../../../../../../components/loader/LoadApp";
 
+import { museColors } from "../../../../../../config/theme";
 const { Text } = Typography;
 
 export const extractSubIdFromType = (typeValue) => {
@@ -459,7 +460,7 @@ const StudentGradingTableFormatif = ({
     <Card
       key={student.id}
       size="small"
-      style={{ borderRadius: 12, border: "1px solid #f0f0f0" }}
+      style={{ borderRadius: 12, border: `1px solid ${museColors.divider}` }}
       styles={{ body: { padding: 12 } }}
     >
       <Space orientation="vertical" size={8} style={{ width: "100%" }}>
@@ -490,7 +491,7 @@ const StudentGradingTableFormatif = ({
   );
 
   if (isLoading) {
-    return <LoadApp />;
+    return <Skeleton active paragraph={{ rows: 6 }} />;
   }
 
   return isMobile ? (
