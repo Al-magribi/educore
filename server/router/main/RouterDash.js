@@ -158,53 +158,54 @@ router.get(
   }),
 );
 
-router.get(
-  "/student-dash",
-  authorize("student"),
-  withQuery(async (req, res, pool) => {
-    const userId = req.user.id;
+// Data dashboard satu siswa; dipakai dashboard siswa dan orang tua.
+const loadStudentDash = async (pool, userId) => {
+  const studentResult = await pool.query(
+    `SELECT u.id, u.full_name, u.img_url, s.nis, s.nisn, s.homebase_id, s.current_class_id, s.current_periode_id
+     FROM u_users u
+     JOIN u_students s ON u.id = s.user_id
+     WHERE u.id = $1
+     LIMIT 1`,
+    [userId],
+  );
 
-    const studentResult = await pool.query(
-      `SELECT u.id, u.full_name, u.img_url, s.nis, s.nisn, s.homebase_id, s.current_class_id, s.current_periode_id
-       FROM u_users u
-       JOIN u_students s ON u.id = s.user_id
-       WHERE u.id = $1
-       LIMIT 1`,
-      [userId],
-    );
+  if (studentResult.rows.length === 0) return null;
 
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ message: "Data siswa tidak ditemukan." });
-    }
+  const student = studentResult.rows[0];
+  const homebaseId = student.homebase_id;
 
-    const student = studentResult.rows[0];
-    const homebaseId = student.homebase_id;
+  const enrollmentResult = await pool.query(
+    `SELECT e.class_id, e.periode_id, c.name as class_name, g.name as grade_name, m.name as major_name
+     FROM u_class_enrollments e
+     JOIN a_class c ON e.class_id = c.id
+     LEFT JOIN a_grade g ON c.grade_id = g.id
+     LEFT JOIN a_major m ON c.major_id = m.id
+     WHERE e.student_id = $1
+     ORDER BY e.id DESC
+     LIMIT 1`,
+    [userId],
+  );
 
-    const enrollmentResult = await pool.query(
-      `SELECT e.class_id, e.periode_id, c.name as class_name, g.name as grade_name, m.name as major_name
-       FROM u_class_enrollments e
-       JOIN a_class c ON e.class_id = c.id
-       LEFT JOIN a_grade g ON c.grade_id = g.id
-       LEFT JOIN a_major m ON c.major_id = m.id
-       WHERE e.student_id = $1
-       ORDER BY e.id DESC
-       LIMIT 1`,
-      [userId],
-    );
+  const enrollment = enrollmentResult.rows[0] || null;
+  const classId = student.current_class_id || enrollment?.class_id || null;
+  const periodeId = student.current_periode_id || enrollment?.periode_id || null;
 
-    const enrollment = enrollmentResult.rows[0] || null;
-    const classId = student.current_class_id || enrollment?.class_id || null;
-    const periodeId = student.current_periode_id || enrollment?.periode_id || null;
+  // Aman untuk product/cbt: schema/tabel LMS mungkin tidak ada.
+  const attendanceTableResult = await pool.query(
+    `SELECT to_regclass('lms.l_attendance') AS table_name`,
+  );
+  const hasLmsAttendance = Boolean(attendanceTableResult.rows[0]?.table_name);
 
-    const [homebaseInfo, activePeriode, subjects, activeExams] = await Promise.all([
+  const [homebaseInfo, activePeriode, subjects, activeExams, attendance] =
+    await Promise.all([
       pool.query(`SELECT id, name, level FROM a_homebase WHERE id = $1 LIMIT 1`, [
         homebaseId,
       ]),
       pool.query(
-        `SELECT id, name, is_active 
-         FROM a_periode 
-         WHERE homebase_id = $1 AND is_active = true 
-         ORDER BY id DESC 
+        `SELECT id, name, is_active
+         FROM a_periode
+         WHERE homebase_id = $1 AND is_active = true
+         ORDER BY id DESC
          LIMIT 1`,
         [homebaseId],
       ),
@@ -231,30 +232,103 @@ router.get(
             [classId],
           )
         : Promise.resolve({ rows: [] }),
+      // Rekap kehadiran bulan berjalan: satu status per hari (prioritas terburuk).
+      hasLmsAttendance
+        ? pool.query(
+            `WITH daily AS (
+               SELECT DISTINCT ON (a.date) a.date, a.status
+               FROM lms.l_attendance a
+               WHERE a.student_id = $1
+                 AND a.date >= date_trunc('month', CURRENT_DATE)
+                 AND a.date <= CURRENT_DATE
+               ORDER BY a.date,
+                        CASE a.status
+                          WHEN 'Alpa' THEN 1
+                          WHEN 'Alpha' THEN 1
+                          WHEN 'Sakit' THEN 2
+                          WHEN 'Izin' THEN 3
+                          WHEN 'Hadir' THEN 4
+                          ELSE 5
+                        END
+             )
+             SELECT status, COUNT(*)::int AS count
+             FROM daily
+             GROUP BY status`,
+            [userId],
+          )
+        : Promise.resolve({ rows: [] }),
     ]);
+
+  return {
+    student: {
+      id: student.id,
+      full_name: student.full_name,
+      img_url: student.img_url,
+      nis: student.nis,
+      nisn: student.nisn,
+    },
+    homebase: homebaseInfo.rows[0] || null,
+    activePeriode: activePeriode.rows[0] || null,
+    classInfo: {
+      id: classId,
+      name: enrollment?.class_name || "-",
+      grade: enrollment?.grade_name || "-",
+      major: enrollment?.major_name || "-",
+      periode_id: periodeId,
+    },
+    subjects: subjects.rows,
+    exams: activeExams.rows,
+    attendance: hasLmsAttendance ? attendance.rows : null,
+  };
+};
+
+router.get(
+  "/student-dash",
+  authorize("student"),
+  withQuery(async (req, res, pool) => {
+    const data = await loadStudentDash(pool, req.user.id);
+
+    if (!data) {
+      return res.status(404).json({ message: "Data siswa tidak ditemukan." });
+    }
 
     res.json({
       code: 200,
       message: "Student dashboard data fetched successfully",
+      data,
+    });
+  }),
+);
+
+router.get(
+  "/parent-dash",
+  authorize("parent"),
+  withQuery(async (req, res, pool) => {
+    const parentResult = await pool.query(
+      `SELECT u.id, u.full_name, p.student_id, p.phone, p.email
+       FROM u_users u
+       JOIN u_parents p ON u.id = p.user_id
+       WHERE u.id = $1
+       LIMIT 1`,
+      [req.user.id],
+    );
+
+    const parent = parentResult.rows[0];
+
+    if (!parent) {
+      return res.status(404).json({ message: "Data orang tua tidak ditemukan." });
+    }
+
+    const child = parent.student_id
+      ? await loadStudentDash(pool, parent.student_id)
+      : null;
+
+    res.json({
+      code: 200,
+      message: "Parent dashboard data fetched successfully",
       data: {
-        student: {
-          id: student.id,
-          full_name: student.full_name,
-          img_url: student.img_url,
-          nis: student.nis,
-          nisn: student.nisn,
-        },
-        homebase: homebaseInfo.rows[0] || null,
-        activePeriode: activePeriode.rows[0] || null,
-        classInfo: {
-          id: classId,
-          name: enrollment?.class_name || "-",
-          grade: enrollment?.grade_name || "-",
-          major: enrollment?.major_name || "-",
-          periode_id: periodeId,
-        },
-        subjects: subjects.rows,
-        exams: activeExams.rows,
+        parent: { id: parent.id, full_name: parent.full_name },
+        child,
       },
     });
   }),
