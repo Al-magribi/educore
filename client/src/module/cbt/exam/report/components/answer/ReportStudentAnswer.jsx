@@ -34,6 +34,7 @@ import * as XLSX from 'xlsx';
 import { useSearchParams } from 'react-router-dom';
 import { useGetExamStudentAnswerReportQuery } from '../../../../../../service/cbt/ApiExam';
 import RichContentViewer from '../../../../components/RichContentViewer';
+import { museColors, museRadius, museShadow } from '../../../../../../config/theme';
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -43,25 +44,25 @@ const STATUS_META = {
   correct: {
     label: 'Benar',
     color: 'green',
-    textColor: '#15803d',
+    textColor: museColors.success,
     icon: <CheckCircle2 size={12} />,
   },
   incorrect: {
     label: 'Salah',
     color: 'red',
-    textColor: '#dc2626',
+    textColor: museColors.danger,
     icon: <XCircle size={12} />,
   },
   unanswered: {
     label: 'Kosong',
     color: 'default',
-    textColor: '#64748b',
+    textColor: museColors.muted,
     icon: <CircleDashed size={12} />,
   },
   pending_review: {
     label: 'Pending',
     color: 'gold',
-    textColor: '#d97706',
+    textColor: museColors.warning,
     icon: <Clock3 size={12} />,
   },
 };
@@ -104,7 +105,7 @@ const createSheetFromAoA = (rows, widths = []) => {
 
 const clickableNameStyle = {
   cursor: 'pointer',
-  color: '#1d4ed8',
+  color: museColors.primary,
 };
 
 const slugifyParam = (value = '-') =>
@@ -227,19 +228,19 @@ const ReportStudentAnswer = ({ examId, examName, isMobile: forcedMobile = false 
     {
       label: 'Peserta',
       value: summary.totalStudents,
-      color: '#1d4ed8',
+      color: museColors.primary,
       icon: <Users size={18} />,
     },
     {
       label: 'Total Soal',
       value: summary.totalQuestions,
-      color: '#0f766e',
+      color: museColors.cyan,
       icon: <ListChecks size={18} />,
     },
     {
       label: 'Rata-rata',
       value: summary.averageScore,
-      color: '#d97706',
+      color: museColors.warning,
       icon: <FileSpreadsheet size={18} />,
     },
     {
@@ -649,8 +650,8 @@ const ReportStudentAnswer = ({ examId, examName, isMobile: forcedMobile = false 
       children: (
         <div
           style={{
-            borderRadius: 18,
-            border: '1px solid rgba(148, 163, 184, 0.14)',
+            borderRadius: museRadius.card,
+            border: `1px solid ${museColors.divider}`,
             overflow: 'hidden',
           }}>
           <Table
@@ -699,8 +700,8 @@ const ReportStudentAnswer = ({ examId, examName, isMobile: forcedMobile = false 
       children: (
         <div
           style={{
-            borderRadius: 18,
-            border: '1px solid rgba(148, 163, 184, 0.14)',
+            borderRadius: museRadius.card,
+            border: `1px solid ${museColors.divider}`,
             overflow: 'hidden',
           }}>
           <Table
@@ -722,8 +723,8 @@ const ReportStudentAnswer = ({ examId, examName, isMobile: forcedMobile = false 
       <Card
         variant="borderless"
         style={{
-          borderRadius: 24,
-          boxShadow: '0 18px 36px rgba(15, 23, 42, 0.06)',
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
         }}
         styles={{ body: { padding: isMobile ? 16 : 20 } }}>
         <Space vertical size={18} style={{ width: '100%' }}>
@@ -765,9 +766,9 @@ const ReportStudentAnswer = ({ examId, examName, isMobile: forcedMobile = false 
                 key={item.label}
                 variant="borderless"
                 style={{
-                  borderRadius: isMobile ? 14 : 18,
-                  background: '#f8fafc',
-                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  borderRadius: museRadius.card,
+                  background: museColors.bgSoft,
+                  border: `1px solid ${museColors.divider}`,
                   minWidth: 0,
                   overflow: 'hidden',
                 }}
@@ -795,7 +796,7 @@ const ReportStudentAnswer = ({ examId, examName, isMobile: forcedMobile = false 
                     style={{
                       width: isMobile ? 32 : 42,
                       height: isMobile ? 32 : 42,
-                      borderRadius: isMobile ? 10 : 14,
+                      borderRadius: museRadius.item,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

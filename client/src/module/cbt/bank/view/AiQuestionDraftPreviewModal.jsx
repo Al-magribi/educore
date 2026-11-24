@@ -38,6 +38,7 @@ import {
   useUpdateAiQuestionDraftMutation,
 } from "../../../../service/cbt/ApiQuestion";
 import QuestionItem from "./QuestionItem";
+import { museColors, museRadius } from "../../../../config/theme";
 
 const { Text, Title } = Typography;
 
@@ -129,8 +130,8 @@ const DraftRubricPreview = ({ rubric = [] }) => {
       size='small'
       style={{
         marginTop: 12,
-        borderRadius: 16,
-        background: "linear-gradient(135deg, #fafafa, #f8fbff)",
+        borderRadius: museRadius.item,
+        background: "#fff",
       }}
       title='Rubric Uraian'
     >
@@ -253,11 +254,11 @@ const DraftEditModal = ({ open, draft, templates, onCancel, onSaved }) => {
               <Card
                 size='small'
                 title='Opsi / Jawaban'
-                style={{ borderRadius: 16 }}
+                style={{ borderRadius: museRadius.item }}
               >
                 <Space direction='vertical' size={12} style={{ width: "100%" }}>
                   {fields.map(({ key, name, ...restField }, index) => (
-                    <Card key={key} size='small' style={{ borderRadius: 14 }}>
+                    <Card key={key} size='small' style={{ borderRadius: museRadius.item }}>
                       <Flex gap={12} vertical={qType === 6}>
                         {qType === 6 ? (
                           <Flex gap={12} wrap='wrap'>
@@ -378,7 +379,7 @@ const DraftEditModal = ({ open, draft, templates, onCancel, onSaved }) => {
                 <Card
                   size='small'
                   title='Rubric Uraian'
-                  style={{ borderRadius: 16 }}
+                  style={{ borderRadius: museRadius.item }}
                 >
                   <Space
                     direction='vertical'
@@ -386,7 +387,7 @@ const DraftEditModal = ({ open, draft, templates, onCancel, onSaved }) => {
                     style={{ width: "100%" }}
                   >
                     {fields.map(({ key, name, ...restField }) => (
-                      <Card key={key} size='small' style={{ borderRadius: 14 }}>
+                      <Card key={key} size='small' style={{ borderRadius: museRadius.item }}>
                         <Flex gap={12} vertical>
                           <Form.Item
                             {...restField}
@@ -618,7 +619,7 @@ const AiQuestionDraftPreviewModal = ({
           <Empty description='Draft AI belum tersedia' />
         ) : (
           <Space direction='vertical' size={16} style={{ width: "100%" }}>
-            <Card style={{ borderRadius: 18 }}>
+            <Card style={{ borderRadius: museRadius.card }}>
               <Flex
                 justify='space-between'
                 align='flex-start'
@@ -664,7 +665,7 @@ const AiQuestionDraftPreviewModal = ({
                       <Progress
                         percent={Math.max(0, Math.min(progressPercent, 100))}
                         status='active'
-                        strokeColor='#1677ff'
+                        strokeColor={museColors.primary}
                       />
                     </Space>
                   }
@@ -692,23 +693,23 @@ const AiQuestionDraftPreviewModal = ({
               )}
 
               <Flex gap={12} wrap='wrap' style={{ marginTop: 16 }}>
-                <Card size='small' style={{ borderRadius: 16, minWidth: 140 }}>
+                <Card size='small' style={{ borderRadius: museRadius.item, minWidth: 140 }}>
                   <Statistic title='Draft' value={summary.total_drafts || 0} />
                 </Card>
-                <Card size='small' style={{ borderRadius: 16, minWidth: 140 }}>
+                <Card size='small' style={{ borderRadius: museRadius.item, minWidth: 140 }}>
                   <Statistic
                     title='Total Poin'
                     value={summary.total_score || 0}
                     suffix='/100'
                   />
                 </Card>
-                <Card size='small' style={{ borderRadius: 16, minWidth: 140 }}>
+                <Card size='small' style={{ borderRadius: museRadius.item, minWidth: 140 }}>
                   <Statistic
                     title='Approved'
                     value={summary.approved_count || 0}
                   />
                 </Card>
-                <Card size='small' style={{ borderRadius: 16, minWidth: 140 }}>
+                <Card size='small' style={{ borderRadius: museRadius.item, minWidth: 140 }}>
                   <Statistic
                     title='Discarded'
                     value={summary.discarded_count || 0}
@@ -770,7 +771,7 @@ const AiQuestionDraftPreviewModal = ({
               <Empty description='Belum ada draft soal di job ini' />
             ) : (
               drafts.map((draft, index) => (
-                <Card key={draft.id} style={{ borderRadius: 18 }}>
+                <Card key={draft.id} style={{ borderRadius: museRadius.card }}>
                   <Flex
                     justify='space-between'
                     align='flex-start'

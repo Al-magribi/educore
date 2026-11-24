@@ -14,6 +14,7 @@ import {
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { GraduationCap, ListChecks } from "lucide-react";
 import RichContentViewer from "../../components/RichContentViewer";
+import { museColors, museRadius } from "../../../../config/theme";
 
 const { Title, Text } = Typography;
 
@@ -137,7 +138,7 @@ const QuestionContent = ({
 
   if (!question) {
     return (
-      <Card style={{ borderRadius: 16 }}>
+      <Card style={{ borderRadius: museRadius.item }}>
         <Empty description="Soal belum tersedia" />
       </Card>
     );
@@ -244,7 +245,7 @@ const QuestionContent = ({
               borderRadius: 12,
               display: "grid",
               placeItems: "center",
-              background: "linear-gradient(145deg, #1f5eff 0%, #60a5fa 100%)",
+              background: museColors.primary,
               color: "#fff",
             }}
           >
@@ -298,7 +299,7 @@ const QuestionContent = ({
       <Card
         style={{
           background: "#fbfcff",
-          borderRadius: 16,
+          borderRadius: museRadius.item,
           borderColor: "#e7eef8",
         }}
         styles={{ body: { padding: isSmallScreen ? 14 : 24 } }}
@@ -317,7 +318,7 @@ const QuestionContent = ({
               style={{
                 display: "block",
                 marginBottom: 8,
-                color: "#6d28d9",
+                color: museColors.purple,
                 fontSize: 12,
                 fontWeight: 700,
               }}
@@ -457,7 +458,7 @@ const QuestionContent = ({
                             ref={provided.innerRef}
                             {...provided.droppableProps}
                             style={{
-                              borderColor: snapshot.isDraggingOver ? "#1f5eff" : undefined,
+                              borderColor: snapshot.isDraggingOver ? museColors.primary : undefined,
                               background: snapshot.isDraggingOver
                                 ? "rgba(31, 94, 255, 0.06)"
                                 : undefined,
@@ -570,11 +571,10 @@ const QuestionContent = ({
                 key={option.id || option.label || idx}
                 styles={{ body: { padding: "12px 16px" } }}
                 style={{
-                  borderRadius: 14,
+                  borderRadius: museRadius.item,
                   cursor: "pointer",
                   borderColor: "#e7eef8",
-                  background:
-                    "linear-gradient(135deg, #ffffff 0%, #f8fbff 100%)",
+                  background: "#fff",
                 }}
               >
                 <Checkbox value={option.id} style={{ width: "100%" }}>
@@ -611,11 +611,10 @@ const QuestionContent = ({
                 key={option.id || option.label || idx}
                 styles={{ body: { padding: "12px 16px" } }}
                 style={{
-                  borderRadius: 14,
+                  borderRadius: museRadius.item,
                   cursor: "pointer",
                   borderColor: "#e7eef8",
-                  background:
-                    "linear-gradient(135deg, #ffffff 0%, #f8fbff 100%)",
+                  background: "#fff",
                 }}
               >
                 <Radio value={option.id} style={{ width: "100%" }}>

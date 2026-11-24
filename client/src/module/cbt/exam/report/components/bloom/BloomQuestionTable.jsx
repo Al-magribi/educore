@@ -6,6 +6,7 @@ import {
   sectionStyle,
   statusMetaMap,
 } from "./bloomUtils";
+import { museColors, museRadius } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -28,8 +29,8 @@ const MobileQuestionCards = ({
           loading={isLoading}
           size='small'
           style={{
-            borderRadius: 16,
-            border: "1px solid rgba(148, 163, 184, 0.18)",
+            borderRadius: museRadius.item,
+            border: `1px solid ${museColors.divider}`,
           }}
           styles={{ body: { padding: 14 } }}
         >
@@ -66,8 +67,8 @@ const MobileQuestionCards = ({
                 }}
               >
                 {[
-                  { label: "Benar", value: record.correct_count, color: "#15803d" },
-                  { label: "Salah", value: record.incorrect_count, color: "#dc2626" },
+                  { label: "Benar", value: record.correct_count, color: museColors.success },
+                  { label: "Salah", value: record.incorrect_count, color: museColors.danger },
                   { label: "Kosong", value: record.unanswered_count },
                   { label: "Pending", value: record.pending_review_count },
                 ].map((item) => (
@@ -76,8 +77,8 @@ const MobileQuestionCards = ({
                     style={{
                       padding: "8px 10px",
                       borderRadius: 12,
-                      background: "#f8fafc",
-                      border: "1px solid #e2e8f0",
+                      background: museColors.bgSoft,
+                      border: `1px solid ${museColors.divider}`,
                     }}
                   >
                     <Text
@@ -96,7 +97,7 @@ const MobileQuestionCards = ({
 
             <BloomProgress
               value={record.correct_percentage}
-              strokeColor='#0f766e'
+              strokeColor={museColors.cyan}
             />
           </Space>
         </Card>
@@ -169,7 +170,7 @@ const BloomQuestionTable = ({
             width: 90,
             align: "center",
             render: (value) => (
-              <Text style={{ color: "#15803d" }}>{value}</Text>
+              <Text style={{ color: museColors.success }}>{value}</Text>
             ),
           },
           {
@@ -179,7 +180,7 @@ const BloomQuestionTable = ({
             width: 90,
             align: "center",
             render: (value) => (
-              <Text style={{ color: "#dc2626" }}>{value}</Text>
+              <Text style={{ color: museColors.danger }}>{value}</Text>
             ),
           },
           {
@@ -202,7 +203,7 @@ const BloomQuestionTable = ({
       dataIndex: "correct_percentage",
       key: "correct_percentage",
       width: 160,
-      render: (value) => <BloomProgress value={value} strokeColor='#0f766e' />,
+      render: (value) => <BloomProgress value={value} strokeColor={museColors.cyan} />,
     },
   ];
 

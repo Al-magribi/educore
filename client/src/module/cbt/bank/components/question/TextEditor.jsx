@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import "react-quill-new/dist/quill.snow.css";
 import "katex/dist/katex.min.css";
 import katex from "katex";
+import { museShadow } from "../../../../../config/theme";
 
 // Pasang katex ke window agar Quill dapat mendeteksinya secara otomatis
 if (typeof globalThis !== "undefined") {
@@ -166,7 +167,7 @@ const Editor = ({
         borderRadius: 12,
         border: "1px solid #e6eaf2",
         background: "#fff",
-        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+        boxShadow: museShadow.card,
         padding: 12,
         gap: 8,
       }}

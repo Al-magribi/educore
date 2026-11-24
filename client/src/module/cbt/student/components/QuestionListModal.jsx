@@ -2,6 +2,7 @@ import React from "react";
 import { Badge, Divider, Modal, Space } from "antd";
 import { ListChecks } from "lucide-react";
 import QuestionListGrid from "./QuestionListGrid";
+import { museColors } from "../../../../config/theme";
 
 const QuestionListModal = ({
   open,
@@ -25,9 +26,9 @@ const QuestionListModal = ({
   >
     <Space vertical size={8} style={{ width: "100%" }}>
       <Space size={8}>
-        <Badge color="#22c55e" text="Terjawab" />
-        <Badge color="#f59e0b" text="Ragu" />
-        <Badge color="#94a3b8" text="Belum" />
+        <Badge color={museColors.success} text="Terjawab" />
+        <Badge color={museColors.warning} text="Ragu" />
+        <Badge color={museColors.muted} text="Belum" />
       </Space>
       <Divider style={{ margin: "8px 0" }} />
       <QuestionListGrid

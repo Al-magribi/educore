@@ -5,6 +5,7 @@ import { Plus, Trash2, GitMerge } from "lucide-react";
 import "katex/dist/katex.min.css";
 import { InlineMath } from "react-katex";
 import TextEditor from "./TextEditor";
+import { museColors, museRadius } from "../../../../../config/theme";
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -16,9 +17,9 @@ const OptionMatching = () => {
     <Card
       bordered={false}
       style={{
-        background: "linear-gradient(135deg, #fafafa, #f8fbff)",
-        borderRadius: 18,
-        border: "1px solid #f0f0f0",
+        background: "#fff",
+        borderRadius: museRadius.card,
+        border: `1px solid ${museColors.divider}`,
       }}
       styles={{ body: { padding: 18 } }}
     >
@@ -32,7 +33,7 @@ const OptionMatching = () => {
         }
         type="info"
         showIcon
-        style={{ marginBottom: 16, borderRadius: 14 }}
+        style={{ marginBottom: 16, borderRadius: museRadius.item }}
       />
       <Text type="secondary" style={{ display: "block", marginBottom: 14 }}>
         Sisi kanan akan diacak saat ujian. Peserta akan mencocokkan jawaban dengan
@@ -51,7 +52,7 @@ const OptionMatching = () => {
               >
                 <Card
                   size="small"
-                  style={{ borderRadius: 16 }}
+                  style={{ borderRadius: museRadius.item }}
                   styles={{ body: { padding: 14 } }}
                 >
                   <div
@@ -85,7 +86,7 @@ const OptionMatching = () => {
                         flexShrink: 0,
                       }}
                     >
-                      <GitMerge size={16} color="#1890ff" />
+                      <GitMerge size={16} color={museColors.primary} />
                     </div>
 
                     <Form.Item
@@ -157,7 +158,7 @@ const OptionMatching = () => {
               block
               icon={<Plus size={16} />}
               size="large"
-              style={{ borderRadius: 14 }}
+              style={{ borderRadius: museRadius.item }}
             >
               Tambah Pasangan
             </Button>

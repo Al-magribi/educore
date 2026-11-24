@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Card, Flex, Space, Tag } from "antd";
+import { museRadius, museShadow } from "../../../../../../config/theme";
 
 const StudentAnswersManualAction = ({
   isMobile,
@@ -11,8 +12,8 @@ const StudentAnswersManualAction = ({
   <Card
     variant='borderless'
     style={{
-      borderRadius: 20,
-      boxShadow: "0 14px 28px rgba(15, 23, 42, 0.06)",
+      borderRadius: museRadius.card,
+      boxShadow: museShadow.card,
     }}
     styles={{ body: { padding: isMobile ? 16 : 18 } }}
   >

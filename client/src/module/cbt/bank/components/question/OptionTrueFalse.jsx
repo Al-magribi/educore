@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Form, Card, Input, Checkbox, Grid, Typography, Flex } from "antd";
 import { Check, X } from "lucide-react";
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
@@ -43,11 +44,11 @@ const OptionTrueFalse = ({ form }) => {
                   onClick={() => handleSelect(index)}
                   style={{
                     textAlign: "center",
-                    borderRadius: 18,
+                    borderRadius: museRadius.card,
                     borderColor: isCorrect
                       ? index === 0
-                        ? "#52c41a"
-                        : "#ff4d4f"
+                        ? museColors.success
+                        : museColors.danger
                       : "#d9d9d9",
                     backgroundColor: isCorrect
                       ? index === 0
@@ -55,7 +56,7 @@ const OptionTrueFalse = ({ form }) => {
                         : "#fff1f0"
                       : "#fff",
                     transition: "all 0.3s",
-                    boxShadow: "0 10px 22px rgba(15,23,42,.05)",
+                    boxShadow: museShadow.card,
                   }}
                   styles={{ body: { padding: 22 } }}
                 >
@@ -65,8 +66,8 @@ const OptionTrueFalse = ({ form }) => {
                         fontSize: 24,
                         color: isCorrect
                           ? index === 0
-                            ? "#52c41a"
-                            : "#ff4d4f"
+                            ? museColors.success
+                            : museColors.danger
                           : "#ccc",
                       }}
                     >

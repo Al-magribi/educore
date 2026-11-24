@@ -1,39 +1,39 @@
-import React, { Suspense, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import {
+  Alert,
   Button,
-  Card,
+  Col,
   Flex,
-  Input,
-  Modal,
-  Tag,
-  Typography,
-  Tooltip,
-  Popconfirm,
-  Avatar,
-  message,
-  theme,
   Grid,
-  Statistic,
-  Divider,
+  Modal,
+  Row,
+  Skeleton,
+  Tag,
+  Tooltip,
+  Typography,
+  message,
 } from "antd";
 import { motion } from "framer-motion";
 import {
-  Plus,
-  Search,
-  Users,
-  Timer,
-  Edit,
-  Trash2,
-  BookOpen,
-  Folder,
+  BarChart3,
+  CalendarDays,
   ClipboardList,
-  Layers3,
-  ShieldCheck,
-  Calendar,
+  GraduationCap,
+  KeyRound,
+  Pencil,
+  Timer,
+  UserRound,
+  Users,
 } from "lucide-react";
 import { createSearchParams, useLocation, useSearchParams } from "react-router-dom";
 import { InfiniteScrollList, LoadApp } from "../../../../components";
 import PageHeader from "../../../../components/ui/PageHeader";
+import { CardTitle, IconBox } from "../../../../components/ui/muse";
+import {
+  DataListCard,
+  EditDeleteActions,
+} from "../../../../components/ui/muse/DataSection";
+import { museColors, museRadius } from "../../../../config/theme";
 import {
   useGetExamsQuery,
   useDeleteExamMutation,
@@ -42,35 +42,29 @@ import ExamForm from "../components/ExamForm";
 import Report from "../report/Report";
 import StudentAnswers from "../report/components/answer/StudentAnswers";
 
-const { Text, Title } = Typography;
-const { useToken } = theme;
+const { Text } = Typography;
 const { useBreakpoint } = Grid;
 const MotionDiv = motion.div;
 
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.38,
-      staggerChildren: 0.08,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
+const MetaLine = ({ icon, children }) => (
+  <Flex align='center' gap={8} style={{ minWidth: 0, color: museColors.muted }}>
+    <span style={{ display: "inline-flex", flexShrink: 0 }}>{icon}</span>
+    <Text type='secondary' ellipsis style={{ fontSize: 13, minWidth: 0 }}>
+      {children}
+    </Text>
+  </Flex>
+);
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
-  },
-};
+const formatDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "-";
 
 const ExamList = () => {
-  const { token } = useToken();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const location = useLocation();
@@ -89,7 +83,7 @@ const ExamList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  const { data, isFetching } = useGetExamsQuery({
+  const { data, isFetching, isError, error } = useGetExamsQuery({
     page,
     search: searchText,
   });
@@ -174,259 +168,131 @@ const ExamList = () => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const getInitials = (name) => {
-    if (!name) return "?";
-    return name
-      .split(" ")
-      .slice(0, 2)
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
-
   const renderItem = (item) => {
-    const statusColor = item.is_active ? "green" : "default";
     const classNames = item.classes?.map((c) => c.name).join(", ");
     const classLabel =
-      item.class_count > 0 ? `${item.class_count} kelas` : "Belum ada kelas";
+      toNumber(item.class_count) > 0
+        ? `${item.class_count} kelas`
+        : "Belum ada kelas";
 
     return (
-      <MotionDiv
-        variants={itemVariants}
-        whileHover={{ y: -4 }}
-        transition={{ duration: 0.2 }}
-        style={{ height: "100%" }}
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+          padding: 16,
+          background: "#fff",
+          border: `1px solid ${museColors.divider}`,
+          borderRadius: museRadius.card,
+        }}
       >
-        <Card
-          hoverable
-          size='small'
+        <Flex align='flex-start' gap={12}>
+          <IconBox icon={<ClipboardList size={18} />} tone='primarySoft' size={40} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              strong
+              ellipsis={{ tooltip: item.name }}
+              style={{ display: "block", fontSize: 15 }}
+            >
+              {item.name}
+            </Text>
+            <Text type='secondary' ellipsis style={{ fontSize: 12, display: "block" }}>
+              {item.bank_title || "Tanpa bank"} · {item.subject_name || "Mapel umum"}
+            </Text>
+          </div>
+          <Tag color={item.is_active ? "green" : "default"} style={{ margin: 0 }}>
+            {item.is_active ? "Aktif" : "Nonaktif"}
+          </Tag>
+        </Flex>
+
+        <Flex vertical gap={6}>
+          <MetaLine icon={<GraduationCap size={14} />}>
+            Tingkat {item.grade_name || "-"}
+          </MetaLine>
+          <Tooltip title={classNames || undefined}>
+            <div>
+              <MetaLine icon={<Users size={14} />}>{classLabel}</MetaLine>
+            </div>
+          </Tooltip>
+          <MetaLine icon={<Timer size={14} />}>
+            {item.duration_minutes || 0} menit
+          </MetaLine>
+          <MetaLine icon={<UserRound size={14} />}>
+            {item.teacher_name || "Belum ada pengampu"}
+          </MetaLine>
+          <MetaLine icon={<CalendarDays size={14} />}>
+            Dibuat {formatDate(item.created_at)}
+          </MetaLine>
+        </Flex>
+
+        <Flex
+          align='center'
+          justify='space-between'
+          gap={8}
           style={{
-            height: "100%",
-            borderRadius: 22,
-            display: "flex",
-            flexDirection: "column",
-            border: "1px solid #eef2ff",
-            background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
-            boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+            padding: "8px 12px",
+            borderRadius: museRadius.item,
+            background: museColors.bgSoft,
           }}
-          styles={{
-            body: {
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              padding: 18,
-            },
-          }}
-          title={
-            <Flex justify='space-between' align='center' gap={8}>
-              <Tag
-                color={statusColor}
-                style={{ borderRadius: 999, fontWeight: 600 }}
-              >
-                {item.is_active ? "Aktif" : "Nonaktif"}
-              </Tag>
-              <Flex align='center' gap={4}>
-                <Calendar size={12} color='#94a3b8' />
-                <Text type='secondary' style={{ fontSize: 11 }}>
-                  {new Date(item.created_at).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </Text>
-              </Flex>
-            </Flex>
-          }
-          actions={[
-            <Tooltip title='Laporan' key='report'>
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <a
-                  href={buildReportUrl(item)}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "inherit",
-                  }}
-                  aria-label={`Buka laporan ${item.name} di tab baru`}
-                >
-                  <Folder size={16} />
-                </a>
-              </div>
-            </Tooltip>,
-            <Tooltip title='Edit' key='edit'>
-              <div
-                onClick={() => openForm(item)}
-                style={{ display: "flex", justifyContent: "center" }}
-              >
-                <Edit size={16} />
-              </div>
-            </Tooltip>,
-            <Tooltip title='Hapus' key='delete'>
-              <Popconfirm
-                title='Hapus Jadwal Ujian?'
-                onConfirm={() => handleDelete(item.id)}
-                okText='Ya'
-                cancelText='Batal'
-                okButtonProps={{ danger: true }}
-              >
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  <Trash2 size={16} />
-                </div>
-              </Popconfirm>
-            </Tooltip>,
-          ]}
         >
-          <Flex gap='middle' align='start' style={{ marginBottom: 14 }}>
-            <div
-              style={{
-                background: `linear-gradient(135deg, ${token.colorPrimaryBg}, #ffffff)`,
-                border: `1px solid ${token.colorPrimaryBorder}`,
-                padding: 12,
-                borderRadius: 14,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <BookOpen size={20} color={token.colorPrimary} />
-            </div>
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <Tooltip title={item.name}>
-                <Title
-                  level={5}
-                  ellipsis={{ rows: 2 }}
-                  style={{
-                    margin: "0 0 6px 0",
-                    fontSize: 16,
-                    lineHeight: 1.35,
-                  }}
-                >
-                  {item.name}
-                </Title>
-              </Tooltip>
-              <Tag
-                variant='filled'
-                style={{
-                  margin: 0,
-                  paddingInline: 10,
-                  borderRadius: 999,
-                  background: "#eef6ff",
-                  color: "#1d4ed8",
-                }}
-              >
-                {item.bank_title} - {item.subject_name || "Mapel Umum"}
-              </Tag>
-            </div>
-          </Flex>
-
-          <Divider style={{ margin: "2px 0 14px", borderColor: "#e8eefc" }} />
-
-          <Flex vertical gap={8} style={{ marginBottom: 14 }}>
-            <Text style={{ fontSize: 12, color: "#334155" }}>
-              Grade: {item.grade_name || "-"}
-            </Text>
-            <Tooltip title={classNames || ""}>
-              <Text style={{ fontSize: 12, color: "#334155" }}>
-                <Users size={12} style={{ marginRight: 6 }} />
-                {classLabel}
-              </Text>
-            </Tooltip>
-            {item.token ? (
-              <Text
-                style={{ fontSize: 12, color: "#334155" }}
-                copyable={{
-                  text: item.token,
-                  tooltips: ["Copy token", "Token disalin"],
-                }}
-              >
-                Token: {item.token}
-              </Text>
-            ) : (
-              <Text style={{ fontSize: 12, color: "#334155" }}>Token: -</Text>
-            )}
-            <Text style={{ fontSize: 12, color: "#334155" }}>
-              <Timer size={12} style={{ marginRight: 6 }} />
-              {item.duration_minutes} menit
+          <Flex align='center' gap={8} style={{ minWidth: 0 }}>
+            <KeyRound size={14} color={museColors.muted} />
+            <Text type='secondary' style={{ fontSize: 12 }}>
+              Token
             </Text>
           </Flex>
-
-          <Flex align='center' gap={10} style={{ marginTop: "auto" }}>
-            <Avatar
-              size={30}
-              style={{
-                backgroundColor: "#e2e8f0",
-                color: "#334155",
-                fontSize: 11,
-                fontWeight: 700,
+          {item.token ? (
+            <Text
+              strong
+              style={{ fontFamily: "monospace", letterSpacing: 1 }}
+              copyable={{
+                text: item.token,
+                tooltips: ["Salin token", "Token disalin"],
               }}
             >
-              {getInitials(item.teacher_name)}
-            </Avatar>
-            <div style={{ minWidth: 0 }}>
-              <Text
-                style={{ display: "block", fontSize: 12, color: "#0f172a" }}
-              >
-                Pengampu
-              </Text>
-              <Text ellipsis type='secondary' style={{ fontSize: 12 }}>
-                {item.teacher_name || "-"}
-              </Text>
-            </div>
+              {item.token}
+            </Text>
+          ) : (
+            <Text type='secondary'>-</Text>
+          )}
+        </Flex>
+
+        <Flex
+          align='center'
+          justify='space-between'
+          gap={8}
+          style={{
+            marginTop: "auto",
+            paddingTop: 12,
+            borderTop: `1px solid ${museColors.divider}`,
+          }}
+        >
+          <Button
+            href={buildReportUrl(item)}
+            target='_blank'
+            rel='noopener noreferrer'
+            icon={<BarChart3 size={16} />}
+            aria-label={`Buka laporan ${item.name} di tab baru`}
+          >
+            Laporan
+          </Button>
+          <Flex gap={4}>
+            <EditDeleteActions
+              onEdit={() => openForm(item)}
+              onDelete={() => handleDelete(item.id)}
+              deleteTitle={`Hapus jadwal ${item.name}?`}
+              deleteDescription='Data kehadiran dan jawaban siswa ujian ini ikut terhapus.'
+            />
           </Flex>
-        </Card>
-      </MotionDiv>
+        </Flex>
+      </div>
     );
   };
 
-  const searchPlaceholder = useMemo(
-    () => "Cari nama ujian, bank soal, mapel, atau guru...",
-    [],
-  );
-
   const totalExams = toNumber(data?.totalData || data?.total || allData.length);
-  const activeExams = allData.filter((item) => item.is_active).length;
-  const totalClasses = allData.reduce(
-    (sum, item) => sum + toNumber(item.class_count),
-    0,
-  );
-  const summaryCards = [
-    {
-      key: "exams",
-      title: "Total Ujian",
-      value: totalExams,
-      icon: <ClipboardList size={18} />,
-      bg: "linear-gradient(135deg, #dbeafe, #e0f2fe)",
-      color: "#1d4ed8",
-    },
-    {
-      key: "active",
-      title: "Ujian Aktif",
-      value: activeExams,
-      icon: <ShieldCheck size={18} />,
-      bg: "linear-gradient(135deg, #dcfce7, #ecfccb)",
-      color: "#16a34a",
-    },
-    {
-      key: "classes",
-      title: "Cakupan Kelas",
-      value: totalClasses,
-      icon: <Users size={18} />,
-      bg: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
-      color: "#7c3aed",
-    },
-    {
-      key: "loaded",
-      title: "Data Dimuat",
-      value: allData.length,
-      icon: <Layers3 size={18} />,
-      bg: "linear-gradient(135deg, #fef3c7, #ffedd5)",
-      color: "#d97706",
-    },
-  ];
+  const isInitialLoading = isFetching && allData.length === 0;
 
   if (view === "report") {
     return (
@@ -441,156 +307,83 @@ const ExamList = () => {
   return (
     <Suspense fallback={<LoadApp />}>
       <MotionDiv
-        variants={containerVariants}
-        initial='hidden'
-        animate='show'
-        style={{ width: "100%" }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
       >
-        <MotionDiv variants={itemVariants}>
+        <Flex vertical gap={isMobile ? 16 : 24} style={{ minWidth: 0 }}>
           <PageHeader
-            title='Manajemen Jadwal Ujian'
-            description='Kelola jadwal, status, dan pelaksanaan ujian.'
-            extra={
-              <Button
-                icon={<Plus size={16} />}
-                type='primary'
-                onClick={() => openForm(null)}
-              >
-                Jadwal Ujian
-              </Button>
-            }
+            title='Jadwal Ujian'
+            description='Kelola jadwal, token, dan pelaksanaan ujian. Laporan dibuka di tab baru.'
           />
-        </MotionDiv>
 
-        <Flex gap={16} wrap='wrap' style={{ marginBottom: 20 }}>
-          {summaryCards.map((item) => (
-            <MotionDiv
-              key={item.key}
-              variants={itemVariants}
-              style={{
-                flex: screens.xl
-                  ? "1 1 0"
-                  : screens.md
-                    ? "1 1 calc(50% - 8px)"
-                    : "1 1 100%",
-                minWidth: screens.md ? 0 : "100%",
-              }}
-            >
-              <Card
-                style={{
-                  borderRadius: 22,
-                  border: "1px solid #eef2ff",
-                  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
-                }}
-                styles={{ body: { padding: "18px 20px" } }}
-                hoverable
-              >
-                <Flex justify='space-between' align='start'>
-                  <Statistic title={item.title} value={item.value} />
-                  <div
-                    style={{
-                      width: 46,
-                      height: 46,
-                      display: "grid",
-                      placeItems: "center",
-                      borderRadius: 16,
-                      background: item.bg,
-                      color: item.color,
-                    }}
-                  >
-                    {item.icon}
-                  </div>
-                </Flex>
-              </Card>
-            </MotionDiv>
-          ))}
-        </Flex>
+          {isError ? (
+            <Alert
+              type='error'
+              showIcon
+              title='Gagal memuat jadwal ujian'
+              description={
+                error?.data?.message || "Periksa koneksi lalu muat ulang halaman."
+              }
+            />
+          ) : null}
 
-        <MotionDiv variants={itemVariants}>
-          <Card
-            style={{
-              marginBottom: 18,
-              borderRadius: 24,
-              border: "1px solid #eef2ff",
-              boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+          <DataListCard
+            icon={<ClipboardList size={16} />}
+            title='Daftar Jadwal Ujian'
+            count={totalExams}
+            unit='jadwal'
+            flush={false}
+            searchProps={{
+              placeholder: "Cari ujian, bank soal, mapel, atau guru",
+              value: searchInput,
+              onChange: (e) => setSearchInput(e.target.value),
             }}
-            styles={{ body: { padding: screens.md ? 20 : 16 } }}
+            onAdd={() => openForm(null)}
+            addLabel='Jadwal Ujian'
           >
-            <Flex vertical gap={14}>
-              <Flex
-                vertical={isMobile}
-                justify='space-between'
-                align={isMobile ? "stretch" : "center"}
-                gap={12}
-              >
-                <div>
-                  <Title level={5} style={{ margin: 0 }}>
-                    Daftar Jadwal Ujian
-                  </Title>
-                  <Text type='secondary' style={{ fontSize: 12 }}>
-                    Menampilkan {allData.length} dari {totalExams} data tersedia
-                  </Text>
-                </div>
-
-                <Input
-                  prefix={<Search size={16} color='rgba(0,0,0,.25)' />}
-                  style={{ width: isMobile ? "100%" : 340 }}
-                  placeholder={searchPlaceholder}
-                  allowClear
-                  size='large'
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                />
-              </Flex>
-            </Flex>
-          </Card>
-        </MotionDiv>
-
-        <MotionDiv variants={itemVariants}>
-          <InfiniteScrollList
-            data={allData}
-            loading={isFetching}
-            hasMore={data?.hasMore || false}
-            onLoadMore={handleLoadMore}
-            renderItem={renderItem}
-            emptyText='Belum ada jadwal ujian tersedia'
-            grid={{
-              gutter: [16, 16],
-              xs: 24,
-              sm: 12,
-              md: 12,
-              lg: 8,
-              xl: 6,
-            }}
-            height={isMobile ? "calc(100vh - 300px)" : "calc(100vh - 360px)"}
-          />
-        </MotionDiv>
+            {isInitialLoading ? (
+              <Row gutter={[16, 16]}>
+                {[1, 2, 3].map((key) => (
+                  <Col key={key} xs={24} md={12} xl={8}>
+                    <Skeleton active avatar paragraph={{ rows: 4 }} />
+                  </Col>
+                ))}
+              </Row>
+            ) : (
+              <InfiniteScrollList
+                data={allData}
+                loading={isFetching}
+                hasMore={data?.hasMore || false}
+                onLoadMore={handleLoadMore}
+                renderItem={renderItem}
+                height='auto'
+                emptyText={
+                  searchText
+                    ? "Jadwal ujian tidak ditemukan. Coba kata kunci lain."
+                    : "Belum ada jadwal ujian. Klik tombol Jadwal Ujian untuk membuat yang pertama."
+                }
+                grid={{ gutter: [16, 16], xs: 24, md: 12, xl: 8, xxl: 6 }}
+              />
+            )}
+          </DataListCard>
+        </Flex>
       </MotionDiv>
 
       <Modal
         title={
-          <Flex align='center' gap={8}>
-            <div
-              style={{
-                background: token.colorPrimaryBg,
-                padding: 6,
-                borderRadius: 6,
-                display: "flex",
-              }}
-            >
-              <BookOpen size={18} color={token.colorPrimary} />
-            </div>
-            <Text strong style={{ fontSize: 16 }}>
-              {editingItem ? "Edit Jadwal Ujian" : "Buat Jadwal Ujian Baru"}
-            </Text>
-          </Flex>
+          <CardTitle
+            icon={editingItem ? <Pencil size={16} /> : <ClipboardList size={16} />}
+            title={editingItem ? "Edit Jadwal Ujian" : "Buat Jadwal Ujian"}
+            description='Atur bank soal, kelas peserta, durasi, dan aturan ujian.'
+          />
         }
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
         footer={null}
         destroyOnHidden
         centered
-        width={720}
+        width={isMobile ? "calc(100vw - 24px)" : 720}
       >
         <ExamForm
           initialValues={editingItem}

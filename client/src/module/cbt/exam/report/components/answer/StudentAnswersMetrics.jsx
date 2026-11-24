@@ -1,5 +1,6 @@
 import React from "react";
 import { Card, Grid, Typography } from "antd";
+import { museColors, museRadius, museShadow } from "../../../../../../config/theme";
 
 const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -13,19 +14,19 @@ const StudentAnswersMetrics = ({ manualOnly, totalQuestions, sectionsLength, dis
       key: "questions",
       label: manualOnly ? "Soal Dikoreksi" : "Total Soal",
       value: totalQuestions,
-      color: "#1d4ed8",
+      color: museColors.primary,
     },
     {
       key: "sections",
       label: "Kelompok Soal",
       value: sectionsLength,
-      color: "#15803d",
+      color: museColors.success,
     },
     {
       key: "score",
       label: "Total Skor",
       value: `${displayedScore}/100`,
-      color: displayedScore >= 75 ? "#16a34a" : "#d97706",
+      color: displayedScore >= 75 ? museColors.success : museColors.warning,
     },
     {
       key: "review_status",
@@ -33,10 +34,10 @@ const StudentAnswersMetrics = ({ manualOnly, totalQuestions, sectionsLength, dis
       value: `${reviewSummary.finalized}/${essayCount || 0} Final`,
       color:
         reviewSummary.pending > 0
-          ? "#d97706"
+          ? museColors.warning
           : reviewSummary.reviewed > 0
-            ? "#2563eb"
-            : "#16a34a",
+            ? museColors.primary
+            : museColors.success,
     },
   ];
 
@@ -53,8 +54,8 @@ const StudentAnswersMetrics = ({ manualOnly, totalQuestions, sectionsLength, dis
           key={item.key}
           variant='borderless'
           style={{
-            borderRadius: 22,
-            boxShadow: "0 16px 32px rgba(15, 23, 42, 0.06)",
+            borderRadius: museRadius.card,
+            boxShadow: museShadow.card,
           }}
           styles={{ body: { padding: 18 } }}
         >
