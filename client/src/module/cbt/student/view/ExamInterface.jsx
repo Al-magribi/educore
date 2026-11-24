@@ -3,7 +3,7 @@ import {
   Card,
   Col,
   Divider,
-  Empty,
+  Alert,
   Flex,
   Grid,
   Layout,
@@ -31,6 +31,7 @@ import QuestionListModal from "../components/QuestionListModal";
 import QuestionContent from "../components/QuestionContent";
 import RichContentViewer from "../../components/RichContentViewer";
 import ExamActions from "../components/ExamActions";
+import { museColors, museOnColor, museRadius, museShadow } from "../../../../config/theme";
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -476,22 +477,21 @@ const ExamInterface = () => {
     totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   const palette = {
-    ink: "#0b1b3f",
-    subtle: "#5b6b8a",
+    ink: museColors.text,
+    subtle: museColors.muted,
     surface: "#ffffff",
-    border: "#e6edf7",
-    brand: "#1f5eff",
-    accent: "#14b8a6",
-    warm: "#f59e0b",
-    cool: "#0ea5e9",
+    border: museColors.divider,
+    brand: museColors.primary,
+    accent: museColors.cyan,
+    warm: museColors.warning,
+    cool: museColors.cyan,
   };
 
   const glassCard = {
-    borderRadius: 16,
-    border: `1px solid ${palette.border}`,
-    boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,255,0.92) 100%)",
+    borderRadius: museRadius.card,
+    border: 0,
+    boxShadow: museShadow.card,
+    background: "#fff",
   };
 
   const togglePanel = (key) => {
@@ -564,21 +564,14 @@ const ExamInterface = () => {
     <Layout
       style={{
         minHeight: "100vh",
-        background:
-          "radial-gradient(circle at 10% 10%, rgba(30, 94, 255, 0.16), transparent 45%), radial-gradient(circle at 90% 0%, rgba(20, 184, 166, 0.18), transparent 40%), linear-gradient(160deg, #f6f8ff 0%, #f9fbff 50%, #ffffff 100%)",
+        background: museColors.bgLayout,
       }}
     >
       <Content
         style={{ padding: isSmallScreen ? "16px 14px 32px" : "24px 28px 48px" }}
       >
         <Space vertical size={18} style={{ width: "100%" }}>
-          <Card
-            style={{
-              ...glassCard,
-              background:
-                "linear-gradient(130deg, rgba(31,94,255,0.12) 0%, rgba(14,165,233,0.08) 55%, rgba(255,255,255,0.96) 100%)",
-            }}
-          >
+          <Card style={glassCard}>
             <Row gutter={[16, 16]} align="middle">
               <Col xs={24} lg={8}>
                 <Space align="center" size={12}>
@@ -586,13 +579,12 @@ const ExamInterface = () => {
                     style={{
                       width: 46,
                       height: 46,
-                      borderRadius: 14,
+                      borderRadius: museRadius.item,
                       display: "grid",
                       placeItems: "center",
-                      background:
-                        "linear-gradient(145deg, #1f5eff 0%, #5aa0ff 100%)",
+                      background: museColors.primary,
                       color: "#fff",
-                      boxShadow: "0 10px 24px rgba(31,94,255,0.35)",
+                      boxShadow: museShadow.icon,
                     }}
                   >
                     <BookOpenCheck size={22} />
@@ -624,13 +616,12 @@ const ExamInterface = () => {
                     style={{
                       width: 46,
                       height: 46,
-                      borderRadius: 14,
+                      borderRadius: museRadius.item,
                       display: "grid",
                       placeItems: "center",
-                      background:
-                        "linear-gradient(145deg, #0ea5e9 0%, #38bdf8 100%)",
+                      background: museColors.cyan,
                       color: "#fff",
-                      boxShadow: "0 10px 24px rgba(14,165,233,0.3)",
+                      boxShadow: museShadow.icon,
                     }}
                   >
                     <UserRound size={20} />
@@ -666,10 +657,9 @@ const ExamInterface = () => {
               <Col xs={24} lg={6}>
                 <Card
                   style={{
-                    borderRadius: 14,
-                    background:
-                      "linear-gradient(140deg, rgba(245,249,255,0.9) 0%, rgba(255,255,255,0.95) 100%)",
-                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+                    borderRadius: museRadius.item,
+                    background: museColors.bgSoft,
+                    border: 0,
                   }}
                   styles={{ body: { padding: 14 } }}
                 >
@@ -678,12 +668,11 @@ const ExamInterface = () => {
                       style={{
                         width: 40,
                         height: 40,
-                        borderRadius: 12,
+                        borderRadius: museRadius.item,
                         display: "grid",
                         placeItems: "center",
-                        background:
-                          "linear-gradient(145deg, #f59e0b 0%, #fbbf24 100%)",
-                        color: "#fff",
+                        background: museColors.warning,
+                        color: museOnColor.warning,
                       }}
                     >
                       <AlarmClock size={18} />
@@ -745,13 +734,18 @@ const ExamInterface = () => {
                 {isExamLoading ? (
                   <Skeleton active paragraph={{ rows: 6 }} />
                 ) : isExamError ? (
-                  <Empty description="Gagal memuat soal" />
+                  <Alert
+                    type="error"
+                    showIcon
+                    title="Gagal memuat soal"
+                    description="Periksa koneksi internet lalu muat ulang halaman. Jawaban yang sudah tersimpan tidak hilang."
+                  />
                 ) : (
                   <Space vertical size={18} style={{ width: "100%" }}>
                     {currentQuestion?.group_id ? (
                       <Card
                         style={{
-                          borderRadius: 16,
+                          borderRadius: museRadius.item,
                           border: "1px solid rgba(14, 165, 233, 0.28)",
                           background: "rgba(14, 165, 233, 0.06)",
                         }}
@@ -835,7 +829,7 @@ const ExamInterface = () => {
               margin: 0,
               fontSize: 72,
               lineHeight: 1,
-              color: awayPhase === "recorded" ? "#dc2626" : "#1d4ed8",
+              color: awayPhase === "recorded" ? museColors.danger : museColors.primary,
             }}
           >
             {awayRemaining}

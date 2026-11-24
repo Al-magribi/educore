@@ -1,6 +1,7 @@
 import React from "react";
 import { Card, Flex, Space, Typography } from "antd";
 import { metricCardStyle } from "./itemAnalysisUtils";
+import { museRadius } from "../../../../../../config/theme";
 
 const { Text, Title } = Typography;
 
@@ -21,7 +22,7 @@ const ItemAnalysisMetrics = ({ isMobile, metricItems }) => (
         variant='borderless'
         style={{
           ...metricCardStyle,
-          borderRadius: isMobile ? 14 : 18,
+          borderRadius: museRadius.card,
           minWidth: 0,
           overflow: "hidden",
         }}
@@ -64,7 +65,7 @@ const ItemAnalysisMetrics = ({ isMobile, metricItems }) => (
             style={{
               width: isMobile ? 32 : 42,
               height: isMobile ? 32 : 42,
-              borderRadius: isMobile ? 10 : 14,
+              borderRadius: museRadius.item,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

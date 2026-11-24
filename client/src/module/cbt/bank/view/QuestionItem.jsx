@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Flex, Tag, Typography, theme, Divider, Grid } from 'antd';
 import { GitMerge, Type, CheckCircle2 } from 'lucide-react';
 import RichContentViewer from '../../components/RichContentViewer';
+import { museColors, museRadius } from '../../../../config/theme';
 
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -22,7 +23,7 @@ const QuestionItem = ({ question, groupSize = 0 }) => {
           style={{
             marginBottom: isMobile ? 14 : 18,
             padding: isMobile ? 12 : 16,
-            borderRadius: 14,
+            borderRadius: museRadius.item,
             background: 'rgba(245, 243, 255, 0.95)',
             border: '1px solid rgba(167, 139, 250, 0.45)',
           }}>
@@ -33,7 +34,7 @@ const QuestionItem = ({ question, groupSize = 0 }) => {
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: 0.6,
-              color: '#6d28d9',
+              color: museColors.purple,
             }}>
             {question.group_title || 'GRUP SOAL'}
             {question.group_order
@@ -168,7 +169,7 @@ const QuestionItem = ({ question, groupSize = 0 }) => {
                 gap={isMobile ? 10 : 16}
                 style={{
                   padding: isMobile ? '12px' : '14px 16px',
-                  borderRadius: isMobile ? 12 : 14,
+                  borderRadius: museRadius.item,
                   background: isCorrect ? '#f6ffed' : token.colorFillAlter,
                   border: `1px solid ${isCorrect ? '#b7eb8f' : token.colorBorderSecondary}`,
                   maxWidth: '100%',

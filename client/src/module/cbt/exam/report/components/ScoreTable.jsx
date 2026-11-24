@@ -13,6 +13,7 @@ import {
 import { motion } from "framer-motion";
 import { Download, Medal, Search, Users } from "lucide-react";
 import * as XLSX from "xlsx";
+import { museColors, museRadius, museShadow } from "../../../../../config/theme";
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
@@ -214,19 +215,19 @@ const ScoreTable = ({
     {
       label: "Rata-rata",
       value: scoreStats.average,
-      color: "#2563eb",
+      color: museColors.primary,
       icon: <Medal size={isMobile ? 16 : 18} />,
     },
     {
       label: isMobile ? "Lulus" : "Lulus >= 75",
       value: scoreStats.passed,
-      color: "#16a34a",
+      color: museColors.success,
       icon: <Users size={isMobile ? 16 : 18} />,
     },
     {
       label: isMobile ? "Tertinggi" : "Nilai Tertinggi",
       value: scoreStats.highest,
-      color: "#d97706",
+      color: museColors.warning,
       icon: <Medal size={isMobile ? 16 : 18} />,
     },
   ];
@@ -237,9 +238,9 @@ const ScoreTable = ({
       size='small'
       variant='borderless'
       style={{
-        borderRadius: 16,
-        border: "1px solid rgba(148, 163, 184, 0.14)",
-        background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+        borderRadius: museRadius.item,
+        border: `1px solid ${museColors.divider}`,
+        background: "#fff",
       }}
       styles={{ body: { padding: 14 } }}
     >
@@ -293,8 +294,8 @@ const ScoreTable = ({
               style={{
                 padding: "8px 10px",
                 borderRadius: 12,
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
+                background: museColors.bgSoft,
+                border: `1px solid ${museColors.divider}`,
                 minWidth: 0,
               }}
             >
@@ -323,8 +324,8 @@ const ScoreTable = ({
       <Card
         variant='borderless'
         style={{
-          borderRadius: isMobile ? 18 : 24,
-          boxShadow: "0 18px 36px rgba(15, 23, 42, 0.06)",
+          borderRadius: museRadius.card,
+          boxShadow: museShadow.card,
           overflow: "hidden",
         }}
         styles={{ body: { padding: isMobile ? 14 : 20 } }}
@@ -380,8 +381,8 @@ const ScoreTable = ({
                 key={item.label}
                 variant='borderless'
                 style={{
-                  borderRadius: isMobile ? 14 : 18,
-                  background: "#f8fafc",
+                  borderRadius: museRadius.card,
+                  background: museColors.bgSoft,
                   minWidth: 0,
                   overflow: "hidden",
                   gridColumn:
@@ -421,7 +422,7 @@ const ScoreTable = ({
                     style={{
                       width: isMobile ? 32 : 42,
                       height: isMobile ? 32 : 42,
-                      borderRadius: isMobile ? 10 : 14,
+                      borderRadius: museRadius.item,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -493,7 +494,7 @@ const ScoreTable = ({
                     <Card
                       key={`skeleton-${index}`}
                       loading
-                      style={{ borderRadius: 16 }}
+                      style={{ borderRadius: museRadius.item }}
                     />
                   ))
                 : slicedData.map((item, index) =>
@@ -517,8 +518,8 @@ const ScoreTable = ({
               style={{
                 maxHeight: 480,
                 overflow: "auto",
-                borderRadius: 18,
-                border: "1px solid rgba(148, 163, 184, 0.14)",
+                borderRadius: museRadius.card,
+                border: `1px solid ${museColors.divider}`,
               }}
               onScroll={handleScroll}
             >

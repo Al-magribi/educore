@@ -10,6 +10,7 @@ import {
   recommendationColorMap,
   sectionStyle,
 } from "./itemAnalysisUtils";
+import { museColors, museRadius } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -25,7 +26,7 @@ const HeaderWithHelp = ({ label, help }) => (
     <Tooltip title={help} placement='top'>
       <Info
         size={13}
-        style={{ color: "#64748b", cursor: "help", flexShrink: 0 }}
+        style={{ color: museColors.muted, cursor: "help", flexShrink: 0 }}
         aria-label={`Penjelasan ${label}`}
       />
     </Tooltip>
@@ -69,9 +70,9 @@ const QuestionCell = ({ value, record, compact = false }) => {
       <Text type='secondary' style={{ fontSize: 12 }}>
         {record.type_label || "-"}
         {" · "}
-        <span style={{ color: "#15803d" }}>{record.correct_count} benar</span>
+        <span style={{ color: museColors.success }}>{record.correct_count} benar</span>
         {" / "}
-        <span style={{ color: "#dc2626" }}>{record.incorrect_count} salah</span>
+        <span style={{ color: museColors.danger }}>{record.incorrect_count} salah</span>
       </Text>
     </Space>
   );
@@ -121,8 +122,8 @@ const MobileQuestionCards = ({ isLoading, perQuestion }) => {
           loading={isLoading}
           size='small'
           style={{
-            borderRadius: 16,
-            border: "1px solid rgba(148, 163, 184, 0.18)",
+            borderRadius: museRadius.item,
+            border: `1px solid ${museColors.divider}`,
           }}
           styles={{ body: { padding: 14 } }}
         >
@@ -158,7 +159,7 @@ const MobileQuestionCards = ({ isLoading, perQuestion }) => {
                     Point-biserial
                   </Text>
                   <Tooltip title={POINT_BISERIAL_HELP}>
-                    <Info size={12} style={{ color: "#64748b", cursor: "help" }} />
+                    <Info size={12} style={{ color: museColors.muted, cursor: "help" }} />
                   </Tooltip>
                 </Flex>
                 <MetricCell
@@ -174,7 +175,7 @@ const MobileQuestionCards = ({ isLoading, perQuestion }) => {
                     Indeks D (27%)
                   </Text>
                   <Tooltip title={INDEX_D_HELP}>
-                    <Info size={12} style={{ color: "#64748b", cursor: "help" }} />
+                    <Info size={12} style={{ color: museColors.muted, cursor: "help" }} />
                   </Tooltip>
                 </Flex>
                 <MetricCell

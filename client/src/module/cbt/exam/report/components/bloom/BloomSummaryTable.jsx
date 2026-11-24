@@ -6,6 +6,7 @@ import {
   getTeachingFocus,
   sectionStyle,
 } from "./bloomUtils";
+import { museColors, museRadius } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -19,8 +20,8 @@ const MobileSummaryCards = ({ bloomSummary, isLoading }) => (
           loading={isLoading}
           size='small'
           style={{
-            borderRadius: 16,
-            border: "1px solid rgba(148, 163, 184, 0.18)",
+            borderRadius: museRadius.item,
+            border: `1px solid ${museColors.divider}`,
           }}
           styles={{ body: { padding: 14 } }}
         >
@@ -31,7 +32,7 @@ const MobileSummaryCards = ({ bloomSummary, isLoading }) => (
                 {meta.label}
               </Tag>
             </Flex>
-            <BloomProgress value={record.correct_percentage} strokeColor='#2563eb' />
+            <BloomProgress value={record.correct_percentage} strokeColor={museColors.primary} />
             <div
               style={{
                 display: "grid",
@@ -41,8 +42,8 @@ const MobileSummaryCards = ({ bloomSummary, isLoading }) => (
             >
               {[
                 { label: "Soal", value: record.total_questions },
-                { label: "Benar", value: record.correct_count, color: "#15803d" },
-                { label: "Salah", value: record.incorrect_count, color: "#dc2626" },
+                { label: "Benar", value: record.correct_count, color: museColors.success },
+                { label: "Salah", value: record.incorrect_count, color: museColors.danger },
                 { label: "Kosong", value: record.unanswered_count },
                 { label: "Pending", value: record.pending_review_count },
               ].map((item) => (
@@ -51,8 +52,8 @@ const MobileSummaryCards = ({ bloomSummary, isLoading }) => (
                   style={{
                     padding: "8px 10px",
                     borderRadius: 12,
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
+                    background: museColors.bgSoft,
+                    border: `1px solid ${museColors.divider}`,
                   }}
                 >
                   <Text type='secondary' style={{ fontSize: 11, display: "block" }}>
@@ -96,7 +97,7 @@ const BloomSummaryTable = ({ bloomSummary, isLoading, isMobile }) => {
       key: "correct_count",
       width: 100,
       align: "center",
-      render: (value) => <Text style={{ color: "#15803d" }}>{value}</Text>,
+      render: (value) => <Text style={{ color: museColors.success }}>{value}</Text>,
     },
     {
       title: "Salah",
@@ -104,7 +105,7 @@ const BloomSummaryTable = ({ bloomSummary, isLoading, isMobile }) => {
       key: "incorrect_count",
       width: 100,
       align: "center",
-      render: (value) => <Text style={{ color: "#dc2626" }}>{value}</Text>,
+      render: (value) => <Text style={{ color: museColors.danger }}>{value}</Text>,
     },
     {
       title: "Kosong",
@@ -125,7 +126,7 @@ const BloomSummaryTable = ({ bloomSummary, isLoading, isMobile }) => {
       dataIndex: "correct_percentage",
       key: "correct_percentage",
       width: 180,
-      render: (value) => <BloomProgress value={value} strokeColor='#2563eb' />,
+      render: (value) => <BloomProgress value={value} strokeColor={museColors.primary} />,
     },
     {
       title: "Interpretasi",
@@ -145,7 +146,7 @@ const BloomSummaryTable = ({ bloomSummary, isLoading, isMobile }) => {
       key: "follow_up",
       width: 210,
       render: (_, record) => (
-        <Text style={{ color: "#475569" }}>
+        <Text style={{ color: museColors.muted }}>
           {getTeachingFocus(record.correct_percentage)}
         </Text>
       ),

@@ -8,6 +8,7 @@ import {
   getLevelKey,
   levelColorMap,
 } from "./bloomUtils";
+import { museColors } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -23,7 +24,7 @@ export const BloomTag = ({ record, compact = false }) => (
   </Space>
 );
 
-export const BloomProgress = ({ value, strokeColor = "#2563eb" }) => (
+export const BloomProgress = ({ value, strokeColor = museColors.primary }) => (
   <Progress
     percent={Number(value || 0)}
     size='small'

@@ -2,6 +2,7 @@ import React from "react";
 import { Flex, Space, Tag, Typography } from "antd";
 import { AlertTriangle } from "lucide-react";
 import { formatIndex } from "./itemAnalysisUtils";
+import { museColors, museRadius } from "../../../../../../config/theme";
 
 const { Text } = Typography;
 
@@ -13,9 +14,9 @@ const ItemAnalysisInsight = ({ data, isMobile, summary }) => {
   return (
     <div
       style={{
-        borderRadius: 18,
-        background: "#f8fafc",
-        border: "1px solid rgba(148, 163, 184, 0.18)",
+        borderRadius: museRadius.card,
+        background: museColors.bgSoft,
+        border: `1px solid ${museColors.divider}`,
         padding: isMobile ? 14 : 16,
       }}
     >

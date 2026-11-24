@@ -6,14 +6,12 @@ import {
   Input,
   Modal,
   Space,
-  Typography,
   message,
 } from "antd";
 import { KeyRound } from "lucide-react";
 import { useEnterStudentExamMutation } from "../../../../service/cbt/ApiExam";
 import { useNavigate } from "react-router-dom";
-
-const { Text } = Typography;
+import { CardTitle } from "../../../../components/ui/muse";
 
 const statusAlert = (status) => {
   if (status === "pelanggaran") {
@@ -106,10 +104,11 @@ const JoinExamModal = ({ open, onClose, exam }) => {
   return (
     <Modal
       title={
-        <Space align="center" size={8}>
-          <KeyRound size={18} />
-          <span>Masukkan Token Ujian</span>
-        </Space>
+        <CardTitle
+          icon={<KeyRound size={16} />}
+          title="Masukkan Token Ujian"
+          description={exam?.name || "Token diberikan oleh pengawas ujian."}
+        />
       }
       open={open}
       onCancel={onClose}
@@ -124,10 +123,7 @@ const JoinExamModal = ({ open, onClose, exam }) => {
         void resolveStudentPublicIp().then((ip) => setStudentIp(ip));
       }}
     >
-      <Space vertical size={12} style={{ width: "100%" }}>
-        <Text type="secondary">
-          {exam?.name ? `Ujian: ${exam.name}` : "Pastikan token sesuai jadwal."}
-        </Text>
+      <Space vertical size={12} style={{ width: "100%", marginTop: 16 }}>
         {statusInfo && statusAlert(statusInfo.status) && (
           <Alert
             type={statusAlert(statusInfo.status).type}
@@ -142,17 +138,25 @@ const JoinExamModal = ({ open, onClose, exam }) => {
             name="token"
             rules={[{ required: true, message: "Token ujian wajib diisi" }]}
           >
-            <Input placeholder="Masukkan token ujian" />
+            <Input
+              autoFocus
+              size="large"
+              autoComplete="off"
+              placeholder="Contoh: AB12CD"
+              style={{ fontFamily: "monospace", letterSpacing: 2, fontWeight: 600 }}
+            />
           </Form.Item>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Status ujian: Belum Masuk = belum mengikuti, Pelanggaran = batas
-            toleransi tercapai, Mengerjakan = masih berlangsung, Selesai =
-            sudah menyelesaikan ujian.
-          </Text>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            title="Tidak bisa masuk?"
+            description="Pelanggaran berarti batas keluar tab tercapai dan perlu izin pengawas. Selesai berarti ujian sudah dikumpulkan."
+          />
           <Space style={{ width: "100%", justifyContent: "flex-end" }}>
             <Button onClick={onClose}>Batal</Button>
             <Button type="primary" htmlType="submit" loading={isLoading}>
-              Verifikasi
+              Mulai Ujian
             </Button>
           </Space>
         </Form>

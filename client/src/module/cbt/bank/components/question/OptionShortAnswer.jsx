@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Form, Input, Button, Alert, Typography, theme, Card, Flex } from "antd";
 import { Plus, Trash2, Type, CheckCircle2 } from "lucide-react";
 import TextEditor from "./TextEditor";
+import { museColors, museRadius } from "../../../../../config/theme";
 
 const { Text, Title } = Typography;
 const MotionDiv = motion.div;
@@ -31,7 +32,7 @@ const OptionShortAnswer = () => {
           description="Masukkan variasi jawaban yang dianggap benar. Sistem akan melakukan pencocokan teks secara otomatis saat pemeriksaan."
           type="info"
           showIcon
-          style={{ marginTop: 8, borderRadius: 14 }}
+          style={{ marginTop: 8, borderRadius: museRadius.item }}
         />
       </div>
 
@@ -58,7 +59,7 @@ const OptionShortAnswer = () => {
               >
                 <Card
                   size="small"
-                  style={{ marginBottom: 12, borderRadius: 16 }}
+                  style={{ marginBottom: 12, borderRadius: museRadius.item }}
                   styles={{ body: { padding: 14 } }}
                 >
                   <div
@@ -114,13 +115,13 @@ const OptionShortAnswer = () => {
               bordered={false}
               style={{
                 marginBottom: 12,
-                borderRadius: 16,
-                background: "linear-gradient(135deg, #ecfeff, #eff6ff)",
+                borderRadius: museRadius.item,
+                background: museColors.primarySoft,
                 border: "1px solid rgba(14, 165, 233, 0.16)",
               }}
             >
               <Flex align="flex-start" gap={12}>
-                <CheckCircle2 size={18} color="#0284c7" style={{ marginTop: 2 }} />
+                <CheckCircle2 size={18} color={museColors.cyan} style={{ marginTop: 2 }} />
                 <div>
                   <Text strong style={{ display: "block", marginBottom: 4 }}>
                     Rekomendasi
@@ -138,7 +139,7 @@ const OptionShortAnswer = () => {
                 onClick={() => add({ content: "", is_correct: true })}
                 block
                 icon={<Plus size={16} />}
-                style={{ height: 45, borderRadius: 14 }}
+                style={{ height: 45, borderRadius: museRadius.item }}
               >
                 Tambah Variasi Jawaban
               </Button>

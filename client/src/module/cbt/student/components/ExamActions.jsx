@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Col, Row, Space } from "antd";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
+import { museColors } from "../../../../config/theme";
 
 const ExamActions = ({
   isSmallScreen,
@@ -22,7 +23,7 @@ const ExamActions = ({
           onClick={onToggleDoubt}
           style={
             isDoubt
-              ? { background: "#f59e0b", borderColor: "#f59e0b", color: "#fff" }
+              ? { background: museColors.warning, borderColor: museColors.warning, color: "#fff" }
               : undefined
           }
         >
@@ -70,7 +71,7 @@ const ExamActions = ({
           onClick={onToggleDoubt}
           style={
             isDoubt
-              ? { background: "#f59e0b", borderColor: "#f59e0b", color: "#fff" }
+              ? { background: museColors.warning, borderColor: museColors.warning, color: "#fff" }
               : undefined
           }
         >

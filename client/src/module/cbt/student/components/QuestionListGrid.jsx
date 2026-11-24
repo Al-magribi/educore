@@ -1,35 +1,36 @@
 import React from "react";
 import { Button } from "antd";
+import { museColors } from "../../../../config/theme";
 
 const getQuestionButtonStyle = (status, isActive) => {
   if (isActive) {
     return {
-      border: "1px solid #2563eb",
+      border: `1px solid ${museColors.primary}`,
       background: "rgba(37,99,235,0.1)",
-      color: "#1d4ed8",
+      color: museColors.primary,
       boxShadow: "0 10px 18px rgba(37,99,235,0.18)",
     };
   }
   if (status === "terjawab") {
     return {
-      border: "1px solid #22c55e",
+      border: `1px solid ${museColors.success}`,
       background: "rgba(34,197,94,0.12)",
-      color: "#166534",
+      color: museColors.success,
       boxShadow: "none",
     };
   }
   if (status === "ragu") {
     return {
-      border: "1px solid #f59e0b",
+      border: `1px solid ${museColors.warning}`,
       background: "rgba(245,158,11,0.12)",
       color: "#92400e",
       boxShadow: "none",
     };
   }
   return {
-    border: "1px solid #94a3b8",
+    border: `1px solid ${museColors.muted}`,
     background: "rgba(148,163,184,0.12)",
-    color: "#475569",
+    color: museColors.muted,
     boxShadow: "none",
   };
 };
@@ -65,7 +66,7 @@ const QuestionListGrid = ({
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                background: "#2563eb",
+                background: museColors.primary,
                 boxShadow: "0 0 0 3px rgba(37,99,235,0.15)",
               }}
             />
