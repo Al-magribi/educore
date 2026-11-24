@@ -15,6 +15,11 @@ export const ApiDash = createApi({
       providesTags: ["Dashboard"],
       transformResponse: (response) => response.data,
     }),
+    getParentDash: builder.query({
+      query: () => "/parent-dash",
+      providesTags: ["Dashboard"],
+      transformResponse: (response) => response.data,
+    }),
     getTeacherDash: builder.query({
       query: () => "/teacher-dash",
       providesTags: ["Dashboard"],
@@ -26,5 +31,6 @@ export const ApiDash = createApi({
 export const {
   useGetDashboardSummaryQuery,
   useGetStudentDashQuery,
+  useGetParentDashQuery,
   useGetTeacherDashQuery,
 } = ApiDash;
