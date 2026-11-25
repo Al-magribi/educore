@@ -343,10 +343,10 @@ const getStudentDocumentAccess = async ({ client, user, studentId }) => {
     const result = await client.query(
       `
         SELECT u.id AS student_id, u.full_name AS student_name, s.homebase_id
-        FROM u_parents p
+        FROM u_parent_students p
         JOIN u_students s ON s.user_id = p.student_id
         JOIN u_users u ON u.id = s.user_id
-        WHERE p.user_id = $1
+        WHERE p.parent_user_id = $1
           AND p.student_id = $2
         LIMIT 1
       `,
@@ -473,41 +473,6 @@ const runStudentDocumentUpload = (req, res) =>
     });
   });
 
-const getParentTableMetadata = async (client) => {
-  const result = await client.query(
-    `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'u_parents'
-    `,
-  );
-
-  const columns = new Set(result.rows.map((item) => item.column_name));
-
-  return {
-    hasId: columns.has("id"),
-    hasUserId: columns.has("user_id"),
-    hasStudentId: columns.has("student_id"),
-    hasPhone: columns.has("phone"),
-    hasEmail: columns.has("email"),
-  };
-};
-
-const syncParentIdSequenceIfNeeded = async (client, metadata) => {
-  if (!metadata?.hasId) return;
-
-  await client.query(
-    `
-      SELECT setval(
-        pg_get_serial_sequence('public.u_parents', 'id'),
-        COALESCE((SELECT MAX(id) FROM public.u_parents), 0) + 1,
-        false
-      )
-    `,
-  );
-};
-
 const getParentAccessScope = async ({ db, user, scope = "all" }) => {
   const homebaseId = user.homebase_id;
   const userRole = user.role;
@@ -616,15 +581,15 @@ const ensureParentStudentIds = async ({
         u.full_name AS parent_name,
         su.full_name AS student_name,
         s.nis
-      FROM u_parents p
-      JOIN u_users u ON u.id = p.user_id
+      FROM u_parent_students p
+      JOIN u_users u ON u.id = p.parent_user_id
       JOIN u_students s ON s.user_id = p.student_id
       JOIN u_users su ON su.id = s.user_id
       JOIN u_class_enrollments ce
         ON ce.student_id = s.user_id
        AND ($4::int IS NULL OR ce.periode_id = $4)
       WHERE p.student_id = ANY($1::int[])
-        AND ($2::int IS NULL OR p.user_id <> $2)
+        AND ($2::int IS NULL OR p.parent_user_id <> $2)
         AND s.homebase_id = $5
         AND ($3::boolean = false OR ce.class_id = ANY($6::int[]))
     `,
@@ -667,7 +632,6 @@ const syncParentAccount = async ({
   activePeriodeId = null,
   restrictToHomeroom = false,
 }) => {
-  const parentTableMetadata = await getParentTableMetadata(client);
 
   const normalizedUsername = normalizeText(username);
   const normalizedFullName = normalizeText(fullName);
@@ -732,9 +696,9 @@ const syncParentAccount = async ({
           AND u.role = 'parent'
           AND EXISTS (
             SELECT 1
-            FROM u_parents p
+            FROM u_parent_students p
             JOIN u_students s ON s.user_id = p.student_id
-            WHERE p.user_id = u.id
+            WHERE p.parent_user_id = u.id
               AND s.homebase_id = $2
           )
       `,
@@ -780,12 +744,12 @@ const syncParentAccount = async ({
 
     await client.query(
       `
-        DELETE FROM u_parents p
+        DELETE FROM u_parent_students p
         USING u_students s
         JOIN u_class_enrollments ce
           ON ce.student_id = s.user_id
          AND ($3::int IS NULL OR ce.periode_id = $3)
-        WHERE p.user_id = $1
+        WHERE p.parent_user_id = $1
           AND p.student_id = s.user_id
           AND s.homebase_id = $4
           AND p.student_id <> ALL($2::int[])
@@ -802,76 +766,50 @@ const syncParentAccount = async ({
     );
   }
 
-  await client.query(`DELETE FROM u_parents WHERE user_id = $1 AND student_id IS NULL`, [
-    targetUserId,
-  ]);
-
+  // Relasi orang tua-anak disimpan di u_parent_students (satu baris per anak),
+  // sama seperti LMS, Finance, dan Tahfiz. u_parents tetap satu baris per akun:
+  // kontak + anak utama (student_id) untuk kode lama yang membaca kolom itu.
   for (const student of validStudents) {
-    const existingRelation = await client.query(
+    await client.query(
       `
-        SELECT user_id, student_id
-        FROM u_parents
-        WHERE user_id = $1
-          AND student_id = $2
-        LIMIT 1
+        INSERT INTO u_parent_students (parent_user_id, student_id, homebase_id)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (parent_user_id, student_id)
+        DO UPDATE SET homebase_id = EXCLUDED.homebase_id
       `,
-      [targetUserId, student.student_id],
+      [targetUserId, student.student_id, homebaseId],
     );
-
-    if (existingRelation.rows.length > 0) {
-      await client.query(
-        `
-          UPDATE u_parents
-          SET phone = $1,
-              email = $2
-          WHERE user_id = $3
-            AND student_id = $4
-        `,
-        [
-          normalizedPhone,
-          normalizedEmail,
-          existingRelation.rows[0].user_id,
-          existingRelation.rows[0].student_id,
-        ],
-      );
-    } else {
-      await syncParentIdSequenceIfNeeded(client, parentTableMetadata);
-
-      if (parentTableMetadata.hasId) {
-        await client.query(
-          `
-            INSERT INTO u_parents (id, user_id, student_id, phone, email)
-            VALUES (
-              (SELECT COALESCE(MAX(id), 0) + 1 FROM u_parents),
-              $1,
-              $2,
-              $3,
-              $4
-            )
-          `,
-          [targetUserId, student.student_id, normalizedPhone, normalizedEmail],
-        );
-      } else {
-        await client.query(
-          `
-            INSERT INTO u_parents (user_id, student_id, phone, email)
-            VALUES ($1, $2, $3, $4)
-          `,
-          [targetUserId, student.student_id, normalizedPhone, normalizedEmail],
-        );
-      }
-    }
   }
 
-  await client.query(
+  const primaryStudentId = validStudents[0]?.student_id ?? null;
+  const updatedParent = await client.query(
     `
-      UPDATE u_parents
+      UPDATE u_parents p
       SET phone = $1,
-          email = $2
-      WHERE user_id = $3
+          email = $2,
+          student_id = CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM u_parent_students ups
+              WHERE ups.parent_user_id = p.user_id
+                AND ups.student_id = p.student_id
+            ) THEN p.student_id
+            ELSE $4
+          END
+      WHERE p.user_id = $3
     `,
-    [normalizedPhone, normalizedEmail, targetUserId],
+    [normalizedPhone, normalizedEmail, targetUserId, primaryStudentId],
   );
+
+  if (updatedParent.rowCount === 0) {
+    await client.query(
+      `
+        INSERT INTO u_parents (user_id, student_id, phone, email)
+        VALUES ($1, $2, $3, $4)
+      `,
+      [targetUserId, primaryStudentId, normalizedPhone, normalizedEmail],
+    );
+  }
 
   return { userId: targetUserId, students: validStudents };
 };
@@ -2199,11 +2137,11 @@ router.get(
            AND ce.periode_id = $3
           LEFT JOIN a_class cl ON cl.id = ce.class_id
           LEFT JOIN a_grade gr ON gr.id = cl.grade_id
-          LEFT JOIN u_parents p ON p.student_id = u.id
+          LEFT JOIN u_parent_students p ON p.student_id = u.id
           WHERE u.role = 'student'
             AND s.homebase_id = $1
             AND ($2::boolean = false OR ce.class_id = ANY($4::int[]))
-            AND p.user_id IS NULL
+            AND p.parent_user_id IS NULL
           ORDER BY u.full_name ASC
         `,
         [
@@ -2245,12 +2183,12 @@ router.get(
           WHERE u.role = 'parent'
             AND EXISTS (
               SELECT 1
-              FROM u_parents p
+              FROM u_parent_students p
               JOIN u_students s ON s.user_id = p.student_id
               JOIN u_class_enrollments ce
                 ON ce.student_id = s.user_id
                AND ce.periode_id = $5
-              WHERE p.user_id = u.id
+              WHERE p.parent_user_id = u.id
                 AND s.homebase_id = $1
                 AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
             )
@@ -2269,13 +2207,13 @@ router.get(
               )
               OR EXISTS (
                 SELECT 1
-                FROM u_parents p3
+                FROM u_parent_students p3
                 JOIN u_students s3 ON s3.user_id = p3.student_id
                 JOIN u_users su3 ON su3.id = s3.user_id
                 JOIN u_class_enrollments ce3
                   ON ce3.student_id = s3.user_id
                  AND ce3.periode_id = $5
-                WHERE p3.user_id = u.id
+                WHERE p3.parent_user_id = u.id
                   AND s3.homebase_id = $1
                   AND ($4::boolean = false OR ce3.class_id = ANY($6::int[]))
                   AND (
@@ -2305,12 +2243,12 @@ router.get(
           FROM u_users u
           JOIN LATERAL (
             SELECT COUNT(*) AS total_students
-            FROM u_parents p
+            FROM u_parent_students p
             JOIN u_students s ON s.user_id = p.student_id
             JOIN u_class_enrollments ce
               ON ce.student_id = s.user_id
              AND ce.periode_id = $3
-            WHERE p.user_id = u.id
+            WHERE p.parent_user_id = u.id
               AND s.homebase_id = $1
               AND ($2::boolean = false OR ce.class_id = ANY($4::int[]))
           ) link_count ON true
@@ -2338,17 +2276,12 @@ router.get(
           students.items AS students
         FROM u_users u
         JOIN LATERAL (
+          -- Kontak ada di baris tunggal u_parents; relasi anak di u_parent_students.
           SELECT
             MAX(p.phone) AS phone,
             MAX(p.email) AS email
           FROM u_parents p
-          JOIN u_students s ON s.user_id = p.student_id
-          JOIN u_class_enrollments ce
-            ON ce.student_id = s.user_id
-           AND ce.periode_id = $5
           WHERE p.user_id = u.id
-            AND s.homebase_id = $1
-            AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
         ) contact ON true
         JOIN LATERAL (
           SELECT
@@ -2366,7 +2299,7 @@ router.get(
               ),
               '[]'::json
             ) AS items
-          FROM u_parents p
+          FROM u_parent_students p
           JOIN u_students s ON s.user_id = p.student_id
           JOIN u_users su ON su.id = s.user_id
           JOIN u_class_enrollments ce
@@ -2374,7 +2307,7 @@ router.get(
            AND ce.periode_id = $5
           LEFT JOIN a_class cl ON cl.id = ce.class_id
           LEFT JOIN a_grade gr ON gr.id = cl.grade_id
-          WHERE p.user_id = u.id
+          WHERE p.parent_user_id = u.id
             AND s.homebase_id = $1
             AND ($4::boolean = false OR ce.class_id = ANY($6::int[]))
         ) students ON true
@@ -2388,13 +2321,13 @@ router.get(
             OR LOWER(COALESCE(contact.phone, '')) LIKE $3
             OR EXISTS (
               SELECT 1
-              FROM u_parents p3
+              FROM u_parent_students p3
               JOIN u_students s3 ON s3.user_id = p3.student_id
               JOIN u_users su3 ON su3.id = s3.user_id
               JOIN u_class_enrollments ce3
                 ON ce3.student_id = s3.user_id
                AND ce3.periode_id = $5
-              WHERE p3.user_id = u.id
+              WHERE p3.parent_user_id = u.id
                 AND s3.homebase_id = $1
                 AND ($4::boolean = false OR ce3.class_id = ANY($6::int[]))
                 AND (
@@ -2544,12 +2477,12 @@ router.delete(
           AND u.role = 'parent'
           AND EXISTS (
             SELECT 1
-            FROM u_parents p
+            FROM u_parent_students p
             JOIN u_students s ON s.user_id = p.student_id
             JOIN u_class_enrollments ce
               ON ce.student_id = s.user_id
              AND ce.periode_id = $4
-            WHERE p.user_id = u.id
+            WHERE p.parent_user_id = u.id
               AND s.homebase_id = $2
               AND ($3::boolean = false OR ce.class_id = ANY($5::int[]))
           )
@@ -2569,13 +2502,14 @@ router.delete(
 
     const deletedLinks = await client.query(
       `
-        DELETE FROM u_parents
-        WHERE user_id = $1
+        DELETE FROM u_parent_students
+        WHERE parent_user_id = $1
         RETURNING student_id
       `,
       [parentUserId],
     );
 
+    await client.query(`DELETE FROM u_parents WHERE user_id = $1`, [parentUserId]);
     await client.query(`DELETE FROM u_users WHERE id = $1`, [parentUserId]);
 
     res.status(200).json({
@@ -2703,7 +2637,7 @@ router.get(
         fam.mother_birth_date,
         fam.mother_phone,
         COALESCE(sib.siblings, '[]'::json) AS siblings
-      FROM u_parents p
+      FROM u_parent_students p
       JOIN u_students s ON s.user_id = p.student_id
       JOIN u_users u ON u.id = s.user_id
       LEFT JOIN a_homebase hb ON hb.id = s.homebase_id
@@ -2740,7 +2674,7 @@ router.get(
         FROM "database".u_student_siblings ss
         WHERE ss.student_id = s.user_id
       ) sib ON true
-      WHERE p.user_id = $1
+      WHERE p.parent_user_id = $1
       ORDER BY u.full_name ASC
     `;
 
@@ -2772,8 +2706,8 @@ router.put(
     const ownership = await client.query(
       `
         SELECT 1
-        FROM u_parents p
-        WHERE p.user_id = $1
+        FROM u_parent_students p
+        WHERE p.parent_user_id = $1
           AND p.student_id = $2
         LIMIT 1
       `,
