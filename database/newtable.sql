@@ -51,50 +51,37 @@ CREATE TABLE u_teachers (
 
 
 -- AKUN ORANG TUA (Login khusus ortu)
--- Revisi: 1 akun orang tua dapat terhubung ke lebih dari 1 siswa
+-- Satu baris per akun: kontak + anak utama. Daftar semua anak ada di
+-- u_parent_students; jangan menambah baris kedua di tabel ini.
 CREATE TABLE u_parents (
-    id SERIAL PRIMARY KEY,
-    user_id integer REFERENCES u_users(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id), -- Link ke anak
+    user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
+    student_id integer REFERENCES u_students(user_id), -- Anak utama (kompatibilitas lama)
     phone text,
-    email text,
-    CONSTRAINT uq_parent_student UNIQUE (user_id, student_id)
+    email text
 );
 
--- MIGRASI LEGACY:
--- Jika database lama masih memakai PRIMARY KEY (user_id) pada u_parents,
--- jalankan blok berikut agar 1 akun orang tua dapat terhubung ke lebih dari 1 siswa.
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-         AND tc.table_name = kcu.table_name
-        WHERE tc.table_schema = 'public'
-          AND tc.table_name = 'u_parents'
-          AND tc.constraint_type = 'PRIMARY KEY'
-          AND kcu.column_name = 'user_id'
-    ) THEN
-        ALTER TABLE public.u_parents DROP CONSTRAINT u_parents_pkey;
-    END IF;
-END $$;
+-- RELASI ORANG TUA - SISWA (multi anak per akun orang tua)
+-- Sumber tunggal relasi untuk semua domain (db, lms, finance, tahfiz).
+-- Aturan: 1 akun orang tua bisa punya banyak anak; 1 siswa hanya milik 1 akun orang tua.
+-- Database lama: jalankan database/patches/20261125_parent_students.sql.
+CREATE TABLE u_parent_students (
+    id SERIAL PRIMARY KEY,
+    parent_user_id integer NOT NULL REFERENCES u_users(id) ON DELETE CASCADE,
+    student_id integer NOT NULL REFERENCES u_students(user_id) ON DELETE CASCADE,
+    homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
+    relationship varchar(50),
+    is_primary boolean NOT NULL DEFAULT false,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_parent_student_pair UNIQUE (parent_user_id, student_id),
+    CONSTRAINT uq_parent_student_owner UNIQUE (student_id)
+);
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.table_constraints
-        WHERE table_schema = 'public'
-          AND table_name = 'u_parents'
-          AND constraint_name = 'uq_parent_student'
-    ) THEN
-        ALTER TABLE public.u_parents
-        ADD CONSTRAINT uq_parent_student UNIQUE (user_id, student_id);
-    END IF;
-END $$;
+CREATE INDEX idx_parent_students_parent_homebase
+ON u_parent_students(parent_user_id, homebase_id);
+
+CREATE INDEX idx_parent_students_homebase
+ON u_parent_students(homebase_id);
 
 -- SYSTEM LOGS (Dari table logs newtable)
 CREATE TABLE sys_logs (
