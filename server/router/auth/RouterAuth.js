@@ -29,7 +29,7 @@ router.post(
 
     // 1. Cari Siswa berdasarkan NIS
     const checkStudent = await client.query(
-      `SELECT user_id, full_name, homebase_id FROM u_students WHERE nis = $1`,
+      `SELECT user_id, homebase_id FROM u_students WHERE nis = $1`,
       [nis],
     );
 
