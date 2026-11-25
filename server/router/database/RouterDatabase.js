@@ -524,7 +524,7 @@ const getParentAccessScope = async ({ db, user, scope = "all" }) => {
   );
 
   if (activePeriodeResult.rows.length === 0) {
-    throw new Error("Tidak ada periode aktif untuk satuan ini.");
+    throw Object.assign(new Error("Tidak ada periode aktif untuk satuan ini."), { statusCode: 400 });
   }
 
   if (userRole !== "teacher" || scope !== "homeroom") {
@@ -550,7 +550,7 @@ const getParentAccessScope = async ({ db, user, scope = "all" }) => {
   const classIds = classResult.rows.map((item) => item.id);
 
   if (classIds.length === 0) {
-    throw new Error("Akses tab orang tua hanya untuk guru yang menjadi wali kelas aktif.");
+    throw Object.assign(new Error("Akses tab orang tua hanya untuk guru yang menjadi wali kelas aktif."), { statusCode: 403 });
   }
 
   return {
@@ -573,7 +573,7 @@ const ensureParentStudentIds = async ({
   const normalizedStudentIds = normalizeStudentIds(studentIds);
 
   if (normalizedStudentIds.length === 0) {
-    throw new Error("Pilih minimal satu siswa.");
+    throw Object.assign(new Error("Pilih minimal satu siswa."), { statusCode: 400 });
   }
 
   const studentResult = await client.query(
@@ -606,7 +606,7 @@ const ensureParentStudentIds = async ({
   );
 
   if (studentResult.rows.length !== normalizedStudentIds.length) {
-    throw new Error("Beberapa siswa tidak ditemukan di satuan aktif.");
+    throw Object.assign(new Error("Beberapa siswa tidak ditemukan di satuan aktif."), { statusCode: 404 });
   }
 
   const linkedStudentsResult = await client.query(
@@ -646,7 +646,7 @@ const ensureParentStudentIds = async ({
       )
       .join(", ");
 
-    throw new Error(`Siswa sudah terhubung dengan orang tua lain: ${linkedNames}.`);
+    throw Object.assign(new Error(`Siswa sudah terhubung dengan orang tua lain: ${linkedNames}.`), { statusCode: 409 });
   }
 
   return studentResult.rows;
@@ -684,11 +684,11 @@ const syncParentAccount = async ({
   });
 
   if (!normalizedUsername) {
-    throw new Error("Username wajib diisi.");
+    throw Object.assign(new Error("Username wajib diisi."), { statusCode: 400 });
   }
 
   if (!normalizedFullName) {
-    throw new Error("Nama lengkap wajib diisi.");
+    throw Object.assign(new Error("Nama lengkap wajib diisi."), { statusCode: 400 });
   }
 
   let targetUserId = parentUserId;
@@ -704,12 +704,12 @@ const syncParentAccount = async ({
   );
 
   if (existingUser.rows.length > 0) {
-    throw new Error("Username sudah digunakan akun lain.");
+    throw Object.assign(new Error("Username sudah digunakan akun lain."), { statusCode: 409 });
   }
 
   if (!parentUserId) {
     if (!normalizeText(password)) {
-      throw new Error("Password wajib diisi.");
+      throw Object.assign(new Error("Password wajib diisi."), { statusCode: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(normalizeText(password), 10);
@@ -742,7 +742,7 @@ const syncParentAccount = async ({
     );
 
     if (parentUser.rows.length === 0) {
-      throw new Error("Akun orang tua tidak ditemukan di satuan ini.");
+      throw Object.assign(new Error("Akun orang tua tidak ditemukan di satuan ini."), { statusCode: 404 });
     }
 
     const passwordValue = normalizeText(password);
