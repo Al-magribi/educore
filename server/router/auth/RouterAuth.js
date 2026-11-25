@@ -29,7 +29,7 @@ router.post(
 
     // 1. Cari Siswa berdasarkan NIS
     const checkStudent = await client.query(
-      `SELECT user_id, full_name FROM u_students WHERE nis = $1`,
+      `SELECT user_id, homebase_id FROM u_students WHERE nis = $1`,
       [nis],
     );
 
@@ -38,6 +38,27 @@ router.post(
     }
 
     const studentId = checkStudent.rows[0].user_id;
+    const studentHomebaseId = checkStudent.rows[0].homebase_id;
+
+    // Relasi orang tua-anak ada di u_parent_students (lihat database/newtable.sql).
+    // Database lama yang belum menjalankan patch 20261125 belum punya tabelnya.
+    const hasParentLinkTable = Boolean(
+      (await client.query(`SELECT to_regclass('public.u_parent_students') AS t`)).rows[0]?.t,
+    );
+
+    // Aturan: 1 siswa hanya milik 1 akun orang tua.
+    if (hasParentLinkTable) {
+      const linkedParent = await client.query(
+        `SELECT 1 FROM u_parent_students WHERE student_id = $1 LIMIT 1`,
+        [studentId],
+      );
+      if (linkedParent.rowCount > 0) {
+        return res.status(409).json({
+          message:
+            "Siswa ini sudah terhubung dengan akun orang tua lain. Hubungi sekolah untuk bantuan.",
+        });
+      }
+    }
 
     // 2. Cek apakah email sudah terdaftar
     const checkExisting = await client.query(
@@ -65,6 +86,16 @@ router.post(
      VALUES ($1, $2, $3, $4)`,
       [newUserId, studentId, email, phone || null],
     );
+
+    // 5. Catat relasi anak
+    if (hasParentLinkTable && studentHomebaseId) {
+      await client.query(
+        `INSERT INTO u_parent_students (parent_user_id, student_id, homebase_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (parent_user_id, student_id) DO NOTHING`,
+        [newUserId, studentId, studentHomebaseId],
+      );
+    }
 
     // Commit ditangani otomatis oleh wrapper jika tidak ada error
     return res

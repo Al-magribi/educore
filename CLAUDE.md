@@ -44,6 +44,7 @@ Setiap file punya **satu pemilik**. Petanya ada di [scripts/ci/shared-paths.js](
 | `module/<domain>/`, `service/<domain>/`, `server/router/<domain>/`, `<domain>Menus.jsx`, `<domain>Routes.jsx` | `feature/<domain>` | Diedit di `main` → guard main gagal. |
 | Stub fallback, mis. `module/finance/assignment/FinanceStaffSlot.jsx` di lms | pemilik asli (finance) | Didaftarkan di `FALLBACK_STUB_PATHS`. Stub kosong agar produk tanpa domain itu tetap bisa di-build; compose memakai versi asli di produk yang membawanya. Isi stub jangan diubah selain menyamakan API-nya. |
 | `database/newtable.sql`, `database/oldtable.sql`, `server/router/migration/RouterMigration.js` | bersama | Hanya ubah bagian domain sendiri dan jangan menyimpan salinan lama dari branch lain (salinan lama menimpa versi terbaru saat compose). Tabel/kolom khusus domain sebaiknya di `database/<domain>_schema.sql`. |
+| Relasi orang tua - siswa: `u_parents` + `u_parent_students` | `main` (skema inti di `newtable.sql`) | Semua domain membaca dan menulis relasi anak **hanya** di `u_parent_students` (1 akun bisa banyak anak; 1 siswa hanya milik 1 akun). `u_parents` tetap satu baris per akun: kontak + anak utama. Jangan membuat/menghapus constraint tabel ini dari kode domain. Database lama: `database/patches/20261125_parent_students.sql`. |
 
 Aturan kerja:
 
