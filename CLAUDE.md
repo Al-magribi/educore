@@ -40,7 +40,10 @@ Setiap file punya **satu pemilik**. Petanya ada di [scripts/ci/shared-paths.js](
 | `server/router/auth/` (`RouterAuth.js`, `domainProfiles.js`) | `main` | Guard feature gagal. Data login khusus domain ditaruh di `server/router/<domain>/authProfile.js` (milik feature itu), bukan di `RouterAuth.js`. |
 | `server/middleware/authorize.js` | `feature/lms` | Perubahan dari tahfiz/finance **hilang di produk** (compose memakai versi lms). |
 | `components/profile/` | `main` | Guard feature gagal. |
+| `server/app.js`, `server/utils/wrapper.js`, `.gitignore` | `main` | Guard feature gagal. Middleware domain dimuat opsional dari `app.js` (cek file ada). Error yang pesannya boleh dilihat pengguna wajib diberi `statusCode`: `throw Object.assign(new Error("Pesan"), { statusCode: 400 })`; tanpa itu wrapper membalas "Transaction failed"/"Internal Server Error". |
 | `module/<domain>/`, `service/<domain>/`, `server/router/<domain>/`, `<domain>Menus.jsx`, `<domain>Routes.jsx` | `feature/<domain>` | Diedit di `main` → guard main gagal. |
+| Stub fallback, mis. `module/finance/assignment/FinanceStaffSlot.jsx` di lms | pemilik asli (finance) | Didaftarkan di `FALLBACK_STUB_PATHS`. Stub kosong agar produk tanpa domain itu tetap bisa di-build; compose memakai versi asli di produk yang membawanya. Isi stub jangan diubah selain menyamakan API-nya. |
+| `database/newtable.sql`, `database/oldtable.sql`, `server/router/migration/RouterMigration.js` | bersama | Hanya ubah bagian domain sendiri dan jangan menyimpan salinan lama dari branch lain (salinan lama menimpa versi terbaru saat compose). Tabel/kolom khusus domain sebaiknya di `database/<domain>_schema.sql`. |
 
 Aturan kerja:
 

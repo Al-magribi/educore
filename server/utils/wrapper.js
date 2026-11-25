@@ -1,3 +1,6 @@
+// File ini milik main (dipakai semua domain). Untuk error yang pesannya boleh
+// dilihat pengguna, lempar error dengan statusCode, mis.
+//   throw Object.assign(new Error("Pesan"), { statusCode: 400 });
 import pool from "../config/connection.js";
 
 const logError = (error, context) => {
@@ -27,7 +30,16 @@ export const withTransaction = (handler) => {
       // agar query menjadi satu kesatuan transaksi.
       await handler(req, res, client);
 
-      // Commit perubahan jika tidak ada error
+      // Jika handler sudah mengirim error response (4xx/5xx), rollback
+      // supaya perubahan parsial tidak ter-commit.
+      // Opt-in: res.locals.commitTransaction = true untuk audit/log yang harus
+      // tetap tersimpan meski response ke klien adalah 4xx (mis. RFID unregistered).
+      if (res.statusCode >= 400 && !res.locals.commitTransaction) {
+        await client.query("ROLLBACK");
+        return;
+      }
+
+      // Commit perubahan jika tidak ada error, atau handler meminta commit eksplisit
       await client.query("COMMIT");
     } catch (error) {
       // Jika ada error, batalkan semua perubahan
@@ -35,11 +47,15 @@ export const withTransaction = (handler) => {
 
       logError(error, `Transaction Error on ${req.originalUrl}`);
 
-      // Pastikan response belum terkirim sebelum mengirim status 500
+      // Pastikan response belum terkirim sebelum mengirim status
       if (!res.headersSent) {
-        res.status(500).json({
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({
           status: "error",
-          message: "Transaction failed",
+          message:
+            error.statusCode && error.message
+              ? error.message
+              : "Transaction failed",
           error: process.env.MODE === "development" ? error.message : undefined,
         });
       }
@@ -64,10 +80,16 @@ export const withQuery = (handler) => {
     } catch (error) {
       logError(error, `Query Error on ${req.originalUrl}`);
 
+      // Pesan error hanya diteruskan ke klien bila handler menandainya dengan
+      // statusCode (error yang memang untuk pengguna). Error lain disamarkan.
       if (!res.headersSent) {
-        res.status(500).json({
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({
           status: "error",
-          message: "Internal Server Error",
+          message:
+            error.statusCode && error.message
+              ? error.message
+              : "Internal Server Error",
           error: process.env.MODE === "development" ? error.message : undefined,
         });
       }
