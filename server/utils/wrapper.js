@@ -1,3 +1,6 @@
+// File ini milik main (dipakai semua domain). Untuk error yang pesannya boleh
+// dilihat pengguna, lempar error dengan statusCode, mis.
+//   throw Object.assign(new Error("Pesan"), { statusCode: 400 });
 import pool from "../config/connection.js";
 
 const logError = (error, context) => {
@@ -77,10 +80,16 @@ export const withQuery = (handler) => {
     } catch (error) {
       logError(error, `Query Error on ${req.originalUrl}`);
 
+      // Pesan error hanya diteruskan ke klien bila handler menandainya dengan
+      // statusCode (error yang memang untuk pengguna). Error lain disamarkan.
       if (!res.headersSent) {
-        res.status(500).json({
+        const statusCode = error.statusCode || 500;
+        res.status(statusCode).json({
           status: "error",
-          message: "Internal Server Error",
+          message:
+            error.statusCode && error.message
+              ? error.message
+              : "Internal Server Error",
           error: process.env.MODE === "development" ? error.message : undefined,
         });
       }

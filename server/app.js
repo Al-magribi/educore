@@ -8,7 +8,6 @@ import { express as userAgent } from "express-useragent";
 
 import pool from "./config/connection.js";
 import registerApiRoutes from "./router/registerApiRoutes.js";
-import { protectTeachingModuleAssets } from "./middleware/protectTeachingModuleAssets.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,22 +15,41 @@ const clientDistPath = path.join(__dirname, "../client/dist");
 const clientIndexPath = path.join(clientDistPath, "index.html");
 const hasClientBuild = fs.existsSync(clientIndexPath);
 
+// File ini milik main. Middleware khusus domain dimuat opsional (lihat
+// loadOptionalMiddleware) supaya feature tidak perlu mengedit file ini.
+const loadOptionalMiddleware = async (relativePath, exportName) => {
+  const filePath = path.join(__dirname, relativePath);
+  if (!fs.existsSync(filePath)) return null;
+  const mod = await import(`./${relativePath}`);
+  return mod[exportName] || null;
+};
+
+// LMS: lampiran modul ajar hanya untuk guru pemilik / pihak berwenang.
+const protectTeachingModuleAssets = await loadOptionalMiddleware(
+  "middleware/protectTeachingModuleAssets.js",
+  "protectTeachingModuleAssets",
+);
+
 const app = express();
 
 app.use(cookieParser());
-// Isi modul ajar (rich text multi-bagian) bisa jauh melebihi batas default 100kb.
+// Isi modul ajar LMS (rich text multi-bagian) bisa jauh melebihi batas default 100kb.
 app.use("/api/lms/teaching-modules", express.json({ limit: "5mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(userAgent());
 
 // Static Folder
-app.use("/assets/lms/:teacherId/modul", protectTeachingModuleAssets);
+if (protectTeachingModuleAssets) {
+  app.use("/assets/lms/:teacherId/modul", protectTeachingModuleAssets);
+}
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 const backupPath = path.join(process.cwd(), "temp_backup");
-if (!fs.existsSync(backupPath)) {
-  fs.mkdirSync(backupPath, { recursive: true });
-}
+const ensureDir = (dirPath) => {
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+};
+ensureDir(backupPath);
+ensureDir(path.join(__dirname, "assets", "db")); // dokumen siswa (modul database)
 
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
@@ -42,6 +60,7 @@ if (hasClientBuild) {
 app.use("/assets", (_req, res) => {
   res.status(404).json({ message: "File tidak ditemukan." });
 });
+
 app.use("/temp_backup", express.static(path.join(backupPath)));
 
 registerApiRoutes(app);

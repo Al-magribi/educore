@@ -10,3 +10,4 @@ client/node_modules
 # legacy WhatsApp Web session/cache data
 .wwebjs_auth/
 .wwebjs_cache/
+.worktrees
