@@ -54,30 +54,8 @@ const ensureParentStudentTable = async (client) => {
     ON u_parent_students(parent_user_id, student_id)
   `);
 
-  try {
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1
-          FROM pg_constraint c
-          JOIN pg_class t ON t.oid = c.conrelid
-          WHERE t.relname = 'u_parent_students'
-            AND c.conname = 'uq_parent_student_owner'
-        ) THEN
-          ALTER TABLE u_parent_students
-            ADD CONSTRAINT uq_parent_student_owner UNIQUE (student_id);
-        END IF;
-      END
-      $$;
-    `);
-  } catch (error) {
-    // Skip if duplicates already exist; sync/read paths do not require this constraint.
-    console.warn(
-      "[parent] gagal memastikan uq_parent_student_owner:",
-      error.message,
-    );
-  }
+  // Constraint uq_parent_student_owner (1 siswa = 1 akun) dipasang oleh
+  // database/patches/20261125_parent_students.sql; jangan diubah dari sini.
 
   await client.query(`
     CREATE INDEX IF NOT EXISTS idx_parent_students_parent_homebase
@@ -100,12 +78,13 @@ const syncLegacyParentLinks = async (client, homebaseId) => {
      WHERE up.student_id IS NOT NULL
        AND up.user_id IS NOT NULL
        AND s.homebase_id = $1
+       -- Lewati siswa yang sudah dimiliki akun mana pun (1 siswa = 1 akun).
        AND NOT EXISTS (
          SELECT 1
          FROM u_parent_students existing
-         WHERE existing.parent_user_id = up.user_id
-           AND existing.student_id = up.student_id
-       )`,
+         WHERE existing.student_id = up.student_id
+       )
+     ON CONFLICT DO NOTHING`,
     [homebaseId],
   );
 };

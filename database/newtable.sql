@@ -57,9 +57,11 @@ WHERE telegram_chat_id IS NOT NULL AND NULLIF(TRIM(telegram_chat_id), '') IS NOT
 
 
 -- AKUN ORANG TUA (Login khusus ortu)
+-- Satu baris per akun: kontak + anak utama. Daftar semua anak ada di
+-- u_parent_students; jangan menambah baris kedua di tabel ini.
 CREATE TABLE u_parents (
     user_id integer PRIMARY KEY REFERENCES u_users(id) ON DELETE CASCADE,
-    student_id integer REFERENCES u_students(user_id), -- Legacy primary child (opsional)
+    student_id integer REFERENCES u_students(user_id), -- Anak utama (kompatibilitas lama)
     phone text,
     email text,
     telegram_chat_id varchar(64)
@@ -69,16 +71,19 @@ CREATE UNIQUE INDEX uq_u_parents_telegram_chat_id
 ON u_parents (telegram_chat_id)
 WHERE telegram_chat_id IS NOT NULL AND NULLIF(TRIM(telegram_chat_id), '') IS NOT NULL;
 
--- RELASI ORANG TUA - SISWA (multi anak per orang tua)
--- Rule:
--- 1. 1 orang tua bisa memiliki banyak siswa
--- 2. 1 siswa hanya boleh dimiliki 1 orang tua
+-- RELASI ORANG TUA - SISWA (multi anak per akun orang tua)
+-- Sumber tunggal relasi untuk semua domain (db, lms, finance, tahfiz).
+-- Aturan: 1 akun orang tua bisa punya banyak anak; 1 siswa hanya milik 1 akun orang tua.
+-- Database lama: jalankan database/patches/20261125_parent_students.sql.
 CREATE TABLE u_parent_students (
     id SERIAL PRIMARY KEY,
     parent_user_id integer NOT NULL REFERENCES u_users(id) ON DELETE CASCADE,
     student_id integer NOT NULL REFERENCES u_students(user_id) ON DELETE CASCADE,
     homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
+    relationship varchar(50),
+    is_primary boolean NOT NULL DEFAULT false,
     created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_parent_student_pair UNIQUE (parent_user_id, student_id),
     CONSTRAINT uq_parent_student_owner UNIQUE (student_id)
 );
