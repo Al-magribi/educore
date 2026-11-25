@@ -3,32 +3,8 @@ CREATE SCHEMA IF NOT EXISTS finance;
 
 SET search_path TO finance, public;
 
-CREATE TABLE IF NOT EXISTS public.u_parent_students (
-    id SERIAL PRIMARY KEY,
-    parent_user_id INT NOT NULL REFERENCES public.u_users(id) ON DELETE CASCADE,
-    homebase_id INT NOT NULL REFERENCES public.a_homebase(id) ON DELETE CASCADE,
-    student_id INT NOT NULL REFERENCES public.u_students(user_id) ON DELETE CASCADE,
-    relationship VARCHAR(50),
-    is_primary BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'uq_parent_student'
-          AND conrelid = 'public.u_parent_students'::regclass
-    ) THEN
-        ALTER TABLE public.u_parent_students
-        DROP CONSTRAINT uq_parent_student;
-    END IF;
-END $$;
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_u_parent_students_parent_student
-    ON public.u_parent_students(parent_user_id, student_id);
+-- public.u_parent_students (relasi orang tua-siswa) adalah skema inti milik main:
+-- database/newtable.sql dan database/patches/20261125_parent_students.sql.
 
 -- =================================================================================
 -- TABEL AKTIF: Billing & Pembayaran Final
