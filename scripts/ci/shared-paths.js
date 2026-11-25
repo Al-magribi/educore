@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 
 // Diubah hanya lewat main. Path yang diakhiri "/" berarti satu folder.
 export const MAIN_OWNED_PATHS = [
+  ".gitignore",
   "CLAUDE.md",
   "GIT-WORKFLOW.md",
   "scripts/ci/",
@@ -49,6 +50,9 @@ export const MAIN_OWNED_PATHS = [
   "client/src/utils/staffAssignment.js",
   // Login inti. Data login per domain: server/router/<domain>/authProfile.js.
   "server/router/auth/",
+  // Server inti. Middleware domain dimuat opsional dari app.js.
+  "server/app.js",
+  "server/utils/wrapper.js",
 ];
 
 // Milik satu feature. main tidak boleh mengubahnya (sync pasti konflik), dan
@@ -99,6 +103,14 @@ export const FEATURE_OWNED_PATHS = {
   ],
 };
 
+// Stub fallback: file milik feature A yang sengaja disediakan feature B agar
+// produk tanpa feature A tetap bisa di-build. Compose memulihkan versi asli
+// dari pemiliknya di produk yang membawa feature A. Tidak diberi peringatan.
+export const FALLBACK_STUB_PATHS = {
+  // StaffForm / StaffAssignment (lms) memakai slot meja keuangan.
+  "client/src/module/finance/assignment/FinanceStaffSlot.jsx": ["lms"],
+};
+
 // Boleh diubah dari feature, tetapi main juga merapikan UI-nya. Diberi
 // peringatan agar feature segera merge main sebelum mengubahnya.
 export const SHARED_MODULE_PATHS = [
@@ -131,7 +143,8 @@ const runCheck = (base, feature) => {
   const foreign = feature
     ? changed.filter((file) => {
         const owner = ownerOf(file);
-        return owner && owner !== feature;
+        const isAllowedStub = (FALLBACK_STUB_PATHS[file] || []).includes(feature);
+        return owner && owner !== feature && !isAllowedStub;
       })
     : [];
 
