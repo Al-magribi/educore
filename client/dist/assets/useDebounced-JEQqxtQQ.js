@@ -1,0 +1,1 @@
+import{c as t}from"./index-C4VkMZKK.js";import{b as e}from"./vendor-DIm-1IMg.js";const o=(o,r)=>{const s=t.c(4),[c,n]=e.useState(o);let u,m;return s[0]!==r||s[1]!==o?(u=()=>{const t=setTimeout(()=>{n(o)},r);return()=>{clearTimeout(t)}},m=[o,r],s[0]=r,s[1]=o,s[2]=u,s[3]=m):(u=s[2],m=s[3]),e.useEffect(u,m),c};export{o as u};
