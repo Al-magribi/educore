@@ -5,6 +5,11 @@ import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { getActivePeriode } from "../../utils/helper.js";
 import { computeItemAnalysis } from "../../utils/itemAnalysis.js";
+import { computeExamScoresForStudents } from "../../services/cbt/examScores.js";
+import {
+  canManageCbt,
+  isForbiddenCbtOwner,
+} from "../../utils/staffAssignment.js";
 import {
   annotateQuestionGroups,
   groupQuestionsIntoBlocks,
@@ -1092,7 +1097,7 @@ const getQuestionScore = ({
 };
 
 const ensureTeacherScope = async ({ pool, user, teacherId }) => {
-  if (user.role === "admin") {
+  if (canManageCbt(user)) {
     if (!teacherId) {
       return { ok: false, status: 400, message: "Admin wajib memilih guru" };
     }
@@ -1208,13 +1213,13 @@ router.get(
       paramIndex++;
     }
 
-    if (role === "teacher") {
-      conditions.push(`b.teacher_id = $${paramIndex}`);
-      params.push(userId);
-      paramIndex++;
-    } else if (role === "admin" && homebase_id) {
+    if (canManageCbt(req.user) && homebase_id) {
       conditions.push(`ut.homebase_id = $${paramIndex}`);
       params.push(homebase_id);
+      paramIndex++;
+    } else if (role === "teacher") {
+      conditions.push(`b.teacher_id = $${paramIndex}`);
+      params.push(userId);
       paramIndex++;
     }
 
@@ -1301,7 +1306,7 @@ router.get(
 
     let finalTeacherId = userId;
 
-    if (role === "admin") {
+    if (canManageCbt(req.user)) {
       if (!teacher_id) {
         return res
           .status(400)
@@ -2032,10 +2037,7 @@ router.get(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -2139,10 +2141,7 @@ router.put(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -2211,10 +2210,7 @@ router.delete(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -2272,10 +2268,7 @@ router.put(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -2325,10 +2318,7 @@ router.get(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -2405,81 +2395,34 @@ router.get(
     }, {});
 
     const studentIds = students.map((item) => item.id);
-    const answerResult = await pool.query(
-      `
-        SELECT student_id, question_id, answer_json, score_obtained
-        FROM cbt.c_student_answer
-        WHERE exam_id = $1 AND student_id = ANY($2::int[])
-      `,
-      [examId, studentIds],
-    );
-
-    const answersByStudent = new Map();
-    answerResult.rows.forEach((row) => {
-      if (!answersByStudent.has(row.student_id)) {
-        answersByStudent.set(row.student_id, new Map());
-      }
-      answersByStudent.get(row.student_id).set(row.question_id, row);
-    });
-
-    const optionAliasesByQuestion = buildOptionAliasesByQuestion({
-      questions,
-      optionsByQuestion,
-      answerRows: answerResult.rows,
+    const scoreByStudent = await computeExamScoresForStudents(pool, {
+      examId,
+      studentIds,
     });
 
     const scores = students.map((student) => {
-      const answersByQuestion =
-        answersByStudent.get(student.id) || new Map();
-      const typeScores = {
-        single: 0,
-        multi: 0,
-        match: 0,
-        true_false: 0,
-        short: 0,
-        essay: 0,
+      const scored = scoreByStudent.get(Number(student.id)) || {
+        score_precise: 0,
+        score_single: 0,
+        score_multi: 0,
+        score_match: 0,
+        score_true_false: 0,
+        score_short: 0,
+        score_essay: 0,
       };
-
-      questions.forEach((question) => {
-        const answerRow = answersByQuestion.get(question.id);
-        const questionOptions = optionsByQuestion[question.id] || [];
-        const points = getQuestionScore({
-          question,
-          answerRow,
-          questionOptions,
-          optionIdAliasMap: optionAliasesByQuestion[question.id],
-        });
-
-        if (question.q_type === 1) typeScores.single += points;
-        if (question.q_type === 2) typeScores.multi += points;
-        if (question.q_type === 6) typeScores.match += points;
-        if (question.q_type === 5) typeScores.true_false += points;
-        if (question.q_type === 4) typeScores.short += points;
-        if (question.q_type === 3) typeScores.essay += points;
-      });
-
-      const score = Math.min(
-        100,
-        typeScores.single +
-          typeScores.multi +
-          typeScores.match +
-          typeScores.true_false +
-          typeScores.short +
-          typeScores.essay,
-      );
 
       return {
         id: student.id,
         nis: student.nis,
         name: student.name,
         class_name: student.class_name,
-        score,
-        score_single: Number(typeScores.single.toFixed(2)),
-        score_multi: Number(typeScores.multi.toFixed(2)),
-        score_match: Number(typeScores.match.toFixed(2)),
-        score_true_false: Number(typeScores.true_false.toFixed(2)),
-        score_short: Number(typeScores.short.toFixed(2)),
-        score_essay: Number(typeScores.essay.toFixed(2)),
+        score: scored.score_precise ?? scored.score ?? 0,
+        score_single: scored.score_single ?? 0,
+        score_multi: scored.score_multi ?? 0,
+        score_match: scored.score_match ?? 0,
+        score_true_false: scored.score_true_false ?? 0,
+        score_short: scored.score_short ?? 0,
+        score_essay: scored.score_essay ?? 0,
       };
     });
 
@@ -2516,10 +2459,7 @@ router.get(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -2728,10 +2668,7 @@ router.get(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -3254,10 +3191,7 @@ router.get(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -3656,10 +3590,7 @@ router.get(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -3920,10 +3851,7 @@ router.get(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -4127,10 +4055,7 @@ router.put(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -4250,10 +4175,7 @@ router.put(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -4432,10 +4354,7 @@ router.put(
     }
 
     const examOwner = examCheck.rows[0];
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -4735,11 +4654,7 @@ router.put(
 
     const examOwner = examCheck.rows[0];
 
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 
@@ -4865,11 +4780,7 @@ router.delete(
 
     const examOwner = examCheck.rows[0];
 
-    if (user.role === "teacher" && examOwner.teacher_id !== user.id) {
-      return res.status(403).json({ message: "Akses tidak diizinkan" });
-    }
-
-    if (user.role === "admin" && examOwner.homebase_id !== user.homebase_id) {
+    if (isForbiddenCbtOwner(user, examOwner)) {
       return res.status(403).json({ message: "Akses tidak diizinkan" });
     }
 

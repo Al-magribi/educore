@@ -219,6 +219,10 @@ router.delete(
       [id],
     );
     await client.query(
+      `DELETE FROM lms.l_point_category WHERE homebase_id = $1`,
+      [id],
+    );
+    await client.query(
       `DELETE FROM lms.l_point_config WHERE homebase_id = $1`,
       [id],
     );
