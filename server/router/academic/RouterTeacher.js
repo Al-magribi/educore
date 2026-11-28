@@ -3,6 +3,12 @@ import bcrypt from "bcrypt"; // Pastikan install: npm install bcrypt
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { syncUserRfid } from "../../utils/helper.js";
+import {
+  ensureClassHomeroomTable,
+  getActivePeriodeId,
+  removeTeacherHomeroom,
+  setTeacherHomeroom,
+} from "../../utils/homeroom.js";
 
 const router = Router();
 
@@ -32,7 +38,7 @@ router.get(
         u.id, u.username, u.full_name, u.img_url, u.is_active,
         t.nip, rc.card_uid AS rfid_no, t.phone, t.email, t.is_homeroom,
         
-        -- Ambil Info Wali Kelas
+        -- Wali kelas di periode aktif (cermin a_class, lihat utils/homeroom.js)
         (SELECT json_build_object('id', c.id, 'name', c.name) 
          FROM a_class c WHERE c.homeroom_teacher_id = u.id LIMIT 1) as homeroom_class,
          
@@ -104,6 +110,7 @@ router.post(
     } = req.body;
 
     const homebaseId = req.user.homebase_id;
+    await ensureClassHomeroomTable();
 
     // 1. Insert ke u_users
     const salt = await bcrypt.genSalt(10);
@@ -114,11 +121,10 @@ router.post(
     );
     const userId = userRes.rows[0].id;
 
-    // 2. Insert ke u_teachers
-    const isHomeroom = !!homeroom_class_id;
+    // 2. Insert ke u_teachers (is_homeroom diisi oleh setTeacherHomeroom)
     await client.query(
-      `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, nip || null, phone || null, email || null, isHomeroom, homebaseId],
+      `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, false, $5)`,
+      [userId, nip || null, phone || null, email || null, homebaseId],
     );
 
     if (rfid_no && `${rfid_no}`.trim() !== "") {
@@ -128,18 +134,13 @@ router.post(
       }
     }
 
-    // 3. Handle Wali Kelas (Update a_class)
+    // 3. Wali kelas di periode aktif
     if (homeroom_class_id) {
-      // Reset wali kelas lama di kelas tsb (jika ada)
-      await client.query(
-        `UPDATE u_teachers SET is_homeroom = false WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
-        [homeroom_class_id],
-      );
-      // Set guru baru
-      await client.query(
-        `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
-        [userId, homeroom_class_id],
-      );
+      await setTeacherHomeroom(client, {
+        teacherId: userId,
+        homebaseId,
+        classId: homeroom_class_id,
+      });
     }
 
     // 4. Handle Alokasi Mengajar (Insert at_subject)
@@ -173,6 +174,8 @@ router.put(
       homeroom_class_id,
       allocations,
     } = req.body;
+    const homebaseId = req.user.homebase_id;
+    await ensureClassHomeroomTable();
 
     // 1. Update u_users
     await client.query(
@@ -189,9 +192,9 @@ router.put(
       ]);
     }
 
-    // 2. Update u_teachers & Reset is_homeroom sementara
+    // 2. Update u_teachers (is_homeroom diatur setTeacherHomeroom)
     await client.query(
-      `UPDATE u_teachers SET nip = $1, phone = $2, email = $3, is_homeroom = false WHERE user_id = $4`,
+      `UPDATE u_teachers SET nip = $1, phone = $2, email = $3 WHERE user_id = $4`,
       [nip || null, phone || null, email || null, id],
     );
 
@@ -202,30 +205,12 @@ router.put(
       }
     }
 
-    // 3. Handle Wali Kelas
-    // Hapus kepemilikan kelas sebelumnya dari guru ini
-    await client.query(
-      `UPDATE a_class SET homeroom_teacher_id = NULL WHERE homeroom_teacher_id = $1`,
-      [id],
-    );
-
-    if (homeroom_class_id) {
-      // Reset guru lain jika dia megang kelas target
-      await client.query(
-        `UPDATE u_teachers SET is_homeroom = false WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
-        [homeroom_class_id],
-      );
-      // Set guru ini ke kelas target
-      await client.query(
-        `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
-        [id, homeroom_class_id],
-      );
-      // Update status is_homeroom
-      await client.query(
-        `UPDATE u_teachers SET is_homeroom = true WHERE user_id = $1`,
-        [id],
-      );
-    }
+    // 3. Wali kelas di periode aktif. Periode lain tidak diubah.
+    await setTeacherHomeroom(client, {
+      teacherId: Number(id),
+      homebaseId,
+      classId: homeroom_class_id || null,
+    });
 
     // 4. Handle Alokasi Mengajar
     // Hapus semua alokasi lama
@@ -251,12 +236,13 @@ router.delete(
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
+    await ensureClassHomeroomTable();
 
-    // Set NULL di a_class dulu
-    await client.query(
-      `UPDATE a_class SET homeroom_teacher_id = NULL WHERE homeroom_teacher_id = $1`,
-      [id],
-    );
+    // Lepas penetapan wali kelas di semua periode dulu
+    await removeTeacherHomeroom(client, {
+      teacherId: Number(id),
+      homebaseId: req.user.homebase_id,
+    });
 
     // Delete allocations
     await client.query(`DELETE FROM at_subject WHERE teacher_id = $1`, [id]);
@@ -287,6 +273,10 @@ router.post(
       return res.status(400).json({ message: "Data tidak valid." });
     }
 
+    await ensureClassHomeroomTable();
+    // Tanpa periode aktif, kolom wali kelas di file diabaikan (guru tetap diimpor).
+    const hasActivePeriode = Boolean(await getActivePeriodeId(client, homebaseId));
+
     const syncTeacherRelations = async ({
       userId,
       rfidNo,
@@ -300,28 +290,16 @@ router.post(
         }
       }
 
-      await client.query(
-        `UPDATE a_class SET homeroom_teacher_id = NULL WHERE homeroom_teacher_id = $1`,
-        [userId],
-      );
-      await client.query(
-        `UPDATE u_teachers SET is_homeroom = false WHERE user_id = $1`,
-        [userId],
-      );
-
-      if (homeroomClassId) {
-        await client.query(
-          `UPDATE u_teachers SET is_homeroom = false WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
-          [homeroomClassId],
-        );
-        await client.query(
-          `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
-          [userId, homeroomClassId],
-        );
-        await client.query(
-          `UPDATE u_teachers SET is_homeroom = true WHERE user_id = $1`,
-          [userId],
-        );
+      try {
+        await setTeacherHomeroom(client, {
+          teacherId: userId,
+          homebaseId,
+          classId: hasActivePeriode ? homeroomClassId : null,
+        });
+      } catch (error) {
+        // Kelas di file tidak valid: guru tetap disimpan tanpa wali kelas.
+        if (!error.statusCode) throw error;
+        await setTeacherHomeroom(client, { teacherId: userId, homebaseId, classId: null });
       }
 
       await client.query(`DELETE FROM at_subject WHERE teacher_id = $1`, [userId]);
@@ -410,7 +388,7 @@ router.post(
 
           await client.query(
             `UPDATE u_teachers
-             SET nip = $1, phone = $2, email = $3, is_homeroom = false
+             SET nip = $1, phone = $2, email = $3
              WHERE user_id = $4`,
             [nip || null, phone || null, email || null, userId],
           );
@@ -454,15 +432,8 @@ router.post(
         userId = userRes.rows[0].id;
 
         await client.query(
-          `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            userId,
-            nip || null,
-            phone || null,
-            email || null,
-            Boolean(homeroomClassId),
-            homebaseId,
-          ],
+          `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id) VALUES ($1, $2, $3, $4, false, $5)`,
+          [userId, nip || null, phone || null, email || null, homebaseId],
         );
 
         await syncTeacherRelations({
