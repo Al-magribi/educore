@@ -116,7 +116,7 @@ export const downloadTeacherTemplate = ({
     ],
     ["NIP / NIY", "Opsional, tapi sebaiknya diisi agar mudah sinkronisasi"],
     ["No RFID", "Opsional, untuk sinkronisasi absensi RFID guru"],
-    ["Wali Kelas", "Isi nama kelas persis seperti referensi kelas"],
+    ["Wali Kelas", "Isi nama kelas persis seperti referensi kelas. Berlaku untuk periode aktif."],
     [
       "Alokasi Mengajar",
       "Format: KODEMAPEL:KELAS1|KELAS2; KODEMAPEL2:KELAS3",
