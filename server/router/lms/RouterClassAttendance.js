@@ -92,6 +92,15 @@ const validateStatus = (res, status) => {
   return false;
 };
 
+/** Siswa kelas = terdaftar di kelas ini pada periode aktif (bukan current_class_id). */
+const classEnrollmentSql = (studentColumn, classParam, periodeParam) => `EXISTS (
+  SELECT 1
+  FROM public.u_class_enrollments ce
+  WHERE ce.student_id = ${studentColumn}
+    AND ce.class_id = ${classParam}
+    AND ce.periode_id = ${periodeParam}
+)`;
+
 const findClassRecord = async (client, classInfo, recordId) => {
   const result = await client.query(
     `SELECT
@@ -100,13 +109,12 @@ const findClassRecord = async (client, classInfo, recordId) => {
        TO_CHAR(da.attendance_date, 'YYYY-MM-DD') AS attendance_date,
        ${GATE_LINKED_SCAN_EXISTS_SQL} AS has_machine_tap
      FROM attendance.daily_attendance da
-     JOIN public.u_students st ON st.user_id = da.user_id
      WHERE da.id = $1
        AND da.homebase_id = $2
        AND da.target_role = 'student'
-       AND st.current_class_id = $3
+       AND ${classEnrollmentSql("da.user_id", "$3", "$4")}
      LIMIT 1`,
-    [recordId, classInfo.homebase_id, classInfo.id],
+    [recordId, classInfo.homebase_id, classInfo.id, classInfo.periode_id],
   );
   return result.rows[0] || null;
 };
@@ -129,11 +137,11 @@ router.get(
        JOIN public.u_users u ON u.id = st.user_id
        LEFT JOIN attendance.class_attendance_officer o
          ON o.student_id = st.user_id
-        AND o.class_id = st.current_class_id
-       WHERE st.current_class_id = $1
+        AND o.class_id = $1
+       WHERE ${classEnrollmentSql("st.user_id", "$1", "$2")}
          AND u.is_active = true
        ORDER BY lower(u.full_name) ASC`,
-      [classInfo.id],
+      [classInfo.id, classInfo.periode_id],
     );
 
     return res.json({
@@ -194,11 +202,11 @@ router.get(
        JOIN public.u_students st ON st.user_id = da.user_id
        WHERE da.homebase_id = $1
          AND da.target_role = 'student'
-         AND st.current_class_id = $2
+         AND ${classEnrollmentSql("da.user_id", "$2", "$5")}
          AND da.attendance_date BETWEEN $3::date AND $4::date
          AND ${STUDENT_REPORT_ROW_VISIBLE_SQL}
        ORDER BY da.attendance_date DESC, lower(u.full_name) ASC`,
-      [classInfo.homebase_id, classInfo.id, startDate, endDate],
+      [classInfo.homebase_id, classInfo.id, startDate, endDate, classInfo.periode_id],
     );
 
     return res.json({
@@ -247,12 +255,13 @@ router.post(
     }
 
     const studentRes = await client.query(
-      `SELECT current_periode_id
-       FROM public.u_students
-       WHERE user_id = $1
-         AND current_class_id = $2
+      `SELECT ce.periode_id
+       FROM public.u_class_enrollments ce
+       WHERE ce.student_id = $1
+         AND ce.class_id = $2
+         AND ce.periode_id = $3
        LIMIT 1`,
-      [studentId, classInfo.id],
+      [studentId, classInfo.id, classInfo.periode_id],
     );
     if (studentRes.rowCount === 0) {
       return sendError(res, 400, "Siswa tidak terdaftar di kelas ini.");
@@ -296,7 +305,7 @@ router.post(
        RETURNING id`,
       [
         classInfo.homebase_id,
-        studentRes.rows[0].current_periode_id,
+        studentRes.rows[0].periode_id,
         studentId,
         attendanceDate,
         checkinAt ? checkinAt.toISOString() : null,
@@ -422,11 +431,12 @@ router.put(
     );
 
     const validRes = await client.query(
-      `SELECT user_id
-       FROM public.u_students
-       WHERE current_class_id = $1
-         AND user_id = ANY($2::int[])`,
-      [classInfo.id, studentIds],
+      `SELECT ce.student_id AS user_id
+       FROM public.u_class_enrollments ce
+       WHERE ce.class_id = $1
+         AND ce.periode_id = $3
+         AND ce.student_id = ANY($2::int[])`,
+      [classInfo.id, studentIds, classInfo.periode_id],
     );
     if (validRes.rowCount !== studentIds.length) {
       return sendError(res, 400, "Ada siswa yang tidak terdaftar di kelas ini.");

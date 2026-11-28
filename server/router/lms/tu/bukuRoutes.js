@@ -3,6 +3,7 @@ import { Router } from "express";
 import multer from "multer";
 import XLSX from "xlsx";
 import { withQuery, withTransaction } from "../../../utils/wrapper.js";
+import { ensureClassHomeroomTable } from "../../../utils/homeroom.js";
 import {
   CURRENT_CLASS_JOIN,
   academicStartYear,
@@ -587,6 +588,7 @@ router.post(
 );
 
 const pullScores = async (client, homebaseId, studentId) => {
+  await ensureClassHomeroomTable();
   const schemas = ["lms", "public"];
   let located = null;
   for (const schema of schemas) {
@@ -628,13 +630,26 @@ const pullScores = async (client, homebaseId, studentId) => {
           sub.name AS subject_name,
           cat.name AS category_name,
           c.name AS class_name,
-          hu.full_name AS homeroom_name
+          -- Wali kelas pada periode nilai. Periode sebelum penetapan per
+          -- periode tersedia (belum ada baris sama sekali) memakai data lama.
+          COALESCE(
+            hu.full_name,
+            CASE
+              WHEN NOT EXISTS (
+                SELECT 1 FROM a_class_homeroom chp WHERE chp.periode_id = sf.periode_id
+              ) THEN hl.full_name
+            END
+          ) AS homeroom_name
         FROM ${located.schema}.l_score_final sf
         JOIN a_periode p ON p.id = sf.periode_id
         JOIN a_subject sub ON sub.id = sf.subject_id
         LEFT JOIN a_subject_category cat ON cat.id = sub.category_id
         LEFT JOIN a_class c ON c.id = ${classExpr}
-        LEFT JOIN u_users hu ON hu.id = c.homeroom_teacher_id
+        LEFT JOIN a_class_homeroom ch
+          ON ch.class_id = c.id
+         AND ch.periode_id = sf.periode_id
+        LEFT JOIN u_users hu ON hu.id = ch.teacher_id
+        LEFT JOIN u_users hl ON hl.id = c.homeroom_teacher_id
         WHERE sf.student_id = $1
           AND p.homebase_id = $2
           AND sub.homebase_id = $2

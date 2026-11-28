@@ -2,6 +2,7 @@ import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { canManageKesiswaan } from "../../utils/staffAssignment.js";
+import { getTeacherHomeroomClass as getHomeroomClassForPeriode } from "../../utils/homeroom.js";
 
 const router = Router();
 
@@ -472,23 +473,16 @@ const getStudentPointOverview = async (
   };
 };
 
-const getTeacherHomeroomClass = async (executor, teacherId, homebaseId) => {
-  const result = await executor.query(
-    `SELECT
-       c.id,
-       c.name,
-       c.grade_id,
-       g.name AS grade_name
-     FROM public.a_class c
-     LEFT JOIN public.a_grade g
-       ON g.id = c.grade_id
-     WHERE c.homeroom_teacher_id = $1
-       AND c.homebase_id = $2
-     LIMIT 1`,
-    [teacherId, homebaseId],
-  );
-
-  return result.rows[0] || null;
+// Wali kelas mengikuti periode yang dibuka, bukan penetapan terakhir.
+const getTeacherHomeroomClass = async (executor, teacherId, homebaseId, periodeId) => {
+  const homeroomClass = await getHomeroomClassForPeriode(executor, {
+    teacherId,
+    homebaseId,
+    periodeId,
+  });
+  if (!homeroomClass) return null;
+  const { id, name, grade_id, grade_name } = homeroomClass;
+  return { id, name, grade_id, grade_name };
 };
 
 const getHomebaseClasses = async (executor, homebaseId) => {
@@ -568,12 +562,15 @@ const resolvePointWorkspace = async ({
     executor,
     teacherId,
     homebaseId,
+    periode.id,
   );
   if (!homeroomClass) {
     return {
       error: {
         status: 403,
-        message: "Akses poin hanya tersedia untuk wali kelas.",
+        message: periode.is_active
+          ? "Akses poin hanya tersedia untuk wali kelas pada periode aktif."
+          : `Anda bukan wali kelas pada periode ${periode.name}.`,
       },
     };
   }

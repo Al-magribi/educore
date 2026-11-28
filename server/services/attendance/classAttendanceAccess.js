@@ -1,4 +1,5 @@
 import pool from "../../config/connection.js";
+import { getTeacherHomeroomClass } from "../../utils/homeroom.js";
 
 let schemaPromise = null;
 
@@ -30,17 +31,25 @@ export const ensureClassAttendanceOfficerTable = () => {
   return schemaPromise;
 };
 
-/** Penugasan hanya berlaku selama siswa masih berada di kelas tersebut. */
+/**
+ * Penugasan hanya berlaku selama siswa terdaftar di kelas tersebut pada
+ * periode aktif (u_class_enrollments), bukan dari periode sebelumnya.
+ */
 const OFFICER_CLASS_SQL = `SELECT
      c.id,
      c.name,
      g.name AS grade_name,
-     c.homebase_id
+     c.homebase_id,
+     ap.id AS periode_id
    FROM attendance.class_attendance_officer o
-   JOIN public.u_students st
-     ON st.user_id = o.student_id
-    AND st.current_class_id = o.class_id
    JOIN public.a_class c ON c.id = o.class_id
+   JOIN public.a_periode ap
+     ON ap.homebase_id = c.homebase_id
+    AND ap.is_active = true
+   JOIN public.u_class_enrollments ce
+     ON ce.student_id = o.student_id
+    AND ce.class_id = o.class_id
+    AND ce.periode_id = ap.id
    LEFT JOIN public.a_grade g ON g.id = c.grade_id
    WHERE o.student_id = $1
    LIMIT 1`;
@@ -60,17 +69,13 @@ export const resolveClassAttendanceAccess = async (executor, user) => {
   await ensureClassAttendanceOfficerTable();
 
   if (user.role === "teacher") {
-    const result = await executor.query(
-      `SELECT c.id, c.name, g.name AS grade_name, c.homebase_id
-       FROM public.a_class c
-       LEFT JOIN public.a_grade g ON g.id = c.grade_id
-       WHERE c.homeroom_teacher_id = $1
-         AND c.homebase_id = $2
-       LIMIT 1`,
-      [user.id, user.homebase_id],
-    );
-    if (result.rowCount === 0) return null;
-    return { classInfo: result.rows[0], role: "homeroom" };
+    // Wali kelas di periode aktif saja (server/utils/homeroom.js).
+    const classInfo = await getTeacherHomeroomClass(executor, {
+      teacherId: user.id,
+      homebaseId: user.homebase_id,
+    });
+    if (!classInfo) return null;
+    return { classInfo, role: "homeroom" };
   }
 
   if (user.role === "student") {
