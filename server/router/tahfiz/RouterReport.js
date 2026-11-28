@@ -1,8 +1,23 @@
 import { Router } from "express";
 import { withQuery, withTransaction } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import {
+  ensureClassHomeroomTable,
+  homeroomOfPeriodeSql,
+} from "../../utils/homeroom.js";
 
 const router = Router();
+
+// Wali kelas dicocokkan per periode laporan (a_class_homeroom), bukan hanya
+// wali kelas periode aktif. Tabelnya disiapkan sekali per proses.
+router.use(async (req, res, next) => {
+  try {
+    await ensureClassHomeroomTable();
+  } catch (error) {
+    console.error("[tahfiz] gagal menyiapkan tabel wali kelas", error);
+  }
+  next();
+});
 const DAILY_ALLOWED_RECORDER_ROLES = [
   "admin_tahfiz",
   "homeroom_teacher",
@@ -184,7 +199,11 @@ const getScopedStudents = async (db, req, scope, recorderRole = null) => {
          AND ce.homebase_id = $2
          AND ($3::int IS NULL OR c.grade_id = $3)
          AND ($4::int IS NULL OR c.id = $4)
-         AND c.homeroom_teacher_id = $5
+         AND ${homeroomOfPeriodeSql({
+           classColumn: "c.id",
+           periodeColumn: "ce.periode_id",
+           teacherParam: "$5",
+         })}
        ORDER BY g.name ASC NULLS LAST, c.name ASC, u.full_name ASC`,
       params,
     );
@@ -417,7 +436,7 @@ const buildReportScope = async (db, req, filters = {}) => {
   }
 
   if (req.user.role === "teacher") {
-    params.push(req.user.id);
+    params.push(req.user.id, selectedPeriodeId);
   }
 
   const gradeResult = selectedHomebaseId
@@ -426,7 +445,15 @@ const buildReportScope = async (db, req, filters = {}) => {
          FROM a_grade g
          JOIN a_class c ON c.grade_id = g.id
          WHERE g.homebase_id = $1
-           ${req.user.role === "teacher" ? `AND c.homeroom_teacher_id = $2` : ""}
+           ${
+             req.user.role === "teacher"
+               ? `AND ${homeroomOfPeriodeSql({
+                   classColumn: "c.id",
+                   periodeColumn: "$3::int",
+                   teacherParam: "$2",
+                 })}`
+               : ""
+           }
          ORDER BY g.name ASC`,
         params,
       )
@@ -462,7 +489,15 @@ const buildReportScope = async (db, req, filters = {}) => {
 
   if (req.user.role === "teacher") {
     classParams.push(req.user.id);
-    classFilters.push(`c.homeroom_teacher_id = $${classParams.length}`);
+    classFilters.push(
+      selectedPeriodeId
+        ? homeroomOfPeriodeSql({
+            classColumn: "c.id",
+            periodeColumn: "ce.periode_id",
+            teacherParam: `$${classParams.length}`,
+          })
+        : `c.homeroom_teacher_id = $${classParams.length}`,
+    );
   }
 
   const classResult = await db.query(
@@ -523,7 +558,15 @@ const buildSummaryQuery = ({ enforceTeacherScope = false } = {}) => `
       AND ($2::int IS NULL OR ce.homebase_id = $2)
       AND ($3::int IS NULL OR c.grade_id = $3)
       AND ($4::int IS NULL OR c.id = $4)
-      ${enforceTeacherScope ? "AND c.homeroom_teacher_id = $5" : ""}
+      ${
+        enforceTeacherScope
+          ? `AND ${homeroomOfPeriodeSql({
+              classColumn: "c.id",
+              periodeColumn: "ce.periode_id",
+              teacherParam: "$5",
+            })}`
+          : ""
+      }
   ),
   selected_plans AS (
     SELECT
@@ -2005,7 +2048,11 @@ router.get(
            FROM u_class_enrollments ce_filter
            JOIN a_class c_filter ON c_filter.id = ce_filter.class_id
            WHERE ce_filter.student_id = dr.student_id
-             AND c_filter.homeroom_teacher_id = $${params.length}
+             AND ${homeroomOfPeriodeSql({
+               classColumn: "c_filter.id",
+               periodeColumn: "ce_filter.periode_id",
+               teacherParam: `$${params.length}`,
+             })}
              AND ($1::int IS NULL OR ce_filter.periode_id = $1)
              AND ($2::int IS NULL OR ce_filter.homebase_id = $2)
              AND ($3::int IS NULL OR c_filter.grade_id = $3)
