@@ -53,6 +53,8 @@ export const MAIN_OWNED_PATHS = [
   // Server inti. Middleware domain dimuat opsional dari app.js.
   "server/app.js",
   "server/utils/wrapper.js",
+  // Wali kelas per periode, dipakai semua domain.
+  "server/utils/homeroom.js",
 ];
 
 // Milik satu feature. main tidak boleh mengubahnya (sync pasti konflik), dan

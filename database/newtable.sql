@@ -204,6 +204,24 @@ CREATE TABLE u_class_enrollments (
 CREATE INDEX idx_enrollment_lookup ON u_class_enrollments(class_id, periode_id);
 CREATE INDEX idx_enrollment_history ON u_class_enrollments(student_id);
 
+-- WALI KELAS PER PERIODE
+-- Sumber kebenaran wali kelas. a_class.homeroom_teacher_id dan
+-- u_teachers.is_homeroom hanya cermin periode aktif (server/utils/homeroom.js).
+-- Database lama: database/patches/20261128_class_homeroom.sql.
+CREATE TABLE a_class_homeroom (
+    id SERIAL PRIMARY KEY,
+    homebase_id integer NOT NULL REFERENCES a_homebase(id) ON DELETE CASCADE,
+    periode_id integer NOT NULL REFERENCES a_periode(id) ON DELETE CASCADE,
+    class_id integer NOT NULL REFERENCES a_class(id) ON DELETE CASCADE,
+    teacher_id integer NOT NULL REFERENCES u_teachers(user_id) ON DELETE CASCADE,
+    assigned_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_class_homeroom_class UNIQUE (periode_id, class_id),   -- 1 wali per kelas per periode
+    CONSTRAINT uq_class_homeroom_teacher UNIQUE (periode_id, teacher_id) -- 1 kelas per guru per periode
+);
+
+CREATE INDEX idx_class_homeroom_teacher ON a_class_homeroom(teacher_id, periode_id);
+CREATE INDEX idx_class_homeroom_homebase ON a_class_homeroom(homebase_id, periode_id);
+
 
 -- ================================================================
 -- SECTION 5: LMS (LEARNING MANAGEMENT SYSTEM)
