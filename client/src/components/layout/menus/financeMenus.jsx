@@ -1,12 +1,22 @@
 import {
   BookOutlined,
+  CalculatorOutlined,
   CreditCardOutlined,
+  FileTextOutlined,
+  FundOutlined,
   MoneyCollectOutlined,
   ReadOutlined,
   SettingFilled,
   WalletOutlined,
+  WindowsOutlined,
 } from "@ant-design/icons";
-import { Landmark } from "lucide-react";
+import { HandCoins, Landmark, BanknoteArrowDown, ShieldCheck } from "lucide-react";
+
+const centerFinanceMenus = {
+  label: "Keuangan",
+  key: "/keuangan",
+  icon: <HandCoins size={14} />,
+};
 
 const buildFinanceMenus = (user = {}) => {
   const financeMenus = [
@@ -21,6 +31,11 @@ const buildFinanceMenus = (user = {}) => {
       icon: <MoneyCollectOutlined />,
     },
     {
+      label: "Beasiswa",
+      key: "/finance/beasiswa",
+      icon: <FundOutlined />,
+    },
+    {
       label: "Transaksi Keuangan",
       key: "/finance/transaksi",
       icon: <WalletOutlined />,
@@ -31,11 +46,42 @@ const buildFinanceMenus = (user = {}) => {
       icon: <BookOutlined />,
     },
     {
+      label: "Pengeluaran",
+      key: "/finance/pengeluaran",
+      icon: <BanknoteArrowDown size={18} />,
+    },
+    {
+      label: "RAPBS",
+      key: "/finance/rapbs",
+      icon: <CalculatorOutlined />,
+    },
+    {
+      label: "Laporan",
+      key: "/finance/laporan",
+      icon: <FileTextOutlined />,
+    },
+    {
       label: "Pengaturan",
       key: "/finance/pengaturan",
       icon: <SettingFilled />,
     },
   ];
+
+  const financeDeskMenus = [
+    {
+      label: "Dashboard Keuangan",
+      key: "/finance-dashboard",
+      icon: <WindowsOutlined />,
+    },
+    ...financeMenus,
+  ];
+
+  const teacherFinanceDeskNode = {
+    label: "Keuangan Satuan",
+    key: "/keuangan-satuan",
+    icon: <HandCoins size={14} />,
+    children: financeDeskMenus,
+  };
 
   const teacherFinanceNode = {
     label: "Keuangan Kelas",
@@ -48,6 +94,7 @@ const buildFinanceMenus = (user = {}) => {
         key: "/guru/keuangan-kelas",
         icon: <WalletOutlined />,
       },
+
       {
         label: "Tabungan",
         key: "/guru/tabungan",
@@ -93,12 +140,22 @@ const buildFinanceMenus = (user = {}) => {
   };
 
   return {
-    center: [],
-    admin: [],
+    center: [centerFinanceMenus],
+    admin: [
+      {
+        label: "Penugasan Keuangan",
+        key: "/manajemen-penugasan",
+        icon: <ShieldCheck size={14} />,
+      },
+    ],
     finance: financeMenus,
-    teacher: [],
-    student: [],
-    parent: [],
+    teacher: [
+      ...(user?.is_homeroom ? [teacherFinanceNode] : []),
+      ...(user?.can_manage_finance ? [teacherFinanceDeskNode] : []),
+    ],
+    staff: user?.can_manage_finance ? financeDeskMenus : [],
+    student: [studentFinanceNode],
+    parent: [parentFinanceNode],
     tahfiz: [],
   };
 };
