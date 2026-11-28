@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
+import {
+  ensureClassHomeroomTable,
+  syncHomeroomMirror,
+} from "../../utils/homeroom.js";
 
 const router = Router();
 
@@ -118,6 +122,7 @@ router.put(
   authorize("satuan"),
   withTransaction(async (req, res, client) => {
     const { id } = req.params;
+    await ensureClassHomeroomTable();
 
     // 1. Ambil homebase_id dari periode yang akan diaktifkan
     const checkPeriode = await client.query(
@@ -143,9 +148,22 @@ router.put(
       id,
     ]);
 
+    // 4. Wali kelas mengikuti periode: a_class.homeroom_teacher_id dan
+    //    u_teachers.is_homeroom diisi ulang dari penetapan periode ini.
+    await syncHomeroomMirror(client, homebaseId);
+
+    const homeroomCount = await client.query(
+      `SELECT COUNT(*)::int AS total FROM a_class_homeroom WHERE periode_id = $1`,
+      [id],
+    );
+    const hasHomeroom = homeroomCount.rows[0].total > 0;
+
     res.status(200).json({
       success: true,
-      message: "Periode berhasil diaktifkan",
+      message: hasHomeroom
+        ? "Periode berhasil diaktifkan"
+        : "Periode berhasil diaktifkan. Wali kelas untuk periode ini belum ditetapkan, atur lewat data guru.",
+      homeroom_count: homeroomCount.rows[0].total,
     });
   }),
 );
