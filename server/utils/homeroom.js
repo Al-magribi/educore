@@ -32,7 +32,7 @@ const CREATE_TABLE_SQL = `
 `;
 
 // Data lama: wali kelas di a_class dianggap milik periode aktif homebase-nya.
-// Sama dengan database/patches/20261128_class_homeroom.sql.
+// Versi lengkap (bisa dijalankan ulang): database/patches/20261128_class_homeroom.sql.
 const BACKFILL_SQL = `
   INSERT INTO public.a_class_homeroom (homebase_id, periode_id, class_id, teacher_id)
   SELECT DISTINCT ON (p.id, c.homeroom_teacher_id)
@@ -48,6 +48,7 @@ const BACKFILL_SQL = `
 `;
 
 // Flag is_homeroom lama bisa tertinggal true tanpa kelas; samakan sekali.
+// Satuan tanpa periode aktif dibiarkan.
 const BACKFILL_FLAG_SQL = `
   UPDATE public.u_teachers t
   SET is_homeroom = h.is_homeroom
@@ -56,10 +57,13 @@ const BACKFILL_FLAG_SQL = `
            EXISTS (
              SELECT 1
              FROM public.a_class_homeroom ch
-             JOIN public.a_periode p ON p.id = ch.periode_id AND p.is_active = true
              WHERE ch.teacher_id = t2.user_id
+               AND ch.periode_id = p.id
            ) AS is_homeroom
     FROM public.u_teachers t2
+    JOIN public.a_periode p
+      ON p.homebase_id = t2.homebase_id
+     AND p.is_active = true
   ) h
   WHERE t.user_id = h.user_id
     AND t.is_homeroom IS DISTINCT FROM h.is_homeroom
