@@ -3,6 +3,8 @@
  * Belum menyimpan payroll; hanya menghitung dari assignment + LMS + attendance.
  */
 
+import { ensureClassHomeroomTable } from "../../utils/homeroom.js";
+
 const RATE_CODES = {
   TEACHING: "TEACHING_RATE",
   TRANSPORT: "TRANSPORT_DAILY",
@@ -412,21 +414,34 @@ const loadAttendanceDays = async ({
   return { map, warnings };
 };
 
-const loadHomeroomTeacherIds = async (db, homebaseId, teacherIds) => {
+// Wali kelas pada periode honor (a_class_homeroom). Periode tanpa penetapan
+// sama sekali (sebelum wali kelas disimpan per periode) memakai a_class.
+const loadHomeroomTeacherIds = async (db, homebaseId, teacherIds, periodeId) => {
   const set = new Set();
   if (!teacherIds.length) {
     return set;
   }
 
   try {
+    await ensureClassHomeroomTable();
     const result = await db.query(
       `
-        SELECT DISTINCT homeroom_teacher_id
-        FROM a_class
-        WHERE homebase_id = $1
-          AND homeroom_teacher_id = ANY($2::int[])
+        SELECT DISTINCT ch.teacher_id AS homeroom_teacher_id
+        FROM a_class_homeroom ch
+        WHERE ch.homebase_id = $1
+          AND ch.periode_id = $3
+          AND ch.teacher_id = ANY($2::int[])
+        UNION
+        SELECT DISTINCT c.homeroom_teacher_id
+        FROM a_class c
+        WHERE c.homebase_id = $1
+          AND c.homeroom_teacher_id = ANY($2::int[])
+          AND NOT EXISTS (
+            SELECT 1 FROM a_class_homeroom chp
+            WHERE chp.periode_id = $3
+          )
       `,
-      [homebaseId, teacherIds],
+      [homebaseId, teacherIds, periodeId || null],
     );
 
     for (const row of result.rows) {
@@ -696,7 +711,7 @@ export const buildHonorariumPreview = async ({
         startDate: range.startDate,
         endDate: range.endDate,
       }),
-      loadHomeroomTeacherIds(db, homebaseId, teacherIds),
+      loadHomeroomTeacherIds(db, homebaseId, teacherIds, periodeId),
     ]);
 
   const teachingRate = toNumber(byCode[RATE_CODES.TEACHING]?.amount);
