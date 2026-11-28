@@ -243,8 +243,8 @@ const TeacherForm = ({
         {sectionTitle(<Briefcase size={16} />, "Tugas Tambahan")}
         <Form.Item
           name="homeroom_class_id"
-          label="Wali Kelas (opsional)"
-          extra="Pilih kelas jika guru ini adalah wali kelas"
+          label="Wali Kelas Periode Aktif (opsional)"
+          extra="Berlaku untuk periode aktif saja. Periode lain tidak berubah, dan wali kelas diatur ulang setiap periode."
         >
           <Select
             allowClear

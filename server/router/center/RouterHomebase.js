@@ -3,6 +3,11 @@ import bcrypt from "bcrypt";
 import { withTransaction, withQuery } from "../../utils/wrapper.js";
 import { authorize } from "../../middleware/authorize.js";
 import { syncUserRfid } from "../../utils/helper.js";
+import {
+  ensureClassHomeroomTable,
+  removeTeacherHomeroom,
+  setTeacherHomeroom,
+} from "../../utils/homeroom.js";
 
 const router = Router();
 const SALT_ROUNDS = 10;
@@ -517,6 +522,7 @@ router.post(
     if (!username || !full_name) {
       return res.status(400).json({ message: "Username dan nama lengkap wajib diisi" });
     }
+    await ensureClassHomeroomTable();
 
     const homebaseCheck = await client.query(
       `SELECT id FROM a_homebase WHERE id = $1`,
@@ -542,12 +548,12 @@ router.post(
       [username, hashPassword, full_name],
     );
     const userId = userRes.rows[0].id;
-    const isHomeroom = Boolean(homeroom_class_id);
 
+    // is_homeroom diisi oleh setTeacherHomeroom (cermin periode aktif)
     await client.query(
       `INSERT INTO u_teachers (user_id, nip, phone, email, is_homeroom, homebase_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, nip || null, phone || null, email || null, isHomeroom, homebaseId],
+       VALUES ($1, $2, $3, $4, false, $5)`,
+      [userId, nip || null, phone || null, email || null, homebaseId],
     );
 
     if (rfid_no && `${rfid_no}`.trim() !== "") {
@@ -558,23 +564,11 @@ router.post(
     }
 
     if (homeroom_class_id) {
-      const classCheck = await client.query(
-        `SELECT id FROM a_class WHERE id = $1 AND homebase_id = $2`,
-        [homeroom_class_id, homebaseId],
-      );
-      if (classCheck.rowCount === 0) {
-        return res.status(400).json({ message: "Kelas wali tidak valid untuk homebase ini" });
-      }
-
-      await client.query(
-        `UPDATE u_teachers SET is_homeroom = false
-         WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
-        [homeroom_class_id],
-      );
-      await client.query(
-        `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
-        [userId, homeroom_class_id],
-      );
+      await setTeacherHomeroom(client, {
+        teacherId: userId,
+        homebaseId,
+        classId: homeroom_class_id,
+      });
     }
 
     if (allocations && Array.isArray(allocations) && allocations.length > 0) {
@@ -612,6 +606,7 @@ router.put(
       homeroom_class_id,
       allocations,
     } = req.body;
+    await ensureClassHomeroomTable();
 
     const teacherCheck = await client.query(
       `SELECT t.user_id
@@ -663,7 +658,7 @@ router.put(
 
     await client.query(
       `UPDATE u_teachers
-       SET nip = $1, phone = $2, email = $3, is_homeroom = false
+       SET nip = $1, phone = $2, email = $3
        WHERE user_id = $4`,
       [nip || null, phone || null, email || null, teacherId],
     );
@@ -675,34 +670,12 @@ router.put(
       }
     }
 
-    await client.query(
-      `UPDATE a_class SET homeroom_teacher_id = NULL WHERE homeroom_teacher_id = $1`,
-      [teacherId],
-    );
-
-    if (homeroom_class_id) {
-      const classCheck = await client.query(
-        `SELECT id FROM a_class WHERE id = $1 AND homebase_id = $2`,
-        [homeroom_class_id, homebaseId],
-      );
-      if (classCheck.rowCount === 0) {
-        return res.status(400).json({ message: "Kelas wali tidak valid untuk homebase ini" });
-      }
-
-      await client.query(
-        `UPDATE u_teachers SET is_homeroom = false
-         WHERE user_id = (SELECT homeroom_teacher_id FROM a_class WHERE id = $1)`,
-        [homeroom_class_id],
-      );
-      await client.query(
-        `UPDATE a_class SET homeroom_teacher_id = $1 WHERE id = $2`,
-        [teacherId, homeroom_class_id],
-      );
-      await client.query(
-        `UPDATE u_teachers SET is_homeroom = true WHERE user_id = $1`,
-        [teacherId],
-      );
-    }
+    // Wali kelas di periode aktif. Periode lain tidak diubah.
+    await setTeacherHomeroom(client, {
+      teacherId,
+      homebaseId,
+      classId: homeroom_class_id || null,
+    });
 
     await client.query(`DELETE FROM at_subject WHERE teacher_id = $1`, [teacherId]);
 
@@ -741,10 +714,7 @@ router.delete(
       return res.status(404).json({ message: "Guru tidak ditemukan pada homebase ini" });
     }
 
-    await client.query(
-      `UPDATE a_class SET homeroom_teacher_id = NULL WHERE homeroom_teacher_id = $1`,
-      [teacherId],
-    );
+    await removeTeacherHomeroom(client, { teacherId, homebaseId });
     await client.query(`DELETE FROM at_subject WHERE teacher_id = $1`, [teacherId]);
     await client.query(`DELETE FROM u_users WHERE id = $1`, [teacherId]);
     await client.query(`DELETE FROM u_teachers WHERE user_id = $1`, [teacherId]);
@@ -800,6 +770,7 @@ router.get(
     const search = req.query.search || "";
     const offset = (page - 1) * limit;
     let { periode_id } = req.query;
+    await ensureClassHomeroomTable();
 
     const periodsResult = await db.query(
       `
@@ -837,7 +808,10 @@ router.get(
         FROM a_class c
         LEFT JOIN a_grade g ON c.grade_id = g.id
         LEFT JOIN a_major m ON c.major_id = m.id
-        LEFT JOIN u_users u ON c.homeroom_teacher_id = u.id
+        LEFT JOIN a_class_homeroom ch
+          ON ch.class_id = c.id
+         AND ch.periode_id = $4
+        LEFT JOIN u_users u ON ch.teacher_id = u.id
         WHERE c.homebase_id = $1
           AND c.name ILIKE $2
         ORDER BY
