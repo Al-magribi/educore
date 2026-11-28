@@ -269,6 +269,37 @@ export const getTeacherHomeroomClass = async (
   return result.rows[0] || null;
 };
 
+/**
+ * Potongan SQL: guru `teacherParam` adalah wali kelas `classColumn` pada
+ * periode `periodeColumn`. Untuk query yang sudah punya kolom kelas dan
+ * periode (mis. u_class_enrollments), pengganti `c.homeroom_teacher_id = $n`.
+ *
+ * Periode yang belum punya penetapan sama sekali (periode lama sebelum tabel
+ * ini ada) memakai a_class.homeroom_teacher_id seperti sebelumnya.
+ * Panggil ensureClassHomeroomTable() sebelum menjalankan query-nya.
+ *
+ *   homeroomOfPeriodeSql({ classColumn: "c.id", periodeColumn: "ce.periode_id", teacherParam: "$5" })
+ */
+export const homeroomOfPeriodeSql = ({ classColumn, periodeColumn, teacherParam }) => `(
+  EXISTS (
+    SELECT 1 FROM public.a_class_homeroom ch_hr
+    WHERE ch_hr.class_id = ${classColumn}
+      AND ch_hr.periode_id = ${periodeColumn}
+      AND ch_hr.teacher_id = ${teacherParam}
+  )
+  OR (
+    NOT EXISTS (
+      SELECT 1 FROM public.a_class_homeroom ch_any
+      WHERE ch_any.periode_id = ${periodeColumn}
+    )
+    AND EXISTS (
+      SELECT 1 FROM public.a_class c_hr
+      WHERE c_hr.id = ${classColumn}
+        AND c_hr.homeroom_teacher_id = ${teacherParam}
+    )
+  )
+)`;
+
 /** Wali kelas sebuah kelas pada periode tertentu (default: periode aktif). */
 export const getClassHomeroomTeacher = async (
   executor,
